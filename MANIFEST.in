@@ -1,0 +1,13 @@
+include karapace/*.py
+include karapace.json
+include karapace.unit
+include tests/*.py
+include scripts/*
+include README.rst
+include version.py
+include setup.py
+include setup.cfg
+include LICENSE
+include MANIFEST.in
+
+recursive-exclude examples *~ *.pyc \.*

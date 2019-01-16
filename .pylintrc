@@ -1,0 +1,27 @@
+[MASTER]
+jobs=4
+
+[MESSAGES CONTROL]
+disable=
+  bad-continuation,
+  fixme,
+  invalid-name,
+  missing-docstring,
+  too-few-public-methods,
+  too-many-arguments,
+  too-many-branches,
+  too-many-instance-attributes,
+  too-many-locals,
+  too-many-nested-blocks,
+  too-many-public-methods,
+  too-many-statements,
+  too-public-methods,
+  wrong-import-order,
+
+[FORMAT]
+max-line-length=125
+
+[REPORTS]
+output-format=text
+reports=no
+score=no

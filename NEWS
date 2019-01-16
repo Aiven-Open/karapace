@@ -1,0 +1,6 @@
+Karapace 0.1.0 (2019-01-16)
+===========================
+
+* Initial release with schema storing, retrieving and compatibility testing functionality
+* Unittests for the functionality
+* aiohttp based architecture

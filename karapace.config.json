@@ -1,0 +1,17 @@
+{
+    "advertised_hostname": "localhost",
+    "bootstrap_uri": "127.0.0.1:9092",
+    "client_id": "sr-1",
+    "compatibility": "FULL",
+    "group_id": "schema-registry",
+    "host": "127.0.0.1",
+    "log_level": "DEBUG",
+    "port": 8081,
+    "master_eligibility": true,
+    "replication_factor": 1,
+    "security_protocol": "PLAINTEXT",
+    "ssl_cafile": null,
+    "ssl_certfile": null,
+    "ssl_keyfile": null,
+    "topic_name": "_schemas"
+}

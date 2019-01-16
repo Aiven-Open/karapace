@@ -1,0 +1,14 @@
+[Unit]
+Description=Your Kafka essentials in one tool
+
+[Service]
+User=karapace
+Group=karapace
+Type=notify
+Restart=always
+ExecStart=/usr/bin/karapace /etc/karapace/karapace.config.json
+ExecReload=/bin/kill -HUP $MAINPID
+WorkingDirectory=/var/lib
+
+[Install]
+WantedBy=multi-user.target

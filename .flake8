@@ -1,0 +1,8 @@
+[flake8]
+max-line-length = 125
+
+# Style issues are handled by yapf formatting
+ignore =
+  E126,  # continuation line over-indented for hanging indent
+  W503,  # line break before binary operator
+  E251,  # unexpected spaces around keyword / parameter equals

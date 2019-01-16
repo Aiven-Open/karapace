@@ -1,0 +1,16 @@
+*.pyc
+*.pyo
+*~
+/.cache
+/.coverage
+/.project
+/.pydevproject
+/.pytest_cache/
+__pycache__/
+/build/
+/dist/
+/karapace.egg-info/
+/karapace-rpm-src.tar
+/rpm/
+/kafka_*.tgz
+/kafka_*/
