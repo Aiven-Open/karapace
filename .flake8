@@ -6,3 +6,4 @@ ignore =
   E126,  # continuation line over-indented for hanging indent
   W503,  # line break before binary operator
   E251,  # unexpected spaces around keyword / parameter equals
+  E722,  # do not use bare 'except' (pylint handles this)
