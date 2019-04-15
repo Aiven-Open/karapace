@@ -15,7 +15,7 @@ import time
 import pytest
 
 KAFKA_CURRENT_VERSION = "2.1"
-BASEDIR = "kafka_2.12-2.1.0"
+BASEDIR = "kafka_2.12-2.1.1"
 
 
 class Timeout(Exception):
