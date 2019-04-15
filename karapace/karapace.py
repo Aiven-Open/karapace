@@ -148,7 +148,7 @@ class Karapace(RestApp):
         return future
 
     def send_schema_message(self, subject, parsed_schema_json, schema_id, version, deleted):
-        key = f'{{"subject":"{subject}","version":{version},"magic":1,"keytype":"SCHEMA"}}'
+        key = '{{"subject":"{}","version":{},"magic":1,"keytype":"SCHEMA"}}'.format(subject, version)
         value = {
             "subject": subject,
             "version": version,
@@ -163,12 +163,12 @@ class Karapace(RestApp):
             key = '{{"subject":"{}","magic":0,"keytype":"CONFIG"}}'.format(subject)
         else:
             key = '{"subject":null,"magic":0,"keytype":"CONFIG"}'
-        value = f'{{"compatibilityLevel":"{compatibility_level}"}}'
+        value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level)
         return self.send_kafka_message(key, value)
 
     def send_delete_subject_message(self, subject):
-        key = f'{{"subject":"{subject}","magic":0,"keytype":"DELETE_SUBJECT"}}'
-        value = f'{{"subject":"{subject}","version":2}}'
+        key = '{{"subject":"{}","magic":0,"keytype":"DELETE_SUBJECT"}}'.format(subject)
+        value = '{{"subject":"{}","version":2}}'.format(subject)
         return self.send_kafka_message(key, value)
 
     async def compatibility_check(self, *, subject, version, request):

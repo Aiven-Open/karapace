@@ -20,7 +20,7 @@ DUPLICATE_URLS = 1
 
 
 def get_identity_url(scheme, host, port):
-    return f"{scheme}://{host}:{port}"
+    return "{}://{}:{}".format(scheme, host, port)
 
 
 class SchemaCoordinator(BaseCoordinator):

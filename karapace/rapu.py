@@ -24,7 +24,7 @@ from karapace.utils import json_encode
 from karapace.version import __version__
 
 
-SERVER_NAME = f"Karapace/{__version__}"
+SERVER_NAME = "Karapace/{}".format(__version__)
 
 
 class HTTPRequest:
@@ -244,7 +244,7 @@ class RestApp:
         json=None,
         timeout=10.0,
         verify=True,
-        proxy=None,
+        proxy=None
     ):
         close_session = False
         proxy_auth = None
