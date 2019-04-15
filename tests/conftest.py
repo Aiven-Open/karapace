@@ -140,10 +140,10 @@ def kafka_server_base(session_tmpdir, zk):
 
     os.makedirs(config["datadir"])
     advertised_listeners = ",".join([
-        f"PLAINTEXT://127.0.0.1:{plaintext_port}",
+        "PLAINTEXT://127.0.0.1:{}".format(plaintext_port),
     ])
     listeners = ",".join([
-        f"PLAINTEXT://:{plaintext_port}",
+        "PLAINTEXT://:{}".format(plaintext_port),
     ])
 
     kafka_config = {
@@ -182,7 +182,7 @@ def kafka_server_base(session_tmpdir, zk):
     kafka_config_path = os.path.join(kafka_config_path, "server.properties")
     with open(kafka_config_path, "w") as fp:
         for key, value in kafka_config.items():
-            fp.write(f"{key}={value}\n")
+            fp.write("{}={}\n".format(key, value))
 
     log4j_properties_path = os.path.join(BASEDIR, "config/log4j.properties")
 

@@ -17,7 +17,7 @@ baseurl = "http://localhost:8081"
 
 
 def create_service(datadir, kafka_server):
-    config_path = os.path.join(datadir, "karapace_config.json")
+    config_path = os.path.join(str(datadir), "karapace_config.json")
     with open(config_path, "w") as fp:
         karapace_config = {"log_level": "INFO", "bootstrap_uri": "127.0.0.1:{}".format(kafka_server["kafka_port"])}
         fp.write(jsonlib.dumps(karapace_config))
