@@ -12,9 +12,10 @@ matrix:
       sudo: true
 
 install:
-  - "pip install astroid==2.0.0 flake8 pylint pytest isort yapf requests kafka-python aiohttp avro-python3 aiosocksy"
+  - "pip3 install astroid==2.0.0 flake8 pylint pytest isort yapf requests kafka-python aiohttp avro-python3 aiosocksy"
 
 script:
+  - "make kafka"
   - "make pylint"
   - "make flake8"
   - "make unittest"
