@@ -1,6 +1,6 @@
 SHORT_VER = 0.1.0
 LONG_VER = $(shell git describe --long 2>/dev/null || echo $(SHORT_VER)-0-unknown-g`git describe --always`)
-KAFKA_PATH = kafka_2.12-2.1.0
+KAFKA_PATH = kafka_2.12-2.1.1
 KAFKA_TAR = $(KAFKA_PATH).tgz
 PYTHON_SOURCE_DIRS = karapace/
 PYTHON_TEST_DIRS = tests/
@@ -21,15 +21,15 @@ karapace/version.py: version.py
 	$(PYTHON) $^ $@
 
 $(KAFKA_TAR):
-	wget "http://www.nic.funet.fi/pub/mirrors/apache.org/kafka/2.1.0/$(KAFKA_PATH).tgz"
+	wget "http://www.nic.funet.fi/pub/mirrors/apache.org/kafka/2.1.1/$(KAFKA_PATH).tgz"
 
 $(KAFKA_PATH): $(KAFKA_TAR)
-	gtar zxf "$(KAFKA_TAR)"
+	tar zxf "$(KAFKA_TAR)"
 
 .PHONY: kafka
 kafka: $(KAFKA_PATH)
-	"$(KAFKA_PATH)/bin/zookeeper-server-start.sh" "$(KAFKA_PATH)/config/zookeeper.properties" &
-	"$(KAFKA_PATH)/bin/kafka-server-start.sh" "$(KAFKA_PATH)/config/server.properties" &
+	$(KAFKA_PATH)/bin/zookeeper-server-start.sh $(KAFKA_PATH)/config/zookeeper.properties &
+	$(KAFKA_PATH)/bin/kafka-server-start.sh $(KAFKA_PATH)/config/server.properties &
 
 .PHONY: pylint
 pylint:
