@@ -14,3 +14,4 @@ __pycache__/
 /rpm/
 /kafka_*.tgz
 /kafka_*/
+/karapace/version.py
