@@ -7,6 +7,7 @@ PYTHON_TEST_DIRS = tests/
 ALL_PYTHON_DIRS = $(PYTHON_SOURCE_DIRS) $(PYTHON_TEST_DIRS)
 GENERATED = karapace/version.py
 PYTHON = python3
+DNF_INSTALL = sudo dnf install -y
 
 default: $(GENERATED)
 
@@ -14,9 +15,9 @@ clean:
 	rm -rf rpm/
 
 .PHONY: build-dep-fedora
-build-dep-fedora:
-	sudo dnf install -y 'dnf-command(builddep)'
-	sudo dnf builddep -y karapace.spec
+build-dep-fedora: /usr/bin/rpmbuild
+	$(MAKE) -C dependencies install
+	sudo dnf -y builddep karapace.spec
 
 karapace/version.py: version.py
 	$(PYTHON) $^ $@
@@ -62,8 +63,11 @@ yapf:
 .PHONY: reformat
 reformat: isort yapf
 
+/usr/lib/rpm/check-buildroot /usr/bin/rpmbuild:
+	$(DNF_INSTALL) rpm-build
+
 .PHONY: rpm
-rpm: $(GENERATED)
+rpm: $(GENERATED) /usr/bin/rpmbuild /usr/lib/rpm/check-buildroot
 	git archive --output=karapace-rpm-src.tar --prefix=karapace/ HEAD
 	# add generated files to the tar, they're not in git repository
 	tar -r -f karapace-rpm-src.tar --transform=s,karapace/,karapace/karapace/, $(GENERATED)

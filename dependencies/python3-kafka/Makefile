@@ -1,0 +1,29 @@
+FEDORA = $(shell source /etc/os-release && echo $$VERSION_ID)
+PROJ = kafka-python
+PYNAME = kafka
+GITHUB_ACCOUNT = aiven
+COMMIT = 1.4.6-18-g7e56c8f48b075cb344f23ea23073cb3c0256a077
+SHORT_COMMIT = $(shell echo $(COMMIT) | cut -b 1-20)
+VERSION = $(shell echo $(SHORT_COMMIT) | cut -d- -f1)
+RELEASE = $(shell echo $(SHORT_COMMIT) | cut -d- -f2-).1.karapace.fc$(FEDORA)
+
+all: rpm
+
+build-dep:
+
+clean:
+	$(RM) -r rpm/ "$(PROJ)"/
+
+$(PROJ):
+	git clone "git@github.com:$(GITHUB_ACCOUNT)/$(PROJ).git"
+
+rpm: $(PROJ)
+	$(RM) -r "$@" "$(PROJ)/dist"
+	(cd "$(PROJ)" && git fetch && git checkout -f "$(COMMIT)")
+	sed -e "s/name=.$(PROJ)./name='python3-$(PYNAME)'/" \
+	    -e "s/version=.*/version='$(VERSION)',/" \
+	    -i "$(PROJ)/setup.py"
+	(cd "$(PROJ)" && python3 setup.py bdist_rpm --release "$(RELEASE)")
+	mkdir "$@"/
+	cp -a "$(PROJ)/dist"/*.rpm rpm/
+	find rpm/ -type f
