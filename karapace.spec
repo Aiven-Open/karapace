@@ -5,6 +5,7 @@ Url:            http://github.com/aiven/karapace
 Summary:        Your Kafka essentials in one tool
 License:        AGPL 3
 Source0:        karapace-rpm-src.tar
+BuildArch:      noarch
 BuildRequires:  python3-aiohttp
 BuildRequires:  python3-aiosocksy
 BuildRequires:  python3-avro
