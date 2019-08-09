@@ -32,11 +32,11 @@ kafka: $(KAFKA_PATH)
 	$(KAFKA_PATH)/bin/kafka-server-start.sh $(KAFKA_PATH)/config/server.properties &
 
 .PHONY: pylint
-pylint:
+pylint: $(GENERATED)
 	python3 -m pylint --rcfile .pylintrc $(ALL_PYTHON_DIRS)
 
 .PHONY: flake8
-flake8:
+flake8: $(GENERATED)
 	python3 -m flake8 --config .flake8 $(ALL_PYTHON_DIRS)
 
 .PHONY: copyright
@@ -44,7 +44,7 @@ copyright:
 	grep -EL "Copyright \(c\) 20.* Aiven" $(shell git ls-files "*.py" | grep -v __init__.py)
 
 .PHONY: unittest
-unittest:
+unittest: $(GENERATED)
 	python3 -m pytest -s -vvv tests/
 
 .PHONY: test
