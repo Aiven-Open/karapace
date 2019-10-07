@@ -115,6 +115,12 @@ class Karapace(RestApp):
             api_version=(1, 0, 0),
         )
 
+    def _subject_get(self, subject):
+        subject_data = self.ksr.subjects.get(subject)
+        if not subject_data or not subject_data["schemas"]:
+            self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
+        return subject_data
+
     @staticmethod
     def r(body, status=200):
         raise HTTPResponse(
@@ -228,9 +234,7 @@ class Karapace(RestApp):
         self.r({"compatibility": self.ksr.config["compatibility"]})
 
     async def config_subject_get(self, *, subject):
-        subject_data = self.ksr.subjects.get(subject)
-        if not subject_data:
-            self.r({"error_code": 40401, "message": "no subject"}, status=404)
+        subject_data = self._subject_get(subject)
 
         if "compatibility" in subject_data:
             self.r({"compatibilityLevel": subject_data["compatibility"]})
@@ -238,9 +242,7 @@ class Karapace(RestApp):
         self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
 
     async def config_subject_set(self, *, request, subject):
-        subject_data = self.ksr.subjects.get(subject)
-        if not subject_data:
-            self.r({"error_code": 40401, "message": "no subject"}, status=404)
+        self._subject_get(subject)
 
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
             self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
@@ -250,12 +252,11 @@ class Karapace(RestApp):
         self.r({"compatibility": request.json["compatibility"]})
 
     async def subjects_list(self):
-        self.r(list(self.ksr.subjects.keys()))
+        subjects_list = [key for key, val in self.ksr.subjects.items() if val["schemas"]]
+        self.r(subjects_list)
 
     async def subject_delete(self, *, subject):
-        subject_data = self.ksr.subjects.get(subject, {})
-        if not subject_data:
-            self.r({"error_code": 40401, "message": "subject does not exist"}, status=404)
+        subject_data = self._subject_get(subject)
 
         self.send_delete_subject_message(subject)
         self.r(list(subject_data["schemas"]), status=200)
@@ -269,9 +270,7 @@ class Karapace(RestApp):
             },
                    status=422)
 
-        subject_data = self.ksr.subjects.get(subject)
-        if not subject_data:
-            self.r({"error_code": 40401, "message": "no subject"}, status=404)
+        subject_data = self._subject_get(subject)
 
         max_version = max(subject_data["schemas"])
         if version == "latest":
@@ -299,9 +298,7 @@ class Karapace(RestApp):
 
     async def subject_version_delete(self, *, subject, version):
         version = int(version)
-        subject_data = self.ksr.subjects.get(subject)
-        if not subject_data:
-            self.r({"error_code": 40401, "message": "subject not found"}, status=404)
+        subject_data = self._subject_get(subject)
 
         schema = subject_data["schemas"].get(version, None)
         if not schema:
@@ -311,10 +308,7 @@ class Karapace(RestApp):
         self.r(str(version), status=200)
 
     async def subject_versions_list(self, *, subject):
-        subject_data = self.ksr.subjects.get(subject)
-        if not subject_data:
-            self.r({"error_code": 40401, "message": "subject not found"}, status=404)
-
+        subject_data = self._subject_get(subject)
         self.r(list(subject_data["schemas"]), status=200)
 
     async def get_master(self):
@@ -349,7 +343,7 @@ class Karapace(RestApp):
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
 
-        if subject not in self.ksr.subjects:
+        if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
             schema_id = self.ksr.get_new_schema_id()
             version = 1
             self.log.info(
