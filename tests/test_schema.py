@@ -409,6 +409,38 @@ async def schema_checks(c):
     assert res.status_code == 200
     assert subject not in res.json()
 
+    # After deleting the last version of a subject, it shouldn't be in the list
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    res = await c.get("subjects")
+    assert subject in res.json()
+    res = await c.get("subjects/{}/versions".format(subject))
+    subject_version = res.json()[0]  # TODO Explicitly check out the version number to be correct
+    res = await c.delete("subjects/{}/versions/{}".format(subject, subject_version))
+    assert res.status_code == 200
+    res = await c.get("subjects")
+    assert subject not in res.json()
+
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
+    res = await c.get("subjects/{}/versions/latest".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
+
+    # Creating a new schema works after deleting the only available version
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    # TODO Explicitly check out the version number to be correct
+
 
 async def config_checks(c):
     # Tests /config endpoint
