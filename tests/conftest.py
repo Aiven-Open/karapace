@@ -6,13 +6,12 @@ See LICENSE for details
 """
 import contextlib
 import os
+import pytest
 import random
 import signal
 import socket
 import subprocess
 import time
-
-import pytest
 
 KAFKA_CURRENT_VERSION = "2.1"
 BASEDIR = "kafka_2.12-2.1.1"

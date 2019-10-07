@@ -4,15 +4,15 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import json
-import logging
-import time
+from kafka import KafkaConsumer
+from kafka.admin import KafkaAdminClient, NewTopic
+from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from queue import Queue
 from threading import Thread
 
-from kafka import KafkaConsumer
-from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import (NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError)
+import json
+import logging
+import time
 
 
 class KafkaSchemaReader(Thread):

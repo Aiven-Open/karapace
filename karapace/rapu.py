@@ -6,6 +6,15 @@ client components for use in Aiven's REST applications.
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.statsd import statsd_client
+from karapace.utils import json_encode
+from karapace.version import __version__
+
+import aiohttp
+import aiohttp.web
+import aiosocksy
+import aiosocksy.connector
+import async_timeout
 import asyncio
 import hashlib
 import json as jsonlib
@@ -13,16 +22,6 @@ import logging
 import re
 import ssl
 import time
-
-import aiohttp
-import aiohttp.web
-import aiosocksy
-import aiosocksy.connector
-import async_timeout
-from karapace.statsd import statsd_client
-from karapace.utils import json_encode
-from karapace.version import __version__
-
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 
@@ -236,16 +235,7 @@ class RestApp:
             if "Added route will never be executed, method OPTIONS is already registered" not in str(ex):
                 raise
 
-    async def http_request(
-        self,
-        url,
-        *,
-        method="GET",
-        json=None,
-        timeout=10.0,
-        verify=True,
-        proxy=None
-    ):
+    async def http_request(self, url, *, method="GET", json=None, timeout=10.0, verify=True, proxy=None):
         close_session = False
         proxy_auth = None
         proxy_url = None

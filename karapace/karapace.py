@@ -4,14 +4,6 @@ karapace - main
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import asyncio
-import avro.schema
-import json
-import logging
-import os
-import sys
-import time
-
 from kafka import KafkaProducer
 from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.config import set_config_defaults
@@ -19,6 +11,14 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPResponse, RestApp
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
+
+import asyncio
+import avro.schema
+import json
+import logging
+import os
+import sys
+import time
 
 LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
@@ -189,9 +189,7 @@ class Karapace(RestApp):
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
 
         compat = Compatibility(
-            source=old_schema,
-            target=new,
-            compatibility=old.get("compatibility", self.ksr.config["compatibility"])
+            source=old_schema, target=new, compatibility=old.get("compatibility", self.ksr.config["compatibility"])
         )
         try:
             compat.check()
@@ -370,9 +368,7 @@ class Karapace(RestApp):
             latest_schema = subject_data["schemas"][schema_versions[-1]]
             old_schema = avro.schema.Parse(latest_schema["schema"])
             compat = Compatibility(
-                old_schema,
-                new_schema,
-                compatibility=subject_data.get("compatibility", self.ksr.config["compatibility"])
+                old_schema, new_schema, compatibility=subject_data.get("compatibility", self.ksr.config["compatibility"])
             )
             try:
                 compat.check()

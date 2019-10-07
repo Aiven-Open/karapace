@@ -4,10 +4,10 @@ karapace - master coordination test
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import time
-
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
+
+import time
 
 
 class Timeout(Exception):
