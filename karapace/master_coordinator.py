@@ -4,15 +4,15 @@ karapace - master coordinator
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import json
-import logging
-import time
-from threading import Lock, Thread
-
 from kafka.client_async import KafkaClient
 from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
+from threading import Lock, Thread
+
+import json
+import logging
+import time
 
 # SR group errors
 NO_ERROR = 0

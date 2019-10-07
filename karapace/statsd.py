@@ -8,12 +8,13 @@ Supports telegraf's statsd protocol extension for 'key=value' tags:
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from contextlib import contextmanager
+
 import datetime
 import logging
 import os
 import socket
 import time
-from contextlib import contextmanager
 
 STATSD_HOST = "127.0.0.1"
 STATSD_PORT = 8125
