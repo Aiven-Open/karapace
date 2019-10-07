@@ -202,7 +202,11 @@ Backing up your Karapace
 Karapace natively stores its data in a Kafka topic the name of which you can
 configure freely but which by default is called _schemas.
 
-To easily back up the data in the topic you can run Kafka's Java console
+Karapace includes a tool to backing up and restoring data. To back up, run::
+
+  karapace_schema_backup get --config karapace.config.json --location schemas.log
+
+You can also back up the data simply by using Kafka's Java console
 consumer::
 
   ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
@@ -211,7 +215,11 @@ consumer::
 Restoring Karapace from backup
 ==============================
 
-Kafka's Java console producer can then in turn be used to restore the data
+Your backup can be restored with Karapace by running::
+
+  karapace_schema_backup restore --config karapace.config.json --location schemas.log
+
+Or Kafka's Java console producer can be used to restore the data
 to a new Kafka cluster.
 
 You can restore the data from the previous step by running::

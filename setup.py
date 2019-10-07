@@ -32,6 +32,7 @@ setup(
     entry_points={
         "console_scripts": [
             "karapace = karapace.karapace:main",
+            "karapace_schema_backup = karapace.schema_backup:main",
         ],
     },
     author="Hannu Valtonen",

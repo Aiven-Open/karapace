@@ -59,7 +59,8 @@ class Karapace(RestApp):
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE")
 
         self.ksr = None
-        self.read_config()
+        self.config = self.read_config(self.config_path)
+        self._set_log_level()
         self._create_producer()
         self._create_schema_reader()
         self._create_master_coordinator()
@@ -78,19 +79,23 @@ class Karapace(RestApp):
         if self.producer:
             self.producer.close()
 
-    def read_config(self):
-        if os.path.exists(self.config_path):
+    @staticmethod
+    def read_config(config_path):
+        if os.path.exists(config_path):
             try:
-                config = json.loads(open(self.config_path, "r").read())
-                self.config = set_config_defaults(config)
-                try:
-                    logging.getLogger().setLevel(config["log_level"])
-                except ValueError:
-                    self.log.excption("Problem with log_level: %r", config["log_level"])
+                config = json.loads(open(config_path, "r").read())
+                config = set_config_defaults(config)
+                return config
             except Exception as ex:
                 raise InvalidConfiguration(ex)
         else:
             raise InvalidConfiguration()
+
+    def _set_log_level(self):
+        try:
+            logging.getLogger().setLevel(self.config["log_level"])
+        except ValueError:
+            self.log.excption("Problem with log_level: %r", self.config["log_level"])
 
     def _create_schema_reader(self):
         self.ksr = KafkaSchemaReader(config=self.config, )
