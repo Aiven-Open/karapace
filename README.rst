@@ -308,7 +308,7 @@ HTTP webserver port to bind the Karapace to.
 License
 =======
 
-Karapace is licensed under the AGPL, version 3.  Full license text is
+Karapace is licensed under the Apache license, version 2.0.  Full license text is
 available in the ``LICENSE`` file.
 
 Please note that the project explicitly does not require a CLA (Contributor
