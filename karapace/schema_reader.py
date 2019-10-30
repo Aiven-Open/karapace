@@ -164,7 +164,7 @@ class KafkaSchemaReader(Thread):
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]
                 self.global_schema_id = value["id"]
-            elif value["deleted"] is True:
+            elif value.get("deleted", False) is True:
                 self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
                 entry = self.subjects[subject]["schemas"].pop(value["version"], None)
                 if not entry:
@@ -176,7 +176,7 @@ class KafkaSchemaReader(Thread):
                     entry = self.schemas.pop(value["id"], None)
                     if not entry:
                         self.log.error("Schema: %r did not exist, should have", value["id"])
-            elif value["deleted"] is False:
+            elif value.get("deleted", False) is False:
                 self.log.info("Adding new version of subject: %r, value: %r", subject, value)
                 self.subjects[subject]["schemas"][value["version"]] = {
                     "schema": value["schema"],
