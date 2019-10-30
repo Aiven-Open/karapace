@@ -140,6 +140,9 @@ class KafkaSchemaReader(Thread):
                 self.log.info(
                     "Setting subject: %r config to: %r, value: %r", key["subject"], value["compatibilityLevel"], value
                 )
+                if not key["subject"] in self.subjects:
+                    self.log.info("Adding first version of subject: %r with no schemas", key["subject"])
+                    self.subjects[key["subject"]] = {"schemas": {}}
                 subject_data = self.subjects.get(key["subject"])
                 subject_data["compatibility"] = value["compatibilityLevel"]
             else:

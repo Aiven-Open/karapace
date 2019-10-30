@@ -242,8 +242,6 @@ class Karapace(RestApp):
         self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
 
     async def config_subject_set(self, *, request, subject):
-        self._subject_get(subject)
-
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
             self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
         else:
