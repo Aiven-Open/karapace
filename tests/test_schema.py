@@ -488,6 +488,28 @@ async def config_checks(c):
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
 
+    # It's possible to add a config to a subject that doesn't exist yet
+    subject = os.urandom(16).hex()
+    res = await c.put("config/{}".format(subject), json={"compatibility": "FULL"})
+    assert res.status_code == 200
+    assert res.json()["compatibility"] == "FULL"
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+
+    # The subject doesn't exist from the schema point of view
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
+
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    res = await c.get("config/{}".format(subject))
+    assert res.status_code == 200
+    assert res.json()["compatibilityLevel"] == "FULL"
+
 
 async def test_local(session_tmpdir, kafka_server, aiohttp_client):
     datadir = session_tmpdir()
