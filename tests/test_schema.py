@@ -536,8 +536,8 @@ async def schema_checks(c):
     res = await c.get("subjects")
     assert subject in res.json()
     res = await c.get("subjects/{}/versions".format(subject))
-    subject_version = res.json()[0]  # TODO Explicitly check out the version number to be correct
-    res = await c.delete("subjects/{}/versions/{}".format(subject, subject_version))
+    assert res.json() == [3]
+    res = await c.delete("subjects/{}/versions/3".format(subject))
     assert res.status_code == 200
     res = await c.get("subjects")
     assert subject not in res.json()
@@ -557,7 +557,52 @@ async def schema_checks(c):
         json={"schema": '{"type": "string"}'},
     )
     assert res.status == 200
-    # TODO Explicitly check out the version number to be correct
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.json() == [4]
+
+    # Check version number generation when deleting an entire subjcect
+    subject = os.urandom(16).hex()
+    res = await c.put("config/{}".format(subject), json={"compatibility": "NONE"})
+    assert res.status == 200
+    schema = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    schema2 = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+            {
+                "name": "last_name",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
+    assert res.status == 200
+    assert "id" in res.json()
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.status == 200
+    assert res.json() == [1, 2]
+    res = await c.delete("subjects/{}".format(subject))
+    assert res.status == 200
+    # Recreate subject
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.json() == [3]  # Version number generation should now begin at 3
 
     # Check the return format on a more complex schema for version get
     subject = os.urandom(16).hex()

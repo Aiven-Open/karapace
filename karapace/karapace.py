@@ -117,8 +117,14 @@ class Karapace(RestApp):
 
     def _subject_get(self, subject):
         subject_data = self.ksr.subjects.get(subject)
-        if not subject_data or not subject_data["schemas"]:
+        if not subject_data:
             self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
+
+        schemas = self.ksr.get_schemas(subject)
+        if not schemas:
+            self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
+
+        subject_data["schemas"] = schemas
         return subject_data
 
     @staticmethod
@@ -177,9 +183,9 @@ class Karapace(RestApp):
         value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level)
         return self.send_kafka_message(key, value)
 
-    def send_delete_subject_message(self, subject):
+    def send_delete_subject_message(self, subject, version):
         key = '{{"subject":"{}","magic":0,"keytype":"DELETE_SUBJECT"}}'.format(subject)
-        value = '{{"subject":"{}","version":2}}'.format(subject)
+        value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
 
     async def compatibility_check(self, *, subject, version, request):
@@ -250,14 +256,18 @@ class Karapace(RestApp):
         self.r({"compatibility": request.json["compatibility"]})
 
     async def subjects_list(self):
-        subjects_list = [key for key, val in self.ksr.subjects.items() if val["schemas"]]
+        subjects_list = [key for key, val in self.ksr.subjects.items() if self.ksr.get_schemas(key)]
         self.r(subjects_list)
 
     async def subject_delete(self, *, subject):
-        subject_data = self._subject_get(subject)
-
-        self.send_delete_subject_message(subject)
-        self.r(list(subject_data["schemas"]), status=200)
+        self._subject_get(subject)
+        version_list = list(self.ksr.get_schemas(subject))
+        if version_list:
+            latest_schema_id = version_list[-1]
+        else:
+            latest_schema_id = 0
+        self.send_delete_subject_message(subject, latest_schema_id)
+        self.r(version_list, status=200)
 
     async def subject_version_get(self, *, subject, version, return_dict=False):
         if version != "latest" and int(version) < 1:
@@ -351,7 +361,18 @@ class Karapace(RestApp):
         else:
             # First check if any of the existing schemas for the subject match
             subject_data = self.ksr.subjects[subject]
-            schema_versions = sorted(list(subject_data["schemas"]))
+            schemas = self.ksr.get_schemas(subject)
+            if not schemas:  # Previous ones have been deleted by the user.
+                version = max(self.ksr.subjects[subject]["schemas"]) + 1
+                schema_id = self.ksr.get_new_schema_id()
+                self.log.info(
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
+                    version, new_schema.to_json(), schema_id
+                )
+                self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
+                self.r({"id": schema_id})
+
+            schema_versions = sorted(list(schemas))
             # Go through these in version order
             for version in schema_versions:
                 schema = subject_data["schemas"][version]
