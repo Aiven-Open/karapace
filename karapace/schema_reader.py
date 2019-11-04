@@ -158,6 +158,7 @@ class KafkaSchemaReader(Thread):
                             "schema": value["schema"],
                             "version": value["version"],
                             "id": value["id"],
+                            "deleted": value.get("deleted", False),
                         }
                     }
                 }
@@ -166,39 +167,45 @@ class KafkaSchemaReader(Thread):
                 self.global_schema_id = value["id"]
             elif value.get("deleted", False) is True:
                 self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
-                entry = self.subjects[subject]["schemas"].pop(value["version"], None)
-                if not entry:
+                if not value["version"] in self.subjects[subject]["schemas"]:
                     self.log.error(
                         "Subject: %r, version: %r, value: %r did not exist, should have.", subject, value["version"], value
                     )
                 else:
-                    self.log.info("Deleting schema_id: %r, schema: %r", value["id"], self.schemas.get(value["id"]))
-                    entry = self.schemas.pop(value["id"], None)
-                    if not entry:
-                        self.log.error("Schema: %r did not exist, should have", value["id"])
+                    self.subjects[subject]["schemas"][value["version"]]["deleted"] = True
             elif value.get("deleted", False) is False:
                 self.log.info("Adding new version of subject: %r, value: %r", subject, value)
                 self.subjects[subject]["schemas"][value["version"]] = {
                     "schema": value["schema"],
                     "version": value["version"],
-                    "id": value["id"]
+                    "id": value["id"],
+                    "deleted": value.get("deleted", False),
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]
                 self.global_schema_id = value["id"]
         elif key["keytype"] == "DELETE_SUBJECT":
             self.log.info("Deleting subject: %r, value: %r", value["subject"], value)
-            subject = self.subjects.pop(value["subject"], None)
-            if not subject:
+            if not value["subject"] in self.subjects:
                 self.log.error("Subject: %r did not exist, should have", value["subject"])
             else:
-                for schema in subject["schemas"].values():
-                    self.log.info(
-                        "Deleting subject: %r, schema_id: %r, schema: %r", subject, schema["id"],
-                        self.schemas.get(schema["id"])
-                    )
-                    entry = self.schemas.pop(schema["id"], None)
-                    if not entry:
-                        self.log.error("Schema: %r did not exist, should have", schema["id"])
+                updated_schemas = {
+                    key: self._delete_schema_below_version(schema, value["version"])
+                    for key, schema in self.subjects[value["subject"]]["schemas"].items()
+                }
+                self.subjects[value["subject"]]["schemas"] = updated_schemas
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
+
+    def _delete_schema_below_version(self, schema, version):
+        if schema["version"] <= version:
+            schema["deleted"] = True
+        return schema
+
+    def get_schemas(self, subject):
+        non_deleted_schemas = {
+            key: val
+            for key, val in self.subjects[subject]["schemas"].items()
+            if val.get("deleted", False) is False
+        }
+        return non_deleted_schemas
