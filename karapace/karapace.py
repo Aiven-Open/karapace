@@ -130,7 +130,7 @@ class Karapace(RestApp):
                     time.monotonic() - start_time
                 )
                 break
-            elif offset != sent_offset:
+            if offset != sent_offset:
                 self.log.error("Put the offset: %r back to queue, someone else is waiting for this?", offset)
                 self.ksr.queue.put(offset)
 
