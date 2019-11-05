@@ -5,6 +5,7 @@ jobs=4
 disable=
   bad-continuation,
   fixme,
+  import-outside-toplevel,
   invalid-name,
   missing-docstring,
   too-few-public-methods,
