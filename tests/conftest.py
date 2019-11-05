@@ -40,7 +40,7 @@ def wait_for_port(port, *, hostname="127.0.0.1", wait_time=20.0, ipv6=False):
     while True:
         if port_is_listening(hostname, port, ipv6):
             break
-        elif time.monotonic() - start_time > wait_time:
+        if time.monotonic() - start_time > wait_time:
             raise Timeout("Timeout waiting for port {} on host {}".format(port, hostname))
         time.sleep(2.0)
     print("Port {} on host {} started listening in {} seconds".format(port, hostname, time.monotonic() - start_time))
