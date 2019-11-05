@@ -15,7 +15,8 @@ clean:
 
 .PHONY: build-dep-fedora
 build-dep-fedora:
-	sudo dnf builddep karapace.spec
+	sudo dnf install -y 'dnf-command(builddep)'
+	sudo dnf builddep -y karapace.spec
 
 karapace/version.py: version.py
 	$(PYTHON) $^ $@
