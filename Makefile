@@ -9,6 +9,10 @@ GENERATED = karapace/version.py
 PYTHON = python3
 DNF_INSTALL = sudo dnf install -y
 
+KAFKA_IMAGE = karapace-test-kafka
+ZK = 2181
+KAFKA = 9092
+
 default: $(GENERATED)
 
 clean:
@@ -18,6 +22,19 @@ clean:
 build-dep-fedora: /usr/bin/rpmbuild
 	$(MAKE) -C dependencies install
 	sudo dnf -y builddep karapace.spec
+
+.PHONY: $(KAFKA_IMAGE)
+$(KAFKA_IMAGE):
+	cd container && podman build -t $(KAFKA_IMAGE) .
+
+.PHONY: start-$(KAFKA_IMAGE)
+start-$(KAFKA_IMAGE):
+	@if [ -n "$(REGISTRY)" ]; then \
+	    podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) -p $(REGISTRY):$(REGISTRY) $(KAFKA_IMAGE) $(ZK) $(KAFKA) $(REGISTRY); \
+	else \
+	    podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) $(KAFKA_IMAGE) $(ZK) $(KAFKA); \
+	fi
+	@podman ps
 
 karapace/version.py: version.py
 	$(PYTHON) $^ $@
