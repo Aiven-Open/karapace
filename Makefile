@@ -45,8 +45,11 @@ $(KAFKA_TAR):
 $(KAFKA_PATH): $(KAFKA_TAR)
 	tar zxf "$(KAFKA_TAR)"
 
+.PHONY: fetch-kafka
+fetch-kafka: $(KAFKA_PATH)
+
 .PHONY: kafka
-kafka: $(KAFKA_PATH)
+kafka: fetch-kafka
 	$(KAFKA_PATH)/bin/zookeeper-server-start.sh $(KAFKA_PATH)/config/zookeeper.properties &
 	$(KAFKA_PATH)/bin/kafka-server-start.sh $(KAFKA_PATH)/config/server.properties &
 
