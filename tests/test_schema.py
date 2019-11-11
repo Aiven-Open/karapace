@@ -344,7 +344,9 @@ async def record_schema_compatibility_checks(c):
     )
     # Fails because field removed
     assert res.status == 409
-    assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
+    res_json = res.json()
+    assert res_json["error_code"] == 409
+    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
     schema3b = {
         "type": "record",
@@ -370,7 +372,9 @@ async def record_schema_compatibility_checks(c):
     )
     # Fails because incompatible type change
     assert res.status == 409
-    assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
+    res_json = res.json()
+    assert res_json["error_code"] == 409
+    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
     schema4 = {
         "type": "record",
