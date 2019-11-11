@@ -15,7 +15,7 @@ install:
   - "pip3 install astroid==2.0.0 flake8 pylint>=2.4.3 pytest isort yapf requests kafka-python aiohttp avro-python3 aiosocksy"
 
 script:
-  - "make kafka"
+  - "make fetch-kafka"
   - "make pylint"
   - "make flake8"
   - "make unittest"
