@@ -169,9 +169,8 @@ class Karapace(RestApp):
                     time.monotonic() - start_time
                 )
                 break
-            if offset != sent_offset:
-                self.log.error("Put the offset: %r back to queue, someone else is waiting for this?", offset)
-                self.ksr.queue.put(offset)
+            self.log.error("Put the offset: %r back to queue, someone else is waiting for this?", offset)
+            self.ksr.queue.put(offset)
 
     def send_kafka_message(self, key, value):
         if isinstance(key, str):
