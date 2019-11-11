@@ -202,7 +202,8 @@ class KafkaSchemaReader(Thread):
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
 
-    def _delete_schema_below_version(self, schema, version):
+    @staticmethod
+    def _delete_schema_below_version(schema, version):
         if schema["version"] <= version:
             schema["deleted"] = True
         return schema
