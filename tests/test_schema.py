@@ -146,6 +146,9 @@ async def record_nested_schema_compatibility_checks(c):
 
 
 async def compatibility_endpoint_checks(c):
+    res = await c.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+
     subject = os.urandom(16).hex()
     schema = {
         "type": "record",
@@ -186,6 +189,78 @@ async def compatibility_endpoint_checks(c):
     assert res.json() == {"is_compatible": False}
 
 
+async def check_type_compatibility(c):
+    def _test_cases():
+        # Generate FORWARD, BACKWARD and FULL tests for primitive types
+        _CONVERSIONS = {
+            "int": {
+                "int": (True, True),
+                "long": (False, True),
+                "float": (False, True),
+                "double": (False, True),
+            },
+            "bytes": {
+                "bytes": (True, True),
+                "string": (True, True),
+            },
+            "boolean": {
+                "boolean": (True, True),
+            },
+        }
+        _INVALID_CONVERSIONS = [
+            ("int", "boolean"), ("int", "string"), ("int", "bytes"),
+            ("long", "boolean"), ("long", "string"), ("long", "bytes"),
+            ("float", "boolean"), ("float", "string"), ("float", "bytes"),
+            ("double", "boolean"), ("double", "string"), ("double", "bytes"),
+        ]
+
+        for source, targets in _CONVERSIONS.items():
+            for target, (forward, backward) in targets.items():
+                yield "FORWARD", source, target, forward
+                yield "BACKWARD", source, target, backward
+                yield "FULL", target, source, forward and backward
+                if source != target:
+                    yield "FORWARD", target, source, backward
+                    yield "BACKWARD", target, source, forward
+                    yield "FULL", source, target, forward and backward
+
+        for source, target in _INVALID_CONVERSIONS:
+            yield "FORWARD", source, target, False
+            yield "FORWARD", target, source, False
+            yield "BACKWARD", source, target, False
+            yield "BACKWARD", target, source, False
+            yield "FULL", target, source, False
+            yield "FULL", source, target, False
+
+
+    for compatibility, source_type, target_type, expected in _test_cases():
+        subject = os.urandom(16).hex()
+        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        schema = {
+            "type": "record",
+            "name": "Objct",
+            "fields": [
+                {
+                    "name": "field",
+                    "type": source_type,
+                },
+            ]
+        }
+        res = await c.post(
+            f"subjects/{subject}/versions",
+            json={"schema": jsonlib.dumps(schema)},
+        )
+        assert res.status == 200
+
+        schema["fields"][0]["type"] = target_type
+        res = await c.post(
+            f"compatibility/subjects/{subject}/versions/latest",
+            json={"schema": jsonlib.dumps(schema)},
+        )
+        assert res.status == 200
+        assert res.json() == {"is_compatible": expected}
+
+
 async def record_schema_compatibility_checks(c):
     subject = os.urandom(16).hex()
 
@@ -222,6 +297,10 @@ async def record_schema_compatibility_checks(c):
                 "name": "last_name",
                 "type": "string"
             },
+            {
+                "name": "age",
+                "type": "int"
+            },
         ]
     }
     res = await c.post(
@@ -233,7 +312,7 @@ async def record_schema_compatibility_checks(c):
     schema_id2 = res.json()["id"]
     assert schema_id != schema_id2
 
-    schema3 = {
+    schema3a = {
         "type": "record",
         "name": "Objct",
         "fields": [
@@ -246,13 +325,43 @@ async def record_schema_compatibility_checks(c):
                 "type": "string",
                 "default": "foodefaultvalue"
             },
+            {
+                "name": "age",
+                "type": "int"
+            },
         ]
     }
     res = await c.post(
         "subjects/{}/versions".format(subject),
-        json={"schema": jsonlib.dumps(schema3)},
+        json={"schema": jsonlib.dumps(schema3a)},
     )
     # Fails because field removed
+    assert res.status == 409
+    assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
+
+    schema3b = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string"
+            },
+            {
+                "name": "last_name",
+                "type": "string"
+            },
+            {
+                "name": "age",
+                "type": "long"
+            },
+        ]
+    }
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": jsonlib.dumps(schema3b)},
+    )
+    # Fails because incompatible type change
     assert res.status == 409
     assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
 
@@ -272,6 +381,10 @@ async def record_schema_compatibility_checks(c):
                 "name": "third_name",
                 "type": "string",
                 "default": "foodefaultvalue"
+            },
+            {
+                "name": "age",
+                "type": "int"
             },
         ]
     }
@@ -302,6 +415,10 @@ async def record_schema_compatibility_checks(c):
             {
                 "name": "fourth_name",
                 "type": "string"
+            },
+            {
+                "name": "age",
+                "type": "int"
             },
         ]
     }
@@ -511,20 +628,23 @@ async def config_checks(c):
     assert res.json()["compatibilityLevel"] == "FULL"
 
 
-async def test_local(session_tmpdir, kafka_server, aiohttp_client):
-    datadir = session_tmpdir()
-
-    kc = create_service(datadir, kafka_server)
-    client = await aiohttp_client(kc.app)
-    c = Client(client=client)
-
+async def run_schema_tests(c):
     await schema_checks(c)
+    await check_type_compatibility(c)
     await compatibility_endpoint_checks(c)
     await record_schema_compatibility_checks(c)
     await record_nested_schema_compatibility_checks(c)
     for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
         await enum_schema_compatibility_checks(c, compatibility)
     await config_checks(c)
+
+
+async def test_local(session_tmpdir, kafka_server, aiohttp_client):
+    datadir = session_tmpdir()
+    kc = create_service(datadir, kafka_server)
+    client = await aiohttp_client(kc.app)
+    c = Client(client=client)
+    await run_schema_tests(c)
     kc.close()
 
 
@@ -532,11 +652,5 @@ async def test_remote():
     server_uri = os.environ.get("SERVER_URI")
     if not server_uri:
         pytest.skip("SERVER_URI env variable not set")
-    c = Client(server_uri=os.environ.get("SERVER_URI"))
-    await schema_checks(c)
-    await compatibility_endpoint_checks(c)
-    await record_schema_compatibility_checks(c)
-    await record_nested_schema_compatibility_checks(c)
-    for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
-        await enum_schema_compatibility_checks(c, compatibility)
-    await config_checks(c)
+    c = Client(server_uri=server_uri)
+    await run_schema_tests(c)

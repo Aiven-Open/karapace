@@ -13,6 +13,86 @@ class IncompatibleSchema(Exception):
 
 
 class Compatibility:
+    _TYPE_PROMOTION_RULES = {
+        # Follow promotion rules in schema resolution section of:
+        # https://avro.apache.org/docs/current/spec.html#schemas
+        "BACKWARD": {
+            "bytes": {
+                "bytes": True,
+                "string": True
+            },
+            "double": {
+                "int": False
+            },
+            "float": {
+                "int": False
+            },
+            "int": {
+                "double": True,
+                "float": True,
+                "int": True,
+                "long": True
+            },
+            "long": {
+                "int": False
+            },
+            "string": {
+                "bytes": True
+            }
+        },
+        "FORWARD": {
+            "bytes": {
+                "bytes": True,
+                "string": True
+            },
+            "double": {
+                "int": True
+            },
+            "float": {
+                "int": True
+            },
+            "int": {
+                "double": False,
+                "float": False,
+                "int": True,
+                "long": False
+            },
+            "long": {
+                "int": True
+            },
+            "string": {
+                "bytes": True
+            }
+        },
+        "FULL": {
+            "bytes": {
+                "bytes": True,
+                "string": True
+            },
+            "double": {
+                "int": False
+            },
+            "float": {
+                "int": False
+            },
+            "int": {
+                "double": False,
+                "float": False,
+                "int": True,
+                "long": False
+            },
+            "long": {
+                "int": False
+            },
+            "string": {
+                "bytes": True
+            }
+        }
+    }
+
+    _NUMBER_TYPES = {"int", "long", "float", "double"}
+    _STRING_TYPES = {"string", "bytes"}
+
     def __init__(self, source, target, compatibility):
         self.source = source
         self.target = target
@@ -41,15 +121,11 @@ class Compatibility:
             return source.type == target.type, True
         if isinstance(source.type, avro.schema.PrimitiveSchema):
             if isinstance(target.type, avro.schema.PrimitiveSchema):
-                # Follow promotion rules in schema resolution section of:
-                # https://avro.apache.org/docs/current/spec.html#schemas
-                if source.type.type == "int" and target.type.type in {"int", "long", "float", "double"}:
+                # Check if the types are compatible, actual promotion rules are checked separately
+                # via check_type_promotion()
+                if source.type.type in self._NUMBER_TYPES and target.type.type in self._NUMBER_TYPES:
                     return True, True
-                if source.type.type == "long" and target.type.type in {"long", "float", "double"}:
-                    return True, True
-                if source.type.type == "float" and target.type.type in {"float", "double"}:
-                    return True, True
-                if source.type.type == "string" and target.type.type in {"string", "bytes"}:
+                if source.type.type in self._STRING_TYPES and target.type.type in self._STRING_TYPES:
                     return True, True
                 return source.type.type == target.type.type, True
             return False, True
@@ -58,6 +134,14 @@ class Compatibility:
         if isinstance(source.type, avro.schema.EnumSchema):
             return isinstance(target.type, avro.schema.EnumSchema), True
         raise IncompatibleSchema("Unhandled schema type: {}".format(type(source.type)))
+
+    def check_type_promotion(self, source_type, target_type):
+        if source_type.type == target_type.type:
+            return True
+        try:
+            return self._TYPE_PROMOTION_RULES[self.compatibility][source_type.type][target_type.type]
+        except KeyError:
+            return False
 
     def check_source_field(self, source, target):
         for source_field in source.fields:
@@ -78,6 +162,10 @@ class Compatibility:
                         self.log.info("Recursing source with: source: %s target: %s", source_field, target_field)
                         self.check_compatibility(source_field.type, target_field.type)
                     else:
+                        if not self.check_type_promotion(source_field.type, target_field.type):
+                            raise IncompatibleSchema(
+                                "Incompatible type promotion {} {}".format(source_field.type.type, target_field.type.type)
+                            )
                         found = True
                         break
             if not found:
