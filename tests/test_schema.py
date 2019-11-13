@@ -497,6 +497,7 @@ async def schema_checks(c):
     res = await c.get("subjects/{}/versions/1".format(subject))
     assert res.status_code == 200
     assert res.json()["subject"] == subject
+    assert res.json()["schema"] == '"string"'
 
     # Find an invalid version 0
     res = await c.get("subjects/{}/versions/0".format(subject))
@@ -557,6 +558,27 @@ async def schema_checks(c):
     )
     assert res.status == 200
     # TODO Explicitly check out the version number to be correct
+
+    # Check the return format on a more complex schema for version get
+    subject = os.urandom(16).hex()
+    schema = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    res = await c.get("subjects/{}/versions/1".format(subject))
+    assert res.status == 200
+    assert res.json()["subject"] == subject
+    assert sorted(jsonlib.loads(res.json()["schema"])) == sorted(schema)
 
 
 async def config_checks(c):
