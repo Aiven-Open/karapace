@@ -194,7 +194,7 @@ class Karapace(RestApp):
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
         try:
-            old_schema = avro.schema.Parse(json.loads(old["schema"]))
+            old_schema = avro.schema.Parse(old["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
@@ -285,7 +285,7 @@ class Karapace(RestApp):
             "subject": subject,
             "version": int(version),
             "id": schema_id,
-            "schema": json_encode(schema_string, compact=True)
+            "schema": schema_string,
         }
         if return_dict:
             # Return also compatibility information to compatibility check
