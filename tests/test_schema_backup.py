@@ -4,13 +4,13 @@ karapace - test schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from .utils import Client
+from karapace.karapace import Karapace
+from karapace.schema_backup import SchemaBackup
+
 import json as jsonlib
 import os
 import time
-
-from karapace.schema_backup import SchemaBackup
-from karapace.karapace import Karapace
-from .utils import Client
 
 pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"

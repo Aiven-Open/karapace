@@ -4,15 +4,15 @@ karapace - schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import logging
-import json
-import argparse
-import sys
-import os
-
 from kafka import KafkaConsumer, KafkaProducer
 from karapace.karapace import Karapace
 from karapace.utils import json_encode
+
+import argparse
+import json
+import logging
+import os
+import sys
 
 
 class BackupError(Exception):
