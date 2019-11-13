@@ -208,10 +208,18 @@ async def check_type_compatibility(c):
             },
         }
         _INVALID_CONVERSIONS = [
-            ("int", "boolean"), ("int", "string"), ("int", "bytes"),
-            ("long", "boolean"), ("long", "string"), ("long", "bytes"),
-            ("float", "boolean"), ("float", "string"), ("float", "bytes"),
-            ("double", "boolean"), ("double", "string"), ("double", "bytes"),
+            ("int", "boolean"),
+            ("int", "string"),
+            ("int", "bytes"),
+            ("long", "boolean"),
+            ("long", "string"),
+            ("long", "bytes"),
+            ("float", "boolean"),
+            ("float", "string"),
+            ("float", "bytes"),
+            ("double", "boolean"),
+            ("double", "string"),
+            ("double", "bytes"),
         ]
 
         for source, targets in _CONVERSIONS.items():
@@ -231,7 +239,6 @@ async def check_type_compatibility(c):
             yield "BACKWARD", target, source, False
             yield "FULL", target, source, False
             yield "FULL", source, target, False
-
 
     for compatibility, source_type, target_type, expected in _test_cases():
         subject = os.urandom(16).hex()
