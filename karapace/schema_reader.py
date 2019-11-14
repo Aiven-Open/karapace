@@ -7,6 +7,7 @@ See LICENSE for details
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from karapace.utils import json_encode
 from queue import Queue
 from threading import Thread
 
@@ -84,7 +85,11 @@ class KafkaSchemaReader(Thread):
             return True
         return False
 
-    def get_new_schema_id(self):
+    def get_schema_id(self, new_schema):
+        new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
+        for schema_id, schema in self.schemas.items():
+            if schema == new_schema_encoded:
+                return schema_id
         self.global_schema_id += 1
         return self.global_schema_id
 
