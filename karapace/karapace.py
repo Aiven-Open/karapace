@@ -352,7 +352,7 @@ class Karapace(RestApp):
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
 
         if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
-            schema_id = self.ksr.get_new_schema_id()
+            schema_id = self.ksr.get_schema_id(new_schema)
             version = 1
             self.log.info(
                 "Registering new subject: %r with version: %r to schema %r, schema_id: %r", subject, version,
@@ -364,7 +364,7 @@ class Karapace(RestApp):
             schemas = self.ksr.get_schemas(subject)
             if not schemas:  # Previous ones have been deleted by the user.
                 version = max(self.ksr.subjects[subject]["schemas"]) + 1
-                schema_id = self.ksr.get_new_schema_id()
+                schema_id = self.ksr.get_schema_id(new_schema)
                 self.log.info(
                     "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
                     version, new_schema.to_json(), schema_id
@@ -401,7 +401,7 @@ class Karapace(RestApp):
                 )
 
             # We didn't find an existing schema, so go and create one
-            schema_id = self.ksr.get_new_schema_id()
+            schema_id = self.ksr.get_schema_id(new_schema)
             version = max(self.ksr.subjects[subject]["schemas"]) + 1
             self.log.info(
                 "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id, version,

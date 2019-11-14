@@ -632,6 +632,47 @@ async def schema_checks(c):
     assert res.json()["subject"] == subject
     assert sorted(jsonlib.loads(res.json()["schema"])) == sorted(schema)
 
+    # Submitting the exact same schema for a different subject should return the same schema ID.
+    subject = os.urandom(16).hex()
+    schema = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "just_a_value",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    original_schema_id = res.json()["id"]
+    # New subject with the same schema
+    subject = os.urandom(16).hex()
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    new_schema_id = res.json()["id"]
+    assert original_schema_id == new_schema_id
+
+    # It also works for multiple versions in a single subject
+    subject = os.urandom(16).hex()
+    res = await c.put(
+        "config/{}".format(subject), json={"compatibility": "NONE"}
+    )  # We don't care about the compatibility in this test
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert res.json()["id"] == new_schema_id  # Same ID as in the previous test step
+
 
 async def config_checks(c):
     # Tests /config endpoint
