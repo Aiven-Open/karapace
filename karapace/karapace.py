@@ -32,9 +32,18 @@ class InvalidConfiguration(Exception):
 
 class Karapace(RestApp):
     def __init__(self, config_path):
-        super().__init__(app_name="Karapace")
         self.config = {}
         self.config_path = config_path
+        self.config = self.read_config(self.config_path)
+        self._sentry_config = self.config.get("sentry", {"dsn": None}).copy()
+        if os.environ.get("SENTRY_DSN"):
+            self._sentry_config["dsn"] = os.environ["SENTRY_DSN"]
+        if "tags" not in self._sentry_config:
+            self._sentry_config["tags"] = {}
+        self._sentry_config["tags"]["app"] = "Karapace"
+
+        super().__init__(app_name="Karapace", sentry_config=self._sentry_config)
+
         self.log = logging.getLogger("Karapace")
         self.kafka_timeout = 10
 
@@ -59,7 +68,6 @@ class Karapace(RestApp):
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE")
 
         self.ksr = None
-        self.config = self.read_config(self.config_path)
         self._set_log_level()
         self._create_producer()
         self._create_schema_reader()
@@ -427,8 +435,14 @@ def main():
     if not os.path.exists(config_path):
         print("Config file: {} does not exist, exiting".format(config_path))
         return 1
+
     kc = Karapace(config_path)
-    return kc.run(host=kc.config["host"], port=kc.config["port"])
+    try:
+        return kc.run(host=kc.config["host"], port=kc.config["port"])
+    except Exception:  # pylint: disable-broad-except
+        if kc.raven_client:
+            kc.raven_client.captureException(tags={"where": "karapace"})
+        raise
 
 
 if __name__ == "__main__":
