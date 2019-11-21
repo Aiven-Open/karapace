@@ -6,7 +6,7 @@ client components for use in Aiven's REST applications.
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from karapace.statsd import statsd_client
+from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
 
@@ -60,7 +60,7 @@ class HTTPResponse(Exception):
 
 
 class RestApp:
-    def __init__(self, *, app_name):
+    def __init__(self, *, app_name, sentry_config):
         self.app_name = app_name
         self.app_request_metric = "{}_request".format(app_name)
         self.app = aiohttp.web.Application()
@@ -69,11 +69,9 @@ class RestApp:
         self.http_client_v = None
         self.http_client_no_v = None
         self.log = logging.getLogger(self.app_name)
-        self.stats = self._get_stats_client()
+        self.stats = StatsClient(sentry_config=sentry_config)
+        self.raven_client = self.stats.raven_client
         self.app.on_cleanup.append(self.cleanup_stats_client)
-
-    def _get_stats_client(self):
-        return statsd_client(app=self.app_name)
 
     async def cleanup_stats_client(self, app):  # pylint: disable=unused-argument
         self.stats.close()

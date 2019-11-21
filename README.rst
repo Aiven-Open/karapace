@@ -36,10 +36,12 @@ order to operate:
 * aiohttp_ for serving schemas over HTTP in an asynchronous fashion
 * avro-python3_ for Avro serialization
 * kafka-python_ to read, write and coordinate Karapace's persistence in Kafka
+* raven-python_ (optional) to report exceptions to sentry
 
 .. _`aiohttp`: https://github.com/aio-libs/aiohttp
 .. _`avro-python3`: https://github.com/apache/avro
 .. _`kafka-python`: https://github.com/dpkp/kafka-python
+.. _`raven-python`: https://github.com/getsentry/raven-python
 
 Developing and testing Karapace also requires the following utilities:
 requests_, flake8_, pylint_ and pytest_.
@@ -274,6 +276,11 @@ unavailable.
 Default Kafka security protocol needed to communicate with the Kafka
 cluster.  Other options is to use SSL for SSL client certificate
 authentication.
+
+``sentry`` (default ``None``)
+
+Used to configure parameters for sentry integration (dsn, tags, ...). Setting the
+environment variable ``SENTRY_DSN`` will also enable sentry integration.
 
 ``ssl_cafile`` (default ``Path to CA certificate``)
 

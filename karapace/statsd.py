@@ -21,12 +21,16 @@ STATSD_PORT = 8125
 
 
 class StatsClient:
-    def __init__(self, host="127.0.0.1", port=8125, tags=None):
+    def __init__(self, host=STATSD_HOST, port=STATSD_PORT, sentry_config=None):
         self.log = logging.getLogger("StatsClient")
-        self.sentry_config = {}
+        if sentry_config is None:
+            self.centry_config = {
+                "dsn": os.environ.get("SENTRY_DSN"),
+                "tags": {},
+            }
+        else:
+            self.sentry_config = sentry_config.copy()
         self.update_sentry_config({
-            "dsn": os.environ.get("SENTRY_DSN") or None,
-            "tags": tags,
             "ignore_exceptions": [
                 "ClientConnectorError",  # influxdb, aiohttp
                 "ClientPayloadError",  # infludb (aiohttp)
@@ -41,7 +45,7 @@ class StatsClient:
         })
         self._dest_addr = (host, port)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags = tags or {}
+        self._tags = self.sentry_config.get("tags")
 
     @contextmanager
     def timing_manager(self, metric, tags=None):
@@ -118,9 +122,3 @@ class StatsClient:
 
     def close(self):
         self._socket.close()
-
-
-def statsd_client(*, app, tags=None):
-    tags = (tags or {}).copy()
-    tags["app"] = app
-    return StatsClient(host=STATSD_HOST, port=STATSD_PORT, tags=tags)
