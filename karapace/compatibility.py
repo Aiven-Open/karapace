@@ -99,9 +99,11 @@ class Compatibility:
         self.log = logging.getLogger("Compatibility")
         self.compatibility = compatibility
         self.log.info("Compatibility initialized with level: %r", self.compatibility)
+        # Compatibility only checks between two versions, so we can drop the possible _TRANSITIONAL
+        self._checking_for = compatibility.split("_")[0]
 
     def check(self):
-        if self.compatibility == "NONE":
+        if self._checking_for == "NONE":
             self.log.info("Compatibility level set to NONE, no schema compatibility checks performed")
             return True
         return self.check_compatibility(self.source, self.target)
@@ -139,7 +141,7 @@ class Compatibility:
         if source_type.type == target_type.type:
             return True
         try:
-            return self._TYPE_PROMOTION_RULES[self.compatibility][source_type.type][target_type.type]
+            return self._TYPE_PROMOTION_RULES[self._checking_for][source_type.type][target_type.type]
         except KeyError:
             return False
 
@@ -170,7 +172,7 @@ class Compatibility:
                         break
             if not found:
                 self.log.info("source_field: %s removed from: %s", source_field.name, target)
-                if not found and self.compatibility in {"FORWARD", "FULL"} and not source_field.has_default:
+                if not found and self._checking_for in {"FORWARD", "FULL"} and not source_field.has_default:
                     raise IncompatibleSchema("Source field: {} removed".format(source_field.name))
 
     def check_target_field(self, source, target):
@@ -195,7 +197,7 @@ class Compatibility:
                         self.log.info("source_field is: %s, target_field: %s added", source_field, target_field)
                         break
 
-            if not found and self.compatibility in {"BACKWARD", "FULL"} and not target_field.has_default:
+            if not found and self._checking_for in {"BACKWARD", "FULL"} and not target_field.has_default:
                 raise IncompatibleSchema("Target field: {} added".format(target_field.name))
 
     def check_compatibility(self, source, target):
