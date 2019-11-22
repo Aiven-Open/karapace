@@ -23,7 +23,21 @@ import time
 LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
 
-COMPATIBILITY_MODES = {"NONE", "FULL", "FORWARD", "BACKWARD"}
+COMPATIBILITY_MODES = {
+    "BACKWARD",
+    "BACKWARD_TRANSITIVE",
+    "FORWARD",
+    "FORWARD_TRANSITIVE",
+    "FULL",
+    "FULL_TRANSITIVE",
+    "NONE",
+}
+
+TRANSITIVE_MODES = {
+    "BACKWARD_TRANSITIVE",
+    "FORWARD_TRANSITIVE",
+    "FULL_TRANSITIVE",
+}
 
 
 class InvalidConfiguration(Exception):
@@ -390,25 +404,32 @@ class Karapace(RestApp):
                 else:
                     self.log.debug("schema: %s did not match with: %s", schema["schema"], new_schema.to_json())
 
-            # Run a compatibility check between the newest on file schema and the one being submitted now
-            latest_schema = subject_data["schemas"][schema_versions[-1]]
-            old_schema = avro.schema.Parse(latest_schema["schema"])
-            compat = Compatibility(
-                old_schema, new_schema, compatibility=subject_data.get("compatibility", self.ksr.config["compatibility"])
-            )
-            try:
-                compat.check()
-            except IncompatibleSchema as ex:
-                self.log.warning("Incompatible schema: %s", ex)
-                self.r(
-                    body={
-                        "error_code": 409,
-                        "message": "Schema being registered is incompatible with an earlier schema"
-                    },
-                    status=409
-                )
+            compatibility = subject_data.get("compatibility", self.ksr.config["compatibility"])
 
-            # We didn't find an existing schema, so go and create one
+            # Run a compatibility check between on file schema(s) and the one being submitted now
+            # the check is either towards the latest one or against all previous ones in case of
+            # transitive mode
+            if compatibility in TRANSITIVE_MODES:
+                check_against = schema_versions
+            else:
+                check_against = [schema_versions[-1]]
+
+            for old_version in check_against:
+                old_schema = avro.schema.Parse(subject_data["schemas"][old_version]["schema"])
+                compat = Compatibility(old_schema, new_schema, compatibility=compatibility)
+                try:
+                    compat.check()
+                except IncompatibleSchema as ex:
+                    self.log.warning("Incompatible schema: %s", ex)
+                    self.r(
+                        body={
+                            "error_code": 409,
+                            "message": "Schema being registered is incompatible with an earlier schema"
+                        },
+                        status=409
+                    )
+
+            # We didn't find an existing schema and the schema is compatible so go and create one
             schema_id = self.ksr.get_schema_id(new_schema)
             version = max(self.ksr.subjects[subject]["schemas"]) + 1
             self.log.info(

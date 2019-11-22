@@ -453,6 +453,75 @@ async def record_schema_compatibility_checks(c):
     assert res.status == 409
 
 
+async def check_transitive_compatibility(c):
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD_TRANSITIVE"})
+    assert res.status == 200
+
+    schema0 = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            },
+        ]
+    }
+    res = await c.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema0)},
+    )
+    assert res.status == 200
+
+    schema1 = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            },
+            {
+                "name": "first_name",
+                "type": "string",
+                "default": "John",
+            },
+        ]
+    }
+    res = await c.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema1)},
+    )
+    assert res.status == 200
+
+    schema2 = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            },
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+            {
+                "name": "last_name",
+                "type": "string",
+                "default": "Doe",
+            },
+        ]
+    }
+    res = await c.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema2)},
+    )
+    assert res.status == 409
+    assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
+
+
 async def schema_checks(c):
     subject = os.urandom(16).hex()
     res = await c.post(
@@ -752,6 +821,7 @@ async def run_schema_tests(c):
     for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
         await enum_schema_compatibility_checks(c, compatibility)
     await config_checks(c)
+    await check_transitive_compatibility(c)
 
 
 async def test_local(session_tmpdir, kafka_server, aiohttp_client):
