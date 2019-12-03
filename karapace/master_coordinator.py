@@ -156,8 +156,6 @@ class MasterCoordinator(Thread):
     def close(self):
         self.log.info("Closing master_coordinator")
         self.running = False
-        if self.kafka_client:
-            self.kafka_client.close()
 
     def run(self):
         while self.running:
@@ -174,4 +172,9 @@ class MasterCoordinator(Thread):
             except:  # pylint: disable=bare-except
                 self.log.exception("Exception in master_coordinator")
                 time.sleep(1.0)
-        self.close()
+
+        if self.sc:
+            self.sc.close()
+
+        if self.kafka_client:
+            self.kafka_client.close()
