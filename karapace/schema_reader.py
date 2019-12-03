@@ -96,10 +96,6 @@ class KafkaSchemaReader(Thread):
     def close(self):
         self.log.info("Closing schema_reader")
         self.running = False
-        if self.admin_client:
-            self.admin_client.close()
-        if self.consumer:
-            self.consumer.close()
 
     def run(self):
         while self.running:
@@ -110,6 +106,11 @@ class KafkaSchemaReader(Thread):
             if not self.consumer:
                 self.init_consumer()
             self.handle_messages()
+
+        if self.admin_client:
+            self.admin_client.close()
+        if self.consumer:
+            self.consumer.close()
 
     def handle_messages(self):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
