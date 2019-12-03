@@ -5,7 +5,6 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from .utils import Client
-from karapace.karapace import Karapace
 
 import json as jsonlib
 import os
@@ -13,15 +12,6 @@ import pytest
 
 pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
-
-
-def create_service(datadir, kafka_server):
-    config_path = os.path.join(str(datadir), "karapace_config.json")
-    with open(config_path, "w") as fp:
-        karapace_config = {"log_level": "INFO", "bootstrap_uri": "127.0.0.1:{}".format(kafka_server["kafka_port"])}
-        fp.write(jsonlib.dumps(karapace_config))
-    kc = Karapace(config_path)
-    return kc
 
 
 async def enum_schema_compatibility_checks(c, compatibility):
@@ -828,13 +818,11 @@ async def run_schema_tests(c):
     await check_transitive_compatibility(c)
 
 
-async def test_local(session_tmpdir, kafka_server, aiohttp_client):
-    datadir = session_tmpdir()
-    kc = create_service(datadir, kafka_server)
+async def test_local(karapace, aiohttp_client):
+    kc, _ = karapace()
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
     await run_schema_tests(c)
-    kc.close()
 
 
 async def test_remote():

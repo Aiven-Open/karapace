@@ -19,7 +19,7 @@ baseurl = "http://localhost:8081"
 def create_karapace(config_path, topic_name, kafka_server):
     with open(config_path, "w") as fp:
         karapace_config = {
-            "log_level": "INFO",
+            "log_level": "DEBUG",
             "bootstrap_uri": "127.0.0.1:{}".format(kafka_server["kafka_port"]),
             "topic_name": topic_name,
         }
@@ -38,38 +38,52 @@ async def insert_data(c):
     return subject
 
 
-async def test_backup_get_and_restore(session_tmpdir, kafka_server, aiohttp_client):
-    datadir = session_tmpdir()
-
-    config_location = os.path.join(str(datadir), "karapace_config.json")
-    kc = create_karapace(config_location, "get_schemas", kafka_server)
+async def test_backup_get(karapace, aiohttp_client):
+    kc, datadir = karapace(topic_name="get_schemas")
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
 
-    subject = await insert_data(c)
+    _ = await insert_data(c)
 
     # Get the backup
-    backup_location = os.path.join(str(datadir), "schemas.log")
-    sb = SchemaBackup(config_location, backup_location)
+    backup_location = os.path.join(datadir, "schemas.log")
+    sb = SchemaBackup(kc.config_path, backup_location)
     sb.request_backup()
 
     # The backup file has been created
     assert os.path.exists(backup_location)
-    kc.close()
 
-    # Restore the backup to a different topic
-    restore_config_location = os.path.join(str(datadir), "restore_karapace_config.json")
-    kc2 = create_karapace(restore_config_location, "restore_schemas", kafka_server)
-    client2 = await aiohttp_client(kc2.app)
-    c2 = Client(client=client2)
 
-    sb2 = SchemaBackup(restore_config_location, backup_location)
-    sb2.restore_backup()
+async def test_backup_restore(karapace, aiohttp_client):
+    kc, datadir = karapace(topic_name="restore_schemas")
+    client = await aiohttp_client(kc.app)
+    c = Client(client=client)
+
+    subject = os.urandom(16).hex()
+    restore_location = os.path.join(datadir, "restore.log")
+    with open(restore_location, "w") as fp:
+        jsonlib.dump([[
+            {
+                "subject": subject,
+                "version": 1,
+                "magic": 1,
+                "keytype": "SCHEMA",
+            },
+            {
+                "deleted": False,
+                "id": 1,
+                "schema": "\"string\"",
+                "subject": subject,
+                "version": 1,
+            },
+        ]],
+                     fp=fp)
+    sb = SchemaBackup(kc.config_path, restore_location)
+    sb.restore_backup()
 
     # The restored karapace should have the previously created subject
     time.sleep(1.0)
-    res = await c2.get("subjects")
+    res = await c.get("subjects")
     assert res.status_code == 200
-    assert subject in res.json()
-
-    kc2.close()
+    data = res.json()
+    assert subject in data
