@@ -261,7 +261,8 @@ class Karapace(RestApp):
         self.r({"compatibility": self.ksr.config["compatibility"]})
 
     async def config_subject_get(self, *, subject):
-        subject_data = self._subject_get(subject)
+        # Config for a subject can exist without schemas so no need to check for their existence
+        subject_data = self.ksr.subjects.get(subject)
 
         if "compatibility" in subject_data:
             self.r({"compatibilityLevel": subject_data["compatibility"]})
