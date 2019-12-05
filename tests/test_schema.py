@@ -807,6 +807,15 @@ async def config_checks(c):
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
 
+    # Test that config is returned for a subject that does not have an existing schema
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "NONE"})
+    assert res.status == 200
+    assert res.json()["compatibility"] == "NONE"
+    res = await c.get(f"config/{subject}")
+    assert res.status == 200
+    assert res.json()["compatibilityLevel"] == "NONE"
+
 
 async def run_schema_tests(c):
     await schema_checks(c)
