@@ -31,7 +31,7 @@ clean-%:
 	$(MAKE) -C "$*" clean
 
 install: clean $(DEP_DIRS)
-	 $(foreach file, rpm/*.noarch.rpm, sudo dnf install $(file))
+	 $(foreach file, rpm/*.noarch.rpm, sudo dnf install -y $(file))
 
 # This trick makes it possible to call "make python3-avro"
 .SECONDEXPANSION:
