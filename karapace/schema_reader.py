@@ -143,6 +143,10 @@ class KafkaSchemaReader(Thread):
     def handle_msg(self, key, value):
         if key["keytype"] == "CONFIG":
             if "subject" in key and key["subject"] is not None:
+                if not value:
+                    self.log.info("Deleting compatibility config completely for subject: %r", key["subject"])
+                    self.subjects[key["subject"]].pop("compatibility")
+                    return
                 self.log.info(
                     "Setting subject: %r config to: %r, value: %r", key["subject"], value["compatibilityLevel"], value
                 )
@@ -155,6 +159,10 @@ class KafkaSchemaReader(Thread):
                 self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
                 self.config["compatibility"] = value["compatibilityLevel"]
         elif key["keytype"] == "SCHEMA":
+            if not value:
+                self.log.info("Deleting subject: %r version: %r completely", key["subject"], key["version"])
+                self.subjects[key["subject"]]["schemas"].pop(key["version"])
+                return
             subject = value["subject"]
             if subject not in self.subjects:
                 self.log.info("Adding first version of subject: %r, value: %r", subject, value)

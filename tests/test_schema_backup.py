@@ -87,3 +87,70 @@ async def test_backup_restore(karapace, aiohttp_client):
     assert res.status_code == 200
     data = res.json()
     assert subject in data
+
+
+async def test_backup_scenarios(karapace, aiohttp_client):
+    kc, datadir = karapace(topic_name="backup_scenarios")
+    client = await aiohttp_client(kc.app)
+    c = Client(client=client)
+
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "NONE"})
+    assert res.status == 200
+    assert res.json()["compatibility"] == "NONE"
+
+    # Restore a compatibility config remove message
+    restore_location = os.path.join(datadir, "scenarios.log")
+    with open(restore_location, "w") as fp:
+        fp.write(
+            """
+[
+    [
+        {{
+            "subject": "{subject_value}",
+            "magic": 0,
+            "keytype": "CONFIG"
+        }},
+        null
+    ]
+]
+        """.format(subject_value=subject)
+        )
+    sb = SchemaBackup(kc.config_path, restore_location)
+    res = await c.get(f"config/{subject}")
+    assert res.status == 200
+    sb.restore_backup()
+    time.sleep(1.0)
+    res = await c.get(f"config/{subject}")
+    assert res.status == 404
+
+    # Restore a complete schema delete message
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "NONE"})
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": '{"type": "int"}'})
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": '{"type": "float"}'})
+    res = await c.get(f"subjects/{subject}/versions")
+    assert res.status == 200
+    assert res.json() == [1, 2]
+    with open(restore_location, "w") as fp:
+        fp.write(
+            """
+[
+    [
+        {{
+            "subject": "{subject_value}",
+            "magic": 1,
+            "keytype": "SCHEMA",
+            "version": 2
+        }},
+        null
+    ]
+]
+        """.format(subject_value=subject)
+        )
+    sb = SchemaBackup(kc.config_path, restore_location)
+    sb.restore_backup()
+    time.sleep(1.0)
+    res = await c.get(f"subjects/{subject}/versions")
+    assert res.status == 200
+    assert res.json() == [1]
