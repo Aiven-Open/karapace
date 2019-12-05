@@ -513,7 +513,9 @@ async def check_transitive_compatibility(c):
         json={"schema": jsonlib.dumps(schema2)},
     )
     assert res.status == 409
-    assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
+    res_json = res.json()
+    assert res_json["error_code"] == 409
+    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
 
 async def schema_checks(c):
