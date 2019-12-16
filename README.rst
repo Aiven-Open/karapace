@@ -36,10 +36,12 @@ order to operate:
 * aiohttp_ for serving schemas over HTTP in an asynchronous fashion
 * avro-python3_ for Avro serialization
 * kafka-python_ to read, write and coordinate Karapace's persistence in Kafka
+* raven-python_ (optional) to report exceptions to sentry
 
 .. _`aiohttp`: https://github.com/aio-libs/aiohttp
 .. _`avro-python3`: https://github.com/apache/avro
 .. _`kafka-python`: https://github.com/dpkp/kafka-python
+.. _`raven-python`: https://github.com/getsentry/raven-python
 
 Developing and testing Karapace also requires the following utilities:
 requests_, flake8_, pylint_ and pytest_.
@@ -202,7 +204,11 @@ Backing up your Karapace
 Karapace natively stores its data in a Kafka topic the name of which you can
 configure freely but which by default is called _schemas.
 
-To easily back up the data in the topic you can run Kafka's Java console
+Karapace includes a tool to backing up and restoring data. To back up, run::
+
+  karapace_schema_backup get --config karapace.config.json --location schemas.log
+
+You can also back up the data simply by using Kafka's Java console
 consumer::
 
   ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
@@ -211,7 +217,11 @@ consumer::
 Restoring Karapace from backup
 ==============================
 
-Kafka's Java console producer can then in turn be used to restore the data
+Your backup can be restored with Karapace by running::
+
+  karapace_schema_backup restore --config karapace.config.json --location schemas.log
+
+Or Kafka's Java console producer can be used to restore the data
 to a new Kafka cluster.
 
 You can restore the data from the previous step by running::
@@ -267,6 +277,11 @@ Default Kafka security protocol needed to communicate with the Kafka
 cluster.  Other options is to use SSL for SSL client certificate
 authentication.
 
+``sentry`` (default ``None``)
+
+Used to configure parameters for sentry integration (dsn, tags, ...). Setting the
+environment variable ``SENTRY_DSN`` will also enable sentry integration.
+
 ``ssl_cafile`` (default ``Path to CA certificate``)
 
 Used when security_protocol is set to SSL, the path to the SSL CA certificate.
@@ -300,7 +315,7 @@ HTTP webserver port to bind the Karapace to.
 License
 =======
 
-Karapace is licensed under the AGPL, version 3.  Full license text is
+Karapace is licensed under the Apache license, version 2.0.  Full license text is
 available in the ``LICENSE`` file.
 
 Please note that the project explicitly does not require a CLA (Contributor

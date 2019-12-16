@@ -4,15 +4,17 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.karapace import Karapace
+
 import contextlib
+import json
 import os
+import pytest
 import random
 import signal
 import socket
 import subprocess
 import time
-
-import pytest
 
 KAFKA_CURRENT_VERSION = "2.1"
 BASEDIR = "kafka_2.12-2.1.1"
@@ -78,6 +80,7 @@ def fixture_zkserver(session_tmpdir):
     try:
         yield config
     finally:
+        time.sleep(5)
         os.kill(proc.pid, signal.SIGKILL)
         proc.wait(timeout=10.0)
 
@@ -88,8 +91,37 @@ def fixture_kafka_server(session_tmpdir, zkserver):
     try:
         yield config
     finally:
+        time.sleep(5)
         os.kill(proc.pid, signal.SIGKILL)
         proc.wait(timeout=10.0)
+
+
+@pytest.fixture(scope="function", name="karapace")
+def fixture_karapace(session_tmpdir, kafka_server):
+    class _Karapace:
+        def __init__(self, datadir, kafka_port):
+            self.kc = None
+            self.datadir = datadir
+            self.config_path = os.path.join(self.datadir, "karapace_config.json")
+            self.kafka_port = kafka_port
+
+        def create_service(self, topic_name=None):
+            with open(self.config_path, "w") as fp:
+                karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{self.kafka_port}"}
+                if topic_name:
+                    karapace_config["topic_name"] = topic_name
+                fp.write(json.dumps(karapace_config))
+            self.kc = Karapace(self.config_path)
+
+            return self.kc, self.datadir
+
+        def shutdown(self):
+            if self.kc:
+                self.kc.close()
+
+    _instance = _Karapace(datadir=session_tmpdir(), kafka_port=kafka_server["kafka_port"])
+    yield _instance.create_service
+    _instance.shutdown()
 
 
 def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):

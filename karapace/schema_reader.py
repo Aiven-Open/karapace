@@ -4,15 +4,16 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import json
-import logging
-import time
+from kafka import KafkaConsumer
+from kafka.admin import KafkaAdminClient, NewTopic
+from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from karapace.utils import json_encode
 from queue import Queue
 from threading import Thread
 
-from kafka import KafkaConsumer
-from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import (NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError)
+import json
+import logging
+import time
 
 
 class KafkaSchemaReader(Thread):
@@ -84,17 +85,17 @@ class KafkaSchemaReader(Thread):
             return True
         return False
 
-    def get_new_schema_id(self):
+    def get_schema_id(self, new_schema):
+        new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
+        for schema_id, schema in self.schemas.items():
+            if schema == new_schema_encoded:
+                return schema_id
         self.global_schema_id += 1
         return self.global_schema_id
 
     def close(self):
         self.log.info("Closing schema_reader")
         self.running = False
-        if self.admin_client:
-            self.admin_client.close()
-        if self.consumer:
-            self.consumer.close()
 
     def run(self):
         while self.running:
@@ -105,6 +106,11 @@ class KafkaSchemaReader(Thread):
             if not self.consumer:
                 self.init_consumer()
             self.handle_messages()
+
+        if self.admin_client:
+            self.admin_client.close()
+        if self.consumer:
+            self.consumer.close()
 
     def handle_messages(self):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
@@ -137,15 +143,26 @@ class KafkaSchemaReader(Thread):
     def handle_msg(self, key, value):
         if key["keytype"] == "CONFIG":
             if "subject" in key and key["subject"] is not None:
+                if not value:
+                    self.log.info("Deleting compatibility config completely for subject: %r", key["subject"])
+                    self.subjects[key["subject"]].pop("compatibility", None)
+                    return
                 self.log.info(
                     "Setting subject: %r config to: %r, value: %r", key["subject"], value["compatibilityLevel"], value
                 )
+                if not key["subject"] in self.subjects:
+                    self.log.info("Adding first version of subject: %r with no schemas", key["subject"])
+                    self.subjects[key["subject"]] = {"schemas": {}}
                 subject_data = self.subjects.get(key["subject"])
                 subject_data["compatibility"] = value["compatibilityLevel"]
             else:
                 self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
                 self.config["compatibility"] = value["compatibilityLevel"]
         elif key["keytype"] == "SCHEMA":
+            if not value:
+                self.log.info("Deleting subject: %r version: %r completely", key["subject"], key["version"])
+                self.subjects[key["subject"]]["schemas"].pop(key["version"], None)
+                return
             subject = value["subject"]
             if subject not in self.subjects:
                 self.log.info("Adding first version of subject: %r, value: %r", subject, value)
@@ -155,47 +172,55 @@ class KafkaSchemaReader(Thread):
                             "schema": value["schema"],
                             "version": value["version"],
                             "id": value["id"],
+                            "deleted": value.get("deleted", False),
                         }
                     }
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]
                 self.global_schema_id = value["id"]
-            elif value["deleted"] is True:
+            elif value.get("deleted", False) is True:
                 self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
-                entry = self.subjects[subject]["schemas"].pop(value["version"], None)
-                if not entry:
+                if not value["version"] in self.subjects[subject]["schemas"]:
                     self.log.error(
                         "Subject: %r, version: %r, value: %r did not exist, should have.", subject, value["version"], value
                     )
                 else:
-                    self.log.info("Deleting schema_id: %r, schema: %r", value["id"], self.schemas.get(value["id"]))
-                    entry = self.schemas.pop(value["id"], None)
-                    if not entry:
-                        self.log.error("Schema: %r did not exist, should have", value["id"])
-            elif value["deleted"] is False:
+                    self.subjects[subject]["schemas"][value["version"]]["deleted"] = True
+            elif value.get("deleted", False) is False:
                 self.log.info("Adding new version of subject: %r, value: %r", subject, value)
                 self.subjects[subject]["schemas"][value["version"]] = {
                     "schema": value["schema"],
                     "version": value["version"],
-                    "id": value["id"]
+                    "id": value["id"],
+                    "deleted": value.get("deleted", False),
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]
                 self.global_schema_id = value["id"]
         elif key["keytype"] == "DELETE_SUBJECT":
             self.log.info("Deleting subject: %r, value: %r", value["subject"], value)
-            subject = self.subjects.pop(value["subject"], None)
-            if not subject:
+            if not value["subject"] in self.subjects:
                 self.log.error("Subject: %r did not exist, should have", value["subject"])
             else:
-                for schema in subject["schemas"].values():
-                    self.log.info(
-                        "Deleting subject: %r, schema_id: %r, schema: %r", subject, schema["id"],
-                        self.schemas.get(schema["id"])
-                    )
-                    entry = self.schemas.pop(schema["id"], None)
-                    if not entry:
-                        self.log.error("Schema: %r did not exist, should have", schema["id"])
+                updated_schemas = {
+                    key: self._delete_schema_below_version(schema, value["version"])
+                    for key, schema in self.subjects[value["subject"]]["schemas"].items()
+                }
+                self.subjects[value["subject"]]["schemas"] = updated_schemas
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
+
+    @staticmethod
+    def _delete_schema_below_version(schema, version):
+        if schema["version"] <= version:
+            schema["deleted"] = True
+        return schema
+
+    def get_schemas(self, subject):
+        non_deleted_schemas = {
+            key: val
+            for key, val in self.subjects[subject]["schemas"].items()
+            if val.get("deleted", False) is False
+        }
+        return non_deleted_schemas

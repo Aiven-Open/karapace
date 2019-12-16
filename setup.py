@@ -32,11 +32,12 @@ setup(
     entry_points={
         "console_scripts": [
             "karapace = karapace.karapace:main",
+            "karapace_schema_backup = karapace.schema_backup:main",
         ],
     },
     author="Hannu Valtonen",
     author_email="hannu.valtonen@aiven.io",
-    license="AGPL 3",
+    license="Apache 2.0",
     platforms=["POSIX", "MacOS"],
     description="Karapace",
     long_description=readme_text,
@@ -46,7 +47,7 @@ setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
         "Intended Audience :: System Administrators",
-        "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+        "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",

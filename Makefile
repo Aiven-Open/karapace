@@ -7,6 +7,11 @@ PYTHON_TEST_DIRS = tests/
 ALL_PYTHON_DIRS = $(PYTHON_SOURCE_DIRS) $(PYTHON_TEST_DIRS)
 GENERATED = karapace/version.py
 PYTHON = python3
+DNF_INSTALL = sudo dnf install -y
+
+KAFKA_IMAGE = karapace-test-kafka
+ZK = 2181
+KAFKA = 9092
 
 default: $(GENERATED)
 
@@ -14,9 +19,22 @@ clean:
 	rm -rf rpm/
 
 .PHONY: build-dep-fedora
-build-dep-fedora:
-	sudo dnf install -y 'dnf-command(builddep)'
-	sudo dnf builddep -y karapace.spec
+build-dep-fedora: /usr/bin/rpmbuild
+	$(MAKE) -C dependencies install
+	sudo dnf -y builddep karapace.spec
+
+.PHONY: $(KAFKA_IMAGE)
+$(KAFKA_IMAGE):
+	cd container && podman build -t $(KAFKA_IMAGE) .
+
+.PHONY: start-$(KAFKA_IMAGE)
+start-$(KAFKA_IMAGE):
+	@if [ -n "$(REGISTRY)" ]; then \
+	    podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) -p $(REGISTRY):$(REGISTRY) $(KAFKA_IMAGE) $(ZK) $(KAFKA) $(REGISTRY); \
+	else \
+	    podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) $(KAFKA_IMAGE) $(ZK) $(KAFKA); \
+	fi
+	@podman ps
 
 karapace/version.py: version.py
 	$(PYTHON) $^ $@
@@ -27,8 +45,11 @@ $(KAFKA_TAR):
 $(KAFKA_PATH): $(KAFKA_TAR)
 	tar zxf "$(KAFKA_TAR)"
 
+.PHONY: fetch-kafka
+fetch-kafka: $(KAFKA_PATH)
+
 .PHONY: kafka
-kafka: $(KAFKA_PATH)
+kafka: fetch-kafka
 	$(KAFKA_PATH)/bin/zookeeper-server-start.sh $(KAFKA_PATH)/config/zookeeper.properties &
 	$(KAFKA_PATH)/bin/kafka-server-start.sh $(KAFKA_PATH)/config/server.properties &
 
@@ -62,8 +83,11 @@ yapf:
 .PHONY: reformat
 reformat: isort yapf
 
+/usr/lib/rpm/check-buildroot /usr/bin/rpmbuild:
+	$(DNF_INSTALL) rpm-build
+
 .PHONY: rpm
-rpm: $(GENERATED)
+rpm: $(GENERATED) /usr/bin/rpmbuild /usr/lib/rpm/check-buildroot
 	git archive --output=karapace-rpm-src.tar --prefix=karapace/ HEAD
 	# add generated files to the tar, they're not in git repository
 	tar -r -f karapace-rpm-src.tar --transform=s,karapace/,karapace/karapace/, $(GENERATED)
