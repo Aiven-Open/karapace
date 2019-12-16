@@ -154,3 +154,29 @@ async def test_backup_scenarios(karapace, aiohttp_client):
     res = await c.get(f"subjects/{subject}/versions")
     assert res.status == 200
     assert res.json() == [1]
+
+    # Schema delete for a nonexistent subject version is ignored
+    subject = os.urandom(16).hex()
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
+    with open(restore_location, "w") as fp:
+        fp.write(
+            """
+[
+    [
+        {{
+            "subject": "{subject_value}",
+            "magic": 1,
+            "keytype": "SCHEMA",
+            "version": 2
+        }},
+        null
+    ]
+]
+        """.format(subject_value=subject)
+        )
+    sb = SchemaBackup(kc.config_path, restore_location)
+    sb.restore_backup()
+    time.sleep(1.0)
+    res = await c.get(f"subjects/{subject}/versions")
+    assert res.status == 200
+    assert res.json() == [1]

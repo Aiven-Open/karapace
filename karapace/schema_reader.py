@@ -145,7 +145,7 @@ class KafkaSchemaReader(Thread):
             if "subject" in key and key["subject"] is not None:
                 if not value:
                     self.log.info("Deleting compatibility config completely for subject: %r", key["subject"])
-                    self.subjects[key["subject"]].pop("compatibility")
+                    self.subjects[key["subject"]].pop("compatibility", None)
                     return
                 self.log.info(
                     "Setting subject: %r config to: %r, value: %r", key["subject"], value["compatibilityLevel"], value
@@ -161,7 +161,7 @@ class KafkaSchemaReader(Thread):
         elif key["keytype"] == "SCHEMA":
             if not value:
                 self.log.info("Deleting subject: %r version: %r completely", key["subject"], key["version"])
-                self.subjects[key["subject"]]["schemas"].pop(key["version"])
+                self.subjects[key["subject"]]["schemas"].pop(key["version"], None)
                 return
             subject = value["subject"]
             if subject not in self.subjects:
