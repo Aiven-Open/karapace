@@ -57,8 +57,10 @@ class SchemaBackup:
         self.log.info("Closing schema backup reader")
         if self.consumer:
             self.consumer.close()
+            self.consumer = None
         if self.producer:
             self.producer.close()
+            self.producer = None
 
     def request_backup(self):
         if not self.consumer:

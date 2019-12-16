@@ -88,19 +88,13 @@ async def test_backup_restore(karapace, aiohttp_client):
     data = res.json()
     assert subject in data
 
-
-async def test_backup_scenarios(karapace, aiohttp_client):
-    kc, datadir = karapace(topic_name="backup_scenarios")
-    client = await aiohttp_client(kc.app)
-    c = Client(client=client)
-
+    # Test a few exotic scenarios
     subject = os.urandom(16).hex()
     res = await c.put(f"config/{subject}", json={"compatibility": "NONE"})
     assert res.status == 200
     assert res.json()["compatibility"] == "NONE"
 
     # Restore a compatibility config remove message
-    restore_location = os.path.join(datadir, "scenarios.log")
     with open(restore_location, "w") as fp:
         fp.write(
             """
@@ -116,7 +110,6 @@ async def test_backup_scenarios(karapace, aiohttp_client):
 ]
         """.format(subject_value=subject)
         )
-    sb = SchemaBackup(kc.config_path, restore_location)
     res = await c.get(f"config/{subject}")
     assert res.status == 200
     sb.restore_backup()
@@ -148,7 +141,6 @@ async def test_backup_scenarios(karapace, aiohttp_client):
 ]
         """.format(subject_value=subject)
         )
-    sb = SchemaBackup(kc.config_path, restore_location)
     sb.restore_backup()
     time.sleep(1.0)
     res = await c.get(f"subjects/{subject}/versions")
@@ -174,7 +166,6 @@ async def test_backup_scenarios(karapace, aiohttp_client):
 ]
         """.format(subject_value=subject)
         )
-    sb = SchemaBackup(kc.config_path, restore_location)
     sb.restore_backup()
     time.sleep(1.0)
     res = await c.get(f"subjects/{subject}/versions")
