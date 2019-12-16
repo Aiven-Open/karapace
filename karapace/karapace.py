@@ -181,7 +181,7 @@ class Karapace(RestApp):
         future = self.producer.send(self.config["topic_name"], key=key, value=value)
         self.producer.flush(timeout=self.kafka_timeout)
         msg = future.get(self.kafka_timeout)
-        self.log.warning("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
+        self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
         self.get_offset_from_queue(msg.offset)
         return future
 
