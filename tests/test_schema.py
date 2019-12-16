@@ -4,25 +4,14 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from .utils import Client
+
 import json as jsonlib
 import os
-
 import pytest
-
-from karapace.karapace import Karapace
-from .utils import Client
 
 pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
-
-
-def create_service(datadir, kafka_server):
-    config_path = os.path.join(str(datadir), "karapace_config.json")
-    with open(config_path, "w") as fp:
-        karapace_config = {"log_level": "INFO", "bootstrap_uri": "127.0.0.1:{}".format(kafka_server["kafka_port"])}
-        fp.write(jsonlib.dumps(karapace_config))
-    kc = Karapace(config_path)
-    return kc
 
 
 async def enum_schema_compatibility_checks(c, compatibility):
@@ -147,6 +136,9 @@ async def record_nested_schema_compatibility_checks(c):
 
 
 async def compatibility_endpoint_checks(c):
+    res = await c.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+
     subject = os.urandom(16).hex()
     schema = {
         "type": "record",
@@ -187,6 +179,85 @@ async def compatibility_endpoint_checks(c):
     assert res.json() == {"is_compatible": False}
 
 
+async def check_type_compatibility(c):
+    def _test_cases():
+        # Generate FORWARD, BACKWARD and FULL tests for primitive types
+        _CONVERSIONS = {
+            "int": {
+                "int": (True, True),
+                "long": (False, True),
+                "float": (False, True),
+                "double": (False, True),
+            },
+            "bytes": {
+                "bytes": (True, True),
+                "string": (True, True),
+            },
+            "boolean": {
+                "boolean": (True, True),
+            },
+        }
+        _INVALID_CONVERSIONS = [
+            ("int", "boolean"),
+            ("int", "string"),
+            ("int", "bytes"),
+            ("long", "boolean"),
+            ("long", "string"),
+            ("long", "bytes"),
+            ("float", "boolean"),
+            ("float", "string"),
+            ("float", "bytes"),
+            ("double", "boolean"),
+            ("double", "string"),
+            ("double", "bytes"),
+        ]
+
+        for source, targets in _CONVERSIONS.items():
+            for target, (forward, backward) in targets.items():
+                yield "FORWARD", source, target, forward
+                yield "BACKWARD", source, target, backward
+                yield "FULL", target, source, forward and backward
+                if source != target:
+                    yield "FORWARD", target, source, backward
+                    yield "BACKWARD", target, source, forward
+                    yield "FULL", source, target, forward and backward
+
+        for source, target in _INVALID_CONVERSIONS:
+            yield "FORWARD", source, target, False
+            yield "FORWARD", target, source, False
+            yield "BACKWARD", source, target, False
+            yield "BACKWARD", target, source, False
+            yield "FULL", target, source, False
+            yield "FULL", source, target, False
+
+    for compatibility, source_type, target_type, expected in _test_cases():
+        subject = os.urandom(16).hex()
+        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        schema = {
+            "type": "record",
+            "name": "Objct",
+            "fields": [
+                {
+                    "name": "field",
+                    "type": source_type,
+                },
+            ]
+        }
+        res = await c.post(
+            f"subjects/{subject}/versions",
+            json={"schema": jsonlib.dumps(schema)},
+        )
+        assert res.status == 200
+
+        schema["fields"][0]["type"] = target_type
+        res = await c.post(
+            f"compatibility/subjects/{subject}/versions/latest",
+            json={"schema": jsonlib.dumps(schema)},
+        )
+        assert res.status == 200
+        assert res.json() == {"is_compatible": expected}
+
+
 async def record_schema_compatibility_checks(c):
     subject = os.urandom(16).hex()
 
@@ -223,6 +294,10 @@ async def record_schema_compatibility_checks(c):
                 "name": "last_name",
                 "type": "string"
             },
+            {
+                "name": "age",
+                "type": "int"
+            },
         ]
     }
     res = await c.post(
@@ -234,7 +309,7 @@ async def record_schema_compatibility_checks(c):
     schema_id2 = res.json()["id"]
     assert schema_id != schema_id2
 
-    schema3 = {
+    schema3a = {
         "type": "record",
         "name": "Objct",
         "fields": [
@@ -247,15 +322,49 @@ async def record_schema_compatibility_checks(c):
                 "type": "string",
                 "default": "foodefaultvalue"
             },
+            {
+                "name": "age",
+                "type": "int"
+            },
         ]
     }
     res = await c.post(
         "subjects/{}/versions".format(subject),
-        json={"schema": jsonlib.dumps(schema3)},
+        json={"schema": jsonlib.dumps(schema3a)},
     )
     # Fails because field removed
     assert res.status == 409
-    assert res.json() == {"error_code": 409, "message": "Schema being registered is incompatible with an earlier schema"}
+    res_json = res.json()
+    assert res_json["error_code"] == 409
+    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
+
+    schema3b = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string"
+            },
+            {
+                "name": "last_name",
+                "type": "string"
+            },
+            {
+                "name": "age",
+                "type": "long"
+            },
+        ]
+    }
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": jsonlib.dumps(schema3b)},
+    )
+    # Fails because incompatible type change
+    assert res.status == 409
+    res_json = res.json()
+    assert res_json["error_code"] == 409
+    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
     schema4 = {
         "type": "record",
@@ -273,6 +382,10 @@ async def record_schema_compatibility_checks(c):
                 "name": "third_name",
                 "type": "string",
                 "default": "foodefaultvalue"
+            },
+            {
+                "name": "age",
+                "type": "int"
             },
         ]
     }
@@ -304,6 +417,10 @@ async def record_schema_compatibility_checks(c):
                 "name": "fourth_name",
                 "type": "string"
             },
+            {
+                "name": "age",
+                "type": "int"
+            },
         ]
     }
     res = await c.post(
@@ -328,6 +445,77 @@ async def record_schema_compatibility_checks(c):
         json={"schema": jsonlib.dumps(schema5)},
     )
     assert res.status == 409
+
+
+async def check_transitive_compatibility(c):
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD_TRANSITIVE"})
+    assert res.status == 200
+
+    schema0 = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            },
+        ]
+    }
+    res = await c.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema0)},
+    )
+    assert res.status == 200
+
+    schema1 = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            },
+            {
+                "name": "first_name",
+                "type": "string",
+                "default": "John",
+            },
+        ]
+    }
+    res = await c.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema1)},
+    )
+    assert res.status == 200
+
+    schema2 = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            },
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+            {
+                "name": "last_name",
+                "type": "string",
+                "default": "Doe",
+            },
+        ]
+    }
+    res = await c.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema2)},
+    )
+    assert res.status == 409
+    res_json = res.json()
+    assert res_json["error_code"] == 409
+    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
 
 async def schema_checks(c):
@@ -381,6 +569,7 @@ async def schema_checks(c):
     res = await c.get("subjects/{}/versions/1".format(subject))
     assert res.status_code == 200
     assert res.json()["subject"] == subject
+    assert res.json()["schema"] == '"string"'
 
     # Find an invalid version 0
     res = await c.get("subjects/{}/versions/0".format(subject))
@@ -409,6 +598,145 @@ async def schema_checks(c):
     res = await c.get("subjects")
     assert res.status_code == 200
     assert subject not in res.json()
+
+    # After deleting the last version of a subject, it shouldn't be in the list
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    res = await c.get("subjects")
+    assert subject in res.json()
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.json() == [3]
+    res = await c.delete("subjects/{}/versions/3".format(subject))
+    assert res.status_code == 200
+    res = await c.get("subjects")
+    assert subject not in res.json()
+
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
+    res = await c.get("subjects/{}/versions/latest".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
+
+    # Creating a new schema works after deleting the only available version
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.json() == [4]
+
+    # Check version number generation when deleting an entire subjcect
+    subject = os.urandom(16).hex()
+    res = await c.put("config/{}".format(subject), json={"compatibility": "NONE"})
+    assert res.status == 200
+    schema = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    schema2 = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+            {
+                "name": "last_name",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
+    assert res.status == 200
+    assert "id" in res.json()
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.status == 200
+    assert res.json() == [1, 2]
+    res = await c.delete("subjects/{}".format(subject))
+    assert res.status == 200
+    # Recreate subject
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.json() == [3]  # Version number generation should now begin at 3
+
+    # Check the return format on a more complex schema for version get
+    subject = os.urandom(16).hex()
+    schema = {
+        "type": "record",
+        "name": "Objct",
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    res = await c.get("subjects/{}/versions/1".format(subject))
+    assert res.status == 200
+    assert res.json()["subject"] == subject
+    assert sorted(jsonlib.loads(res.json()["schema"])) == sorted(schema)
+
+    # Submitting the exact same schema for a different subject should return the same schema ID.
+    subject = os.urandom(16).hex()
+    schema = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "just_a_value",
+                "type": "string",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    original_schema_id = res.json()["id"]
+    # New subject with the same schema
+    subject = os.urandom(16).hex()
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    new_schema_id = res.json()["id"]
+    assert original_schema_id == new_schema_id
+
+    # It also works for multiple versions in a single subject
+    subject = os.urandom(16).hex()
+    res = await c.put(
+        "config/{}".format(subject), json={"compatibility": "NONE"}
+    )  # We don't care about the compatibility in this test
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert res.json()["id"] == new_schema_id  # Same ID as in the previous test step
 
 
 async def config_checks(c):
@@ -457,33 +785,60 @@ async def config_checks(c):
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
 
+    # It's possible to add a config to a subject that doesn't exist yet
+    subject = os.urandom(16).hex()
+    res = await c.put("config/{}".format(subject), json={"compatibility": "FULL"})
+    assert res.status_code == 200
+    assert res.json()["compatibility"] == "FULL"
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
-async def test_local(session_tmpdir, kafka_server, aiohttp_client):
-    datadir = session_tmpdir()
+    # The subject doesn't exist from the schema point of view
+    res = await c.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
 
-    kc = create_service(datadir, kafka_server)
-    client = await aiohttp_client(kc.app)
-    c = Client(client=client)
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
 
+    res = await c.get("config/{}".format(subject))
+    assert res.status_code == 200
+    assert res.json()["compatibilityLevel"] == "FULL"
+
+    # Test that config is returned for a subject that does not have an existing schema
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "NONE"})
+    assert res.status == 200
+    assert res.json()["compatibility"] == "NONE"
+    res = await c.get(f"config/{subject}")
+    assert res.status == 200
+    assert res.json()["compatibilityLevel"] == "NONE"
+
+
+async def run_schema_tests(c):
     await schema_checks(c)
+    await check_type_compatibility(c)
     await compatibility_endpoint_checks(c)
     await record_schema_compatibility_checks(c)
     await record_nested_schema_compatibility_checks(c)
     for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
         await enum_schema_compatibility_checks(c, compatibility)
     await config_checks(c)
-    kc.close()
+    await check_transitive_compatibility(c)
+
+
+async def test_local(karapace, aiohttp_client):
+    kc, _ = karapace()
+    client = await aiohttp_client(kc.app)
+    c = Client(client=client)
+    await run_schema_tests(c)
 
 
 async def test_remote():
     server_uri = os.environ.get("SERVER_URI")
     if not server_uri:
         pytest.skip("SERVER_URI env variable not set")
-    c = Client(server_uri=os.environ.get("SERVER_URI"))
-    await schema_checks(c)
-    await compatibility_endpoint_checks(c)
-    await record_schema_compatibility_checks(c)
-    await record_nested_schema_compatibility_checks(c)
-    for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
-        await enum_schema_compatibility_checks(c, compatibility)
-    await config_checks(c)
+    c = Client(server_uri=server_uri)
+    await run_schema_tests(c)
