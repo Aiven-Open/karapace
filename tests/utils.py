@@ -37,7 +37,7 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = requests.get(os.path.join(self.server_uri, path))
+            res = requests.get(os.path.join(self.server_uri, path), headers=headers)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def delete(self, path, headers=None):
@@ -51,7 +51,7 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = requests.delete(os.path.join(self.server_uri, path))
+            res = requests.delete(os.path.join(self.server_uri, path), headers=headers)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def post(self, path, json, headers=None):
