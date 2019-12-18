@@ -7,7 +7,7 @@ License:        ASL 2.0
 Source0:        karapace-rpm-src.tar
 BuildArch:      noarch
 BuildRequires:  python3-aiohttp
-BuildRequires:  python3-aiosocksy
+BuildRequires:  python3-aiohttp_socks
 BuildRequires:  python3-avro
 BuildRequires:  python3-devel
 BuildRequires:  python3-flake8
@@ -18,7 +18,7 @@ BuildRequires:  python3-pytest
 BuildRequires:  python3-requests
 BuildRequires:  python3-yapf
 Requires:       python3-aiohttp
-Requires:       python3-aiosocksy
+Requires:       python3-aiohttp_socks
 Requires:       python3-avro
 Requires:       python3-kafka
 Requires:       python3-requests

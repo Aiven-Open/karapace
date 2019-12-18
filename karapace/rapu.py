@@ -12,8 +12,7 @@ from karapace.version import __version__
 
 import aiohttp
 import aiohttp.web
-import aiosocksy
-import aiosocksy.connector
+import aiohttp_socks
 import async_timeout
 import asyncio
 import hashlib
@@ -235,8 +234,6 @@ class RestApp:
 
     async def http_request(self, url, *, method="GET", json=None, timeout=10.0, verify=True, proxy=None):
         close_session = False
-        proxy_auth = None
-        proxy_url = None
 
         if isinstance(verify, str):
             sslcontext = ssl.create_default_context(cadata=verify)
@@ -244,17 +241,17 @@ class RestApp:
             sslcontext = None
 
         if proxy:
-            proxy_auth = aiosocksy.Socks5Auth(proxy["username"], proxy["password"])
-            connector = aiosocksy.connector.ProxyConnector(
-                remote_resolve=False,
+            connector = aiohttp_socks.SocksConnector(
+                socks_ver=aiohttp_socks.SocksVer.SOCKS5,
+                host=proxy["host"],
+                port=proxy["port"],
+                username=proxy["username"],
+                password=proxy["password"],
+                rdns=False,
                 verify_ssl=verify,
                 ssl_context=sslcontext,
             )
-            session = aiohttp.ClientSession(
-                connector=connector,
-                request_class=aiosocksy.connector.ProxyClientRequest,
-            )
-            proxy_url = "socks5://{host}:{port}".format_map(proxy)
+            session = aiohttp.ClientSession(connector=connector)
             close_session = True
         elif sslcontext:
             conn = aiohttp.TCPConnector(ssl_context=sslcontext)
@@ -270,7 +267,7 @@ class RestApp:
         func = getattr(session, method.lower())
         try:
             with async_timeout.timeout(timeout):
-                async with func(url, json=json, proxy=proxy_url, proxy_auth=proxy_auth) as response:
+                async with func(url, json=json) as response:
                     if response.headers.get("content-type", "").startswith("application/json"):
                         resp_content = await response.json()
                     else:

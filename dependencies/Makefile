@@ -1,6 +1,6 @@
 
 LOCAL_PACKAGES = \
-	python3-aiosocksy \
+	python3-aiohttp_socks \
 	python3-avro \
 	python3-kafka
 
