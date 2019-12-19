@@ -1,9 +1,9 @@
 FEDORA = $(shell source /etc/os-release && echo $$VERSION_ID)
 RELEASE = 1.karapace.fc$(FEDORA)
-PROJ = aiosocksy
-PYNAME = aiosocksy
+PROJ = aiohttp-socks
+PYNAME = aiohttp_socks
 GITHUB_ACCOUNT = romis2012
-COMMIT = b3c3e5f067341f7b9ef1d3e1a61f9e5bf28a7df1
+COMMIT = 0.2.2
 
 all: rpm
 
@@ -14,7 +14,6 @@ clean:
 
 $(PROJ):
 	git clone "git@github.com:$(GITHUB_ACCOUNT)/$(PROJ).git"
-	git -C aiosocksy/ tag -a 0.0.0 -m dummyatag 812082f13c880164613fb0aefbf687aeb999623a
 
 rpm: $(PROJ)
 	$(RM) -r "$@"/ "$(PROJ)"/dist
