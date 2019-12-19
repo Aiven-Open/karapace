@@ -64,22 +64,35 @@ class Karapace(RestApp):
         self.route(
             "/compatibility/subjects/<subject:path>/versions/<version:path>",
             callback=self.compatibility_check,
-            method="POST"
+            method="POST",
+            schema_request=True
         )
 
-        self.route("/config/<subject:path>", callback=self.config_subject_get, method="GET")
-        self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT")
-        self.route("/config", callback=self.config_get, method="GET")
-        self.route("/config", callback=self.config_set, method="PUT")
+        self.route("/config/<subject:path>", callback=self.config_subject_get, method="GET", schema_request=True)
+        self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
+        self.route("/config", callback=self.config_get, method="GET", schema_request=True)
+        self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
 
-        self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET")
+        self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
 
-        self.route("/subjects", callback=self.subjects_list, method="GET")
-        self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST")
-        self.route("/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET")
-        self.route("/subjects/<subject:path>/versions/<version:path>", callback=self.subject_version_get, method="GET")
-        self.route("/subjects/<subject:path>/versions/<version:path>", callback=self.subject_version_delete, method="DELETE")
-        self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE")
+        self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
+        self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
+        self.route(
+            "/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET", schema_request=True
+        )
+        self.route(
+            "/subjects/<subject:path>/versions/<version:path>",
+            callback=self.subject_version_get,
+            method="GET",
+            schema_request=True
+        )
+        self.route(
+            "/subjects/<subject:path>/versions/<version:path>",
+            callback=self.subject_version_delete,
+            method="DELETE",
+            schema_request=True
+        )
+        self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
 
         self.ksr = None
         self._set_log_level()
@@ -137,24 +150,24 @@ class Karapace(RestApp):
             api_version=(1, 0, 0),
         )
 
-    def _subject_get(self, subject):
+    def _subject_get(self, subject, content_type):
         subject_data = self.ksr.subjects.get(subject)
         if not subject_data:
-            self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
+            self.r({"error_code": 40401, "message": "Subject not found."}, content_type, status=404)
 
         schemas = self.ksr.get_schemas(subject)
         if not schemas:
-            self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
+            self.r({"error_code": 40401, "message": "Subject not found."}, content_type, status=404)
 
         subject_data["schemas"] = schemas
         return subject_data
 
     @staticmethod
-    def r(body, status=200):
+    def r(body, content_type, status=200):
         raise HTTPResponse(
             body=body,
             status=status,
-            content_type="application/vnd.schemaregistry.v1+json",
+            content_type=content_type,
             headers={},
         )
 
@@ -209,22 +222,22 @@ class Karapace(RestApp):
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
 
-    async def compatibility_check(self, *, subject, version, request):
+    async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
         body = request.json
         self.log.info("Got request to check subject: %r, version_id: %r compatibility", subject, version)
-        old = await self.subject_version_get(subject=subject, version=version, return_dict=True)
+        old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             new = avro.schema.Parse(body["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid schema: %r", body["schema"])
-            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
+            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
         try:
             old_schema = avro.schema.Parse(old["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid existing schema: %r", old["schema"])
-            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
+            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
 
         compat = Compatibility(
             source=old_schema, target=new, compatibility=old.get("compatibility", self.ksr.config["compatibility"])
@@ -233,20 +246,20 @@ class Karapace(RestApp):
             compat.check()
         except IncompatibleSchema as ex:
             self.log.warning("Invalid schema %s found by compatibility check: old: %s new: %s", ex, old_schema, new)
-            self.r({"is_compatible": False})
-        self.r({"is_compatible": True})
+            self.r({"is_compatible": False}, content_type)
+        self.r({"is_compatible": True}, content_type)
 
-    async def schemas_get(self, *, schema_id):
+    async def schemas_get(self, content_type, *, schema_id):
         schema = self.ksr.schemas.get(int(schema_id))
         if not schema:
             self.log.warning("Schema: %r that was requested, not found", int(schema_id))
-            self.r(body={"error_code": 40403, "message": "Schema not found"}, status=404)
-        self.r({"schema": schema})
+            self.r(body={"error_code": 40403, "message": "Schema not found"}, content_type=content_type, status=404)
+        self.r({"schema": schema}, content_type)
 
-    async def config_get(self):
-        self.r({"compatibilityLevel": self.ksr.config["compatibility"]})
+    async def config_get(self, content_type):
+        self.r({"compatibilityLevel": self.ksr.config["compatibility"]}, content_type)
 
-    async def config_set(self, *, request):
+    async def config_set(self, content_type, *, request):
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
             compatibility_level = request.json["compatibility"]
             self.send_config_message(compatibility_level=compatibility_level, subject=None)
@@ -256,51 +269,58 @@ class Karapace(RestApp):
                     "error_code": 42203,
                     "message": "Invalid compatibility level. Valid values are none, backward, forward and full"
                 },
+                content_type=content_type,
                 status=422
             )
-        self.r({"compatibility": self.ksr.config["compatibility"]})
+        self.r({"compatibility": self.ksr.config["compatibility"]}, content_type)
 
-    async def config_subject_get(self, *, subject):
+    async def config_subject_get(self, content_type, *, subject):
         # Config for a subject can exist without schemas so no need to check for their existence
         subject_data = self.ksr.subjects.get(subject)
 
         if "compatibility" in subject_data:
-            self.r({"compatibilityLevel": subject_data["compatibility"]})
+            self.r({"compatibilityLevel": subject_data["compatibility"]}, content_type)
 
-        self.r({"error_code": 40401, "message": "Subject not found."}, status=404)
+        self.r({"error_code": 40401, "message": "Subject not found."}, content_type, status=404)
 
-    async def config_subject_set(self, *, request, subject):
+    async def config_subject_set(self, content_type, *, request, subject):
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
             self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
         else:
-            self.r(body={"error_code": 42203, "message": "Invalid compatibility level"}, status=422)
+            self.r(
+                body={
+                    "error_code": 42203,
+                    "message": "Invalid compatibility level"
+                }, content_type=content_type, status=422
+            )
 
-        self.r({"compatibility": request.json["compatibility"]})
+        self.r({"compatibility": request.json["compatibility"]}, content_type)
 
-    async def subjects_list(self):
+    async def subjects_list(self, content_type):
         subjects_list = [key for key, val in self.ksr.subjects.items() if self.ksr.get_schemas(key)]
-        self.r(subjects_list)
+        self.r(subjects_list, content_type, status=200)
 
-    async def subject_delete(self, *, subject):
-        self._subject_get(subject)
+    async def subject_delete(self, content_type, *, subject):
+        self._subject_get(subject, content_type)
         version_list = list(self.ksr.get_schemas(subject))
         if version_list:
             latest_schema_id = version_list[-1]
         else:
             latest_schema_id = 0
         self.send_delete_subject_message(subject, latest_schema_id)
-        self.r(version_list, status=200)
+        self.r(version_list, content_type, status=200)
 
-    async def subject_version_get(self, *, subject, version, return_dict=False):
+    async def subject_version_get(self, content_type, *, subject, version, return_dict=False):
         if version != "latest" and int(version) < 1:
             self.r({
                 "error_code": 42202,
                 "message": 'The specified version is not a valid version id. '
                 'Allowed values are between [1, 2^31-1] and the string "latest"'
             },
+                   content_type,
                    status=422)
 
-        subject_data = self._subject_get(subject)
+        subject_data = self._subject_get(subject, content_type)
 
         max_version = max(subject_data["schemas"])
         if version == "latest":
@@ -309,7 +329,7 @@ class Karapace(RestApp):
         elif int(version) <= max_version:
             schema = subject_data["schemas"].get(int(version))
         else:
-            self.r({"error_code": 40402, "message": "Version not found."}, status=404)
+            self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
 
         schema_string = schema["schema"]
         schema_id = schema["id"]
@@ -324,22 +344,22 @@ class Karapace(RestApp):
             if subject_data.get("compatibility"):
                 ret["compatibility"] = subject_data.get("compatibility")
             return ret
-        self.r(ret)
+        self.r(ret, content_type)
 
-    async def subject_version_delete(self, *, subject, version):
+    async def subject_version_delete(self, content_type, *, subject, version):
         version = int(version)
-        subject_data = self._subject_get(subject)
+        subject_data = self._subject_get(subject, content_type)
 
         schema = subject_data["schemas"].get(version, None)
         if not schema:
-            self.r({"error_code": 40402, "message": "Version not found."}, status=404)
+            self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
         schema_id = schema["id"]
         self.send_schema_message(subject, schema, schema_id, version, deleted=True)
-        self.r(str(version), status=200)
+        self.r(str(version), content_type, status=200)
 
-    async def subject_versions_list(self, *, subject):
-        subject_data = self._subject_get(subject)
-        self.r(list(subject_data["schemas"]), status=200)
+    async def subject_versions_list(self, content_type, *, subject):
+        subject_data = self._subject_get(subject, content_type)
+        self.r(list(subject_data["schemas"]), content_type, status=200)
 
     async def get_master(self):
         async with self.master_lock:
@@ -353,25 +373,30 @@ class Karapace(RestApp):
                     return master, master_url
                 await asyncio.sleep(1.0)
 
-    async def subject_post(self, *, subject, request):
+    async def subject_post(self, content_type, *, subject, request):
         body = request.json
         self.log.debug("POST with subject: %r, request: %r", subject, body)
         are_we_master, master_url = await self.get_master()
         if are_we_master:
-            self.write_new_schema_local(subject, body)
+            self.write_new_schema_local(subject, body, content_type)
         elif are_we_master is None:
-            self.r({"error_code": 50003, "message": "Error while forwarding the request to the master."}, status=500)
+            self.r({
+                "error_code": 50003,
+                "message": "Error while forwarding the request to the master."
+            },
+                   content_type,
+                   status=500)
         else:
-            await self.write_new_schema_remote(subject, body, master_url)
+            await self.write_new_schema_remote(subject, body, master_url, content_type)
 
-    def write_new_schema_local(self, subject, body):
+    def write_new_schema_local(self, subject, body, content_type):
         """Since we're the master we get to write the new schema"""
         self.log.info("Writing new schema locally since we're the master")
         try:
             new_schema = avro.schema.Parse(body["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid schema: %r", body["schema"])
-            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, status=422)
+            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
 
         if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
             schema_id = self.ksr.get_schema_id(new_schema)
@@ -392,7 +417,7 @@ class Karapace(RestApp):
                     version, new_schema.to_json(), schema_id
                 )
                 self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
-                self.r({"id": schema_id})
+                self.r({"id": schema_id}, content_type)
 
             schema_versions = sorted(list(schemas))
             # Go through these in version order
@@ -400,7 +425,7 @@ class Karapace(RestApp):
                 schema = subject_data["schemas"][version]
                 parsed_version_schema = avro.schema.Parse(schema["schema"])
                 if parsed_version_schema == new_schema:
-                    self.r({"id": schema["id"]})
+                    self.r({"id": schema["id"]}, content_type)
                 else:
                     self.log.debug("schema: %s did not match with: %s", schema["schema"], new_schema.to_json())
 
@@ -426,6 +451,7 @@ class Karapace(RestApp):
                             "error_code": 409,
                             "message": "Schema being registered is incompatible with an earlier schema"
                         },
+                        content_type=content_type,
                         status=409
                     )
 
@@ -437,14 +463,14 @@ class Karapace(RestApp):
                 new_schema.to_json(), schema_id
             )
         self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
-        self.r({"id": schema_id})
+        self.r({"id": schema_id}, content_type)
 
-    async def write_new_schema_remote(self, subject, body, master_url):
+    async def write_new_schema_remote(self, subject, body, master_url, content_type):
         self.log.info("Writing new schema to remote url: %r since we're not the master", master_url)
         response = await self.http_request(
             url="{}/subjects/{}/versions".format(master_url, subject), method="POST", json=body, timeout=60.0
         )
-        self.r(body=response.body, status=response.status)
+        self.r(body=response.body, content_type=content_type, status=response.status)
 
 
 def main():

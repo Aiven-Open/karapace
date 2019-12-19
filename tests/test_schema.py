@@ -817,6 +817,26 @@ async def config_checks(c):
     assert res.json()["compatibilityLevel"] == "NONE"
 
 
+async def check_http_headers(c):
+    res = await c.get(f"subjects", headers={"Accept": "application/json"})
+    assert res.headers["Content-Type"] == "application/json"
+
+    # The default is received when not specifying
+    res = await c.get(f"subjects")
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+
+    # Giving an invalid Accept value
+    res = await c.get(f"subjects", headers={"Accept": "application/vnd.schemaregistry.v2+json"})
+    assert res.status == 406
+    assert res.json()["message"] == "HTTP 406 Not Acceptable"
+
+    # PUT with an invalid Content type
+    res = await c.put("config", json={"compatibility": "NONE"}, headers={"Content-Type": "text/html"})
+    assert res.status == 415
+    assert res.json()["message"] == "HTTP 415 Unsupported Media Type"
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+
+
 async def run_schema_tests(c):
     await schema_checks(c)
     await check_type_compatibility(c)
@@ -827,6 +847,7 @@ async def run_schema_tests(c):
         await enum_schema_compatibility_checks(c, compatibility)
     await config_checks(c)
     await check_transitive_compatibility(c)
+    await check_http_headers(c)
 
 
 async def test_local(karapace, aiohttp_client):
