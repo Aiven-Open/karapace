@@ -24,6 +24,12 @@ import time
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 
+ACCEPTED_SCHEMA_CONTENT_TYPES = {
+    "application/vnd.schemaregistry.v1+json",
+    "application/vnd.schemaregistry+json",
+    "application/json",
+}
+
 
 class HTTPRequest:
     def __init__(self, *, url, query, headers, path_for_stats, method):
@@ -95,7 +101,41 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
-    async def _handle_request(self, *, request, path_for_stats, callback, callback_with_request=False, json_request=False):
+    @staticmethod
+    def check_schema_headers(request):
+        method = request.method
+        headers = request.headers
+
+        content_type = "application/vnd.schemaregistry.v1+json"
+        if method in {"POST", "PUT"} and headers["Content-Type"] not in ACCEPTED_SCHEMA_CONTENT_TYPES:
+            raise HTTPResponse(
+                body=json_encode({
+                    "error_code": 415,
+                    "message": "HTTP 415 Unsupported Media Type",
+                }, binary=True),
+                headers={"Content-Type": content_type},
+                status=415,
+            )
+
+        if "Accept" in headers:
+            if headers["Accept"] == "*/*":  # Default value
+                pass
+            elif headers["Accept"] in ACCEPTED_SCHEMA_CONTENT_TYPES:
+                content_type = headers["Accept"]
+            else:
+                raise HTTPResponse(
+                    body=json_encode({
+                        "error_code": 406,
+                        "message": "HTTP 406 Not Acceptable",
+                    }, binary=True),
+                    headers={"Content-Type": content_type},
+                    status=406,
+                )
+        return content_type
+
+    async def _handle_request(
+        self, *, request, path_for_stats, callback, schema_request=False, callback_with_request=False, json_request=False
+    ):
         start_time = time.monotonic()
         resp = None
         rapu_request = HTTPRequest(
@@ -133,6 +173,10 @@ class RestApp:
             callback_kwargs = dict(request.match_info)
             if callback_with_request:
                 callback_kwargs["request"] = rapu_request
+
+            if schema_request:
+                content_type = self.check_schema_headers(request)
+                callback_kwargs["content_type"] = content_type
 
             try:
                 data = await callback(**callback_kwargs)
@@ -194,7 +238,7 @@ class RestApp:
 
         return resp
 
-    def route(self, path, *, callback, method, with_request=None, json_body=None):
+    def route(self, path, *, callback, method, schema_request=False, with_request=None, json_body=None):
         # pretty path for statsd reporting
         path_for_stats = re.sub(r"<[\w:]+>", "x", path)
 
@@ -214,6 +258,7 @@ class RestApp:
                 request=request,
                 path_for_stats=path_for_stats,
                 callback=callback,
+                schema_request=schema_request,
                 callback_with_request=with_request,
                 json_request=json_body,
             )
