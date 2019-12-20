@@ -4,3 +4,11 @@ Karapace 0.1.0 (2019-01-16)
 * Initial release with schema storing, retrieving and compatibility testing functionality
 * Unittests for the functionality
 * aiohttp based architecture
+
+Karapace 1.0.0 (2019-12-20)
+===========================
+
+* Backup functionality for schemas
+* General improvements and fixes for API compatibility
+* Support for transitive compatibility
+* Sentry integration
