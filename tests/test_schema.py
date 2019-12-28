@@ -738,6 +738,25 @@ async def schema_checks(c):
     assert res.status == 200
     assert res.json()["id"] == new_schema_id  # Same ID as in the previous test step
 
+    # The subject version schema endpoint returns the correct results
+    subject = os.urandom(16).hex()
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    res = await c.get(f"subjects/{subject}/versions/1/schema")
+    assert res.status == 200
+    assert res.json() == "string"
+    res = await c.get(f"subjects/{os.urandom(16).hex()}/versions/1/schema")  # Invalid subject
+    assert res.status == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
+    res = await c.get(f"subjects/{subject}/versions/2/schema")
+    assert res.status == 404
+    assert res.json()["error_code"] == 40402
+    assert res.json()["message"] == "Version not found."
+
 
 async def config_checks(c):
     # Tests /config endpoint
