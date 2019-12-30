@@ -5,6 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaProducer
+from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
@@ -12,6 +13,7 @@ from karapace.rapu import HTTPResponse, RestApp
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
 
+import argparse
 import asyncio
 import avro.schema
 import json
@@ -474,16 +476,16 @@ class Karapace(RestApp):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Not enough arguments, given - usage schema config.json")
+    parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
+    parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
+    parser.add_argument("config_file", help="configuration file path")
+    arg = parser.parse_args()
+
+    if not os.path.exists(arg.config_file):
+        print("Config file: {} does not exist, exiting".format(arg.config_file))
         return 1
 
-    config_path = sys.argv[1]
-    if not os.path.exists(config_path):
-        print("Config file: {} does not exist, exiting".format(config_path))
-        return 1
-
-    kc = Karapace(config_path)
+    kc = Karapace(arg.config_file)
     try:
         return kc.run(host=kc.config["host"], port=kc.config["port"])
     except Exception:  # pylint: disable-broad-except
