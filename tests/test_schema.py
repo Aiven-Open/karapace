@@ -757,6 +757,45 @@ async def schema_checks(c):
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version not found."
 
+    # The schema check for subject endpoint returns correct results
+    subject = os.urandom(16).hex()
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    schema_id = res.json()["id"]
+    # The same ID should be returned when checking the same schema against the same subject
+    res = await c.post(
+        f"subjects/{subject}",
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 200
+    assert res.json()["id"] == schema_id
+    # Invalid schema should return 500
+    res = await c.post(
+        f"subjects/{subject}",
+        json={"schema": '{"type": "invalid_type"}'},
+    )
+    assert res.status == 500
+    assert res.json()["message"] == f"Error while looking up schema under subject {subject}"
+    # Subject is not found
+    res = await c.post(
+        f"subjects/{os.urandom(16).hex()}",
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
+    # Schema not found for subject
+    res = await c.post(
+        f"subjects/{subject}",
+        json={"schema": '{"type": "int"}'},
+    )
+    assert res.status == 404
+    assert res.json()["error_code"] == 40403
+    assert res.json()["message"] == "Schema not found"
+
 
 async def config_checks(c):
     # Tests /config endpoint
