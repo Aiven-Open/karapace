@@ -83,7 +83,7 @@ class Karapace(RestApp):
             "/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET", schema_request=True
         )
         self.route(
-            "/subjects/<subject:path>/versions/<version:path>",
+            "/subjects/<subject:path>/versions/<version>",
             callback=self.subject_version_get,
             method="GET",
             schema_request=True
@@ -92,6 +92,12 @@ class Karapace(RestApp):
             "/subjects/<subject:path>/versions/<version:path>",
             callback=self.subject_version_delete,
             method="DELETE",
+            schema_request=True
+        )
+        self.route(
+            "/subjects/<subject:path>/versions/<version>/schema",
+            callback=self.subject_version_schema_get,
+            method="GET",
             schema_request=True
         )
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
@@ -358,6 +364,15 @@ class Karapace(RestApp):
         schema_id = schema["id"]
         self.send_schema_message(subject, schema, schema_id, version, deleted=True)
         self.r(str(version), content_type, status=200)
+
+    async def subject_version_schema_get(self, content_type, *, subject, version):
+        subject_data = self._subject_get(subject, content_type)
+        version = int(version)
+
+        schema_data = subject_data["schemas"].get(version, None)
+        if not schema_data:
+            self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
+        self.r(schema_data["schema"], content_type)
 
     async def subject_versions_list(self, content_type, *, subject):
         subject_data = self._subject_get(subject, content_type)
