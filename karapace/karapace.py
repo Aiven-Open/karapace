@@ -79,6 +79,7 @@ class Karapace(RestApp):
 
         self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
         self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
+        self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
         self.route(
             "/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET", schema_request=True
         )
@@ -389,6 +390,27 @@ class Karapace(RestApp):
                 else:
                     return master, master_url
                 await asyncio.sleep(1.0)
+
+    async def subjects_schema_post(self, content_type, *, subject, request):
+        body = request.json
+        try:
+            new_schema = avro.schema.Parse(body["schema"])
+        except avro.schema.SchemaParseException:
+            self.r(
+                body={
+                    "error_code": 500,
+                    "message": f"Error while looking up schema under subject {subject}"
+                },
+                content_type=content_type,
+                status=500
+            )
+
+        new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
+        subject_data = self._subject_get(subject, content_type)
+        for schema in subject_data["schemas"].values():
+            if schema["schema"] == new_schema_encoded:
+                self.r(schema, content_type)
+        self.r({"error_code": 40403, "message": "Schema not found"}, content_type, status=404)
 
     async def subject_post(self, content_type, *, subject, request):
         body = request.json
