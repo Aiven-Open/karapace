@@ -379,10 +379,13 @@ class Karapace(RestApp):
     async def subject_version_schema_get(self, content_type, *, subject, version):
         self._validate_version(content_type, version)
         subject_data = self._subject_get(subject, content_type)
-        version = int(version)
 
-        schema_data = subject_data["schemas"].get(version, None)
-        if not schema_data:
+        max_version = max(subject_data["schemas"])
+        if version == "latest":
+            schema_data = subject_data["schemas"][max_version]
+        elif int(version) <= max_version:
+            schema_data = subject_data["schemas"].get(int(version))
+        else:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
         self.r(schema_data["schema"], content_type)
 

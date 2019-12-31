@@ -765,6 +765,9 @@ async def schema_checks(c):
     assert res.status == 404
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version not found."
+    res = await c.get(f"subjects/{subject}/versions/latest/schema")
+    assert res.status == 200
+    assert res.json() == "string"
 
     # The schema check for subject endpoint returns correct results
     subject = os.urandom(16).hex()
