@@ -541,6 +541,15 @@ async def schema_checks(c):
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
 
+    # Schema missing in the json body
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={},
+    )
+    assert res.status == 500
+    assert res.json()["error_code"] == 500
+    assert res.json()["message"] == "Internal Server Error"
+
     # nonexistent schema id
     result = await c.get(os.path.join("schemas/ids/{}".format(123456789)))
     assert result.json()["error_code"] == 40403
@@ -795,6 +804,19 @@ async def schema_checks(c):
     assert res.status == 404
     assert res.json()["error_code"] == 40403
     assert res.json()["message"] == "Schema not found"
+    # Schema not included in the request body
+    res = await c.post(f"subjects/{subject}", json={})
+    assert res.status == 500
+    assert res.json()["error_code"] == 500
+    assert res.json()["message"] == "Internal Server Error"
+    # Schema not included in the request body for subject that does not exist
+    res = await c.post(
+        f"subjects/{os.urandom(16).hex()}",
+        json={},
+    )
+    assert res.status == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == "Subject not found."
 
 
 async def config_checks(c):
@@ -895,6 +917,27 @@ async def check_http_headers(c):
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
 
+async def check_schema_body_validation(c):
+    subject = os.urandom(16).hex()
+    post_endpoints = {f"subjects/{subject}", f"subjects/{subject}/versions"}
+    for endpoint in post_endpoints:
+        # Wrong field name
+        res = await c.post(endpoint, json={"invalid_field": "invalid_value"})
+        assert res.status == 422
+        assert res.json()["error_code"] == 422
+        assert res.json()["message"] == "Unrecognized field: invalid_field"
+        # Additional field
+        res = await c.post(endpoint, json={"schema": '{"type": "string"}', "invalid_field": "invalid_value"})
+        assert res.status == 422
+        assert res.json()["error_code"] == 422
+        assert res.json()["message"] == "Unrecognized field: invalid_field"
+        # Invalid body type
+        res = await c.post(endpoint, json="invalid")
+        assert res.status == 500
+        assert res.json()["error_code"] == 500
+        assert res.json()["message"] == "Internal Server Error"
+
+
 async def run_schema_tests(c):
     await schema_checks(c)
     await check_type_compatibility(c)
@@ -906,6 +949,7 @@ async def run_schema_tests(c):
     await config_checks(c)
     await check_transitive_compatibility(c)
     await check_http_headers(c)
+    await check_schema_body_validation(c)
 
 
 async def test_local(karapace, aiohttp_client):
