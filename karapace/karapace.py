@@ -79,6 +79,7 @@ class Karapace(RestApp):
 
         self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
         self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
+        self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
         self.route(
             "/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET", schema_request=True
         )
@@ -390,9 +391,50 @@ class Karapace(RestApp):
                     return master, master_url
                 await asyncio.sleep(1.0)
 
+    def _validate_schema_request_body(self, content_type, body):
+        if not isinstance(body, dict):
+            self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
+        for field in body:
+            if field != "schema":
+                self.r(
+                    body={
+                        "error_code": 422,
+                        "message": f"Unrecognized field: {field}",
+                    },
+                    content_type=content_type,
+                    status=422
+                )
+
+    async def subjects_schema_post(self, content_type, *, subject, request):
+        body = request.json
+        self._validate_schema_request_body(content_type, body)
+        subject_data = self._subject_get(subject, content_type)
+        if "schema" not in body:
+            self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
+        try:
+            new_schema = avro.schema.Parse(body["schema"])
+        except avro.schema.SchemaParseException:
+            self.r(
+                body={
+                    "error_code": 500,
+                    "message": f"Error while looking up schema under subject {subject}"
+                },
+                content_type=content_type,
+                status=500
+            )
+
+        new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
+        for schema in subject_data["schemas"].values():
+            if schema["schema"] == new_schema_encoded:
+                self.r(schema, content_type)
+        self.r({"error_code": 40403, "message": "Schema not found"}, content_type, status=404)
+
     async def subject_post(self, content_type, *, subject, request):
         body = request.json
         self.log.debug("POST with subject: %r, request: %r", subject, body)
+        self._validate_schema_request_body(content_type, body)
+        if "schema" not in body:
+            self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             self.write_new_schema_local(subject, body, content_type)
