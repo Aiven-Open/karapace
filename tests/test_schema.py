@@ -938,6 +938,42 @@ async def check_schema_body_validation(c):
         assert res.json()["message"] == "Internal Server Error"
 
 
+async def check_version_number_validation(c):
+    # Create a schema
+    subject = os.urandom(16).hex()
+    res = await c.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": '{"type": "string"}'},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    version_endpoints = {f"subjects/{subject}/versions/$VERSION", f"subjects/{subject}/versions/$VERSION/schema"}
+    for endpoint in version_endpoints:
+        # Valid schema id
+        res = await c.get(endpoint.replace("$VERSION", "1"))
+        assert res.status == 200
+        # Invalid number
+        res = await c.get(endpoint.replace("$VERSION", "0"))
+        assert res.status == 422
+        assert res.json()["error_code"] == 42202
+        assert res.json()[
+            "message"
+        ] == "The specified version is not a valid version id. " \
+            "Allowed values are between [1, 2^31-1] and the string \"latest\""
+        # Valid latest string
+        res = await c.get(endpoint.replace("$VERSION", "latest"))
+        assert res.status == 200
+        # Invalid string
+        res = await c.get(endpoint.replace("$VERSION", "invalid"))
+        assert res.status == 422
+        assert res.json()["error_code"] == 42202
+        assert res.json()[
+            "message"
+        ] == "The specified version is not a valid version id. " \
+            "Allowed values are between [1, 2^31-1] and the string \"latest\""
+
+
 async def run_schema_tests(c):
     await schema_checks(c)
     await check_type_compatibility(c)
@@ -950,6 +986,7 @@ async def run_schema_tests(c):
     await check_transitive_compatibility(c)
     await check_http_headers(c)
     await check_schema_body_validation(c)
+    await check_version_number_validation(c)
 
 
 async def test_local(karapace, aiohttp_client):
