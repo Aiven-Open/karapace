@@ -171,6 +171,24 @@ class Karapace(RestApp):
         subject_data["schemas"] = schemas
         return subject_data
 
+    def _validate_version(self, content_type, version):  # pylint: disable=inconsistent-return-statements
+        try:
+            version_number = int(version)
+            if version_number > 0:
+                return version
+        except ValueError:
+            if version == "latest":
+                return version
+        self.r(
+            body={
+                "error_code": 42202,
+                "message": "The specified version is not a valid version id. "
+                "Allowed values are between [1, 2^31-1] and the string \"latest\""
+            },
+            content_type=content_type,
+            status=422
+        )
+
     @staticmethod
     def r(body, content_type, status=200):
         raise HTTPResponse(
@@ -324,15 +342,7 @@ class Karapace(RestApp):
         self.r(version_list, content_type, status=200)
 
     async def subject_version_get(self, content_type, *, subject, version, return_dict=False):
-        if version != "latest" and int(version) < 1:
-            self.r({
-                "error_code": 42202,
-                "message": 'The specified version is not a valid version id. '
-                'Allowed values are between [1, 2^31-1] and the string "latest"'
-            },
-                   content_type,
-                   status=422)
-
+        self._validate_version(content_type, version)
         subject_data = self._subject_get(subject, content_type)
 
         max_version = max(subject_data["schemas"])
@@ -371,11 +381,15 @@ class Karapace(RestApp):
         self.r(str(version), content_type, status=200)
 
     async def subject_version_schema_get(self, content_type, *, subject, version):
+        self._validate_version(content_type, version)
         subject_data = self._subject_get(subject, content_type)
-        version = int(version)
 
-        schema_data = subject_data["schemas"].get(version, None)
-        if not schema_data:
+        max_version = max(subject_data["schemas"])
+        if version == "latest":
+            schema_data = subject_data["schemas"][max_version]
+        elif int(version) <= max_version:
+            schema_data = subject_data["schemas"].get(int(version))
+        else:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
         self.r(schema_data["schema"], content_type)
 
