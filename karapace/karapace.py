@@ -259,7 +259,11 @@ class Karapace(RestApp):
         self.r({"is_compatible": True}, content_type)
 
     async def schemas_get(self, content_type, *, schema_id):
-        schema = self.ksr.schemas.get(int(schema_id))
+        try:
+            schema_id_int = int(schema_id)
+        except ValueError:
+            self.r({"error_code": 404, "message": "HTTP 404 Not Found"}, content_type, status=404)
+        schema = self.ksr.schemas.get(schema_id_int)
         if not schema:
             self.log.warning("Schema: %r that was requested, not found", int(schema_id))
             self.r(body={"error_code": 40403, "message": "Schema not found"}, content_type=content_type, status=404)
