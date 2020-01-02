@@ -554,6 +554,12 @@ async def schema_checks(c):
     result = await c.get(os.path.join("schemas/ids/{}".format(123456789)))
     assert result.json()["error_code"] == 40403
 
+    # invalid schema_id
+    result = await c.get("schemas/ids/invalid")
+    assert result.status == 404
+    assert result.json()["error_code"] == 404
+    assert result.json()["message"] == "HTTP 404 Not Found"
+
     res = await c.post(
         "subjects/{}/versions".format(subject), json={"schema": "{\"type\": \"string\", \"foo\": \"string\"}"}
     )
