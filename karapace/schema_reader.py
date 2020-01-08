@@ -29,6 +29,7 @@ class KafkaSchemaReader(Thread):
         self.global_schema_id = 0
         self.offset = 0
         self.admin_client = None
+        self.schema_topic = None
         self.topic_num_partitions = 1
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer = None
@@ -79,10 +80,15 @@ class KafkaSchemaReader(Thread):
             self.log.info("Creating topic: %r", schema_topic)
             self.admin_client.create_topics([schema_topic], timeout_ms=self.topic_creation_timeout_ms)
             self.log.info("Topic: %r created successfully", self.config["topic_name"])
+            self.schema_topic = schema_topic
             return True
         except TopicAlreadyExistsError:
             self.log.warning("Topic: %r already exists", self.config["topic_name"])
+            self.schema_topic = schema_topic
             return True
+        except:  # pylint: disable=bare-except
+            self.log.exception("Failed to create topic: %r, retrying create_schema_topic()", self.config["topic_name"])
+            time.sleep(5)
         return False
 
     def get_schema_id(self, new_schema):
@@ -102,7 +108,9 @@ class KafkaSchemaReader(Thread):
             if not self.admin_client:
                 if self.init_admin_client() is False:
                     continue
-                self.create_schema_topic()
+            if not self.schema_topic:
+                if self.create_schema_topic() is False:
+                    continue
             if not self.consumer:
                 self.init_consumer()
             self.handle_messages()
