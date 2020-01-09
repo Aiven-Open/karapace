@@ -130,6 +130,7 @@ class MasterCoordinator(Thread):
                 ssl_cafile=self.config["ssl_cafile"],
                 ssl_certfile=self.config["ssl_certfile"],
                 ssl_keyfile=self.config["ssl_keyfile"],
+                metadata_max_age_ms=self.config["metadata_max_age_ms"],
             )
             return True
         except (NodeNotReadyError, NoBrokersAvailable):
