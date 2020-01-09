@@ -157,6 +157,7 @@ class Karapace(RestApp):
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
             api_version=(1, 0, 0),
+            metadata_max_age_ms=self.config["metadata_max_age_ms"],
         )
 
     def _subject_get(self, subject, content_type):
