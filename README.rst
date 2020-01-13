@@ -311,6 +311,10 @@ listen to all available addresses.
 
 HTTP webserver port to bind the Karapace to.
 
+``metadata_max_age_ms`` (default ``60000``)
+
+Preiod of time in milliseconds after Kafka metadata is force refreshed.
+
 
 License
 =======
