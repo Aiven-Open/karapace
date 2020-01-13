@@ -1,8 +1,8 @@
 FEDORA = $(shell source /etc/os-release && echo $$VERSION_ID)
 PROJ = kafka-python
 PYNAME = kafka
-GITHUB_ACCOUNT = aiven
-COMMIT = 1.4.6-18-g7e56c8f48b075cb344f23ea23073cb3c0256a077
+GITHUB_ACCOUNT = dpkp
+COMMIT = 1.4.7-0-g0552b04326c73be29f209c12920ef4cbaceb9818
 SHORT_COMMIT = $(shell echo $(COMMIT) | cut -b 1-20)
 VERSION = $(shell echo $(SHORT_COMMIT) | cut -d- -f1)
 RELEASE = $(shell echo $(SHORT_COMMIT) | cut -d- -f2-).1.karapace.fc$(FEDORA)
