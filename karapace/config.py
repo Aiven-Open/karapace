@@ -23,4 +23,5 @@ def set_config_defaults(config):
     config.setdefault("ssl_certfile", None)
     config.setdefault("ssl_keyfile", None)
     config.setdefault("topic_name", "_schemas")
+    config.setdefault("metadata_max_age_ms", 60000)
     return config

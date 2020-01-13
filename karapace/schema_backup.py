@@ -41,6 +41,7 @@ class SchemaBackup:
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
             auto_offset_reset="earliest",
+            metadata_max_age_ms=self.config["metadata_max_age_ms"],
         )
 
     def init_producer(self):
