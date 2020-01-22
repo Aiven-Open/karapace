@@ -925,6 +925,40 @@ async def check_http_headers(c):
     assert res.json()["message"] == "HTTP 415 Unsupported Media Type"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
+    # Multiple Accept values
+    res = await c.get("subjects", headers={"Accept": "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2"})
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+
+    # Weight works
+    res = await c.get(
+        "subjects",
+        headers={"Accept": "application/vnd.schemaregistry.v2+json; q=0.1, application/vnd.schemaregistry+json; q=0.9"}
+    )
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry+json"
+
+    # Accept without any subtype works
+    res = await c.get("subjects", headers={"Accept": "application/*"})
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+    res = await c.get("subjects", headers={"Accept": "text/*"})
+    assert res.status == 406
+    assert res.json()["message"] == "HTTP 406 Not Acceptable"
+
+    # Accept without any type works
+    res = await c.get("subjects", headers={"Accept": "*/does_not_matter"})
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+
+    # Default return is correct
+    res = await c.get("subjects", headers={"Accept": "*"})
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+    res = await c.get("subjects", headers={"Accept": "*/*"})
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+
 
 async def check_schema_body_validation(c):
     subject = os.urandom(16).hex()

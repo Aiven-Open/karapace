@@ -9,6 +9,7 @@ See LICENSE for details
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
+from vendor.python_accept_types.accept_types import get_best_match
 
 import aiohttp
 import aiohttp.web
@@ -24,11 +25,11 @@ import time
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 
-ACCEPTED_SCHEMA_CONTENT_TYPES = {
+ACCEPTED_SCHEMA_CONTENT_TYPES = [
     "application/vnd.schemaregistry.v1+json",
     "application/vnd.schemaregistry+json",
     "application/json",
-}
+]
 
 
 class HTTPRequest:
@@ -101,8 +102,7 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
-    @staticmethod
-    def check_schema_headers(request):
+    def check_schema_headers(self, request):
         method = request.method
         headers = request.headers
 
@@ -118,11 +118,11 @@ class RestApp:
             )
 
         if "Accept" in headers:
-            if headers["Accept"] == "*/*":  # Default value
-                pass
-            elif headers["Accept"] in ACCEPTED_SCHEMA_CONTENT_TYPES:
-                content_type = headers["Accept"]
-            else:
+            if headers["Accept"] == "*/*" or headers["Accept"].startswith("*/"):
+                return "application/vnd.schemaregistry.v1+json"
+            content_type_match = get_best_match(headers["Accept"], ACCEPTED_SCHEMA_CONTENT_TYPES)
+            if not content_type_match:
+                self.log.debug("Unexpected Accept value: %r", headers["Accept"])
                 raise HTTPResponse(
                     body=json_encode({
                         "error_code": 406,
@@ -131,6 +131,7 @@ class RestApp:
                     headers={"Content-Type": content_type},
                     status=406,
                 )
+            return content_type_match
         return content_type
 
     async def _handle_request(
