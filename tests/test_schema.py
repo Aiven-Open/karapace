@@ -1017,6 +1017,12 @@ async def check_version_number_validation(c):
             "Allowed values are between [1, 2^31-1] and the string \"latest\""
 
 
+async def check_common_endpoints(c):
+    res = await c.get("")
+    assert res.status == 200
+    assert res.json() == {}
+
+
 async def run_schema_tests(c):
     await schema_checks(c)
     await check_type_compatibility(c)
@@ -1030,6 +1036,7 @@ async def run_schema_tests(c):
     await check_http_headers(c)
     await check_schema_body_validation(c)
     await check_version_number_validation(c)
+    await check_common_endpoints(c)
 
 
 async def test_local(karapace, aiohttp_client):
