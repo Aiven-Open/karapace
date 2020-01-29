@@ -168,7 +168,7 @@ class MasterCoordinator(Thread):
                     self.init_schema_coordinator()
 
                 self.sc.ensure_active_group()
-                self.log.info("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
+                self.log.debug("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
                 time.sleep(5.0)
             except:  # pylint: disable=bare-except
                 self.log.exception("Exception in master_coordinator")
