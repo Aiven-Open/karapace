@@ -70,6 +70,8 @@ class Karapace(RestApp):
             schema_request=True
         )
 
+        self.route("/", callback=self.root_get, method="GET")
+
         self.route("/config/<subject:path>", callback=self.config_subject_get, method="GET", schema_request=True)
         self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
@@ -249,6 +251,9 @@ class Karapace(RestApp):
         key = '{{"subject":"{}","magic":0,"keytype":"DELETE_SUBJECT"}}'.format(subject)
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
+
+    async def root_get(self):
+        self.r({}, "application/json")
 
     async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
