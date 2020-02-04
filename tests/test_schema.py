@@ -789,7 +789,7 @@ async def schema_checks(c):
         json={"schema": '{"type": "string"}'},
     )
     assert res.status == 200
-    assert res.json()["id"] == schema_id
+    assert res.json() == {"id": schema_id, "subject": subject, "schema": '"string"', "version": 1}
     # Invalid schema should return 500
     res = await c.post(
         f"subjects/{subject}",
