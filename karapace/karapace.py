@@ -450,7 +450,13 @@ class Karapace(RestApp):
         new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
         for schema in subject_data["schemas"].values():
             if schema["schema"] == new_schema_encoded:
-                self.r(schema, content_type)
+                ret = {
+                    "subject": subject,
+                    "version": schema["version"],
+                    "id": schema["id"],
+                    "schema": schema["schema"],
+                }
+                self.r(ret, content_type)
         self.r({"error_code": 40403, "message": "Schema not found"}, content_type, status=404)
 
     async def subject_post(self, content_type, *, subject, request):
