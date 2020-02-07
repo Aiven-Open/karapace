@@ -20,10 +20,10 @@ class BackupError(Exception):
 
 
 class SchemaBackup:
-    def __init__(self, config_path, backup_path):
+    def __init__(self, config_path, backup_path, topic_option=None):
         self.config = Karapace.read_config(config_path)
         self.backup_location = backup_path
-        self.topic_name = self.config["topic_name"]
+        self.topic_name = topic_option or self.config["topic_name"]
         self.log = logging.getLogger("SchemaBackup")
         self.consumer = None
         self.producer = None
@@ -132,13 +132,14 @@ def parse_args():
     for p in {parser_get, parser_restore}:
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--location", help="File path for the backup file", required=True)
+        p.add_argument("--topic", help="Kafka topic name to be used", required=False)
 
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    sb = SchemaBackup(args.config, args.location)
+    sb = SchemaBackup(args.config, args.location, args.topic)
 
     if args.command == "get":
         return sb.request_backup()
