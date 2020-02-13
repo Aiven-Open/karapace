@@ -71,18 +71,18 @@ class SchemaBackup:
         raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
         for _, messages in raw_msg.items():
             for message in messages:
+                key = message.key.decode("utf8")
                 try:
-                    key = json.loads(message.key.decode("utf8"))
+                    key = json.loads(key)
                 except json.JSONDecodeError:
-                    self.log.exception("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
-                    continue
+                    self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
                 value = None
                 if message.value:
+                    value = message.value.decode("utf8")
                     try:
-                        value = json.loads(message.value.decode("utf8"))
+                        value = json.loads(value)
                     except json.JSONDecodeError:
-                        self.log.exception("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
-                        continue
+                        self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                 values.append((key, value))
 
         with open(self.backup_location, "w") as fp:
