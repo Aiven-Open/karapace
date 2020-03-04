@@ -159,6 +159,7 @@ class MasterCoordinator(Thread):
         self.running = False
 
     def run(self):
+        _hb_interval = 3.0
         while self.running:
             try:
                 if not self.kafka_client:
@@ -166,10 +167,12 @@ class MasterCoordinator(Thread):
                         continue
                 if not self.sc:
                     self.init_schema_coordinator()
+                    _hb_interval = self.sc.config["heartbeat_interval_ms"] / 1000
 
                 self.sc.ensure_active_group()
+                self.sc.poll_heartbeat()
                 self.log.debug("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
-                time.sleep(5.0)
+                time.sleep(min(_hb_interval, self.sc.time_to_next_heartbeat()))
             except:  # pylint: disable=bare-except
                 self.log.exception("Exception in master_coordinator")
                 time.sleep(1.0)
