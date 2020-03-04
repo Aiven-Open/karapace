@@ -48,10 +48,18 @@ $(KAFKA_PATH): $(KAFKA_TAR)
 .PHONY: fetch-kafka
 fetch-kafka: $(KAFKA_PATH)
 
-.PHONY: kafka
-kafka: fetch-kafka
+.PHONY: start-kafka
+start-kafka: fetch-kafka
 	$(KAFKA_PATH)/bin/zookeeper-server-start.sh $(KAFKA_PATH)/config/zookeeper.properties &
 	$(KAFKA_PATH)/bin/kafka-server-start.sh $(KAFKA_PATH)/config/server.properties &
+
+.PHONY: stop-kafka
+stop-kafka:
+	$(KAFKA_PATH)/bin/kafka-server-stop.sh || true
+	$(KAFKA_PATH)/bin/zookeeper-server-stop.sh || true
+
+.PHONY: kafka
+kafka: start-kafka
 
 .PHONY: pylint
 pylint: $(GENERATED)
