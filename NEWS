@@ -1,9 +1,11 @@
-Karapace 0.1.0 (2019-01-16)
+Karapace 1.1.0 (2020-03-11)
 ===========================
 
-* Initial release with schema storing, retrieving and compatibility testing functionality
-* Unittests for the functionality
-* aiohttp based architecture
+* Endpoints for schema check for a subject and for the root path
+* General improvements in API compatibility and validation
+* Tooling improvements for backups and general Karapace usage
+* Ability to configure metadata_max_age_ms
+* Bugfixes for master coordination
 
 Karapace 1.0.0 (2019-12-20)
 ===========================
@@ -12,3 +14,10 @@ Karapace 1.0.0 (2019-12-20)
 * General improvements and fixes for API compatibility
 * Support for transitive compatibility
 * Sentry integration
+
+Karapace 0.1.0 (2019-01-16)
+===========================
+
+* Initial release with schema storing, retrieving and compatibility testing functionality
+* Unittests for the functionality
+* aiohttp based architecture
