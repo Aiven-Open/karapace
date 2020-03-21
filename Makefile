@@ -1,6 +1,8 @@
 SHORT_VER = $(shell git describe --tags --abbrev=0 | cut -f1-)
 LONG_VER = $(shell git describe --long 2>/dev/null || echo $(SHORT_VER)-0-unknown-g`git describe --always`)
-KAFKA_PATH = kafka_2.12-2.1.1
+KAFKA_VERSION=2.1.1
+SCALA_VERSION=2.12
+KAFKA_PATH = kafka_$(SCALA_VERSION)-$(KAFKA_VERSION)
 KAFKA_TAR = $(KAFKA_PATH).tgz
 PYTHON_SOURCE_DIRS = karapace/
 PYTHON_TEST_DIRS = tests/
@@ -16,7 +18,7 @@ KAFKA = 9092
 default: $(GENERATED)
 
 clean:
-	rm -rf rpm/
+	rm -rf rpm/ $(KAFKA_PATH)*
 
 .PHONY: build-dep-fedora
 build-dep-fedora: /usr/bin/rpmbuild
@@ -40,7 +42,7 @@ karapace/version.py: version.py
 	$(PYTHON) $^ $@
 
 $(KAFKA_TAR):
-	wget "http://www.nic.funet.fi/pub/mirrors/apache.org/kafka/2.1.1/$(KAFKA_PATH).tgz"
+	wget "http://www.nic.funet.fi/pub/mirrors/apache.org/kafka/$(KAFKA_VERSION)/$(KAFKA_PATH).tgz"
 
 $(KAFKA_PATH): $(KAFKA_TAR)
 	tar zxf "$(KAFKA_TAR)"
@@ -55,8 +57,8 @@ start-kafka: fetch-kafka
 
 .PHONY: stop-kafka
 stop-kafka:
-	$(KAFKA_PATH)/bin/kafka-server-stop.sh || true
-	$(KAFKA_PATH)/bin/zookeeper-server-stop.sh || true
+	$(KAFKA_PATH)/bin/kafka-server-stop.sh 9 || true
+	$(KAFKA_PATH)/bin/zookeeper-server-stop.sh 9 || true
 
 .PHONY: kafka
 kafka: start-kafka
@@ -74,7 +76,7 @@ copyright:
 	grep -EL "Copyright \(c\) 20.* Aiven" $(shell git ls-files "*.py" | grep -v __init__.py)
 
 .PHONY: unittest
-unittest: $(GENERATED)
+unittest: fetch-kafka $(GENERATED)
 	python3 -m pytest -s -vvv tests/
 
 .PHONY: test
