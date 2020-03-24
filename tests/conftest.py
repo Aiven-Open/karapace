@@ -4,7 +4,7 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from karapace.karapace import Karapace
+from karapace.schema_registry_apis import KarapaceSchemaRegistry
 
 import contextlib
 import json
@@ -111,7 +111,7 @@ def fixture_karapace(session_tmpdir, kafka_server):
                 if topic_name:
                     karapace_config["topic_name"] = topic_name
                 fp.write(json.dumps(karapace_config))
-            self.kc = Karapace(self.config_path)
+            self.kc = KarapaceSchemaRegistry(self.config_path)
 
             return self.kc, self.datadir
 
