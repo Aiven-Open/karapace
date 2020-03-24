@@ -80,7 +80,7 @@ unittest: fetch-kafka $(GENERATED)
 	python3 -m pytest -s -vvv tests/
 
 .PHONY: test
-test: flake8 pylint copyright unittest
+test: flake8 pylint reformat copyright unittest
 
 .PHONY: isort
 isort:
@@ -92,6 +92,8 @@ yapf:
 
 .PHONY: reformat
 reformat: isort yapf
+	[ $(shell git diff --name-only | wc -l) -eq 0 ] || (echo "please reformat code and re-commit" && exit 1)
+
 
 /usr/lib/rpm/check-buildroot /usr/bin/rpmbuild:
 	$(DNF_INSTALL) rpm-build
