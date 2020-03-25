@@ -6,6 +6,7 @@
 /.project
 /.pydevproject
 /.pytest_cache/
+.idea
 __pycache__/
 /build/
 /dist/

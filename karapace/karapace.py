@@ -5,20 +5,16 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.config import set_config_defaults
+from karapace.config import read_config
+
 from karapace.rapu import HTTPResponse, RestApp
 
 import asyncio
-import json
 import logging
 import os
 
 LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
-
-
-class InvalidConfiguration(Exception):
-    pass
 
 
 class KarapaceBase(RestApp):
@@ -43,21 +39,13 @@ class KarapaceBase(RestApp):
 
     @staticmethod
     def read_config(config_path):
-        if os.path.exists(config_path):
-            try:
-                config = json.loads(open(config_path, "r").read())
-                config = set_config_defaults(config)
-                return config
-            except Exception as ex:
-                raise InvalidConfiguration(ex)
-        else:
-            raise InvalidConfiguration()
+        return read_config(config_path)
 
     def _set_log_level(self):
         try:
             logging.getLogger().setLevel(self.config["log_level"])
         except ValueError:
-            self.log.excption("Problem with log_level: %r", self.config["log_level"])
+            self.log.exception("Problem with log_level: %r", self.config["log_level"])
 
     @staticmethod
     def r(body, content_type, status=200):
