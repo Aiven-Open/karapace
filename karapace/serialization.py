@@ -1,5 +1,5 @@
-from avro.io import BinaryEncoder, DatumWriter
-from kafka.serializer.abstract import Serializer
+from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
+from kafka.serializer.abstract import Deserializer, Serializer
 from karapace.config import read_config
 
 import abc
@@ -14,6 +14,12 @@ import struct
 log = logging.getLogger(__name__)
 
 START_BYTE = 0x13
+HEADER_FORMAT = ">bI"
+HEADER_SIZE = 5
+
+
+class InvalidMessageHeader(Exception):
+    pass
 
 
 class SchemaRegistryBasicClientBase:
@@ -67,7 +73,7 @@ class SchemaRegistryLocalBasicClient(SchemaRegistryBasicClientBase):
         raise NotImplementedError()
 
 
-class SchemaRegistrySerializer(Serializer):
+class SchemaRegistrySerializerDeserializer:
     def __init__(self, **config):
         super().__init__(**config)
         config_path = config.pop("config_path")
@@ -83,7 +89,6 @@ class SchemaRegistrySerializer(Serializer):
         self.subjects_to_schemas = {}
         self.ids_to_schemas = {}
         self.schemas_to_ids = {}
-        self.ids_to_writers = {}
         try:
             schemas_folder = config.pop("schemas_folder")
             self._populate_schemas_from_folder(schemas_folder)
@@ -123,29 +128,69 @@ class SchemaRegistrySerializer(Serializer):
         self.subjects_to_schemas[subject] = schema
         self.schemas_to_ids[self.serialize_schema(schema)] = schema_id
         self.ids_to_schemas[schema_id] = schema
-        self.ids_to_writers[schema_id] = DatumWriter(schema)
         return schema
 
     def get_suffix(self):
         raise NotImplementedError()
 
+
+class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer, Serializer):
     def serialize(self, topic, value):
         schema = self.get_schema_for_topic(topic)
         schema_id = self.schemas_to_ids[self.serialize_schema(schema)]
-        writer = self.ids_to_writers[schema_id]
+        writer = DatumWriter(schema)
         with io.BytesIO() as bio:
             enc = BinaryEncoder(bio)
-            writer.write(struct.pack(">bI", START_BYTE, schema_id))
+            writer.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id), enc)
             writer.write(value, enc)
             enc_bytes = bio.getvalue()
             return enc_bytes
 
+    def get_suffix(self):
+        # make pylint shut up and not disable it for this class
+        raise NotImplementedError()
 
-class SchemaRegistryValueSerializer(SchemaRegistrySerializer):
+
+class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer, Deserializer):
+    def deserialize(self, topic, bytes_):
+        schema = self.get_schema_for_topic(topic)
+        reader = DatumReader(schema)
+        with io.BytesIO() as bio:
+            dec = BinaryDecoder(bio)
+            byte_arr = dec.read(HEADER_SIZE)
+            # we should probably check for compatibility here
+            start_byte, _ = struct.unpack(HEADER_FORMAT, byte_arr)
+            if start_byte != START_BYTE:
+                raise InvalidMessageHeader("Start byte is %x and should be %x" % (start_byte, START_BYTE))
+            ret_val = reader.read(dec)
+            return ret_val
+
+    def get_suffix(self):
+        # make pylint shut up and not disable it for this class
+        raise NotImplementedError()
+
+
+class KeyHandlerMixin(SchemaRegistrySerializerDeserializer):
+    def get_suffix(self):
+        return "-key"
+
+
+class ValueHandlerMixin(SchemaRegistrySerializerDeserializer):
     def get_suffix(self):
         return "-value"
 
 
-class SchemaRegistryKeySerializer(SchemaRegistrySerializer):
-    def get_suffix(self):
-        return "-key"
+class SchemaRegistryValueDeserializer(ValueHandlerMixin, SchemaRegistryDeserializer):
+    pass
+
+
+class SchemaRegistryKeyDeserializer(KeyHandlerMixin, SchemaRegistryDeserializer):
+    pass
+
+
+class SchemaRegistryValueSerializer(ValueHandlerMixin, SchemaRegistrySerializer):
+    pass
+
+
+class SchemaRegistryKeySerializer(KeyHandlerMixin, SchemaRegistrySerializer):
+    pass
