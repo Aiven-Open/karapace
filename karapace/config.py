@@ -4,7 +4,13 @@ karapace - configuration validation
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+import json
+import os
 import socket
+
+
+class InvalidConfiguration(Exception):
+    pass
 
 
 def set_config_defaults(config):
@@ -25,3 +31,15 @@ def set_config_defaults(config):
     config.setdefault("topic_name", "_schemas")
     config.setdefault("metadata_max_age_ms", 60000)
     return config
+
+
+def read_config(config_path):
+    if os.path.exists(config_path):
+        try:
+            config = json.loads(open(config_path, "r").read())
+            config = set_config_defaults(config)
+            return config
+        except Exception as ex:
+            raise InvalidConfiguration(ex)
+    else:
+        raise InvalidConfiguration()
