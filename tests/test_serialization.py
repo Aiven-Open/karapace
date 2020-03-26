@@ -31,6 +31,9 @@ def test_happy_flow(default_config_path, mock_registry_client):
             "favorite_color": "quux"
         },
     ]
+    for o in serializer, deserializer:
+        assert len(o.ids_to_schemas) == 0
+        assert len(o.subjects_to_schemas) == 0
     for o in objects:
         assert o == deserializer.deserialize("top", serializer.serialize("top", o))
     serializer.registry_client.get_latest_schema.assert_called_with("top-value")
@@ -39,6 +42,18 @@ def test_happy_flow(default_config_path, mock_registry_client):
         assert 1 in o.ids_to_schemas
         assert len(o.subjects_to_schemas) == 1
         assert "top-value" in o.subjects_to_schemas
+
+
+def test_config_load(schemas_config_path, mock_registry_client):
+    serializer = karapace.serialization.SchemaRegistryValueSerializer(
+        config_path=schemas_config_path, registry_client=mock_registry_client
+    )
+    assert len(serializer.ids_to_schemas) == 1
+    # 0 for keys
+    deserializer = karapace.serialization.SchemaRegistryKeyDeserializer(
+        config_path=schemas_config_path, registry_client=mock_registry_client
+    )
+    assert len(deserializer.ids_to_schemas) == 0
 
 
 def test_serialization_fails(default_config_path, mock_registry_client):

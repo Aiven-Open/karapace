@@ -1,10 +1,11 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from kafka.serializer.abstract import Deserializer, Serializer
 from karapace.config import read_config
-
+from karapace.utils import json_encode
+from karapace.rapu import HTTPResponse
 import avro
 import io
-import json
+import requests
 import karapace.karapace
 import logging
 import os
@@ -26,6 +27,10 @@ class InvalidPayload(Exception):
 
 
 class InvalidMessage(Exception):
+    pass
+
+
+class SchemaRetrievalError(Exception):
     pass
 
 
@@ -86,13 +91,39 @@ class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
         self.krp = krp
 
     def get_latest_schema(self, subject):
-        raise NotImplementedError()
+        ret = None
+        try:
+            ret = await self.krp.subject_version_get(None, subject=subject, version="latest")
+            schema_id = ret["id"]
+            schema_str = ret["schema"]
+            schema = avro.io.schema.parse(schema_str)
+            return schema_id, schema
+        except HTTPResponse as e:
+            raise SchemaRetrievalError("Failed to retrieve schema") from e
+        except KeyError as e:
+            raise SchemaRetrievalError("Invalid response format: %r" % ret) from e
+        except avro.io.schema.SchemaParseException as e:
+            raise SchemaRetrievalError("Failed to parse schema string: %r" % ret["schema"]) from e
 
     def get_schema_for_id(self, schema_id):
-        raise NotImplementedError()
+        try:
+            self.krp.schemas_get(None, schema_id=schema_id)
+        except HTTPResponse as r:
+            if r.ok():
+                try:
+                    return avro.io.schema.parse(r.body["schema"])
+                except KeyError as e:
+                    raise SchemaRetrievalError("Invalid response body format: %r" % r.body) from e
+                except avro.io.schema.SchemaParseException as e:
+                    raise SchemaRetrievalError("Failed to parse schema string: %r" % r.body["schema"]) from e
+            else:
+                raise SchemaRetrievalError("Failed to retrieve schema") from r
 
     def post_new_schema(self, subject, schema):
-        raise NotImplementedError()
+        try:
+            self.krp.subject_post(None, subject=subject)
+        except HTTPResponse:
+            pass
 
 
 class SchemaRegistrySerializerDeserializer:
@@ -112,18 +143,14 @@ class SchemaRegistrySerializerDeserializer:
         self.ids_to_schemas = {}
         self.schemas_to_ids = {}
         try:
-            schemas_folder = config.pop("schemas_folder")
+            schemas_folder = self.config.pop("schemas_folder")
             self._populate_schemas_from_folder(schemas_folder)
         except KeyError:
             pass
 
     @staticmethod
     def serialize_schema(schema):
-        return json.dumps(schema.to_json(), sort_keys=True)
-
-    @staticmethod
-    def deserialize_schema(value: str):
-        return avro.io.schema.parse(json.loads(value))
+        return json_encode(schema.to_json())
 
     def _populate_schemas_from_folder(self, schemas_folder):
         extension = ".avsc"
@@ -132,13 +159,13 @@ class SchemaRegistrySerializerDeserializer:
             if f.endswith(term):
                 with open(os.path.join(schemas_folder, f), 'r') as schema_file:
                     subject = f[:-len(extension)]
-                    schema = self.deserialize_schema(schema_file.read())
+                    schema = avro.io.schema.parse(schema_file.read())
                     schema_id = self.registry_client.post_new_schema(subject, schema)
                     self.subjects_to_schemas[subject] = schema
                     self.ids_to_schemas[schema_id] = schema
                     self.schemas_to_ids[self.serialize_schema(schema)] = schema_id
             else:
-                log.warning("Ignoring file %r in folder %r as it does not terminate in %r", f, schemas_folder, term)
+                log.debug("Ignoring file %r in folder %r as it does not terminate in %r", f, schemas_folder, term)
         if not self.subjects_to_schemas:
             log.warning("Folder %r did not contain any valid named schema files", schemas_folder)
 
@@ -148,6 +175,7 @@ class SchemaRegistrySerializerDeserializer:
         subject = self.subject_name_strategy(topic, None) + self.get_suffix()
         if subject in self.subjects_to_schemas:
             return self.subjects_to_schemas[subject]
+        log.info("schema for subject %r not found locally, attempting to retrieve latest value" % subject)
         schema_id, schema = self.registry_client.get_latest_schema(subject)
         self.subjects_to_schemas[subject] = schema
         self.schemas_to_ids[self.serialize_schema(schema)] = schema_id

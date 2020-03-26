@@ -22,6 +22,22 @@ import time
 KAFKA_CURRENT_VERSION = "2.1"
 BASEDIR = "kafka_2.12-2.1.1"
 
+schema_json = json.dumps({
+    "namespace": "example.avro",
+    "type": "record",
+    "name": "User",
+    "fields": [{
+        "name": "name",
+        "type": "string"
+    }, {
+        "name": "favorite_number",
+        "type": ["int", "null"]
+    }, {
+        "name": "favorite_color",
+        "type": ["string", "null"]
+    }]
+})
+
 
 class Timeout(Exception):
     pass
@@ -63,26 +79,21 @@ def get_random_port(*, start=3000, stop=30000, blacklist=None):
 
 @pytest.fixture(name="mock_registry_client")
 def create_basic_registry_client():
-    schema_json = json.dumps({
-        "namespace": "example.avro",
-        "type": "record",
-        "name": "User",
-        "fields": [{
-            "name": "name",
-            "type": "string"
-        }, {
-            "name": "favorite_number",
-            "type": ["int", "null"]
-        }, {
-            "name": "favorite_color",
-            "type": ["string", "null"]
-        }]
-    })
     cli = SchemaRegistryBasicClientLocal(krp=None)
     cli.get_schema_for_id = MagicMock(return_value=avro.schema.parse(schema_json))
     cli.get_latest_schema = MagicMock(return_value=(1, avro.schema.parse(schema_json)))
     cli.post_new_schema = MagicMock(return_value=1)
     return cli
+
+
+@pytest.fixture(scope="session", name="schemas_folder")
+def fixture_schemas_folder(session_tmpdir):
+    d = session_tmpdir()
+    for i in range(2):
+        fname = "test%d-value.avsc" % i
+        with open(os.path.join(d, fname), "w") as outf:
+            outf.write(schema_json)
+    return d
 
 
 @pytest.fixture(scope="session", name="session_tmpdir")
@@ -99,6 +110,15 @@ def fixture_session_tmpdir(tmpdir_factory):
     finally:
         with contextlib.suppress(Exception):
             tmpdir_obj.remove(rec=1)
+
+
+@pytest.fixture(scope="session", name="schemas_config_path")
+def fixture_schemas_config(session_tmpdir, schemas_folder):
+    base_name = "karapace_config.json"
+    path = os.path.join(session_tmpdir(), base_name)
+    with open(path, 'w') as cf:
+        cf.write(json.dumps({"schemas_folder": schemas_folder.strpath}))
+    return path
 
 
 @pytest.fixture(scope="session", name="default_config_path")
