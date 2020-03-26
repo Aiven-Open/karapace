@@ -45,7 +45,7 @@ class SchemaRegistryBasicClientBase:
         pass
 
 
-class SchemaRegistryRemoteBasicClient(SchemaRegistryBasicClientBase):
+class SchemaRegistryBasicClientRemote(SchemaRegistryBasicClientBase):
     def __init__(self, schema_registry_url: str):
         pass
 
@@ -59,7 +59,7 @@ class SchemaRegistryRemoteBasicClient(SchemaRegistryBasicClientBase):
         raise NotImplementedError()
 
 
-class SchemaRegistryLocalBasicClient(SchemaRegistryBasicClientBase):
+class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
     def __init__(self, krp: karapace.karapace.Karapace):
         self.krp = krp
 
@@ -80,11 +80,10 @@ class SchemaRegistrySerializerDeserializer:
         self.config = read_config(config_path)
         try:
             registry_url = self.config.pop("schema_registry_url")
-            registry_client = SchemaRegistryRemoteBasicClient(registry_url)
+            registry_client = SchemaRegistryBasicClientRemote(registry_url)
         except KeyError:
             log.debug("Registry url not found in config, checking args for registry_client")
             registry_client = config.pop("registry_client")
-            assert isinstance(registry_client, karapace.karapace.Karapace), "local client should be Karapace instance"
         self.registry_client = registry_client
         self.subjects_to_schemas = {}
         self.ids_to_schemas = {}
@@ -141,7 +140,7 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer, Serializer)
         writer = DatumWriter(schema)
         with io.BytesIO() as bio:
             enc = BinaryEncoder(bio)
-            writer.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id), enc)
+            bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
             writer.write(value, enc)
             enc_bytes = bio.getvalue()
             return enc_bytes
@@ -155,9 +154,9 @@ class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer, Deseriali
     def deserialize(self, topic, bytes_):
         schema = self.get_schema_for_topic(topic)
         reader = DatumReader(schema)
-        with io.BytesIO() as bio:
+        with io.BytesIO(bytes_) as bio:
+            byte_arr = bio.read(HEADER_SIZE)
             dec = BinaryDecoder(bio)
-            byte_arr = dec.read(HEADER_SIZE)
             # we should probably check for compatibility here
             start_byte, _ = struct.unpack(HEADER_FORMAT, byte_arr)
             if start_byte != START_BYTE:
