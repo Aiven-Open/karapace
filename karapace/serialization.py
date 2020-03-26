@@ -2,7 +2,6 @@ from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from kafka.serializer.abstract import Deserializer, Serializer
 from karapace.config import read_config
 
-import abc
 import avro
 import io
 import json
@@ -22,27 +21,50 @@ class InvalidMessageHeader(Exception):
     pass
 
 
-class SchemaRegistryBasicClientBase:
-    # first draft will use topic name strategy for subject names. I know the class name is horrible...
-    __meta__ = abc.ABCMeta
+class InvalidPayload(Exception):
+    pass
 
-    @abc.abstractmethod
+
+class InvalidMessage(Exception):
+    pass
+
+
+def topic_name_strategy(topic_name, record_name):
+    # pylint: disable=W0613
+    return topic_name
+
+
+def record_name_strategy(topic_name, record_name):
+    # pylint: disable=W0613
+    return record_name
+
+
+def topic_record_name_strategy(topic_name, record_name):
+    return topic_name + "-" + record_name
+
+
+NAME_STRATEGIES = {
+    "topic_name": topic_name_strategy,
+    "record_name": record_name_strategy,
+    "topic_record_name": topic_record_name_strategy
+}
+
+
+class SchemaRegistryBasicClientBase:
     def post_new_schema(self, subject: str, schema: avro.schema.RecordSchema) -> int:
         # For simplicity, assumes compatibility checks to take place inside the delegated code (karapace does that)
         # this method's purpose being solely to register a schema in case it has not been already registered, before
         # using it for ser / deser ops
-        pass
+        raise NotImplementedError()
 
-    @abc.abstractmethod
     def get_latest_schema(self, subject: str) -> (int, avro.schema.RecordSchema):
         # if the schema for a particular topic key/value has not been provided,
         # try to retrieve the latest from the registry
-        pass
+        raise NotImplementedError()
 
-    @abc.abstractmethod
     def get_schema_for_id(self, schema_id: int) -> avro.schema.RecordSchema:
         # get schema associated with the given id. To be used in deserialization logic
-        pass
+        raise NotImplementedError()
 
 
 class SchemaRegistryBasicClientRemote(SchemaRegistryBasicClientBase):
@@ -84,6 +106,7 @@ class SchemaRegistrySerializerDeserializer:
         except KeyError:
             log.debug("Registry url not found in config, checking args for registry_client")
             registry_client = config.pop("registry_client")
+        self.subject_name_strategy = topic_name_strategy
         self.registry_client = registry_client
         self.subjects_to_schemas = {}
         self.ids_to_schemas = {}
@@ -120,7 +143,9 @@ class SchemaRegistrySerializerDeserializer:
             log.warning("Folder %r did not contain any valid named schema files", schemas_folder)
 
     def get_schema_for_topic(self, topic):
-        subject = topic + self.get_suffix()
+        # apparently we can't really implement the other 2 and keep in line with the current kafka client api
+        # due to the serialize / deserialize method signature only passing topic as a relevant indicator
+        subject = self.subject_name_strategy(topic, None) + self.get_suffix()
         if subject in self.subjects_to_schemas:
             return self.subjects_to_schemas[subject]
         schema_id, schema = self.registry_client.get_latest_schema(subject)
@@ -141,9 +166,12 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer, Serializer)
         with io.BytesIO() as bio:
             enc = BinaryEncoder(bio)
             bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
-            writer.write(value, enc)
-            enc_bytes = bio.getvalue()
-            return enc_bytes
+            try:
+                writer.write(value, enc)
+                enc_bytes = bio.getvalue()
+                return enc_bytes
+            except avro.io.AvroTypeException as e:
+                raise InvalidMessage("Object does not fit to stored schema") from e
 
     def get_suffix(self):
         # make pylint shut up and not disable it for this class
@@ -161,8 +189,13 @@ class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer, Deseriali
             start_byte, _ = struct.unpack(HEADER_FORMAT, byte_arr)
             if start_byte != START_BYTE:
                 raise InvalidMessageHeader("Start byte is %x and should be %x" % (start_byte, START_BYTE))
-            ret_val = reader.read(dec)
-            return ret_val
+            try:
+                ret_val = reader.read(dec)
+                return ret_val
+            except AssertionError as e:
+                raise InvalidPayload("Data does not contain a valid avro message") from e
+            except avro.io.SchemaResolutionException as e:
+                raise InvalidPayload("Data cannot be decoded with provided schema") from e
 
     def get_suffix(self):
         # make pylint shut up and not disable it for this class
