@@ -1,10 +1,10 @@
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.cluster import TopicPartition
-from karapace.config import read_config
 from karapace.serialization import (
     HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryKeyDeserializer,
     SchemaRegistryValueDeserializer, SchemaRegistryValueSerializer, START_BYTE
 )
+from tests.conftest import schema_json
 
 import avro
 import copy
@@ -48,29 +48,30 @@ def test_happy_flow(default_config_path, mock_registry_client):
         assert "top-value" in o.subjects_to_schemas
 
 
-def test_kafka_integration(kafka_server, mock_registry_client, default_config_path):
+def test_kafka_integration(kafka_server, mock_registry_client, http_registry_client, schemas_config_path):
     # pylint: disable=W0613
-    serializer = SchemaRegistryValueSerializer(config_path=default_config_path, registry_client=mock_registry_client)
-    deserializer = SchemaRegistryValueDeserializer(config_path=default_config_path, registry_client=mock_registry_client)
-    kafka_uri = "127.0.0.1:%d" % kafka_server["kafka_port"]
-    topic = "non_schema_topic"
-    producer = KafkaProducer(bootstrap_servers=kafka_uri, value_serializer=serializer)
-    consumer = KafkaConsumer(
-        topic,
-        bootstrap_servers=kafka_uri,
-        value_deserializer=deserializer,
-        auto_offset_reset="earliest",
-    )
-    for o in test_objects:
-        producer.send(topic, value=o)
-    grouped_results = consumer.poll(2000)
-    tp = TopicPartition(topic, 0)
-    assert len(grouped_results) == 1
-    assert tp in grouped_results
-    results = grouped_results[tp]
-    assert len(results) == 3
-    for expected, actual in zip(test_objects, results):
-        assert expected == actual.value
+    for i, cli in enumerate([mock_registry_client, http_registry_client]):
+        serializer = SchemaRegistryValueSerializer(config_path=schemas_config_path, registry_client=cli)
+        deserializer = SchemaRegistryValueDeserializer(config_path=schemas_config_path, registry_client=cli)
+        kafka_uri = "127.0.0.1:%d" % kafka_server["kafka_port"]
+        topic = "test%s" % i
+        producer = KafkaProducer(bootstrap_servers=kafka_uri, value_serializer=serializer)
+        consumer = KafkaConsumer(
+            topic,
+            bootstrap_servers=kafka_uri,
+            value_deserializer=deserializer,
+            auto_offset_reset="earliest",
+        )
+        for o in test_objects:
+            producer.send(topic, value=o)
+        grouped_results = consumer.poll(2000)
+        tp = TopicPartition(topic, 0)
+        assert len(grouped_results) == 1
+        assert tp in grouped_results
+        results = grouped_results[tp]
+        assert len(results) == 3
+        for expected, actual in zip(test_objects, results):
+            assert expected == actual.value
 
 
 def test_config_load(schemas_config_path, mock_registry_client):
@@ -112,3 +113,14 @@ def test_deserialization_fails(default_config_path, mock_registry_client):
         enc_bytes = bio.getvalue()
     with pytest.raises(InvalidPayload):
         deserializer.deserialize("topic", enc_bytes)
+
+
+def test_remote_client(http_registry_client):
+    schema_avro = avro.io.schema.parse(schema_json)
+    sc_id = http_registry_client.post_new_schema("foo", schema_avro)
+    assert sc_id >= 0
+    stored_schema = http_registry_client.get_schema_for_id(sc_id)
+    assert stored_schema == schema_avro, "stored schema %r is not %r" % (stored_schema.to_json(), schema_avro.to_json())
+    stored_id, stored_schema = http_registry_client.get_latest_schema("foo")
+    assert stored_id == sc_id
+    assert stored_schema == schema_avro

@@ -3,6 +3,7 @@ from kafka.serializer.abstract import Deserializer, Serializer
 from karapace.config import read_config
 from karapace.rapu import HTTPRequest, HTTPResponse
 from karapace.utils import json_encode
+from urllib.parse import quote, urljoin
 
 import asyncio
 import avro
@@ -10,6 +11,7 @@ import io
 import karapace.karapace
 import logging
 import os
+import requests
 import struct
 
 log = logging.getLogger(__name__)
@@ -82,22 +84,55 @@ class SchemaRegistryBasicClientBase:
 
 
 class SchemaRegistryBasicClientRemote(SchemaRegistryBasicClientBase):
-    def __init__(self, schema_registry_url: str):
-        pass
-
-    def get_latest_schema(self, subject):
-        raise NotImplementedError()
-
-    def get_schema_for_id(self, schema_id):
-        raise NotImplementedError()
+    def __init__(self, schema_registry_url: str = "http://localhost:8081"):
+        self.base_url = schema_registry_url
 
     def post_new_schema(self, subject, schema):
-        raise NotImplementedError()
+        payload = {"schema": json_encode(schema.to_json())}
+        result = requests.post(urljoin(self.base_url, "subjects/%s/versions" % quote(subject)), json=payload)
+        if not result.ok:
+            raise SchemaRetrievalError(result.json()["message"])
+        return result.json()["id"]
+
+    def get_latest_schema(self, subject):
+        result = requests.get(urljoin(self.base_url, "subjects/%s/versions/latest" % quote(subject)))
+        if not result.ok:
+            raise SchemaRetrievalError(result.json()["message"])
+        json_result = result.json()
+        if "id" not in json_result or "schema" not in json_result:
+            raise SchemaRetrievalError("Invalid result format: %r" % json_result)
+        try:
+            return json_result["id"], avro.io.schema.parse(json_result["schema"])
+        except avro.io.schema.SchemaParseException as e:
+            raise SchemaRetrievalError("Failed to parse schema string from response: %r" % json_result) from e
+
+    def get_schema_for_id(self, schema_id):
+        result = requests.get(urljoin(self.base_url, "schemas/ids/%d" % schema_id))
+        if not result.ok:
+            raise SchemaRetrievalError(result.json()["message"])
+        json_result = result.json()
+        if "schema" not in json_result:
+            raise SchemaRetrievalError("Invalid result format: %r" % json_result)
+        try:
+            return avro.io.schema.parse(json_result["schema"])
+        except avro.io.schema.SchemaParseException as e:
+            raise SchemaRetrievalError("Failed to parse schema string from response: %r" % json_result) from e
 
 
 class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
     def __init__(self, krp: karapace.karapace.Karapace):
         self.krp = krp
+
+    def post_new_schema(self, subject, schema):
+        try:
+            req = HTTPRequest(headers={}, query="", method="POST", path_for_stats="", url="")
+            req.json = schema.to_json()
+            self.krp.subject_post(request=req, subject=subject)
+            raise SchemaRetrievalError("Karapace client not responding")
+        except HTTPResponse as resp:
+            if resp.ok():
+                return resp.body["id"]
+            raise SchemaRetrievalError("Unable to register schema %r for subject %r" % (schema.to_json(), subject)) from resp
 
     def get_latest_schema(self, subject):
         ret = None
@@ -133,17 +168,6 @@ class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
                     raise SchemaRetrievalError("Failed to parse schema string: %r" % r.body["schema"]) from e
             else:
                 raise SchemaRetrievalError("Failed to retrieve schema") from r
-
-    def post_new_schema(self, subject, schema):
-        try:
-            req = HTTPRequest(headers={}, query="", method="POST", path_for_stats="", url="")
-            req.json = schema.to_json()
-            self.krp.subject_post(request=req, subject=subject)
-            raise SchemaRetrievalError("Karapace client not responding")
-        except HTTPResponse as resp:
-            if resp.ok():
-                return resp.body["id"]
-            raise SchemaRetrievalError("Unable to register schema %r for subject %r" % (schema.to_json(), subject)) from resp
 
 
 class SchemaRegistrySerializerDeserializer:

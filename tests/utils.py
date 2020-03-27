@@ -4,20 +4,10 @@ karapace - test utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.utils import Result
+
 import os
 import requests
-
-
-class Result:
-    def __init__(self, status, json_result, headers=None):
-        # We create both status and status_code so people can be agnostic on whichever to use
-        self.status_code = status
-        self.status = status
-        self.json_result = json_result
-        self.headers = headers if headers else {}
-
-    def json(self):
-        return self.json_result
 
 
 class Client:
