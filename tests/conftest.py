@@ -152,6 +152,33 @@ def fixture_kafka_server(session_tmpdir, zkserver):
         proc.wait(timeout=10.0)
 
 
+@pytest.fixture(scope="session", name="registry_port")
+def fixture_karapace_subprocess(session_tmpdir, kafka_server):
+    datadir = session_tmpdir()
+    config_path = os.path.join(datadir, "karapace_config.json")
+    kafka_port = kafka_server["kafka_port"]
+    app_port = get_random_port()
+    with open(config_path, "w") as fp:
+        karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{kafka_port}", "port": app_port}
+        fp.write(json.dumps(karapace_config))
+
+    cmd_args = ["python", "-m", "karapace.karapace", config_path]
+    p = None
+    try:
+        p = subprocess.Popen(cmd_args)
+        wait_for_port(app_port, wait_time=30)
+        yield app_port
+    finally:
+        if p is not None:
+            p.kill()
+
+
+@pytest.fixture(scope="session", name="http_registry_client")
+def http_registry_client(registry_port):
+    registry_url = "http://localhost:%s" % registry_port
+    return SchemaRegistryBasicClientRemote(schema_registry_url=registry_url)
+
+
 @pytest.fixture(scope="function", name="karapace")
 def fixture_karapace(session_tmpdir, kafka_server):
     class _Karapace:
