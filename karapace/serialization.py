@@ -1,11 +1,12 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from kafka.serializer.abstract import Deserializer, Serializer
 from karapace.config import read_config
+from karapace.rapu import HTTPRequest, HTTPResponse
 from karapace.utils import json_encode
-from karapace.rapu import HTTPResponse
+
+import asyncio
 import avro
 import io
-import requests
 import karapace.karapace
 import logging
 import os
@@ -26,11 +27,19 @@ class InvalidPayload(Exception):
     pass
 
 
-class InvalidMessage(Exception):
+class InvalidMessageSchema(Exception):
     pass
 
 
-class SchemaRetrievalError(Exception):
+class SchemaError(Exception):
+    pass
+
+
+class SchemaRetrievalError(SchemaError):
+    pass
+
+
+class SchemaUpdateError(SchemaError):
     pass
 
 
@@ -92,8 +101,11 @@ class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
 
     def get_latest_schema(self, subject):
         ret = None
+        loop = asyncio.get_event_loop()
         try:
-            ret = await self.krp.subject_version_get(None, subject=subject, version="latest")
+            ret = loop.run_until_complete(
+                self.krp.subject_version_get(None, subject=subject, version="latest", return_dict=True)
+            )
             schema_id = ret["id"]
             schema_str = ret["schema"]
             schema = avro.io.schema.parse(schema_str)
@@ -103,11 +115,14 @@ class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
         except KeyError as e:
             raise SchemaRetrievalError("Invalid response format: %r" % ret) from e
         except avro.io.schema.SchemaParseException as e:
-            raise SchemaRetrievalError("Failed to parse schema string: %r" % ret["schema"]) from e
+            raise SchemaRetrievalError("Failed to parse schema string from response: %r" % ret) from e
+        finally:
+            loop.close()
 
     def get_schema_for_id(self, schema_id):
         try:
             self.krp.schemas_get(None, schema_id=schema_id)
+            raise SchemaRetrievalError("Karapace client not responding")
         except HTTPResponse as r:
             if r.ok():
                 try:
@@ -121,22 +136,29 @@ class SchemaRegistryBasicClientLocal(SchemaRegistryBasicClientBase):
 
     def post_new_schema(self, subject, schema):
         try:
-            self.krp.subject_post(None, subject=subject)
-        except HTTPResponse:
-            pass
+            req = HTTPRequest(headers={}, query="", method="POST", path_for_stats="", url="")
+            req.json = schema.to_json()
+            self.krp.subject_post(request=req, subject=subject)
+            raise SchemaRetrievalError("Karapace client not responding")
+        except HTTPResponse as resp:
+            if resp.ok():
+                return resp.body["id"]
+            raise SchemaRetrievalError("Unable to register schema %r for subject %r" % (schema.to_json(), subject)) from resp
 
 
 class SchemaRegistrySerializerDeserializer:
     def __init__(self, **config):
         super().__init__(**config)
-        config_path = config.pop("config_path")
+        if not config.get("config_path"):
+            raise Exception("config_path is empty or missing")
+        config_path = config["config_path"]
         self.config = read_config(config_path)
-        try:
-            registry_url = self.config.pop("schema_registry_url")
+        if config.get("schema_registry_url"):
+            registry_url = self.config["schema_registry_url"]
             registry_client = SchemaRegistryBasicClientRemote(registry_url)
-        except KeyError:
+        else:
             log.debug("Registry url not found in config, checking args for registry_client")
-            registry_client = config.pop("registry_client")
+            registry_client = config["registry_client"]
         self.subject_name_strategy = topic_name_strategy
         self.registry_client = registry_client
         self.subjects_to_schemas = {}
@@ -175,7 +197,7 @@ class SchemaRegistrySerializerDeserializer:
         subject = self.subject_name_strategy(topic, None) + self.get_suffix()
         if subject in self.subjects_to_schemas:
             return self.subjects_to_schemas[subject]
-        log.info("schema for subject %r not found locally, attempting to retrieve latest value" % subject)
+        log.info("schema for subject %r not found locally, attempting to retrieve latest value", subject)
         schema_id, schema = self.registry_client.get_latest_schema(subject)
         self.subjects_to_schemas[subject] = schema
         self.schemas_to_ids[self.serialize_schema(schema)] = schema_id
@@ -199,7 +221,7 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer, Serializer)
                 enc_bytes = bio.getvalue()
                 return enc_bytes
             except avro.io.AvroTypeException as e:
-                raise InvalidMessage("Object does not fit to stored schema") from e
+                raise InvalidMessageSchema("Object does not fit to stored schema") from e
 
     def get_suffix(self):
         # make pylint shut up and not disable it for this class
