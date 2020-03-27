@@ -827,6 +827,56 @@ async def schema_checks(c):
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == "Subject not found."
 
+    # Test that global ID values stay consistent after using pre-existing schema ids
+    subject = os.urandom(16).hex()
+    res = await c.put("config/{}".format(subject), json={"compatibility": "NONE"})  # We don't care about compatibility
+    schema = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "just_a_value",
+                "type": "string",
+            },
+        ]
+    }
+    schema2 = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "just_a_value2",
+                "type": "string",
+            },
+        ]
+    }
+    schema3 = {
+        "type": "record",
+        "name": "Object",
+        "fields": [
+            {
+                "name": "just_a_value3",
+                "type": "int",
+            },
+        ]
+    }
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    first_schema_id = res.json()["id"]
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
+    assert res.status == 200
+    assert res.json()["id"] == first_schema_id + 1
+    # Reuse the first schema in another subject
+    subject = os.urandom(16).hex()
+    res = await c.put("config/{}".format(subject), json={"compatibility": "NONE"})  # We don't care about compatibility
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+    assert res.json()["id"] == first_schema_id
+    # Create a new schema
+    res = await c.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema3)})
+    assert res.status == 200
+    assert res.json()["id"] == first_schema_id + 2
+
 
 async def config_checks(c):
     # Tests /config endpoint
