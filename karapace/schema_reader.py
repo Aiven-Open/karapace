@@ -189,7 +189,8 @@ class KafkaSchemaReader(Thread):
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]
-                self.global_schema_id = value["id"]
+                if value["id"] > self.global_schema_id:  # Not an existing schema
+                    self.global_schema_id = value["id"]
             elif value.get("deleted", False) is True:
                 self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
                 if not value["version"] in self.subjects[subject]["schemas"]:
@@ -208,7 +209,8 @@ class KafkaSchemaReader(Thread):
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]
-                self.global_schema_id = value["id"]
+                if value["id"] > self.global_schema_id:  # Not an existing schema
+                    self.global_schema_id = value["id"]
         elif key["keytype"] == "DELETE_SUBJECT":
             self.log.info("Deleting subject: %r, value: %r", value["subject"], value)
             if not value["subject"] in self.subjects:
