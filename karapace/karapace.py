@@ -6,7 +6,6 @@ See LICENSE for details
 """
 
 from karapace.config import read_config
-
 from karapace.rapu import HTTPResponse, RestApp
 
 import asyncio

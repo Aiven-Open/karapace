@@ -4,18 +4,12 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from functools import partial
-from urllib.parse import urljoin
-
-import aiohttp
-import asyncio
 import datetime
 import decimal
 import json as jsonlib
-import logging
+import os
+import requests
 import types
-
-log = logging.getLogger(__name__)
 
 
 def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):
@@ -69,53 +63,85 @@ class Result:
     def json(self):
         return self.json_result
 
+    def __repr__(self):
+        return "Result(status=%d, json_result=%r)" % (self.status_code, self.json_result)
+
+    def ok(self):
+        return self.status_code == 200
+
 
 class Client:
-    def __init__(self, server_uri):
-        self.base_uri_builder = partial(urljoin, server_uri)
-        self.session = aiohttp.ClientSession()
-        self.headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+    def __init__(self, server_uri=None, client=None):
+        self.server_uri = server_uri
+        self.session = requests.Session()
+        self.client = client
 
-    async def post(self, path, json):
-        return await self.upsert("POST", path, json)
+    async def close(self):
+        try:
+            self.session.close()
+        except:  # pylint: disable=bare-except
+            pass
+        try:
+            await self.client.close()
+        except:  # pylint: disable=bare-except
+            pass
 
-    async def put(self, path, json):
-        return await self.upsert("PUT", path, json)
+    async def get(self, path, headers=None):
+        if not headers:
+            headers = {}
+        if self.client:
+            async with self.client.get(
+                path,
+                headers=headers,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = requests.get(os.path.join(self.server_uri, path), headers=headers)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
-    async def get(self, path):
-        return await self.read_or_delete("GET", path)
+    async def delete(self, path, headers=None):
+        if not headers:
+            headers = {}
+        if self.client:
+            async with self.client.delete(
+                path,
+                headers=headers,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = requests.delete(os.path.join(self.server_uri, path), headers=headers)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
-    async def delete(self, path):
-        return await self.read_or_delete("DELETE", path)
+    async def post(self, path, json, headers=None):
+        if not headers:
+            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
-    async def read_or_delete(self, method, path):
-        uri = self.base_uri_builder(path)
-        if method == "DELETE":
-            caller = self.session.delete
-        else:
-            caller = self.session.get
-        log.debug("Running %r request for %r", method, uri)
-        async with caller(
-            uri,
-            headers=self.headers,
-        ) as res:
-            json_result = await res.json()
-            return Result(res.status, json_result, headers=res.headers)
+        if self.client:
+            async with self.client.post(
+                path,
+                headers=headers,
+                json=json,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = self.session.post(os.path.join(self.server_uri, path), headers=headers, json=json)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
-    async def upsert(self, method, path, json):
-        uri = self.base_uri_builder(path)
-        if method == "POST":
-            caller = self.session.post
-        else:
-            caller = self.session.put
-        log.debug("Running %r request for %r", method, uri)
-        async with caller(
-            uri,
-            headers=self.headers,
-            json=json,
-        ) as res:
-            json_result = await res.json()
-            return Result(res.status, json_result, headers=res.headers)
+    async def put(self, path, json, headers=None):
+        if not headers:
+            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
-    def close(self):
-        asyncio.get_event_loop().run_until_complete(self.session.close())
+        if self.client:
+            async with self.client.put(
+                path,
+                headers=headers,
+                json=json,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = self.session.put(os.path.join(self.server_uri, path), headers=headers, json=json)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)

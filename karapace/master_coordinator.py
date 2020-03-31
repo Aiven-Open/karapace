@@ -104,6 +104,7 @@ class SchemaCoordinator(BaseCoordinator):
 
 class MasterCoordinator(Thread):
     """Handles schema topic creation and master election"""
+
     def __init__(self, config):
         Thread.__init__(self)
         self.config = config

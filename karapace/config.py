@@ -5,7 +5,6 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 import json
-import os
 import socket
 
 
@@ -34,12 +33,10 @@ def set_config_defaults(config):
 
 
 def read_config(config_path):
-    if os.path.exists(config_path):
+    with open(config_path, "r") as cf:
         try:
-            config = json.loads(open(config_path, "r").read())
+            config = json.loads(cf.read())
             config = set_config_defaults(config)
             return config
         except Exception as ex:
             raise InvalidConfiguration(ex)
-    else:
-        raise InvalidConfiguration()

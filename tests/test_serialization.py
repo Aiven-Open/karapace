@@ -1,9 +1,8 @@
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.cluster import TopicPartition
 from karapace.serialization import (
-    HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryKeyDeserializer,
-    SchemaRegistryValueDeserializer, SchemaRegistryValueSerializer, START_BYTE
+    HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryClient,
+    SchemaRegistryDeserializer, SchemaRegistrySerializer, START_BYTE
 )
+from karapace.utils import Client
 from tests.conftest import schema_json
 
 import avro
@@ -12,6 +11,8 @@ import io
 import json
 import pytest
 import struct
+
+pytest_plugins = "aiohttp.pytest_plugin"
 
 test_objects = [
     {
@@ -32,76 +33,47 @@ test_objects = [
 ]
 
 
-def test_happy_flow(default_config_path, mock_registry_client):
-    serializer = SchemaRegistryValueSerializer(config_path=default_config_path, registry_client=mock_registry_client)
-    deserializer = SchemaRegistryValueDeserializer(config_path=default_config_path, registry_client=mock_registry_client)
+async def make_ser_deser(config_path, mock_client):
+    serializer = SchemaRegistrySerializer(config_path=config_path)
+    deserializer = SchemaRegistryDeserializer(config_path=config_path)
+    await serializer.registry_client.close()
+    await deserializer.registry_client.close()
+    serializer.registry_client = mock_client
+    deserializer.registry_client = mock_client
+    return serializer, deserializer
+
+
+async def test_happy_flow(default_config_path, mock_registry_client):
+    serializer, deserializer = await make_ser_deser(default_config_path, mock_registry_client)
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 0
-        assert len(o.subjects_to_schemas) == 0
     for o in test_objects:
-        assert o == deserializer.deserialize("top", serializer.serialize("top", o))
-    serializer.registry_client.get_latest_schema.assert_called_with("top-value")
+        assert o == await deserializer.deserialize(await serializer.serialize("top", o))
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 1
         assert 1 in o.ids_to_schemas
-        assert len(o.subjects_to_schemas) == 1
-        assert "top-value" in o.subjects_to_schemas
 
 
-def test_kafka_integration(kafka_server, mock_registry_client, http_registry_client, schemas_config_path):
-    # pylint: disable=W0613
-    for i, cli in enumerate([mock_registry_client, http_registry_client]):
-        serializer = SchemaRegistryValueSerializer(config_path=schemas_config_path, registry_client=cli)
-        deserializer = SchemaRegistryValueDeserializer(config_path=schemas_config_path, registry_client=cli)
-        kafka_uri = "127.0.0.1:%d" % kafka_server["kafka_port"]
-        topic = "test%s" % i
-        producer = KafkaProducer(bootstrap_servers=kafka_uri, value_serializer=serializer)
-        consumer = KafkaConsumer(
-            topic,
-            bootstrap_servers=kafka_uri,
-            value_deserializer=deserializer,
-            auto_offset_reset="earliest",
-        )
-        for o in test_objects:
-            producer.send(topic, value=o)
-        grouped_results = consumer.poll(2000)
-        tp = TopicPartition(topic, 0)
-        assert len(grouped_results) == 1
-        assert tp in grouped_results
-        results = grouped_results[tp]
-        assert len(results) == 3
-        for expected, actual in zip(test_objects, results):
-            assert expected == actual.value
-
-
-def test_config_load(schemas_config_path, mock_registry_client):
-    serializer = SchemaRegistryValueSerializer(config_path=schemas_config_path, registry_client=mock_registry_client)
-    assert len(serializer.ids_to_schemas) == 1
-    # 0 for keys
-    deserializer = SchemaRegistryKeyDeserializer(config_path=schemas_config_path, registry_client=mock_registry_client)
-    assert len(deserializer.ids_to_schemas) == 0
-
-
-def test_serialization_fails(default_config_path, mock_registry_client):
-    serializer = SchemaRegistryValueSerializer(config_path=default_config_path, registry_client=mock_registry_client)
+async def test_serialization_fails(default_config_path, mock_registry_client):
+    serializer, _ = await make_ser_deser(default_config_path, mock_registry_client)
     with pytest.raises(InvalidMessageSchema):
-        serializer.serialize("topic", {"foo": "bar"})
+        await serializer.serialize("topic", {"foo": "bar"})
 
 
-def test_deserialization_fails(default_config_path, mock_registry_client):
-    deserializer = SchemaRegistryValueDeserializer(config_path=default_config_path, registry_client=mock_registry_client)
-
+async def test_deserialization_fails(default_config_path, mock_registry_client):
+    _, deserializer = await make_ser_deser(default_config_path, mock_registry_client)
     invalid_header_payload = struct.pack(">bII", 1, 500, 500)
     with pytest.raises(InvalidMessageHeader):
-        deserializer.deserialize("topic", invalid_header_payload)
+        await deserializer.deserialize(invalid_header_payload)
 
     # for now we ignore the packed in schema id
     invalid_data_payload = struct.pack(">bII", START_BYTE, 1, 500)
     with pytest.raises(InvalidPayload):
-        deserializer.deserialize("topic", invalid_data_payload)
+        await deserializer.deserialize(invalid_data_payload)
 
     # but we can pass in a perfectly fine doc belonging to a diff schema
-    schema = copy.deepcopy(mock_registry_client.get_schema_for_id(1).to_json())
+    schema = await mock_registry_client.get_schema_for_id(1)
+    schema = copy.deepcopy(schema.to_json())
     schema["name"] = "BadUser"
     schema["fields"][0]["type"] = ["int", "null"]
     obj = {"name": 100, "favorite_number": 2, "favorite_color": "bar"}
@@ -112,15 +84,21 @@ def test_deserialization_fails(default_config_path, mock_registry_client):
         writer.write(obj, enc)
         enc_bytes = bio.getvalue()
     with pytest.raises(InvalidPayload):
-        deserializer.deserialize("topic", enc_bytes)
+        await deserializer.deserialize(enc_bytes)
 
 
-def test_remote_client(http_registry_client):
+async def test_remote_client(karapace, aiohttp_client):
+    kc, _ = karapace()
+    client = await aiohttp_client(kc.app)
+    c = Client(client=client)
     schema_avro = avro.io.schema.parse(schema_json)
-    sc_id = http_registry_client.post_new_schema("foo", schema_avro)
+    reg_cli = SchemaRegistryClient()
+    reg_cli.client = c
+    sc_id = await reg_cli.post_new_schema("foo", schema_avro)
     assert sc_id >= 0
-    stored_schema = http_registry_client.get_schema_for_id(sc_id)
+    stored_schema = await reg_cli.get_schema_for_id(sc_id)
     assert stored_schema == schema_avro, "stored schema %r is not %r" % (stored_schema.to_json(), schema_avro.to_json())
-    stored_id, stored_schema = http_registry_client.get_latest_schema("foo")
+    stored_id, stored_schema = await reg_cli.get_latest_schema("foo")
     assert stored_id == sc_id
     assert stored_schema == schema_avro
+    await c.close()
