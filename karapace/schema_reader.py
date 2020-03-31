@@ -4,21 +4,19 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from kafka import KafkaConsumer
+from aiokafka import AIOKafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace.utils import json_encode
-from queue import Queue
-from threading import Thread
 
+import asyncio
+from karapace.config import create_ssl_context
 import json
 import logging
-import time
 
 
-class KafkaSchemaReader(Thread):
+class KafkaSchemaReader:
     def __init__(self, config):
-        Thread.__init__(self)
         self.log = logging.getLogger("KafkaSchemaReader")
         self.api_version_auto_timeout_ms = 30000
         self.topic_creation_timeout_ms = 20000
@@ -33,26 +31,25 @@ class KafkaSchemaReader(Thread):
         self.topic_num_partitions = 1
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer = None
-        self.queue = Queue()
+        self.queue = asyncio.queues.Queue()
         self.ready = False
         self.running = True
 
     def init_consumer(self):
         # Group not set on purpose, all consumers read the same data
-        self.consumer = KafkaConsumer(
+        self.consumer = AIOKafkaConsumer(
             self.config["topic_name"],
+            loop=asyncio.get_event_loop(),
             enable_auto_commit=False,
             api_version=(1, 0, 0),
             bootstrap_servers=self.config["bootstrap_uri"],
             client_id=self.config["client_id"],
             security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
+            ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
             auto_offset_reset="earliest",
         )
 
-    def init_admin_client(self):
+    async def init_admin_client(self):
         try:
             self.admin_client = KafkaAdminClient(
                 api_version_auto_timeout_ms=self.api_version_auto_timeout_ms,
@@ -66,13 +63,13 @@ class KafkaSchemaReader(Thread):
             return True
         except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
             self.log.warning("No Brokers available yet, retrying init_admin_client()")
-            time.sleep(2.0)
+            await asyncio.sleep(2.0)
         except:  # pylint: disable=bare-except
             self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
-            time.sleep(2.0)
+            await asyncio.sleep(2.0)
         return False
 
-    def create_schema_topic(self):
+    async def create_schema_topic(self):
         schema_topic = NewTopic(
             name=self.config["topic_name"],
             num_partitions=self.topic_num_partitions,
@@ -91,7 +88,7 @@ class KafkaSchemaReader(Thread):
             return True
         except:  # pylint: disable=bare-except
             self.log.exception("Failed to create topic: %r, retrying create_schema_topic()", self.config["topic_name"])
-            time.sleep(5)
+            await asyncio.sleep(5)
         return False
 
     def get_schema_id(self, new_schema):
@@ -106,25 +103,25 @@ class KafkaSchemaReader(Thread):
         self.log.info("Closing schema_reader")
         self.running = False
 
-    def run(self):
+    async def run(self):
         while self.running:
             if not self.admin_client:
-                if self.init_admin_client() is False:
+                if not await self.init_admin_client():
                     continue
             if not self.schema_topic:
-                if self.create_schema_topic() is False:
+                if not await self.create_schema_topic():
                     continue
             if not self.consumer:
                 self.init_consumer()
-            self.handle_messages()
+            await self.handle_messages()
 
         if self.admin_client:
             self.admin_client.close()
         if self.consumer:
-            self.consumer.close()
+            await self.consumer.close()
 
-    def handle_messages(self):
-        raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
+    async def handle_messages(self):
+        raw_msgs = await self.consumer.getmany(timeout_ms=self.timeout_ms)
         if self.ready is False and raw_msgs == {}:
             self.ready = True
 
@@ -149,7 +146,7 @@ class KafkaSchemaReader(Thread):
                 self.offset = msg.offset
                 self.log.info("Handled message, current offset: %r", self.offset)
                 if self.ready:
-                    self.queue.put(self.offset)
+                    await self.queue.put(self.offset)
 
     def handle_msg(self, key, value):
         if key["keytype"] == "CONFIG":
