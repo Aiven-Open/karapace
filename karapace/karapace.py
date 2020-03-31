@@ -57,7 +57,7 @@ class KarapaceBase(RestApp):
         try:
             logging.getLogger().setLevel(self.config["log_level"])
         except ValueError:
-            self.log.excption("Problem with log_level: %r", self.config["log_level"])
+            self.log.exception("Problem with log_level: %r", self.config["log_level"])
 
     @staticmethod
     def r(body, content_type, status=200):
