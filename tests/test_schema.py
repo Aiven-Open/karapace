@@ -1009,6 +1009,14 @@ async def check_http_headers(c):
     assert res.status == 200
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
+    # Octet-stream is supported as a Content-Type
+    res = await c.put("config", json={"compatibility": "FULL"}, headers={"Content-Type": "application/octet-stream"})
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+    res = await c.get("subjects", headers={"Accept": "application/octet-stream"})
+    assert res.status == 406
+    assert res.json()["message"] == "HTTP 406 Not Acceptable"
+
 
 async def check_schema_body_validation(c):
     subject = os.urandom(16).hex()

@@ -25,7 +25,13 @@ import time
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 
-ACCEPTED_SCHEMA_CONTENT_TYPES = [
+SCHEMA_CONTENT_TYPES = [
+    "application/vnd.schemaregistry.v1+json",
+    "application/vnd.schemaregistry+json",
+    "application/json",
+    "application/octet-stream",
+]
+SCHEMA_ACCEPT_VALUES = [
     "application/vnd.schemaregistry.v1+json",
     "application/vnd.schemaregistry+json",
     "application/json",
@@ -107,7 +113,7 @@ class RestApp:
         headers = request.headers
 
         content_type = "application/vnd.schemaregistry.v1+json"
-        if method in {"POST", "PUT"} and headers["Content-Type"] not in ACCEPTED_SCHEMA_CONTENT_TYPES:
+        if method in {"POST", "PUT"} and headers["Content-Type"] not in SCHEMA_CONTENT_TYPES:
             raise HTTPResponse(
                 body=json_encode({
                     "error_code": 415,
@@ -120,7 +126,7 @@ class RestApp:
         if "Accept" in headers:
             if headers["Accept"] == "*/*" or headers["Accept"].startswith("*/"):
                 return "application/vnd.schemaregistry.v1+json"
-            content_type_match = get_best_match(headers["Accept"], ACCEPTED_SCHEMA_CONTENT_TYPES)
+            content_type_match = get_best_match(headers["Accept"], SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
                 self.log.debug("Unexpected Accept value: %r", headers["Accept"])
                 raise HTTPResponse(
