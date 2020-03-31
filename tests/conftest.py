@@ -5,8 +5,6 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from karapace.serialization import SchemaRegistryBasicClientLocal
-from unittest.mock import MagicMock
 
 import avro
 import contextlib
@@ -79,21 +77,21 @@ def get_random_port(*, start=3000, stop=30000, blacklist=None):
 
 @pytest.fixture(name="mock_registry_client")
 def create_basic_registry_client():
-    cli = SchemaRegistryBasicClientLocal(krp=None)
-    cli.get_schema_for_id = MagicMock(return_value=avro.schema.parse(schema_json))
-    cli.get_latest_schema = MagicMock(return_value=(1, avro.schema.parse(schema_json)))
-    cli.post_new_schema = MagicMock(return_value=1)
-    return cli
+    class MockClient:
+        # pylint: disable=W0613
+        def __init__(self, *args, **kwargs):
+            pass
 
+        async def get_schema_for_id(self, *args, **kwargs):
+            return avro.schema.parse(schema_json)
 
-@pytest.fixture(scope="session", name="schemas_folder")
-def fixture_schemas_folder(session_tmpdir):
-    d = session_tmpdir()
-    for i in range(2):
-        fname = "test%d-value.avsc" % i
-        with open(os.path.join(d, fname), "w") as outf:
-            outf.write(schema_json)
-    return d
+        async def get_latest_schema(self, *args, **kwargs):
+            return 1, avro.schema.parse(schema_json)
+
+        async def post_new_schema(self, *args, **kwargs):
+            return 1
+
+    return MockClient()
 
 
 @pytest.fixture(scope="session", name="session_tmpdir")
@@ -110,15 +108,6 @@ def fixture_session_tmpdir(tmpdir_factory):
     finally:
         with contextlib.suppress(Exception):
             tmpdir_obj.remove(rec=1)
-
-
-@pytest.fixture(scope="session", name="schemas_config_path")
-def fixture_schemas_config(session_tmpdir, schemas_folder):
-    base_name = "karapace_config.json"
-    path = os.path.join(session_tmpdir(), base_name)
-    with open(path, 'w') as cf:
-        cf.write(json.dumps({"schemas_folder": schemas_folder.strpath}))
-    return path
 
 
 @pytest.fixture(scope="session", name="default_config_path")
@@ -150,33 +139,6 @@ def fixture_kafka_server(session_tmpdir, zkserver):
         time.sleep(5)
         os.kill(proc.pid, signal.SIGKILL)
         proc.wait(timeout=10.0)
-
-
-@pytest.fixture(scope="session", name="registry_port")
-def fixture_karapace_subprocess(session_tmpdir, kafka_server):
-    datadir = session_tmpdir()
-    config_path = os.path.join(datadir, "karapace_config.json")
-    kafka_port = kafka_server["kafka_port"]
-    app_port = get_random_port()
-    with open(config_path, "w") as fp:
-        karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{kafka_port}", "port": app_port}
-        fp.write(json.dumps(karapace_config))
-
-    cmd_args = ["python", "-m", "karapace.karapace", config_path]
-    p = None
-    try:
-        p = subprocess.Popen(cmd_args)
-        wait_for_port(app_port, wait_time=30)
-        yield app_port
-    finally:
-        if p is not None:
-            p.kill()
-
-
-@pytest.fixture(scope="session", name="http_registry_client")
-def http_registry_client(registry_port):
-    registry_url = "http://localhost:%s" % registry_port
-    return SchemaRegistryBasicClientRemote(schema_registry_url=registry_url)
 
 
 @pytest.fixture(scope="function", name="karapace")
