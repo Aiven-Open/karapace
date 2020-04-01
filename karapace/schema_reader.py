@@ -7,10 +7,10 @@ See LICENSE for details
 from aiokafka import AIOKafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from karapace.config import create_ssl_context
 from karapace.utils import json_encode
 
 import asyncio
-from karapace.config import create_ssl_context
 import json
 import logging
 
@@ -33,6 +33,7 @@ class KafkaSchemaReader:
         self.consumer = None
         self.queue = asyncio.queues.Queue()
         self.ready = False
+        self.init_done = asyncio.Future()
         self.running = True
 
     def init_consumer(self):
@@ -41,7 +42,7 @@ class KafkaSchemaReader:
             self.config["topic_name"],
             loop=asyncio.get_event_loop(),
             enable_auto_commit=False,
-            api_version=(1, 0, 0),
+            api_version="1.0.0",
             bootstrap_servers=self.config["bootstrap_uri"],
             client_id=self.config["client_id"],
             security_protocol=self.config["security_protocol"],
@@ -113,12 +114,13 @@ class KafkaSchemaReader:
                     continue
             if not self.consumer:
                 self.init_consumer()
+                await self.consumer.start()
+            if not self.init_done.done():
+                self.init_done.set_result(None)
             await self.handle_messages()
 
         if self.admin_client:
             self.admin_client.close()
-        if self.consumer:
-            await self.consumer.close()
 
     async def handle_messages(self):
         raw_msgs = await self.consumer.getmany(timeout_ms=self.timeout_ms)

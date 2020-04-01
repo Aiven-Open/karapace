@@ -7,6 +7,7 @@ See LICENSE for details
 import socket
 import ssl
 
+
 def set_config_defaults(config):
     config.setdefault("advertised_hostname", socket.gethostname())
     config.setdefault("bootstrap_uri", "127.0.0.1:9092")

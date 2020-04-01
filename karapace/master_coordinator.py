@@ -5,14 +5,14 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from aiokafka.client import AIOKafkaClient
-from aiokafka.consumer.group_coordinator import GroupCoordinator
 from aiokafka.consumer.fetcher import Fetcher
+from aiokafka.consumer.group_coordinator import GroupCoordinator
 from aiokafka.consumer.subscription_state import SubscriptionState
-from kafka.coordinator.protocol import ConsumerProtocolMemberMetadata
 from kafka.coordinator.assignors.roundrobin import RoundRobinPartitionAssignor
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace.config import create_ssl_context
+
 import asyncio
 import json
 import logging
@@ -34,8 +34,11 @@ class RoundRobinJsonAssignor(RoundRobinPartitionAssignor):
 
     def metadata(self, topics):
         return json.dumps({
-            "version": 1, "host": self.hostname, "port": self.port,
-            "scheme": self.scheme, "master_eligibility": True
+            "version": 1,
+            "host": self.hostname,
+            "port": self.port,
+            "scheme": self.scheme,
+            "master_eligibility": True
         })
 
 
@@ -46,9 +49,6 @@ class SchemaCoordinator(GroupCoordinator):
     master = None
     master_url = None
     log = logging.getLogger("SchemaCoordinator")
-
-    def protocol_type(self):
-        return "sr"
 
     @staticmethod
     def get_identity(*, host, port, scheme, json_encode=True):
@@ -61,8 +61,8 @@ class SchemaCoordinator(GroupCoordinator):
         return [("v0", self.get_identity(host=self.hostname, port=self.port, scheme=self.scheme))]
 
     @asyncio.coroutine
-    def _perform_assignment(self, leader_id, protocol, members):
-        self.log.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
+    def _perform_assignment(self, leader_id, assignment_strategy, members):
+        self.log.info("Creating assignment: %r, strategy: %r, members: %r", leader_id, assignment_strategy, members)
         self.master = None
         error = NO_ERROR
         urls = {}
@@ -109,7 +109,6 @@ class SchemaCoordinator(GroupCoordinator):
         else:
             self.master_url = master_url
             self.master = False
-        return await super(SchemaCoordinator, self)._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
 
 class MasterCoordinator:
@@ -120,7 +119,8 @@ class MasterCoordinator:
         self.api_version_auto_timeout_ms = 30000
         self.timeout_ms = 10000
         self.kafka_client = None
-        self.running = True
+        self.done = asyncio.Future()
+        self.running = asyncio.Future()
         self.sc = None
         self.subscription = SubscriptionState(loop=asyncio.get_event_loop())
         self.fetcher = None
@@ -142,6 +142,7 @@ class MasterCoordinator:
                 loop=asyncio.get_event_loop(),
             )
             await self.kafka_client.bootstrap()
+            self.log.info("Kafka client ready")
             self.fetcher = Fetcher(self.kafka_client, self.subscription, loop=asyncio.get_event_loop())
             return True
         except (NodeNotReadyError, NoBrokersAvailable):
@@ -156,11 +157,9 @@ class MasterCoordinator:
             group_id=self.config["group_id"],
             loop=asyncio.get_event_loop(),
             subscription=self.subscription,
-            assignors=(RoundRobinJsonAssignor(
-                hostname=self.config["advertised_hostname"],
-                port=self.config["port"],
-                scheme="http"
-            ),),
+            assignors=(
+                RoundRobinJsonAssignor(hostname=self.config["advertised_hostname"], port=self.config["port"], scheme="http"),
+            ),
         )
         self.sc.hostname = self.config["advertised_hostname"]
         self.sc.port = self.config["port"]
@@ -169,29 +168,32 @@ class MasterCoordinator:
 
     async def get_master_info(self):
         """Return whether we're the master, and the actual master url that can be used if we're not"""
-        with self.lock:
+        async with self.lock:
             return self.sc.master, self.sc.master_url
 
-    def close(self):
+    async def close(self):
         self.log.info("Closing master_coordinator")
-        self.running = False
-        import time
-        time.sleep(2)
+        self.done.set_result(None)
+        await self.sc.close()
+        await self.fetcher.close()
+        await self.kafka_client.close()
 
     async def run(self):
         await self.lock.acquire()
-        _hb_interval = 1.0
-        while self.running:
+        while True:
             try:
                 if not self.kafka_client:
-                    if await self.init_kafka_client() is False:
+                    if not await self.init_kafka_client():
+                        self.log.error("could not init kafka client")
                         continue
                 if not self.sc:
                     await self.init_schema_coordinator()
                 # Both tasks already happen in the background task in the base class, so here we just check for
                 # Close conditions
-                self.log.debug("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
-                await asyncio.sleep(_hb_interval)
+                self.log.info("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
+                self.running.set_result(None)
+                await self.done
+                break
             except:  # pylint: disable=bare-except
                 self.log.exception("Exception in master_coordinator")
                 await asyncio.sleep(1.0)
