@@ -16,7 +16,7 @@ from karapace.config import create_ssl_context
 import asyncio
 import json
 import logging
-
+log = logging.getLogger(__name__)
 # SR group errors
 NO_ERROR = 0
 DUPLICATE_URLS = 1
@@ -33,13 +33,15 @@ class RoundRobinJsonAssignor(RoundRobinPartitionAssignor):
         self.scheme = scheme
 
     def metadata(self, topics):
-        return json.dumps({
+        rv = json.dumps({
             "version": 1,
             "host": self.hostname,
             "port": self.port,
             "scheme": self.scheme,
             "master_eligibility": True
-        })
+        }).encode("utf8")
+        log.info("get metadata %s", rv.decode())
+        return rv
 
 
 class SchemaCoordinator(GroupCoordinator):
@@ -69,10 +71,11 @@ class SchemaCoordinator(GroupCoordinator):
         for member_id, member_data in members:
             self.log.info(member_data.decode("utf8"))
             member_identity = json.loads(member_data.decode("utf8"))
+            self.log.info("gathered identity: %r", member_identity)
             if member_identity["master_eligibility"] is True:
                 urls[get_identity_url(member_identity["scheme"], member_identity["host"],
                                       member_identity["port"])] = (member_id, member_data)
-
+        self.log.info("Gathered urls %r", urls)
         lowest_url = sorted(urls)[0]
         schema_master_id, member_data = urls[lowest_url]
         member_identity = json.loads(member_data.decode("utf8"))

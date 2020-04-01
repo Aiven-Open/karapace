@@ -23,11 +23,6 @@ async def init_admin(config):
     mc = MasterCoordinator(config=config)
     asyncio.ensure_future(mc.run())
     await mc.running
-    while True:
-        if mc.sc.master is None:
-            await asyncio.sleep(1)
-            continue
-        break
     return mc
 
 
