@@ -7,20 +7,21 @@ See LICENSE for details
 from aiokafka import AIOKafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from karapace.config import create_ssl_context
 from karapace.utils import json_encode
 
 import asyncio
-from karapace.config import create_ssl_context
 import json
 import logging
 
 
 class KafkaSchemaReader:
-    def __init__(self, config):
+    def __init__(self, config, *, loop):
         self.log = logging.getLogger("KafkaSchemaReader")
         self.api_version_auto_timeout_ms = 30000
         self.topic_creation_timeout_ms = 20000
         self.timeout_ms = 200
+        self.loop = loop
         self.config = config
         self.subjects = {}
         self.schemas = {}
@@ -33,15 +34,18 @@ class KafkaSchemaReader:
         self.consumer = None
         self.queue = asyncio.queues.Queue()
         self.ready = False
+        self.init_done = self.loop.create_future()
+        self.stopped = self.loop.create_future()
         self.running = True
+        self.running_task = asyncio.ensure_future(self.run(), loop=self.loop)
 
     def init_consumer(self):
         # Group not set on purpose, all consumers read the same data
         self.consumer = AIOKafkaConsumer(
             self.config["topic_name"],
-            loop=asyncio.get_event_loop(),
+            loop=self.loop,
             enable_auto_commit=False,
-            api_version=(1, 0, 0),
+            api_version="1.0.0",
             bootstrap_servers=self.config["bootstrap_uri"],
             client_id=self.config["client_id"],
             security_protocol=self.config["security_protocol"],
@@ -99,9 +103,10 @@ class KafkaSchemaReader:
         self.global_schema_id += 1
         return self.global_schema_id
 
-    def close(self):
+    async def close(self):
         self.log.info("Closing schema_reader")
         self.running = False
+        await self.stopped
 
     async def run(self):
         while self.running:
@@ -113,12 +118,16 @@ class KafkaSchemaReader:
                     continue
             if not self.consumer:
                 self.init_consumer()
+                await self.consumer.start()
+            if not self.init_done.done():
+                self.init_done.set_result(None)
             await self.handle_messages()
 
         if self.admin_client:
             self.admin_client.close()
         if self.consumer:
-            await self.consumer.close()
+            await self.consumer.stop()
+        self.stopped.set_result(None)
 
     async def handle_messages(self):
         raw_msgs = await self.consumer.getmany(timeout_ms=self.timeout_ms)

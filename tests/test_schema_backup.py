@@ -7,6 +7,7 @@ See LICENSE for details
 from .utils import Client
 from karapace.schema_backup import SchemaBackup
 
+import asyncio
 import json as jsonlib
 import os
 import time
@@ -46,7 +47,8 @@ async def test_backup_restore(karapace, aiohttp_client):
     kc, datadir = karapace(topic_name="restore_schemas")
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
-
+    await kc.mc.running
+    await kc.ksr.init_done
     subject = os.urandom(16).hex()
     restore_location = os.path.join(datadir, "restore.log")
     with open(restore_location, "w") as fp:
@@ -70,7 +72,7 @@ async def test_backup_restore(karapace, aiohttp_client):
     sb.restore_backup()
 
     # The restored karapace should have the previously created subject
-    time.sleep(1.0)
+    await asyncio.sleep(1.0)
     res = await c.get("subjects")
     assert res.status_code == 200
     data = res.json()
@@ -101,7 +103,7 @@ async def test_backup_restore(karapace, aiohttp_client):
     res = await c.get(f"config/{subject}")
     assert res.status == 200
     sb.restore_backup()
-    time.sleep(1.0)
+    await asyncio.sleep(1.0)
     res = await c.get(f"config/{subject}")
     assert res.status == 404
 
@@ -130,7 +132,7 @@ async def test_backup_restore(karapace, aiohttp_client):
         """.format(subject_value=subject)
         )
     sb.restore_backup()
-    time.sleep(1.0)
+    await asyncio.sleep(1.0)
     res = await c.get(f"subjects/{subject}/versions")
     assert res.status == 200
     assert res.json() == [1]

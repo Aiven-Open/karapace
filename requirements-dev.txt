@@ -1,5 +1,5 @@
 avro-python3==1.9.2.1
-kafka-python==2.0.1
+aiokafka==0.5.2
 aiohttp-socks==0.3.4
 flake8==3.7.9
 pylint==2.4.4

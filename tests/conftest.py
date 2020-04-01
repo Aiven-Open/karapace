@@ -97,7 +97,7 @@ def fixture_kafka_server(session_tmpdir, zkserver):
 
 
 @pytest.fixture(scope="function", name="karapace")
-def fixture_karapace(session_tmpdir, kafka_server):
+async def fixture_karapace(session_tmpdir, kafka_server):
     class _Karapace:
         def __init__(self, datadir, kafka_port):
             self.kc = None
@@ -115,13 +115,13 @@ def fixture_karapace(session_tmpdir, kafka_server):
 
             return self.kc, self.datadir
 
-        def shutdown(self):
+        async def shutdown(self):
             if self.kc:
-                self.kc.close()
+                await self.kc.close()
 
     _instance = _Karapace(datadir=session_tmpdir(), kafka_port=kafka_server["kafka_port"])
     yield _instance.create_service
-    _instance.shutdown()
+    await _instance.shutdown()
 
 
 def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
