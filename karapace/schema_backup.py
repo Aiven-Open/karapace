@@ -5,7 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaConsumer, KafkaProducer
-from karapace.karapace import Karapace
+from karapace.karapace import KarapaceBase
 from karapace.utils import json_encode
 
 import argparse
@@ -21,7 +21,7 @@ class BackupError(Exception):
 
 class SchemaBackup:
     def __init__(self, config_path, backup_path, topic_option=None):
-        self.config = Karapace.read_config(config_path)
+        self.config = KarapaceBase.read_config(config_path)
         self.backup_location = backup_path
         self.topic_name = topic_option or self.config["topic_name"]
         self.log = logging.getLogger("SchemaBackup")
