@@ -4,8 +4,11 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from aiokafka.conn import create_conn
+from kafka.protocol.metadata import MetadataRequest
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 
+import asyncio
 import contextlib
 import json
 import os
@@ -18,6 +21,7 @@ import time
 
 KAFKA_CURRENT_VERSION = "2.1"
 BASEDIR = "kafka_2.12-2.1.1"
+pytest_plugins = "aiohttp.pytest_plugin"
 
 
 class Timeout(Exception):
@@ -96,8 +100,25 @@ def fixture_kafka_server(session_tmpdir, zkserver):
         proc.wait(timeout=10.0)
 
 
+@pytest.fixture(scope="function", name="valid_metadata")
+async def await_valid_metadata_response(kafka_server, loop):  # pylint: disable=unused-argument
+    c = await create_conn("localhost", kafka_server["kafka_port"])
+    while True:
+        try:
+            r = await c.send(MetadataRequest[1]([]))
+            if r.brokers:
+                break
+            print("no valid metadata found on cluster, waiting : %r", r.brokers)
+            await asyncio.sleep(1)
+        except:  # pylint: disable=bare-except
+            pass
+    c.close()
+    print("valid metadata response received from server: %r" % r.brokers)
+    return r.brokers
+
+
 @pytest.fixture(scope="function", name="karapace")
-async def fixture_karapace(session_tmpdir, kafka_server):
+async def fixture_karapace(session_tmpdir, kafka_server, valid_metadata):  # pylint: disable=unused-argument
     class _Karapace:
         def __init__(self, datadir, kafka_port):
             self.kc = None
@@ -119,7 +140,8 @@ async def fixture_karapace(session_tmpdir, kafka_server):
             if self.kc:
                 await self.kc.close()
 
-    _instance = _Karapace(datadir=session_tmpdir(), kafka_port=kafka_server["kafka_port"])
+    kafka_port = kafka_server["kafka_port"]
+    _instance = _Karapace(datadir=session_tmpdir(), kafka_port=kafka_port)
     yield _instance.create_service
     await _instance.shutdown()
 

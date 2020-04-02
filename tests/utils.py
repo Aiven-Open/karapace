@@ -4,6 +4,7 @@ karapace - test utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+
 import os
 import requests
 

@@ -41,9 +41,8 @@ def create_ssl_context(config):
         ssl_context.verify_mode = ssl.CERT_REQUIRED
     if config['ssl_certfile'] and config['ssl_keyfile']:
         ssl_context.load_cert_chain(
-            certfile=config['ssl_certfile'],
-            keyfile=config['ssl_keyfile'],
-            password=config['ssl_password'])
+            certfile=config['ssl_certfile'], keyfile=config['ssl_keyfile'], password=config['ssl_password']
+        )
     if config['ssl_crlfile']:
         if not hasattr(ssl, 'VERIFY_CRL_CHECK_LEAF'):
             raise RuntimeError('This version of Python does not support ssl_crlfile!')

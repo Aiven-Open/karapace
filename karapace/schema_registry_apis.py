@@ -1,6 +1,7 @@
-from kafka import KafkaProducer
+from aiokafka.producer import AIOKafkaProducer
 from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
+from karapace.config import create_ssl_context
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_reader import KafkaSchemaReader
@@ -9,9 +10,13 @@ from karapace.utils import json_encode
 import argparse
 import asyncio
 import avro.schema
+import logging
 import os
 import sys
 import time
+
+LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
 
 COMPATIBILITY_MODES = {
     "BACKWARD",
@@ -30,9 +35,15 @@ TRANSITIVE_MODES = {
 }
 
 
+class InvalidConfiguration(Exception):
+    pass
+
+
 class KarapaceSchemaRegistry(KarapaceBase):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config_path, *, loop=None):
+        super().__init__(config_path)
+        self.log = logging.getLogger("KarapaceSchemaRegistry")
+        self.loop = loop or asyncio.get_event_loop()
         self.kafka_timeout = 10
 
         self.route(
@@ -75,37 +86,44 @@ class KarapaceSchemaRegistry(KarapaceBase):
         )
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
 
+        self.master_lock = asyncio.Lock()
         self.ksr = None
         self._create_producer()
+        self.producer_started = asyncio.ensure_future(self.producer.start(), loop=self.loop)
         self._create_schema_reader()
         self._create_master_coordinator()
+        self.app.on_startup.append(self.create_http_client)
 
-    def close(self):
-        self.log.info("Shutting down all auxiliary threads")
+        self.log.info("Karapace initialized")
+
+    async def close(self):
+        self.log.info("Shutting down all background tasks")
+        await self.producer.stop()
         if self.mc:
-            self.mc.close()
+            await self.mc.close()
         if self.ksr:
-            self.ksr.close()
-        if self.producer:
-            self.producer.close()
+            await self.ksr.close()
+
+    def _set_log_level(self):
+        try:
+            logging.getLogger().setLevel(self.config["log_level"])
+        except ValueError:
+            self.log.exception("Problem with log_level: %r", self.config["log_level"])
 
     def _create_schema_reader(self):
-        self.ksr = KafkaSchemaReader(config=self.config, )
-        self.ksr.start()
+        self.ksr = KafkaSchemaReader(config=self.config, loop=self.loop)
 
     def _create_master_coordinator(self):
-        self.mc = MasterCoordinator(config=self.config)
-        self.mc.start()
+        self.mc = MasterCoordinator(config=self.config, loop=self.loop)
 
     def _create_producer(self):
-        self.producer = KafkaProducer(
+        self.producer = AIOKafkaProducer(
             bootstrap_servers=self.config["bootstrap_uri"],
             security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            api_version=(1, 0, 0),
+            ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
+            api_version="1.0.0",
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
+            loop=self.loop,
         )
 
     def _subject_get(self, subject, content_type):
@@ -138,11 +156,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
             status=422
         )
 
-    def get_offset_from_queue(self, sent_offset):
+    async def get_offset_from_queue(self, sent_offset):
         start_time = time.monotonic()
         while True:
             self.log.info("Starting to wait for offset: %r from ksr queue", sent_offset)
-            offset = self.ksr.queue.get()
+            offset = await self.ksr.queue.get()
             if offset == sent_offset:
                 self.log.info(
                     "We've consumed back produced offset: %r message back, everything is in sync, took: %.4f", offset,
@@ -150,22 +168,25 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 )
                 break
             self.log.error("Put the offset: %r back to queue, someone else is waiting for this?", offset)
-            self.ksr.queue.put(offset)
+            await self.ksr.queue.put(offset)
+            # non blocking prevention of tight loops
+            await asyncio.sleep(0.1)
 
-    def send_kafka_message(self, key, value):
+    async def send_kafka_message(self, key, value):
+        await self.producer_started
         if isinstance(key, str):
             key = key.encode("utf8")
         if isinstance(value, str):
             value = value.encode("utf8")
-
-        future = self.producer.send(self.config["topic_name"], key=key, value=value)
-        self.producer.flush(timeout=self.kafka_timeout)
-        msg = future.get(self.kafka_timeout)
-        self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
-        self.get_offset_from_queue(msg.offset)
+        self.log.debug("Sending kafka msg key: %r, value: %r", key, value)
+        future = await self.producer.send(self.config["topic_name"], key=key, value=value)
+        await self.producer.flush()
+        await asyncio.wait_for(future, timeout=self.kafka_timeout)
+        msg = future.result()
+        await self.get_offset_from_queue(msg.offset)
         return future
 
-    def send_schema_message(self, subject, parsed_schema_json, schema_id, version, deleted):
+    async def send_schema_message(self, subject, parsed_schema_json, schema_id, version, deleted):
         key = '{{"subject":"{}","version":{},"magic":1,"keytype":"SCHEMA"}}'.format(subject, version)
         value = {
             "subject": subject,
@@ -174,20 +195,23 @@ class KarapaceSchemaRegistry(KarapaceBase):
             "schema": json_encode(parsed_schema_json, compact=True),
             "deleted": deleted
         }
-        return self.send_kafka_message(key, json_encode(value, compact=True))
+        return await self.send_kafka_message(key, json_encode(value, compact=True))
 
-    def send_config_message(self, compatibility_level, subject=None):
+    async def send_config_message(self, compatibility_level, subject=None):
         if subject is not None:
             key = '{{"subject":"{}","magic":0,"keytype":"CONFIG"}}'.format(subject)
         else:
             key = '{"subject":null,"magic":0,"keytype":"CONFIG"}'
         value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level)
-        return self.send_kafka_message(key, value)
+        return await self.send_kafka_message(key, value)
 
-    def send_delete_subject_message(self, subject, version):
+    async def send_delete_subject_message(self, subject, version):
         key = '{{"subject":"{}","magic":0,"keytype":"DELETE_SUBJECT"}}'.format(subject)
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
-        return self.send_kafka_message(key, value)
+        return await self.send_kafka_message(key, value)
+
+    async def root_get(self):
+        self.r({}, "application/json")
 
     async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
@@ -196,12 +220,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
         old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
-            new = avro.schema.Parse(body["schema"])
+            new = avro.schema.parse(body["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
         try:
-            old_schema = avro.schema.Parse(old["schema"])
+            old_schema = avro.schema.parse(old["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
@@ -233,7 +257,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def config_set(self, content_type, *, request):
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
             compatibility_level = request.json["compatibility"]
-            self.send_config_message(compatibility_level=compatibility_level, subject=None)
+            await self.send_config_message(compatibility_level=compatibility_level, subject=None)
         else:
             self.r(
                 body={
@@ -256,7 +280,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def config_subject_set(self, content_type, *, request, subject):
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
-            self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
+            await self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
         else:
             self.r(
                 body={
@@ -278,7 +302,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             latest_schema_id = version_list[-1]
         else:
             latest_schema_id = 0
-        self.send_delete_subject_message(subject, latest_schema_id)
+        await self.send_delete_subject_message(subject, latest_schema_id)
         self.r(version_list, content_type, status=200)
 
     async def subject_version_get(self, content_type, *, subject, version, return_dict=False):
@@ -317,7 +341,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if not schema:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
         schema_id = schema["id"]
-        self.send_schema_message(subject, schema, schema_id, version, deleted=True)
+        await self.send_schema_message(subject, schema, schema_id, version, deleted=True)
         self.r(str(version), content_type, status=200)
 
     async def subject_version_schema_get(self, content_type, *, subject, version):
@@ -340,7 +364,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def get_master(self):
         async with self.master_lock:
             while True:
-                master, master_url = self.mc.get_master_info()
+                master, master_url = await self.mc.get_master_info()
                 if master is None:
                     self.log.info("No master set: %r, url: %r", master, master_url)
                 elif self.ksr.ready is False:
@@ -370,7 +394,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if "schema" not in body:
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         try:
-            new_schema = avro.schema.Parse(body["schema"])
+            new_schema = avro.schema.parse(body["schema"])
         except avro.schema.SchemaParseException:
             self.r(
                 body={
@@ -401,7 +425,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         are_we_master, master_url = await self.get_master()
         if are_we_master:
-            self.write_new_schema_local(subject, body, content_type)
+            await self.write_new_schema_local(subject, body, content_type)
         elif are_we_master is None:
             self.r({
                 "error_code": 50003,
@@ -412,11 +436,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
         else:
             await self.write_new_schema_remote(subject, body, master_url, content_type)
 
-    def write_new_schema_local(self, subject, body, content_type):
+    async def write_new_schema_local(self, subject, body, content_type):
         """Since we're the master we get to write the new schema"""
         self.log.info("Writing new schema locally since we're the master")
         try:
-            new_schema = avro.schema.Parse(body["schema"])
+            new_schema = avro.schema.parse(body["schema"])
         except avro.schema.SchemaParseException:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
@@ -439,14 +463,14 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
                     version, new_schema.to_json(), schema_id
                 )
-                self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
+                await self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
                 self.r({"id": schema_id}, content_type)
 
             schema_versions = sorted(list(schemas))
             # Go through these in version order
             for version in schema_versions:
                 schema = subject_data["schemas"][version]
-                parsed_version_schema = avro.schema.Parse(schema["schema"])
+                parsed_version_schema = avro.schema.parse(schema["schema"])
                 if parsed_version_schema == new_schema:
                     self.r({"id": schema["id"]}, content_type)
                 else:
@@ -463,7 +487,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 check_against = [schema_versions[-1]]
 
             for old_version in check_against:
-                old_schema = avro.schema.Parse(subject_data["schemas"][old_version]["schema"])
+                old_schema = avro.schema.parse(subject_data["schemas"][old_version]["schema"])
                 compat = Compatibility(old_schema, new_schema, compatibility=compatibility)
                 try:
                     compat.check()
@@ -485,7 +509,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id, version,
                 new_schema.to_json(), schema_id
             )
-        self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
+        await self.send_schema_message(subject, new_schema.to_json(), schema_id, version, deleted=False)
         self.r({"id": schema_id}, content_type)
 
     async def write_new_schema_remote(self, subject, body, master_url, content_type):

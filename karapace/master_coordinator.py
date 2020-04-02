@@ -16,6 +16,7 @@ from karapace.config import create_ssl_context
 import asyncio
 import json
 import logging
+
 log = logging.getLogger(__name__)
 # SR group errors
 NO_ERROR = 0
@@ -121,7 +122,6 @@ class SchemaCoordinator(GroupCoordinator):
 
 class MasterCoordinator:
     """Handles schema topic creation and master election"""
-
     def __init__(self, config, *, loop=None):
         self.config = config
         self.api_version_auto_timeout_ms = 30000
