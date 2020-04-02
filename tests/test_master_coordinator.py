@@ -12,8 +12,6 @@ import logging
 
 log = logging.getLogger(__name__)
 
-pytest_plugins = "aiohttp.pytest_plugin"
-
 
 class Timeout(Exception):
     pass
@@ -24,7 +22,7 @@ async def init_admin(config, loop):
     return mc
 
 
-async def test_master_selection(kafka_server):
+async def test_master_selection(kafka_server, valid_metadata):  # pylint: disable=unused-argument
     loop = asyncio.get_event_loop()
     config_aa = set_config_defaults({})
     config_aa["advertised_hostname"] = "127.0.0.1"
@@ -45,8 +43,6 @@ async def test_master_selection(kafka_server):
         if not (mc_aa.sc.master or mc_bb.sc.master or mc_aa.sc.master_url or mc_bb.sc.master_url):
             await asyncio.sleep(1.0)
             continue
-        log.info("mc_aa.sc.master: %r, mc_bb.sc.master: %r, mc_aa.sc.master_url: %r, mc_bb.sc.master_url: %r",
-                 mc_aa.sc.master, mc_bb.sc.master, mc_aa.sc.master_url, mc_bb.sc.master_url)
         assert mc_aa.sc.master is True
         assert mc_bb.sc.master is False
         master_url = "http://{}:{}".format(config_aa["host"], config_aa["port"])

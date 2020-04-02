@@ -51,7 +51,6 @@ class HTTPRequest:
 class HTTPResponse(Exception):
     """A custom Response object derived from Exception so it can be raised
     in response handler callbacks."""
-
     def __init__(self, body, *, status=200, content_type=None, headers=None):
         self.body = body
         self.status = status
