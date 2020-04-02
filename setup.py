@@ -31,7 +31,7 @@ setup(
     package_data={},
     entry_points={
         "console_scripts": [
-            "karapace = karapace.karapace:main",
+            "karapace = karapace.schema_registry_apis:main",
             "karapace_schema_backup = karapace.schema_backup:main",
         ],
     },

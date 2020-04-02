@@ -5,7 +5,6 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from .utils import Client
-from karapace.karapace import Karapace
 from karapace.schema_backup import SchemaBackup
 
 import json as jsonlib
@@ -14,17 +13,6 @@ import time
 
 pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
-
-
-def create_karapace(config_path, topic_name, kafka_server):
-    with open(config_path, "w") as fp:
-        karapace_config = {
-            "log_level": "DEBUG",
-            "bootstrap_uri": "127.0.0.1:{}".format(kafka_server["kafka_port"]),
-            "topic_name": topic_name,
-        }
-        fp.write(jsonlib.dumps(karapace_config))
-    return Karapace(config_path)
 
 
 async def insert_data(c):
