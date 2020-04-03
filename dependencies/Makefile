@@ -2,6 +2,7 @@
 LOCAL_PACKAGES = \
 	python3-aiohttp_socks \
 	python3-avro \
+	python3-aiokafka \
 	python3-kafka
 
 DEP_DIRS = $(foreach dir,$(LOCAL_PACKAGES),$(dir)/rpm)

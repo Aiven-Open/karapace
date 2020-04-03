@@ -1,8 +1,8 @@
 FEDORA = $(shell source /etc/os-release && echo $$VERSION_ID)
 PROJ = aiokafka
 PYNAME = aiokafka
-GITHUB_ACCOUNT = aio-libs
-COMMIT = v0.5.2-120-gf2fd596f5206b5c80abf65805de13dad8dd55fec
+GITHUB_ACCOUNT = aiven
+COMMIT = v0.5.2-123-g0f0a9989c4370aa812da2dec74b41d1698ef2f49
 SHORT_COMMIT = $(shell echo $(COMMIT) | cut -b 1-20)
 VERSION = $(shell echo $(SHORT_COMMIT) | cut -d- -f1)
 RELEASE = $(shell echo $(SHORT_COMMIT) | cut -d- -f2-).1.karapace.fc$(FEDORA)
@@ -23,7 +23,7 @@ rpm: $(PROJ)
 	sed -e "s/name=.$(PROJ)./name='python3-$(PYNAME)'/" \
 	    -e "s/version=.*/version='$(VERSION)',/" \
 	    -i "$(PROJ)/setup.py"
-	(cd "$(PROJ)" && python3 setup.py bdist_rpm --release "$(RELEASE)")
+	(cd "$(PROJ)" && python3 setup.py bdist_rpm --release "$(RELEASE)" --force-arch=noarch)
 	mkdir "$@"/
 	cp -a "$(PROJ)/dist"/*.rpm rpm/
 	find rpm/ -type f
