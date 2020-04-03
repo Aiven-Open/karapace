@@ -65,11 +65,11 @@ class KafkaSchemaReader:
                 ssl_keyfile=self.config["ssl_keyfile"],
             )
             return True
-        except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-            self.log.warning("No Brokers available yet, retrying init_admin_client()")
-            await asyncio.sleep(2.0)
-        except:  # pylint: disable=bare-except
-            self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
+        except (NodeNotReadyError, NoBrokersAvailable, AssertionError) as e:
+            self.log.error("No Brokers available yet, retrying init_admin_client(): %r", e)
+            await asyncio.sleep(3.0)
+        except Exception as e:  # pylint: disable=W0703
+            self.log.exception("Failed to initialize admin client, retrying init_admin_client(): %r", e)
             await asyncio.sleep(2.0)
         return False
 

@@ -121,7 +121,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
             bootstrap_servers=self.config["bootstrap_uri"],
             security_protocol=self.config["security_protocol"],
             ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
-            api_version="1.0.0",
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
             loop=self.loop,
         )

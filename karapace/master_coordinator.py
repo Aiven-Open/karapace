@@ -9,7 +9,7 @@ from aiokafka.consumer.fetcher import Fetcher
 from aiokafka.consumer.group_coordinator import GroupCoordinator
 from aiokafka.consumer.subscription_state import SubscriptionState
 from kafka.coordinator.assignors.roundrobin import RoundRobinPartitionAssignor
-from kafka.errors import NoBrokersAvailable, NodeNotReadyError
+from kafka.errors import KafkaConnectionError, NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace.config import create_ssl_context
 
@@ -143,39 +143,54 @@ class MasterCoordinator:
         self.running_task = asyncio.ensure_future(self.run(), loop=self.loop)
 
     async def init_kafka_client(self):
-        try:
-            self.kafka_client = AIOKafkaClient(
-                bootstrap_servers=self.config["bootstrap_uri"],
-                client_id=self.config["client_id"],
-                security_protocol=self.config["security_protocol"],
-                ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
-                metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                loop=self.loop,
-            )
-            await self.kafka_client.bootstrap()
-            self.log.info("Kafka client ready")
-            self.fetcher = Fetcher(self.kafka_client, self.subscription, loop=self.loop)
-            return True
-        except (NodeNotReadyError, NoBrokersAvailable):
-            self.log.warning("No Brokers available yet, retrying init_kafka_client()")
-            await asyncio.sleep(2.0)
-        return False
+        while True:
+            try:
+                if not self.kafka_client:
+                    self.kafka_client = AIOKafkaClient(
+                        bootstrap_servers=self.config["bootstrap_uri"],
+                        client_id=self.config["client_id"],
+                        security_protocol=self.config["security_protocol"],
+                        ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
+                        metadata_max_age_ms=self.config["metadata_max_age_ms"],
+                        loop=self.loop,
+                    )
+                    continue
+                # i really want to avoid those post bootstrap failures
+                if not self.kafka_client.cluster.brokers():
+                    log.info("Forcing metadata reload / bootstrapping")
+                    await self.kafka_client.bootstrap()
+                    log.info("Cluster state after (re-)bootstrap: %r", self.kafka_client.cluster.brokers())
+                    await asyncio.sleep(1.0)
+                    continue
+                self.fetcher = Fetcher(self.kafka_client, self.subscription, loop=self.loop)
+                log.debug("Master coordinator initialized")
+                break
+            except (NodeNotReadyError, NoBrokersAvailable, KafkaConnectionError) as e:
+                self.log.warning("No Brokers available yet, retrying init_kafka_client(): %r", e)
+                await asyncio.sleep(1.0)
 
     async def init_schema_coordinator(self):
-        self.log.debug("initializing schema coordinator")
-        self.sc = SchemaCoordinator(
-            client=self.kafka_client,
-            group_id=self.config["group_id"],
-            loop=self.loop,
-            subscription=self.subscription,
-            assignors=(
-                RoundRobinJsonAssignor(hostname=self.config["advertised_hostname"], port=self.config["port"], scheme="http"),
-            ),
-        )
-        self.sc.hostname = self.config["advertised_hostname"]
-        self.sc.port = self.config["port"]
-        self.sc.scheme = "http"
-        self.log.debug("schema coordinator initialized")
+        while True:
+            try:
+                self.log.debug("initializing schema coordinator")
+                self.sc = SchemaCoordinator(
+                    client=self.kafka_client,
+                    group_id=self.config["group_id"],
+                    loop=self.loop,
+                    subscription=self.subscription,
+                    assignors=(
+                        RoundRobinJsonAssignor(
+                            hostname=self.config["advertised_hostname"], port=self.config["port"], scheme="http"
+                        ),
+                    ),
+                )
+                self.sc.hostname = self.config["advertised_hostname"]
+                self.sc.port = self.config["port"]
+                self.sc.scheme = "http"
+                self.log.debug("schema coordinator initialized")
+                break
+            except:  # pylint: disable=bare-except
+                log.exception("Error initializing schema coordinator")
 
     async def get_master_info(self):
         """Return whether we're the master, and the actual master url that can be used if we're not"""
@@ -199,29 +214,19 @@ class MasterCoordinator:
 
     async def run(self):
         await self.lock.acquire()
-        while True:
-            try:
-                if not self.kafka_client:
-                    if not await self.init_kafka_client():
-                        self.log.error("could not init kafka client")
-                        continue
-                if not self.sc:
-                    await self.init_schema_coordinator()
-                if not self.sc.first_join.done():
-                    self.log.debug("awaiting on first joing")
-                    await self.sc.first_join
-                if self.lock.locked():
-                    self.lock.release()  # self.sc now exists, we get to release the lock
-                self.log.info("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
-                if not self.running.done():
-                    self.running.set_result(None)
-                try:
-                    await self.exiting
-                    break
-                except (RuntimeError, GeneratorExit):
-                    break
-            except:  # pylint: disable=bare-except
-                self.log.exception("Exception in master_coordinator")
-                await asyncio.sleep(1.0)
+        await self.init_kafka_client()
+        await self.init_schema_coordinator()
+        if not self.sc.first_join.done():
+            self.log.debug("awaiting on first join")
+            await self.sc.first_join
+        if self.lock.locked():
+            self.lock.release()  # self.sc now exists, we get to release the lock
+        self.log.info("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
+        if not self.running.done():
+            self.running.set_result(None)
+        try:
+            await self.exiting
+        except (RuntimeError, GeneratorExit):
+            self.log.exception("Exception while trying to exit")
         if not self.done.cancelled():
             self.done.set_result(None)

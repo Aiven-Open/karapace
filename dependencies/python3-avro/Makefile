@@ -1,7 +1,7 @@
 GITHUB_ACCOUNT = apache
 PROJ = avro
 PYNAME = avro
-COMMIT = 806adf7bba3dbff20002b6dd2d64d6e3be062321
+COMMIT = bf20128ca6138a830b2ea13e0490f3df6b035639
 VERSION_FILE = $(CURDIR)/$(PROJ)/version.karapace
 VERSION = $$(<$(VERSION_FILE))
 RELEASE = 1.karapace
