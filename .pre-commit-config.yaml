@@ -1,0 +1,50 @@
+repos:
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 3.7.9
+    hooks:
+      - id: flake8
+        files: \.py$
+        args:
+          - --config=.flake8
+
+  - repo: https://github.com/pre-commit/mirrors-yapf
+    rev: v0.27.0
+    hooks:
+      - id: yapf
+        files: \.py$
+        exclude: ^vendor/
+        args:
+          - --parallel
+          - --recursive
+          - --in-place
+
+  - repo: https://github.com/timothycrosley/isort
+    rev: 4.3.21
+    hooks:
+      - id: isort
+        files: \.py$
+        exclude: ^vendor/
+        args:
+          - --recursive
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^vendor/|^tests/.*/fixtures/.*
+      - id: end-of-file-fixer
+        exclude: ^vendor/|^tests/.*/fixtures/.*
+      - id: debug-statements
+
+  # https://pre-commit.com/#repository-local-hooks
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        files: \.py$
+        exclude: ^vendor/
+        args:
+          - --rcfile=.pylintrc
