@@ -12,6 +12,7 @@ BuildRequires:  python3-avro
 BuildRequires:  python3-devel
 BuildRequires:  python3-flake8
 BuildRequires:  python3-isort
+BuildRequires:  python3-aiokafka
 BuildRequires:  python3-kafka
 BuildRequires:  python3-pylint
 BuildRequires:  python3-pytest
