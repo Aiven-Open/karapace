@@ -4,19 +4,17 @@ karapace - setup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
+
 import os
 import version
-
 
 readme_path = os.path.join(os.path.dirname(__file__), "README.rst")
 with open(readme_path, "r") as fp:
     readme_text = fp.read()
 
-
 version_for_setup_py = version.get_project_version("karapace/version.py")
 version_for_setup_py = ".dev".join(version_for_setup_py.split("-", 2)[:2])
-
 
 setup(
     name="karapace",
