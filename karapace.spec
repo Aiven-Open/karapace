@@ -42,9 +42,6 @@ rm -rf %{buildroot}%{python3_sitelib}/tests/
 %{__mkdir_p} %{buildroot}%{_localstatedir}/lib/karapace
 
 
-%check
-make -j flake8 pylint
-
 %files
 %defattr(-,root,root,-)
 %doc LICENSE README.rst karapace.config.json
