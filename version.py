@@ -29,8 +29,7 @@ def get_project_version(version_file):
 
     os.chdir(os.path.dirname(__file__) or ".")
     try:
-        git_out = subprocess.check_output(["git", "describe", "--always"],
-                                          stderr=getattr(subprocess, "DEVNULL", None))
+        git_out = subprocess.check_output(["git", "describe", "--always"], stderr=getattr(subprocess, "DEVNULL", None))
     except (OSError, subprocess.CalledProcessError):
         pass
     else:
@@ -52,6 +51,7 @@ def get_project_version(version_file):
         raise Exception("version not available from git or from file {!r}".format(version_file))
 
     return file_ver
+
 
 if __name__ == "__main__":
     import sys
