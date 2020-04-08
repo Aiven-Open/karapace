@@ -65,11 +65,11 @@ kafka: start-kafka
 
 .PHONY: pylint
 pylint: $(GENERATED)
-	python3 -m pylint --rcfile .pylintrc $(ALL_PYTHON_DIRS)
+	pre-commit run pylint --all-files
 
 .PHONY: flake8
 flake8: $(GENERATED)
-	python3 -m flake8 --config .flake8 $(ALL_PYTHON_DIRS)
+	pre-commit run flake8 --all-files
 
 .PHONY: copyright
 copyright:
@@ -80,20 +80,25 @@ unittest: fetch-kafka $(GENERATED)
 	python3 -m pytest -s -vvv tests/
 
 .PHONY: test
-test: flake8 pylint reformat copyright unittest
+test: lint copyright unittest
 
 .PHONY: isort
 isort:
-	time isort --recursive $(ALL_PYTHON_DIRS)
+	pre-commit run isort --all-files
 
 .PHONY: yapf
 yapf:
-	time yapf --parallel --recursive --in-place $(ALL_PYTHON_DIRS)
+	pre-commit run yapf --all-files
 
 .PHONY: reformat
 reformat: isort yapf
-	[ $(shell git diff --name-only | wc -l) -eq 0 ] || (echo "please reformat code and re-commit" && exit 1)
 
+.PHONY: pre-commit
+pre-commit: $(GENERATED)
+	pre-commit run --all-files
+
+.PHONY: lint
+lint: pre-commit
 
 /usr/lib/rpm/check-buildroot /usr/bin/rpmbuild:
 	$(DNF_INSTALL) rpm-build
