@@ -47,8 +47,7 @@ async def test_backup_restore(karapace, aiohttp_client):
     kc, datadir = karapace(topic_name="restore_schemas")
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
-    await kc.mc.running
-    await kc.ksr.init_done
+    await kc.get_master()
     subject = os.urandom(16).hex()
     restore_location = os.path.join(datadir, "restore.log")
     with open(restore_location, "w") as fp:

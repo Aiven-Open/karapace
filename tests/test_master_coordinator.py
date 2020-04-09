@@ -37,7 +37,7 @@ async def test_master_selection(kafka_server, valid_metadata):  # pylint: disabl
     config_bb["client_id"] = "bb"
     config_bb["port"] = 5678
     mc_bb = await init_admin(config_bb, loop)
-    await asyncio.gather(mc_aa.running, mc_bb.running, loop=loop)
+    await asyncio.gather(mc_aa.running.wait(), mc_bb.running.wait(), loop=loop)
     await asyncio.gather(mc_aa.sc.first_join, mc_bb.sc.first_join, loop=loop)
     while True:
         if not (mc_aa.sc.master or mc_bb.sc.master or mc_aa.sc.master_url or mc_bb.sc.master_url):

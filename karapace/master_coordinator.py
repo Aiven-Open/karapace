@@ -55,8 +55,9 @@ class SchemaCoordinator(GroupCoordinator):
     master_url = None
     log = logging.getLogger("SchemaCoordinator")
 
-    def __init__(self, client, subscription, *, loop, assignors, group_id):
+    def __init__(self, client, subscription, *, loop, lock, assignors, group_id):
         super().__init__(client, subscription, loop=loop, assignors=assignors, group_id=group_id)
+        self.lock = lock
         self.first_join = self._loop.create_future()
 
     @staticmethod
@@ -110,18 +111,20 @@ class SchemaCoordinator(GroupCoordinator):
             host=member_identity["host"],
             port=member_identity["port"],
         )
-        if member_assignment["master"] == member_id:
-            self.master_url = master_url
-            self.master = True
-        else:
-            self.master_url = master_url
-            self.master = False
+        async with self.lock:
+            if member_assignment["master"] == member_id:
+                self.master_url = master_url
+                self.master = True
+            else:
+                self.master_url = master_url
+                self.master = False
         if not self.first_join.done():
             self.first_join.set_result(None)
 
 
 class MasterCoordinator:
     """Handles schema topic creation and master election"""
+
     def __init__(self, config, *, loop=None):
         self.config = config
         self.api_version_auto_timeout_ms = 30000
@@ -130,17 +133,18 @@ class MasterCoordinator:
         self.sc = None
         self.fetcher = None
         self.loop = loop or asyncio.get_event_loop()
-        self.exiting = self.loop.create_future()
-        self.done = self.loop.create_future()
-        self.running = self.loop.create_future()
+        self.exiting = asyncio.Event()
+        self.done = asyncio.Event()
+        self.running = asyncio.Event()
         self.subscription = SubscriptionState(loop=self.loop)
         self.subscription.subscribe({self.config["topic_name"]})
         metrics_tags = {"client-id": self.config["client_id"]}
         metric_config = MetricConfig(samples=2, time_window_ms=30000, tags=metrics_tags)
         self._metrics = Metrics(metric_config, reporters=[])
-        self.lock = asyncio.Lock()
+        self.init_lock = asyncio.Lock()
+        self.master_info_lock = asyncio.Lock()
         self.log = logging.getLogger("MasterCoordinator")
-        self.running_task = asyncio.ensure_future(self.run(), loop=self.loop)
+        self.running_task = self.loop.create_task(self.run())
 
     async def init_kafka_client(self):
         while True:
@@ -177,6 +181,7 @@ class MasterCoordinator:
                     client=self.kafka_client,
                     group_id=self.config["group_id"],
                     loop=self.loop,
+                    lock=self.master_info_lock,
                     subscription=self.subscription,
                     assignors=(
                         RoundRobinJsonAssignor(
@@ -194,12 +199,12 @@ class MasterCoordinator:
 
     async def get_master_info(self):
         """Return whether we're the master, and the actual master url that can be used if we're not"""
-        async with self.lock:
+        async with self.init_lock, self.master_info_lock:
             return self.sc.master, self.sc.master_url
 
     async def close(self):
         self.log.info("Closing master_coordinator")
-        self.exiting.set_result(None)
+        self.exiting.set()
         if self.sc:
             await self.sc.close()
         if self.fetcher:
@@ -207,26 +212,22 @@ class MasterCoordinator:
         if self.kafka_client:
             await self.kafka_client.close()
         try:
-            self.exiting.set_result(None)
+            self.exiting.set()
         except asyncio.InvalidStateError:
             pass
-        await self.done
+        await self.done.wait()
 
     async def run(self):
-        await self.lock.acquire()
-        await self.init_kafka_client()
-        await self.init_schema_coordinator()
-        if not self.sc.first_join.done():
-            self.log.debug("awaiting on first join")
+        async with self.init_lock:
+            await self.init_kafka_client()
+            await self.init_schema_coordinator()
+            self.log.debug("awaiting on first join, for valid coordinator info")
             await self.sc.first_join
-        if self.lock.locked():
-            self.lock.release()  # self.sc now exists, we get to release the lock
         self.log.info("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
-        if not self.running.done():
-            self.running.set_result(None)
+        self.running.set()
         try:
-            await self.exiting
+            await self.exiting.wait()
+            log.info("Preparing to exit MC")
         except (RuntimeError, GeneratorExit):
             self.log.exception("Exception while trying to exit")
-        if not self.done.cancelled():
-            self.done.set_result(None)
+        self.done.set()

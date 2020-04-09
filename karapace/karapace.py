@@ -8,7 +8,6 @@ See LICENSE for details
 from karapace.config import set_config_defaults
 from karapace.rapu import HTTPResponse, RestApp
 
-import asyncio
 import json
 import logging
 import os
@@ -37,9 +36,7 @@ class KarapaceBase(RestApp):
         self.route("/", callback=self.root_get, method="GET")
         self.log = logging.getLogger("Karapace")
         self.app.on_startup.append(self.create_http_client)
-        self.master_lock = asyncio.Lock()
         self._set_log_level()
-        self.log.info("Karapace initialized")
 
     @staticmethod
     def read_config(config_path):
