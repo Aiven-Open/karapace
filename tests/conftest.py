@@ -4,6 +4,8 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from kafka import KafkaProducer
+from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 
 import avro
@@ -141,8 +143,41 @@ def fixture_kafka_server(session_tmpdir, zkserver):
         proc.wait(timeout=10.0)
 
 
+@pytest.fixture(scope="function", name="producer")
+def fixture_producer(kafka_server):
+    kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
+    prod = KafkaProducer(bootstrap_servers=kafka_uri)
+    try:
+        yield prod
+    finally:
+        prod.close()
+
+
+@pytest.fixture(scope="function", name="admin_client")
+def fixture_admin(kafka_server):
+    kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
+    cli = KafkaRestAdminClient(bootstrap_servers=kafka_uri)
+    try:
+        yield cli
+    finally:
+        cli.close()
+
+
+@pytest.fixture(scope="session", name="kafka_rest")
+def fixture_kafka_rest(session_tmpdir, kafka_server):
+    instance = karapace_fixture_factory(session_tmpdir, kafka_server, KafkaRest)
+    yield instance.create_service
+    instance.shutdown()
+
+
 @pytest.fixture(scope="function", name="karapace")
 def fixture_karapace(session_tmpdir, kafka_server):
+    instance = karapace_fixture_factory(session_tmpdir, kafka_server, KarapaceSchemaRegistry)
+    yield instance.create_service
+    instance.shutdown()
+
+
+def karapace_fixture_factory(session_tmpdir, kafka_server, karapace_class):
     class _Karapace:
         def __init__(self, datadir, kafka_port):
             self.kc = None
@@ -156,7 +191,7 @@ def fixture_karapace(session_tmpdir, kafka_server):
                 if topic_name:
                     karapace_config["topic_name"] = topic_name
                 fp.write(json.dumps(karapace_config))
-            self.kc = KarapaceSchemaRegistry(self.config_path)
+            self.kc = karapace_class(self.config_path)
 
             return self.kc, self.datadir
 
@@ -165,8 +200,7 @@ def fixture_karapace(session_tmpdir, kafka_server):
                 self.kc.close()
 
     _instance = _Karapace(datadir=session_tmpdir(), kafka_port=kafka_server["kafka_port"])
-    yield _instance.create_service
-    _instance.shutdown()
+    return _instance
 
 
 def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
