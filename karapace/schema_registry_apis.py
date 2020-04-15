@@ -1,4 +1,3 @@
-from kafka import KafkaProducer
 from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.karapace import KarapaceBase
@@ -76,11 +75,13 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
 
         self.ksr = None
+        self.producer = None
         self._create_producer()
         self._create_schema_reader()
         self._create_master_coordinator()
 
     def close(self):
+        super().close()
         self.log.info("Shutting down all auxiliary threads")
         if self.mc:
             self.mc.close()
@@ -96,17 +97,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
     def _create_master_coordinator(self):
         self.mc = MasterCoordinator(config=self.config)
         self.mc.start()
-
-    def _create_producer(self):
-        self.producer = KafkaProducer(
-            bootstrap_servers=self.config["bootstrap_uri"],
-            security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            api_version=(1, 0, 0),
-            metadata_max_age_ms=self.config["metadata_max_age_ms"],
-        )
 
     def _subject_get(self, subject, content_type):
         subject_data = self.ksr.subjects.get(subject)
