@@ -261,7 +261,7 @@ def kafka_server_base(session_tmpdir, zk):
         "broker.id": 1,
         "broker.rack": "local",
         "advertised.listeners": advertised_listeners,
-        "auto.create.topics.enable": True,
+        "auto.create.topics.enable": False,
         "default.replication.factor": 1,
         "delete.topic.enable": "true",
         "inter.broker.listener.name": "PLAINTEXT",

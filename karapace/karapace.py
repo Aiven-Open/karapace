@@ -47,6 +47,7 @@ class KarapaceBase(RestApp):
             ssl_keyfile=self.config["ssl_keyfile"],
             api_version=(1, 0, 0),
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
+            max_block_ms=2000  # missing topics will block unless we cache cluster metadata and pre-check
         )
 
     def close(self):

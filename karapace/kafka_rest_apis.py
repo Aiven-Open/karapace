@@ -1,7 +1,10 @@
+from binascii import Error as B64DecodeError
 from concurrent.futures import ThreadPoolExecutor
 from kafka import KafkaAdminClient
 from kafka.admin import ConfigResource, ConfigResourceType
-from kafka.errors import for_code, UnknownTopicOrPartitionError, UnrecognizedBrokerVersion
+from kafka.errors import (
+    BrokerResponseError, for_code, KafkaTimeoutError, UnknownTopicOrPartitionError, UnrecognizedBrokerVersion
+)
 from kafka.protocol.admin import DescribeConfigsRequest
 from kafka.protocol.metadata import MetadataRequest
 from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
@@ -10,9 +13,17 @@ from karapace.karapace import KarapaceBase
 from threading import Lock
 
 import argparse
+import base64
+import json
 import os
 import six
 import sys
+
+FILTERED_TOPICS = {"__consumer_offsets"}
+
+
+class FormatError(Exception):
+    pass
 
 
 class KafkaRestAdminClient(KafkaAdminClient):
@@ -65,6 +76,8 @@ class KafkaRestAdminClient(KafkaAdminClient):
                     err, topic, partitions = tup
                 if err:
                     raise for_code(err)
+                if topic in FILTERED_TOPICS:
+                    continue
                 topic_data = []
                 for part in partitions:
                     if metadata_version <= 4:
@@ -140,75 +153,120 @@ class KafkaRest(KarapaceBase):
     def __init__(self, config):
         super().__init__(config)
         self.kafka_timeout = 10
+        self._cluster_metadata = None
         self.admin_client = None
         self.producer_lock = Lock()
         self.metadata_cache = None
         self.executor = ThreadPoolExecutor(max_workers=2)
         # Brokers
-        self.route("/brokers", callback=self.list_brokers, method="GET", schema_request=True)
+        self.route("/brokers", callback=self.list_brokers, method="GET", rest_request=True)
         # Consumers
-        self.route("/consumers/<group_name:path>", callback=self.placeholder, method="GET")
-        self.route("/consumers/<group_name:path>/instances/<instance:path>", callback=self.placeholder, method="DELETE")
+        self.route("/consumers/<group_name:path>", callback=self.placeholder, method="GET", rest_request=True)
         self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/offsets", callback=self.placeholder, method="POST"
-        )
-        self.route("/consumers/<group_name:path>/instances/<instance:path>/offsets", callback=self.placeholder, method="GET")
-        self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/subscription", callback=self.placeholder, method="POST"
+            "/consumers/<group_name:path>/instances/<instance:path>",
+            callback=self.placeholder,
+            method="DELETE",
+            rest_request=True
         )
         self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/subscription", callback=self.placeholder, method="GET"
+            "/consumers/<group_name:path>/instances/<instance:path>/offsets",
+            callback=self.placeholder,
+            method="POST",
+            rest_request=True
+        )
+        self.route(
+            "/consumers/<group_name:path>/instances/<instance:path>/offsets",
+            callback=self.placeholder,
+            method="GET",
+            rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
             callback=self.placeholder,
-            method="DELETE"
+            method="POST",
+            rest_request=True
         )
         self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/assignments", callback=self.placeholder, method="POST"
+            "/consumers/<group_name:path>/instances/<instance:path>/subscription",
+            callback=self.placeholder,
+            method="GET",
+            rest_request=True
         )
         self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/assignments", callback=self.placeholder, method="GET"
+            "/consumers/<group_name:path>/instances/<instance:path>/subscription",
+            callback=self.placeholder,
+            method="DELETE",
+            rest_request=True
         )
         self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/positions", callback=self.placeholder, method="POST"
+            "/consumers/<group_name:path>/instances/<instance:path>/assignments",
+            callback=self.placeholder,
+            method="POST",
+            rest_request=True
+        )
+        self.route(
+            "/consumers/<group_name:path>/instances/<instance:path>/assignments",
+            callback=self.placeholder,
+            method="GET",
+            rest_request=True
+        )
+        self.route(
+            "/consumers/<group_name:path>/instances/<instance:path>/positions",
+            callback=self.placeholder,
+            method="POST",
+            rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/beginning",
             callback=self.placeholder,
-            method="POST"
+            method="POST",
+            rest_request=True
         )
         self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/positions/end", callback=self.placeholder, method="POST"
+            "/consumers/<group_name:path>/instances/<instance:path>/positions/end",
+            callback=self.placeholder,
+            method="POST",
+            rest_request=True
         )
-        self.route("/consumers/<group_name:path>/instances/<instance:path>/records", callback=self.placeholder, method="GET")
+        self.route(
+            "/consumers/<group_name:path>/instances/<instance:path>/records",
+            callback=self.placeholder,
+            method="GET",
+            rest_request=True
+        )
 
         # Partitions
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>/offsets",
             callback=self.partition_offsets,
             method="GET",
-            schema_request=True
+            rest_request=True
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
             callback=self.partition_details,
             method="GET",
-            schema_request=True
+            rest_request=True
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
             callback=self.placeholder,
             method="POST",
-            schema_request=True
+            rest_request=True
         )
-        self.route("/topics/<topic:path>/partitions", callback=self.list_partitions, method="GET", schema_request=True)
+        self.route("/topics/<topic:path>/partitions", callback=self.list_partitions, method="GET", rest_request=True)
         # Topics
-        self.route("/topics", callback=self.list_topics, method="GET", schema_request=True)
-        self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", schema_request=True)
-        self.route("/topics/<topic:path>", callback=self.placeholder, method="POST", schema_request=True)
+        self.route("/topics", callback=self.list_topics, method="GET", rest_request=True)
+        self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", rest_request=True)
+        self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
         self.init_admin_client()
         self._create_producer()
+
+    def cluster_metadata(self):
+        # TODO -> Cache if necessary
+        if not self._cluster_metadata:
+            self._cluster_metadata = self.admin_client.cluster_metadata()["topics"]
+        return self._cluster_metadata
 
     def init_admin_client(self):
         self.admin_client = KafkaRestAdminClient(
@@ -226,13 +284,134 @@ class KafkaRest(KarapaceBase):
         self.admin_client.close()
         self.admin_client = None
 
-    def placeholder(self):
-        raise NotImplementedError("write it !")
+    def placeholder(self, content_type):
+        self.r(body={"error_code": 40401, "message": "Not implemented"}, content_type=content_type, status=404)
+
+    def topic_publish(self, topic, content_type, formats, *, request):
+        # TODO In order to support the other content types, the client and request need to be updated
+        self.fail_for_unknown_topic(topic, content_type)
+        data = request.json
+        self.validate_request_format(data, formats, content_type)
+        status = 200
+        # Default to something printable
+        ser_format = formats.get("embedded_format") or "json"
+        response = {
+            "key_schema_id": data.get("key_schema_id"),
+            "value_schema_id": data.get("value_schema_id"),
+            "offsets": []
+        }
+        for prefix in ["key", "value"]:
+            if not response["%s_schema_id" % prefix] and \
+                    ser_format == "avro" and \
+                    self.has_non_empty(data, prefix):
+                response["%s_schema_id" % prefix] = self.get_id_for_schema(data.get("%s_schema" % prefix))
+        prepared_records = []
+        for record in data["records"]:
+            key = record.get("key")
+            value = record.get("value")
+            try:
+                key = self.serialize(key, ser_format, response["key_schema_id"])
+                value = self.serialize(value, ser_format, response["value_schema_id"])
+            except (FormatError, B64DecodeError):
+                self.r(
+                    body={
+                        "error_code": 42205,
+                        "message": "Request includes data improperly formatted "
+                        "given the format %r: (%r, %r)" % (ser_format, key, value)
+                    },
+                    content_type=content_type,
+                    status=422
+                )
+
+            prepared_records.append((key, value, record.get("partition")))
+            # TODO -> Unspecified case is one message failing but schema checks and topic check succeeding
+            # TODO -> is it a 4XX, 5XX or 200 ??
+            publish_result = self.produce_message(topic=topic, key=key, value=value, partition=record.get("partition"))
+            if "error" in publish_result and status == 200:
+                status = 500
+            response["offsets"].append(publish_result)
+        self.r(body=response, content_type=content_type, status=status)
+
+    def fail_for_unknown_topic(self, topic, content_type):
+        if topic not in self.cluster_metadata():
+            self.r(
+                body={
+                    "error_code": 40401,
+                    "message": "Topic %s not found" % topic
+                }, content_type=content_type, status=404
+            )
+
+    @staticmethod
+    def has_non_empty(data, key):
+        return any(key in item and item[key] for item in data["records"])
+
+    def get_id_for_schema(self, schema):
+        raise NotImplementedError("Need serializers")
+
+    def serialize(self, obj=None, ser_format=None, schema_id=None):
+        if not obj:
+            return b''
+        # not pretty
+        if ser_format == "json" and isinstance(obj, (dict, list)):
+            return json.dumps(obj).encode("utf8")
+        if ser_format == "binary":
+            return base64.b64decode(obj)
+        if ser_format == "avro":
+            return self.avro_serialize(obj, schema_id)
+        raise FormatError("Unknown format: %r" % ser_format)
+
+    def avro_serialize(self, obj, schema_id):
+        raise NotImplementedError("Cannot serialize %r for schema %d" % (obj, schema_id))
+
+    def validate_request_format(self, data, formats, content_type):
+        if "records" not in data:
+            self.r(
+                body={
+                    "error_code": 50001,  # Choose another code??
+                    "message": "Invalid request format"
+                },
+                content_type=content_type,
+                status=500
+            )
+
+        if "embedded_format" in formats and formats["embedded_format"] == "avro":
+            for prefix, code in [("key", 42201), ("value", 42202)]:
+                if self.has_non_empty(data, prefix) and \
+                        ("%s_schema" % prefix not in data and "%s_schema_id" % prefix not in data):
+                    self.r(
+                        body={
+                            "error_code": code,
+                            "message": "Request includes %ss and uses a format that requires schemas but does not "
+                            "include the %s_schema or %s_schema_id fields" % (prefix, prefix, prefix)
+                        },
+                        content_type=content_type,
+                        status=422
+                    )
+
+    def produce_message(self, *, topic, key, value, partition=None):
+        try:
+            with self.producer_lock:
+                f = self.producer.send(topic, key=key, value=value, partition=partition)
+                self.producer.flush()
+            result = f.get()
+            return {"offset": result.offset, "partition": result.topic_partition}
+        except AssertionError as e:
+            self.log.exception("Invalid data")
+            return {"error_code": 1, "error": str(e)}
+        except KafkaTimeoutError:
+            self.log.exception("Timed out waiting for publisher")
+            # timeouts are retriable
+            return {"error_code": 1, "error": "timed out waiting to publish message"}
+        except BrokerResponseError as e:
+            self.log.exception(e)
+            resp = {"error_code": 1, "error": e.description}
+            if hasattr(e, "retriable") and e.retriable:
+                resp["error_code"] = 2
+            return resp
 
     def list_topics(self, content_type):
         metadata = self.admin_client.cluster_metadata()
         # hacky way to get some info for more detailed 404's ... do not use otherwise
-        self.metadata_cache = metadata
         topics = list(metadata["topics"].keys())
         self.r(topics, content_type)
 
@@ -324,8 +503,8 @@ class KafkaRest(KarapaceBase):
         try:
             self.r(self.admin_client.get_offsets(topic, partition_id), content_type)
         except UnknownTopicOrPartitionError:
-            # The other option is to actually do a topics request on failure
-            if not self.metadata_cache or topic not in self.metadata_cache["topics"]:
+            # Do a topics request on failure, figure out faster ways once we get correctness down
+            if topic not in self.admin_client.cluster_metadata():
                 self.r(
                     body={
                         "error_code": 40401,
