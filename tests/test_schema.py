@@ -1017,6 +1017,26 @@ async def check_http_headers(c):
     assert res.status == 406
     assert res.json()["message"] == "HTTP 406 Not Acceptable"
 
+    # Parse Content-Type correctly
+    res = await c.put(
+        "config",
+        json={"compatibility": "NONE"},
+        headers={"Content-Type": "application/vnd.schemaregistry.v1+json; charset=utf-8"}
+    )
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+    assert res.json()["compatibility"] == "NONE"
+
+    # Works with other than the default charset
+    res = await c.put_with_data(
+        "config",
+        data="{\"compatibility\": \"NONE\"}".encode("utf-16"),
+        headers={"Content-Type": "application/vnd.schemaregistry.v1+json; charset=utf-16"}
+    )
+    assert res.status == 200
+    assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
+    assert res.json()["compatibility"] == "NONE"
+
 
 async def check_schema_body_validation(c):
     subject = os.urandom(16).hex()
