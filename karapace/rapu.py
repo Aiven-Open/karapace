@@ -16,6 +16,7 @@ import aiohttp.web
 import aiohttp_socks
 import async_timeout
 import asyncio
+import cgi
 import hashlib
 import json as jsonlib
 import logging
@@ -111,21 +112,21 @@ class RestApp:
     def check_schema_headers(self, request):
         method = request.method
         headers = request.headers
+        response_default_content_type = "application/vnd.schemaregistry.v1+json"
 
-        content_type = "application/vnd.schemaregistry.v1+json"
-        if method in {"POST", "PUT"} and headers["Content-Type"] not in SCHEMA_CONTENT_TYPES:
+        if method in {"POST", "PUT"} and cgi.parse_header(headers["Content-Type"])[0] not in SCHEMA_CONTENT_TYPES:
             raise HTTPResponse(
                 body=json_encode({
                     "error_code": 415,
                     "message": "HTTP 415 Unsupported Media Type",
                 }, binary=True),
-                headers={"Content-Type": content_type},
+                headers={"Content-Type": response_default_content_type},
                 status=415,
             )
 
         if "Accept" in headers:
             if headers["Accept"] == "*/*" or headers["Accept"].startswith("*/"):
-                return "application/vnd.schemaregistry.v1+json"
+                return response_default_content_type
             content_type_match = get_best_match(headers["Accept"], SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
                 self.log.debug("Unexpected Accept value: %r", headers["Accept"])
@@ -134,11 +135,11 @@ class RestApp:
                         "error_code": 406,
                         "message": "HTTP 406 Not Acceptable",
                     }, binary=True),
-                    headers={"Content-Type": content_type},
+                    headers={"Content-Type": response_default_content_type},
                     status=406,
                 )
             return content_type_match
-        return content_type
+        return response_default_content_type
 
     async def _handle_request(
         self, *, request, path_for_stats, callback, schema_request=False, callback_with_request=False, json_request=False
@@ -164,15 +165,17 @@ class RestApp:
             if json_request:
                 if not body:
                     raise HTTPResponse(body="Missing request JSON body", status=400)
-                if request.charset and request.charset.lower() != "utf-8" and request.charset.lower() != "utf8":
-                    raise HTTPResponse(body="Request character set must be UTF-8", status=400)
                 try:
-                    body_string = body.decode("utf-8")
+                    _, options = cgi.parse_header(request.headers.get("Content-Type"))
+                    charset = options.get("charset", "utf-8")
+                    body_string = body.decode(charset)
                     rapu_request.json = jsonlib.loads(body_string)
                 except jsonlib.decoder.JSONDecodeError:
                     raise HTTPResponse(body="Invalid request JSON body", status=400)
                 except UnicodeDecodeError:
-                    raise HTTPResponse(body="Request body is not valid UTF-8", status=400)
+                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=400)
+                except LookupError:
+                    raise HTTPResponse(body=f"Unknown charset {charset}", status=400)
             else:
                 if body not in {b"", b"{}"}:
                     raise HTTPResponse(body="No request body allowed for this operation", status=400)
