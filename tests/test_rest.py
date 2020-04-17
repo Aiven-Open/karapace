@@ -1,7 +1,6 @@
-from .utils import Client
 from kafka.admin import NewTopic
-from kafka.cluster import TopicPartition
 from kafka.errors import TopicAlreadyExistsError, UnknownTopicOrPartitionError
+from karapace.utils import Client
 from pytest import raises
 
 pytest_plugins = "aiohttp.pytest_plugin"
@@ -73,6 +72,7 @@ async def test_local(kafka_rest, aiohttp_client, producer, admin_client):
     await check_malformed_requests(c)
     await check_topics(c, topic_names)
     await check_partitions(c, "topic_1", producer)
+    await check_publish(c, "topic_0")
 
 
 async def test_internal(kafka_rest, admin_client):
@@ -86,10 +86,8 @@ async def test_internal(kafka_rest, admin_client):
         assert "error" not in result, "Valid result should not contain 'error' key"
         assert "offset" in result, "Valid result is missing 'offset' key"
         assert "partition" in result, "Valid result is missing 'partition' key"
-        expected_part = TopicPartition("topic_2", 0)
         actual_part = result["partition"]
-        assert actual_part == expected_part, "Missing partition publish should go to %r but went to %r" % \
-                                             (expected_part, actual_part)
+        assert actual_part == 0, "Returned partition id should be %d but is %d" % (0, actual_part)
     result = kc.produce_message(topic="topic_2", key=b"key", value=b"value", partition=100)
     assert "error" in result, "Invalid result missing 'error' key"
     assert result["error"] == "Unrecognized partition"
@@ -120,35 +118,47 @@ async def check_topics(c, topic_names):
     assert res.status_code == 404, "Topic should not exist"
     assert res.json()["error_code"] == 40401, "Error code does not match"
     # publish
-    # Proper Json / binary
-    res = await c.post("/topics/topic_0", json={"records": [{"value": {"foo": "bar"}}]}, headers=HEADERS["json"])
-    json = res.json()
-    assert res.status == 200
-    assert "offsets" in json
+
+
+async def check_publish(c, topic):
+    topic_url = "/topics/%s" % topic
+    partition_url = "/topics/%s/partitions/0" % topic
+    # Proper Json / Binary
+    for url in [topic_url, partition_url]:
+        for payload, h in [({"value": {"foo": "bar"}}, "json"), ({"value": "Zm9vCg=="}, "base64")]:
+            res = await c.post(url, json={"records": [payload]}, headers=HEADERS[h])
+            json = res.json()
+            assert res.status == 200
+            assert "offsets" in json
+            if "partition" in url:
+                for o in json["offsets"]:
+                    assert "partition" in o
+                    assert o["partition"] == 0
 
 
 async def check_malformed_requests(c):
-    # Malformed schema
-    res = await c.post("/topics/topic_0", json={"foo": "bar"}, headers=HEADERS["json"])
-    json = res.json()
-    assert res.status == 500
-    assert json["message"] == "Invalid request format"
-    res = await c.post("/topics/topic_0", json={"records": [{"value": {"foo": "bar"}}]}, headers=HEADERS["avro"])
-    json = res.json()
-    assert res.status == 422
-    assert json["error_code"] == 42202
-    res = await c.post("/topics/topic_0", json={"records": [{"key": {"foo": "bar"}}]}, headers=HEADERS["avro"])
-    json = res.json()
-    assert res.status == 422
-    assert json["error_code"] == 42201
-    res = await c.post("/topics/topic_0", json={"records": [{"value": "not base64"}]}, headers=HEADERS["base64"])
-    json = res.json()
-    assert res.status == 422
-    assert json["error_code"] == 42205
-    res = await c.post("/topics/topic_0", json={"records": [{"value": "not json"}]}, headers=HEADERS["json"])
-    json = res.json()
-    assert res.status == 422
-    assert json["error_code"] == 42205
+    for url in ["/topics/topic_0", "/topics/topic_0/partitions/0"]:
+        # Malformed schema
+        res = await c.post(url, json={"foo": "bar"}, headers=HEADERS["json"])
+        json = res.json()
+        assert res.status == 500
+        assert json["message"] == "Invalid request format"
+        res = await c.post(url, json={"records": [{"value": {"foo": "bar"}}]}, headers=HEADERS["avro"])
+        json = res.json()
+        assert res.status == 422
+        assert json["error_code"] == 42202
+        res = await c.post(url, json={"records": [{"key": {"foo": "bar"}}]}, headers=HEADERS["avro"])
+        json = res.json()
+        assert res.status == 422
+        assert json["error_code"] == 42201
+        res = await c.post(url, json={"records": [{"value": "not base64"}]}, headers=HEADERS["base64"])
+        json = res.json()
+        assert res.status == 422
+        assert json["error_code"] == 42205
+        res = await c.post(url, json={"records": [{"value": "not json"}]}, headers=HEADERS["json"])
+        json = res.json()
+        assert res.status == 422
+        assert json["error_code"] == 42205
 
 
 async def check_brokers(c):

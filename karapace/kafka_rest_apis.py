@@ -11,6 +11,7 @@ from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
 from karapace import version as karapace_version
 from karapace.karapace import KarapaceBase
 from threading import Lock
+from typing import List, Optional, Tuple
 
 import argparse
 import base64
@@ -250,7 +251,7 @@ class KafkaRest(KarapaceBase):
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
-            callback=self.placeholder,
+            callback=self.partition_publish,
             method="POST",
             rest_request=True
         )
@@ -287,14 +288,49 @@ class KafkaRest(KarapaceBase):
     def placeholder(self, content_type):
         self.r(body={"error_code": 40401, "message": "Not implemented"}, content_type=content_type, status=404)
 
-    def topic_publish(self, topic, content_type, formats, *, request):
+    def publish(self, topic: str, partition_id: Optional[str], content_type: str, formats: dict, data: dict):
         # TODO In order to support the other content types, the client and request need to be updated
         self.fail_for_unknown_topic(topic, content_type)
-        data = request.json
+        if partition_id is not None:
+            _ = self.get_partition_data_or_fail(topic, partition_id, content_type)
+            # by this point the conversion should always succeed
+            partition_id = int(partition_id)
         self.validate_request_format(data, formats, content_type)
         status = 200
-        # Default to something printable
-        ser_format = formats.get("embedded_format") or "json"
+        ser_format = formats["embedded_format"]
+        response = self._prepare_publish_response_metadata(data, ser_format)
+        prepared_records = []
+        try:
+            prepared_records = self._prepare_records(
+                data=data,
+                ser_format=ser_format,
+                key_schema_id=response["key_schema_id"],
+                value_schema_id=response["value_schema_id"],
+                default_partition=partition_id
+            )
+        except (FormatError, B64DecodeError):
+            self.r(
+                body={
+                    "error_code": 42205,
+                    "message": "Request includes data improperly formatted given the format %r" % ser_format
+                },
+                content_type=content_type,
+                status=422
+            )
+        for key, value, partition in prepared_records:
+            publish_result = self.produce_message(topic=topic, key=key, value=value, partition=partition)
+            if "error" in publish_result and status == 200:
+                status = 500
+            response["offsets"].append(publish_result)
+        self.r(body=response, content_type=content_type, status=status)
+
+    def partition_publish(self, topic, partition_id, content_type, formats, *, request):
+        self.publish(topic, partition_id, content_type, formats, request.json)
+
+    def topic_publish(self, topic, content_type, formats, *, request):
+        self.publish(topic, None, content_type, formats, request.json)
+
+    def _prepare_publish_response_metadata(self, data: dict, ser_format: str) -> dict:
         response = {
             "key_schema_id": data.get("key_schema_id"),
             "value_schema_id": data.get("value_schema_id"),
@@ -305,34 +341,69 @@ class KafkaRest(KarapaceBase):
                     ser_format == "avro" and \
                     self.has_non_empty(data, prefix):
                 response["%s_schema_id" % prefix] = self.get_id_for_schema(data.get("%s_schema" % prefix))
+        return response
+
+    def _prepare_records(
+        self,
+        data: dict,
+        ser_format: str,
+        key_schema_id: Optional[int],
+        value_schema_id: Optional[int],
+        default_partition: Optional[int] = None
+    ) -> List[Tuple]:
         prepared_records = []
         for record in data["records"]:
             key = record.get("key")
             value = record.get("value")
-            try:
-                key = self.serialize(key, ser_format, response["key_schema_id"])
-                value = self.serialize(value, ser_format, response["value_schema_id"])
-            except (FormatError, B64DecodeError):
-                self.r(
-                    body={
-                        "error_code": 42205,
-                        "message": "Request includes data improperly formatted "
-                        "given the format %r: (%r, %r)" % (ser_format, key, value)
-                    },
-                    content_type=content_type,
-                    status=422
-                )
+            key = self.serialize(key, ser_format, key_schema_id)
+            value = self.serialize(value, ser_format, value_schema_id)
+            prepared_records.append((key, value, record.get("partition", default_partition)))
+        return prepared_records
 
-            prepared_records.append((key, value, record.get("partition")))
-            # TODO -> Unspecified case is one message failing but schema checks and topic check succeeding
-            # TODO -> is it a 4XX, 5XX or 200 ??
-            publish_result = self.produce_message(topic=topic, key=key, value=value, partition=record.get("partition"))
-            if "error" in publish_result and status == 200:
-                status = 500
-            response["offsets"].append(publish_result)
-        self.r(body=response, content_type=content_type, status=status)
+    def get_partition_data_or_fail(self, topic: str, partition: str, content_type: str) -> dict:
+        try:
+            partition = int(partition)
+        except ValueError:
+            self.r(
+                body={
+                    "error_code": 40402,
+                    "message": "Partition id %r is badly formatted" % partition
+                },
+                content_type=content_type,
+                status=404
+            )
+        try:
+            partitions = self.cluster_metadata()[topic]["partitions"]
+            for p in partitions:
+                if p["partition"] == partition:
+                    return p
+            self.r(
+                body={
+                    "error_code": 40402,
+                    "message": "Partition %r not found" % partition
+                },
+                content_type=content_type,
+                status=404
+            )
+        except UnknownTopicOrPartitionError:
+            self.r(
+                body={
+                    "error_code": 40402,
+                    "message": "Partition %r not found" % partition
+                },
+                content_type=content_type,
+                status=404
+            )
+        except KeyError:
+            self.r(
+                body={
+                    "error_code": 40401,
+                    "message": "Topic %r not found" % topic
+                }, content_type=content_type, status=404
+            )
+        return {}
 
-    def fail_for_unknown_topic(self, topic, content_type):
+    def fail_for_unknown_topic(self, topic: str, content_type: str):
         if topic not in self.cluster_metadata():
             self.r(
                 body={
@@ -342,13 +413,13 @@ class KafkaRest(KarapaceBase):
             )
 
     @staticmethod
-    def has_non_empty(data, key):
+    def has_non_empty(data: dict, key: str) -> bool:
         return any(key in item and item[key] for item in data["records"])
 
-    def get_id_for_schema(self, schema):
+    def get_id_for_schema(self, schema: str) -> int:
         raise NotImplementedError("Need serializers")
 
-    def serialize(self, obj=None, ser_format=None, schema_id=None):
+    def serialize(self, obj=None, ser_format: str = None, schema_id: str = None) -> bytes:
         if not obj:
             return b''
         # not pretty
@@ -363,7 +434,7 @@ class KafkaRest(KarapaceBase):
     def avro_serialize(self, obj, schema_id):
         raise NotImplementedError("Cannot serialize %r for schema %d" % (obj, schema_id))
 
-    def validate_request_format(self, data, formats, content_type):
+    def validate_request_format(self, data: dict, formats: dict, content_type: str):
         if "records" not in data:
             self.r(
                 body={
@@ -388,13 +459,13 @@ class KafkaRest(KarapaceBase):
                         status=422
                     )
 
-    def produce_message(self, *, topic, key, value, partition=None):
+    def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
         try:
             with self.producer_lock:
                 f = self.producer.send(topic, key=key, value=value, partition=partition)
                 self.producer.flush()
             result = f.get()
-            return {"offset": result.offset, "partition": result.topic_partition}
+            return {"offset": result.offset, "partition": result.topic_partition.partition}
         except AssertionError as e:
             self.log.exception("Invalid data")
             return {"error_code": 1, "error": str(e)}
@@ -409,13 +480,13 @@ class KafkaRest(KarapaceBase):
                 resp["error_code"] = 2
             return resp
 
-    def list_topics(self, content_type):
+    def list_topics(self, content_type: str):
         metadata = self.admin_client.cluster_metadata()
         # hacky way to get some info for more detailed 404's ... do not use otherwise
         topics = list(metadata["topics"].keys())
         self.r(topics, content_type)
 
-    def topic_details(self, content_type, *, topic):
+    def topic_details(self, content_type: str, *, topic: str):
         met_f = self.executor.submit(self.admin_client.cluster_metadata, [topic])
         config_f = self.executor.submit(self.admin_client.get_topic_config, topic)
         try:
@@ -456,37 +527,8 @@ class KafkaRest(KarapaceBase):
             )
 
     def partition_details(self, content_type, *, topic, partition_id):
-        try:
-            partition_id = int(partition_id)
-        except ValueError:
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": "Partition %r not found" % partition_id
-                },
-                content_type=content_type,
-                status=404
-            )
-        try:
-            partitions = self.admin_client.cluster_metadata([topic])["topics"][topic]["partitions"]
-            for p in partitions:
-                if p["partition"] == partition_id:
-                    self.r(p, content_type)
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": "Partition %r not found" % partition_id
-                },
-                content_type=content_type,
-                status=404
-            )
-        except UnknownTopicOrPartitionError:
-            self.r(
-                body={
-                    "error_code": 40401,
-                    "message": "Topic %r not found" % topic
-                }, content_type=content_type, status=404
-            )
+        p = self.get_partition_data_or_fail(topic, partition_id, content_type)
+        self.r(p, content_type)
 
     def partition_offsets(self, content_type, *, topic, partition_id):
         try:
