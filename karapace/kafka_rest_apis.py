@@ -26,7 +26,8 @@ import six
 import sys
 import time
 
-RECORD_KEYS = {"key", "value"}
+RECORD_KEYS = ["key", "value"]
+RECORD_CODES = [42201, 42202]
 FILTERED_TOPICS = {"__consumer_offsets"}
 
 
@@ -168,9 +169,11 @@ class KafkaRest(KarapaceBase):
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
         self._metadata_birth = None
-        self.metadata_max_age = 10
+        # good as any
+        self.metadata_max_age = 5
         self.admin_client = None
         self.producer_lock = Lock()
+        self.admin_lock = Lock()
         self.metadata_cache = None
         self.executor = ThreadPoolExecutor(max_workers=4)
         # Brokers
@@ -277,12 +280,21 @@ class KafkaRest(KarapaceBase):
         self.init_admin_client()
         self._create_producer()
 
-    def cluster_metadata(self):
+    def get_offsets(self, topic, partition_id):
+        with self.admin_lock:
+            return self.admin_client.get_offsets(topic, partition_id)
+
+    def get_topic_config(self, topic):
+        with self.admin_lock:
+            return self.admin_client.get_topic_config(topic)
+
+    def cluster_metadata(self, topics=None):
         if self._metadata_birth is not None and time.time() - self.metadata_max_age > self.metadata_max_age:
             self._cluster_metadata = None
         if not self._cluster_metadata:
             self._metadata_birth = time.time()
-            self._cluster_metadata = self.admin_client.cluster_metadata()["topics"]
+            with self.admin_lock:
+                self._cluster_metadata = self.admin_client.cluster_metadata(topics)
         return self._cluster_metadata
 
     def init_admin_client(self):
@@ -306,26 +318,24 @@ class KafkaRest(KarapaceBase):
 
     async def publish(self, topic: str, partition_id: Optional[str], content_type: str, formats: dict, data: dict):
         # TODO In order to support the other content types, the client and request need to be updated
-        _ = self.get_topic_data_or_fail(topic, content_type)
+        _ = self.get_topic_info(topic, content_type)
         if partition_id is not None:
-            _ = self.get_partition_data_or_fail(topic, partition_id, content_type)
+            _ = self.get_partition_info(topic, partition_id, content_type)
             # by this point the conversion should always succeed
             partition_id = int(partition_id)
-        self.validate_request_format(data, formats, content_type)
+        await self.validate_publish_request_format(data, formats, content_type, topic)
         status = 200
         ser_format = formats["embedded_format"]
-        response = await self._fill_publish_response_metadata_or_fail(data, ser_format, content_type, topic)
-        self.log.debug("Got response header %r", response)
         prepared_records = []
         try:
             prepared_records = await self._prepare_records(
                 data=data,
                 ser_format=ser_format,
-                key_schema_id=response["key_schema_id"],
-                value_schema_id=response["value_schema_id"],
+                key_schema_id=data.get("key_schema_id"),
+                value_schema_id=data.get("value_schema_id"),
                 default_partition=partition_id
             )
-        except (FormatError, B64DecodeError):
+        except FormatError:
             self.r(
                 body={
                     "error_code": 42205,
@@ -336,7 +346,11 @@ class KafkaRest(KarapaceBase):
             )
         except (SchemaRetrievalError, InvalidMessageSchema) as e:
             self.r(body={"error_code": 42205, "message": str(e)}, content_type=content_type, status=422)
-
+        response = {
+            "key_schema_id": data.get("key_schema_id"),
+            "value_schema_id": data.get("value_schema_id"),
+            "offsets": []
+        }
         for key, value, partition in prepared_records:
             no_arg_produce = partial(self.produce_message, topic=topic, key=key, value=value, partition=partition)
             publish_result = await self.loop.run_in_executor(self.executor, no_arg_produce)
@@ -351,12 +365,20 @@ class KafkaRest(KarapaceBase):
     async def topic_publish(self, topic, content_type, formats, *, request):
         await self.publish(topic, None, content_type, formats, request.json)
 
-    def is_valid_avro_request(self, data, prefix):
-        all_empty = self.all_empty(data, prefix)
-        has_schema_or_id = data.get(f"{prefix}_schema_id") or data.get(f"{prefix}_schema")
-        return all_empty or has_schema_or_id
+    @staticmethod
+    def is_valid_avro_request(data, prefix):
+        schema_id = data.get(f"{prefix}_schema_id")
+        schema = data.get(f"{prefix}_schema")
+        if schema_id:
+            try:
+                int(schema_id)
+                return True
+            except (TypeError, ValueError):
+                return False
+        return isinstance(schema, str)
 
     async def get_schema_id(self, data, topic, prefix):
+        self.log.debug("Retrieving schema id for %r", data)
         if f"{prefix}_schema_id" in data and data[f"{prefix}_schema_id"] is not None:
             self.log.debug(
                 "Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic
@@ -366,28 +388,13 @@ class KafkaRest(KarapaceBase):
         subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix)
         return await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name)
 
-    async def _fill_publish_response_metadata_or_fail(
-        self, data: dict, ser_format: str, content_type: str, topic: str
-    ) -> dict:
-        response = {
-            "key_schema_id": data.get("key_schema_id"),
-            "value_schema_id": data.get("value_schema_id"),
-            "offsets": []
-        }
-        if ser_format != "avro":
-            return response
-
-        for prefix in ["key", "value"]:
-            if self.all_empty(data, prefix):
-                self.log.debug("Will not try to retrieve id for %s on data %r", prefix, data)
-                continue
-            try:
-                response[f"{prefix}_schema_id"] = await self.get_schema_id(data, topic, prefix)
-            except InvalidPayload:
-                self.log.exception("Unable to retrieve schema id")
-                self.r(body={"error_code": 400, "message": "Invalid schema string"}, content_type=content_type, status=400)
-
-        return response
+    async def validate_schema_info(self, data: dict, prefix: str, content_type: str, topic: str):
+        # will do in place updates of id keys, since calling these twice would be expensive
+        try:
+            data[f"{prefix}_schema_id"] = await self.get_schema_id(data, topic, prefix)
+        except InvalidPayload:
+            self.log.exception("Unable to retrieve schema id")
+            self.r(body={"error_code": 400, "message": "Invalid schema string"}, content_type=content_type, status=400)
 
     async def _prepare_records(
         self,
@@ -406,7 +413,7 @@ class KafkaRest(KarapaceBase):
             prepared_records.append((key, value, record.get("partition", default_partition)))
         return prepared_records
 
-    def get_partition_data_or_fail(self, topic: str, partition: str, content_type: str) -> dict:
+    def get_partition_info(self, topic: str, partition: str, content_type: str) -> dict:
         try:
             partition = int(partition)
         except ValueError:
@@ -419,7 +426,7 @@ class KafkaRest(KarapaceBase):
                 status=404
             )
         try:
-            topic_data = self.get_topic_data_or_fail(topic, content_type)
+            topic_data = self.get_topic_info(topic, content_type)
             partitions = topic_data["partitions"]
             for p in partitions:
                 if p["partition"] == partition:
@@ -445,8 +452,8 @@ class KafkaRest(KarapaceBase):
             self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
         return {}
 
-    def get_topic_data_or_fail(self, topic: str, content_type: str) -> dict:
-        md = self.cluster_metadata()
+    def get_topic_info(self, topic: str, content_type: str) -> dict:
+        md = self.cluster_metadata()["topics"]
         if topic not in md:
             self.r(
                 body={
@@ -471,10 +478,11 @@ class KafkaRest(KarapaceBase):
         if not obj:
             return b''
         # not pretty
-        if ser_format == "json" and isinstance(obj, (dict, list)):
+        if ser_format == "json":
+            # TODO -> get encoding from headers
             return json.dumps(obj).encode("utf8")
         if ser_format == "binary":
-            return base64.b64decode(obj)
+            return obj
         if ser_format == "avro":
             return await self.avro_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
@@ -484,8 +492,11 @@ class KafkaRest(KarapaceBase):
         bytes_ = await self.serializer.serialize(schema, obj)
         return bytes_
 
-    def validate_request_format(self, data: dict, formats: dict, content_type: str):
-        # disallow missing or non empty
+    async def validate_publish_request_format(self, data: dict, formats: dict, content_type: str, topic: str):
+        # this method will do in place updates for binary embedded formats, because the validation itself
+        # is equivalent to a parse / attempt to parse operation
+
+        # disallow missing or non empty 'records' key
         if "records" not in data or not data["records"]:
             self.r(
                 body={
@@ -495,28 +506,62 @@ class KafkaRest(KarapaceBase):
                 content_type=content_type,
                 status=500
             )
-        # disallow empty records
-        for r in data["records"]:
-            if not r or len(set(r.keys()).difference(RECORD_KEYS)) > 0:
-                self.r(
-                    body={
-                        "error_code": 50001,
-                        "message": "Invalid request format"
-                    }, content_type=content_type, status=500
-                )
-        if "embedded_format" in formats and formats["embedded_format"] != "avro":
-            return
-        for prefix, code in [("key", 42201), ("value", 42202)]:
-            if not self.is_valid_avro_request(data, prefix):
-                self.r(
-                    body={
-                        "error_code": code,
-                        "message": f"Request includes {prefix}s and uses a format that requires "
-                        f"schemas but does not include the {prefix}_schema or {prefix}_schema_id fields"
-                    },
-                    content_type=content_type,
-                    status=422
-                )
+        for prefix in RECORD_KEYS:
+            for r in data["records"]:
+                # disallow empty records
+                if not r or len(set(r.keys()).difference(RECORD_KEYS)) > 0:
+                    self.r(
+                        body={
+                            "error_code": 50001,
+                            "message": "Invalid request format"
+                        },
+                        content_type=content_type,
+                        status=500
+                    )
+                if prefix in r:
+                    # disallow non list / dict for json embedded format
+                    if formats["embedded_format"] == "json" and not isinstance(r[prefix], (dict, list)):
+                        self.r(
+                            body={
+                                "error_code": 42205,
+                                "message": f"Invalid json request {prefix}: {r[prefix]}"
+                            },
+                            content_type=content_type,
+                            status=422
+                        )
+                    # disallow invalid base64
+                    if formats["embedded_format"] == "binary":
+                        try:
+                            r[prefix] = base64.b64decode(r[prefix])
+                        except B64DecodeError:
+                            self.r(
+                                body={
+                                    "error_code": 42205,
+                                    "message": f"{prefix} is not a proper base64 encoded value: {r[prefix]}"
+                                },
+                                content_type=content_type,
+                                status=422
+                            )
+
+        # disallow missing id and schema for any key/value list that has at least one populated element
+        if formats["embedded_format"] == "avro":
+            for prefix, code in zip(RECORD_KEYS, RECORD_CODES):
+                if self.all_empty(data, prefix):
+                    continue
+                if not self.is_valid_avro_request(data, prefix):
+                    self.r(
+                        body={
+                            "error_code": code,
+                            "message": f"Request includes {prefix}s and uses a format that requires "
+                            f"schemas but does not include the {prefix}_schema or {prefix}_schema_id fields"
+                        },
+                        content_type=content_type,
+                        status=422
+                    )
+                try:
+                    await self.validate_schema_info(data, prefix, content_type, topic)
+                except InvalidMessageSchema as e:
+                    self.r(body={"error_code": 42205, "message": str(e)}, content_type=content_type, status=422)
 
     def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
         try:
@@ -540,17 +585,14 @@ class KafkaRest(KarapaceBase):
             return resp
 
     def list_topics(self, content_type: str):
-        metadata = self.admin_client.cluster_metadata()
-        # hacky way to get some info for more detailed 404's ... do not use otherwise
+        metadata = self.cluster_metadata()
         topics = list(metadata["topics"].keys())
         self.r(topics, content_type)
 
     def topic_details(self, content_type: str, *, topic: str):
-        met_f = self.executor.submit(self.admin_client.cluster_metadata, [topic])
-        config_f = self.executor.submit(self.admin_client.get_topic_config, topic)
         try:
-            metadata = met_f.result()
-            config = config_f.result()
+            metadata = self.cluster_metadata([topic])
+            config = self.get_topic_config(topic)
             if topic not in metadata["topics"]:
                 self.r(
                     body={
@@ -568,13 +610,13 @@ class KafkaRest(KarapaceBase):
 
     def list_partitions(self, content_type, *, topic):
         try:
-            topic_details = self.admin_client.cluster_metadata([topic])
-            self.r(topic_details["topics"][topic]["partitions"], content_type)
+            topic_details = self.cluster_metadata([topic])["topics"]
+            self.r(topic_details[topic]["partitions"], content_type)
         except UnknownTopicOrPartitionError:
             self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
 
     def partition_details(self, content_type, *, topic, partition_id):
-        p = self.get_partition_data_or_fail(topic, partition_id, content_type)
+        p = self.get_partition_info(topic, partition_id, content_type)
         self.r(p, content_type)
 
     def partition_offsets(self, content_type, *, topic, partition_id):
@@ -590,10 +632,10 @@ class KafkaRest(KarapaceBase):
                 status=404
             )
         try:
-            self.r(self.admin_client.get_offsets(topic, partition_id), content_type)
+            self.r(self.get_offsets(topic, partition_id), content_type)
         except UnknownTopicOrPartitionError:
             # Do a topics request on failure, figure out faster ways once we get correctness down
-            if topic not in self.admin_client.cluster_metadata():
+            if topic not in self.cluster_metadata()["topics"]:
                 self.r(
                     body={
                         "error_code": 40401,
@@ -610,7 +652,7 @@ class KafkaRest(KarapaceBase):
             )
 
     def list_brokers(self, content_type):  # pylint: disable=unused-argument
-        metadata = self.admin_client.cluster_metadata()
+        metadata = self.cluster_metadata()
         metadata.pop("topics")
         self.r(metadata, content_type)
 

@@ -33,7 +33,7 @@ def create_topic(admin_client, index):
     return tn
 
 
-async def check_successful_publish_response(success_response, objects):
+async def check_successful_publish_response(success_response, objects, partition_id=None):
     assert success_response.ok
     success_response = success_response.json()
     for k in ["value_schema_id", "offsets"]:
@@ -42,6 +42,63 @@ async def check_successful_publish_response(success_response, objects):
     for o in success_response["offsets"]:
         for k in ["offset", "partition"]:
             assert k in o and isinstance(o[k], int)
+            if partition_id is not None:
+                assert partition_id == o["partition"]
+
+
+async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace):
+    karapace, _ = karapace()
+    kafka_rest, _ = kafka_rest()
+    rest_client = await client_for(kafka_rest, aiohttp_client)
+    tn = create_topic(admin_client, 59)
+    registry_client = await client_for(karapace, aiohttp_client)
+    kafka_rest.serializer.registry_client.client = registry_client
+    valid_headers = [
+        "application/vnd.kafka.v1+json",
+        "application/vnd.kafka.binary.v1+json",
+        "application/vnd.kafka.avro.v1+json",
+        "application/vnd.kafka.json+json",
+        "application/vnd.kafka.v1+json",
+        "application/vnd.kafka+json",
+        "application/json",
+        "application/octet-stream",
+    ]
+    invalid_headers = [
+        "application/vnd.kafka.v3+json",
+        "application/vnd.kafka.binary.v1+foo",
+        "application/vnd.kafka.avro.v0+json",
+        "application/vnd.kafka.json+avro",
+        "application/vnd.kafka",
+        "application/vnd.kafka+binary",
+        "application/text",
+        "bar/baz",
+    ]
+    avro_payload = {"value_schema": schema_json, "records": [{"value": o} for o in test_objects]}
+    json_payload = {"records": [{"value": {"foo": "bar"}}]}
+    binary_payload = {"records": [{"value": "Zm9v"}]}
+    valid_payloads = [
+        binary_payload,
+        binary_payload,
+        avro_payload,
+        json_payload,
+        binary_payload,
+        binary_payload,
+        binary_payload,
+        binary_payload,
+    ]
+    # post / put requests should get validated
+    for hv, pl in zip(valid_headers, valid_payloads):
+        res = await rest_client.post(f"topics/{tn}", pl, headers={"Content-Type": hv})
+        assert res.ok
+    for hv, pl in zip(invalid_headers, valid_payloads):
+        res = await rest_client.post(f"topics/{tn}", pl, headers={"Content-Type": hv})
+        assert not res.ok
+        # get requests should succeed with bogus content type headers?
+        res = await rest_client.get(f"/brokers", headers={"Content-Type": hv})
+        assert res.ok
+
+    for c in [registry_client, rest_client]:
+        await c.close()
 
 
 async def test_avro_publish(kafka_rest, aiohttp_client, admin_client, karapace):
@@ -50,6 +107,7 @@ async def test_avro_publish(kafka_rest, aiohttp_client, admin_client, karapace):
     kafka_rest, _ = kafka_rest()
     rest_client = await client_for(kafka_rest, aiohttp_client)
     registry_client = await client_for(karapace, aiohttp_client)
+    kafka_rest.serializer.registry_client.client = registry_client
     tn = create_topic(admin_client, 5)
     other_tn = create_topic(admin_client, 19)
     header = HEADERS["avro"]
@@ -57,43 +115,45 @@ async def test_avro_publish(kafka_rest, aiohttp_client, admin_client, karapace):
     res = await registry_client.post(f"subjects/{other_tn}/versions", json={"schema": second_schema_json})
     assert res.ok
     new_schema_id = res.json()["id"]
-    for pl_type in ["key", "value"]:
-        correct_payload = {f"{pl_type}_schema": schema_json, "records": [{pl_type: o} for o in test_objects]}
-        kafka_rest.serializer.registry_client.client = registry_client
-        res = await rest_client.post(f"/topics/{tn}", correct_payload, headers=header)
-        await check_successful_publish_response(res, test_objects)
-        # check succeeds with prepublished schema
-        res = await rest_client.post(
-            f"/topics/{tn}", {
-                f"{pl_type}_schema_id": new_schema_id,
-                "records": [{
-                    pl_type: o
-                } for o in second_obj]
-            },
-            headers=header
-        )
-        await check_successful_publish_response(res, second_obj)
-        # unknown schema id
-        res = await rest_client.post(
-            f"/topics/{tn}", {
-                f"{pl_type}_schema_id": 666,
-                "records": [{
-                    pl_type: o
-                } for o in second_obj]
-            }, headers=header
-        )
-        assert res.status == 422
-        # mismatched schema
-        res = await rest_client.post(
-            f"/topics/{tn}", {
-                f"{pl_type}_schema_id": new_schema_id,
-                "records": [{
-                    pl_type: o
-                } for o in test_objects]
-            },
-            headers=header
-        )
-        assert res.status == 422
+    urls = [f"/topics/{tn}", f"/topics/{tn}/partitions/0"]
+    for url in urls:
+        partition_id = 0 if "partition" in url else None
+        for pl_type in ["key", "value"]:
+            correct_payload = {f"{pl_type}_schema": schema_json, "records": [{pl_type: o} for o in test_objects]}
+            res = await rest_client.post(url, correct_payload, headers=header)
+            await check_successful_publish_response(res, test_objects, partition_id)
+            # check succeeds with prepublished schema
+            res = await rest_client.post(
+                f"/topics/{tn}", {
+                    f"{pl_type}_schema_id": new_schema_id,
+                    "records": [{
+                        pl_type: o
+                    } for o in second_obj]
+                },
+                headers=header
+            )
+            await check_successful_publish_response(res, second_obj, partition_id)
+            # unknown schema id
+            res = await rest_client.post(
+                url, {
+                    f"{pl_type}_schema_id": 666,
+                    "records": [{
+                        pl_type: o
+                    } for o in second_obj]
+                }, headers=header
+            )
+            assert res.status == 422
+            # mismatched schema
+            res = await rest_client.post(
+                url, {
+                    f"{pl_type}_schema_id": new_schema_id,
+                    "records": [{
+                        pl_type: o
+                    } for o in test_objects]
+                },
+                headers=header
+            )
+            assert res.status == 422
 
     await rest_client.close()
     await registry_client.close()
