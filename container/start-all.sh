@@ -11,7 +11,7 @@ clientPort=$ZK
 maxClientCnxns=0
 EOF
 mkdir /var/lib/zookeeper
-/opt/kafka_2.12-2.1.1/bin/zookeeper-server-start.sh /opt/zookeeper.properties >/var/log/zk.log 2>&1 &
+/opt/kafka_2.12-2.4.1/bin/zookeeper-server-start.sh /opt/zookeeper.properties >/var/log/zk.log 2>&1 &
 
 # Configure and start the kafka server
 cat >/opt/server.properties <<- EOF
@@ -36,7 +36,7 @@ zookeeper.connection.timeout.ms=6000
 group.initial.rebalance.delay.ms=0
 EOF
 mkdir /var/lib/kafka
-/opt/kafka_2.12-2.1.1/bin/kafka-server-start.sh /opt/server.properties >/var/log/kafka.log 2>&1 &
+/opt/kafka_2.12-2.4.1/bin/kafka-server-start.sh /opt/server.properties >/var/log/kafka.log 2>&1 &
 
 # Optionally configure and start the schema registry
 if [ -n "$REGISTRY" ]; then
