@@ -124,7 +124,7 @@ class RestApp:
         method = request.method
         headers = request.headers
         result = {"content_type": "application/vnd.kafka.json.v2+json"}
-        ser_formats = None
+        header_info = None
         matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(headers["Content-Type"])
         if method in {"POST", "PUT"}:
             if not matcher:
@@ -136,9 +136,9 @@ class RestApp:
                     headers={"Content-Type": result["content_type"]},
                     status=415,
                 )
-            ser_formats = matcher.groupdict()
-            if not ser_formats["embedded_format"] in ALLOWED_EMBEDDED_FORMATS \
-                    or not ser_formats["serialization_format"] == "json":
+            header_info = matcher.groupdict()
+            if not header_info["embedded_format"] in ALLOWED_EMBEDDED_FORMATS \
+                    or not header_info["serialization_format"] == "json":
                 raise HTTPResponse(
                     body=json_encode({
                         "error_code": 415,
@@ -147,9 +147,20 @@ class RestApp:
                     headers={"Content-Type": result["content_type"]},
                     status=415,
                 )
+            if "api_version" in header_info and header_info["api_version"] not in ["v1", "v2"]:
+                raise HTTPResponse(
+                    body=json_encode({
+                        "error_code": 415,
+                        "message": "HTTP 415 Unsupported API Version: %s" % header_info["api_version"]
+                    },
+                                     binary=True),
+                    headers={"Content-Type": result["content_type"]},
+                    status=415,
+                )
 
         if matcher:
-            result["formats"] = ser_formats
+            header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
+            result["formats"] = header_info
         if headers["Accept"] in REST_ACCEPTED or headers["Accept"].startswith("*/"):
             return result
         self.log.error("Not acceptable: %r", headers["accept"])
