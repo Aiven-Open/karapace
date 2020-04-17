@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 
+import avro
 import contextlib
 import json
 import os
@@ -18,6 +19,22 @@ import time
 
 KAFKA_CURRENT_VERSION = "2.1"
 BASEDIR = "kafka_2.12-2.1.1"
+
+schema_json = json.dumps({
+    "namespace": "example.avro",
+    "type": "record",
+    "name": "User",
+    "fields": [{
+        "name": "name",
+        "type": "string"
+    }, {
+        "name": "favorite_number",
+        "type": ["int", "null"]
+    }, {
+        "name": "favorite_color",
+        "type": ["string", "null"]
+    }]
+})
 
 
 class Timeout(Exception):
@@ -58,6 +75,25 @@ def get_random_port(*, start=3000, stop=30000, blacklist=None):
             return value
 
 
+@pytest.fixture(name="mock_registry_client")
+def create_basic_registry_client():
+    class MockClient:
+        # pylint: disable=W0613
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def get_schema_for_id(self, *args, **kwargs):
+            return avro.schema.parse(schema_json)
+
+        async def get_latest_schema(self, *args, **kwargs):
+            return 1, avro.schema.parse(schema_json)
+
+        async def post_new_schema(self, *args, **kwargs):
+            return 1
+
+    return MockClient()
+
+
 @pytest.fixture(scope="session", name="session_tmpdir")
 def fixture_session_tmpdir(tmpdir_factory):
     """Create a temporary directory object that's usable in the session scope.  The returned value is a
@@ -72,6 +108,15 @@ def fixture_session_tmpdir(tmpdir_factory):
     finally:
         with contextlib.suppress(Exception):
             tmpdir_obj.remove(rec=1)
+
+
+@pytest.fixture(scope="session", name="default_config_path")
+def fixture_default_config(session_tmpdir):
+    base_name = "karapace_config.json"
+    path = os.path.join(session_tmpdir(), base_name)
+    with open(path, 'w') as cf:
+        cf.write(json.dumps({}))
+    return path
 
 
 @pytest.fixture(scope="session", name="zkserver")

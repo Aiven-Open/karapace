@@ -7,6 +7,8 @@ See LICENSE for details
 import datetime
 import decimal
 import json as jsonlib
+import os
+import requests
 import types
 
 
@@ -48,3 +50,98 @@ def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
         default=default_json_serialization
     )
     return res.encode("utf-8") if binary else res
+
+
+class Result:
+    def __init__(self, status, json_result, headers=None):
+        # We create both status and status_code so people can be agnostic on whichever to use
+        self.status_code = status
+        self.status = status
+        self.json_result = json_result
+        self.headers = headers if headers else {}
+
+    def json(self):
+        return self.json_result
+
+    def __repr__(self):
+        return "Result(status=%d, json_result=%r)" % (self.status_code, self.json_result)
+
+    def ok(self):
+        return self.status_code == 200
+
+
+class Client:
+    def __init__(self, server_uri=None, client=None):
+        self.server_uri = server_uri
+        self.session = requests.Session()
+        self.client = client
+
+    async def close(self):
+        try:
+            self.session.close()
+        except:  # pylint: disable=bare-except
+            pass
+        try:
+            await self.client.close()
+        except:  # pylint: disable=bare-except
+            pass
+
+    async def get(self, path, headers=None):
+        if not headers:
+            headers = {}
+        if self.client:
+            async with self.client.get(
+                path,
+                headers=headers,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = requests.get(os.path.join(self.server_uri, path), headers=headers)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+
+    async def delete(self, path, headers=None):
+        if not headers:
+            headers = {}
+        if self.client:
+            async with self.client.delete(
+                path,
+                headers=headers,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = requests.delete(os.path.join(self.server_uri, path), headers=headers)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+
+    async def post(self, path, json, headers=None):
+        if not headers:
+            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+
+        if self.client:
+            async with self.client.post(
+                path,
+                headers=headers,
+                json=json,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = self.session.post(os.path.join(self.server_uri, path), headers=headers, json=json)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+
+    async def put(self, path, json, headers=None):
+        if not headers:
+            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+
+        if self.client:
+            async with self.client.put(
+                path,
+                headers=headers,
+                json=json,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = self.session.put(os.path.join(self.server_uri, path), headers=headers, json=json)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)

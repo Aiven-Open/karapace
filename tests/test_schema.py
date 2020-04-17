@@ -4,7 +4,7 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from .utils import Client
+from karapace.utils import Client
 
 import json as jsonlib
 import os
