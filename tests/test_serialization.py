@@ -3,7 +3,7 @@ from karapace.serialization import (
     SchemaRegistryDeserializer, SchemaRegistrySerializer, START_BYTE
 )
 from karapace.utils import Client
-from tests.conftest import schema_json
+from tests.utils import schema_json, test_objects
 
 import avro
 import copy
@@ -13,24 +13,6 @@ import pytest
 import struct
 
 pytest_plugins = "aiohttp.pytest_plugin"
-
-test_objects = [
-    {
-        "name": "First Foo",
-        "favorite_number": 2,
-        "favorite_color": "bar"
-    },
-    {
-        "name": "Second Foo",
-        "favorite_number": 3,
-        "favorite_color": "baz"
-    },
-    {
-        "name": "Third Foo",
-        "favorite_number": 5,
-        "favorite_color": "quux"
-    },
-]
 
 
 async def make_ser_deser(config_path, mock_client):
@@ -48,7 +30,8 @@ async def test_happy_flow(default_config_path, mock_registry_client):
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 0
     for o in test_objects:
-        assert o == await deserializer.deserialize(await serializer.serialize("top", o))
+        schema = await serializer.get_schema_for_subject("top")
+        assert o == await deserializer.deserialize(await serializer.serialize(schema, o))
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 1
         assert 1 in o.ids_to_schemas
@@ -57,7 +40,8 @@ async def test_happy_flow(default_config_path, mock_registry_client):
 async def test_serialization_fails(default_config_path, mock_registry_client):
     serializer, _ = await make_ser_deser(default_config_path, mock_registry_client)
     with pytest.raises(InvalidMessageSchema):
-        await serializer.serialize("topic", {"foo": "bar"})
+        schema = await serializer.get_schema_for_subject("topic")
+        await serializer.serialize(schema, {"foo": "bar"})
 
 
 async def test_deserialization_fails(default_config_path, mock_registry_client):
@@ -97,7 +81,7 @@ async def test_remote_client(karapace, aiohttp_client):
     sc_id = await reg_cli.post_new_schema("foo", schema_avro)
     assert sc_id >= 0
     stored_schema = await reg_cli.get_schema_for_id(sc_id)
-    assert stored_schema == schema_avro, "stored schema %r is not %r" % (stored_schema.to_json(), schema_avro.to_json())
+    assert stored_schema == schema_avro, f"stored schema {stored_schema.to_json()} is not {schema_avro.to_json()}"
     stored_id, stored_schema = await reg_cli.get_latest_schema("foo")
     assert stored_id == sc_id
     assert stored_schema == schema_avro

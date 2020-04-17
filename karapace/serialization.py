@@ -1,5 +1,5 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
-from avro.schema import Schema
+from avro.schema import Schema, SchemaParseException
 from karapace.config import read_config
 from karapace.utils import Client, json_encode
 from urllib.parse import quote
@@ -74,75 +74,100 @@ class SchemaRegistryClient:
 
     async def post_new_schema(self, subject: str, schema: Schema) -> int:
         payload = {"schema": json_encode(schema.to_json())}
-        result = await self.client.post("subjects/%s/versions" % quote(subject), json=payload)
-        if not result.ok():
+        result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)
+        if not result.ok:
             raise SchemaRetrievalError(result.json())
         return result.json()["id"]
 
     async def get_latest_schema(self, subject: str) -> (int, Schema):
-        result = await self.client.get("subjects/%s/versions/latest" % quote(subject))
-        if not result.ok():
+        result = await self.client.get(f"subjects/{quote(subject)}/versions/latest")
+        if not result.ok:
             raise SchemaRetrievalError(result.json())
         json_result = result.json()
         if "id" not in json_result or "schema" not in json_result:
-            raise SchemaRetrievalError("Invalid result format: %r" % json_result)
+            raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
             return json_result["id"], parse_schema(json_result["schema"])
-        except avro.io.schema.SchemaParseException as e:
-            raise SchemaRetrievalError("Failed to parse schema string from response: %r" % json_result) from e
+        except SchemaParseException as e:
+            raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
     async def get_schema_for_id(self, schema_id):
-        result = await self.client.get("schemas/ids/%d" % schema_id)
-        if not result.ok():
+        result = await self.client.get(f"schemas/ids/{schema_id}")
+        if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
         json_result = result.json()
         if "schema" not in json_result:
-            raise SchemaRetrievalError("Invalid result format: %r" % json_result)
+            raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
             return parse_schema(json_result["schema"])
-        except avro.io.schema.SchemaParseException as e:
-            raise SchemaRetrievalError("Failed to parse schema string from response: %r" % json_result) from e
+        except SchemaParseException as e:
+            raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
     async def close(self):
         await self.client.close()
 
 
 class SchemaRegistrySerializerDeserializer:
-    def __init__(self, **config):
-        if not config.get("config_path"):
+    def __init__(self, **cfg):
+        if not cfg.get("config_path"):
             raise ValueError("config_path is empty or missing")
-        config_path = config["config_path"]
+        config_path = cfg["config_path"]
         self.config = read_config(config_path)
-        registry_url = "%s:%d" % (self.config["host"], self.config["port"])
+        self.state_lock = asyncio.Lock()
+        registry_url = f"{self.config['registry_host']}:{self.config['registry_port']}"
         registry_client = SchemaRegistryClient(registry_url)
-        self.subject_name_strategy = topic_name_strategy
+        self.subject_name_strategy = NAME_STRATEGIES[cfg.get("name_strategy", "topic_name")]
         self.registry_client = registry_client
         self.ids_to_schemas = {}
         self.schemas_to_ids = {}
+
+    async def close(self):
+        if self.registry_client:
+            await self.registry_client.close()
+            self.registry_client = None
+
+    def get_subject_name(self, topic_name: str, schema: str, subject_type: str) -> str:
+        schema = parse_schema(schema)
+        return f"{self.subject_name_strategy(topic_name, schema.namespace)}-{subject_type}"
 
     @staticmethod
     def serialize_schema(schema: Schema) -> dict:
         return json_encode(schema.to_json())
 
-    async def get_schema_for_topic(self, subject: str) -> Schema:
+    async def get_schema_for_subject(self, subject: str) -> Schema:
         schema_id, schema = await self.registry_client.get_latest_schema(subject)
-        self.schemas_to_ids[self.serialize_schema(schema)] = schema_id
-        self.ids_to_schemas[schema_id] = schema
+        async with self.state_lock:
+            self.schemas_to_ids[self.serialize_schema(schema)] = schema_id
+            self.ids_to_schemas[schema_id] = schema
         return schema
+
+    async def get_id_for_schema(self, schema: str, subject: str) -> int:
+        try:
+            schema = parse_schema(schema)
+        except SchemaParseException as e:
+            raise InvalidPayload(f"Schema string {schema} is invalid") from e
+        ser_schema = self.serialize_schema(schema)
+        if ser_schema in self.schemas_to_ids:
+            return self.schemas_to_ids[ser_schema]
+        schema_id = await self.registry_client.post_new_schema(subject, schema)
+        async with self.state_lock:
+            self.schemas_to_ids[ser_schema] = schema_id
+            self.ids_to_schemas[schema_id] = schema
+        return schema_id
 
     async def get_schema_for_id(self, schema_id: int) -> Schema:
         if schema_id in self.ids_to_schemas:
-            return parse_schema(self.ids_to_schemas[schema_id])
+            return self.ids_to_schemas[schema_id]
         schema = await self.registry_client.get_schema_for_id(schema_id)
         schema_ser = self.serialize_schema(schema)
-        self.schemas_to_ids[schema_ser] = schema_id
-        self.ids_to_schemas[schema_id] = schema_ser
+        async with self.state_lock:
+            self.schemas_to_ids[schema_ser] = schema_id
+            self.ids_to_schemas[schema_id] = schema_ser
         return schema
 
 
 class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer):
-    async def serialize(self, subject: str, value: dict) -> bytes:
-        schema = await self.get_schema_for_topic(subject)
+    async def serialize(self, schema: Schema, value: dict) -> bytes:
         schema_id = self.schemas_to_ids[self.serialize_schema(schema)]
         writer = DatumWriter(schema)
         with io.BytesIO() as bio:

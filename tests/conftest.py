@@ -7,6 +7,7 @@ See LICENSE for details
 from kafka import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
+from tests.utils import schema_json
 
 import avro
 import contextlib
@@ -21,22 +22,6 @@ import time
 
 KAFKA_CURRENT_VERSION = "2.4"
 BASEDIR = "kafka_2.12-2.4.1"
-
-schema_json = json.dumps({
-    "namespace": "example.avro",
-    "type": "record",
-    "name": "User",
-    "fields": [{
-        "name": "name",
-        "type": "string"
-    }, {
-        "name": "favorite_number",
-        "type": ["int", "null"]
-    }, {
-        "name": "favorite_color",
-        "type": ["string", "null"]
-    }]
-})
 
 
 class Timeout(Exception):
@@ -117,7 +102,7 @@ def fixture_default_config(session_tmpdir):
     base_name = "karapace_config.json"
     path = os.path.join(session_tmpdir(), base_name)
     with open(path, 'w') as cf:
-        cf.write(json.dumps({}))
+        cf.write(json.dumps({"registry_host": "localhost", "registry_port": 8081}))
     return path
 
 
