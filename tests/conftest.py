@@ -17,8 +17,8 @@ import socket
 import subprocess
 import time
 
-KAFKA_CURRENT_VERSION = "2.1"
-BASEDIR = "kafka_2.12-2.1.1"
+KAFKA_CURRENT_VERSION = "2.4"
+BASEDIR = "kafka_2.12-2.4.1"
 
 schema_json = json.dumps({
     "namespace": "example.avro",

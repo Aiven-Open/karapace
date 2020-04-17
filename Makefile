@@ -1,6 +1,6 @@
 SHORT_VER = $(shell git describe --tags --abbrev=0 | cut -f1-)
 LONG_VER = $(shell git describe --long 2>/dev/null || echo $(SHORT_VER)-0-unknown-g`git describe --always`)
-KAFKA_VERSION=2.1.1
+KAFKA_VERSION=2.4.1
 SCALA_VERSION=2.12
 KAFKA_PATH = kafka_$(SCALA_VERSION)-$(KAFKA_VERSION)
 KAFKA_TAR = $(KAFKA_PATH).tgz
