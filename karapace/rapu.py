@@ -40,11 +40,12 @@ SCHEMA_ACCEPT_VALUES = [
 
 # TODO -> accept more general values as well
 REST_CONTENT_TYPE_RE = re.compile(
-    r"application/vnd\.kafka(\.(?P<embedded_format>\w+))?\.(?P<api_version>\w+)\+(?P<serialization_format>\w+)"
+    r"application(/vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?"
+    r"\+(?P<serialization_format>json))|/(?P<general_format>json|octet-stream)"
 )
-REST_ACCEPTED = {"application/vnd.kafka.v2+json", "application/vnd.kafka+json", "application/json", "*/*"}
-
-ALLOWED_EMBEDDED_FORMATS = {"json", "binary", "avro"}
+REST_ACCEPT_RE = re.compile(
+    r"application(/vnd\.kafka(\.(?P<api_version>v[12]))?\+(?P<serialization_format>json))|/(?P<general_format>json)"
+)
 
 
 class HTTPRequest:
@@ -125,7 +126,7 @@ class RestApp:
         headers = request.headers
         result = {"content_type": "application/vnd.kafka.json.v2+json"}
         header_info = None
-        matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(headers["Content-Type"])
+        matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers["Content-Type"])[0])
         if method in {"POST", "PUT"}:
             if not matcher:
                 raise HTTPResponse(
@@ -137,31 +138,10 @@ class RestApp:
                     status=415,
                 )
             header_info = matcher.groupdict()
-            if not header_info["embedded_format"] in ALLOWED_EMBEDDED_FORMATS \
-                    or not header_info["serialization_format"] == "json":
-                raise HTTPResponse(
-                    body=json_encode({
-                        "error_code": 415,
-                        "message": "HTTP 415 Unsupported Media Type",
-                    }, binary=True),
-                    headers={"Content-Type": result["content_type"]},
-                    status=415,
-                )
-            if "api_version" in header_info and header_info["api_version"] not in ["v1", "v2"]:
-                raise HTTPResponse(
-                    body=json_encode({
-                        "error_code": 415,
-                        "message": "HTTP 415 Unsupported API Version: %s" % header_info["api_version"]
-                    },
-                                     binary=True),
-                    headers={"Content-Type": result["content_type"]},
-                    status=415,
-                )
-
         if matcher:
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
             result["formats"] = header_info
-        if headers["Accept"] in REST_ACCEPTED or headers["Accept"].startswith("*/"):
+        if REST_ACCEPT_RE.search(headers["Accept"]) or headers["Accept"].startswith("*/"):
             return result
         self.log.error("Not acceptable: %r", headers["accept"])
         raise HTTPResponse(
