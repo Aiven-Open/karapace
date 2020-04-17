@@ -145,3 +145,16 @@ class Client:
         elif self.server_uri:
             res = self.session.put(os.path.join(self.server_uri, path), headers=headers, json=json)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+
+    async def put_with_data(self, path, data, headers):
+        if self.client:
+            async with self.client.put(
+                path,
+                headers=headers,
+                data=data,
+            ) as res:
+                json_result = await res.json()
+                return Result(res.status, json_result, headers=res.headers)
+        elif self.server_uri:
+            res = self.session.put(os.path.join(self.server_uri, path), headers=headers, data=data)
+            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
