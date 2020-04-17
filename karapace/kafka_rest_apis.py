@@ -11,7 +11,9 @@ from kafka.protocol.metadata import MetadataRequest
 from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
 from karapace import version as karapace_version
 from karapace.karapace import KarapaceBase
-from karapace.serialization import InvalidPayload, SchemaRegistryDeserializer, SchemaRegistrySerializer
+from karapace.serialization import (
+    InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer, SchemaRegistrySerializer, SchemaRetrievalError
+)
 from threading import Lock
 from typing import List, Optional, Tuple
 
@@ -22,7 +24,9 @@ import json
 import os
 import six
 import sys
+import time
 
+RECORD_KEYS = {"key", "value"}
 FILTERED_TOPICS = {"__consumer_offsets"}
 
 
@@ -163,6 +167,8 @@ class KafkaRest(KarapaceBase):
         self.kafka_timeout = 10
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
+        self._metadata_birth = None
+        self.metadata_max_age = 10
         self.admin_client = None
         self.producer_lock = Lock()
         self.metadata_cache = None
@@ -272,8 +278,10 @@ class KafkaRest(KarapaceBase):
         self._create_producer()
 
     def cluster_metadata(self):
-        # TODO -> Cache if necessary
+        if self._metadata_birth is not None and time.time() - self.metadata_max_age > self.metadata_max_age:
+            self._cluster_metadata = None
         if not self._cluster_metadata:
+            self._metadata_birth = time.time()
             self._cluster_metadata = self.admin_client.cluster_metadata()["topics"]
         return self._cluster_metadata
 
@@ -326,6 +334,9 @@ class KafkaRest(KarapaceBase):
                 content_type=content_type,
                 status=422
             )
+        except (SchemaRetrievalError, InvalidMessageSchema) as e:
+            self.r(body={"error_code": 42205, "message": str(e)}, content_type=content_type, status=422)
+
         for key, value, partition in prepared_records:
             no_arg_produce = partial(self.produce_message, topic=topic, key=key, value=value, partition=partition)
             publish_result = await self.loop.run_in_executor(self.executor, no_arg_produce)
@@ -347,16 +358,17 @@ class KafkaRest(KarapaceBase):
 
     async def get_schema_id(self, data, topic, prefix):
         if f"{prefix}_schema_id" in data and data[f"{prefix}_schema_id"] is not None:
-            self.log.debug("Will use schema id %d for serializing %s on topic %s",
-                           data[f"{prefix}_schema_id"], prefix, topic)
+            self.log.debug(
+                "Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic
+            )
             return int(data[f"{prefix}_schema_id"])
         self.log.debug("Registering / Retrieving ID for schema %s", data[f"{prefix}_schema"])
-        # TODO -> Why escape it twice??
-        data[f"{prefix}_schema"] = json.loads(data[f"{prefix}_schema"])
         subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix)
         return await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name)
 
-    async def _fill_publish_response_metadata_or_fail(self, data: dict, ser_format: str, content_type: str, topic: str) -> dict:
+    async def _fill_publish_response_metadata_or_fail(
+        self, data: dict, ser_format: str, content_type: str, topic: str
+    ) -> dict:
         response = {
             "key_schema_id": data.get("key_schema_id"),
             "value_schema_id": data.get("value_schema_id"),
@@ -473,7 +485,8 @@ class KafkaRest(KarapaceBase):
         return bytes_
 
     def validate_request_format(self, data: dict, formats: dict, content_type: str):
-        if "records" not in data:
+        # disallow missing or non empty
+        if "records" not in data or not data["records"]:
             self.r(
                 body={
                     "error_code": 50001,  # Choose another code??
@@ -482,6 +495,15 @@ class KafkaRest(KarapaceBase):
                 content_type=content_type,
                 status=500
             )
+        # disallow empty records
+        for r in data["records"]:
+            if not r or len(set(r.keys()).difference(RECORD_KEYS)) > 0:
+                self.r(
+                    body={
+                        "error_code": 50001,
+                        "message": "Invalid request format"
+                    }, content_type=content_type, status=500
+                )
         if "embedded_format" in formats and formats["embedded_format"] != "avro":
             return
         for prefix, code in [("key", 42201), ("value", 42202)]:
