@@ -33,3 +33,15 @@ test_objects = [
         "favorite_color": "quux"
     },
 ]
+
+second_schema_json = json.dumps({
+    "namespace": "example.avro.other",
+    "type": "record",
+    "name": "Dude",
+    "fields": [{
+        "name": "name",
+        "type": "string"
+    }]
+})
+
+second_obj = [{"name": "doe"}, {"name": "john"}]

@@ -162,7 +162,7 @@ class SchemaRegistrySerializerDeserializer:
         schema_ser = self.serialize_schema(schema)
         async with self.state_lock:
             self.schemas_to_ids[schema_ser] = schema_id
-            self.ids_to_schemas[schema_id] = schema_ser
+            self.ids_to_schemas[schema_id] = schema
         return schema
 
 
