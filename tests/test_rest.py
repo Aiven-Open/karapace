@@ -73,6 +73,25 @@ async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace)
         "application/text",
         "bar/baz",
     ]
+
+    invalid_accept_headers = [
+        "application/octet-stream",
+        "application/vnd.kafka+foo",
+        "application/text",
+        "foo/*",
+        "bar/json",
+        "*/baz",
+    ]
+
+    valid_accept_headers = [
+        "application/vnd.kafka.v1+json",
+        "application/vnd.kafka+json",
+        "application/json",
+        "application/*",
+        "*/json",
+        "*/*",
+    ]
+
     avro_payload = {"value_schema": schema_json, "records": [{"value": o} for o in test_objects]}
     json_payload = {"records": [{"value": {"foo": "bar"}}]}
     binary_payload = {"records": [{"value": "Zm9v"}]}
@@ -94,8 +113,16 @@ async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace)
         res = await rest_client.post(f"topics/{tn}", pl, headers={"Content-Type": hv})
         assert not res.ok
         # get requests should succeed with bogus content type headers?
-        res = await rest_client.get(f"/brokers", headers={"Content-Type": hv})
+        res = await rest_client.get("/brokers", headers={"Content-Type": hv})
         assert res.ok
+
+    for ah in valid_accept_headers:
+        res = await rest_client.get("/brokers", headers={"Accept": ah})
+        assert res.ok
+
+    for ah in invalid_accept_headers:
+        res = await rest_client.get("/brokers", headers={"Accept": ah})
+        assert not res.ok
 
     for c in [registry_client, rest_client]:
         await c.close()
@@ -202,8 +229,9 @@ async def test_local(kafka_rest, aiohttp_client, producer, admin_client):
     for_check = [create_topic(admin_client, 1)]
     for_publish = create_topic(admin_client, 2)
     for_partitions = create_topic(admin_client, 3)
+    for_requests = create_topic(admin_client, 4)
     await check_brokers(c)
-    await check_malformed_requests(c, create_topic(admin_client, 4))
+    await check_malformed_requests(c, for_requests)
     await check_topics(c, for_check)
     await check_partitions(c, for_partitions, producer)
     await check_publish(c, for_publish)
