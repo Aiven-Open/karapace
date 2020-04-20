@@ -44,7 +44,8 @@ REST_CONTENT_TYPE_RE = re.compile(
     r"\+(?P<serialization_format>json))|/(?P<general_format>json|octet-stream)"
 )
 REST_ACCEPT_RE = re.compile(
-    r"application(/vnd\.kafka(\.(?P<api_version>v[12]))?\+(?P<serialization_format>json))|/(?P<general_format>json)"
+    r"(application|\*)/((vnd\.kafka(\.(?P<api_version>v[12]))?\+"
+    r"(?P<serialization_format>json))|(?P<general_format>json|\*))"
 )
 
 
@@ -141,7 +142,7 @@ class RestApp:
         if matcher:
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
             result["formats"] = header_info
-        if REST_ACCEPT_RE.search(headers["Accept"]) or headers["Accept"].startswith("*/"):
+        if REST_ACCEPT_RE.search(headers["Accept"]):
             return result
         self.log.error("Not acceptable: %r", headers["accept"])
         raise HTTPResponse(

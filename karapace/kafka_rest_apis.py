@@ -1,6 +1,5 @@
 from binascii import Error as B64DecodeError
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 from kafka import KafkaAdminClient
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.errors import (
@@ -20,6 +19,7 @@ from typing import List, Optional, Tuple
 import argparse
 import asyncio
 import base64
+import copy
 import json
 import os
 import six
@@ -169,8 +169,7 @@ class KafkaRest(KarapaceBase):
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
         self._metadata_birth = None
-        # good as any
-        self.metadata_max_age = 5
+        self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
         self.producer_lock = Lock()
         self.admin_lock = Lock()
@@ -289,13 +288,13 @@ class KafkaRest(KarapaceBase):
             return self.admin_client.get_topic_config(topic)
 
     def cluster_metadata(self, topics=None):
-        if self._metadata_birth is not None and time.time() - self.metadata_max_age > self.metadata_max_age:
+        if self._metadata_birth is None or time.time() - self._metadata_birth > self.metadata_max_age:
             self._cluster_metadata = None
         if not self._cluster_metadata:
             self._metadata_birth = time.time()
             with self.admin_lock:
                 self._cluster_metadata = self.admin_client.cluster_metadata(topics)
-        return self._cluster_metadata
+        return copy.deepcopy(self._cluster_metadata)
 
     def init_admin_client(self):
         self.admin_client = KafkaRestAdminClient(
@@ -352,8 +351,7 @@ class KafkaRest(KarapaceBase):
             "offsets": []
         }
         for key, value, partition in prepared_records:
-            no_arg_produce = partial(self.produce_message, topic=topic, key=key, value=value, partition=partition)
-            publish_result = await self.loop.run_in_executor(self.executor, no_arg_produce)
+            publish_result = self.produce_message(topic=topic, key=key, value=value, partition=partition)
             if "error" in publish_result and status == 200:
                 status = 500
             response["offsets"].append(publish_result)
@@ -567,7 +565,7 @@ class KafkaRest(KarapaceBase):
         try:
             with self.producer_lock:
                 f = self.producer.send(topic, key=key, value=value, partition=partition)
-                self.producer.flush()
+                self.producer.flush(timeout=self.kafka_timeout)
             result = f.get()
             return {"offset": result.offset, "partition": result.topic_partition.partition}
         except AssertionError as e:
@@ -612,7 +610,7 @@ class KafkaRest(KarapaceBase):
         try:
             topic_details = self.cluster_metadata([topic])["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
-        except UnknownTopicOrPartitionError:
+        except (UnknownTopicOrPartitionError, KeyError):
             self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
 
     def partition_details(self, content_type, *, topic, partition_id):
