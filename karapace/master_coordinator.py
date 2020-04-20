@@ -8,6 +8,7 @@ from kafka.client_async import KafkaClient
 from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
+from karapace import constants
 from threading import Lock, Thread
 
 import json
@@ -108,7 +109,6 @@ class MasterCoordinator(Thread):
     def __init__(self, config):
         Thread.__init__(self)
         self.config = config
-        self.api_version_auto_timeout_ms = 30000
         self.timeout_ms = 10000
         self.kafka_client = None
         self.running = True
@@ -123,7 +123,7 @@ class MasterCoordinator(Thread):
     def init_kafka_client(self):
         try:
             self.kafka_client = KafkaClient(
-                api_version_auto_timeout_ms=self.api_version_auto_timeout_ms,
+                api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
                 bootstrap_servers=self.config["bootstrap_uri"],
                 client_id=self.config["client_id"],
                 security_protocol=self.config["security_protocol"],

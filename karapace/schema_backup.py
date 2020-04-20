@@ -5,7 +5,11 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaConsumer, KafkaProducer
+from kafka.admin import KafkaAdminClient
+from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from karapace import constants
 from karapace.karapace import KarapaceBase
+from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
 
 import argparse
@@ -13,10 +17,15 @@ import json
 import logging
 import os
 import sys
+import time
 
 
 class BackupError(Exception):
     """Backup Error"""
+
+
+class Timeout(Exception):
+    """Timeout Error"""
 
 
 class SchemaBackup:
@@ -27,6 +36,7 @@ class SchemaBackup:
         self.log = logging.getLogger("SchemaBackup")
         self.consumer = None
         self.producer = None
+        self.admin_client = None
         self.timeout_ms = 1000
 
     def init_consumer(self):
@@ -54,6 +64,59 @@ class SchemaBackup:
             api_version=(1, 0, 0),
         )
 
+    def init_admin_client(self):
+        start_time = time.monotonic()
+        wait_time = constants.MINUTE
+        while True:
+            if time.monotonic() - start_time > wait_time:
+                raise Timeout(f"Timeout ({wait_time}) on creating admin client")
+
+            try:
+                self.admin_client = KafkaAdminClient(
+                    api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
+                    bootstrap_servers=self.config["bootstrap_uri"],
+                    client_id=self.config["client_id"],
+                    security_protocol=self.config["security_protocol"],
+                    ssl_cafile=self.config["ssl_cafile"],
+                    ssl_certfile=self.config["ssl_certfile"],
+                    ssl_keyfile=self.config["ssl_keyfile"],
+                )
+                break
+            except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                self.log.warning("No Brokers available yet, retrying init_admin_client()")
+            except:  # pylint: disable=bare-except
+                self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
+
+            time.sleep(2.0)
+
+    def _create_schema_topic_if_needed(self):
+        if self.topic_name != self.config["topic_name"]:
+            self.log.info("Topic name overridden, not creating a topic with schema configuration")
+            return
+
+        self.init_admin_client()
+
+        start_time = time.monotonic()
+        wait_time = constants.MINUTE
+        while True:
+            if time.monotonic() - start_time > wait_time:
+                raise Timeout(f"Timeout ({wait_time}) on creating admin client")
+
+            schema_topic = KafkaSchemaReader.get_new_schema_topic(self.config)
+            try:
+                self.log.info("Creating schema topic: %r", schema_topic)
+                self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
+                self.log.info("Topic: %r created successfully", self.config["topic_name"])
+                break
+            except TopicAlreadyExistsError:
+                self.log.info("Topic: %r already exists", self.config["topic_name"])
+                break
+            except:  # pylint: disable=bare-except
+                self.log.exception(
+                    "Failed to create topic: %r, retrying _create_schema_topic_if_needed()", self.config["topic_name"]
+                )
+                time.sleep(5)
+
     def close(self):
         self.log.info("Closing schema backup reader")
         if self.consumer:
@@ -62,6 +125,9 @@ class SchemaBackup:
         if self.producer:
             self.producer.close()
             self.producer = None
+        if self.admin_client:
+            self.admin_client.close()
+            self.admin_client = None
 
     def request_backup(self):
         if not self.consumer:
@@ -93,6 +159,8 @@ class SchemaBackup:
     def restore_backup(self):
         if not os.path.exists(self.backup_location):
             raise BackupError("Backup location doesn't exist")
+
+        self._create_schema_topic_if_needed()
 
         if not self.producer:
             self.init_producer()
