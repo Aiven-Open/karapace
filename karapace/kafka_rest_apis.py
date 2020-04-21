@@ -1,9 +1,12 @@
 from binascii import Error as B64DecodeError
+from collections import defaultdict, namedtuple
 from concurrent.futures import ThreadPoolExecutor
-from kafka import KafkaAdminClient
+from functools import partial
+from kafka import KafkaAdminClient, KafkaConsumer, OffsetAndMetadata, TopicPartition
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.errors import (
-    BrokerResponseError, for_code, KafkaTimeoutError, UnknownTopicOrPartitionError, UnrecognizedBrokerVersion
+    BrokerResponseError, for_code, KafkaTimeoutError, UnknownTopicOrPartitionError,
+    UnrecognizedBrokerVersion, KafkaError, IllegalStateError
 )
 from kafka.protocol.admin import DescribeConfigsRequest
 from kafka.protocol.metadata import MetadataRequest
@@ -21,14 +24,20 @@ import asyncio
 import base64
 import copy
 import json
+import logging
 import os
 import six
 import sys
 import time
+import uuid
 
 RECORD_KEYS = ["key", "value"]
 RECORD_CODES = [42201, 42202]
 FILTERED_TOPICS = {"__consumer_offsets"}
+KNOWN_FORMATS = {"json", "avro", "binary"}
+OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
+
+TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format"])
 
 
 class FormatError(Exception):
@@ -653,6 +662,277 @@ class KafkaRest(KarapaceBase):
         metadata = self.cluster_metadata()
         metadata.pop("topics")
         self.r(metadata, content_type)
+
+
+class ConsumerManager:
+    def __init__(self, config_path):
+        self.config = KarapaceBase.read_config(config_path)
+        self.hostname = f"http://{self.config['advertised_hostname']}:{self.config['port']}"
+        self.log = logging.getLogger("RestConsumerManager")
+        self.consumers = {}
+        self.consumer_formats = {}
+        self.consumer_locks = defaultdict(Lock)
+
+    def new_name(self):
+        name = str(uuid.uuid4())
+        self.log.debug("Generated new consumer name: %s", name)
+        return name
+
+    @staticmethod
+    def _assert(cond, code, sub_code, message, content_type):
+        if not cond:
+            KarapaceBase.r(content_type=content_type, status=code, body={"message": message, "error_code": sub_code})
+
+    def _assert_consumer_exists(self, internal_name, content_type):
+        ConsumerManager._assert(
+            internal_name in self.consumers, code=404, sub_code=40403,
+            message=f"Consumer not found", content_type=content_type
+        )
+
+    @staticmethod
+    def _validate_offset_request_data(topic, partition_id, offset, cluster_metadata):
+        cluster_metadata = cluster_metadata["topics"]
+        assert topic in cluster_metadata
+        assert offset > 0
+        assert partition_id in [p["partition"] for p in cluster_metadata[topic]["partitions"]]
+
+    @staticmethod
+    def _assert_positive_number(container, key, content_type, code=500, sub_code=50001):
+        ConsumerManager._assert_has_key(container, key, content_type)
+        ConsumerManager._assert(
+            isinstance(container[key], int) and container[key] > 0, code=code,
+            sub_code=sub_code, content_type=content_type, message=f"{key} must be a positive number"
+        )
+
+    @staticmethod
+    def _assert_has_key(element, key, content_type):
+        ConsumerManager._assert(
+            key in element, code=500, sub_code=50001, message=f"{key} missing from {element}", content_type=content_type
+        )
+
+    @staticmethod
+    def _has_topic_and_partition_keys(topic_data, content_type):
+        [ConsumerManager._assert_has_key(topic_data, k, content_type) for k in ["topic", "partition"]]
+
+    @staticmethod
+    def _topic_and_partition_valid(cluster_metadata, topic_data, content_type):
+        ConsumerManager._has_topic_and_partition_keys(topic_data, content_type)
+        topic = topic_data["topic"]
+        partition = topic_data["partition"]
+        ConsumerManager._assert(
+            topic in cluster_metadata["topics"], code=404, sub_code=40401,
+            message=f"topic {topic} not found", content_type=content_type
+        )
+        partitions = {pi["partition"] for pi in cluster_metadata["topics"][topic]["partitions"]}
+        ConsumerManager._assert(
+            partition in partitions, code=404, sub_code=40402,
+            message=f"Partition {partition} not found for topic {topic}", content_type=content_type
+        )
+
+    @staticmethod
+    def create_internal_name(group_name, consumer_name):
+        return f"{group_name}_{consumer_name}"
+
+    @staticmethod
+    def _validate_create_consumer(request, content_type):
+        _assert = partial(ConsumerManager._assert, content_type=content_type, code=422, sub_code=42204)
+        _assert(cond="format" in request and request["format"] in KNOWN_FORMATS, message="format key is missing")
+        request["consumer.request.timeout.ms"] = request.get(
+            "consumer.request.timeout.ms", KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]
+        )
+        for k in ["fetch.min.bytes", "consumer.request.timeout.ms"]:
+            ConsumerManager._assert_positive_number(request, k, content_type, code=422, sub_code=42204)
+
+        commit_enable = str(request["auto.commit.enable"]).lower()
+        _assert(cond=commit_enable in ["true", "false"],
+                message=f"auto.commit.enable has an invalid value: {commit_enable}")
+        request["auto.commit.enable"] = commit_enable == "true"
+        _assert(cond=request["auto.offset.reset"] in OFFSET_RESET_STRATEGIES,
+                message=f"auto.offset.reset has an invalid value: {request['auto.offset.reset']}")
+
+    @staticmethod
+    def _illegal_state_fail(message, content_type):
+        return ConsumerManager._assert(cond=False, code=409, sub_code=40903, content_type=content_type, message=message)
+
+    # external api below
+    # CONSUMER
+    def create_consumer(self, group_name, request_data, content_type):
+        consumer_name = request_data.get("name") or self.new_name()
+        internal_name = self.create_internal_name(group_name, consumer_name)
+        with self.consumer_locks[internal_name]:
+            if internal_name in self.consumers:
+                self.log.debug("")
+                KarapaceBase.r(
+                    status=409,
+                    content_type=content_type,
+                    body={"error_code": 40902, "message": f"Consumer {consumer_name} already exists"}
+                )
+            self._validate_create_consumer(request_data, content_type)
+            c = KafkaConsumer(
+                group_id=group_name,
+                fetch_min_bytes=request_data["fetch.min.bytes"],
+                request_timeout_ms=request_data["consumer.request.timeout.ms"],
+                enable_auto_commit=request_data["auto.commit.enable"],
+                auto_offset_reset=request_data["auto.offset.reset"]
+            )
+            self.consumers[internal_name] = TypedConsumer(consumer=c, serialization_format=request_data["format"])
+            KarapaceBase.r(
+                content_type=content_type,
+                body={"base_uri": self.hostname, "instance_id": consumer_name}
+            )
+
+    def delete_consumer(self, internal_name, content_type):
+        self._assert_consumer_exists(internal_name, content_type)
+        with self.consumer_locks[internal_name]:
+            try:
+                c = self.consumers.pop(internal_name)
+                c.close()
+                self.consumer_locks.pop(internal_name)
+            finally:
+                KarapaceBase.r(status=204, content_type=content_type, body={})
+
+    # OFFSETS
+    def commit_offsets(self, internal_name, content_type, request_data, cluster_metadata):
+        self._assert_consumer_exists(internal_name, content_type)
+        self._assert_has_key(request_data, "offsets", content_type)
+        payload = {}
+        for el in request_data["offsets"]:
+            # TODO -> Should we validate though ? IF the topic or partition is missing, the client will return None
+            # TODO -> instead of a dict, which means we could potentially return a partial result and skip validation
+            self._topic_and_partition_valid(cluster_metadata, el, content_type)
+            payload[TopicPartition(el["topic"], el["partition"])] = OffsetAndMetadata(el["offset"])
+
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            payload = payload or None
+            try:
+                consumer.commit(offsets=payload)
+            except KafkaError as e:
+                KarapaceBase.r(
+                    body={"message": f"error sending commit request: {e}", "error_code": 50001},
+                    content_type=content_type,
+                    status=500
+                )
+
+    def get_offsets(self, internal_name, content_type, request_data, cluster_metadata):
+        self._assert_consumer_exists(internal_name, content_type)
+        self._assert_has_key(request_data, "partitions", content_type)
+        for el in request_data["partitions"]:
+            # TODO -> see validation Q above
+            self._topic_and_partition_valid(cluster_metadata, el, content_type)
+        response = {"offsets": []}
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            for el in request_data["partitions"]:
+                tp = TopicPartition(el["topic"], el["partition"])
+                commit_info = consumer.committed(tp, metadata=True)
+                response["offsets"].append({
+                    "topic": tp.topic, "partition": tp.partition,
+                    "metadata": commit_info.metadata, "offset": commit_info.offset
+                })
+        KarapaceBase.r(body=response, content_type=content_type)
+
+    # SUBSCRIPTION
+    def set_subscription(self, internal_name, content_type, request_data):
+        self._assert_consumer_exists(internal_name, content_type)
+        topics = request_data.get("topics", [])
+        topics_pattern = request_data.get("topic_pattern")
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            try:
+                consumer.subscribe(topics=topics, pattern=topics_pattern)
+                KarapaceBase.r(body={}, status=204, content_type=content_type)
+            except AssertionError:
+                self._illegal_state_fail("Neither topic_pattern nor topics are present in request", content_type)
+            except IllegalStateError as e:
+                self._illegal_state_fail(str(e), content_type=content_type)
+
+    def get_subscription(self, group_name, consumer_name, content_type):
+        internal_name = self.create_internal_name(group_name, consumer_name)
+        self._assert_consumer_exists(internal_name, content_type)
+        with self.consumer_locks[internal_name]:
+            topics = self.consumers[internal_name].subscription()
+            KarapaceBase.r(
+                content_type=content_type,
+                body={"topics": list(topics)}
+            )
+
+    def delete_subscription(self, internal_name, content_type):
+        self._assert_consumer_exists(internal_name, content_type)
+        with self.consumer_locks[internal_name]:
+            self.consumers[internal_name].consumer.unsubscribe()
+
+    # ASSIGNMENTS
+    def set_assignments(self, internal_name, content_type, request_data):
+        self._assert_consumer_exists(internal_name, content_type)
+        self._assert_has_key(request_data, "partitions", content_type)
+        partitions = []
+        for el in request_data["partitions"]:
+            self._has_topic_and_partition_keys(el, content_type)
+            partitions.append(TopicPartition(el["topic"], el["partition"]))
+        with self.consumer_locks[internal_name]:
+            try:
+                self.consumers[internal_name].consumer.assign(partitions)
+                KarapaceBase.r(body={}, status=204, content_type=content_type)
+            except IllegalStateError as e:
+                self._illegal_state_fail(message=str(e), content_type=content_type)
+
+    def get_assignments(self, internal_name, content_type):
+        self._assert_consumer_exists(internal_name, content_type)
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            KarapaceBase.r(
+                content_type=content_type, status=200,
+                body={"partitions": [{"topic": pd.topic, "partition": pd.partition} for pd in consumer.assignment()]}
+            )
+
+    # POSITIONS
+    def seek_to(self, internal_name, content_type, request_data):
+        self._assert_consumer_exists(internal_name, content_type)
+        self._assert_has_key(request_data, "offsets", content_type)
+        seeks = []
+        for el in request_data["offsets"]:
+            for k in ["offset", "topic", "partition"]:
+                self._assert_has_key(el, k, content_type)
+            self._assert_positive_number(el, "offset", content_type)
+            seeks.append((TopicPartition(topic=el["topic"], partition=el["partition"]), el["offset"]))
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            # TODO -> does the java rest app fail fast or does it push through
+            for part, offset in seeks:
+                try:
+                    consumer.seek(part, offset)
+                except AssertionError:
+                    self._illegal_state_fail(f"Partition {part} is unassigned", content_type)
+
+    def seek_reset(self, internal_name, content_type, request_data, beginning=True):
+        direction = "beginning" if beginning else "end"
+        self._assert_consumer_exists(internal_name, content_type)
+        self._assert_has_key(request_data, "partitions", content_type)
+        resets = []
+        for el in request_data["partitions"]:
+            for k in ["topic", "partition"]:
+                self._assert_has_key(el, k, content_type)
+            resets.append(TopicPartition(topic=el["topic"], partition=el["partition"]))
+
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            try:
+                if beginning:
+                    consumer.seek_to_beginning(*resets)
+                else:
+                    consumer.seek_to_end(*resets)
+                KarapaceBase.r(body={}, status=204, content_type=content_type)
+            except AssertionError:
+                self._illegal_state_fail(f"Trying to reset unassigned partitions to {direction}", content_type)
+
+    def close(self):
+        for k in list(self.consumers.keys()):
+            c = self.consumers.pop(k)
+            try:
+                c.consumer.close()
+            except:  # pylint: disable=bare-except
+                pass
 
 
 def main():

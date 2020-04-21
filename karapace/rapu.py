@@ -84,6 +84,9 @@ class HTTPResponse(Exception):
             return False
         return True
 
+    def __repr__(self):
+        return f"HTTPResponse(status={self.status} body={self.body})"
+
 
 class RestApp:
     def __init__(self, *, app_name, sentry_config):
