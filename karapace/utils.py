@@ -71,7 +71,7 @@ class Result:
 
     @property
     def ok(self):
-        return self.status_code == 200
+        return 200 <= self.status_code < 300
 
 
 class Client:

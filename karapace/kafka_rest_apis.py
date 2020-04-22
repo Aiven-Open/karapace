@@ -5,8 +5,8 @@ from functools import partial
 from kafka import KafkaAdminClient, KafkaConsumer, OffsetAndMetadata, TopicPartition
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.errors import (
-    BrokerResponseError, for_code, KafkaTimeoutError, UnknownTopicOrPartitionError,
-    UnrecognizedBrokerVersion, KafkaError, IllegalStateError
+    BrokerResponseError, for_code, IllegalStateError, KafkaError, KafkaTimeoutError, UnknownTopicOrPartitionError,
+    UnrecognizedBrokerVersion
 )
 from kafka.protocol.admin import DescribeConfigsRequest
 from kafka.protocol.metadata import MetadataRequest
@@ -14,8 +14,10 @@ from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
 from karapace import version as karapace_version
 from karapace.karapace import KarapaceBase
 from karapace.serialization import (
-    InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer, SchemaRegistrySerializer, SchemaRetrievalError
+    InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer, SchemaRegistrySerializer,
+    SchemaRetrievalError
 )
+from struct import error as UnpackError
 from threading import Lock
 from typing import List, Optional, Tuple
 
@@ -37,7 +39,16 @@ FILTERED_TOPICS = {"__consumer_offsets"}
 KNOWN_FORMATS = {"json", "avro", "binary"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 
-TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format"])
+TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
+empty_response = partial(KarapaceBase.r, body={}, status=204, content_type="application/json")
+
+
+def internal_error(message, content_type):
+    KarapaceBase.r(content_type=content_type, status=500, body={"message": message, "error_code": 50001})
+
+
+def unprocessable_entity(message, sub_code, content_type):
+    KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
 
 
 class FormatError(Exception):
@@ -66,7 +77,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
     def new_topic(self, name):
         self.create_topics([NewTopic(name, 1, 1)])
 
-    def cluster_metadata(self, topics=None):
+    def cluster_metadata(self, topics=None, raw=False):
         """List all kafka topics."""
         resp = {"topics": {}}
         brokers = set()
@@ -79,6 +90,8 @@ class KafkaRestAdminClient(KafkaAdminClient):
             future = self._send_request_to_node(self._client.least_loaded_node(), request)
             self._wait_for_futures([future])
             response = future.value
+            if raw:
+                return response
             resp_brokers = response.brokers
             for b in resp_brokers:
                 if metadata_version == 0:
@@ -187,80 +200,80 @@ class KafkaRest(KarapaceBase):
         # Brokers
         self.route("/brokers", callback=self.list_brokers, method="GET", rest_request=True)
         # Consumers
-        self.route("/consumers/<group_name:path>", callback=self.placeholder, method="GET", rest_request=True)
-        self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>",
-            callback=self.placeholder,
-            method="DELETE",
-            rest_request=True
-        )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/offsets",
-            callback=self.placeholder,
+            callback=self.commit_consumer_offsets,
             method="POST",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/offsets",
-            callback=self.placeholder,
+            callback=self.get_consumer_offsets,
             method="GET",
-            rest_request=True
+            rest_request=True,
+            with_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
-            callback=self.placeholder,
+            callback=self.update_consumer_subscription,
             method="POST",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
-            callback=self.placeholder,
+            callback=self.get_consumer_subscription,
             method="GET",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
-            callback=self.placeholder,
+            callback=self.delete_consumer_subscription,
             method="DELETE",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/assignments",
-            callback=self.placeholder,
+            callback=self.update_consumer_assignment,
             method="POST",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/assignments",
-            callback=self.placeholder,
+            callback=self.get_consumer_assignment,
             method="GET",
-            rest_request=True
-        )
-        self.route(
-            "/consumers/<group_name:path>/instances/<instance:path>/positions",
-            callback=self.placeholder,
-            method="POST",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/beginning",
-            callback=self.placeholder,
+            callback=self.seek_beginning_consumer_offsets,
             method="POST",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/end",
-            callback=self.placeholder,
+            callback=self.seek_end_consumer_offsets,
+            method="POST",
+            rest_request=True
+        )
+        self.route(
+            "/consumers/<group_name:path>/instances/<instance:path>/positions",
+            callback=self.update_consumer_offsets,
             method="POST",
             rest_request=True
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/records",
-            callback=self.placeholder,
-            method="GET",
+            callback=self.fetch,
+            method="POST",
+            rest_request=True,
+        )
+        self.route("/consumers/<group_name:path>", callback=self.create_consumer, method="POST", rest_request=True)
+        self.route(
+            "/consumers/<group_name:path>/instances/<instance:path>",
+            callback=self.delete_consumer,
+            method="DELETE",
             rest_request=True
         )
-
         # Partitions
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>/offsets",
@@ -285,9 +298,88 @@ class KafkaRest(KarapaceBase):
         self.route("/topics", callback=self.list_topics, method="GET", rest_request=True)
         self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", rest_request=True)
         self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
+        self.consumer_manager = ConsumerManager(config_path)
         self.init_admin_client()
         self._create_producer()
 
+    # CONSUMERS
+    def create_consumer(self, group_name, content_type, formats, *, request):  # pylint: disable=unused-argument
+        self.consumer_manager.create_consumer(group_name, request.json, content_type)
+
+    def delete_consumer(self, group_name, instance, content_type):
+        self.consumer_manager.delete_consumer(ConsumerManager.create_internal_name(group_name, instance), content_type)
+
+    def commit_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.commit_offsets(
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, self.cluster_metadata()
+        )
+
+    def get_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.get_offsets(
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, self.cluster_metadata()
+        )
+
+    def update_consumer_subscription(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.set_subscription(
+            ConsumerManager.create_internal_name(group_name, instance),
+            content_type,
+            request.json,
+        )
+
+    def get_consumer_subscription(self, group_name, instance, content_type):
+        self.consumer_manager.get_subscription(
+            ConsumerManager.create_internal_name(group_name, instance),
+            content_type,
+        )
+
+    def delete_consumer_subscription(self, group_name, instance, content_type):
+        self.consumer_manager.delete_subscription(
+            ConsumerManager.create_internal_name(group_name, instance),
+            content_type,
+        )
+
+    def update_consumer_assignment(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.set_assignments(
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
+        )
+
+    def get_consumer_assignment(self, group_name, instance, content_type, formats):
+        # pylint: disable=unused-argument
+        self.consumer_manager.get_assignments(
+            ConsumerManager.create_internal_name(group_name, instance),
+            content_type,
+        )
+
+    def update_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.seek_to(ConsumerManager.create_internal_name(group_name, instance), content_type, request.json)
+
+    def seek_end_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.seek_limit(
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=False
+        )
+
+    def seek_beginning_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        self.consumer_manager.seek_limit(
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=True
+        )
+
+    async def fetch(self, group_name, instance, content_type, formats, *, request):
+        # pylint: disable=unused-argument
+        await self.consumer_manager.fetch(
+            internal_name=ConsumerManager.create_internal_name(group_name, instance),
+            content_type=content_type,
+            query_params=request.query,
+            formats=formats
+        )
+
+    # OFFSETS
     def get_offsets(self, topic, partition_id):
         with self.admin_lock:
             return self.admin_client.get_offsets(topic, partition_id)
@@ -318,11 +410,12 @@ class KafkaRest(KarapaceBase):
 
     def close(self):
         super().close()
-        self.admin_client.close()
-        self.admin_client = None
-
-    def placeholder(self, content_type):
-        self.r(body={"error_code": 40401, "message": "Not implemented"}, content_type=content_type, status=404)
+        if self.admin_client:
+            self.admin_client.close()
+            self.admin_client = None
+        if self.consumer_manager:
+            self.consumer_manager.close()
+            self.consumer_manager = None
 
     async def publish(self, topic: str, partition_id: Optional[str], content_type: str, formats: dict, data: dict):
         # TODO In order to support the other content types, the client and request need to be updated
@@ -344,13 +437,10 @@ class KafkaRest(KarapaceBase):
                 default_partition=partition_id
             )
         except FormatError:
-            self.r(
-                body={
-                    "error_code": 42205,
-                    "message": f"Request includes data improperly formatted given the format {ser_format}"
-                },
+            unprocessable_entity(
+                message=f"Request includes data improperly formatted given the format {ser_format}",
                 content_type=content_type,
-                status=422
+                sub_code=42205
             )
         except (SchemaRetrievalError, InvalidMessageSchema) as e:
             self.r(body={"error_code": 42205, "message": str(e)}, content_type=content_type, status=422)
@@ -505,70 +595,44 @@ class KafkaRest(KarapaceBase):
 
         # disallow missing or non empty 'records' key
         if "records" not in data or not data["records"]:
-            self.r(
-                body={
-                    "error_code": 50001,  # Choose another code??
-                    "message": "Invalid request format"
-                },
-                content_type=content_type,
-                status=500
-            )
+            internal_error(message="Invalid request format", content_type=content_type)
         for prefix in RECORD_KEYS:
             for r in data["records"]:
                 # disallow empty records
                 if not r or len(set(r.keys()).difference(RECORD_KEYS)) > 0:
-                    self.r(
-                        body={
-                            "error_code": 50001,
-                            "message": "Invalid request format"
-                        },
-                        content_type=content_type,
-                        status=500
-                    )
+                    internal_error(message="Invalid request format", content_type=content_type)
                 if prefix in r:
                     # disallow non list / dict for json embedded format
                     if formats["embedded_format"] == "json" and not isinstance(r[prefix], (dict, list)):
-                        self.r(
-                            body={
-                                "error_code": 42205,
-                                "message": f"Invalid json request {prefix}: {r[prefix]}"
-                            },
-                            content_type=content_type,
-                            status=422
+                        unprocessable_entity(
+                            message=f"Invalid json request {prefix}: {r[prefix]}", content_type=content_type, sub_code=42205
                         )
                     # disallow invalid base64
                     if formats["embedded_format"] == "binary":
                         try:
                             r[prefix] = base64.b64decode(r[prefix])
                         except B64DecodeError:
-                            self.r(
-                                body={
-                                    "error_code": 42205,
-                                    "message": f"{prefix} is not a proper base64 encoded value: {r[prefix]}"
-                                },
+                            unprocessable_entity(
+                                message=f"{prefix} is not a proper base64 encoded value: {r[prefix]}",
                                 content_type=content_type,
-                                status=422
+                                sub_code=42205
                             )
-
         # disallow missing id and schema for any key/value list that has at least one populated element
         if formats["embedded_format"] == "avro":
             for prefix, code in zip(RECORD_KEYS, RECORD_CODES):
                 if self.all_empty(data, prefix):
                     continue
                 if not self.is_valid_avro_request(data, prefix):
-                    self.r(
-                        body={
-                            "error_code": code,
-                            "message": f"Request includes {prefix}s and uses a format that requires "
-                            f"schemas but does not include the {prefix}_schema or {prefix}_schema_id fields"
-                        },
+                    unprocessable_entity(
+                        message=f"Request includes {prefix}s and uses a format that requires schemas "
+                        f"but does not include the {prefix}_schema or {prefix}_schema_id fields",
                         content_type=content_type,
-                        status=422
+                        sub_code=code
                     )
                 try:
                     await self.validate_schema_info(data, prefix, content_type, topic)
                 except InvalidMessageSchema as e:
-                    self.r(body={"error_code": 42205, "message": str(e)}, content_type=content_type, status=422)
+                    unprocessable_entity(message=str(e), content_type=content_type, sub_code=42205)
 
     def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
         try:
@@ -615,18 +679,18 @@ class KafkaRest(KarapaceBase):
         except UnknownTopicOrPartitionError:
             self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
 
-    def list_partitions(self, content_type, *, topic):
+    def list_partitions(self, content_type: str, *, topic: str):
         try:
             topic_details = self.cluster_metadata([topic])["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
         except (UnknownTopicOrPartitionError, KeyError):
             self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
 
-    def partition_details(self, content_type, *, topic, partition_id):
+    def partition_details(self, content_type: str, *, topic: str, partition_id: str):
         p = self.get_partition_info(topic, partition_id, content_type)
         self.r(p, content_type)
 
-    def partition_offsets(self, content_type, *, topic, partition_id):
+    def partition_offsets(self, content_type: str, *, topic: str, partition_id: int):
         try:
             partition_id = int(partition_id)
         except ValueError:
@@ -658,85 +722,100 @@ class KafkaRest(KarapaceBase):
                 status=404
             )
 
-    def list_brokers(self, content_type):  # pylint: disable=unused-argument
+    def list_brokers(self, content_type: str):  # pylint: disable=unused-argument
         metadata = self.cluster_metadata()
         metadata.pop("topics")
         self.r(metadata, content_type)
 
 
 class ConsumerManager:
-    def __init__(self, config_path):
+    def __init__(self, config_path: str):
         self.config = KarapaceBase.read_config(config_path)
         self.hostname = f"http://{self.config['advertised_hostname']}:{self.config['port']}"
         self.log = logging.getLogger("RestConsumerManager")
+        self.deserializer = SchemaRegistryDeserializer(config_path=config_path)
         self.consumers = {}
         self.consumer_formats = {}
         self.consumer_locks = defaultdict(Lock)
 
-    def new_name(self):
+    def new_name(self) -> str:
         name = str(uuid.uuid4())
         self.log.debug("Generated new consumer name: %s", name)
         return name
 
     @staticmethod
-    def _assert(cond, code, sub_code, message, content_type):
+    def _assert(cond: bool, code: int, sub_code: int, message: str, content_type: str):
         if not cond:
             KarapaceBase.r(content_type=content_type, status=code, body={"message": message, "error_code": sub_code})
 
-    def _assert_consumer_exists(self, internal_name, content_type):
+    def _assert_consumer_exists(self, internal_name: str, content_type: str):
         ConsumerManager._assert(
-            internal_name in self.consumers, code=404, sub_code=40403,
-            message=f"Consumer not found", content_type=content_type
+            internal_name in self.consumers,
+            code=404,
+            sub_code=40403,
+            message=f"Consumer for {internal_name} not found",
+            content_type=content_type
         )
 
     @staticmethod
-    def _validate_offset_request_data(topic, partition_id, offset, cluster_metadata):
+    def _validate_offset_request_data(topic: str, partition_id: int, offset: int, cluster_metadata: dict):
         cluster_metadata = cluster_metadata["topics"]
         assert topic in cluster_metadata
         assert offset > 0
         assert partition_id in [p["partition"] for p in cluster_metadata[topic]["partitions"]]
 
     @staticmethod
-    def _assert_positive_number(container, key, content_type, code=500, sub_code=50001):
+    def _assert_positive_number(container: dict, key: str, content_type: str, code: int = 500, sub_code: int = 50001):
         ConsumerManager._assert_has_key(container, key, content_type)
         ConsumerManager._assert(
-            isinstance(container[key], int) and container[key] > 0, code=code,
-            sub_code=sub_code, content_type=content_type, message=f"{key} must be a positive number"
+            isinstance(container[key], int) and container[key] > 0,
+            code=code,
+            sub_code=sub_code,
+            content_type=content_type,
+            message=f"{key} must be a positive number"
         )
 
     @staticmethod
-    def _assert_has_key(element, key, content_type):
+    def _assert_has_key(element: dict, key: str, content_type: str):
         ConsumerManager._assert(
             key in element, code=500, sub_code=50001, message=f"{key} missing from {element}", content_type=content_type
         )
 
     @staticmethod
-    def _has_topic_and_partition_keys(topic_data, content_type):
-        [ConsumerManager._assert_has_key(topic_data, k, content_type) for k in ["topic", "partition"]]
+    def _has_topic_and_partition_keys(topic_data: dict, content_type: str):
+        for k in ["topic", "partition"]:
+            ConsumerManager._assert_has_key(topic_data, k, content_type)
 
     @staticmethod
-    def _topic_and_partition_valid(cluster_metadata, topic_data, content_type):
+    def _topic_and_partition_valid(cluster_metadata: dict, topic_data: dict, content_type: str):
         ConsumerManager._has_topic_and_partition_keys(topic_data, content_type)
         topic = topic_data["topic"]
         partition = topic_data["partition"]
         ConsumerManager._assert(
-            topic in cluster_metadata["topics"], code=404, sub_code=40401,
-            message=f"topic {topic} not found", content_type=content_type
+            topic in cluster_metadata["topics"],
+            code=404,
+            sub_code=40401,
+            message=f"topic {topic} not found",
+            content_type=content_type
         )
         partitions = {pi["partition"] for pi in cluster_metadata["topics"][topic]["partitions"]}
         ConsumerManager._assert(
-            partition in partitions, code=404, sub_code=40402,
-            message=f"Partition {partition} not found for topic {topic}", content_type=content_type
+            partition in partitions,
+            code=404,
+            sub_code=40402,
+            message=f"Partition {partition} not found for topic {topic}",
+            content_type=content_type
         )
 
     @staticmethod
-    def create_internal_name(group_name, consumer_name):
+    def create_internal_name(group_name: str, consumer_name: str) -> str:
         return f"{group_name}_{consumer_name}"
 
     @staticmethod
-    def _validate_create_consumer(request, content_type):
+    def _validate_create_consumer(request: dict, content_type: str):
         _assert = partial(ConsumerManager._assert, content_type=content_type, code=422, sub_code=42204)
         _assert(cond="format" in request and request["format"] in KNOWN_FORMATS, message="format key is missing")
+
         request["consumer.request.timeout.ms"] = request.get(
             "consumer.request.timeout.ms", KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]
         )
@@ -744,55 +823,70 @@ class ConsumerManager:
             ConsumerManager._assert_positive_number(request, k, content_type, code=422, sub_code=42204)
 
         commit_enable = str(request["auto.commit.enable"]).lower()
-        _assert(cond=commit_enable in ["true", "false"],
-                message=f"auto.commit.enable has an invalid value: {commit_enable}")
+        _assert(cond=commit_enable in ["true", "false"], message=f"auto.commit.enable has an invalid value: {commit_enable}")
         request["auto.commit.enable"] = commit_enable == "true"
-        _assert(cond=request["auto.offset.reset"] in OFFSET_RESET_STRATEGIES,
-                message=f"auto.offset.reset has an invalid value: {request['auto.offset.reset']}")
+        _assert(
+            cond=request["auto.offset.reset"] in OFFSET_RESET_STRATEGIES,
+            message=f"auto.offset.reset has an invalid value: {request['auto.offset.reset']}"
+        )
 
     @staticmethod
-    def _illegal_state_fail(message, content_type):
+    def _illegal_state_fail(message: str, content_type: str):
         return ConsumerManager._assert(cond=False, code=409, sub_code=40903, content_type=content_type, message=message)
 
     # external api below
     # CONSUMER
-    def create_consumer(self, group_name, request_data, content_type):
+    def create_consumer(self, group_name: str, request_data: dict, content_type: str):
+        self.log.info("Create consumer request for group  %s", group_name)
         consumer_name = request_data.get("name") or self.new_name()
         internal_name = self.create_internal_name(group_name, consumer_name)
         with self.consumer_locks[internal_name]:
             if internal_name in self.consumers:
-                self.log.debug("")
+                self.log.error("Error creating duplicate consumer in group %s with id %s", group_name, consumer_name)
                 KarapaceBase.r(
                     status=409,
                     content_type=content_type,
-                    body={"error_code": 40902, "message": f"Consumer {consumer_name} already exists"}
+                    body={
+                        "error_code": 40902,
+                        "message": f"Consumer {consumer_name} already exists"
+                    }
                 )
             self._validate_create_consumer(request_data, content_type)
+            self.log.info(
+                "Creating new consumer in group %s with id %s and request_info %r", group_name, consumer_name, request_data
+            )
             c = KafkaConsumer(
+                bootstrap_servers=self.config["bootstrap_uri"],
+                client_id=self.config["client_id"],
+                security_protocol=self.config["security_protocol"],
+                ssl_cafile=self.config["ssl_cafile"],
+                ssl_certfile=self.config["ssl_certfile"],
+                ssl_keyfile=self.config["ssl_keyfile"],
                 group_id=group_name,
                 fetch_min_bytes=request_data["fetch.min.bytes"],
                 request_timeout_ms=request_data["consumer.request.timeout.ms"],
                 enable_auto_commit=request_data["auto.commit.enable"],
                 auto_offset_reset=request_data["auto.offset.reset"]
             )
-            self.consumers[internal_name] = TypedConsumer(consumer=c, serialization_format=request_data["format"])
-            KarapaceBase.r(
-                content_type=content_type,
-                body={"base_uri": self.hostname, "instance_id": consumer_name}
+            self.consumers[internal_name] = TypedConsumer(
+                consumer=c, serialization_format=request_data["format"], config=request_data
             )
+            KarapaceBase.r(content_type=content_type, body={"base_uri": self.hostname, "instance_id": consumer_name})
 
-    def delete_consumer(self, internal_name, content_type):
+    def delete_consumer(self, internal_name: str, content_type: str):
+        self.log.info("Deleting consumer for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         with self.consumer_locks[internal_name]:
             try:
                 c = self.consumers.pop(internal_name)
-                c.close()
+                c.consumer.close()
                 self.consumer_locks.pop(internal_name)
             finally:
-                KarapaceBase.r(status=204, content_type=content_type, body={})
+                empty_response()
 
     # OFFSETS
-    def commit_offsets(self, internal_name, content_type, request_data, cluster_metadata):
+    def commit_offsets(self, internal_name: str, content_type: str, request_data: dict, cluster_metadata: dict):
+        self.log.info("Committing offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "offsets", content_type)
         payload = {}
@@ -808,13 +902,10 @@ class ConsumerManager:
             try:
                 consumer.commit(offsets=payload)
             except KafkaError as e:
-                KarapaceBase.r(
-                    body={"message": f"error sending commit request: {e}", "error_code": 50001},
-                    content_type=content_type,
-                    status=500
-                )
+                internal_error(message=f"error sending commit request: {e}", content_type=content_type)
 
-    def get_offsets(self, internal_name, content_type, request_data, cluster_metadata):
+    def get_offsets(self, internal_name: str, content_type: str, request_data: dict, cluster_metadata: dict):
+        self.log.info("Retrieving offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
         for el in request_data["partitions"]:
@@ -826,14 +917,21 @@ class ConsumerManager:
             for el in request_data["partitions"]:
                 tp = TopicPartition(el["topic"], el["partition"])
                 commit_info = consumer.committed(tp, metadata=True)
+                if not commit_info:
+                    continue
                 response["offsets"].append({
-                    "topic": tp.topic, "partition": tp.partition,
-                    "metadata": commit_info.metadata, "offset": commit_info.offset
+                    "topic": tp.topic,
+                    "partition": tp.partition,
+                    "metadata": commit_info.metadata,
+                    "offset": commit_info.offset
                 })
         KarapaceBase.r(body=response, content_type=content_type)
 
     # SUBSCRIPTION
-    def set_subscription(self, internal_name, content_type, request_data):
+    def set_subscription(self, internal_name: str, content_type: str, request_data: dict):
+        #  TODO -> ATM this gets updated in a background thread, but otoh we have no notion of partition ids using
+        #  TODO -> this method, so seek / offsets are not supposed top towk??
+        self.log.info("Updating subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         topics = request_data.get("topics", [])
         topics_pattern = request_data.get("topic_pattern")
@@ -841,53 +939,74 @@ class ConsumerManager:
             consumer = self.consumers[internal_name].consumer
             try:
                 consumer.subscribe(topics=topics, pattern=topics_pattern)
-                KarapaceBase.r(body={}, status=204, content_type=content_type)
+                consumer._client.cluster.request_update()  # pylint: disable=W0212
+                empty_response()
             except AssertionError:
-                self._illegal_state_fail("Neither topic_pattern nor topics are present in request", content_type)
+                self._illegal_state_fail(
+                    message="Neither topic_pattern nor topics are present in request", content_type=content_type
+                )
             except IllegalStateError as e:
                 self._illegal_state_fail(str(e), content_type=content_type)
 
-    def get_subscription(self, group_name, consumer_name, content_type):
-        internal_name = self.create_internal_name(group_name, consumer_name)
+    def get_subscription(self, internal_name: str, content_type: str):
+        self.log.info("Retrieving subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         with self.consumer_locks[internal_name]:
-            topics = self.consumers[internal_name].subscription()
-            KarapaceBase.r(
-                content_type=content_type,
-                body={"topics": list(topics)}
-            )
+            # since on a subscribed topic, the actual topic list will get refreshed in the background,
+            # we can use the same logic here as the refresh code , and the actual poll code will ensure that
+            # the pattern is respected when it comes to fetch requests
+            consumer = self.consumers[internal_name].consumer
+            sub = consumer._subscription  # pylint: disable=W0212
+            if consumer.subscription() is None:
+                topics = []
+            elif not sub.subscribed_pattern:
+                topics = list(consumer.subscription())
+            else:
+                pattern = sub.subscribed_pattern
+                valid_topics = consumer.topics()
+                self.log.debug("Filtering %r with %r", valid_topics, pattern)
+                topics = [t for t in valid_topics if pattern.match(t)]
+            KarapaceBase.r(content_type=content_type, body={"topics": topics})
 
-    def delete_subscription(self, internal_name, content_type):
+    def delete_subscription(self, internal_name: str, content_type: str):
+        self.log.info("Deleting subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         with self.consumer_locks[internal_name]:
             self.consumers[internal_name].consumer.unsubscribe()
+        empty_response()
 
     # ASSIGNMENTS
-    def set_assignments(self, internal_name, content_type, request_data):
+    def set_assignments(self, internal_name: str, content_type: str, request_data: dict):
+        self.log.info("Updating assignments for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
         partitions = []
+        # TODO -> do we validate here or skip?
         for el in request_data["partitions"]:
             self._has_topic_and_partition_keys(el, content_type)
             partitions.append(TopicPartition(el["topic"], el["partition"]))
         with self.consumer_locks[internal_name]:
             try:
                 self.consumers[internal_name].consumer.assign(partitions)
-                KarapaceBase.r(body={}, status=204, content_type=content_type)
+                empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(message=str(e), content_type=content_type)
 
-    def get_assignments(self, internal_name, content_type):
+    def get_assignments(self, internal_name: str, content_type: str):
+        self.log.info("Retrieving assignment for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             KarapaceBase.r(
-                content_type=content_type, status=200,
-                body={"partitions": [{"topic": pd.topic, "partition": pd.partition} for pd in consumer.assignment()]}
+                content_type=content_type,
+                body={"partitions": [{
+                    "topic": pd.topic,
+                    "partition": pd.partition
+                } for pd in consumer.assignment()]}
             )
 
     # POSITIONS
-    def seek_to(self, internal_name, content_type, request_data):
+    def seek_to(self, internal_name: str, content_type: str, request_data: dict):
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "offsets", content_type)
         seeks = []
@@ -904,8 +1023,9 @@ class ConsumerManager:
                     consumer.seek(part, offset)
                 except AssertionError:
                     self._illegal_state_fail(f"Partition {part} is unassigned", content_type)
+            empty_response()
 
-    def seek_reset(self, internal_name, content_type, request_data, beginning=True):
+    def seek_limit(self, internal_name: str, content_type: str, request_data: dict, beginning: bool = True):
         direction = "beginning" if beginning else "end"
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
@@ -922,9 +1042,91 @@ class ConsumerManager:
                     consumer.seek_to_beginning(*resets)
                 else:
                     consumer.seek_to_end(*resets)
-                KarapaceBase.r(body={}, status=204, content_type=content_type)
+                empty_response()
             except AssertionError:
                 self._illegal_state_fail(f"Trying to reset unassigned partitions to {direction}", content_type)
+
+    # making this a coroutine will save some pain for deserialization but will overall make the whole thing
+    # much slower and prone to blocking that it needs to be
+    async def fetch(self, internal_name: str, content_type: str, formats: dict, query_params: dict):
+        self.log.info("Running fetch for name %s with parameters %r and formats %r", internal_name, query_params, formats)
+        self._assert_consumer_exists(internal_name, content_type)
+        with self.consumer_locks[internal_name]:
+            consumer = self.consumers[internal_name].consumer
+            serialization_format = self.consumers[internal_name].serialization_format
+            config = self.consumers[internal_name].config
+            request_format = formats["embedded_format"]
+            self._assert(
+                cond=serialization_format == request_format,
+                code=406,
+                sub_code=40601,
+                content_type=content_type,
+                message=f"Consumer format {serialization_format} does not match the embedded format {request_format}"
+            )
+            self.log.info("Fetch request for %s with params %r", internal_name, query_params)
+            try:
+                timeout = int(query_params["timeout"]
+                              ) if "timeout" in query_params else config["consumer.request.timeout.ms"]
+                max_bytes = "max_bytes" in query_params and int(query_params["max_bytes"])
+            except ValueError:
+                internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)
+            for val in [timeout, max_bytes]:
+                if not val:
+                    continue
+                if val <= 0:
+                    internal_error(message=f"Invalid request parameter {val}", content_type=content_type)
+            response = []
+            if not max_bytes:
+                self.log.info("Doing a single poll request with timeout %r, max_bytes parameter is missing", timeout)
+                poll_data = consumer.poll(timeout_ms=timeout)
+            else:
+                self.log.info(
+                    "Will poll multiple times for a single message with a total timeout of %d, "
+                    "until at least %d bytes have been fetched", timeout, max_bytes
+                )
+                read_bytes = 0
+                start_time = time.monotonic()
+                poll_data = {}
+                while read_bytes < max_bytes and (timeout is None or start_time - time.monotonic() < timeout):
+                    self.log.info("Polling with timeout %r", timeout)
+                    data = consumer.poll(timeout_ms=timeout, max_records=1)
+                    assert len(data) == 1
+                    topic, rec = list(data.items())[0]
+                    assert len(rec) == 1
+                    read_bytes += \
+                        max(0, rec.serialized_value_size) + \
+                        max(0, rec.serialized_value_size) + \
+                        max(0, rec.serialized_header_size)
+                    if topic not in poll_data:
+                        poll_data[topic] = rec
+                    else:
+                        poll_data[topic].extend(rec)
+            for tp in poll_data:
+                for msg in poll_data[tp]:
+                    try:
+                        key = await self.deserialize(msg.key, request_format)
+                        value = await self.deserialize(msg.value, request_format)
+                    except (UnpackError, InvalidMessageHeader, InvalidPayload) as e:
+                        internal_error(message=f"deserialization error: {e}", content_type=content_type)
+                    element = {
+                        "topic": tp.topic,
+                        "partition": tp.partition,
+                        "offset": msg.offset,
+                        "key": key,
+                        "value": value,
+                    }
+                    response.append(element)
+
+            KarapaceBase.r(content_type=content_type, body=response)
+
+    async def deserialize(self, bytes_, fmt):
+        if not bytes_:
+            return None
+        if fmt == "avro":
+            return await self.deserializer.deserialize(bytes_)
+        if fmt == "json":
+            return json.loads(bytes_.decode('utf-8'))
+        return base64.b64encode(bytes_).decode('utf-8')
 
     def close(self):
         for k in list(self.consumers.keys()):
@@ -950,7 +1152,7 @@ def main():
         return kc.run(host=kc.config["host"], port=kc.config["port"])
     except Exception:  # pylint: disable-broad-except
         if kc.raven_client:
-            kc.raven_client.captureException(tags={"where": "karapace"})
+            kc.raven_client.captureException(tags={"where": "karapace_rest"})
         raise
 
 
