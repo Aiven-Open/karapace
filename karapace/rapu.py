@@ -129,7 +129,6 @@ class RestApp:
         method = request.method
         headers = request.headers
         result = {"content_type": "application/vnd.kafka.json.v2+json"}
-        header_info = None
         matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers["Content-Type"])[0])
         if method in {"POST", "PUT"}:
             if not matcher:
@@ -141,8 +140,8 @@ class RestApp:
                     headers={"Content-Type": result["content_type"]},
                     status=415,
                 )
-            header_info = matcher.groupdict()
         if matcher:
+            header_info = matcher.groupdict()
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
             result["formats"] = header_info
         if REST_ACCEPT_RE.search(headers["Accept"]):

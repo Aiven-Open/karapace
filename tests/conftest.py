@@ -5,7 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaProducer
-from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient, ConsumerManager
+from karapace.kafka_rest_apis import ConsumerManager, KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from tests.utils import schema_json
 
@@ -162,7 +162,7 @@ def fixture_karapace(session_tmpdir, kafka_server):
     instance.shutdown()
 
 
-@pytest.fixture(name="consumer_manager")
+@pytest.fixture(scope="function", name="consumer_manager")
 def consumer_manager_fixture(session_tmpdir, kafka_server):
     session_dir = session_tmpdir()
     config_path = os.path.join(session_dir, "karapace_config.json")
