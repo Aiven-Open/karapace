@@ -8,11 +8,13 @@ from kafka.errors import (
     BrokerResponseError, for_code, IllegalStateError, KafkaError, KafkaTimeoutError, UnknownTopicOrPartitionError,
     UnrecognizedBrokerVersion
 )
+from kafka.future import Future
 from kafka.protocol.admin import DescribeConfigsRequest
 from kafka.protocol.metadata import MetadataRequest
 from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
 from karapace import version as karapace_version
 from karapace.karapace import KarapaceBase
+from karapace.rapu import HTTPRequest
 from karapace.serialization import (
     InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer, SchemaRegistrySerializer,
     SchemaRetrievalError
@@ -20,6 +22,7 @@ from karapace.serialization import (
 from struct import error as UnpackError
 from threading import Lock
 from typing import List, Optional, Tuple
+from urllib.parse import urljoin
 
 import argparse
 import asyncio
@@ -51,12 +54,20 @@ def unprocessable_entity(message, sub_code, content_type):
     KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
 
 
+def topic_entity(message, sub_code, content_type):
+    KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
+
+
+def not_found(message, sub_code, content_type):
+    KarapaceBase.r(content_type=content_type, status=404, body={"message": message, "error_code": sub_code})
+
+
 class FormatError(Exception):
     pass
 
 
 class KafkaRestAdminClient(KafkaAdminClient):
-    def get_topic_config(self, topic):
+    def get_topic_config(self, topic: str) -> dict:
         config_version = self._matching_api_version(DescribeConfigsRequest)
         req_cfgs = [ConfigResource(ConfigResourceType.TOPIC, topic)]
         cfgs = self.describe_configs(req_cfgs)
@@ -74,10 +85,10 @@ class KafkaRestAdminClient(KafkaAdminClient):
             topic_config[name] = val
         return topic_config
 
-    def new_topic(self, name):
+    def new_topic(self, name: str):
         self.create_topics([NewTopic(name, 1, 1)])
 
-    def cluster_metadata(self, topics=None, raw=False):
+    def cluster_metadata(self, topics: List[str] = None) -> dict:
         """List all kafka topics."""
         resp = {"topics": {}}
         brokers = set()
@@ -90,8 +101,6 @@ class KafkaRestAdminClient(KafkaAdminClient):
             future = self._send_request_to_node(self._client.least_loaded_node(), request)
             self._wait_for_futures([future])
             response = future.value
-            if raw:
-                return response
             resp_brokers = response.brokers
             for b in resp_brokers:
                 if metadata_version == 0:
@@ -133,7 +142,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
             "Kafka Admin interface cannot determine the controller using MetadataRequest_v{}.".format(metadata_version)
         )
 
-    def make_offsets_request(self, topic, partition_id, timestamp):
+    def make_offsets_request(self, topic: str, partition_id: int, timestamp: int) -> Future:
         v = self._matching_api_version(OffsetRequest)
         if v == 0:
             request = OffsetRequest[0](-1, list(six.iteritems({topic: [(partition_id, timestamp, 1)]})))
@@ -145,7 +154,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
         future = self._send_request_to_node(self._client.least_loaded_node(), request)
         return future
 
-    def get_offsets(self, topic, partition_id):
+    def get_offsets(self, topic: str, partition_id: int) -> dict:
         beginning_f = self.make_offsets_request(topic, partition_id, OffsetResetStrategy.EARLIEST)
         end_f = self.make_offsets_request(topic, partition_id, OffsetResetStrategy.LATEST)
         self._wait_for_futures([beginning_f, end_f])
@@ -183,10 +192,10 @@ class KafkaRestAdminClient(KafkaAdminClient):
 
 
 class KafkaRest(KarapaceBase):
-    def __init__(self, config_path):
+    def __init__(self, config_path: str):
         super().__init__(config_path)
         self.serializer = SchemaRegistrySerializer(config_path=config_path)
-        self.deserializer = SchemaRegistryDeserializer(config_path=config_path)
+        self.log = logging.getLogger("KarapaceRest")
         self.kafka_timeout = 10
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
@@ -264,8 +273,9 @@ class KafkaRest(KarapaceBase):
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/records",
             callback=self.fetch,
-            method="POST",
+            method="GET",
             rest_request=True,
+            with_request=True
         )
         self.route("/consumers/<group_name:path>", callback=self.create_consumer, method="POST", rest_request=True)
         self.route(
@@ -302,93 +312,87 @@ class KafkaRest(KarapaceBase):
         self.init_admin_client()
         self._create_producer()
 
+    async def root_get(self):
+        self.r({"application": "Karapace Schema Registry"}, "application/json")
+
     # CONSUMERS
-    def create_consumer(self, group_name, content_type, formats, *, request):  # pylint: disable=unused-argument
+    def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.create_consumer(group_name, request.json, content_type)
 
-    def delete_consumer(self, group_name, instance, content_type):
+    def delete_consumer(self, group_name: str, instance: str, content_type: str):
         self.consumer_manager.delete_consumer(ConsumerManager.create_internal_name(group_name, instance), content_type)
 
-    def commit_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def commit_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.commit_offsets(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, self.cluster_metadata()
         )
 
-    def get_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.get_offsets(
-            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, self.cluster_metadata()
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    def update_consumer_subscription(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def update_consumer_subscription(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.set_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
             request.json,
         )
 
-    def get_consumer_subscription(self, group_name, instance, content_type):
+    def get_consumer_subscription(self, group_name: str, instance: str, content_type: str):
         self.consumer_manager.get_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    def delete_consumer_subscription(self, group_name, instance, content_type):
+    def delete_consumer_subscription(self, group_name: str, instance: str, content_type: str):
         self.consumer_manager.delete_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    def update_consumer_assignment(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def update_consumer_assignment(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.set_assignments(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    def get_consumer_assignment(self, group_name, instance, content_type, formats):
-        # pylint: disable=unused-argument
+    def get_consumer_assignment(self, group_name: str, instance: str, content_type: str):
         self.consumer_manager.get_assignments(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    def update_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def update_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.seek_to(ConsumerManager.create_internal_name(group_name, instance), content_type, request.json)
 
-    def seek_end_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def seek_end_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.seek_limit(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=False
         )
 
-    def seek_beginning_consumer_offsets(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    def seek_beginning_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         self.consumer_manager.seek_limit(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=True
         )
 
-    async def fetch(self, group_name, instance, content_type, formats, *, request):
-        # pylint: disable=unused-argument
+    async def fetch(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         await self.consumer_manager.fetch(
             internal_name=ConsumerManager.create_internal_name(group_name, instance),
             content_type=content_type,
             query_params=request.query,
-            formats=formats
+            formats=request.formats
         )
 
     # OFFSETS
-    def get_offsets(self, topic, partition_id):
+    def get_offsets(self, topic: str, partition_id: int) -> dict:
         with self.admin_lock:
             return self.admin_client.get_offsets(topic, partition_id)
 
-    def get_topic_config(self, topic):
+    def get_topic_config(self, topic: str) -> dict:
         with self.admin_lock:
             return self.admin_client.get_topic_config(topic)
 
-    def cluster_metadata(self, topics=None):
+    def cluster_metadata(self, topics: str = None) -> dict:
         if self._metadata_birth is None or time.time() - self._metadata_birth > self.metadata_max_age:
             self._cluster_metadata = None
         if not self._cluster_metadata:
@@ -397,7 +401,7 @@ class KafkaRest(KarapaceBase):
                 self._cluster_metadata = self.admin_client.cluster_metadata(topics)
         return copy.deepcopy(self._cluster_metadata)
 
-    def init_admin_client(self):
+    def init_admin_client(self) -> KafkaAdminClient:
         self.admin_client = KafkaRestAdminClient(
             bootstrap_servers=self.config["bootstrap_uri"],
             security_protocol=self.config["security_protocol"],
@@ -456,14 +460,15 @@ class KafkaRest(KarapaceBase):
             response["offsets"].append(publish_result)
         self.r(body=response, content_type=content_type, status=status)
 
-    async def partition_publish(self, topic, partition_id, content_type, formats, *, request):
-        await self.publish(topic, partition_id, content_type, formats, request.json)
+    async def partition_publish(self, topic, partition_id, content_type, *, request):
+        await self.publish(topic, partition_id, content_type, request.formats, request.json)
 
-    async def topic_publish(self, topic, content_type, formats, *, request):
-        await self.publish(topic, None, content_type, formats, request.json)
+    async def topic_publish(self, topic: str, content_type: str, *, request):
+        self.log.debug("Executing topic publish on topic %s", topic)
+        await self.publish(topic, None, content_type, request.formats, request.json)
 
     @staticmethod
-    def is_valid_avro_request(data, prefix):
+    def is_valid_avro_request(data: dict, prefix: str) -> bool:
         schema_id = data.get(f"{prefix}_schema_id")
         schema = data.get(f"{prefix}_schema")
         if schema_id:
@@ -474,7 +479,7 @@ class KafkaRest(KarapaceBase):
                 return False
         return isinstance(schema, str)
 
-    async def get_schema_id(self, data, topic, prefix):
+    async def get_schema_id(self, data: dict, topic: str, prefix: str) -> int:
         self.log.debug("Retrieving schema id for %r", data)
         if f"{prefix}_schema_id" in data and data[f"{prefix}_schema_id"] is not None:
             self.log.debug(
@@ -514,52 +519,24 @@ class KafkaRest(KarapaceBase):
         try:
             partition = int(partition)
         except ValueError:
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": f"Partition id {partition} is badly formatted"
-                },
-                content_type=content_type,
-                status=404
-            )
+            not_found(message=f"Partition id {partition} is badly formatted", content_type=content_type, sub_code=40402)
         try:
             topic_data = self.get_topic_info(topic, content_type)
             partitions = topic_data["partitions"]
             for p in partitions:
                 if p["partition"] == partition:
                     return p
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": f"Partition {partition} not found"
-                },
-                content_type=content_type,
-                status=404
-            )
+            not_found(message=f"Partition {partition} not found", content_type=content_type, sub_code=40402)
         except UnknownTopicOrPartitionError:
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": f"Partition {partition} not found"
-                },
-                content_type=content_type,
-                status=404
-            )
+            not_found(message=f"Partition {partition} not found", content_type=content_type, sub_code=40402)
         except KeyError:
-            self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
+            not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
         return {}
 
     def get_topic_info(self, topic: str, content_type: str) -> dict:
         md = self.cluster_metadata()["topics"]
         if topic not in md:
-            self.r(
-                body={
-                    "error_code": 40401,
-                    "message": f"Topic {topic} not found in {list(md.keys())}"
-                },
-                content_type=content_type,
-                status=404
-            )
+            not_found(message=f"Topic {topic} not found in {list(md.keys())}", content_type=content_type, sub_code=40401)
         return md[topic]
 
     @staticmethod
@@ -584,7 +561,7 @@ class KafkaRest(KarapaceBase):
             return await self.avro_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
 
-    async def avro_serialize(self, obj: dict, schema_id: Optional[int]):
+    async def avro_serialize(self, obj: dict, schema_id: Optional[int]) -> bytes:
         schema = await self.serializer.get_schema_for_id(schema_id)
         bytes_ = await self.serializer.serialize(schema, obj)
         return bytes_
@@ -665,26 +642,20 @@ class KafkaRest(KarapaceBase):
             metadata = self.cluster_metadata([topic])
             config = self.get_topic_config(topic)
             if topic not in metadata["topics"]:
-                self.r(
-                    body={
-                        "error_code": 40401,
-                        "message": f"Topic {topic} not found"
-                    }, content_type=content_type, status=404
-                )
-
+                not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
             data = metadata["topics"][topic]
             data["name"] = topic
             data["configs"] = config
             self.r(data, content_type)
         except UnknownTopicOrPartitionError:
-            self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
+            not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
 
     def list_partitions(self, content_type: str, *, topic: str):
         try:
             topic_details = self.cluster_metadata([topic])["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
         except (UnknownTopicOrPartitionError, KeyError):
-            self.r(body={"error_code": 40401, "message": f"Topic {topic} not found"}, content_type=content_type, status=404)
+            not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
 
     def partition_details(self, content_type: str, *, topic: str, partition_id: str):
         p = self.get_partition_info(topic, partition_id, content_type)
@@ -694,35 +665,16 @@ class KafkaRest(KarapaceBase):
         try:
             partition_id = int(partition_id)
         except ValueError:
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": f"Partition {partition_id} not found"
-                },
-                content_type=content_type,
-                status=404
-            )
+            not_found(message=f"Partition {partition_id} not found", content_type=content_type, sub_code=40402)
         try:
             self.r(self.get_offsets(topic, partition_id), content_type)
         except UnknownTopicOrPartitionError:
             # Do a topics request on failure, figure out faster ways once we get correctness down
             if topic not in self.cluster_metadata()["topics"]:
-                self.r(
-                    body={
-                        "error_code": 40401,
-                        "message": f"Topic {topic} not found"
-                    }, content_type=content_type, status=404
-                )
-            self.r(
-                body={
-                    "error_code": 40402,
-                    "message": f"Partition {partition_id} not found"
-                },
-                content_type=content_type,
-                status=404
-            )
+                not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+            not_found(message=f"Partition {partition_id} not found", content_type=content_type, sub_code=40402)
 
-    def list_brokers(self, content_type: str):  # pylint: disable=unused-argument
+    def list_brokers(self, content_type: str):
         metadata = self.cluster_metadata()
         metadata.pop("topics")
         self.r(metadata, content_type)
@@ -749,13 +701,8 @@ class ConsumerManager:
             KarapaceBase.r(content_type=content_type, status=code, body={"message": message, "error_code": sub_code})
 
     def _assert_consumer_exists(self, internal_name: str, content_type: str):
-        ConsumerManager._assert(
-            internal_name in self.consumers,
-            code=404,
-            sub_code=40403,
-            message=f"Consumer for {internal_name} not found",
-            content_type=content_type
-        )
+        if internal_name not in self.consumers:
+            not_found(message=f"Consumer for {internal_name} not found", content_type=content_type, sub_code=40403)
 
     @staticmethod
     def _validate_offset_request_data(topic: str, partition_id: int, offset: int, cluster_metadata: dict):
@@ -791,21 +738,13 @@ class ConsumerManager:
         ConsumerManager._has_topic_and_partition_keys(topic_data, content_type)
         topic = topic_data["topic"]
         partition = topic_data["partition"]
-        ConsumerManager._assert(
-            topic in cluster_metadata["topics"],
-            code=404,
-            sub_code=40401,
-            message=f"topic {topic} not found",
-            content_type=content_type
-        )
+        if topic not in cluster_metadata["topics"]:
+            not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
         partitions = {pi["partition"] for pi in cluster_metadata["topics"][topic]["partitions"]}
-        ConsumerManager._assert(
-            partition in partitions,
-            code=404,
-            sub_code=40402,
-            message=f"Partition {partition} not found for topic {topic}",
-            content_type=content_type
-        )
+        if partition not in partitions:
+            not_found(
+                message=f"Partition {partition} not found for topic {topic}", content_type=content_type, sub_code=40402
+            )
 
     @staticmethod
     def create_internal_name(group_name: str, consumer_name: str) -> str:
@@ -813,8 +752,8 @@ class ConsumerManager:
 
     @staticmethod
     def _validate_create_consumer(request: dict, content_type: str):
-        _assert = partial(ConsumerManager._assert, content_type=content_type, code=422, sub_code=42204)
-        _assert(cond="format" in request and request["format"] in KNOWN_FORMATS, message="format key is missing")
+        consumer_data_valid = partial(ConsumerManager._assert, content_type=content_type, code=422, sub_code=42204)
+        consumer_data_valid(cond="format" in request and request["format"] in KNOWN_FORMATS, message="format key is missing")
 
         request["consumer.request.timeout.ms"] = request.get(
             "consumer.request.timeout.ms", KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]
@@ -823,9 +762,11 @@ class ConsumerManager:
             ConsumerManager._assert_positive_number(request, k, content_type, code=422, sub_code=42204)
 
         commit_enable = str(request["auto.commit.enable"]).lower()
-        _assert(cond=commit_enable in ["true", "false"], message=f"auto.commit.enable has an invalid value: {commit_enable}")
+        consumer_data_valid(
+            cond=commit_enable in ["true", "false"], message=f"auto.commit.enable has an invalid value: {commit_enable}"
+        )
         request["auto.commit.enable"] = commit_enable == "true"
-        _assert(
+        consumer_data_valid(
             cond=request["auto.offset.reset"] in OFFSET_RESET_STRATEGIES,
             message=f"auto.offset.reset has an invalid value: {request['auto.offset.reset']}"
         )
@@ -833,6 +774,17 @@ class ConsumerManager:
     @staticmethod
     def _illegal_state_fail(message: str, content_type: str):
         return ConsumerManager._assert(cond=False, code=409, sub_code=40903, content_type=content_type, message=message)
+
+    @staticmethod
+    def _update_partition_assignments(consumer: KafkaConsumer):
+        # This is (should be?) equivalent to calling poll on the consumer.
+        # which would return 0 results, since the subscription we just created will mean
+        # a rejoin is needed, which skips the actual fetching. Nevertheless, an actual call to poll is to be avoided
+        # and a better solution to this is desired (extend the consumer??)
+        # pylint: disable=W0212
+        consumer._coordinator.poll()
+        if not consumer._subscription.has_all_fetch_positions():
+            consumer._update_fetch_positions(consumer._subscription.missing_fetch_positions())
 
     # external api below
     # CONSUMER
@@ -871,7 +823,8 @@ class ConsumerManager:
             self.consumers[internal_name] = TypedConsumer(
                 consumer=c, serialization_format=request_data["format"], config=request_data
             )
-            KarapaceBase.r(content_type=content_type, body={"base_uri": self.hostname, "instance_id": consumer_name})
+            base_uri = urljoin(self.hostname, f"consumers/{group_name}/instances/{consumer_name}")
+            KarapaceBase.r(content_type=content_type, body={"base_uri": base_uri, "instance_id": consumer_name})
 
     def delete_consumer(self, internal_name: str, content_type: str):
         self.log.info("Deleting consumer for %s", internal_name)
@@ -891,10 +844,10 @@ class ConsumerManager:
         self._assert_has_key(request_data, "offsets", content_type)
         payload = {}
         for el in request_data["offsets"]:
-            # TODO -> Should we validate though ? IF the topic or partition is missing, the client will return None
-            # TODO -> instead of a dict, which means we could potentially return a partial result and skip validation
+            # If we commit for a partition that does not belong to this consumer, then the internal error raised
+            # is marked as retriable, and thus the commit method will remain blocked in what looks like an infinite loop
             self._topic_and_partition_valid(cluster_metadata, el, content_type)
-            payload[TopicPartition(el["topic"], el["partition"])] = OffsetAndMetadata(el["offset"])
+            payload[TopicPartition(el["topic"], el["partition"])] = OffsetAndMetadata(el["offset"], None)
 
         with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -903,14 +856,12 @@ class ConsumerManager:
                 consumer.commit(offsets=payload)
             except KafkaError as e:
                 internal_error(message=f"error sending commit request: {e}", content_type=content_type)
+        empty_response()
 
-    def get_offsets(self, internal_name: str, content_type: str, request_data: dict, cluster_metadata: dict):
+    def get_offsets(self, internal_name: str, content_type: str, request_data: dict):
         self.log.info("Retrieving offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
-        for el in request_data["partitions"]:
-            # TODO -> see validation Q above
-            self._topic_and_partition_valid(cluster_metadata, el, content_type)
         response = {"offsets": []}
         with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -928,6 +879,7 @@ class ConsumerManager:
         KarapaceBase.r(body=response, content_type=content_type)
 
     # SUBSCRIPTION
+
     def set_subscription(self, internal_name: str, content_type: str, request_data: dict):
         #  TODO -> ATM this gets updated in a background thread, but otoh we have no notion of partition ids using
         #  TODO -> this method, so seek / offsets are not supposed top towk??
@@ -939,7 +891,7 @@ class ConsumerManager:
             consumer = self.consumers[internal_name].consumer
             try:
                 consumer.subscribe(topics=topics, pattern=topics_pattern)
-                consumer._client.cluster.request_update()  # pylint: disable=W0212
+                self._update_partition_assignments(consumer)
                 empty_response()
             except AssertionError:
                 self._illegal_state_fail(
@@ -987,7 +939,9 @@ class ConsumerManager:
             partitions.append(TopicPartition(el["topic"], el["partition"]))
         with self.consumer_locks[internal_name]:
             try:
-                self.consumers[internal_name].consumer.assign(partitions)
+                consumer = self.consumers[internal_name].consumer
+                consumer.assign(partitions)
+                self._update_partition_assignments(consumer)
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(message=str(e), content_type=content_type)
@@ -1119,7 +1073,7 @@ class ConsumerManager:
 
             KarapaceBase.r(content_type=content_type, body=response)
 
-    async def deserialize(self, bytes_, fmt):
+    async def deserialize(self, bytes_: bytes, fmt: str):
         if not bytes_:
             return None
         if fmt == "avro":

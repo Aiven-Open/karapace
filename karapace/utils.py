@@ -4,6 +4,8 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from functools import partial
+
 import datetime
 import decimal
 import json as jsonlib
@@ -76,7 +78,8 @@ class Result:
 
 class Client:
     def __init__(self, server_uri=None, client=None):
-        self.server_uri = server_uri
+        self.server_uri = server_uri or ""
+        self.path_for = partial(os.path.join, self.server_uri)
         self.session = requests.Session()
         self.client = client
 
@@ -90,21 +93,25 @@ class Client:
         except:  # pylint: disable=bare-except
             log.exception("Could not close client")
 
-    async def get(self, path, headers=None):
+    async def get(self, path, json=None, headers=None):
+        path = self.path_for(path)
+        json = json or {}
         if not headers:
             headers = {}
         if self.client:
             async with self.client.get(
                 path,
+                json=json,
                 headers=headers,
             ) as res:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = requests.get(os.path.join(self.server_uri, path), headers=headers)
+            res = requests.get(path, headers=headers)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def delete(self, path, headers=None):
+        path = self.path_for(path)
         if not headers:
             headers = {}
         if self.client:
@@ -115,10 +122,11 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = requests.delete(os.path.join(self.server_uri, path), headers=headers)
+            res = requests.delete(path, headers=headers)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def post(self, path, json, headers=None):
+        path = self.path_for(path)
         if not headers:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
@@ -131,10 +139,11 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = self.session.post(os.path.join(self.server_uri, path), headers=headers, json=json)
+            res = self.session.post(path, headers=headers, json=json)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def put(self, path, json, headers=None):
+        path = self.path_for(path)
         if not headers:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
@@ -147,10 +156,11 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = self.session.put(os.path.join(self.server_uri, path), headers=headers, json=json)
+            res = self.session.put(path, headers=headers, json=json)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def put_with_data(self, path, data, headers):
+        path = self.path_for(path)
         if self.client:
             async with self.client.put(
                 path,
@@ -160,5 +170,5 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = self.session.put(os.path.join(self.server_uri, path), headers=headers, data=data)
+            res = self.session.put(path, headers=headers, data=data)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
