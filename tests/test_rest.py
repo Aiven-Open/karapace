@@ -256,7 +256,7 @@ async def check_publish(c, topic):
     partition_url = f"/topics/{topic}/partitions/0"
     # Proper Json / Binary
     for url in [topic_url, partition_url]:
-        for payload, h in [({"value": {"foo": "bar"}}, "json"), ({"value": "Zm9vCg=="}, "base64")]:
+        for payload, h in [({"value": {"foo": "bar"}}, "json"), ({"value": "Zm9vCg=="}, "binary")]:
             res = await c.post(url, json={"records": [payload]}, headers=REST_HEADERS[h])
             res_json = res.json()
             assert res.ok

@@ -40,20 +40,21 @@ SCHEMA_ACCEPT_VALUES = [
 
 # TODO -> accept more general values as well
 REST_CONTENT_TYPE_RE = re.compile(
-    r"application(/vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?"
-    r"\+(?P<serialization_format>json))|/(?P<general_format>json|octet-stream)"
+    r"application/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?"
+    r"\+(?P<serialization_format>json))|(?P<general_format>json|octet-stream))"
 )
 REST_ACCEPT_RE = re.compile(
-    r"(application|\*)/((vnd\.kafka(\.(?P<api_version>v[12]))?\+"
+    r"(application|\*)/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?\+"
     r"(?P<serialization_format>json))|(?P<general_format>json|\*))"
 )
 
 
 class HTTPRequest:
-    def __init__(self, *, url, query, headers, path_for_stats, method):
+    def __init__(self, *, url, query, headers, path_for_stats, method, formats=None):
         self.url = url
         self.headers = headers
         self.query = query
+        self.formats = formats
         self.path_for_stats = path_for_stats
         self.method = method
         self.json = None
@@ -86,6 +87,17 @@ class HTTPResponse(Exception):
 
     def __repr__(self):
         return f"HTTPResponse(status={self.status} body={self.body})"
+
+
+def http_error(message, content_type, code):
+    raise HTTPResponse(
+        body=json_encode({
+            "error_code": code,
+            "message": message,
+        }, binary=True),
+        headers={"Content-Type": content_type},
+        status=code,
+    )
 
 
 class RestApp:
@@ -125,21 +137,14 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
-    def check_rest_headers(self, request):
+    def check_rest_headers(self, request):  # pylint: disable=R1710
         method = request.method
         headers = request.headers
         result = {"content_type": "application/vnd.kafka.json.v2+json"}
         matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers["Content-Type"])[0])
         if method in {"POST", "PUT"}:
             if not matcher:
-                raise HTTPResponse(
-                    body=json_encode({
-                        "error_code": 415,
-                        "message": "HTTP 415 Unsupported Media Type",
-                    }, binary=True),
-                    headers={"Content-Type": result["content_type"]},
-                    status=415,
-                )
+                http_error("HTTP 415 Unsupported Media Type", result["content_type"], 415)
         if matcher:
             header_info = matcher.groupdict()
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
@@ -147,14 +152,7 @@ class RestApp:
         if REST_ACCEPT_RE.search(headers["Accept"]):
             return result
         self.log.error("Not acceptable: %r", headers["accept"])
-        raise HTTPResponse(
-            body=json_encode({
-                "error_code": 406,
-                "message": "HTTP 406 Not Acceptable",
-            }, binary=True),
-            headers={"Content-Type": result["content_type"]},
-            status=406,
-        )
+        http_error("HTTP 406 Not Acceptable", result["content_type"], 406)
 
     def check_schema_headers(self, request):
         method = request.method
@@ -162,29 +160,14 @@ class RestApp:
         response_default_content_type = "application/vnd.schemaregistry.v1+json"
 
         if method in {"POST", "PUT"} and cgi.parse_header(headers["Content-Type"])[0] not in SCHEMA_CONTENT_TYPES:
-            raise HTTPResponse(
-                body=json_encode({
-                    "error_code": 415,
-                    "message": "HTTP 415 Unsupported Media Type",
-                }, binary=True),
-                headers={"Content-Type": response_default_content_type},
-                status=415,
-            )
-
+            http_error("HTTP 415 Unsupported Media Type", response_default_content_type, 415)
         if "Accept" in headers:
             if headers["Accept"] == "*/*" or headers["Accept"].startswith("*/"):
                 return response_default_content_type
             content_type_match = get_best_match(headers["Accept"], SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
                 self.log.debug("Unexpected Accept value: %r", headers["Accept"])
-                raise HTTPResponse(
-                    body=json_encode({
-                        "error_code": 406,
-                        "message": "HTTP 406 Not Acceptable",
-                    }, binary=True),
-                    headers={"Content-Type": response_default_content_type},
-                    status=406,
-                )
+                http_error("HTTP 406 Not Acceptable", response_default_content_type, 406)
             return content_type_match
         return response_default_content_type
 
@@ -241,6 +224,9 @@ class RestApp:
 
             if rest_request:
                 params = self.check_rest_headers(request)
+                if "formats" in params:
+                    rapu_request.formats = params["formats"]
+                    params.pop("formats")
                 callback_kwargs.update(params)
 
             if schema_request:

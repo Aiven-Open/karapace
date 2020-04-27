@@ -1,5 +1,6 @@
 # from kafka import KafkaAdminClient, KafkaProducer
-from tests.utils import client_for, new_topic, REST_HEADERS
+from tests.utils import client_for, new_topic, REST_HEADERS, schema_json, test_objects
+from urllib.parse import urljoin
 
 import base64
 import copy
@@ -33,10 +34,13 @@ async def test_create_and_delete(kafka_rest, aiohttp_client):
     body = resp.json()
     # valid base uri
     assert "base_uri" in body
-    assert body["base_uri"] == kafka_rest.consumer_manager.hostname
+    instance_id = body["instance_id"]
+    assert body["base_uri"] == urljoin(
+        kafka_rest.consumer_manager.hostname, f"consumers/{group_name}/instances/{instance_id}"
+    )
     # add with the same name fails
     with_name = copy.copy(valid_payload)
-    with_name["name"] = body["instance_id"]
+    with_name["name"] = instance_id
     resp = await c.post(f"/consumers/{group_name}", json=with_name, headers=header)
     assert not resp.ok
     assert resp.status == 409, f"Expected conflict but got a different error: {resp.body}"
@@ -81,25 +85,35 @@ async def test_assignment(kafka_rest, aiohttp_client, admin_client):
     await c.close()
 
 
-async def test_subscription(kafka_rest, aiohttp_client, admin_client):
+async def test_subscription(kafka_rest, aiohttp_client, admin_client, producer):
+    header = REST_HEADERS["binary"]
     kr, _ = kafka_rest()
     c = await client_for(kr, aiohttp_client)
-    instance_id = await new_consumer(c, "sub_group")
-    sub_path = f"/consumers/sub_group/instances/{instance_id}/subscription"
+    group_name = "sub_group"
+    topic_name = new_topic(admin_client)
+    instance_id = await new_consumer(c, group_name, fmt="binary")
+    sub_path = f"/consumers/{group_name}/instances/{instance_id}/subscription"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
     res = await c.get(sub_path)
     assert res.ok
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 0, \
         f"Expecting no subscription on freshly created consumer: {data}"
-    topic_name = new_topic(admin_client)
     # simple sub
-    res = await c.post(sub_path, json={"topics": [topic_name]}, headers=REST_HEADERS["json"])
+    res = await c.post(sub_path, json={"topics": [topic_name]}, headers=header)
     assert res.ok
     res = await c.get(sub_path)
     assert res.ok
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 1 and data["topics"][0] == topic_name, \
         f"expecting {topic_name} in {data}"
+    for _ in range(3):
+        producer.send(topic_name, b"foo").get()
+    resp = await c.get(consume_path, headers=header)
+    data = resp.json()
+    assert resp.ok, f"Expected a successful response: {data['message']}"
+    assert len(data) == 3, f"Expected to consume 3 messages but got {data}"
+
     # on delete it's empty again
     res = await c.delete(sub_path)
     assert res.ok
@@ -118,6 +132,15 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client):
     subscribed_to = set(data["topics"])
     expected = set(pattern_topics)
     assert expected == subscribed_to, f"Expecting {expected} as subscribed to topics, but got {subscribed_to} instead"
+    # writing to all 3 will get us results from all 3
+    for t in pattern_topics:
+        for _ in range(3):
+            producer.send(t, b"bar").get()
+    resp = await c.get(consume_path, headers=header)
+    data = resp.json()
+    assert resp.ok, f"Expected a successful response: {data['message']}"
+    assert len(data) == 9, f"Expected to consume 3 messages but got {data}"
+
     # topic name sub along with pattern will fail
     res = await c.post(sub_path, json={"topics": [topic_name], "topic_pattern": "baz"}, headers=REST_HEADERS["json"])
     assert res.status == 409, f"Invalid state error expected: {res.status}"
@@ -129,6 +152,8 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client):
     res = await c.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.status == 409, f"Expecting status code 409 on assign after" \
                               f" subscribe on the same consumer instance: {list(kr.consumer_manager.consumers.keys())}"
+    await c.close()
+    producer.close()
 
 
 async def test_seek(kafka_rest, aiohttp_client, admin_client):
@@ -154,9 +179,69 @@ async def test_seek(kafka_rest, aiohttp_client, admin_client):
     invalid_payload = {"offsets": [{"topic": "faulty", "partition": 0, "offset": 10}]}
     res = await c.post(seek_path, json=invalid_payload, headers=REST_HEADERS["json"])
     assert res.status == 409, f"Expecting a failure for unassigned partition seek: {res}"
+    await c.close()
 
 
-async def test_consume(kafka_rest, aiohttp_client, admin_client, karapace, producer):
+async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
+    # will also take this opportunity to use subscriptions
+    kafka_rest, _ = kafka_rest()
+    rest_client = await client_for(kafka_rest, aiohttp_client)
+    group_name = "offset_group"
+    fmt = "binary"
+    header = REST_HEADERS[fmt]
+    instance_id = await new_consumer(rest_client, group_name, fmt=fmt)
+    topic_name = new_topic(admin_client)
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets"
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    res = await rest_client.post(assign_path, json={"partitions": [{"topic": topic_name, "partition": 0}]}, headers=header)
+    assert res.ok, f"Unexpected response status for assignment {res}"
+    res = await rest_client.post(
+        offsets_path, json={"offsets": [{
+            "topic": topic_name,
+            "partition": 0,
+            "offset": 0
+        }]}, headers=header
+    )
+    assert res.ok, f"Unexpected response status for offset commit {res}"
+    for _ in range(3):
+        producer.send(topic_name, value=b"baz").get()
+    # commitet offset 0, so all 3 should be there
+    resp = await rest_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == 3, f"Expected 3 elements in {data}"
+
+    res = await rest_client.get(offsets_path, headers=header, json={"partitions": [{"topic": topic_name, "partition": 0}]})
+    assert res.ok, f"Unexpected response status for {res}"
+    data = res.json()
+    assert "offsets" in data and len(data["offsets"]) == 1, f"Unexpected offsets response {res}"
+    data = data["offsets"][0]
+    assert "topic" in data and data["topic"] == topic_name, f"Unexpected topic {data}"
+    assert "offset" in data and data["offset"] == 0, f"Unexpected offset {data}"
+    assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
+    res = await rest_client.post(
+        offsets_path, json={"offsets": [{
+            "topic": topic_name,
+            "partition": 0,
+            "offset": 1
+        }]}, headers=header
+    )
+    assert res.ok, f"Unexpected response status for offset commit {res}"
+
+    res = await rest_client.get(offsets_path, headers=header, json={"partitions": [{"topic": topic_name, "partition": 0}]})
+    assert res.ok, f"Unexpected response status for {res}"
+    data = res.json()
+    assert "offsets" in data and len(data["offsets"]) == 1, f"Unexpected offsets response {res}"
+    data = data["offsets"][0]
+    assert "topic" in data and data["topic"] == topic_name, f"Unexpected topic {data}"
+    assert "offset" in data and data["offset"] == 1, f"Unexpected offset {data}"
+    assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
+    await rest_client.close()
+
+
+async def test_consume(kafka_rest, aiohttp_client, admin_client, producer):
+    # avro to be handled in a separate testcase ??
     values = {
         "json": [json.dumps({
             "foo": f"bar{i}"
@@ -165,18 +250,14 @@ async def test_consume(kafka_rest, aiohttp_client, admin_client, karapace, produ
     }
     deserializers = {"binary": base64.b64decode, "json": lambda x: json.dumps(x).encode("utf-8")}
     kafka_rest, _ = kafka_rest()
-    karapace, _ = karapace()
     rest_client = await client_for(kafka_rest, aiohttp_client)
     group_name = "consume_group"
     for fmt in ["binary", "json"]:
-        header = REST_HEADERS[format]
+        header = REST_HEADERS[fmt]
         instance_id = await new_consumer(rest_client, group_name, fmt=fmt)
         assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
         seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
         consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
-        registry_client = await client_for(karapace, aiohttp_client)
-        kafka_rest.serializer.registry_client.client = registry_client
-        kafka_rest.deserializer.registry_client.client = registry_client
         topic_name = new_topic(admin_client)
         assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
         res = await rest_client.post(assign_path, json=assign_payload, headers=header)
@@ -186,7 +267,7 @@ async def test_consume(kafka_rest, aiohttp_client, admin_client, karapace, produ
         seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
         resp = await rest_client.post(seek_path, headers=header, json=seek_payload)
         assert resp.ok
-        resp = await rest_client.post(consume_path, headers=header, json={})
+        resp = await rest_client.get(consume_path, headers=header)
         assert resp.ok, f"Expected a successful response: {resp}"
         data = resp.json()
         assert len(data) == len(values[fmt]), f"Expected {len(values[fmt])} element in response: {resp}"
@@ -194,3 +275,33 @@ async def test_consume(kafka_rest, aiohttp_client, admin_client, karapace, produ
             assert deserializers[fmt](data[i]["value"]) == values[fmt][i], \
                 f"Extracted data {deserializers[fmt](data[i]['value'])}" \
                 f" does not match {values[fmt][i]} for format {fmt}"
+    await rest_client.close()
+
+
+async def test_publish_consume_avro(kafka_rest, karapace, aiohttp_client, admin_client):
+    header = REST_HEADERS["avro"]
+    kafka_rest, _ = kafka_rest()
+    rest_client = await client_for(kafka_rest, aiohttp_client)
+    karapace, _ = karapace()
+    registry_client = await client_for(karapace, aiohttp_client)
+    kafka_rest.serializer.registry_client.client = registry_client
+    kafka_rest.consumer_manager.deserializer.registry_client.client = registry_client
+    group_name = "e2e_group"
+    instance_id = await new_consumer(rest_client, group_name, fmt="avro")
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    tn = new_topic(admin_client)
+    assign_payload = {"partitions": [{"topic": tn, "partition": 0}]}
+    res = await rest_client.post(assign_path, json=assign_payload, headers=header)
+    assert res.ok
+
+    pl = {"value_schema": schema_json, "records": [{"value": o} for o in test_objects]}
+    res = await rest_client.post(f"topics/{tn}", json=pl, headers=header)
+    assert res.ok
+    resp = await rest_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == len(test_objects), f"Expected to read test_objects from fetch request but got {data}"
+    data_values = [x["value"] for x in data]
+    for expected, actual in zip(test_objects, data_values):
+        assert expected == actual, f"Expecting {actual} to be {expected}"
