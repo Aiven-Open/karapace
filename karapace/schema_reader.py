@@ -7,6 +7,7 @@ See LICENSE for details
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from karapace import constants
 from karapace.utils import json_encode
 from queue import Queue
 from threading import Thread
@@ -20,8 +21,6 @@ class KafkaSchemaReader(Thread):
     def __init__(self, config):
         Thread.__init__(self)
         self.log = logging.getLogger("KafkaSchemaReader")
-        self.api_version_auto_timeout_ms = 30000
-        self.topic_creation_timeout_ms = 20000
         self.timeout_ms = 200
         self.config = config
         self.subjects = {}
@@ -30,7 +29,6 @@ class KafkaSchemaReader(Thread):
         self.offset = 0
         self.admin_client = None
         self.schema_topic = None
-        self.topic_num_partitions = 1
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer = None
         self.queue = Queue()
@@ -55,7 +53,7 @@ class KafkaSchemaReader(Thread):
     def init_admin_client(self):
         try:
             self.admin_client = KafkaAdminClient(
-                api_version_auto_timeout_ms=self.api_version_auto_timeout_ms,
+                api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
                 bootstrap_servers=self.config["bootstrap_uri"],
                 client_id=self.config["client_id"],
                 security_protocol=self.config["security_protocol"],
@@ -72,16 +70,20 @@ class KafkaSchemaReader(Thread):
             time.sleep(2.0)
         return False
 
-    def create_schema_topic(self):
-        schema_topic = NewTopic(
-            name=self.config["topic_name"],
-            num_partitions=self.topic_num_partitions,
-            replication_factor=self.config["replication_factor"],
+    @staticmethod
+    def get_new_schema_topic(config):
+        return NewTopic(
+            name=config["topic_name"],
+            num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+            replication_factor=config["replication_factor"],
             topic_configs={"cleanup.policy": "compact"}
         )
+
+    def create_schema_topic(self):
+        schema_topic = self.get_new_schema_topic(self.config)
         try:
             self.log.info("Creating topic: %r", schema_topic)
-            self.admin_client.create_topics([schema_topic], timeout_ms=self.topic_creation_timeout_ms)
+            self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
             self.log.info("Topic: %r created successfully", self.config["topic_name"])
             self.schema_topic = schema_topic
             return True

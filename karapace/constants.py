@@ -1,0 +1,13 @@
+"""
+karapace - constants
+
+Copyright (c) 2020 Aiven Ltd
+See LICENSE for details
+"""
+
+SCHEMA_TOPIC_NUM_PARTITIONS = 1
+API_VERSION_AUTO_TIMEOUT_MS = 30000
+TOPIC_CREATION_TIMEOUT_MS = 20000
+
+SECOND = 1000
+MINUTE = 60 * SECOND
