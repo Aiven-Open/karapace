@@ -1,22 +1,46 @@
 #!/bin/bash
+set -e
+zk_port=${ZK_PORT:-2181}
+kafka_port=${KAFKA_PORT:-9092}
+kafka_port_alternate=${KAFKA_PORT_ALT:-9093}
+kafka_port_internal=${KAFKA_PORT:-29092}
+registry_port=${REGISTRY_PORT:-8081}
+rest_port=${REST_PORT:-8082}
 
-ZK=$1
-KAFKA=$2
-REGISTRY=$3
 
-# Configure and start the zookeeper
-cat >/opt/zookeeper.properties <<- EOF
+if [ "$2" == "test" ]; then
+  insert="_"
+else
+  insert="_karapace_"
+fi
+
+start_zk(){
+  echo "starting zookeeper"
+  cat >/opt/zookeeper.properties <<- EOF
 dataDir=/var/lib/zookeeper
-clientPort=$ZK
+clientPort=${zk_port}
 maxClientCnxns=0
 EOF
-mkdir /var/lib/zookeeper
-/opt/kafka_2.12-2.4.1/bin/zookeeper-server-start.sh /opt/zookeeper.properties >/var/log/zk.log 2>&1 &
+  mkdir -p /var/lib/zookeeper
+  /opt/kafka_2.12-2.4.1/bin/zookeeper-server-start.sh /opt/zookeeper.properties 2>&1 | tee /var/log/zk.log
+}
 
-# Configure and start the kafka server
-cat >/opt/server.properties <<- EOF
+function start_kafka {
+  echo "starting kafka"
+  if [ "$1" == "single" ]; then
+    adv_listeners="PLAINTEXT://kafka:${kafka_port_internal},PLAINTEXT_HOST://localhost:${kafka_port},PLAINTEXT_ALT://${overlay_ip}:${kafka_port_alternate}"
+    listeners="PLAINTEXT://0.0.0.0:${kafka_port_internal},PLAINTEXT_HOST://0.0.0.0:${kafka_port},PLAINTEXT_ALT://0.0.0.0:${kafka_port_alternate}"
+    zk_host="zk"
+  else
+    adv_listeners="PLAINTEXT://localhost:${kafka_port}"
+    listeners="PLAINTEXT://0.0.0.0:${kafka_port}"
+    zk_host="localhost"
+  fi
+  cat >/opt/server.properties <<- EOF
 broker.id=0
-listeners=PLAINTEXT://localhost:$KAFKA
+listener.security.protocol.map=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_ALT:PLAINTEXT
+advertised.listeners=${adv_listeners}
+listeners=${listeners}
 num.network.threads=3
 num.io.threads=8
 socket.send.buffer.bytes=102400
@@ -31,23 +55,143 @@ transaction.state.log.min.isr=1
 log.retention.hours=168
 log.segment.bytes=1073741824
 log.retention.check.interval.ms=300000
-zookeeper.connect=localhost:$ZK
+zookeeper.connect=${zk_host}:${zk_port}
 zookeeper.connection.timeout.ms=6000
 group.initial.rebalance.delay.ms=0
 EOF
-mkdir /var/lib/kafka
-/opt/kafka_2.12-2.4.1/bin/kafka-server-start.sh /opt/server.properties >/var/log/kafka.log 2>&1 &
+  mkdir -p /var/lib/kafka
+  /opt/wait-for-it.sh "${zk_host}:${zk_port}"
+  /opt/kafka_2.12-2.4.1/bin/kafka-server-start.sh /opt/server.properties 2>&1 | tee /var/log/kafka.log
+}
 
-# Optionally configure and start the schema registry
-if [ -n "$REGISTRY" ]; then
-    cat > /opt/schema-registry.properties <<- EOF
-listeners=http://0.0.0.0:$REGISTRY
-kafkastore.connection.url=localhost:$ZK
+start_registry() {
+  echo "Starting schema registry"
+  if [ "$1" == "single" ]; then
+    kafka_host="kafka:${kafka_port_internal}"
+    advertised_host="${ADVERTISED_HOST:-registry}"
+  else
+    kafka_host="127.0.0.1:${kafka_port}"
+    advertised_host="127.0.0.1"
+  fi
+  cat > /opt/schema-registry.properties <<- EOF
+listeners=http://0.0.0.0:${registry_port}
+host.name=${advertised_host}
+kafkastore.bootstrap.servers=PLAINTEXT://${kafka_host}
+kafkastore.zk.session.timeout.ms=30000
 kafkastore.topic=_schemas
 debug=false
 EOF
-    while ! grep 'Startup complete' /var/log/kafka.log; do sleep 1; done
-    /usr/bin/schema-registry-start /opt/schema-registry.properties >/var/log/schema-registry.log 2>&1 &
-fi
+  /opt/wait-for-it.sh "${kafka_host}"
+  /usr/bin/schema-registry-start /opt/schema-registry.properties  2>&1 | tee /var/log/schema-registry.log
+}
+
+start_karapace_registry(){
+  echo "starting karapace schema registry"
+
+  if [ "$1" == "single" ]; then
+    kafka_host="kafka:${kafka_port_internal}"
+    advertised_host="${ADVERTISED_HOST:-registry}"
+  else
+    kafka_host="127.0.0.1:${kafka_port}"
+    advertised_host="127.0.0.1"
+  fi
+  cat >/opt/karapace.config.json <<- EOF
+{
+    "advertised_hostname": "${advertised_host}",
+    "bootstrap_uri": "${kafka_host}",
+    "client_id": "sr-1",
+    "compatibility": "FULL",
+    "group_id": "schema-registry",
+    "host": "0.0.0.0",
+    "log_level": "INFO",
+    "port": ${registry_port},
+    "master_eligibility": true,
+    "replication_factor": 1,
+    "security_protocol": "PLAINTEXT",
+    "ssl_cafile": null,
+    "ssl_certfile": null,
+    "ssl_keyfile": null,
+    "topic_name": "_schemas"
+}
+EOF
+  /opt/wait-for-it.sh "${kafka_host}"
+  python3 -m karapace.schema_registry_apis /opt/karapace.config.json 2>&1 | tee /var/log/karapace-registry.log
+}
+
+start_rest() {
+  echo "Starting kafka rest"
+  if [ "$1" == "single" ]; then
+    kafka_host="kafka:${kafka_port_internal}"
+    registry_host="registry"
+  else
+    registry_host="127.0.0.1"
+    kafka_host="127.0.0.1:${kafka_port}"
+  fi
+  cat > /opt/kafka-rest.properties <<- EOF
+host.name=rest
+listeners=http://0.0.0.0:${rest_port}
+schema.registry.url=http://${registry_host}:${registry_port}
+bootstrap.servers=${kafka_host}
+EOF
+  /opt/wait-for-it.sh "${kafka_host}"
+  /usr/bin/kafka-rest-start /opt/kafka-rest.properties  2>&1 | tee /var/log/kafka-rest.log
+}
+
+start_karapace_rest(){
+  echo "starting karapace rest api"
+  if [ "$1" == "single" ]; then
+    kafka_host="kafka:${kafka_port_internal}"
+    advertised_host="${ADVERTISED_HOST:-rest}"
+    registry_host="registry"
+  else
+    kafka_host="127.0.0.1:${kafka_port}"
+    advertised_host="127.0.0.1"
+    registry_host="127.0.0.1"
+  fi
+  # in theory we dont need to advertise the internal hostname since this should always be accessible from the outside
+  cat >/opt/karapace_rest.config.json <<- EOF
+{
+    "advertised_hostname": "${advertised_host}",
+    "bootstrap_uri": "${kafka_host}",
+    "host": "0.0.0.0",
+    "registry_host": "${registry_host}",
+    "registry_port": "${registry_port}",
+    "log_level": "INFO",
+    "port": "${rest_port}",
+    "security_protocol": "PLAINTEXT",
+    "ssl_cafile": null,
+    "ssl_certfile": null,
+    "ssl_keyfile": null
+}
+EOF
+  /opt/wait-for-it.sh "${registry_host}:${registry_port}"
+  python3 -m karapace.kafka_rest_apis /opt/karapace_rest.config.json 2>&1 | tee /var/log/karapace-rest.log
+}
+
+case $1 in
+  zk)
+    start_zk single &
+  ;;
+  kafka)
+    start_kafka single &
+  ;;
+  rest)
+    "start${insert}rest" single &
+  ;;
+  registry)
+    "start${insert}registry" single &
+  ;;
+  all)
+    start_zk all &
+    start_kafka all &
+    # lazy way of figuring out what set of http apps we want
+    "start${insert}registry" all &
+    "start${insert}rest" all &
+  ;;
+  *)
+    echo "usage: start-karapace.sh <zk|kafka|registry|rest|all>"
+    exit 0
+  ;;
+esac
 
 wait
