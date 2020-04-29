@@ -2,6 +2,7 @@ from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
 
 import json
+import os
 import random
 
 schema_json = json.dumps({
@@ -64,6 +65,12 @@ REST_HEADERS = {
 
 
 async def client_for(app, client_factory):
+    if "REST_URI" in os.environ and "REGISTRY_URI" in os.environ:
+        # least intrusive way of figuring out which client is which
+        if app.type == "rest":
+            return Client(server_uri=os.environ["REST_URI"])
+        return Client(server_uri=os.environ["REGISTRY_URI"])
+
     client_factory = await client_factory(app.app)
     c = Client(client=client_factory)
     return c

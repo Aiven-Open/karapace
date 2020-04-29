@@ -5,12 +5,12 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from functools import partial
+from urllib.parse import urljoin
 
 import datetime
 import decimal
 import json as jsonlib
 import logging
-import os
 import requests
 import types
 
@@ -79,7 +79,7 @@ class Result:
 class Client:
     def __init__(self, server_uri=None, client=None):
         self.server_uri = server_uri or ""
-        self.path_for = partial(os.path.join, self.server_uri)
+        self.path_for = partial(urljoin, self.server_uri)
         self.session = requests.Session()
         self.client = client
 
@@ -87,11 +87,11 @@ class Client:
         try:
             self.session.close()
         except:  # pylint: disable=bare-except
-            log.exception("Could not close client")
+            log.info("Could not close client")
         try:
             await self.client.close()
         except:  # pylint: disable=bare-except
-            log.exception("Could not close client")
+            log.info("Could not close client")
 
     async def get(self, path, json=None, headers=None):
         path = self.path_for(path)
@@ -107,7 +107,7 @@ class Client:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
-            res = requests.get(path, headers=headers)
+            res = requests.get(path, headers=headers, json=json)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
 
     async def delete(self, path, headers=None):
@@ -119,11 +119,12 @@ class Client:
                 path,
                 headers=headers,
             ) as res:
-                json_result = await res.json()
+                json_result = {} if res.status == 204 else await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
             res = requests.delete(path, headers=headers)
-            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+            json_result = {} if res.status_code == 204 else res.json()
+            return Result(status=res.status_code, json_result=json_result, headers=res.headers)
 
     async def post(self, path, json, headers=None):
         path = self.path_for(path)
@@ -136,11 +137,12 @@ class Client:
                 headers=headers,
                 json=json,
             ) as res:
-                json_result = await res.json()
+                json_result = {} if res.status == 204 else await res.json()
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
             res = self.session.post(path, headers=headers, json=json)
-            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+            json_body = {} if res.status_code == 204 else res.json()
+            return Result(status=res.status_code, json_result=json_body, headers=res.headers)
 
     async def put(self, path, json, headers=None):
         path = self.path_for(path)
