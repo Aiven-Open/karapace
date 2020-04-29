@@ -1,10 +1,14 @@
-# from kafka import KafkaAdminClient, KafkaProducer
+from kafka import KafkaProducer
+from karapace.kafka_rest_apis import KafkaRestAdminClient
 from tests.utils import client_for, new_topic, REST_HEADERS, schema_json, test_objects
+from unittest.mock import MagicMock
 from urllib.parse import urljoin
 
 import base64
 import copy
 import json
+import os
+import pytest
 
 pytest_plugins = "aiohttp.pytest_plugin"
 valid_payload = {
@@ -305,3 +309,42 @@ async def test_publish_consume_avro(kafka_rest, karapace, aiohttp_client, admin_
     data_values = [x["value"] for x in data]
     for expected, actual in zip(test_objects, data_values):
         assert expected == actual, f"Expecting {actual} to be {expected}"
+
+
+async def test_remote():
+    def mock_factory(app_name):
+        def inner():
+            app = MagicMock()
+            app.type = app_name
+            app.serializer = MagicMock()
+            app.consumer_manager = MagicMock()
+            app.serializer.registry_client = MagicMock()
+            app.consumer_manager.deserializer = MagicMock()
+            app.consumer_manager.hostname = "http://localhost:8082"
+            app.consumer_manager.deserializer.registry_client = MagicMock()
+            return app, None
+
+        return inner
+
+    if "REST_URI" not in os.environ or "REGISTRY_URI" not in os.environ:
+        pytest.skip("Cannot run remote test REST_URI and REGISTRY_URI env vars set")
+    # from here on we assume they all work on the same host
+    print("Test publish consume")
+    await test_publish_consume_avro(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
+    print("Test consume")
+    await test_consume(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
+    print("Test offsets")
+    await test_offsets(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
+    print("Test seek")
+    await test_seek(mock_factory("rest"), None, KafkaRestAdminClient())
+    print("Test subscription")
+    await test_subscription(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
+    print("Test assignment")
+    await test_assignment(mock_factory("rest"), None, KafkaRestAdminClient())
+    print("Test create delete")
+    await test_create_and_delete(mock_factory("rest"), None)
+    # why not
+    import tests.test_rest as rs
+    await rs.test_avro_publish(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
+    await rs.test_content_types(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
+    await rs.test_local(mock_factory("rest"), None, KafkaProducer(), KafkaRestAdminClient())

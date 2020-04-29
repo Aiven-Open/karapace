@@ -18,7 +18,7 @@ async def check_successful_publish_response(success_response, objects, partition
                 assert partition_id == o["partition"]
 
 
-async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace):
+async def test_content_types(kafka_rest, karapace, aiohttp_client, admin_client):
     karapace, _ = karapace()
     kafka_rest, _ = kafka_rest()
     rest_client = await client_for(kafka_rest, aiohttp_client)
@@ -100,7 +100,7 @@ async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace)
         await c.close()
 
 
-async def test_avro_publish(kafka_rest, aiohttp_client, admin_client, karapace):
+async def test_avro_publish(kafka_rest, karapace, aiohttp_client, admin_client):
     # pylint: disable=W0612
     karapace, _ = karapace()
     kafka_rest, _ = kafka_rest()
