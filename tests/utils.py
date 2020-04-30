@@ -1,14 +1,24 @@
 from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
+from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import json
 import os
 import random
 
+consumer_valid_payload = {
+    "format": "avro",
+    "auto.offset.reset": "earliest",
+    "consumer.request.timeout.ms": 11000,
+    "fetch.min.bytes": 100000,
+    "auto.commit.enable": "true"
+}
+
 schema_json = json.dumps({
     "namespace": "example.avro",
     "type": "record",
-    "name": "User",
+    "name": "example.avro.User",
     "fields": [{
         "name": "name",
         "type": "string"
@@ -65,14 +75,22 @@ REST_HEADERS = {
         "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
 }
+REST_URI = "REST_URI"
+REGISTRY_URI = "REGISTRY_URI"
+
+
+def get_broker_ip():
+    if REST_URI in os.environ and REGISTRY_URI in os.environ:
+        return urlparse(os.environ[REGISTRY_URI]).hostname
+    return "127.0.0.1"
 
 
 async def client_for(app, client_factory):
-    if "REST_URI" in os.environ and "REGISTRY_URI" in os.environ:
+    if REST_URI in os.environ and REGISTRY_URI in os.environ:
         # least intrusive way of figuring out which client is which
         if app.type == "rest":
-            return Client(server_uri=os.environ["REST_URI"])
-        return Client(server_uri=os.environ["REGISTRY_URI"])
+            return Client(server_uri=os.environ[REST_URI])
+        return Client(server_uri=os.environ[REGISTRY_URI])
 
     client_factory = await client_factory(app.app)
     c = Client(client=client_factory)
@@ -86,3 +104,18 @@ def new_topic(admin_client, prefix="topic"):
     except TopicAlreadyExistsError:
         pass
     return tn
+
+
+def mock_factory(app_name):
+    def inner():
+        app = MagicMock()
+        app.type = app_name
+        app.serializer = MagicMock()
+        app.consumer_manager = MagicMock()
+        app.serializer.registry_client = MagicMock()
+        app.consumer_manager.deserializer = MagicMock()
+        app.consumer_manager.hostname = "http://localhost:8082"
+        app.consumer_manager.deserializer.registry_client = MagicMock()
+        return app, None
+
+    return inner

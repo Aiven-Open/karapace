@@ -5,9 +5,10 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaProducer
+from karapace.config import write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from tests.utils import schema_json
+from tests.utils import client_for, get_broker_ip, mock_factory, REGISTRY_URI, REST_URI, schema_json
 
 import avro
 import contextlib
@@ -22,6 +23,8 @@ import time
 
 KAFKA_CURRENT_VERSION = "2.4"
 BASEDIR = "kafka_2.12-2.4.1"
+
+pytest_plugins = "aiohttp.pytest_plugin"
 
 
 class Timeout(Exception):
@@ -108,29 +111,38 @@ def fixture_default_config(session_tmpdir):
 
 @pytest.fixture(scope="session", name="zkserver")
 def fixture_zkserver(session_tmpdir):
-    config, proc = zkserver_base(session_tmpdir)
-    try:
-        yield config
-    finally:
-        time.sleep(5)
-        os.kill(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=10.0)
+    if REGISTRY_URI in os.environ or REST_URI in os.environ:
+        yield {}
+    else:
+        config, proc = zkserver_base(session_tmpdir)
+        try:
+            yield config
+        finally:
+            time.sleep(5)
+            os.kill(proc.pid, signal.SIGKILL)
+            proc.wait(timeout=10.0)
 
 
 @pytest.fixture(scope="session", name="kafka_server")
 def fixture_kafka_server(session_tmpdir, zkserver):
-    config, proc = kafka_server_base(session_tmpdir, zkserver)
-    try:
-        yield config
-    finally:
-        time.sleep(5)
-        os.kill(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=10.0)
+    if REGISTRY_URI in os.environ or REST_URI in os.environ:
+        yield {}
+    else:
+        config, proc = kafka_server_base(session_tmpdir, zkserver)
+        try:
+            yield config
+        finally:
+            time.sleep(5)
+            os.kill(proc.pid, signal.SIGKILL)
+            proc.wait(timeout=10.0)
 
 
 @pytest.fixture(scope="function", name="producer")
 def fixture_producer(kafka_server):
-    kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
+    if REST_URI in os.environ or REGISTRY_URI in os.environ:
+        kafka_uri = f"{get_broker_ip()}:9093"
+    else:
+        kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
     prod = KafkaProducer(bootstrap_servers=kafka_uri)
     try:
         yield prod
@@ -140,7 +152,10 @@ def fixture_producer(kafka_server):
 
 @pytest.fixture(scope="function", name="admin_client")
 def fixture_admin(kafka_server):
-    kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
+    if REST_URI in os.environ or REGISTRY_URI in os.environ:
+        kafka_uri = f"{get_broker_ip()}:9093"
+    else:
+        kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
     cli = KafkaRestAdminClient(bootstrap_servers=kafka_uri)
     try:
         yield cli
@@ -153,6 +168,55 @@ def fixture_kafka_rest(session_tmpdir, kafka_server):
     instance = karapace_fixture_factory(session_tmpdir, kafka_server, KafkaRest)
     yield instance.create_service
     instance.shutdown()
+
+
+@pytest.fixture(scope="function", name="rest_async")
+async def fixture_rest_async(session_tmpdir, kafka_server, registry_async_client):
+    if REST_URI in os.environ:
+        instance, _ = mock_factory("rest")()
+        yield instance
+    else:
+        config_path = os.path.join(session_tmpdir(), "karapace_config.json")
+        kafka_port = kafka_server["kafka_port"]
+        write_config(config_path, {"log_level": "WARNING", "bootstrap_uri": f"127.0.0.1:{kafka_port}"})
+        rest = KafkaRest(config_path)
+        rest.serializer.registry_client.client = registry_async_client
+        rest.consumer_manager.deserializer.registry_client.client = registry_async_client
+        try:
+            yield rest
+        finally:
+            rest.close()
+            await rest.close_producers()
+
+
+@pytest.fixture(scope="function", name="rest_async_client")
+async def fixture_rest_async_client(rest_async, aiohttp_client):
+    cli = await client_for(rest_async, aiohttp_client)
+    yield cli
+    await cli.close()
+
+
+@pytest.fixture(scope="function", name="registry_async")
+async def fixture_registry_async(session_tmpdir, kafka_server):
+    if REGISTRY_URI in os.environ or REST_URI in os.environ:
+        instance, _ = mock_factory("registry")()
+        yield instance
+    else:
+        config_path = os.path.join(session_tmpdir(), "karapace_config.json")
+        kafka_port = kafka_server["kafka_port"]
+        write_config(config_path, {"log_level": "WARNING", "bootstrap_uri": f"127.0.0.1:{kafka_port}"})
+        registry = KarapaceSchemaRegistry(config_path)
+        try:
+            yield registry
+        finally:
+            registry.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client")
+async def fixture_registry_async_client(registry_async, aiohttp_client):
+    cli = await client_for(registry_async, aiohttp_client)
+    yield cli
+    await cli.close()
 
 
 @pytest.fixture(scope="function", name="karapace")
@@ -171,11 +235,10 @@ def karapace_fixture_factory(session_tmpdir, kafka_server, karapace_class):
             self.kafka_port = kafka_port
 
         def create_service(self, topic_name=None):
-            with open(self.config_path, "w") as fp:
-                karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{self.kafka_port}"}
-                if topic_name:
-                    karapace_config["topic_name"] = topic_name
-                fp.write(json.dumps(karapace_config))
+            karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{self.kafka_port}"}
+            if topic_name:
+                karapace_config["topic_name"] = topic_name
+            write_config(self.config_path, karapace_config)
             self.kc = karapace_class(self.config_path)
 
             return self.kc, self.datadir

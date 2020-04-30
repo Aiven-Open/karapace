@@ -21,15 +21,13 @@ setup(
     version=version_for_setup_py,
     zip_safe=False,
     packages=find_packages(exclude=["test"]),
-    install_requires=[
-        "aiohttp",
-    ],
+    install_requires=["aiohttp"],
     extras_require={},
     dependency_links=[],
     package_data={},
     entry_points={
         "console_scripts": [
-            "karapace = karapace.schema_registry_apis:main",
+            "karapace = karapace.karapace_all:main",
             "karapace_schema_backup = karapace.schema_backup:main",
         ],
     },

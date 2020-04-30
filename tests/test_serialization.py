@@ -29,8 +29,8 @@ async def test_happy_flow(default_config_path, mock_registry_client):
     serializer, deserializer = await make_ser_deser(default_config_path, mock_registry_client)
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 0
+    schema = await serializer.get_schema_for_subject("top")
     for o in test_objects:
-        schema = await serializer.get_schema_for_subject("top")
         assert o == await deserializer.deserialize(await serializer.serialize(schema, o))
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 1

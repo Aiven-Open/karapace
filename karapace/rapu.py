@@ -50,11 +50,12 @@ REST_ACCEPT_RE = re.compile(
 
 
 class HTTPRequest:
-    def __init__(self, *, url, query, headers, path_for_stats, method, formats=None):
+    def __init__(self, *, url, query, headers, path_for_stats, method, content_type=None, accepts=None):
         self.url = url
         self.headers = headers
         self.query = query
-        self.formats = formats
+        self.content_type = content_type
+        self.accepts = accepts
         self.path_for_stats = path_for_stats
         self.method = method
         self.json = None
@@ -151,7 +152,8 @@ class RestApp:
         if content_matcher and accept_matcher:
             header_info = content_matcher.groupdict()
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
-            result["formats"] = header_info
+            result["requests"] = header_info
+            result["accepts"] = accept_matcher.groupdict()
             return result
         self.log.error("Not acceptable: %r", headers["accept"])
         http_error("HTTP 406 Not Acceptable", result["content_type"], 406)
@@ -226,9 +228,12 @@ class RestApp:
 
             if rest_request:
                 params = self.check_rest_headers(request)
-                if "formats" in params:
-                    rapu_request.formats = params["formats"]
-                    params.pop("formats")
+                if "requests" in params:
+                    rapu_request.content_type = params["requests"]
+                    params.pop("requests")
+                if "accepts" in params:
+                    rapu_request.accepts = params["accepts"]
+                    params.pop("accepts")
                 callback_kwargs.update(params)
 
             if schema_request:
