@@ -5,7 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaProducer
-from karapace.kafka_rest_apis import ConsumerManager, KafkaRest, KafkaRestAdminClient
+from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from tests.utils import schema_json
 
@@ -160,18 +160,6 @@ def fixture_karapace(session_tmpdir, kafka_server):
     instance = karapace_fixture_factory(session_tmpdir, kafka_server, KarapaceSchemaRegistry)
     yield instance.create_service
     instance.shutdown()
-
-
-@pytest.fixture(scope="function", name="consumer_manager")
-def consumer_manager_fixture(session_tmpdir, kafka_server):
-    session_dir = session_tmpdir()
-    config_path = os.path.join(session_dir, "karapace_config.json")
-    with open(config_path, "w") as fp:
-        karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{kafka_server['kafka_port']}"}
-        fp.write(json.dumps(karapace_config))
-    manager = ConsumerManager(config_path)
-    yield manager, config_path
-    manager.close()
 
 
 def karapace_fixture_factory(session_tmpdir, kafka_server, karapace_class):

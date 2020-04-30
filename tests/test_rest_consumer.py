@@ -67,19 +67,20 @@ async def test_create_and_delete(kafka_rest, aiohttp_client):
 
 async def test_assignment(kafka_rest, aiohttp_client, admin_client):
     # no assignments retrieved
+    header = REST_HEADERS["json"]
     c = await client_for(kafka_rest()[0], aiohttp_client)
-    instance_id = await new_consumer(c, "assignment_group")
+    instance_id = await new_consumer(c, "assignment_group", fmt="json")
     assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments"
-    res = await c.get(assign_path)
+    res = await c.get(assign_path, headers=header)
     assert res.ok, f"Expected status 200 but got {res.status}"
     assert "partitions" in res.json() and len(res.json()["partitions"]) == 0, "Assignment list should be empty"
     # assign one topic
     topic_name = new_topic(admin_client)
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    res = await c.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
+    res = await c.post(assign_path, headers=header, json=assign_payload)
     assert res.ok
     assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments"
-    res = await c.get(assign_path)
+    res = await c.get(assign_path, headers=header)
     assert res.ok, f"Expected status 200 but got {res.status}"
     data = res.json()
     assert "partitions" in data and len(data["partitions"]) == 1, "Should have one assignment"
@@ -98,7 +99,7 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client, producer):
     instance_id = await new_consumer(c, group_name, fmt="binary")
     sub_path = f"/consumers/{group_name}/instances/{instance_id}/subscription"
     consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
-    res = await c.get(sub_path)
+    res = await c.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 0, \
@@ -106,7 +107,7 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client, producer):
     # simple sub
     res = await c.post(sub_path, json={"topics": [topic_name]}, headers=header)
     assert res.ok
-    res = await c.get(sub_path)
+    res = await c.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 1 and data["topics"][0] == topic_name, \
@@ -119,9 +120,9 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client, producer):
     assert len(data) == 3, f"Expected to consume 3 messages but got {data}"
 
     # on delete it's empty again
-    res = await c.delete(sub_path)
+    res = await c.delete(sub_path, headers=header)
     assert res.ok
-    res = await c.get(sub_path)
+    res = await c.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 0, f"expecting {data} to be empty"
@@ -129,7 +130,7 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client, producer):
     pattern_topics = [new_topic(admin_client, prefix="subscription%d" % i) for i in range(3)]
     res = await c.post(sub_path, json={"topic_pattern": "subscription.*"}, headers=REST_HEADERS["json"])
     assert res.ok
-    res = await c.get(sub_path)
+    res = await c.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 3, "expecting subscription to 3 topics by pattern"
@@ -214,6 +215,7 @@ async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
     resp = await rest_client.get(consume_path, headers=header)
     assert resp.ok, f"Expected a successful response: {resp}"
     data = resp.json()
+
     assert len(data) == 3, f"Expected 3 elements in {data}"
 
     res = await rest_client.get(offsets_path, headers=header, json={"partitions": [{"topic": topic_name, "partition": 0}]})
@@ -222,7 +224,7 @@ async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
     assert "offsets" in data and len(data["offsets"]) == 1, f"Unexpected offsets response {res}"
     data = data["offsets"][0]
     assert "topic" in data and data["topic"] == topic_name, f"Unexpected topic {data}"
-    assert "offset" in data and data["offset"] == 0, f"Unexpected offset {data}"
+    assert "offset" in data and data["offset"] == 1, f"Unexpected offset {data}"
     assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
     res = await rest_client.post(
         offsets_path, json={"offsets": [{
@@ -239,7 +241,7 @@ async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
     assert "offsets" in data and len(data["offsets"]) == 1, f"Unexpected offsets response {res}"
     data = data["offsets"][0]
     assert "topic" in data and data["topic"] == topic_name, f"Unexpected topic {data}"
-    assert "offset" in data and data["offset"] == 1, f"Unexpected offset {data}"
+    assert "offset" in data and data["offset"] == 2, f"Unexpected offset {data}"
     assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
     await rest_client.close()
 
@@ -312,6 +314,17 @@ async def test_publish_consume_avro(kafka_rest, karapace, aiohttp_client, admin_
 
 
 async def test_remote():
+    """
+        Dissapointment log:
+        - As expected, very strict headers will work and should be inforced for get requests as well
+        - Offset commit apparently has issues with the value sent and bumps it to plus 1
+        - Subscribe seems to only pick up stuff published by the client, not by a normal producer
+          which incidentally messes with my tests
+        - Publish seems to wrap text with double quotes before encoding it in base64
+        - It appears that the only way the java proxy gets the messages is one by one
+          which explains some off by 1 fetch failures as well
+    """
+
     def mock_factory(app_name):
         def inner():
             app = MagicMock()
@@ -331,20 +344,23 @@ async def test_remote():
     # from here on we assume they all work on the same host
     print("Test publish consume")
     await test_publish_consume_avro(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
-    print("Test consume")
+    print("Test consume")  # OK
     await test_consume(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
-    print("Test offsets")
+    print("Test offsets")  # OK
     await test_offsets(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
-    print("Test seek")
+    print("Test seek")  # OK
     await test_seek(mock_factory("rest"), None, KafkaRestAdminClient())
     print("Test subscription")
     await test_subscription(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
-    print("Test assignment")
+    print("Test assignment")  # OK
     await test_assignment(mock_factory("rest"), None, KafkaRestAdminClient())
     print("Test create delete")
     await test_create_and_delete(mock_factory("rest"), None)
     # why not
     import tests.test_rest as rs
+    print("Test avro publish")
     await rs.test_avro_publish(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
+    print("Test content types :)))")
     await rs.test_content_types(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
+    print("Test what's left i guess")
     await rs.test_local(mock_factory("rest"), None, KafkaProducer(), KafkaRestAdminClient())
