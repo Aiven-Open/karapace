@@ -14,10 +14,10 @@ schema_json = json.dumps({
         "type": "string"
     }, {
         "name": "favorite_number",
-        "type": ["int", "null"]
+        "type": "int"
     }, {
         "name": "favorite_color",
-        "type": ["string", "null"]
+        "type": "string"
     }]
 })
 
@@ -54,15 +54,15 @@ second_obj = [{"name": "doe"}, {"name": "john"}]
 REST_HEADERS = {
     "json": {
         "Content-Type": "application/vnd.kafka.json.v2+json",
-        "Accept": "application/vnd.kafka.json.v2+json",
+        "Accept": "*/*",
     },
     "binary": {
         "Content-Type": "application/vnd.kafka.binary.v2+json",
-        "Accept": "application/vnd.kafka.binary.v2+json"
+        "Accept": "application/vnd.kafka.binary.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
     "avro": {
         "Content-Type": "application/vnd.kafka.avro.v2+json",
-        "Accept": "application/vnd.kafka.binary.v2+json"
+        "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
 }
 

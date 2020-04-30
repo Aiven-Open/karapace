@@ -59,7 +59,7 @@ async def test_deserialization_fails(default_config_path, mock_registry_client):
     schema = await mock_registry_client.get_schema_for_id(1)
     schema = copy.deepcopy(schema.to_json())
     schema["name"] = "BadUser"
-    schema["fields"][0]["type"] = ["int", "null"]
+    schema["fields"][0]["type"] = "int"
     obj = {"name": 100, "favorite_number": 2, "favorite_color": "bar"}
     writer = avro.io.DatumWriter(avro.io.schema.parse(json.dumps(schema)))
     with io.BytesIO() as bio:

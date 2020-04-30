@@ -140,16 +140,18 @@ class RestApp:
     def check_rest_headers(self, request):  # pylint: disable=R1710
         method = request.method
         headers = request.headers
-        result = {"content_type": "application/vnd.kafka.json.v2+json"}
-        matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers["Content-Type"])[0])
+        default_content = "application/vnd.kafka.json.v2+json"
+        default_accept = "*/*"
+        result = {"content_type": default_content}
+        content_matcher = REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers.get("Content-Type", default_content))[0])
+        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(headers.get("Accept", default_accept))[0])
         if method in {"POST", "PUT"}:
-            if not matcher:
+            if not content_matcher:
                 http_error("HTTP 415 Unsupported Media Type", result["content_type"], 415)
-        if matcher:
-            header_info = matcher.groupdict()
+        if content_matcher and accept_matcher:
+            header_info = content_matcher.groupdict()
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
             result["formats"] = header_info
-        if REST_ACCEPT_RE.search(headers["Accept"]):
             return result
         self.log.error("Not acceptable: %r", headers["accept"])
         http_error("HTTP 406 Not Acceptable", result["content_type"], 406)
@@ -241,6 +243,11 @@ class RestApp:
                 data = ex.body
                 status = ex.status
                 headers = ex.headers
+            except:  # pylint: disable=bare-except
+                self.log.exception("Internal server error")
+                data = {"error_code": 500, "message": "Internal server error"}
+                status = 500
+                headers = {}
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
 
             if isinstance(data, (dict, list)):
