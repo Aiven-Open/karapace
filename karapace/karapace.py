@@ -5,6 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 
+from functools import partial
 from kafka import KafkaProducer
 from karapace.config import read_config
 from karapace.rapu import HTTPResponse, RestApp
@@ -75,5 +76,24 @@ class KarapaceBase(RestApp):
             headers={},
         )
 
+    @staticmethod
+    def internal_error(message, content_type):
+        KarapaceBase.r(content_type=content_type, status=500, body={"message": message, "error_code": 500})
+
+    @staticmethod
+    def unprocessable_entity(message, sub_code, content_type):
+        KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
+
+    @staticmethod
+    def topic_entity(message, sub_code, content_type):
+        KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
+
+    @staticmethod
+    def not_found(message, sub_code, content_type):
+        KarapaceBase.r(content_type=content_type, status=404, body={"message": message, "error_code": sub_code})
+
     async def root_get(self):
         self.r({}, "application/json")
+
+
+empty_response = partial(KarapaceBase.r, body={}, status=204, content_type="application/json")

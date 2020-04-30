@@ -2,7 +2,6 @@ from kafka import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRestAdminClient
 from tests.utils import client_for, new_topic, REST_HEADERS, schema_json, test_objects
 from unittest.mock import MagicMock
-from urllib.parse import urljoin
 
 import base64
 import copy
@@ -13,7 +12,7 @@ import pytest
 pytest_plugins = "aiohttp.pytest_plugin"
 valid_payload = {
     "format": "avro",
-    "auto.offset.reset": "latest",
+    "auto.offset.reset": "earliest",
     "consumer.request.timeout.ms": 11000,
     "fetch.min.bytes": 10000,
     "auto.commit.enable": "true"
@@ -36,27 +35,24 @@ async def test_create_and_delete(kafka_rest, aiohttp_client):
     resp = await c.post(f"/consumers/{group_name}", json=valid_payload, headers=header)
     assert resp.ok
     body = resp.json()
-    # valid base uri
     assert "base_uri" in body
     instance_id = body["instance_id"]
-    assert body["base_uri"] == urljoin(
-        kafka_rest.consumer_manager.hostname, f"consumers/{group_name}/instances/{instance_id}"
-    )
     # add with the same name fails
     with_name = copy.copy(valid_payload)
     with_name["name"] = instance_id
     resp = await c.post(f"/consumers/{group_name}", json=with_name, headers=header)
     assert not resp.ok
-    assert resp.status == 409, f"Expected conflict but got a different error: {resp.body}"
+    assert resp.status == 409, f"Expected conflict for instance {instance_id} and group {group_name} " \
+                               f"but got a different error: {resp.body}"
     invalid_fetch = copy.copy(valid_payload)
     # add with faulty params fails
-    invalid_fetch["fetch.min.bytes"] = -1
+    invalid_fetch["fetch.min.bytes"] = -10
     resp = await c.post(f"/consumers/{group_name}", json=invalid_fetch, headers=header)
     assert not resp.ok
     assert resp.status == 422, f"Expected invalid fetch request value config for: {resp.body}"
     # delete followed by add succeeds
-    resp = await c.delete(f"/consumers/{group_name}/instances/{body['instance_id']}")
-    assert resp.ok
+    resp = await c.delete(f"/consumers/{group_name}/instances/{instance_id}", headers=header)
+    assert resp.ok, "Could not delete "
     resp = await c.post(f"/consumers/{group_name}", json=with_name, headers=header)
     assert resp.ok
     # delete unknown entity fails
@@ -130,6 +126,12 @@ async def test_subscription(kafka_rest, aiohttp_client, admin_client, producer):
     pattern_topics = [new_topic(admin_client, prefix="subscription%d" % i) for i in range(3)]
     res = await c.post(sub_path, json={"topic_pattern": "subscription.*"}, headers=REST_HEADERS["json"])
     assert res.ok
+
+    # Consume so confluent rest reevaluates the subscription
+    resp = await c.get(consume_path, headers=header)
+    assert resp.ok
+    # Should we keep this behaviour
+
     res = await c.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
@@ -187,7 +189,7 @@ async def test_seek(kafka_rest, aiohttp_client, admin_client):
     await c.close()
 
 
-async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
+async def test_offsets(kafka_rest, aiohttp_client, admin_client):
     # will also take this opportunity to use subscriptions
     kafka_rest, _ = kafka_rest()
     rest_client = await client_for(kafka_rest, aiohttp_client)
@@ -196,11 +198,11 @@ async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
     header = REST_HEADERS[fmt]
     instance_id = await new_consumer(rest_client, group_name, fmt=fmt)
     topic_name = new_topic(admin_client)
-    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
     offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets"
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
     res = await rest_client.post(assign_path, json={"partitions": [{"topic": topic_name, "partition": 0}]}, headers=header)
     assert res.ok, f"Unexpected response status for assignment {res}"
+
     res = await rest_client.post(
         offsets_path, json={"offsets": [{
             "topic": topic_name,
@@ -209,14 +211,6 @@ async def test_offsets(kafka_rest, aiohttp_client, admin_client, producer):
         }]}, headers=header
     )
     assert res.ok, f"Unexpected response status for offset commit {res}"
-    for _ in range(3):
-        producer.send(topic_name, value=b"baz").get()
-    # commitet offset 0, so all 3 should be there
-    resp = await rest_client.get(consume_path, headers=header)
-    assert resp.ok, f"Expected a successful response: {resp}"
-    data = resp.json()
-
-    assert len(data) == 3, f"Expected 3 elements in {data}"
 
     res = await rest_client.get(offsets_path, headers=header, json={"partitions": [{"topic": topic_name, "partition": 0}]})
     assert res.ok, f"Unexpected response status for {res}"
@@ -259,7 +253,7 @@ async def test_consume(kafka_rest, aiohttp_client, admin_client, producer):
     rest_client = await client_for(kafka_rest, aiohttp_client)
     group_name = "consume_group"
     for fmt in ["binary", "json"]:
-        header = REST_HEADERS[fmt]
+        header = copy.deepcopy(REST_HEADERS[fmt])
         instance_id = await new_consumer(rest_client, group_name, fmt=fmt)
         assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
         seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
@@ -273,6 +267,7 @@ async def test_consume(kafka_rest, aiohttp_client, admin_client, producer):
         seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
         resp = await rest_client.post(seek_path, headers=header, json=seek_payload)
         assert resp.ok
+        header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
         resp = await rest_client.get(consume_path, headers=header)
         assert resp.ok, f"Expected a successful response: {resp}"
         data = resp.json()
@@ -314,17 +309,6 @@ async def test_publish_consume_avro(kafka_rest, karapace, aiohttp_client, admin_
 
 
 async def test_remote():
-    """
-        Dissapointment log:
-        - As expected, very strict headers will work and should be inforced for get requests as well
-        - Offset commit apparently has issues with the value sent and bumps it to plus 1
-        - Subscribe seems to only pick up stuff published by the client, not by a normal producer
-          which incidentally messes with my tests
-        - Publish seems to wrap text with double quotes before encoding it in base64
-        - It appears that the only way the java proxy gets the messages is one by one
-          which explains some off by 1 fetch failures as well
-    """
-
     def mock_factory(app_name):
         def inner():
             app = MagicMock()
@@ -340,27 +324,25 @@ async def test_remote():
         return inner
 
     if "REST_URI" not in os.environ or "REGISTRY_URI" not in os.environ:
-        pytest.skip("Cannot run remote test REST_URI and REGISTRY_URI env vars set")
+        pytest.skip("Cannot run remote test: REST_URI and REGISTRY_URI env vars set")
     # from here on we assume they all work on the same host
-    print("Test publish consume")
+    print("Test publish consume avro")  # OK
     await test_publish_consume_avro(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
     print("Test consume")  # OK
     await test_consume(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
     print("Test offsets")  # OK
-    await test_offsets(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
+    await test_offsets(mock_factory("rest"), None, KafkaRestAdminClient())
     print("Test seek")  # OK
     await test_seek(mock_factory("rest"), None, KafkaRestAdminClient())
-    print("Test subscription")
+    print("Test subscription")  # OK if we do another consume and force a sub recheck
     await test_subscription(mock_factory("rest"), None, KafkaRestAdminClient(), KafkaProducer())
     print("Test assignment")  # OK
     await test_assignment(mock_factory("rest"), None, KafkaRestAdminClient())
-    print("Test create delete")
+    print("Test create delete")  # OK
     await test_create_and_delete(mock_factory("rest"), None)
-    # why not
+    # # why not
     import tests.test_rest as rs
-    print("Test avro publish")
+    print("Test avro publish")  # OK , need to look at compatibility checks though
     await rs.test_avro_publish(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
-    print("Test content types :)))")
-    await rs.test_content_types(mock_factory("rest"), mock_factory("registry"), None, KafkaRestAdminClient())
-    print("Test what's left i guess")
+    print("Test what's left i guess")  #
     await rs.test_local(mock_factory("rest"), None, KafkaProducer(), KafkaRestAdminClient())
