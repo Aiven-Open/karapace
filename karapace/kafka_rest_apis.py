@@ -847,7 +847,7 @@ class ConsumerManager:
             # If we commit for a partition that does not belong to this consumer, then the internal error raised
             # is marked as retriable, and thus the commit method will remain blocked in what looks like an infinite loop
             self._topic_and_partition_valid(cluster_metadata, el, content_type)
-            payload[TopicPartition(el["topic"], el["partition"])] = OffsetAndMetadata(el["offset"], None)
+            payload[TopicPartition(el["topic"], el["partition"])] = OffsetAndMetadata(el["offset"] + 1, None)
 
         with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -1019,9 +1019,12 @@ class ConsumerManager:
             )
             self.log.info("Fetch request for %s with params %r", internal_name, query_params)
             try:
-                timeout = int(query_params["timeout"]
-                              ) if "timeout" in query_params else config["consumer.request.timeout.ms"]
-                max_bytes = "max_bytes" in query_params and int(query_params["max_bytes"])
+                timeout = int(query_params["timeout"]) if "timeout" in query_params \
+                    else config["consumer.request.timeout.ms"]
+                # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
+                # respecting the max fetch request size
+                max_bytes = ("max_bytes" in query_params and int(query_params["max_bytes"])) or \
+                    consumer.config["fetch_max_bytes"]
             except ValueError:
                 internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)
             for val in [timeout, max_bytes]:
@@ -1030,31 +1033,28 @@ class ConsumerManager:
                 if val <= 0:
                     internal_error(message=f"Invalid request parameter {val}", content_type=content_type)
             response = []
-            if not max_bytes:
-                self.log.info("Doing a single poll request with timeout %r, max_bytes parameter is missing", timeout)
-                poll_data = consumer.poll(timeout_ms=timeout)
-            else:
-                self.log.info(
-                    "Will poll multiple times for a single message with a total timeout of %d, "
-                    "until at least %d bytes have been fetched", timeout, max_bytes
-                )
-                read_bytes = 0
-                start_time = time.monotonic()
-                poll_data = {}
-                while read_bytes < max_bytes and (timeout is None or start_time - time.monotonic() < timeout):
-                    self.log.info("Polling with timeout %r", timeout)
-                    data = consumer.poll(timeout_ms=timeout, max_records=1)
-                    assert len(data) == 1
-                    topic, rec = list(data.items())[0]
-                    assert len(rec) == 1
-                    read_bytes += \
-                        max(0, rec.serialized_value_size) + \
-                        max(0, rec.serialized_value_size) + \
-                        max(0, rec.serialized_header_size)
-                    if topic not in poll_data:
-                        poll_data[topic] = rec
-                    else:
-                        poll_data[topic].extend(rec)
+            self.log.info(
+                "Will poll multiple times for a single message with a total timeout of %dms, "
+                "until at least %d bytes have been fetched", timeout, max_bytes
+            )
+            read_bytes = 0
+            start_time = time.monotonic()
+            poll_data = defaultdict(list)
+            message_count = 0
+            while read_bytes < max_bytes and start_time + timeout/1000 > time.monotonic():
+                time_left = start_time + timeout/1000 - time.monotonic()
+                bytes_left = max_bytes - read_bytes
+                self.log.info("Polling with %r time left and %d bytes left, gathered %d messages so far",
+                              time_left, bytes_left, message_count)
+                data = consumer.poll(timeout_ms=timeout, max_records=1)
+                for topic, records in data.items():
+                    for rec in records:
+                        message_count += 1
+                        read_bytes += \
+                            max(0, rec.serialized_key_size) + \
+                            max(0, rec.serialized_value_size) + \
+                            max(0, rec.serialized_header_size)
+                        poll_data[topic].append(rec)
             for tp in poll_data:
                 for msg in poll_data[tp]:
                     try:
