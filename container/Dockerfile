@@ -1,10 +1,22 @@
 FROM fedora:30
 
+ARG APACHE_MIRROR=http://www.nic.funet.fi/pub/mirrors/apache.org
+ARG SCALA_VERSION=2.12
+ARG KAFKA_VERSION=2.4.1
+ARG CONLUENT_MAJOR_VERSION=5
+ARG CONFLUENT_MINOR_VERSION=0
+ARG CONLFUENT_PATCH_VERSION=3
+ARG CONFLUENT_RPM_REPO=https://packages.confluent.io/rpm
 
 RUN dnf install -y java-openjdk
-RUN cd /opt && curl "http://www.nic.funet.fi/pub/mirrors/apache.org/kafka/2.4.1/kafka_2.12-2.4.1.tgz" | tar xvzf -
-RUN mkdir /rpm && cd /rpm && curl https://packages.confluent.io/rpm/5.0/archive.key -o confluent.key && rpm --import confluent.key
-RUN cd /rpm && dnf install -y https://packages.confluent.io/rpm/5.0/confluent-common-5.0.3-1.noarch.rpm https://packages.confluent.io/rpm/5.0/confluent-rest-utils-5.0.3-1.noarch.rpm https://packages.confluent.io/rpm/5.0/confluent-schema-registry-5.0.3-1.noarch.rpm
+RUN curl "$APACHE_MIRROR/kafka/$KAFKA_VERSION/kafka_$SCALA_VERSION-$KAFKA_VERSION.tgz" | tar xvzf - -C /opt
+RUN mkdir /rpm && cd /rpm \
+  && curl $CONFLUENT_RPM_REPO/$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION/archive.key -o /tmp/confluent.key \
+  && rpm --import /tmp/confluent.key && rm /tmp/confluent.key \
+  && dnf install -y \
+    $CONFLUENT_RPM_REPO/$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION/confluent-common-$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION.$CONFLUENT_PATCH_VERSION-1.noarch.rpm \
+    $CONFLUENT_RPM_REPO/$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION/confluent-rest-utils-$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION.$CONFLUENT_PATCH_VERSION-1.noarch.rpm \
+    $CONFLUENT_RPM_REPO/$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION/confluent-schema-registry-$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION.$CONFLUENT_PATCH_VERSION-1.noarch.rpm
 
 COPY start-all.sh /opt
 
