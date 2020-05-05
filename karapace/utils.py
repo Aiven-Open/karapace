@@ -7,9 +7,12 @@ See LICENSE for details
 import datetime
 import decimal
 import json as jsonlib
+import logging
 import os
 import requests
 import types
+
+log = logging.getLogger("KarapaceUtils")
 
 
 def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):
@@ -66,6 +69,7 @@ class Result:
     def __repr__(self):
         return "Result(status=%d, json_result=%r)" % (self.status_code, self.json_result)
 
+    @property
     def ok(self):
         return self.status_code == 200
 
@@ -80,11 +84,11 @@ class Client:
         try:
             self.session.close()
         except:  # pylint: disable=bare-except
-            pass
+            log.exception("Could not close client")
         try:
             await self.client.close()
         except:  # pylint: disable=bare-except
-            pass
+            log.exception("Could not close client")
 
     async def get(self, path, headers=None):
         if not headers:

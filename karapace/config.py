@@ -19,7 +19,9 @@ def set_config_defaults(config):
     config.setdefault("compatibility", "BACKWARD")
     config.setdefault("group_id", "schema-registry")
     config.setdefault("host", "127.0.0.1")
+    config.setdefault("registry_host", "127.0.0.1")
     config.setdefault("log_level", "DEBUG")
+    config.setdefault("registry_port", 8081)
     config.setdefault("port", 8081)
     config.setdefault("master_eligibility", True)
     config.setdefault("replication_factor", 1)
@@ -29,6 +31,7 @@ def set_config_defaults(config):
     config.setdefault("ssl_keyfile", None)
     config.setdefault("topic_name", "_schemas")
     config.setdefault("metadata_max_age_ms", 60000)
+    config.setdefault("admin_metadata_max_age", 5)
     return config
 
 
