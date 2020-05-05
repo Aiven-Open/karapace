@@ -38,6 +38,16 @@ SCHEMA_ACCEPT_VALUES = [
     "application/json",
 ]
 
+# TODO -> accept more general values as well
+REST_CONTENT_TYPE_RE = re.compile(
+    r"application(/vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?"
+    r"\+(?P<serialization_format>json))|/(?P<general_format>json|octet-stream)"
+)
+REST_ACCEPT_RE = re.compile(
+    r"(application|\*)/((vnd\.kafka(\.(?P<api_version>v[12]))?\+"
+    r"(?P<serialization_format>json))|(?P<general_format>json|\*))"
+)
+
 
 class HTTPRequest:
     def __init__(self, *, url, query, headers, path_for_stats, method):
@@ -47,6 +57,9 @@ class HTTPRequest:
         self.path_for_stats = path_for_stats
         self.method = method
         self.json = None
+
+    def __repr__(self):
+        return "HTTPRequest(url=%s query=%s method=%s json=%r)" % (self.url, self.query, self.method, self.json)
 
 
 class HTTPResponse(Exception):
@@ -109,6 +122,38 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
+    def check_rest_headers(self, request):
+        method = request.method
+        headers = request.headers
+        result = {"content_type": "application/vnd.kafka.json.v2+json"}
+        header_info = None
+        matcher = "Content-Type" in headers and REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers["Content-Type"])[0])
+        if method in {"POST", "PUT"}:
+            if not matcher:
+                raise HTTPResponse(
+                    body=json_encode({
+                        "error_code": 415,
+                        "message": "HTTP 415 Unsupported Media Type",
+                    }, binary=True),
+                    headers={"Content-Type": result["content_type"]},
+                    status=415,
+                )
+            header_info = matcher.groupdict()
+        if matcher:
+            header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
+            result["formats"] = header_info
+        if REST_ACCEPT_RE.search(headers["Accept"]):
+            return result
+        self.log.error("Not acceptable: %r", headers["accept"])
+        raise HTTPResponse(
+            body=json_encode({
+                "error_code": 406,
+                "message": "HTTP 406 Not Acceptable",
+            }, binary=True),
+            headers={"Content-Type": result["content_type"]},
+            status=406,
+        )
+
     def check_schema_headers(self, request):
         method = request.method
         headers = request.headers
@@ -142,7 +187,15 @@ class RestApp:
         return response_default_content_type
 
     async def _handle_request(
-        self, *, request, path_for_stats, callback, schema_request=False, callback_with_request=False, json_request=False
+        self,
+        *,
+        request,
+        path_for_stats,
+        callback,
+        schema_request=False,
+        callback_with_request=False,
+        json_request=False,
+        rest_request=False
     ):
         start_time = time.monotonic()
         resp = None
@@ -183,6 +236,10 @@ class RestApp:
             callback_kwargs = dict(request.match_info)
             if callback_with_request:
                 callback_kwargs["request"] = rapu_request
+
+            if rest_request:
+                params = self.check_rest_headers(request)
+                callback_kwargs.update(params)
 
             if schema_request:
                 content_type = self.check_schema_headers(request)
@@ -248,7 +305,7 @@ class RestApp:
 
         return resp
 
-    def route(self, path, *, callback, method, schema_request=False, with_request=None, json_body=None):
+    def route(self, path, *, callback, method, schema_request=False, with_request=None, json_body=None, rest_request=False):
         # pretty path for statsd reporting
         path_for_stats = re.sub(r"<[\w:]+>", "x", path)
 
@@ -271,6 +328,7 @@ class RestApp:
                 schema_request=schema_request,
                 callback_with_request=with_request,
                 json_request=json_body,
+                rest_request=rest_request
             )
 
         async def wrapped_cors(request):
