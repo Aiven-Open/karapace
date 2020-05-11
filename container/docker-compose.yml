@@ -24,7 +24,7 @@ services:
         limits:
           cpus: "1.0"
     hostname: "registry"
-    command: ["registry", "${KARAPACE_TAG}"]
+    command: ["registry"]
     ports:
       - "8081:8081"
   rest:
@@ -37,6 +37,6 @@ services:
         limits:
           cpus: "1.0"
     hostname: "rest"
-    command: ["rest", "${KARAPACE_TAG}"]
+    command: ["rest"]
     ports:
       - "8082:8082"

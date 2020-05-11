@@ -8,12 +8,6 @@ registry_port=${REGISTRY_PORT:-8081}
 rest_port=${REST_PORT:-8082}
 
 
-if [ "$2" == "test" ]; then
-  insert="_"
-else
-  insert="_karapace_"
-fi
-
 start_zk(){
   echo "starting zookeeper"
   cat >/opt/zookeeper.properties <<- EOF
@@ -64,27 +58,6 @@ EOF
   /opt/kafka_2.12-2.4.1/bin/kafka-server-start.sh /opt/server.properties 2>&1 | tee /var/log/kafka.log
 }
 
-start_registry() {
-  echo "Starting schema registry"
-  if [ "$1" == "single" ]; then
-    kafka_host="kafka:${kafka_port_internal}"
-    advertised_host="${ADVERTISED_HOST:-registry}"
-  else
-    kafka_host="127.0.0.1:${kafka_port}"
-    advertised_host="127.0.0.1"
-  fi
-  cat > /opt/schema-registry.properties <<- EOF
-listeners=http://0.0.0.0:${registry_port}
-host.name=${advertised_host}
-kafkastore.bootstrap.servers=PLAINTEXT://${kafka_host}
-kafkastore.zk.session.timeout.ms=30000
-kafkastore.topic=_schemas
-debug=false
-EOF
-  /opt/wait-for-it.sh "${kafka_host}"
-  /usr/bin/schema-registry-start /opt/schema-registry.properties  2>&1 | tee /var/log/schema-registry.log
-}
-
 start_karapace_registry(){
   echo "starting karapace schema registry"
 
@@ -116,25 +89,6 @@ start_karapace_registry(){
 EOF
   /opt/wait-for-it.sh "${kafka_host}"
   python3 -m karapace.schema_registry_apis /opt/karapace.config.json 2>&1 | tee /var/log/karapace-registry.log
-}
-
-start_rest() {
-  echo "Starting kafka rest"
-  if [ "$1" == "single" ]; then
-    kafka_host="kafka:${kafka_port_internal}"
-    registry_host="registry"
-  else
-    registry_host="127.0.0.1"
-    kafka_host="127.0.0.1:${kafka_port}"
-  fi
-  cat > /opt/kafka-rest.properties <<- EOF
-host.name=rest
-listeners=http://0.0.0.0:${rest_port}
-schema.registry.url=http://${registry_host}:${registry_port}
-bootstrap.servers=${kafka_host}
-EOF
-  /opt/wait-for-it.sh "${kafka_host}"
-  /usr/bin/kafka-rest-start /opt/kafka-rest.properties  2>&1 | tee /var/log/kafka-rest.log
 }
 
 start_karapace_rest(){
@@ -176,17 +130,17 @@ case $1 in
     start_kafka single &
   ;;
   rest)
-    "start${insert}rest" single &
+    start_karapace_rest single &
   ;;
   registry)
-    "start${insert}registry" single &
+    start_karapace_registry single &
   ;;
   all)
     start_zk all &
     start_kafka all &
     # lazy way of figuring out what set of http apps we want
-    "start${insert}registry" all &
-    "start${insert}rest" all &
+    start_karapace_registry all &
+    start_karapace_rest all &
   ;;
   *)
     echo "usage: start-karapace.sh <zk|kafka|registry|rest|all>"
