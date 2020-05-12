@@ -135,6 +135,8 @@ class Compatibility:
             return isinstance(target.type, avro.schema.RecordSchema), False
         if isinstance(source.type, avro.schema.EnumSchema):
             return isinstance(target.type, avro.schema.EnumSchema), True
+        if isinstance(source.type, avro.schema.UnionSchema):
+            return isinstance(target.type, avro.schema.UnionSchema), True
         raise IncompatibleSchema("Unhandled schema type: {}".format(type(source.type)))
 
     def check_type_promotion(self, source_type, target_type):

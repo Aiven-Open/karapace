@@ -91,6 +91,78 @@ async def enum_schema_compatibility_checks(c, compatibility):
     assert res["fields"][0]["type"]["symbols"] == ["second"]
 
 
+async def record_union_schema_compatibility_checks(c):
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    original_schema = {
+        "name": "bar",
+        "namespace": "foo",
+        "type": "record",
+        "fields": [{
+            "name": "foobar",
+            "type": [{
+                "type": "array",
+                "name": "foobar_items",
+                "items": {
+                    "type": "record",
+                    "name": "foobar_fields",
+                    "fields": [{
+                        "name": "foo",
+                        "type": "string"
+                    }]
+                }
+            }]
+        }]
+    }
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(original_schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+
+    evolved_schema = {
+        "name": "bar",
+        "namespace": "foo",
+        "type": "record",
+        "fields": [{
+            "name": "foobar",
+            "type": [{
+                "type": "array",
+                "name": "foobar_items",
+                "items": {
+                    "type": "record",
+                    "name": "foobar_fields",
+                    "fields": [{
+                        "name": "foo",
+                        "type": "string"
+                    }, {
+                        "name": "bar",
+                        "type": ["null", "string"],
+                        "default": None
+                    }]
+                }
+            }]
+        }]
+    }
+    res = await c.post(
+        f"compatibility/subjects/{subject}/versions/latest",
+        json={"schema": jsonlib.dumps(evolved_schema)},
+    )
+    assert res.status == 200
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved_schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+
+    # Check that we can delete the field as well
+    res = await c.post(
+        f"compatibility/subjects/{subject}/versions/latest",
+        json={"schema": jsonlib.dumps(original_schema)},
+    )
+    assert res.status == 200
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(original_schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+
+
 async def record_nested_schema_compatibility_checks(c):
     subject = os.urandom(16).hex()
 
@@ -1107,6 +1179,7 @@ async def run_schema_tests(c):
     await compatibility_endpoint_checks(c)
     await record_schema_compatibility_checks(c)
     await record_nested_schema_compatibility_checks(c)
+    await record_union_schema_compatibility_checks(c)
     for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
         await enum_schema_compatibility_checks(c, compatibility)
     await config_checks(c)
