@@ -114,7 +114,7 @@ class SchemaRegistrySerializerDeserializer:
         config_path = cfg["config_path"]
         self.config = read_config(config_path)
         self.state_lock = asyncio.Lock()
-        registry_url = f"{self.config['registry_host']}:{self.config['registry_port']}"
+        registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
         registry_client = SchemaRegistryClient(registry_url)
         self.subject_name_strategy = NAME_STRATEGIES[cfg.get("name_strategy", "topic_name")]
         self.registry_client = registry_client

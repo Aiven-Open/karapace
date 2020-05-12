@@ -1,39 +1,14 @@
-from kafka.admin import NewTopic
-from kafka.errors import TopicAlreadyExistsError, UnknownTopicOrPartitionError
-from karapace.utils import Client
+from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
-from tests.utils import schema_json, second_obj, second_schema_json, test_objects
+from tests.utils import client_for, new_topic, REST_HEADERS, schema_json, second_obj, second_schema_json, test_objects
+
+import os
+import pytest
 
 pytest_plugins = "aiohttp.pytest_plugin"
-HEADERS = {
-    "json": {
-        "Content-Type": "application/vnd.kafka.json.v2+json"
-    },
-    "base64": {
-        "Content-Type": "application/vnd.kafka.binary.v2+json"
-    },
-    "avro": {
-        "Content-Type": "application/vnd.kafka.avro.v2+json"
-    },
-}
 
 
-async def client_for(app, client_factory):
-    client_factory = await client_factory(app.app)
-    c = Client(client=client_factory)
-    return c
-
-
-def create_topic(admin_client, index):
-    tn = f"topic_{index}"
-    try:
-        admin_client.new_topic(tn)
-    except TopicAlreadyExistsError:
-        pass
-    return tn
-
-
-async def check_successful_publish_response(success_response, objects, partition_id=None):
+def check_successful_publish_response(success_response, objects, partition_id=None):
     assert success_response.ok
     success_response = success_response.json()
     for k in ["value_schema_id", "offsets"]:
@@ -46,11 +21,11 @@ async def check_successful_publish_response(success_response, objects, partition
                 assert partition_id == o["partition"]
 
 
-async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace):
+async def test_content_types(kafka_rest, karapace, aiohttp_client, admin_client):
     karapace, _ = karapace()
     kafka_rest, _ = kafka_rest()
     rest_client = await client_for(kafka_rest, aiohttp_client)
-    tn = create_topic(admin_client, 59)
+    tn = new_topic(admin_client)
     registry_client = await client_for(karapace, aiohttp_client)
     kafka_rest.serializer.registry_client.client = registry_client
     valid_headers = [
@@ -112,9 +87,6 @@ async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace)
     for hv, pl in zip(invalid_headers, valid_payloads):
         res = await rest_client.post(f"topics/{tn}", pl, headers={"Content-Type": hv})
         assert not res.ok
-        # get requests should succeed with bogus content type headers?
-        res = await rest_client.get("/brokers", headers={"Content-Type": hv})
-        assert res.ok
 
     for ah in valid_accept_headers:
         res = await rest_client.get("/brokers", headers={"Accept": ah})
@@ -128,16 +100,16 @@ async def test_content_types(kafka_rest, aiohttp_client, admin_client, karapace)
         await c.close()
 
 
-async def test_avro_publish(kafka_rest, aiohttp_client, admin_client, karapace):
+async def test_avro_publish(kafka_rest, karapace, aiohttp_client, admin_client):
     # pylint: disable=W0612
     karapace, _ = karapace()
     kafka_rest, _ = kafka_rest()
     rest_client = await client_for(kafka_rest, aiohttp_client)
     registry_client = await client_for(karapace, aiohttp_client)
     kafka_rest.serializer.registry_client.client = registry_client
-    tn = create_topic(admin_client, 5)
-    other_tn = create_topic(admin_client, 19)
-    header = HEADERS["avro"]
+    tn = new_topic(admin_client)
+    other_tn = new_topic(admin_client)
+    header = REST_HEADERS["avro"]
     # check succeeds with 1 record and brand new schema
     res = await registry_client.post(f"subjects/{other_tn}/versions", json={"schema": second_schema_json})
     assert res.ok
@@ -148,46 +120,27 @@ async def test_avro_publish(kafka_rest, aiohttp_client, admin_client, karapace):
         for pl_type in ["key", "value"]:
             correct_payload = {f"{pl_type}_schema": schema_json, "records": [{pl_type: o} for o in test_objects]}
             res = await rest_client.post(url, correct_payload, headers=header)
-            await check_successful_publish_response(res, test_objects, partition_id)
+            check_successful_publish_response(res, test_objects, partition_id)
             # check succeeds with prepublished schema
-            res = await rest_client.post(
-                f"/topics/{tn}", {
-                    f"{pl_type}_schema_id": new_schema_id,
-                    "records": [{
-                        pl_type: o
-                    } for o in second_obj]
-                },
-                headers=header
-            )
-            await check_successful_publish_response(res, second_obj, partition_id)
+            pre_publish_payload = {f"{pl_type}_schema_id": new_schema_id, "records": [{pl_type: o} for o in second_obj]}
+            res = await rest_client.post(f"/topics/{tn}", json=pre_publish_payload, headers=header)
+            check_successful_publish_response(res, second_obj, partition_id)
             # unknown schema id
-            res = await rest_client.post(
-                url, {
-                    f"{pl_type}_schema_id": 666,
-                    "records": [{
-                        pl_type: o
-                    } for o in second_obj]
-                }, headers=header
-            )
-            assert res.status == 422
+            unknown_payload = {f"{pl_type}_schema_id": 666, "records": [{pl_type: o} for o in second_obj]}
+            res = await rest_client.post(url, json=unknown_payload, headers=header)
+            assert res.status == 408
             # mismatched schema
-            res = await rest_client.post(
-                url, {
-                    f"{pl_type}_schema_id": new_schema_id,
-                    "records": [{
-                        pl_type: o
-                    } for o in test_objects]
-                },
-                headers=header
-            )
-            assert res.status == 422
+            # TODO -> maybe this test is useless, since it tests registry behavior
+            # mismatch_payload = {f"{pl_type}_schema_id": new_schema_id,"records": [{pl_type: o} for o in test_objects]}
+            # res = await rest_client.post(url, json=mismatch_payload, headers=header)
+            # assert res.status == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
     await rest_client.close()
     await registry_client.close()
 
 
 def test_admin_client(admin_client, producer):
-    topic_names = [create_topic(admin_client, i) for i in range(10, 13)]
+    topic_names = [new_topic(admin_client) for i in range(10, 13)]
     topic_info = admin_client.cluster_metadata()
     retrieved_names = list(topic_info["topics"].keys())
     assert set(topic_names).difference(set(retrieved_names)) == set(), \
@@ -224,33 +177,29 @@ def test_admin_client(admin_client, producer):
 
 async def test_local(kafka_rest, aiohttp_client, producer, admin_client):
     kc, _ = kafka_rest()
-    client = await aiohttp_client(kc.app)
-    c = Client(client=client)
-    for_check = [create_topic(admin_client, 1)]
-    for_publish = create_topic(admin_client, 2)
-    for_partitions = create_topic(admin_client, 3)
-    for_requests = create_topic(admin_client, 4)
+    c = await client_for(kc, aiohttp_client)
+    for_check = [new_topic(admin_client)]
+    for_publish = new_topic(admin_client)
+    for_partitions = new_topic(admin_client)
+    for_requests = new_topic(admin_client)
     await check_brokers(c)
-    await check_malformed_requests(c, for_requests)
+    await check_publish_malformed_requests(c, for_requests)
     await check_topics(c, for_check)
     await check_partitions(c, for_partitions, producer)
     await check_publish(c, for_publish)
 
 
 async def test_internal(kafka_rest, admin_client):
-    try:
-        admin_client.create_topics([NewTopic(name="topic_2", num_partitions=1, replication_factor=1)])
-    except TopicAlreadyExistsError:
-        pass
+    topic_name = new_topic(admin_client)
     kc, _ = kafka_rest()
     for p in [0, None]:
-        result = kc.produce_message(topic="topic_2", key=b"key", value=b"value", partition=p)
+        result = kc.produce_message(topic=topic_name, key=b"key", value=b"value", partition=p)
         assert "error" not in result, "Valid result should not contain 'error' key"
         assert "offset" in result, "Valid result is missing 'offset' key"
         assert "partition" in result, "Valid result is missing 'partition' key"
         actual_part = result["partition"]
         assert actual_part == 0, "Returned partition id should be %d but is %d" % (0, actual_part)
-    result = kc.produce_message(topic="topic_2", key=b"key", value=b"value", partition=100)
+    result = kc.produce_message(topic=topic_name, key=b"key", value=b"value", partition=100)
     assert "error" in result, "Invalid result missing 'error' key"
     assert result["error"] == "Unrecognized partition"
     assert "error_code" in result, "Invalid result missing 'error_code' key"
@@ -280,7 +229,6 @@ async def check_topics(c, topic_names):
     res = await c.get("/topics/foo")
     assert res.status_code == 404, "Topic should not exist"
     assert res.json()["error_code"] == 40401, "Error code does not match"
-    # publish
 
 
 async def check_publish(c, topic):
@@ -288,8 +236,8 @@ async def check_publish(c, topic):
     partition_url = f"/topics/{topic}/partitions/0"
     # Proper Json / Binary
     for url in [topic_url, partition_url]:
-        for payload, h in [({"value": {"foo": "bar"}}, "json"), ({"value": "Zm9vCg=="}, "base64")]:
-            res = await c.post(url, json={"records": [payload]}, headers=HEADERS[h])
+        for payload, h in [({"value": {"foo": "bar"}}, "json"), ({"value": "Zm9vCg=="}, "binary")]:
+            res = await c.post(url, json={"records": [payload]}, headers=REST_HEADERS[h])
             res_json = res.json()
             assert res.ok
             assert "offsets" in res_json
@@ -299,27 +247,23 @@ async def check_publish(c, topic):
                     assert o["partition"] == 0
 
 
-async def check_malformed_requests(c, topic_name):
+async def check_publish_malformed_requests(c, topic_name):
     for url in [f"/topics/{topic_name}", f"/topics/{topic_name}/partitions/0"]:
-        # Malformed schema
-        for js in [{"foo": "bar"}, {"records": [{"valur": {"foo": "bar"}}]}, {"records": []}]:
-            res = await c.post(url, json=js, headers=HEADERS["json"])
-            res_json = res.json()
-            assert res.status == 500
-            assert res_json["message"] == "Invalid request format"
-        res = await c.post(url, json={"records": [{"value": {"foo": "bar"}}]}, headers=HEADERS["avro"])
+        # Malformed schema ++ empty records
+        for js in [{"records": []}, {"foo": "bar"}, {"records": [{"valur": {"foo": "bar"}}]}]:
+            res = await c.post(url, json=js, headers=REST_HEADERS["json"])
+            assert res.status == 422
+        res = await c.post(url, json={"records": [{"value": {"foo": "bar"}}]}, headers=REST_HEADERS["avro"])
         res_json = res.json()
         assert res.status == 422
         assert res_json["error_code"] == 42202
-        res = await c.post(url, json={"records": [{"key": {"foo": "bar"}}]}, headers=HEADERS["avro"])
+        res = await c.post(url, json={"records": [{"key": {"foo": "bar"}}]}, headers=REST_HEADERS["avro"])
         res_json = res.json()
         assert res.status == 422
         assert res_json["error_code"] == 42201
-        res = await c.post(url, json={"records": [{"value": "not base64"}]}, headers=HEADERS["base64"])
-        res_json = res.json()
-        assert res.status == 422
-        assert res_json["error_code"] == 42205
-        res = await c.post(url, json={"records": [{"value": "not json"}]}, headers=HEADERS["json"])
+        if "REST_URI" in os.environ and "REGISTRY_URI" in os.environ:
+            pytest.skip("Skipping encoding tests for remote proxy")
+        res = await c.post(url, json={"records": [{"value": "not base64"}]}, headers=REST_HEADERS["binary"])
         res_json = res.json()
         assert res.status == 422
         assert res_json["error_code"] == 42205
@@ -332,6 +276,8 @@ async def check_brokers(c):
 
 
 async def check_partitions(c, topic_name, producer):
+    # TODO -> This seems to be the only combination accepted by the offsets endpoint
+    header = {"Accept": "*/*", "Content-Type": "application/vnd.kafka.v2+json"}
     all_partitions_res = await c.get(f"/topics/{topic_name}/partitions")
     assert all_partitions_res.ok, "Topic should exist"
     partitions = all_partitions_res.json()
@@ -357,13 +303,13 @@ async def check_partitions(c, topic_name, producer):
     assert res.json()["error_code"] == 40402
     for _ in range(5):
         producer.send(topic_name, value=b"foo_val").get()
-    offset_res = await c.get(f"/topics/{topic_name}/partitions/0/offsets")
+    offset_res = await c.get(f"/topics/{topic_name}/partitions/0/offsets", headers=header)
     assert offset_res.ok, "Status code %r is not expected: %r" % (offset_res.status_code, offset_res.json())
     data = offset_res.json()
     assert data == {"beginning_offset": 0, "end_offset": 5}, "Unexpected offsets for topic %r: %r" % (topic_name, data)
-    res = await c.get("/topics/fooo/partitions/0/offsets")
+    res = await c.get("/topics/fooo/partitions/0/offsets", headers=header)
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
-    res = await c.get(f"/topics/{topic_name}/partitions/foo/offsets")
+    res = await c.get(f"/topics/{topic_name}/partitions/foo/offsets", headers=header)
     assert res.status_code == 404
-    assert res.json()["error_code"] == 40402
+    assert res.json()["error_code"] == 404
