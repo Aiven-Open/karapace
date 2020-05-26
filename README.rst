@@ -10,9 +10,9 @@ Karapace |BuildStatus|_
 Features
 ========
 
-* Schema Registry that is 1:1 Compatible with the pre-existing proprietary
-  Confluent Schema Registry
-* Drop in replacement both on pre-existing Schema Registry client and
+* Schema Registry and Rest Proxy that are 1:1 Compatible with the pre-existing proprietary
+  Confluent Schema Registry and Kafka Rest Proxy
+* Drop in replacement both on pre-existing Schema Registry / Kafka Rest Proxy client and
   server-sides
 * Moderate memory consumption
 * Asynchronous architecture based on aiohttp
@@ -26,6 +26,9 @@ clients can access to serialize and deserialize messages.  The schemas also
 maintain their own version histories and can be checked for compatibility
 between their different respective versions.
 
+Karapace rest provides a RESTful interface to your Kafka cluster, allowing you to perform
+tasks such as producing and consuming messages and perform administrative cluster work,
+all the while using the language of the WEB.
 
 Requirements
 ============
@@ -37,8 +40,10 @@ order to operate:
 * avro-python3_ for Avro serialization
 * kafka-python_ to read, write and coordinate Karapace's persistence in Kafka
 * raven-python_ (optional) to report exceptions to sentry
+* aiokafka_ for some components of the rest proxy
 
 .. _`aiohttp`: https://github.com/aio-libs/aiohttp
+.. _`aiokafka`: https://github.com/aio-libs/aiokafka
 .. _`avro-python3`: https://github.com/apache/avro
 .. _`kafka-python`: https://github.com/dpkp/kafka-python
 .. _`raven-python`: https://github.com/getsentry/raven-python
@@ -197,7 +202,45 @@ Change compatibility requirement to FULL for the test-key subject::
       --data '{"compatibility": "FULL"}' http://localhost:8081/config/test-key
     {"compatibility":"FULL"}
 
+List topics::
 
+  $ curl "http://localhost:8081/topics"
+
+Get info for one particular topic::
+
+  $ curl "http://localhost:8081/topics/my_topic"
+
+Produce a message backed up by schema registry::
+
+  $ curl -H "Content-Type: application/vnd.kafka.avro.v2+json" -X POST -d \
+  '{"value_schema": "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"simple\", \"fields\": \
+  [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8081/topics/my_topic
+
+Create a consumer::
+
+  $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" -H "Accept: application/vnd.kafka.v2+json" \
+    --data '{"name": "my_consumer", "format": "avro", "auto.offset.reset": "earliest"}' \
+    http://localhost:8081/consumers/avro_consumers
+
+Subscribe to the topic we previously published to::
+
+  $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{"topics":["my_topic"]}' \
+    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/subscription
+
+Consume previously published message::
+
+  $ curl -X GET -H "Accept: application/vnd.kafka.avro.v2+json" \
+  http://localhost:8081/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
+
+Commit offsets for a particular topic partition:
+
+  $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{}' \
+    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/offsets
+
+Delete consumer::
+
+  $ curl -X DELETE -H "Accept: application/vnd.kafka.v2+json" \
+  http://localhost:8081/consumers/avro_consumers/instances/my_consumer
 Backing up your Karapace
 ========================
 
@@ -227,6 +270,63 @@ to a new Kafka cluster.
 You can restore the data from the previous step by running::
 
   ./kafka-console-producer.sh --broker-list brokerhostname:9092 --topic _schemas --property parse.key=true < schemas.log
+
+
+Performance comparison to Confluent stack
+==========================================
+- Latency
+
+* 50 concurrent connections, 50.000 requests
+
+====== ========== ===========
+        Karapace   Confluent
+====== ========== ===========
+Avro    80.95      7.22
+Binary  66.32      46.99
+Json    60.36      53.7
+====== ========== ===========
+
+* 15 concurrent connections, 50.000 requests
+
+====== =========== ===========
+         Karapace   Confluent
+====== =========== ===========
+Avro     25.05      18.14
+Binary   21.35      15.85
+Json     21.38      14.83
+====== =========== ===========
+
+* 4 concurrent connections, 50.000 requests
+
+====== =========== ===========
+         Karapace   Confluent
+====== =========== ===========
+Avro     6.54        5.67
+Binary   6.51        4.56
+Json     6.86        5.32
+====== =========== ===========
+
+
+Also, it appears there is quite a bit of variation on subsequent runs, especially for the lower numbers, so once
+more exact measurements are required, it's advised we increase the total req count to something like 500K
+
+We'll focus on avro serialization only after this round, as it's the more expensive one, plus it tests the entire stack
+
+#### Consuming RAM
+
+A basic push pull test , with 12 connections on the publisher process and 3 connections on the subscriber process, with a
+10 minute duration. The publisher has the 100 ms timeout and 100 max_bytes parameters set on each request so both processes have work to do
+Heap size limit is set to 256M on Rest proxy
+
+Ram consumption, different consumer count, over 300s
+
+=========== =================== ================
+ Consumers   Karapace combined   Confluent rest
+=========== =================== ================
+    1            47                  200
+    10           55                  400
+    20           83                  530
+=========== =================== ================
 
 
 Commands
@@ -307,14 +407,39 @@ The replication factor to be used with the schema topic.
 Address to bind the Karapace HTTP server to.  Set to an empty string to
 listen to all available addresses.
 
+``registry_host`` (default ``"127.0.0.1"``)
+
+Kafka Registry host, used by Kafka Rest for avro related requests.
+If running both in the same process, it should be left to its default value
+
 ``port`` (default ``8081``)
 
 HTTP webserver port to bind the Karapace to.
+
+``registry_port`` (default ``8081``)
+
+Kafka Registry port, used by Kafka Rest for avro related requests.
+If running both in the same process, it should be left to its default value
 
 ``metadata_max_age_ms`` (default ``60000``)
 
 Preiod of time in milliseconds after Kafka metadata is force refreshed.
 
+``karapace_rest`` (default ``true``)
+
+If the rest part of the app should be included in the starting process
+At least one of this and karapace_registry options need to be enabled in order
+for the service to start
+
+``karapace_registry`` (default ``true``)
+
+If the registry part of the app should be included in the starting process
+At least one of this and karapace_registry options need to be enabled in order
+for the service to start
+
+``name_strategy`` (default ``subject_name``)
+
+Name strategy to use when storing schemas from the kafka rest proxy service
 
 License
 =======

@@ -2,7 +2,8 @@
 LOCAL_PACKAGES = \
 	python3-aiohttp_socks \
 	python3-avro \
-	python3-kafka
+	python3-kafka \
+	python3-aiokafka \
 
 DEP_DIRS = $(foreach dir,$(LOCAL_PACKAGES),$(dir)/rpm)
 DEP_CLEAN = $(foreach dir,$(LOCAL_PACKAGES),clean-$(dir))

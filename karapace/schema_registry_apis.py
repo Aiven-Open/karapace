@@ -30,24 +30,31 @@ TRANSITIVE_MODES = {
 
 
 class KarapaceSchemaRegistry(KarapaceBase):
+    # pylint: disable=attribute-defined-outside-init
     def __init__(self, config):
         super().__init__(config)
-        self.kafka_timeout = 10
+        self._add_routes()
+        self._init()
 
+    def _init(self):
+        self.ksr = None
+        self.producer = None
+        self.producer = self._create_producer()
+        self._create_schema_reader()
+        self._create_master_coordinator()
+
+    def _add_routes(self):
         self.route(
             "/compatibility/subjects/<subject:path>/versions/<version:path>",
             callback=self.compatibility_check,
             method="POST",
             schema_request=True
         )
-
         self.route("/config/<subject:path>", callback=self.config_subject_get, method="GET", schema_request=True)
         self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
         self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
-
         self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
-
         self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
         self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
         self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
@@ -73,12 +80,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_request=True
         )
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
-
-        self.ksr = None
-        self.producer = None
-        self._create_producer()
-        self._create_schema_reader()
-        self._create_master_coordinator()
 
     def close(self):
         super().close()

@@ -10,6 +10,7 @@ from urllib.parse import urljoin
 import datetime
 import decimal
 import json as jsonlib
+import karapace.rapu
 import logging
 import requests
 import types
@@ -82,12 +83,15 @@ class Client:
         self.path_for = partial(urljoin, self.server_uri)
         self.session = requests.Session()
         self.client = client
+        if self.client is None:
+            import aiohttp
+            self.client = aiohttp.ClientSession()
 
     async def close(self):
         try:
             self.session.close()
         except:  # pylint: disable=bare-except
-            log.info("Could not close client")
+            log.info("Could not close session")
         try:
             await self.client.close()
         except:  # pylint: disable=bare-except
@@ -174,3 +178,12 @@ class Client:
         elif self.server_uri:
             res = self.session.put(path, headers=headers, data=data)
             return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
+
+
+def convert_to_int(object_: dict, key: str, content_type: str):
+    if object_.get(key) is None:
+        return
+    try:
+        object_[key] = int(object_[key])
+    except ValueError:
+        karapace.rapu.http_error(f"{key} is not a valid int: {object_[key]}", content_type, 500)

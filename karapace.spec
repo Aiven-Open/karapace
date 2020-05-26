@@ -18,6 +18,7 @@ BuildRequires:  python3-pytest
 BuildRequires:  python3-requests
 BuildRequires:  python3-yapf
 Requires:       python3-aiohttp
+Requires:       python3-aiokafka
 Requires:       python3-aiohttp_socks
 Requires:       python3-avro
 Requires:       python3-kafka

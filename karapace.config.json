@@ -13,5 +13,7 @@
     "ssl_cafile": null,
     "ssl_certfile": null,
     "ssl_keyfile": null,
+    "karapace_rest": true,
+    "karapace_registry": true,
     "topic_name": "_schemas"
 }
