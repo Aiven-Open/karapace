@@ -1,12 +1,14 @@
 from .admin import KafkaRestAdminClient
 from .consumer_manager import ConsumerManager
+from aiokafka import AIOKafkaProducer
 from binascii import Error as B64DecodeError
 from collections import namedtuple
-from concurrent.futures import ThreadPoolExecutor
-from kafka.errors import BrokerResponseError, KafkaTimeoutError, UnknownTopicOrPartitionError
+from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
+from karapace.config import create_ssl_context
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
+from karapace.utils import convert_to_int
 from threading import Lock
 from typing import List, Optional, Tuple
 
@@ -17,7 +19,7 @@ import json
 import logging
 import time
 
-RECORD_KEYS = ["key", "value"]
+RECORD_KEYS = ["key", "value", "partition"]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
 RECORD_CODES = [42201, 42202]
 KNOWN_FORMATS = {"json", "avro", "binary"}
@@ -31,22 +33,32 @@ class FormatError(Exception):
 
 
 class KafkaRest(KarapaceBase):
+    # pylint: disable=attribute-defined-outside-init
     def __init__(self, config_path: str):
         super().__init__(config_path)
+        self._add_routes()
+        self._init(config_path)
+
+    def _init(self, config_path):
         self.serializer = SchemaRegistrySerializer(config_path=config_path)
         self.log = logging.getLogger("KarapaceRest")
-        self.kafka_timeout = 10
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
         self._metadata_birth = None
         self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
-        self.producer_lock = Lock()
         self.admin_lock = Lock()
         self.metadata_cache = None
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.schemas_cache = {}
+        self.consumer_manager = ConsumerManager(config_path)
+        self.init_admin_client()
+        self.producer_refs = []
+        self.producer_queue = asyncio.Queue()
+
+    def _add_routes(self):
         # Brokers
         self.route("/brokers", callback=self.list_brokers, method="GET", rest_request=True)
+
         # Consumers
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/offsets",
@@ -114,7 +126,8 @@ class KafkaRest(KarapaceBase):
             callback=self.fetch,
             method="GET",
             rest_request=True,
-            with_request=True
+            with_request=True,
+            json_body=False
         )
         self.route("/consumers/<group_name:path>", callback=self.create_consumer, method="POST", rest_request=True)
         self.route(
@@ -147,70 +160,93 @@ class KafkaRest(KarapaceBase):
         self.route("/topics", callback=self.list_topics, method="GET", rest_request=True)
         self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", rest_request=True)
         self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
-        self.consumer_manager = ConsumerManager(config_path)
-        self.init_admin_client()
-        self._create_producer()
 
-    async def root_get(self):
-        self.r({"application": "Karapace Schema Registry"}, "application/json")
+    async def get_producer(self) -> AIOKafkaProducer:
+        if self.producer_queue.empty():
+            for _ in range(self.config["producer_count"]):
+                self.log.info("Creating async producers")
+                p = await self._create_async_producer()
+                await self.producer_queue.put(p)
+                self.producer_refs.append(p)
+        return await self.producer_queue.get()
+
+    async def _create_async_producer(self) -> AIOKafkaProducer:
+        while True:
+            try:
+                p = AIOKafkaProducer(
+                    bootstrap_servers=self.config["bootstrap_uri"],
+                    security_protocol=self.config["security_protocol"],
+                    ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
+                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
+                    loop=self.loop,
+                )
+                await p.start()
+                return p
+            except:  # pylint: disable=bare-except
+                self.log.exception("Unable to start async producer, retrying")
+                await asyncio.sleep(1)
 
     # CONSUMERS
-    def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.create_consumer(group_name, request.json, content_type)
+    async def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.create_consumer(group_name, request.json, content_type)
 
-    def delete_consumer(self, group_name: str, instance: str, content_type: str):
-        self.consumer_manager.delete_consumer(ConsumerManager.create_internal_name(group_name, instance), content_type)
+    async def delete_consumer(self, group_name: str, instance: str, content_type: str):
+        await self.consumer_manager.delete_consumer(ConsumerManager.create_internal_name(group_name, instance), content_type)
 
-    def commit_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.commit_offsets(
+    async def commit_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.commit_offsets(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, self.cluster_metadata()
         )
 
-    def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.get_offsets(
+    async def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.get_offsets(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    def update_consumer_subscription(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.set_subscription(
+    async def update_consumer_subscription(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.set_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
             request.json,
         )
 
-    def get_consumer_subscription(self, group_name: str, instance: str, content_type: str):
-        self.consumer_manager.get_subscription(
+    async def get_consumer_subscription(self, group_name: str, instance: str, content_type: str):
+        await self.consumer_manager.get_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    def delete_consumer_subscription(self, group_name: str, instance: str, content_type: str):
-        self.consumer_manager.delete_subscription(
+    async def delete_consumer_subscription(self, group_name: str, instance: str, content_type: str):
+        await self.consumer_manager.delete_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    def update_consumer_assignment(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.set_assignments(
+    async def update_consumer_assignment(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.set_assignments(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    def get_consumer_assignment(self, group_name: str, instance: str, content_type: str):
-        self.consumer_manager.get_assignments(
+    async def get_consumer_assignment(self, group_name: str, instance: str, content_type: str):
+        await self.consumer_manager.get_assignments(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    def update_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.seek_to(ConsumerManager.create_internal_name(group_name, instance), content_type, request.json)
+    async def update_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.seek_to(
+            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
+        )
 
-    def seek_end_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.seek_limit(
+    async def seek_end_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+        await self.consumer_manager.seek_limit(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=False
         )
 
-    def seek_beginning_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
-        self.consumer_manager.seek_limit(
+    async def seek_beginning_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ):
+        await self.consumer_manager.seek_limit(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=True
         )
 
@@ -219,7 +255,7 @@ class KafkaRest(KarapaceBase):
             internal_name=ConsumerManager.create_internal_name(group_name, instance),
             content_type=content_type,
             query_params=request.query,
-            formats=request.formats
+            formats=request.accepts
         )
 
     # OFFSETS
@@ -237,19 +273,39 @@ class KafkaRest(KarapaceBase):
         if not self._cluster_metadata:
             self._metadata_birth = time.time()
             with self.admin_lock:
-                self._cluster_metadata = self.admin_client.cluster_metadata(topics)
+                try:
+                    self._cluster_metadata = self.admin_client.cluster_metadata(topics)
+                except NodeNotReadyError:
+                    self.log.exception("Could not refresh cluster metadata")
+                    self.r({"message": "Kafka node not ready", "code": 500}, "application/json", 500)
         return copy.deepcopy(self._cluster_metadata)
 
     def init_admin_client(self):
-        self.admin_client = KafkaRestAdminClient(
-            bootstrap_servers=self.config["bootstrap_uri"],
-            security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            api_version=(1, 0, 0),
-            metadata_max_age_ms=self.config["metadata_max_age_ms"],
-        )
+        while True:
+            try:
+                self.admin_client = KafkaRestAdminClient(
+                    bootstrap_servers=self.config["bootstrap_uri"],
+                    security_protocol=self.config["security_protocol"],
+                    ssl_cafile=self.config["ssl_cafile"],
+                    ssl_certfile=self.config["ssl_certfile"],
+                    ssl_keyfile=self.config["ssl_keyfile"],
+                    api_version=(1, 0, 0),
+                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
+                )
+                break
+            except:  # pylint: disable=bare-except
+                self.log.exception("Unable to start admin client, retrying")
+                time.sleep(1)
+
+    async def close_producers(self):
+        if not self.producer_refs:
+            return
+        for prod in self.producer_refs:
+            self.log.info("Disposing of async producers")
+            await prod.stop()
+        self.producer_refs = None
+        self.producer_queue = None
+        return
 
     def close(self):
         super().close()
@@ -265,6 +321,8 @@ class KafkaRest(KarapaceBase):
         if partition_id is not None:
             _ = self.get_partition_info(topic, partition_id, content_type)
             partition_id = int(partition_id)
+        for k in ["key_schema_id", "value_schema_id"]:
+            convert_to_int(data, k, content_type)
         await self.validate_publish_request_format(data, formats, content_type, topic)
         status = 200
         ser_format = formats["embedded_format"]
@@ -293,18 +351,19 @@ class KafkaRest(KarapaceBase):
             "offsets": []
         }
         for key, value, partition in prepared_records:
-            publish_result = self.produce_message(topic=topic, key=key, value=value, partition=partition)
+            publish_result = await self.produce_message(topic=topic, key=key, value=value, partition=partition)
             if "error" in publish_result and status == 200:
                 status = 500
             response["offsets"].append(publish_result)
         self.r(body=response, content_type=content_type, status=status)
 
     async def partition_publish(self, topic, partition_id, content_type, *, request):
-        await self.publish(topic, partition_id, content_type, request.formats, request.json)
+        self.log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
+        await self.publish(topic, partition_id, content_type, request.content_type, request.json)
 
     async def topic_publish(self, topic: str, content_type: str, *, request):
         self.log.debug("Executing topic publish on topic %s", topic)
-        await self.publish(topic, None, content_type, request.formats, request.json)
+        await self.publish(topic, None, content_type, request.content_type, request.json)
 
     @staticmethod
     def validate_partition_id(partition_id: str, content_type: str) -> int:
@@ -332,9 +391,13 @@ class KafkaRest(KarapaceBase):
                 "Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic
             )
             return int(data[f"{prefix}_schema_id"])
-        self.log.debug("Registering / Retrieving ID for schema %s", data[f"{prefix}_schema"])
-        subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix)
-        return await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name)
+        schema_str = data[f"{prefix}_schema"]
+        self.log.debug("Registering / Retrieving ID for schema %s", schema_str)
+        if schema_str not in self.schemas_cache:
+            subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix)
+            schema_id = await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name)
+            self.schemas_cache[schema_str] = schema_id
+        return self.schemas_cache[schema_str]
 
     async def validate_schema_info(self, data: dict, prefix: str, content_type: str, topic: str):
         # will do in place updates of id keys, since calling these twice would be expensive
@@ -419,6 +482,7 @@ class KafkaRest(KarapaceBase):
         if "records" not in data or set(data.keys()).difference(PUBLISH_KEYS) or not data["records"]:
             self.unprocessable_entity(message="Invalid request format", content_type=content_type, sub_code=422)
         for r in data["records"]:
+            convert_to_int(r, "partition", content_type)
             if set(r.keys()).difference(RECORD_KEYS):
                 self.unprocessable_entity(message=f"Invalid request format", content_type=content_type, sub_code=422)
         # disallow missing id and schema for any key/value list that has at least one populated element
@@ -438,17 +502,20 @@ class KafkaRest(KarapaceBase):
                 except InvalidMessageSchema as e:
                     self.unprocessable_entity(message=str(e), content_type=content_type, sub_code=42205)
 
-    def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
+    async def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
+        prod = None
         try:
-            with self.producer_lock:
-                f = self.producer.send(topic, key=key, value=value, partition=partition)
-                self.producer.flush(timeout=self.kafka_timeout)
-            result = f.get()
+            prod = await self.get_producer()
+            result = await asyncio.wait_for(
+                fut=prod.send_and_wait(topic, key=key, value=value, partition=partition),
+                loop=self.loop,
+                timeout=self.kafka_timeout
+            )
             return {"offset": result.offset, "partition": result.topic_partition.partition}
         except AssertionError as e:
             self.log.exception("Invalid data")
             return {"error_code": 1, "error": str(e)}
-        except KafkaTimeoutError:
+        except (KafkaTimeoutError, asyncio.TimeoutError):
             self.log.exception("Timed out waiting for publisher")
             # timeouts are retriable
             return {"error_code": 1, "error": "timed out waiting to publish message"}
@@ -458,6 +525,9 @@ class KafkaRest(KarapaceBase):
             if hasattr(e, "retriable") and e.retriable:
                 resp["error_code"] = 2
             return resp
+        finally:
+            if prod:
+                await self.producer_queue.put(prod)
 
     def list_topics(self, content_type: str):
         metadata = self.cluster_metadata()
@@ -465,6 +535,7 @@ class KafkaRest(KarapaceBase):
         self.r(topics, content_type)
 
     def topic_details(self, content_type: str, *, topic: str):
+        self.log.info("Retrieving topic details for %s", topic)
         try:
             metadata = self.cluster_metadata([topic])
             config = self.get_topic_config(topic)
@@ -477,7 +548,8 @@ class KafkaRest(KarapaceBase):
         except UnknownTopicOrPartitionError:
             self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
 
-    def list_partitions(self, content_type: str, *, topic: str):
+    def list_partitions(self, content_type: str, *, topic: Optional[str]):
+        self.log.info("Retrieving partition details for topic %s", topic)
         try:
             topic_details = self.cluster_metadata([topic])["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
@@ -485,18 +557,20 @@ class KafkaRest(KarapaceBase):
             self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
 
     def partition_details(self, content_type: str, *, topic: str, partition_id: str):
+        self.log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
         p = self.get_partition_info(topic, partition_id, content_type)
         self.r(p, content_type)
 
     def partition_offsets(self, content_type: str, *, topic: str, partition_id: str):
+        self.log.info("Retrieving partition offsets for topic %s and partition %s", topic, partition_id)
         partition_id = self.validate_partition_id(partition_id, content_type)
         try:
             self.r(self.get_offsets(topic, partition_id), content_type)
-        except UnknownTopicOrPartitionError:
+        except UnknownTopicOrPartitionError as e:
             # Do a topics request on failure, figure out faster ways once we get correctness down
             if topic not in self.cluster_metadata()["topics"]:
-                self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
-            self.not_found(message=f"Partition {partition_id} not found", content_type=content_type, sub_code=40402)
+                self.not_found(message=f"Topic {topic} not found: {e}", content_type=content_type, sub_code=40401)
+            self.not_found(message=f"Partition {partition_id} not found: {e}", content_type=content_type, sub_code=40402)
 
     def list_brokers(self, content_type: str):
         metadata = self.cluster_metadata()
