@@ -27,15 +27,11 @@ build-dep-fedora: /usr/bin/rpmbuild
 
 .PHONY: $(KAFKA_IMAGE)
 $(KAFKA_IMAGE):
-	cd container && podman build -t $(KAFKA_IMAGE) .
+	podman build -t $(KAFKA_IMAGE) -f container/Dockerfile .
 
 .PHONY: start-$(KAFKA_IMAGE)
 start-$(KAFKA_IMAGE):
-	@if [ -n "$(REGISTRY)" ]; then \
-	    podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) -p $(REGISTRY):$(REGISTRY) $(KAFKA_IMAGE) $(ZK) $(KAFKA) $(REGISTRY); \
-	else \
-	    podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) $(KAFKA_IMAGE) $(ZK) $(KAFKA); \
-	fi
+	@podman run -d --rm -p $(ZK):$(ZK) -p $(KAFKA):$(KAFKA) -p $(REGISTRY):$(REGISTRY) -p $(REST):$(REST) $(KAFKA_IMAGE) "all"
 	@podman ps
 
 karapace/version.py: version.py
