@@ -1,0 +1,42 @@
+version: '3'
+services:
+  zk:
+    image: karapace-all
+    hostname: "zk"
+    command: "zk"
+    ports:
+      - "2181:2181"
+  kafka:
+    depends_on:
+      - zk
+    hostname: "kafka"
+    image: karapace-all
+    command: "kafka"
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+  registry:
+    depends_on:
+      - kafka
+    image: karapace-all
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+    hostname: "registry"
+    command: ["registry"]
+    ports:
+      - "8081:8081"
+  rest:
+    depends_on:
+      - registry
+    image: karapace-all
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "1.0"
+    hostname: "rest"
+    command: ["rest"]
+    ports:
+      - "8082:8082"
