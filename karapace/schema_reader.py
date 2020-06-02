@@ -4,6 +4,11 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from dataclasses import dataclass
+from enum import Enum, unique
+from json import JSONDecodeError, loads
+from jsonschema.exceptions import SchemaError
+from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
@@ -11,10 +16,48 @@ from karapace import constants
 from karapace.utils import json_encode
 from queue import Queue
 from threading import Thread
+from typing import Union
 
+import avro
 import json
 import logging
 import time
+
+
+class InvalidSchema(Exception):
+    pass
+
+
+@unique
+class SchemaType(Enum):
+    AVRO = "AVRO"
+    JSONSCHEMA = "JSONSCHEMA"
+    PROTOBUF = "PROTOBUF"
+
+
+@dataclass
+class TypedSchema:
+    schema: Union[Draft7Validator, avro.schema.Schema]
+    schema_type: SchemaType
+
+    @staticmethod
+    def parse_json(schema_str: str):
+        try:
+            js = loads(schema_str)
+            Draft7Validator.check_schema(js)
+            return TypedSchema(Draft7Validator(js), SchemaType.JSONSCHEMA)
+        except (JSONDecodeError, SchemaError) as e:
+            raise InvalidSchema from e
+
+    @staticmethod
+    def parse_avro(schema_str: str):
+        try:
+            return TypedSchema(avro.schema.Parse(schema_str), SchemaType.AVRO)
+        except avro.schema.SchemaParseException as e:
+            raise InvalidSchema from e
+
+    def to_json(self):
+        return self.schema.schema if self.schema_type is SchemaType.JSONSCHEMA else self.schema.to_json(names=None)
 
 
 class KafkaSchemaReader(Thread):
@@ -186,6 +229,7 @@ class KafkaSchemaReader(Thread):
                             "version": value["version"],
                             "id": value["id"],
                             "deleted": value.get("deleted", False),
+                            "schema_type": value.get("schema_type", SchemaType.AVRO).value,
                         }
                     }
                 }
@@ -208,6 +252,7 @@ class KafkaSchemaReader(Thread):
                     "version": value["version"],
                     "id": value["id"],
                     "deleted": value.get("deleted", False),
+                    "schema_type": value.get("schema_type", SchemaType.AVRO).value,
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 self.schemas[value["id"]] = value["schema"]

@@ -1,21 +1,18 @@
-from enum import Enum, unique
-from json import JSONDecodeError, loads
-from jsonschema.exceptions import SchemaError
-from jsonschema.validators import Draft7Validator
 from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
-from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
 from karapace.utils import json_encode
-from typing import Union
 
 import argparse
 import asyncio
-import avro.schema
 import os
 import sys
 import time
+
+SCHEMA = "schema"
+SCHEMA_TYPE = "schemaType"
 
 COMPATIBILITY_MODES = {
     "BACKWARD",
@@ -32,17 +29,6 @@ TRANSITIVE_MODES = {
     "FORWARD_TRANSITIVE",
     "FULL_TRANSITIVE",
 }
-
-
-@unique
-class SchemaType(Enum):
-    AVRO = "AVRO"
-    JSONSCHEMA = "JSONSCHEMA"
-    PROTOBUF = "PROTOBUF"
-
-
-class InvalidSchemaJson(Exception):
-    pass
 
 
 class InvalidSchemaType(Exception):
@@ -208,12 +194,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             new = KarapaceSchemaRegistry.parse_schema(body["schema"])
-        except avro.schema.SchemaParseException:
+        except InvalidSchema:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
         try:
             old_schema = KarapaceSchemaRegistry.parse_schema(old["schema"])
-        except avro.schema.SchemaParseException:
+        except InvalidSchema:
             self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
 
@@ -364,7 +350,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if not isinstance(body, dict):
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         for field in body:
-            if field != "schema":
+            if field not in {SCHEMA, SCHEMA_TYPE}:
                 self.r(
                     body={
                         "error_code": 422,
@@ -373,16 +359,26 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     content_type=content_type,
                     status=422
                 )
+        schema_type = body.get(SCHEMA_TYPE, SchemaType.AVRO)
+        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.PROTOBUF, SchemaType.AVRO}:
+            self.r(
+                body={
+                    "error_code": 422,
+                    "message": f"unrecognized schemaType: {schema_type}"
+                },
+                content_type=content_type,
+                status=422
+            )
 
     async def subjects_schema_post(self, content_type, *, subject, request):
         body = request.json
         self._validate_schema_request_body(content_type, body)
         subject_data = self._subject_get(subject, content_type)
-        if "schema" not in body:
+        if SCHEMA not in body:
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         try:
-            new_schema = KarapaceSchemaRegistry.parse_schema(body["schema"])
-        except avro.schema.SchemaParseException:
+            new_schema = KarapaceSchemaRegistry.parse_schema(body[SCHEMA], body.get(SCHEMA_TYPE, SchemaType.AVRO))
+        except InvalidSchema:
             self.r(
                 body={
                     "error_code": 500,
@@ -426,11 +422,19 @@ class KarapaceSchemaRegistry(KarapaceBase):
     def write_new_schema_local(self, subject, body, content_type):
         """Since we're the master we get to write the new schema"""
         self.log.info("Writing new schema locally since we're the master")
+        schema_type = body.get(SCHEMA_TYPE, SchemaType.AVRO)
         try:
             new_schema = KarapaceSchemaRegistry.parse_schema(body["schema"])
-        except avro.schema.SchemaParseException:
+        except (InvalidSchema, InvalidSchemaType):
             self.log.warning("Invalid schema: %r", body["schema"])
-            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
+            self.r(
+                body={
+                    "error_code": 44201,
+                    "message": f"Invalid {schema_type} schema"
+                },
+                content_type=content_type,
+                status=422
+            )
 
         if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
             schema_id = self.ksr.get_schema_id(new_schema)
@@ -500,18 +504,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r({"id": schema_id}, content_type)
 
     @staticmethod
-    def parse_schemajson(schema_str: str) -> Draft7Validator:
-        try:
-            js = loads(schema_str)
-            Draft7Validator.check_schema(js)
-            return Draft7Validator(js)
-        except (JSONDecodeError, SchemaError) as e:
-            raise InvalidSchemaJson from e
-
-    @staticmethod
-    def parse_schema(schema_str: str,
-                     schema_type: SchemaType = SchemaType.AVRO) -> Union[Draft7Validator, avro.schema.Schema]:
-        parsers = {SchemaType.AVRO: avro.schema.Parse, SchemaType.JSONSCHEMA: KarapaceSchemaRegistry.parse_schemajson}
+    def parse_schema(schema_str: str, schema_type: SchemaType = SchemaType.AVRO) -> TypedSchema:
+        parsers = {SchemaType.AVRO: TypedSchema.parse_avro, SchemaType.JSONSCHEMA: TypedSchema.parse_json}
         if schema_type not in parsers:
             raise InvalidSchemaType(f"Invalid schema type: {schema_type}")
         return parsers[schema_type](schema_str)
