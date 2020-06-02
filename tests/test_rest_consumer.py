@@ -266,7 +266,7 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
                 f" does not match {values[fmt][i]} for format {fmt}"
 
 
-@pytest.mark.parametrize("schema_type", ["avro"])
+@pytest.mark.parametrize("schema_type", ["avro", "json"])
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_publish_consume_avro(rest_async_client, admin_client, trail, schema_type):
     header = REST_HEADERS[schema_type]

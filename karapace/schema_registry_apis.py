@@ -497,6 +497,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     version=version,
                     deleted=False,
                 )
+                self.send_schema_message(
+                    subject, new_schema.to_json(), new_schema.schema_type.value, schema_id, version, deleted=False
+                )
                 self.r({"id": schema_id}, content_type)
 
             schema_versions = sorted(list(schemas))
