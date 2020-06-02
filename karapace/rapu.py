@@ -41,11 +41,11 @@ SCHEMA_ACCEPT_VALUES = [
 
 # TODO -> accept more general values as well
 REST_CONTENT_TYPE_RE = re.compile(
-    r"application/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?"
+    r"application/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary|jsonschema))?(\.(?P<api_version>v[12]))?"
     r"\+(?P<serialization_format>json))|(?P<general_format>json|octet-stream))"
 )
 REST_ACCEPT_RE = re.compile(
-    r"(application|\*)/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary))?(\.(?P<api_version>v[12]))?\+"
+    r"(application|\*)/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary|jsonschema))?(\.(?P<api_version>v[12]))?\+"
     r"(?P<serialization_format>json))|(?P<general_format>json|\*))"
 )
 
@@ -147,7 +147,7 @@ class RestApp:
         self.stats.close()
 
     async def create_http_client(self, app):  # pylint: disable=unused-argument
-        no_v_conn = aiohttp.TCPConnector(verify_ssl=False)
+        no_v_conn = aiohttp.TCPConnector(ssl=False)
         self.http_client_no_v = aiohttp.ClientSession(connector=no_v_conn, headers={"User-Agent": SERVER_NAME})
         self.http_client_v = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
 

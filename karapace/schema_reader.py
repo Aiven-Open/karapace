@@ -4,6 +4,10 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from enum import Enum, unique
+from json import JSONDecodeError, loads
+from jsonschema.exceptions import SchemaError
+from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
@@ -11,10 +15,81 @@ from karapace import constants
 from karapace.utils import json_encode
 from queue import Queue
 from threading import Lock, Thread
+from typing import Union
 
+import avro
 import json
 import logging
 import time
+
+log = logging.getLogger(__name__)
+
+
+class InvalidSchema(Exception):
+    pass
+
+
+@unique
+class SchemaType(Enum):
+    AVRO = "AVRO"
+    JSONSCHEMA = "JSON"
+    PROTOBUF = "PROTOBUF"
+
+
+class TypedSchema:
+    def __init__(self, schema: Union[Draft7Validator, avro.schema.Schema], schema_type: SchemaType):
+        assert isinstance(schema, (Draft7Validator, avro.schema.Schema))
+        self.schema_type = schema_type
+        self.schema = schema
+
+    @staticmethod
+    def parse_json(schema_str: str):
+        try:
+            js = loads(schema_str)
+            Draft7Validator.check_schema(js)
+            assert "type" in js
+            return TypedSchema(Draft7Validator(js), SchemaType.JSONSCHEMA)
+        except (JSONDecodeError, SchemaError, AssertionError) as e:
+            raise InvalidSchema from e
+
+    @staticmethod
+    def parse_avro(schema_str: str):  # pylint: disable=inconsistent-return-statements
+        try:
+            return TypedSchema(avro.schema.parse(schema_str), SchemaType.AVRO)
+        except avro.schema.SchemaParseException as e:
+            raise InvalidSchema from e
+
+    @staticmethod
+    def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
+        if schema_type is SchemaType.AVRO:
+            return TypedSchema.parse_avro(schema_str)
+        if schema_type is SchemaType.JSONSCHEMA:
+            return TypedSchema.parse_json(schema_str)
+        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
+
+    @staticmethod
+    def try_parse_all(schema_str: str):
+        # try em all or fail
+        for type_ in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
+            try:
+                return TypedSchema.parse(type_, schema_str)
+            except InvalidSchema:
+                log.debug("Failed to parse %s to %r", schema_str, type_)
+                continue
+        raise InvalidSchema(f"Unable to find suitable parser for {schema_str}")
+
+    def to_json(self):
+        schema = self.schema.schema if self.schema_type is SchemaType.JSONSCHEMA else self.schema.to_json(names=None)
+        return schema
+
+    def __str__(self):
+        return json_encode(self.to_json(), compact=True)
+
+    def __repr__(self):
+        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
+
+    def __eq__(self, other):
+        return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type
 
 
 class KafkaSchemaReader(Thread):
@@ -98,11 +173,10 @@ class KafkaSchemaReader(Thread):
         return False
 
     def get_schema_id(self, new_schema):
-        new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
         with self.id_lock:
             schemas = self.schemas.items()
         for schema_id, schema in schemas:
-            if schema == new_schema_encoded:
+            if schema == new_schema:
                 return schema_id
         with self.id_lock:
             self.global_schema_id += 1
@@ -180,22 +254,23 @@ class KafkaSchemaReader(Thread):
                 self.log.info("Deleting subject: %r version: %r completely", key["subject"], key["version"])
                 self.subjects[key["subject"]]["schemas"].pop(key["version"], None)
                 return
+            typed_schema = TypedSchema.try_parse_all(value["schema"])
+            self.log.debug("Got typed schema %r", typed_schema)
             subject = value["subject"]
             if subject not in self.subjects:
                 self.log.info("Adding first version of subject: %r, value: %r", subject, value)
                 self.subjects[subject] = {
                     "schemas": {
                         value["version"]: {
-                            "schema": value["schema"],
+                            "schema": typed_schema,
                             "version": value["version"],
                             "id": value["id"],
                             "deleted": value.get("deleted", False),
                         }
                     }
                 }
-                self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
-                with self.id_lock:
-                    self.schemas[value["id"]] = value["schema"]
+                self.log.info("Setting schema_id: %r with schema: %r", value["id"], typed_schema)
+                self.schemas[value["id"]] = typed_schema
                 if value["id"] > self.global_schema_id:  # Not an existing schema
                     self.global_schema_id = value["id"]
             elif value.get("deleted", False) is True:
@@ -209,14 +284,14 @@ class KafkaSchemaReader(Thread):
             elif value.get("deleted", False) is False:
                 self.log.info("Adding new version of subject: %r, value: %r", subject, value)
                 self.subjects[subject]["schemas"][value["version"]] = {
-                    "schema": value["schema"],
+                    "schema": typed_schema,
                     "version": value["version"],
                     "id": value["id"],
                     "deleted": value.get("deleted", False),
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
                 with self.id_lock:
-                    self.schemas[value["id"]] = value["schema"]
+                    self.schemas[value["id"]] = typed_schema
                 if value["id"] > self.global_schema_id:  # Not an existing schema
                     self.global_schema_id = value["id"]
         elif key["keytype"] == "DELETE_SUBJECT":

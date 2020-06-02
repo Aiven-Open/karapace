@@ -3,6 +3,7 @@ from karapace.utils import Client
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
+import copy
 import json
 import os
 import random
@@ -14,8 +15,16 @@ consumer_valid_payload = {
     "fetch.min.bytes": 100000,
     "auto.commit.enable": "true"
 }
+schema_jsonschema_json = json.dumps({
+    "type": "object",
+    "properties": {
+        "foo": {
+            "type": "integer"
+        },
+    },
+})
 
-schema_json = json.dumps({
+schema_avro_json = json.dumps({
     "namespace": "example.avro",
     "type": "record",
     "name": "example.avro.User",
@@ -31,7 +40,9 @@ schema_json = json.dumps({
     }]
 })
 
-test_objects = [
+test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
+
+test_objects_avro = [
     {
         "name": "First Foo",
         "favorite_number": 2,
@@ -49,6 +60,11 @@ test_objects = [
     },
 ]
 
+schema_data = {
+    "avro": (schema_avro_json, test_objects_avro),
+    "jsonschema": (schema_jsonschema_json, test_objects_jsonschema)
+}
+
 second_schema_json = json.dumps({
     "namespace": "example.avro.other",
     "type": "record",
@@ -65,6 +81,10 @@ REST_HEADERS = {
     "json": {
         "Content-Type": "application/vnd.kafka.json.v2+json",
         "Accept": "*/*",
+    },
+    "jsonschema": {
+        "Content-Type": "application/vnd.kafka.jsonschema.v2+json",
+        "Accept": "application/vnd.kafka.jsonschema.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
     "binary": {
         "Content-Type": "application/vnd.kafka.binary.v2+json",
@@ -85,6 +105,14 @@ def get_broker_ip():
     return "127.0.0.1"
 
 
+async def new_consumer(c, group, fmt="avro"):
+    payload = copy.copy(consumer_valid_payload)
+    payload["format"] = fmt
+    resp = await c.post(f"/consumers/{group}", json=payload, headers=REST_HEADERS[fmt])
+    assert resp.ok
+    return resp.json()["instance_id"]
+
+
 async def client_for(app, client_factory):
     if REST_URI in os.environ and REGISTRY_URI in os.environ:
         # least intrusive way of figuring out which client is which
@@ -97,8 +125,13 @@ async def client_for(app, client_factory):
     return c
 
 
+def new_random_name(prefix="topic"):
+    suffix = hash(random.random())
+    return f"{prefix}{suffix}"
+
+
 def new_topic(admin_client, prefix="topic"):
-    tn = f"{prefix}{hash(random.random())}"
+    tn = f"{new_random_name(prefix)}"
     try:
         admin_client.new_topic(tn)
     except TopicAlreadyExistsError:
