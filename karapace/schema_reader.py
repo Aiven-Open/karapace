@@ -4,7 +4,6 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from dataclasses import dataclass
 from enum import Enum, unique
 from json import JSONDecodeError, loads
 from jsonschema.exceptions import SchemaError
@@ -35,10 +34,10 @@ class SchemaType(Enum):
     PROTOBUF = "PROTOBUF"
 
 
-@dataclass
 class TypedSchema:
-    schema: Union[Draft7Validator, avro.schema.Schema]
-    schema_type: SchemaType
+    def __init__(self, schema: Union[Draft7Validator, avro.schema.Schema], schema_type: SchemaType):
+        self.schema_type = schema_type
+        self.schema = schema
 
     @staticmethod
     def parse_json(schema_str: str):
