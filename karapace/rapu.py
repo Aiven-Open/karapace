@@ -119,7 +119,7 @@ class RestApp:
         self.stats.close()
 
     async def create_http_client(self, app):  # pylint: disable=unused-argument
-        no_v_conn = aiohttp.TCPConnector(verify_ssl=False)
+        no_v_conn = aiohttp.TCPConnector(ssl=False)
         self.http_client_no_v = aiohttp.ClientSession(connector=no_v_conn, headers={"User-Agent": SERVER_NAME})
         self.http_client_v = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
 
