@@ -1,9 +1,10 @@
+from karapace.schema_reader import TypedSchema
 from karapace.serialization import (
     HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryClient,
     SchemaRegistryDeserializer, SchemaRegistrySerializer, START_BYTE
 )
 from karapace.utils import Client
-from tests.utils import schema_json, test_objects
+from tests.utils import schema_avro_json, test_objects_avro
 
 import avro
 import copy
@@ -30,7 +31,7 @@ async def test_happy_flow(default_config_path, mock_registry_client):
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 0
     schema = await serializer.get_schema_for_subject("top")
-    for o in test_objects:
+    for o in test_objects_avro:
         assert o == await deserializer.deserialize(await serializer.serialize(schema, o))
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 1
@@ -75,7 +76,7 @@ async def test_remote_client(karapace, aiohttp_client):
     kc, _ = karapace()
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
-    schema_avro = avro.io.schema.parse(schema_json)
+    schema_avro = TypedSchema.try_parse_all(schema_avro_json)
     reg_cli = SchemaRegistryClient()
     reg_cli.client = c
     sc_id = await reg_cli.post_new_schema("foo", schema_avro)

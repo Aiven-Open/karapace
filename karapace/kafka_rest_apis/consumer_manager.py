@@ -18,7 +18,7 @@ import logging
 import time
 import uuid
 
-KNOWN_FORMATS = {"json", "avro", "binary"}
+KNOWN_FORMATS = {"json", "avro", "binary", "jsonschema"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
@@ -427,8 +427,8 @@ class ConsumerManager:
             for tp in poll_data:
                 for msg in poll_data[tp]:
                     try:
-                        key = await self.deserialize(msg.key, request_format)
-                        value = await self.deserialize(msg.value, request_format)
+                        key = await self.deserialize(msg.key, request_format) if msg.key else None
+                        value = await self.deserialize(msg.value, request_format) if msg.value else None
                     except (UnpackError, InvalidMessageHeader, InvalidPayload) as e:
                         KarapaceBase.internal_error(message=f"deserialization error: {e}", content_type=content_type)
                     element = {
@@ -445,7 +445,7 @@ class ConsumerManager:
     async def deserialize(self, bytes_: bytes, fmt: str):
         if not bytes_:
             return None
-        if fmt == "avro":
+        if fmt in {"avro", "jsonschema"}:
             return await self.deserializer.deserialize(bytes_)
         if fmt == "json":
             return json.loads(bytes_.decode('utf-8'))

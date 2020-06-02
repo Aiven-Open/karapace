@@ -3,12 +3,11 @@ from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
-from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
 from karapace.utils import json_encode
 
 import argparse
 import asyncio
-import avro.schema
 import os
 import sys
 import time
@@ -28,6 +27,10 @@ TRANSITIVE_MODES = {
     "FORWARD_TRANSITIVE",
     "FULL_TRANSITIVE",
 }
+
+
+class InvalidSchemaType(Exception):
+    pass
 
 
 class KarapaceSchemaRegistry(KarapaceBase):
@@ -194,13 +197,13 @@ class KarapaceSchemaRegistry(KarapaceBase):
         old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
-            new = avro.schema.Parse(body["schema"])
-        except avro.schema.SchemaParseException:
+            new = TypedSchema.try_parse_all(body["schema"])
+        except InvalidSchema:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
         try:
-            old_schema = avro.schema.Parse(old["schema"])
-        except avro.schema.SchemaParseException:
+            old_schema = TypedSchema.try_parse_all(old["schema"])
+        except InvalidSchema:
             self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
 
@@ -224,7 +227,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if not schema:
             self.log.warning("Schema: %r that was requested, not found", int(schema_id))
             self.r(body={"error_code": 40403, "message": "Schema not found"}, content_type=content_type, status=404)
-        self.r({"schema": schema}, content_type)
+        self.r({"schema": str(schema)}, content_type)
 
     async def config_get(self, content_type):
         self.r({"compatibilityLevel": self.ksr.config["compatibility"]}, content_type)
@@ -298,13 +301,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
         else:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
 
-        schema_string = schema["schema"]
         schema_id = schema["id"]
         ret = {
             "subject": subject,
             "version": int(version),
             "id": schema_id,
-            "schema": schema_string,
+            "schema": str(schema["schema"]),
         }
         if return_dict:
             # Return also compatibility information to compatibility check
@@ -317,11 +319,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
         version = int(version)
         subject_data = self._subject_get(subject, content_type)
 
-        schema = subject_data["schemas"].get(version, None)
-        if not schema:
+        subject_schema_data = subject_data["schemas"].get(version, None)
+        if not subject_schema_data:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
-        schema_id = schema["id"]
-        self.send_schema_message(subject, schema, schema_id, version, deleted=True)
+        schema_id = subject_schema_data["id"]
+        schema = subject_schema_data["schema"]
+        self.send_schema_message(subject, schema.to_json(), schema_id, version, deleted=True)
         self.r(str(version), content_type, status=200)
 
     async def subject_version_schema_get(self, content_type, *, subject, version):
@@ -335,7 +338,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_data = subject_data["schemas"].get(int(version))
         else:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
-        self.r(schema_data["schema"], content_type)
+        self.r(str(schema_data["schema"]), content_type)
 
     async def subject_versions_list(self, content_type, *, subject):
         subject_data = self._subject_get(subject, content_type)
@@ -357,7 +360,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if not isinstance(body, dict):
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         for field in body:
-            if field != "schema":
+            if field not in {"schema", "schemaType"}:
                 self.r(
                     body={
                         "error_code": 422,
@@ -367,40 +370,55 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     status=422
                 )
 
+    def _validate_schema_type(self, content_type, body):
+        schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
+        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO}:
+            self.r(
+                body={
+                    "error_code": 422,
+                    "message": f"unrecognized schemaType: {schema_type}"
+                },
+                content_type=content_type,
+                status=422
+            )
+
     async def subjects_schema_post(self, content_type, *, subject, request):
         body = request.json
         self._validate_schema_request_body(content_type, body)
         subject_data = self._subject_get(subject, content_type)
+        new_schema = None
         if "schema" not in body:
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
+        schema_str = body["schema"]
         try:
-            new_schema = avro.schema.Parse(body["schema"])
-        except avro.schema.SchemaParseException:
-            self.r(
-                body={
-                    "error_code": 500,
-                    "message": f"Error while looking up schema under subject {subject}"
-                },
-                content_type=content_type,
-                status=500
-            )
-
-        new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
+            new_schema = TypedSchema.try_parse_all(schema_str)
+        except InvalidSchema:
+            self.log.exception("No proper parser found")
+            self.r({
+                "error_code": 500,
+                "message": f"Error while looking up schema under subject {subject}"
+            },
+                   content_type,
+                   status=500)
         for schema in subject_data["schemas"].values():
-            if schema["schema"] == new_schema_encoded:
+            typed_schema = schema["schema"]
+            if typed_schema == new_schema:
                 ret = {
                     "subject": subject,
                     "version": schema["version"],
                     "id": schema["id"],
-                    "schema": schema["schema"],
+                    "schema": str(typed_schema),
                 }
                 self.r(ret, content_type)
+            else:
+                self.log.debug("Schema %r did not match %r", schema, typed_schema)
         self.r({"error_code": 40403, "message": "Schema not found"}, content_type, status=404)
 
     async def subject_post(self, content_type, *, subject, request):
         body = request.json
         self.log.debug("POST with subject: %r, request: %r", subject, body)
         self._validate_schema_request_body(content_type, body)
+        self._validate_schema_type(content_type, body)
         if "schema" not in body:
             self.r({"error_code": 500, "message": "Internal Server Error"}, content_type, status=500)
         are_we_master, master_url = await self.get_master()
@@ -419,12 +437,19 @@ class KarapaceSchemaRegistry(KarapaceBase):
     def write_new_schema_local(self, subject, body, content_type):
         """Since we're the master we get to write the new schema"""
         self.log.info("Writing new schema locally since we're the master")
+        schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
         try:
-            new_schema = avro.schema.Parse(body["schema"])
-        except avro.schema.SchemaParseException:
-            self.log.warning("Invalid schema: %r", body["schema"])
-            self.r(body={"error_code": 44201, "message": "Invalid Avro schema"}, content_type=content_type, status=422)
-
+            new_schema = TypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
+        except (InvalidSchema, InvalidSchemaType):
+            self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
+            self.r(
+                body={
+                    "error_code": 44201,
+                    "message": f"Invalid {schema_type} schema"
+                },
+                content_type=content_type,
+                status=422
+            )
         if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
             schema_id = self.ksr.get_schema_id(new_schema)
             version = 1
@@ -450,11 +475,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
             # Go through these in version order
             for version in schema_versions:
                 schema = subject_data["schemas"][version]
-                parsed_version_schema = avro.schema.Parse(schema["schema"])
-                if parsed_version_schema == new_schema:
+                if schema["schema"] == new_schema:
                     self.r({"id": schema["id"]}, content_type)
                 else:
-                    self.log.debug("schema: %s did not match with: %s", schema["schema"], new_schema.to_json())
+                    self.log.debug("schema: %s did not match with: %s", schema, new_schema)
 
             compatibility = subject_data.get("compatibility", self.ksr.config["compatibility"])
 
@@ -467,7 +491,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 check_against = [schema_versions[-1]]
 
             for old_version in check_against:
-                old_schema = avro.schema.Parse(subject_data["schemas"][old_version]["schema"])
+                old_schema = subject_data["schemas"][old_version]["schema"]
                 compat = Compatibility(old_schema, new_schema, compatibility=compatibility)
                 try:
                     compat.check()

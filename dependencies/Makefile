@@ -4,6 +4,7 @@ LOCAL_PACKAGES = \
 	python3-avro \
 	python3-kafka \
 	python3-aiokafka \
+	python3-jsonschema \
 
 DEP_DIRS = $(foreach dir,$(LOCAL_PACKAGES),$(dir)/rpm)
 DEP_CLEAN = $(foreach dir,$(LOCAL_PACKAGES),clean-$(dir))
