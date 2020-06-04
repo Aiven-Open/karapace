@@ -216,36 +216,55 @@ class Compatibility:
     def extract_schema_if_union(self, source, target):
         source_union = isinstance(source, (avro.schema.UnionSchema, tuple))
         target_union = isinstance(target, (avro.schema.UnionSchema, tuple))
-
+        found = False
         # Nothing to do here as neither is an union value
         if not source_union and not target_union:
-            return source, target
+            yield source, target
 
         # Unions and union compatibility with non-union types requires special handling so go through them here.
-        if source_union and target_union:
-            # First schema in source that matches target will be used
-            for source_schema in self.get_schema_field(source):
-                for target_schema in self.get_schema_field(target):
-                    if source_schema.type == target_schema.type:
-                        return source_schema, target_schema
-            raise IncompatibleSchema("Matching schema in union not found")
+        elif source_union and target_union:
+            target_idx_found = set()
+            source_idx_found = set()
+            source_schema_fields = self.get_schema_field(source)
+            target_schema_fields = self.get_schema_field(target)
+            for i, source_schema in enumerate(source_schema_fields):
+                for j, target_schema in enumerate(target_schema_fields):
+                    # some types are unhashable
+                    if source_schema.type == target_schema.type and j not in target_idx_found and i not in source_idx_found:
+                        target_idx_found.add(j)
+                        source_idx_found.add(i)
+                        yield source_schema, target_schema
+            if len(target_idx_found) < len(target_schema_fields) and len(source_idx_found) < len(source_schema_fields):
+                # sets overlap only
+                raise IncompatibleSchema("Union types are incompatible")
+            if len(target_idx_found) < len(target_schema_fields) and self._checking_for in {"FORWARD", "FULL"}:
+                raise IncompatibleSchema("Previous union contains more types")
+            if len(source_idx_found) < len(source_schema_fields) and self._checking_for in {"BACKWARD", "FULL"}:
+                raise IncompatibleSchema("Previous union contains less types")
 
-        if source_union and not target_union:
+        elif source_union and not target_union:
             for schema in self.get_schema_field(source):
                 if schema.type == target.type:
                     if self._checking_for in {"BACKWARD", "FULL"}:
                         raise IncompatibleSchema("Incompatible union for source: {} and target: {}".format(source, target))
-                    return schema, target
-            raise IncompatibleSchema("Matching schema in union not found")
+                    yield schema, target
+                    found = True
+                    break
+            if not found:
+                raise IncompatibleSchema("Matching schema in union not found")
 
-        if not source_union and target_union:
+        elif not source_union and target_union:
             for schema in self.get_schema_field(target):
                 if schema.type == source.type:
                     if self._checking_for in {"FORWARD", "FULL"}:
                         raise IncompatibleSchema("Incompatible union for source: {} and target: {}".format(source, target))
-                    return source, schema
-            raise IncompatibleSchema("Matching schema in union not found")
-        return None, None
+                    yield source, schema
+                    found = True
+                    break
+            if not found:
+                raise IncompatibleSchema("Matching schema in union not found")
+        else:
+            yield None, None
 
     def iterate_over_record_source_fields(self, source, target):
         for source_field in source.fields:
@@ -275,11 +294,11 @@ class Compatibility:
                         break
 
                     # Simple presentation form for Union fields. Extract the correct schemas already here.
-                    source_field_value, target_field_value = self.extract_schema_if_union(
+                    for source_field_value, target_field_value in self.extract_schema_if_union(
                         source_field_value, target_field_value
-                    )
-                    self.log.info("Recursing source with: source: %s target: %s", source_field_value, target_field_value)
-                    self.check_compatibility(source_field_value, target_field_value)
+                    ):
+                        self.log.info("Recursing source with: source: %s target: %s", source_field_value, target_field_value)
+                        self.check_compatibility(source_field_value, target_field_value)
                 else:
                     if not self.check_type_promotion(source_field.type, target_field.type):
                         raise IncompatibleSchema(
@@ -319,11 +338,11 @@ class Compatibility:
                         self.check_simple_value(source_field_value, target_field_value)
                         break
 
-                    source_field_value, target_field_value = self.extract_schema_if_union(
+                    for source_field_value, target_field_value in self.extract_schema_if_union(
                         source_field_value, target_field_value
-                    )
-                    self.log.info("Recursing target with: source: %s target: %s", source_field_value, target_field_value)
-                    self.check_compatibility(source_field_value, target_field_value)
+                    ):
+                        self.log.info("Recursing target with: source: %s target: %s", source_field_value, target_field_value)
+                        self.check_compatibility(source_field_value, target_field_value)
                 else:
                     found = True
                     self.log.info("source_field is: %s, target_field: %s added", source_field, target_field)
@@ -364,5 +383,5 @@ class Compatibility:
         if not same_type and not (source_union or target_union):
             raise IncompatibleSchema("source {} and target {} different types".format(source, target))
 
-        source, target = self.extract_schema_if_union(source, target)
-        self.check_fields(source, target)
+        for source_f, target_f in self.extract_schema_if_union(source, target):
+            self.check_fields(source_f, target_f)

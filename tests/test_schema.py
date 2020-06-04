@@ -91,6 +91,49 @@ async def enum_schema_compatibility_checks(c, compatibility):
     assert res["fields"][0]["type"]["symbols"] == ["second"]
 
 
+async def union_to_union_check(c):
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    init_schema = {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["string", "int"]}]}
+    evolved = {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["null", "string"]}]}
+    evolved_compatible = {
+        "name": "init",
+        "type": "record",
+        "fields": [{
+            "name": "inner",
+            "type": [
+                "int", "string", {
+                    "type": "record",
+                    "name": "foobar_fields",
+                    "fields": [{
+                        "name": "foo",
+                        "type": "string"
+                    }]
+                }
+            ]
+        }]
+    }
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init_schema)})
+    assert res.status == 200
+    assert "id" in res.json()
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
+    assert res.status == 409
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved_compatible)})
+    assert res.status == 200
+    # fw compat check
+    subject = os.urandom(16).hex()
+    res = await c.put(f"config/{subject}", json={"compatibility": "FORWARD"})
+    assert res.status == 200
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved_compatible)})
+    assert res.status == 200
+    assert "id" in res.json()
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
+    assert res.status == 409
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init_schema)})
+    assert res.status == 200
+
+
 async def record_union_schema_compatibility_checks(c):
     subject = os.urandom(16).hex()
     res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
@@ -1472,6 +1515,7 @@ async def check_common_endpoints(c):
 
 async def run_schema_tests(c):
     await schema_checks(c)
+    await union_to_union_check(c)
     await check_type_compatibility(c)
     await compatibility_endpoint_checks(c)
     await record_schema_compatibility_checks(c)
