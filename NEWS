@@ -1,3 +1,12 @@
+Karapace 2.0.0 (2020-06-06)
+===========================
+
+* Fixes and improvements for handling different client headers and content types
+* Fixes regarding generation of the global schema id value
+* Fixes and improvements for handling complex types in AVRO compatibility checks
+* Refactor file layout and unit tests
+* Add functionality for rest proxy
+
 Karapace 1.1.0 (2020-03-11)
 ===========================
 
