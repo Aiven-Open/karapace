@@ -10,7 +10,7 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExis
 from karapace import constants
 from karapace.utils import json_encode
 from queue import Queue
-from threading import Thread
+from threading import Lock, Thread
 
 import json
 import logging
@@ -34,6 +34,7 @@ class KafkaSchemaReader(Thread):
         self.queue = Queue()
         self.ready = False
         self.running = True
+        self.id_lock = Lock()
 
     def init_consumer(self):
         # Group not set on purpose, all consumers read the same data
@@ -98,11 +99,14 @@ class KafkaSchemaReader(Thread):
 
     def get_schema_id(self, new_schema):
         new_schema_encoded = json_encode(new_schema.to_json(), compact=True)
-        for schema_id, schema in self.schemas.items():
+        with self.id_lock:
+            schemas = self.schemas.items()
+        for schema_id, schema in schemas:
             if schema == new_schema_encoded:
                 return schema_id
-        self.global_schema_id += 1
-        return self.global_schema_id
+        with self.id_lock:
+            self.global_schema_id += 1
+            return self.global_schema_id
 
     def close(self):
         self.log.info("Closing schema_reader")
@@ -190,7 +194,8 @@ class KafkaSchemaReader(Thread):
                     }
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
-                self.schemas[value["id"]] = value["schema"]
+                with self.id_lock:
+                    self.schemas[value["id"]] = value["schema"]
                 if value["id"] > self.global_schema_id:  # Not an existing schema
                     self.global_schema_id = value["id"]
             elif value.get("deleted", False) is True:
@@ -210,7 +215,8 @@ class KafkaSchemaReader(Thread):
                     "deleted": value.get("deleted", False),
                 }
                 self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
-                self.schemas[value["id"]] = value["schema"]
+                with self.id_lock:
+                    self.schemas[value["id"]] = value["schema"]
                 if value["id"] > self.global_schema_id:  # Not an existing schema
                     self.global_schema_id = value["id"]
         elif key["keytype"] == "DELETE_SUBJECT":
