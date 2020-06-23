@@ -147,11 +147,11 @@ class ConsumerManager:
             for k in ["consumer.request.timeout.ms", "fetch_min_bytes"]:
                 convert_to_int(request_data, k, content_type)
             try:
-
-                request_data["consumer.request.timeout.ms"] = request_data.get(
-                    "consumer.request.timeout.ms", KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]
-                )
-                request_data["auto.commit.enable"] = request_data.get("auto.commit.enable", "false") == "true"
+                enable_commit = request_data.get("auto.commit.enable", False)
+                if isinstance(enable_commit, str):
+                    enable_commit = enable_commit.lower() == "true"
+                request_data["consumer.request.timeout.ms"] = request_data.get("consumer.request.timeout.ms", 11000)
+                request_data["auto.commit.enable"] = enable_commit
                 request_data["auto.offset.reset"] = request_data.get("auto.offset.reset", "earliest")
                 fetch_min_bytes = request_data.get("fetch.min.bytes", KafkaConsumer.DEFAULT_CONFIG["fetch_min_bytes"])
                 c = await self.create_kafka_consumer(fetch_min_bytes, group_name, internal_name, request_data)
