@@ -9,13 +9,16 @@ import socket
 import ssl
 
 DEFAULTS = {
+    "acks": 1,
     "advertised_hostname": socket.gethostname(),
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
     "compatibility": "BACKWARD",
+    "compression_type": None,
     "group_id": "schema-registry",
     "host": "127.0.0.1",
     "registry_host": "127.0.0.1",
+    "linger_ms": 0,
     "log_level": "DEBUG",
     "registry_port": 8081,
     "port": 8081,
