@@ -147,13 +147,15 @@ class ConsumerManager:
             for k in ["consumer.request.timeout.ms", "fetch_min_bytes"]:
                 convert_to_int(request_data, k, content_type)
             try:
-                enable_commit = request_data.get("auto.commit.enable", False)
+                enable_commit = request_data.get("auto.commit.enable", self.config["consumer_enable_auto_commit"])
                 if isinstance(enable_commit, str):
                     enable_commit = enable_commit.lower() == "true"
-                request_data["consumer.request.timeout.ms"] = request_data.get("consumer.request.timeout.ms", 11000)
+                request_data["consumer.request.timeout.ms"] = request_data.get(
+                    "consumer.request.timeout.ms", self.config["consumer_request_timeout_ms"]
+                )
                 request_data["auto.commit.enable"] = enable_commit
                 request_data["auto.offset.reset"] = request_data.get("auto.offset.reset", "earliest")
-                fetch_min_bytes = request_data.get("fetch.min.bytes", KafkaConsumer.DEFAULT_CONFIG["fetch_min_bytes"])
+                fetch_min_bytes = request_data.get("fetch.min.bytes", self.config["fetch_min_bytes"])
                 c = await self.create_kafka_consumer(fetch_min_bytes, group_name, internal_name, request_data)
             except KafkaConfigurationError as e:
                 KarapaceBase.internal_error(str(e), content_type)
@@ -175,6 +177,7 @@ class ConsumerManager:
                     ssl_keyfile=self.config["ssl_keyfile"],
                     group_id=group_name,
                     fetch_min_bytes=fetch_min_bytes,
+                    fetch_max_bytes=self.config["consumer_request_max_bytes"],
                     request_timeout_ms=request_data["consumer.request.timeout.ms"],
                     enable_auto_commit=request_data["auto.commit.enable"],
                     auto_offset_reset=request_data["auto.offset.reset"]
