@@ -173,7 +173,7 @@ class KafkaRest(KarapaceBase):
     async def _create_async_producer(self) -> AIOKafkaProducer:
         while True:
             try:
-                acks = self.config["acks"]
+                acks = self.config["producer_acks"]
                 acks = acks if acks == "all" else int(acks)
                 p = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
@@ -182,8 +182,8 @@ class KafkaRest(KarapaceBase):
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     loop=self.loop,
                     acks=acks,
-                    compression_type=self.config["compression_type"],
-                    linger_ms=self.config["linger_ms"],
+                    compression_type=self.config["producer_compression_type"],
+                    linger_ms=self.config["producer_linger_ms"],
                 )
                 await p.start()
                 return p
