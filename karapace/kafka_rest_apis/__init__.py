@@ -173,12 +173,17 @@ class KafkaRest(KarapaceBase):
     async def _create_async_producer(self) -> AIOKafkaProducer:
         while True:
             try:
+                acks = self.config["acks"]
+                acks = acks if acks == "all" else int(acks)
                 p = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
                     ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     loop=self.loop,
+                    acks=acks,
+                    compression_type=self.config["compression_type"],
+                    linger_ms=self.config["linger_ms"],
                 )
                 await p.start()
                 return p
@@ -511,7 +516,10 @@ class KafkaRest(KarapaceBase):
                 loop=self.loop,
                 timeout=self.kafka_timeout
             )
-            return {"offset": result.offset, "partition": result.topic_partition.partition}
+            return {
+                "offset": result.offset if result else -1,
+                "partition": result.topic_partition.partition if result else 0
+            }
         except AssertionError as e:
             self.log.exception("Invalid data")
             return {"error_code": 1, "error": str(e)}
