@@ -9,16 +9,17 @@ import socket
 import ssl
 
 DEFAULTS = {
-    "acks": 1,
     "advertised_hostname": socket.gethostname(),
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
     "compatibility": "BACKWARD",
-    "compression_type": None,
+    "consumer_enable_auto_commit": True,
+    "consumer_request_timeout_ms": 11000,
+    "consumer_request_max_bytes": 67108864,
+    "fetch_min_bytes": -1,
     "group_id": "schema-registry",
     "host": "127.0.0.1",
     "registry_host": "127.0.0.1",
-    "linger_ms": 0,
     "log_level": "DEBUG",
     "registry_port": 8081,
     "port": 8081,
@@ -31,7 +32,10 @@ DEFAULTS = {
     "topic_name": "_schemas",
     "metadata_max_age_ms": 60000,
     "admin_metadata_max_age": 5,
+    "producer_acks": 1,
+    "producer_compression_type": None,
     "producer_count": 5,
+    "producer_linger_ms": 0,
     "karapace_rest": False,
     "karapace_registry": False,
 }
