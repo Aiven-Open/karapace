@@ -82,7 +82,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
 
     def close(self):
-        super().close()
         self.log.info("Shutting down all auxiliary threads")
         if self.mc:
             self.mc.close()
@@ -90,6 +89,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.ksr.close()
         if self.producer:
             self.producer.close()
+        super().close()
 
     def _create_schema_reader(self):
         self.ksr = KafkaSchemaReader(config=self.config, )
