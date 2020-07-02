@@ -15,7 +15,7 @@ from karapace import constants
 from karapace.utils import json_encode
 from queue import Queue
 from threading import Lock, Thread
-from typing import Union
+from typing import Dict, Union
 
 import avro
 import json
@@ -30,7 +30,7 @@ class InvalidSchema(Exception):
 
 
 @unique
-class SchemaType(Enum):
+class SchemaType(str, Enum):
     AVRO = "AVRO"
     JSONSCHEMA = "JSON"
     PROTOBUF = "PROTOBUF"
@@ -67,17 +67,6 @@ class TypedSchema:
             return TypedSchema.parse_json(schema_str)
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
-    @staticmethod
-    def try_parse_all(schema_str: str):
-        # try em all or fail
-        for type_ in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
-            try:
-                return TypedSchema.parse(type_, schema_str)
-            except InvalidSchema:
-                log.debug("Failed to parse %s to %r", schema_str, type_)
-                continue
-        raise InvalidSchema(f"Unable to find suitable parser for {schema_str}")
-
     def to_json(self):
         schema = self.schema.schema if self.schema_type is SchemaType.JSONSCHEMA else self.schema.to_json(names=None)
         return schema
@@ -99,7 +88,7 @@ class KafkaSchemaReader(Thread):
         self.timeout_ms = 200
         self.config = config
         self.subjects = {}
-        self.schemas = {}
+        self.schemas: Dict[int, TypedSchema] = {}
         self.global_schema_id = 0
         self.offset = 0
         self.admin_client = None
@@ -231,7 +220,7 @@ class KafkaSchemaReader(Thread):
                 if self.ready:
                     self.queue.put(self.offset)
 
-    def handle_msg(self, key, value):
+    def handle_msg(self, key: dict, value: dict):
         if key["keytype"] == "CONFIG":
             if "subject" in key and key["subject"] is not None:
                 if not value:
@@ -254,7 +243,8 @@ class KafkaSchemaReader(Thread):
                 self.log.info("Deleting subject: %r version: %r completely", key["subject"], key["version"])
                 self.subjects[key["subject"]]["schemas"].pop(key["version"], None)
                 return
-            typed_schema = TypedSchema.try_parse_all(value["schema"])
+            schema_type = value.get("schemaType", "AVRO")
+            typed_schema = TypedSchema.parse(SchemaType(schema_type), value["schema"])
             self.log.debug("Got typed schema %r", typed_schema)
             subject = value["subject"]
             if subject not in self.subjects:

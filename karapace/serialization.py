@@ -85,7 +85,8 @@ class SchemaRegistryClient:
         if "id" not in json_result or "schema" not in json_result:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
-            return json_result["id"], TypedSchema.try_parse_all(json_result["schema"])
+            schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
+            return json_result["id"], TypedSchema.parse(schema_type, json_result["schema"])
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
@@ -97,7 +98,8 @@ class SchemaRegistryClient:
         if "schema" not in json_result:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
-            return TypedSchema.try_parse_all(json_result["schema"])
+            schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
+            return TypedSchema.parse(schema_type, json_result["schema"])
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
@@ -124,12 +126,12 @@ class SchemaRegistrySerializerDeserializer:
             await self.registry_client.close()
             self.registry_client = None
 
-    def get_subject_name(self, topic_name: str, schema: str, subject_type: str) -> str:
-        schema = TypedSchema.try_parse_all(schema)
+    def get_subject_name(self, topic_name: str, schema: str, subject_type: str, schema_type: SchemaType) -> str:
+        schema = TypedSchema.parse(schema_type, schema)
         namespace = "dummy"
-        if schema.schema_type is SchemaType.AVRO:
+        if schema_type is SchemaType.AVRO:
             namespace = schema.schema.namespace
-        if schema.schema_type is SchemaType.JSONSCHEMA:
+        if schema_type is SchemaType.JSONSCHEMA:
             namespace = schema.to_json().get("namespace", "dummy")
         return f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}"
 

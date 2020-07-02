@@ -105,10 +105,10 @@ def get_broker_ip():
     return "127.0.0.1"
 
 
-async def new_consumer(c, group, fmt="avro"):
+async def new_consumer(c, group, fmt="avro", trail=""):
     payload = copy.copy(consumer_valid_payload)
     payload["format"] = fmt
-    resp = await c.post(f"/consumers/{group}", json=payload, headers=REST_HEADERS[fmt])
+    resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS[fmt])
     assert resp.ok
     return resp.json()["instance_id"]
 
