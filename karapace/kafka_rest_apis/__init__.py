@@ -400,7 +400,7 @@ class KafkaRest(KarapaceBase):
         schema_str = data[f"{prefix}_schema"]
         self.log.debug("Registering / Retrieving ID for schema %s", schema_str)
         if schema_str not in self.schemas_cache:
-            subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix)
+            subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix, schema_type)
             schema_id = await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name, schema_type)
             self.schemas_cache[schema_str] = schema_id
         return self.schemas_cache[schema_str]
@@ -411,7 +411,7 @@ class KafkaRest(KarapaceBase):
         except KeyError:
             self.r(
                 body={
-                    "error_code": 494,
+                    "error_code": 404,
                     "message": f"Unknown schema type {schema_type}"
                 },
                 content_type=content_type,

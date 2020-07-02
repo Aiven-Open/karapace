@@ -7,14 +7,6 @@ import pytest
 import random
 
 
-async def new_consumer(c, group, fmt="avro", trail=""):
-    payload = copy.copy(consumer_valid_payload)
-    payload["format"] = fmt
-    resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS["avro"])
-    assert resp.ok
-    return resp.json()["instance_id"]
-
-
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_create_and_delete(rest_async_client, trail):
     header = REST_HEADERS["json"]
@@ -272,6 +264,7 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
             assert deserializers[fmt](data[i]["value"]) == values[fmt][i], \
                 f"Extracted data {deserializers[fmt](data[i]['value'])}" \
                 f" does not match {values[fmt][i]} for format {fmt}"
+
 
 @pytest.mark.parametrize("schema_type", ["avro"])
 @pytest.mark.parametrize("trail", ["", "/"])

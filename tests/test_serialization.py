@@ -1,4 +1,4 @@
-from karapace.schema_reader import TypedSchema
+from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.serialization import (
     HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryClient,
     SchemaRegistryDeserializer, SchemaRegistrySerializer, START_BYTE
@@ -76,7 +76,7 @@ async def test_remote_client(karapace, aiohttp_client):
     kc, _ = karapace()
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
-    schema_avro = TypedSchema.try_parse_all(schema_avro_json)
+    schema_avro = TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
     reg_cli = SchemaRegistryClient()
     reg_cli.client = c
     sc_id = await reg_cli.post_new_schema("foo", schema_avro)

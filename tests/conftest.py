@@ -7,7 +7,7 @@ See LICENSE for details
 from kafka import KafkaProducer
 from karapace.config import write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
-from karapace.schema_reader import TypedSchema
+from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from tests.utils import client_for, get_broker_ip, mock_factory, new_random_name, REGISTRY_URI, REST_URI, schema_avro_json
 
@@ -73,10 +73,10 @@ def create_basic_registry_client():
             pass
 
         async def get_schema_for_id(self, *args, **kwargs):
-            return TypedSchema.try_parse_all(schema_avro_json)
+            return TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
 
         async def get_latest_schema(self, *args, **kwargs):
-            return 1, TypedSchema.try_parse_all(schema_avro_json)
+            return 1, TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
 
         async def post_new_schema(self, *args, **kwargs):
             return 1
