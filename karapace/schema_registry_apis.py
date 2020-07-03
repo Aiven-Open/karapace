@@ -2,6 +2,7 @@ from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
+from karapace.rapu import HTTPRequest
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
 
@@ -50,7 +51,13 @@ class KarapaceSchemaRegistry(KarapaceBase):
             method="POST",
             schema_request=True
         )
-        self.route("/config/<subject:path>", callback=self.config_subject_get, method="GET", schema_request=True)
+        self.route(
+            "/config/<subject:path>",
+            callback=self.config_subject_get,
+            method="GET",
+            schema_request=True,
+            with_request=True,
+        )
         self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
         self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
@@ -237,12 +244,17 @@ class KarapaceSchemaRegistry(KarapaceBase):
             )
         self.r({"compatibility": self.ksr.config["compatibility"]}, content_type)
 
-    async def config_subject_get(self, content_type, *, subject):
+    async def config_subject_get(self, content_type, subject: str, *, request: HTTPRequest):
         # Config for a subject can exist without schemas so no need to check for their existence
-        subject_data = self.ksr.subjects.get(subject)
+        subject_data = self.ksr.subjects.get(subject, {})
 
-        if "compatibility" in subject_data:
-            self.r({"compatibilityLevel": subject_data["compatibility"]}, content_type)
+        if subject_data:
+            default_to_global = request.query.get("defaultToGlobal", "false").lower() == "true"
+            compatibility = subject_data.get("compatibility")
+            if not compatibility and default_to_global:
+                compatibility = self.ksr.config["compatibility"]
+            if compatibility:
+                self.r({"compatibilityLevel": compatibility}, content_type)
 
         self.r({"error_code": 40401, "message": "Subject not found."}, content_type, status=404)
 

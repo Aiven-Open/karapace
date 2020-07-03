@@ -134,6 +134,20 @@ async def union_to_union_check(c):
     assert res.status == 200
 
 
+async def missing_subject_compatibility_check(c):
+    subject = os.urandom(16).hex()
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps({"type": "string"})})
+    assert res.status_code == 200
+    res = await c.get(f"config/{subject}")
+    assert res.status == 404
+    res = await c.get(f"config/{subject}?defaultToGlobal=false")
+    assert res.status == 404, f"subject should have no compatibility when not defaulting to global: {res.json()}"
+    res = await c.get(f"config/{subject}?defaultToGlobal=true")
+    assert res.status == 200, f"subject should have a compatibility when not defaulting to global: {res.json()}"
+
+    assert "compatibilityLevel" in res.json() and res.json()["compatibilityLevel"] == "BACKWARD", res.json()
+
+
 async def record_union_schema_compatibility_checks(c):
     subject = os.urandom(16).hex()
     res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
@@ -1514,6 +1528,7 @@ async def check_common_endpoints(c):
 
 
 async def run_schema_tests(c):
+    await missing_subject_compatibility_check(c)
     await schema_checks(c)
     await union_to_union_check(c)
     await check_type_compatibility(c)
