@@ -358,6 +358,22 @@ other Karapaces who is master.  The one with the name that sorts as the
 first alphabetically is chosen as master from among the services with
 master_eligibility set to true.
 
+``consumer_enable_autocommit`` (default ``True``)
+
+Enable auto commit on rest proxy consumers
+
+``consumer_request_timeout_ms`` (default ``11000``)
+
+Rest proxy consumers timeout for reads that do not limit the max bytes or provide their own timeout
+
+``consumer_request_max_bytes`` (default ``67108864``)
+
+Rest proxy consumers maximum bytes to be fetched per request
+
+``fetch_min_bytes`` (default ``-1``)
+
+Rest proxy consumers minimum bytes to be fetched per request. -1 means no limit
+
 ``group_id`` (default ``schema-registry``)
 
 The Kafka group name used for selecting a master service to coordinate the
@@ -370,6 +386,20 @@ service.  Reason to turn this off would be to have an instances of Karapace
 running somewhere else for HA purposes but which you wouldn't want to
 automatically promote to master if the primary instances were to become
 unavailable.
+
+``producer_compression_type`` (default ``None``)
+
+Type of compression to be used by rest proxy producers
+
+``producer_acks`` (default ``1``)
+
+Level of consistency desired by each producer message sent on the rest proxy
+More on https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html
+
+``producer_linger_ms`` (default ``0``)
+
+Time to wait for grouping together requests
+More on https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html
 
 ``security_protocol`` (default ``PLAINTEXT``)
 
