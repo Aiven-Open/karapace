@@ -338,7 +338,12 @@ class RestApp:
                 callback=None,
             )
 
-        self.app.router.add_route(method, aio_route, wrapped_callback)
+        if not aio_route.endswith("/"):
+            self.app.router.add_route(method, aio_route + "/", wrapped_callback)
+            self.app.router.add_route(method, aio_route, wrapped_callback)
+        else:
+            self.app.router.add_route(method, aio_route, wrapped_callback)
+            self.app.router.add_route(method, aio_route[:-1], wrapped_callback)
         try:
             self.app.router.add_route("OPTIONS", aio_route, wrapped_cors)
         except RuntimeError as ex:
