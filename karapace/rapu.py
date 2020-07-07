@@ -9,6 +9,7 @@ See LICENSE for details
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
+from typing import Dict, Optional
 from vendor.python_accept_types.accept_types import get_best_match
 
 import aiohttp
@@ -50,15 +51,42 @@ REST_ACCEPT_RE = re.compile(
 
 
 class HTTPRequest:
-    def __init__(self, *, url, query, headers, path_for_stats, method, content_type=None, accepts=None):
+    def __init__(
+        self,
+        *,
+        url: str,
+        query,
+        headers: Dict[str, str],
+        path_for_stats: str,
+        method: str,
+        content_type: Optional[str] = None,
+        accepts: Optional[str] = None,
+    ):
         self.url = url
         self.headers = headers
+        self._header_cache: Dict[str, Optional[str]] = {}
         self.query = query
         self.content_type = content_type
         self.accepts = accepts
         self.path_for_stats = path_for_stats
         self.method = method
         self.json = None
+
+    def get_header(self, header: str, default_value: Optional[str] = None) -> Optional[str]:
+        upper_cased = header.upper()
+        if upper_cased in self._header_cache:
+            return self._header_cache[upper_cased]
+        for h in self.headers.keys():
+            if h.upper() == upper_cased:
+                value = self.headers[h]
+                self._header_cache[upper_cased] = value
+                return value
+        if upper_cased == "CONTENT-TYPE":
+            # sensible default
+            self._header_cache[upper_cased] = "application/json"
+        else:
+            self._header_cache[upper_cased] = default_value
+        return self._header_cache[upper_cased]
 
     def __repr__(self):
         return "HTTPRequest(url=%s query=%s method=%s json=%r)" % (self.url, self.query, self.method, self.json)
@@ -68,7 +96,7 @@ class HTTPResponse(Exception):
     """A custom Response object derived from Exception so it can be raised
     in response handler callbacks."""
 
-    def __init__(self, body, *, status=200, content_type=None, headers=None):
+    def __init__(self, body, *, status: int = 200, content_type: Optional[str] = None, headers: Dict[str, str] = None):
         self.body = body
         self.status = status
         self.headers = dict(headers) if headers else {}
@@ -138,14 +166,15 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
-    def check_rest_headers(self, request):  # pylint: disable=R1710
+    def check_rest_headers(self, request: HTTPRequest):  # pylint: disable=R1710
         method = request.method
-        headers = request.headers
         default_content = "application/vnd.kafka.json.v2+json"
         default_accept = "*/*"
         result = {"content_type": default_content}
-        content_matcher = REST_CONTENT_TYPE_RE.search(cgi.parse_header(headers.get("Content-Type", default_content))[0])
-        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(headers.get("Accept", default_accept))[0])
+        content_matcher = REST_CONTENT_TYPE_RE.search(
+            cgi.parse_header(request.get_header("Content-Type", default_content))[0]
+        )
+        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(request.get_header("Accept", default_accept))[0])
         if method in {"POST", "PUT"}:
             if not content_matcher:
                 http_error("HTTP 415 Unsupported Media Type", result["content_type"], 415)
@@ -155,22 +184,22 @@ class RestApp:
             result["requests"] = header_info
             result["accepts"] = accept_matcher.groupdict()
             return result
-        self.log.error("Not acceptable: %r", headers["accept"])
+        self.log.error("Not acceptable: %r", request.get_header("accept"))
         http_error("HTTP 406 Not Acceptable", result["content_type"], 406)
 
-    def check_schema_headers(self, request):
+    def check_schema_headers(self, request: HTTPRequest):
         method = request.method
-        headers = request.headers
         response_default_content_type = "application/vnd.schemaregistry.v1+json"
 
-        if method in {"POST", "PUT"} and cgi.parse_header(headers["Content-Type"])[0] not in SCHEMA_CONTENT_TYPES:
+        if method in {"POST", "PUT"} and cgi.parse_header(request.get_header("Content-Type"))[0] not in SCHEMA_CONTENT_TYPES:
             http_error("HTTP 415 Unsupported Media Type", response_default_content_type, 415)
-        if "Accept" in headers:
-            if headers["Accept"] == "*/*" or headers["Accept"].startswith("*/"):
+        accept_val = request.get_header("Accept")
+        if accept_val:
+            if accept_val == "*/*" or accept_val.startswith("*/"):
                 return response_default_content_type
-            content_type_match = get_best_match(headers["Accept"], SCHEMA_ACCEPT_VALUES)
+            content_type_match = get_best_match(accept_val, SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
-                self.log.debug("Unexpected Accept value: %r", headers["Accept"])
+                self.log.debug("Unexpected Accept value: %r", accept_val)
                 http_error("HTTP 406 Not Acceptable", response_default_content_type, 406)
             return content_type_match
         return response_default_content_type
@@ -208,7 +237,7 @@ class RestApp:
                 if not body:
                     raise HTTPResponse(body="Missing request JSON body", status=400)
                 try:
-                    _, options = cgi.parse_header(request.headers.get("Content-Type"))
+                    _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
                     rapu_request.json = jsonlib.loads(body_string)
@@ -227,7 +256,7 @@ class RestApp:
                 callback_kwargs["request"] = rapu_request
 
             if rest_request:
-                params = self.check_rest_headers(request)
+                params = self.check_rest_headers(rapu_request)
                 if "requests" in params:
                     rapu_request.content_type = params["requests"]
                     params.pop("requests")
@@ -237,7 +266,7 @@ class RestApp:
                 callback_kwargs.update(params)
 
             if schema_request:
-                content_type = self.check_schema_headers(request)
+                content_type = self.check_schema_headers(rapu_request)
                 callback_kwargs["content_type"] = content_type
 
             try:
