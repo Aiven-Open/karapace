@@ -140,7 +140,7 @@ def fixture_kafka_server(session_tmpdir, zkserver):
 @pytest.fixture(scope="function", name="producer")
 def fixture_producer(kafka_server):
     if REST_URI in os.environ or REGISTRY_URI in os.environ:
-        kafka_uri = f"{get_broker_ip()}:9093"
+        kafka_uri = f"{get_broker_ip()}:9092"
     else:
         kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
     prod = KafkaProducer(bootstrap_servers=kafka_uri)
@@ -153,7 +153,7 @@ def fixture_producer(kafka_server):
 @pytest.fixture(scope="function", name="admin_client")
 def fixture_admin(kafka_server):
     if REST_URI in os.environ or REGISTRY_URI in os.environ:
-        kafka_uri = f"{get_broker_ip()}:9093"
+        kafka_uri = f"{get_broker_ip()}:9092"
     else:
         kafka_uri = "127.0.0.1:{}".format(kafka_server["kafka_port"])
     cli = KafkaRestAdminClient(bootstrap_servers=kafka_uri)

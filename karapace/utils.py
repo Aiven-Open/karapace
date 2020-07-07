@@ -108,7 +108,8 @@ class Client:
                 json=json,
                 headers=headers,
             ) as res:
-                json_result = await res.json()
+                # required for forcing the response body conversion to json despite missing valid Accept headers
+                json_result = await res.json(content_type=None)
                 return Result(res.status, json_result, headers=res.headers)
         elif self.server_uri:
             res = requests.get(path, headers=headers, json=json)
