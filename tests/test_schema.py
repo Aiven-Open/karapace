@@ -14,10 +14,10 @@ pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
 
 
-async def enum_schema_compatibility_checks(c, compatibility):
+async def enum_schema_compatibility_checks(c, compatibility, trail):
     subject = os.urandom(16).hex()
 
-    res = await c.put("config", json={"compatibility": compatibility})
+    res = await c.put(f"config{trail}", json={"compatibility": compatibility})
     assert res.status == 200
     schema = {
         "type": "record",
@@ -32,7 +32,7 @@ async def enum_schema_compatibility_checks(c, compatibility):
         }]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -51,7 +51,7 @@ async def enum_schema_compatibility_checks(c, compatibility):
         }]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -72,7 +72,7 @@ async def enum_schema_compatibility_checks(c, compatibility):
         }]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -80,7 +80,7 @@ async def enum_schema_compatibility_checks(c, compatibility):
     schema_id3 = res.json()["id"]
     assert schema_id3 != schema_id2
 
-    res = await c.get("schemas/ids/{}".format(schema_id3))
+    res = await c.get(f"schemas/ids/{schema_id3}{trail}")
     assert res.status_code == 200
     res = jsonlib.loads(res.json()["schema"])
     assert res["type"] == "record"
@@ -91,9 +91,9 @@ async def enum_schema_compatibility_checks(c, compatibility):
     assert res["fields"][0]["type"]["symbols"] == ["second"]
 
 
-async def union_to_union_check(c):
+async def union_to_union_check(c, trail):
     subject = os.urandom(16).hex()
-    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    res = await c.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status == 200
     init_schema = {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["string", "int"]}]}
     evolved = {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["null", "string"]}]}
@@ -114,43 +114,43 @@ async def union_to_union_check(c):
             ]
         }]
     }
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init_schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(init_schema)})
     assert res.status == 200
     assert "id" in res.json()
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(evolved)})
     assert res.status == 409
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved_compatible)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(evolved_compatible)})
     assert res.status == 200
     # fw compat check
     subject = os.urandom(16).hex()
-    res = await c.put(f"config/{subject}", json={"compatibility": "FORWARD"})
+    res = await c.put(f"config/{subject}{trail}", json={"compatibility": "FORWARD"})
     assert res.status == 200
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved_compatible)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(evolved_compatible)})
     assert res.status == 200
     assert "id" in res.json()
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(evolved)})
     assert res.status == 409
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init_schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(init_schema)})
     assert res.status == 200
 
 
-async def missing_subject_compatibility_check(c):
+async def missing_subject_compatibility_check(c, trail):
     subject = os.urandom(16).hex()
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps({"type": "string"})})
-    assert res.status_code == 200
-    res = await c.get(f"config/{subject}")
-    assert res.status == 404
-    res = await c.get(f"config/{subject}?defaultToGlobal=false")
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps({"type": "string"})})
+    assert res.status_code == 200, f"{res} {subject}"
+    res = await c.get(f"config/{subject}{trail}")
+    assert res.status == 404, f"{res} {subject}"
+    res = await c.get(f"config/{subject}{trail}?defaultToGlobal=false")
     assert res.status == 404, f"subject should have no compatibility when not defaulting to global: {res.json()}"
-    res = await c.get(f"config/{subject}?defaultToGlobal=true")
+    res = await c.get(f"config/{subject}{trail}?defaultToGlobal=true")
     assert res.status == 200, f"subject should have a compatibility when not defaulting to global: {res.json()}"
 
-    assert "compatibilityLevel" in res.json() and res.json()["compatibilityLevel"] == "BACKWARD", res.json()
+    assert "compatibilityLevel" in res.json(), res.json()
 
 
-async def record_union_schema_compatibility_checks(c):
+async def record_union_schema_compatibility_checks(c, trail):
     subject = os.urandom(16).hex()
-    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    res = await c.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status == 200
     original_schema = {
         "name": "bar",
@@ -172,7 +172,7 @@ async def record_union_schema_compatibility_checks(c):
             }]
         }]
     }
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(original_schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(original_schema)})
     assert res.status == 200
     assert "id" in res.json()
 
@@ -201,26 +201,26 @@ async def record_union_schema_compatibility_checks(c):
         }]
     }
     res = await c.post(
-        f"compatibility/subjects/{subject}/versions/latest",
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
         json={"schema": jsonlib.dumps(evolved_schema)},
     )
     assert res.status == 200
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved_schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(evolved_schema)})
     assert res.status == 200
     assert "id" in res.json()
 
     # Check that we can delete the field as well
     res = await c.post(
-        f"compatibility/subjects/{subject}/versions/latest",
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
         json={"schema": jsonlib.dumps(original_schema)},
     )
     assert res.status == 200
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(original_schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(original_schema)})
     assert res.status == 200
     assert "id" in res.json()
 
 
-async def record_nested_schema_compatibility_checks(c):
+async def record_nested_schema_compatibility_checks(c, trail):
     subject = os.urandom(16).hex()
 
     res = await c.put("config", json={"compatibility": "BACKWARD"})
@@ -249,7 +249,7 @@ async def record_nested_schema_compatibility_checks(c):
         ]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -264,8 +264,8 @@ async def record_nested_schema_compatibility_checks(c):
     assert res.status == 409
 
 
-async def compatibility_endpoint_checks(c):
-    res = await c.put("config", json={"compatibility": "BACKWARD"})
+async def compatibility_endpoint_checks(c, trail):
+    res = await c.put(f"config{trail}", json={"compatibility": "BACKWARD"})
     assert res.status == 200
 
     subject = os.urandom(16).hex()
@@ -281,19 +281,19 @@ async def compatibility_endpoint_checks(c):
     }
 
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
 
-    res = await c.get("schemas/ids/{}".format(res.json()["id"]))
+    res = await c.get("schemas/ids/{}{}".format(res.json()["id"], trail))
     schema_gotten_back = jsonlib.loads(res.json()["schema"])
     assert schema_gotten_back == schema
 
     # replace int with long
     schema["fields"] = [{"type": "long", "name": "age"}]
     res = await c.post(
-        "compatibility/subjects/{}/versions/latest".format(subject),
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -301,14 +301,14 @@ async def compatibility_endpoint_checks(c):
 
     schema["fields"] = [{"type": "string", "name": "age"}]
     res = await c.post(
-        "compatibility/subjects/{}/versions/latest".format(subject),
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
     assert res.json() == {"is_compatible": False}
 
 
-async def check_type_compatibility(c):
+async def check_type_compatibility(c, trail):
     def _test_cases():
         # Generate FORWARD, BACKWARD and FULL tests for primitive types
         _CONVERSIONS = {
@@ -361,7 +361,7 @@ async def check_type_compatibility(c):
 
     for compatibility, source_type, target_type, expected in _test_cases():
         subject = os.urandom(16).hex()
-        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        res = await c.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         schema = {
             "type": "record",
             "name": "Objct",
@@ -373,21 +373,21 @@ async def check_type_compatibility(c):
             ]
         }
         res = await c.post(
-            f"subjects/{subject}/versions",
+            f"subjects/{subject}/versions{trail}",
             json={"schema": jsonlib.dumps(schema)},
         )
         assert res.status == 200
 
         schema["fields"][0]["type"] = target_type
         res = await c.post(
-            f"compatibility/subjects/{subject}/versions/latest",
+            f"compatibility/subjects/{subject}/versions/latest{trail}",
             json={"schema": jsonlib.dumps(schema)},
         )
         assert res.status == 200
         assert res.json() == {"is_compatible": expected}
 
 
-async def record_schema_compatibility_checks(c):
+async def record_schema_compatibility_checks(c, trail):
     subject = os.urandom(16).hex()
 
     res = await c.put("config", json={"compatibility": "FORWARD"})
@@ -404,7 +404,7 @@ async def record_schema_compatibility_checks(c):
     }
 
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -430,7 +430,7 @@ async def record_schema_compatibility_checks(c):
         ]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema2)},
     )
     assert res.status == 200
@@ -458,7 +458,7 @@ async def record_schema_compatibility_checks(c):
         ]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema3a)},
     )
     # Fails because field removed
@@ -486,7 +486,7 @@ async def record_schema_compatibility_checks(c):
         ]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema3b)},
     )
     # Fails because incompatible type change
@@ -519,7 +519,7 @@ async def record_schema_compatibility_checks(c):
         ]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema4)},
     )
     assert res.status == 200
@@ -553,7 +553,7 @@ async def record_schema_compatibility_checks(c):
         ]
     }
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema5)},
     )
     assert res.status == 409
@@ -561,7 +561,7 @@ async def record_schema_compatibility_checks(c):
     # Add a default value for the field
     schema5["fields"][3] = {"name": "fourth_name", "type": "string", "default": "foof"}
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema5)},
     )
     assert res.status == 200
@@ -570,58 +570,58 @@ async def record_schema_compatibility_checks(c):
     # Try to submit schema with a different definition
     schema5["fields"][3] = {"name": "fourth_name", "type": "int", "default": 2}
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": jsonlib.dumps(schema5)},
     )
     assert res.status == 409
 
     subject = os.urandom(16).hex()
-    res = await c.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    res = await c.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     schema = {"type": "record", "name": "Object", "fields": [{"name": "first_name", "type": "string"}]}
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     schema["fields"].append({"name": "last_name", "type": "string"})
-    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+    res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 409
 
 
-async def check_enum_schema_field_add_compatibility(c):
+async def check_enum_schema_field_add_compatibility(c, trail):
     expected_results = [("BACKWARD", 200), ("FORWARD", 200), ("FULL", 200)]
     for compatibility, status_code in expected_results:
         subject = os.urandom(16).hex()
-        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        res = await c.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {"type": "enum", "name": "Suit", "symbols": ["SPADES", "HEARTS", "DIAMONDS"]}
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 200
 
         # Add a field
         schema["symbols"].append("CLUBS")
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == status_code
 
 
-async def check_array_schema_field_add_compatibility(c):
+async def check_array_schema_field_add_compatibility(c, trail):
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
         subject = os.urandom(16).hex()
-        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        res = await c.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {"type": "array", "items": "int"}
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 200
 
         # Modify the items type
         schema["items"] = "long"
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == status_code
 
 
-async def check_array_nested_record_compatibility(c):
+async def check_array_nested_record_compatibility(c, trail):
     expected_results = [("BACKWARD", 409), ("FORWARD", 200), ("FULL", 409)]
     for compatibility, status_code in expected_results:
         subject = os.urandom(16).hex()
-        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        res = await c.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {
             "type": "array",
@@ -634,20 +634,20 @@ async def check_array_nested_record_compatibility(c):
                 }]
             }
         }
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 200
 
         # Add a second field to the record
         schema["items"]["fields"].append({"name": "last_name", "type": "string"})
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == status_code
 
 
-async def check_record_nested_array_compatibility(c):
+async def check_record_nested_array_compatibility(c, trail):
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
         subject = os.urandom(16).hex()
-        res = await c.put(f"config/{subject}", json={"compatibility": compatibility})
+        res = await c.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {
             "type": "record",
@@ -660,12 +660,12 @@ async def check_record_nested_array_compatibility(c):
                 }
             }]
         }
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 200
 
         # Modify the array items type
         schema["fields"][0]["type"]["items"] = "long"
-        res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        res = await c.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == status_code
 
 
@@ -944,23 +944,22 @@ async def check_transitive_compatibility(c):
     assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
 
-async def schema_checks(c):
+async def schema_checks(c, trail):
     subject = os.urandom(16).hex()
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status == 200
     assert "id" in res.json()
     schema_id = res.json()["id"]
-
-    res = await c.get("schemas/ids/{}".format(res.json()["id"]))
+    res = await c.get(f"schemas/ids/{schema_id}{trail}")
     assert res.status_code == 200
     assert res.json()["schema"] == '"string"'
 
     # repost same schema again to see that a new id is not generated but an old one is given back
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status == 200
@@ -969,7 +968,7 @@ async def schema_checks(c):
 
     # Schema missing in the json body
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={},
     )
     assert res.status == 500
@@ -977,11 +976,11 @@ async def schema_checks(c):
     assert res.json()["message"] == "Internal Server Error"
 
     # nonexistent schema id
-    result = await c.get(os.path.join("schemas/ids/{}".format(123456789)))
+    result = await c.get(os.path.join("schemas/ids/123456789"))
     assert result.json()["error_code"] == 40403
 
     # invalid schema_id
-    result = await c.get("schemas/ids/invalid")
+    result = await c.get(f"schemas/ids/invalid{trail}")
     assert result.status == 404
     assert result.json()["error_code"] == 404
     assert result.json()["message"] == "HTTP 404 Not Found"
@@ -1304,24 +1303,24 @@ async def schema_checks(c):
     assert res.json()["id"] == first_schema_id + 2
 
 
-async def config_checks(c):
+async def config_checks(c, trail):
     # Tests /config endpoint
-    res = await c.put("config", json={"compatibility": "FULL"})
+    res = await c.put(f"config{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
     assert res.json()["compatibility"] == "FULL"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
-    res = await c.get("config")
+    res = await c.get(f"config{trail}")
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
-    res = await c.put("config", json={"compatibility": "NONE"})
+    res = await c.put(f"config{trail}", json={"compatibility": "NONE"})
     assert res.status_code == 200
     assert res.json()["compatibility"] == "NONE"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
-    res = await c.put("config", json={"compatibility": "nonexistentmode"})
+    res = await c.put(f"config{trail}", json={"compatibility": "nonexistentmode"})
     assert res.status_code == 422
     assert res.json()["error_code"] == 42203
     assert res.json()["message"] == "Invalid compatibility level. Valid values are none, backward, forward and full"
@@ -1330,29 +1329,29 @@ async def config_checks(c):
     # Create a new subject so we can try setting its config
     subject = os.urandom(16).hex()
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions{trail}",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status_code == 200
     assert "id" in res.json()
 
-    res = await c.get("config/{}".format(subject))
+    res = await c.get(f"config/{subject}{trail}")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == "Subject not found."
 
-    res = await c.put("config/{}".format(subject), json={"compatibility": "FULL"})
+    res = await c.put(f"config/{subject}{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
     assert res.json()["compatibility"] == "FULL"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
-    res = await c.get("config/{}".format(subject))
+    res = await c.get(f"config/{subject}{trail}")
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
 
     # It's possible to add a config to a subject that doesn't exist yet
     subject = os.urandom(16).hex()
-    res = await c.put("config/{}".format(subject), json={"compatibility": "FULL"})
+    res = await c.put(f"config/{subject}{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
     assert res.json()["compatibility"] == "FULL"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
@@ -1527,27 +1526,27 @@ async def check_common_endpoints(c):
     assert res.json() == {}
 
 
-async def run_schema_tests(c):
-    await missing_subject_compatibility_check(c)
-    await schema_checks(c)
-    await union_to_union_check(c)
-    await check_type_compatibility(c)
-    await compatibility_endpoint_checks(c)
-    await record_schema_compatibility_checks(c)
-    await record_nested_schema_compatibility_checks(c)
-    await record_union_schema_compatibility_checks(c)
+async def run_schema_tests(c, trail):
+    await missing_subject_compatibility_check(c, trail)
+    await schema_checks(c, trail)
+    await union_to_union_check(c, trail)
+    await check_type_compatibility(c, trail)
+    await compatibility_endpoint_checks(c, trail)
+    await record_schema_compatibility_checks(c, trail)
+    await record_nested_schema_compatibility_checks(c, trail)
+    await record_union_schema_compatibility_checks(c, trail)
     for compatibility in {"FORWARD", "BACKWARD", "FULL"}:
-        await enum_schema_compatibility_checks(c, compatibility)
-    await check_enum_schema_field_add_compatibility(c)
-    await check_array_schema_field_add_compatibility(c)
-    await check_array_nested_record_compatibility(c)
-    await check_record_nested_array_compatibility(c)
+        await enum_schema_compatibility_checks(c, compatibility, trail)
+    await check_enum_schema_field_add_compatibility(c, trail)
+    await check_array_schema_field_add_compatibility(c, trail)
+    await check_array_nested_record_compatibility(c, trail)
+    await check_record_nested_array_compatibility(c, trail)
     await check_map_schema_field_add_compatibility(c)
     await check_enum_schema(c)
     await check_fixed_schema(c)
     await check_primitive_schema(c)
     await check_union_comparing_to_other_types(c)
-    await config_checks(c)
+    await config_checks(c, trail)
     await check_transitive_compatibility(c)
     await check_http_headers(c)
     await check_schema_body_validation(c)
@@ -1555,16 +1554,18 @@ async def run_schema_tests(c):
     await check_common_endpoints(c)
 
 
-async def test_local(karapace, aiohttp_client):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_local(karapace, aiohttp_client, trail):
     kc, _ = karapace()
     client = await aiohttp_client(kc.app)
     c = Client(client=client)
-    await run_schema_tests(c)
+    await run_schema_tests(c, trail)
 
 
-async def test_remote():
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_remote(trail):
     server_uri = os.environ.get("SERVER_URI")
     if not server_uri:
         pytest.skip("SERVER_URI env variable not set")
     c = Client(server_uri=server_uri)
-    await run_schema_tests(c)
+    await run_schema_tests(c, trail)
