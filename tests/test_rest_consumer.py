@@ -3,20 +3,23 @@ from tests.utils import consumer_valid_payload, new_topic, REST_HEADERS, schema_
 import base64
 import copy
 import json
+import pytest
+import random
 
 
-async def new_consumer(c, group, fmt="avro"):
+async def new_consumer(c, group, fmt="avro", trail=""):
     payload = copy.copy(consumer_valid_payload)
     payload["format"] = fmt
-    resp = await c.post(f"/consumers/{group}", json=payload, headers=REST_HEADERS["avro"])
+    resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS["avro"])
     assert resp.ok
     return resp.json()["instance_id"]
 
 
-async def test_create_and_delete(rest_async_client):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_create_and_delete(rest_async_client, trail):
     header = REST_HEADERS["json"]
     group_name = "test_group"
-    resp = await rest_async_client.post(f"/consumers/{group_name}", json=consumer_valid_payload, headers=header)
+    resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=consumer_valid_payload, headers=header)
     assert resp.ok
     body = resp.json()
     assert "base_uri" in body
@@ -24,30 +27,31 @@ async def test_create_and_delete(rest_async_client):
     # add with the same name fails
     with_name = copy.copy(consumer_valid_payload)
     with_name["name"] = instance_id
-    resp = await rest_async_client.post(f"/consumers/{group_name}", json=with_name, headers=header)
+    resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=with_name, headers=header)
     assert not resp.ok
     assert resp.status == 409, f"Expected conflict for instance {instance_id} and group {group_name} " \
                                f"but got a different error: {resp.body}"
     invalid_fetch = copy.copy(consumer_valid_payload)
     # add with faulty params fails
     invalid_fetch["fetch.min.bytes"] = -10
-    resp = await rest_async_client.post(f"/consumers/{group_name}", json=invalid_fetch, headers=header)
+    resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=invalid_fetch, headers=header)
     assert not resp.ok
     assert resp.status == 422, f"Expected invalid fetch request value config for: {resp.body}"
     # delete followed by add succeeds
-    resp = await rest_async_client.delete(f"/consumers/{group_name}/instances/{instance_id}", headers=header)
+    resp = await rest_async_client.delete(f"/consumers/{group_name}/instances/{instance_id}{trail}", headers=header)
     assert resp.ok, "Could not delete "
-    resp = await rest_async_client.post(f"/consumers/{group_name}", json=with_name, headers=header)
+    resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=with_name, headers=header)
     assert resp.ok
     # delete unknown entity fails
-    resp = await rest_async_client.delete(f"/consumers/{group_name}/instances/random_name")
+    resp = await rest_async_client.delete(f"/consumers/{group_name}/instances/random_name{trail}")
     assert resp.status == 404
 
 
-async def test_assignment(rest_async_client, admin_client):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_assignment(rest_async_client, admin_client, trail):
     header = REST_HEADERS["json"]
-    instance_id = await new_consumer(rest_async_client, "assignment_group", fmt="json")
-    assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments"
+    instance_id = await new_consumer(rest_async_client, "assignment_group", fmt="json", trail=trail)
+    assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.get(assign_path, headers=header)
     assert res.ok, f"Expected status 200 but got {res.status}"
     assert "partitions" in res.json() and len(res.json()["partitions"]) == 0, "Assignment list should be empty"
@@ -56,7 +60,7 @@ async def test_assignment(rest_async_client, admin_client):
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=header, json=assign_payload)
     assert res.ok
-    assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments"
+    assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.get(assign_path, headers=header)
     assert res.ok, f"Expected status 200 but got {res.status}"
     data = res.json()
@@ -66,13 +70,14 @@ async def test_assignment(rest_async_client, admin_client):
     assert p["partition"] == 0
 
 
-async def test_subscription(rest_async_client, admin_client, producer):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_subscription(rest_async_client, admin_client, producer, trail):
     header = REST_HEADERS["binary"]
     group_name = "sub_group"
     topic_name = new_topic(admin_client)
-    instance_id = await new_consumer(rest_async_client, group_name, fmt="binary")
-    sub_path = f"/consumers/{group_name}/instances/{instance_id}/subscription"
-    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    instance_id = await new_consumer(rest_async_client, group_name, fmt="binary", trail=trail)
+    sub_path = f"/consumers/{group_name}/instances/{instance_id}/subscription{trail}"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=1000"
     res = await rest_async_client.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
@@ -101,8 +106,9 @@ async def test_subscription(rest_async_client, admin_client, producer):
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 0, f"expecting {data} to be empty"
     # one pattern sub will get all 3
-    pattern_topics = [new_topic(admin_client, prefix="subscription%d" % i) for i in range(3)]
-    res = await rest_async_client.post(sub_path, json={"topic_pattern": "subscription.*"}, headers=REST_HEADERS["json"])
+    prefix = f"{hash(random.random())}"
+    pattern_topics = [new_topic(admin_client, prefix=f"{prefix}{i}") for i in range(3)]
+    res = await rest_async_client.post(sub_path, json={"topic_pattern": f"{prefix}.*"}, headers=REST_HEADERS["json"])
     assert res.ok
 
     # Consume so confluent rest reevaluates the subscription
@@ -137,19 +143,20 @@ async def test_subscription(rest_async_client, admin_client, producer):
     data = res.json()
     assert data["error_code"] == 40903, f"Invalid state error expected: {data}"
     # assign after subscribe will fail
-    assign_path = f"/consumers/sub_group/instances/{instance_id}/assignments"
+    assign_path = f"/consumers/sub_group/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.status == 409, f"Expecting status code 409 on assign after subscribe on the same consumer instance"
 
 
-async def test_seek(rest_async_client, admin_client):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_seek(rest_async_client, admin_client, trail):
     group = "seek_group"
-    instance_id = await new_consumer(rest_async_client, group)
-    seek_path = f"/consumers/{group}/instances/{instance_id}/positions"
+    instance_id = await new_consumer(rest_async_client, group, trail=trail)
+    seek_path = f"/consumers/{group}/instances/{instance_id}/positions{trail}"
     # one partition assigned, we can
     topic_name = new_topic(admin_client)
-    assign_path = f"/consumers/{group}/instances/{instance_id}/assignments"
+    assign_path = f"/consumers/{group}/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.ok
@@ -167,14 +174,15 @@ async def test_seek(rest_async_client, admin_client):
     assert res.status == 409, f"Expecting a failure for unassigned partition seek: {res}"
 
 
-async def test_offsets(rest_async_client, admin_client):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_offsets(rest_async_client, admin_client, trail):
     group_name = "offset_group"
     fmt = "binary"
     header = REST_HEADERS[fmt]
-    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
     topic_name = new_topic(admin_client)
-    offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets"
-    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets{trail}"
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.post(
         assign_path, json={"partitions": [{
             "topic": topic_name,
@@ -229,7 +237,8 @@ async def test_offsets(rest_async_client, admin_client):
     assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
 
 
-async def test_consume(rest_async_client, admin_client, producer):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_consume(rest_async_client, admin_client, producer, trail):
     # avro to be handled in a separate testcase ??
     values = {
         "json": [json.dumps({
@@ -241,10 +250,10 @@ async def test_consume(rest_async_client, admin_client, producer):
     group_name = "consume_group"
     for fmt in ["binary", "json"]:
         header = copy.deepcopy(REST_HEADERS[fmt])
-        instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
-        assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-        seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
-        consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+        instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
+        assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
+        seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning{trail}"
+        consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=1000"
         topic_name = new_topic(admin_client)
         assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
         res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
@@ -265,19 +274,20 @@ async def test_consume(rest_async_client, admin_client, producer):
                 f" does not match {values[fmt][i]} for format {fmt}"
 
 
-async def test_publish_consume_avro(rest_async_client, admin_client):
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_publish_consume_avro(rest_async_client, admin_client, trail):
     header = REST_HEADERS["avro"]
     group_name = "e2e_group"
-    instance_id = await new_consumer(rest_async_client, group_name, fmt="avro")
-    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    instance_id = await new_consumer(rest_async_client, group_name, fmt="avro", trail=trail)
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=1000"
     tn = new_topic(admin_client)
     assign_payload = {"partitions": [{"topic": tn, "partition": 0}]}
     res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
     assert res.ok
 
     pl = {"value_schema": schema_json, "records": [{"value": o} for o in test_objects]}
-    res = await rest_async_client.post(f"topics/{tn}", json=pl, headers=header)
+    res = await rest_async_client.post(f"topics/{tn}{trail}", json=pl, headers=header)
     assert res.ok
     resp = await rest_async_client.get(consume_path, headers=header)
     assert resp.ok, f"Expected a successful response: {resp}"
