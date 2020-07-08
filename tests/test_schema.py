@@ -1546,6 +1546,13 @@ async def check_common_endpoints(c):
     assert res.json() == {}
 
 
+async def check_invalid_namespace(c):
+    schema = {"type": "record", "name": "foo", "namespace": "foo-bar-baz", "fields": []}
+    subject = os.urandom(16).hex()
+    res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+    assert res.ok, res.json()
+
+
 async def run_schema_tests(c, trail):
     await schema_checks(c, trail)
     await union_to_union_check(c, trail)
@@ -1571,6 +1578,7 @@ async def run_schema_tests(c, trail):
     await check_schema_body_validation(c)
     await check_version_number_validation(c)
     await check_common_endpoints(c)
+    await check_invalid_namespace(c)
     # this tests a new feature
     await missing_subject_compatibility_check(c, trail)
 
