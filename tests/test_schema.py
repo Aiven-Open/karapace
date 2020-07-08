@@ -9,6 +9,7 @@ from karapace.utils import Client
 import json as jsonlib
 import os
 import pytest
+import requests
 
 pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
@@ -1461,6 +1462,25 @@ async def check_http_headers(c):
     assert res.status == 200
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
     assert res.json()["compatibility"] == "NONE"
+    if "SERVER_URI" in os.environ:
+        for content_header in [
+            {},
+            {
+                "Content-Type": "application/json"
+            },
+            {
+                "content-type": "application/json"
+            },
+            {
+                "CONTENT-Type": "application/json"
+            },
+            {
+                "coNTEnt-tYPe": "application/json"
+            },
+        ]:
+            path = os.path.join(os.getenv("SERVER_URI"), "subjects/unknown_subject")
+            res = requests.request("POST", path, data=b"{}", headers=content_header)
+            assert res.status_code == 404, res.content
 
 
 async def check_schema_body_validation(c):
@@ -1527,7 +1547,6 @@ async def check_common_endpoints(c):
 
 
 async def run_schema_tests(c, trail):
-    await missing_subject_compatibility_check(c, trail)
     await schema_checks(c, trail)
     await union_to_union_check(c, trail)
     await check_type_compatibility(c, trail)
@@ -1552,6 +1571,8 @@ async def run_schema_tests(c, trail):
     await check_schema_body_validation(c)
     await check_version_number_validation(c)
     await check_common_endpoints(c)
+    # this tests a new feature
+    await missing_subject_compatibility_check(c, trail)
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
