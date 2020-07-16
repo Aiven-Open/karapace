@@ -1,4 +1,4 @@
-avro-python3==1.9.2.1
+git+https://github.com/aiven/avro.git@skip-namespace-validation#subdirectory=lang/py3/
 kafka-python==2.0.1
 aiohttp-socks==0.3.4
 pylint==2.4.4
