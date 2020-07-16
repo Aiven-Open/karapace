@@ -1,18 +1,10 @@
-from tests.utils import consumer_valid_payload, new_topic, REST_HEADERS, schema_json, test_objects
+from tests.utils import consumer_valid_payload, new_consumer, new_topic, REST_HEADERS, schema_data
 
 import base64
 import copy
 import json
 import pytest
 import random
-
-
-async def new_consumer(c, group, fmt="avro", trail=""):
-    payload = copy.copy(consumer_valid_payload)
-    payload["format"] = fmt
-    resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS["avro"])
-    assert resp.ok
-    return resp.json()["instance_id"]
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -274,25 +266,26 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
                 f" does not match {values[fmt][i]} for format {fmt}"
 
 
+@pytest.mark.parametrize("schema_type", ["avro"])
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_publish_consume_avro(rest_async_client, admin_client, trail):
-    header = REST_HEADERS["avro"]
+async def test_publish_consume_avro(rest_async_client, admin_client, trail, schema_type):
+    header = REST_HEADERS[schema_type]
     group_name = "e2e_group"
-    instance_id = await new_consumer(rest_async_client, group_name, fmt="avro", trail=trail)
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=schema_type, trail=trail)
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=1000"
     tn = new_topic(admin_client)
     assign_payload = {"partitions": [{"topic": tn, "partition": 0}]}
     res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
     assert res.ok
-
-    pl = {"value_schema": schema_json, "records": [{"value": o} for o in test_objects]}
+    publish_payload = schema_data[schema_type][1]
+    pl = {"value_schema": schema_data[schema_type][0], "records": [{"value": o} for o in publish_payload]}
     res = await rest_async_client.post(f"topics/{tn}{trail}", json=pl, headers=header)
     assert res.ok
     resp = await rest_async_client.get(consume_path, headers=header)
     assert resp.ok, f"Expected a successful response: {resp}"
     data = resp.json()
-    assert len(data) == len(test_objects), f"Expected to read test_objects from fetch request but got {data}"
+    assert len(data) == len(publish_payload), f"Expected to read test_objects from fetch request but got {data}"
     data_values = [x["value"] for x in data]
-    for expected, actual in zip(test_objects, data_values):
+    for expected, actual in zip(publish_payload, data_values):
         assert expected == actual, f"Expecting {actual} to be {expected}"
