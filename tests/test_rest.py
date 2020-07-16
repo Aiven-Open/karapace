@@ -1,6 +1,6 @@
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
-from tests.utils import new_topic, REST_HEADERS, schema_json, second_obj, second_schema_json, test_objects
+from tests.utils import new_topic, REST_HEADERS, schema_avro_json, second_obj, second_schema_json, test_objects_avro
 
 import os
 import pytest
@@ -62,7 +62,7 @@ async def test_content_types(rest_async_client, admin_client):
         "*/*",
     ]
 
-    avro_payload = {"value_schema": schema_json, "records": [{"value": o} for o in test_objects]}
+    avro_payload = {"value_schema": schema_avro_json, "records": [{"value": o} for o in test_objects_avro]}
     json_payload = {"records": [{"value": {"foo": "bar"}}]}
     binary_payload = {"records": [{"value": "Zm9v"}]}
     valid_payloads = [
@@ -105,9 +105,9 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
     for url in urls:
         partition_id = 0 if "partition" in url else None
         for pl_type in ["key", "value"]:
-            correct_payload = {f"{pl_type}_schema": schema_json, "records": [{pl_type: o} for o in test_objects]}
+            correct_payload = {f"{pl_type}_schema": schema_avro_json, "records": [{pl_type: o} for o in test_objects_avro]}
             res = await rest_async_client.post(url, correct_payload, headers=header)
-            check_successful_publish_response(res, test_objects, partition_id)
+            check_successful_publish_response(res, test_objects_avro, partition_id)
             # check succeeds with prepublished schema
             pre_publish_payload = {f"{pl_type}_schema_id": new_schema_id, "records": [{pl_type: o} for o in second_obj]}
             res = await rest_async_client.post(f"/topics/{tn}", json=pre_publish_payload, headers=header)

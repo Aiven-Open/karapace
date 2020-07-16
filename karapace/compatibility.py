@@ -4,6 +4,8 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.schema_reader import SchemaType, TypedSchema
+
 import avro.schema
 import logging
 
@@ -17,6 +19,38 @@ class UnknownSchemaType(Exception):
 
 
 class Compatibility:
+    def __init__(self, source, target, compatibility):
+        self.source = source
+        self.target = target
+        self.log = logging.getLogger("Compatibility")
+        self.compatibility = compatibility
+        self.log.info("Compatibility initialized with level: %r", self.compatibility)
+        # Compatibility only checks between two versions, so we can drop the possible _TRANSITIONAL
+        self._checking_for = compatibility.split("_")[0]
+
+    def check(self) -> bool:  # pylint: disable=inconsistent-return-statements
+        if self.source.schema_type is not self.target.schema_type:
+            raise IncompatibleSchema(
+                f"Comparing different schema types: {self.source.schema_type} with {self.target.schema_type}"
+            )
+        if self._checking_for == "NONE":
+            self.log.info("Compatibility level set to NONE, no schema compatibility checks performed")
+            return True
+        if self.source.schema_type is SchemaType.AVRO:
+            return AvroCompatibility(self.source.schema, self.target.schema, self.compatibility).check()
+        if self.source.schema_type is SchemaType.JSONSCHEMA:
+            return JsonSchemaCompatibility(self.source.schema, self.target.schema, self.compatibility).check()
+
+
+class JsonSchemaCompatibility(Compatibility):
+    def check_compatibility(self, source: TypedSchema, target: TypedSchema) -> bool:
+        raise NotImplementedError("write me")
+
+    def check(self) -> bool:
+        return self.check_compatibility(self.source, self.target)
+
+
+class AvroCompatibility(Compatibility):
     _TYPE_PROMOTION_RULES = {
         # Follow promotion rules in schema resolution section of:
         # https://avro.apache.org/docs/current/spec.html#schemas
@@ -97,19 +131,7 @@ class Compatibility:
     _NUMBER_TYPES = {"int", "long", "float", "double"}
     _STRING_TYPES = {"string", "bytes"}
 
-    def __init__(self, source, target, compatibility):
-        self.source = source
-        self.target = target
-        self.log = logging.getLogger("Compatibility")
-        self.compatibility = compatibility
-        self.log.info("Compatibility initialized with level: %r", self.compatibility)
-        # Compatibility only checks between two versions, so we can drop the possible _TRANSITIONAL
-        self._checking_for = compatibility.split("_")[0]
-
-    def check(self):
-        if self._checking_for == "NONE":
-            self.log.info("Compatibility level set to NONE, no schema compatibility checks performed")
-            return True
+    def check(self) -> bool:
         return self.check_compatibility(self.source, self.target)
 
     def contains(self, field, target):  # pylint: disable=no-self-use
