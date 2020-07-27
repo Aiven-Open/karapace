@@ -99,7 +99,6 @@ class Client:
 
     async def get(self, path, json=None, headers=None):
         path = self.path_for(path)
-        json = json or {}
         if not headers:
             headers = {}
         if self.client:

@@ -57,6 +57,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             method="GET",
             schema_request=True,
             with_request=True,
+            json_body=False,
         )
         self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
