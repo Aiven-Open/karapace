@@ -1,8 +1,5 @@
-Karapace |BuildStatus|_
-=======================
-
-.. |BuildStatus| image:: https://travis-ci.org/aiven/karapace.png?branch=master
-.. _BuildStatus: https://travis-ci.org/aiven/karapace
+Karapace
+========
 
 ``karapace`` Your Kafka essentials in one tool
 
