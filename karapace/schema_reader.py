@@ -4,6 +4,7 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from avro.schema import parse, Schema as AvroSchema, SchemaParseException
 from enum import Enum, unique
 from json import JSONDecodeError, loads
 from jsonschema.exceptions import SchemaError
@@ -17,7 +18,6 @@ from queue import Queue
 from threading import Lock, Thread
 from typing import Dict, Union
 
-import avro
 import json
 import logging
 import time
@@ -37,8 +37,8 @@ class SchemaType(str, Enum):
 
 
 class TypedSchema:
-    def __init__(self, schema: Union[Draft7Validator, avro.schema.Schema], schema_type: SchemaType):
-        assert isinstance(schema, (Draft7Validator, avro.schema.Schema))
+    def __init__(self, schema: Union[Draft7Validator, AvroSchema], schema_type: SchemaType):
+        assert isinstance(schema, (Draft7Validator, AvroSchema))
         self.schema_type = schema_type
         self.schema = schema
 
@@ -55,8 +55,8 @@ class TypedSchema:
     @staticmethod
     def parse_avro(schema_str: str):  # pylint: disable=inconsistent-return-statements
         try:
-            return TypedSchema(avro.schema.parse(schema_str), SchemaType.AVRO)
-        except avro.schema.SchemaParseException as e:
+            return TypedSchema(parse(schema_str), SchemaType.AVRO)
+        except SchemaParseException as e:
             raise InvalidSchema from e
 
     @staticmethod
