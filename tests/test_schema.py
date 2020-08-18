@@ -4,8 +4,10 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from kafka import KafkaProducer
 from karapace.utils import Client
 
+import asyncio
 import json as jsonlib
 import os
 import pytest
@@ -1551,6 +1553,30 @@ async def check_invalid_namespace(c):
     subject = os.urandom(16).hex()
     res = await c.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.ok, res.json()
+
+
+async def test_malformed_kafka_message(registry_async, registry_async_client):
+    topic = registry_async.config["topic_name"]
+
+    prod = KafkaProducer(bootstrap_servers=registry_async.config["bootstrap_uri"])
+    message_key = {"subject": "foo", "version": 1, "magic": 1, "keytype": "SCHEMA"}
+    import random
+    schema_id = random.randint(20000, 30000)
+    payload = {"schema": jsonlib.dumps({"foo": "bar"}, indent=None, separators=(",", ":"))}
+    message_value = {"deleted": False, "id": schema_id, "subject": "foo", "version": 1}
+    message_value.update(payload)
+    prod.send(topic, key=jsonlib.dumps(message_key).encode(), value=jsonlib.dumps(message_value).encode()).get()
+    found = False
+    for _ in range(30):
+        if schema_id in registry_async.ksr.schemas:
+            found = True
+            break
+        await asyncio.sleep(0.1)
+    assert found, f"{schema_id} not in {registry_async.ksr.schemas}"
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+    res_data = res.json()
+    assert res.ok, res_data
+    assert res_data == payload, res_data
 
 
 async def run_schema_tests(c, trail):

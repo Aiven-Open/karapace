@@ -16,7 +16,7 @@ from karapace import constants
 from karapace.utils import json_encode
 from queue import Queue
 from threading import Lock, Thread
-from typing import Dict, Union
+from typing import Dict
 
 import json
 import logging
@@ -37,8 +37,7 @@ class SchemaType(str, Enum):
 
 
 class TypedSchema:
-    def __init__(self, schema: Union[Draft7Validator, AvroSchema], schema_type: SchemaType):
-        assert isinstance(schema, (Draft7Validator, AvroSchema))
+    def __init__(self, schema, schema_type: SchemaType):
         self.schema_type = schema_type
         self.schema = schema
 
@@ -68,8 +67,11 @@ class TypedSchema:
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
     def to_json(self):
-        schema = self.schema.schema if self.schema_type is SchemaType.JSONSCHEMA else self.schema.to_json(names=None)
-        return schema
+        if isinstance(self.schema, Draft7Validator):
+            return self.schema.schema
+        if isinstance(self.schema, AvroSchema):
+            return self.schema.to_json(names=None)
+        return self.schema
 
     def __str__(self):
         return json_encode(self.to_json(), compact=True)
@@ -244,7 +246,16 @@ class KafkaSchemaReader(Thread):
                 self.subjects[key["subject"]]["schemas"].pop(key["version"], None)
                 return
             schema_type = value.get("schemaType", "AVRO")
-            typed_schema = TypedSchema.parse(SchemaType(schema_type), value["schema"])
+            schema_str = value["schema"]
+            try:
+                typed_schema = TypedSchema.parse(schema_type=SchemaType(schema_type), schema_str=schema_str)
+            except InvalidSchema:
+                try:
+                    schema_json = json.loads(schema_str)
+                    typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema=schema_json)
+                except JSONDecodeError:
+                    self.log.error("Invalid json: %s", value["schema"])
+                    return
             self.log.debug("Got typed schema %r", typed_schema)
             subject = value["subject"]
             if subject not in self.subjects:
