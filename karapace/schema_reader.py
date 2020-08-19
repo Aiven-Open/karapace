@@ -13,6 +13,7 @@ from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
+from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from queue import Queue
 from threading import Lock, Thread
@@ -99,6 +100,10 @@ class KafkaSchemaReader(Thread):
         self.ready = False
         self.running = True
         self.id_lock = Lock()
+        sentry_config = config.get("sentry", {"dsn": None}).copy()
+        if "tags" not in sentry_config:
+            sentry_config["tags"] = {}
+        self.stats = StatsClient(sentry_config=sentry_config)
 
     def init_consumer(self):
         # Group not set on purpose, all consumers read the same data
@@ -177,20 +182,29 @@ class KafkaSchemaReader(Thread):
 
     def run(self):
         while self.running:
-            if not self.admin_client:
-                if self.init_admin_client() is False:
-                    continue
-            if not self.schema_topic:
-                if self.create_schema_topic() is False:
-                    continue
-            if not self.consumer:
-                self.init_consumer()
-            self.handle_messages()
-
-        if self.admin_client:
-            self.admin_client.close()
-        if self.consumer:
-            self.consumer.close()
+            try:
+                if not self.admin_client:
+                    if self.init_admin_client() is False:
+                        continue
+                if not self.schema_topic:
+                    if self.create_schema_topic() is False:
+                        continue
+                if not self.consumer:
+                    self.init_consumer()
+                self.handle_messages()
+            except Exception as e:  # pylint: disable=broad-except
+                if self.stats:
+                    self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
+                self.log.exception("Unexpected exception in schema reader loop")
+        try:
+            if self.admin_client:
+                self.admin_client.close()
+            if self.consumer:
+                self.consumer.close()
+        except Exception as e:  # pylint: disable=broad-except
+            if self.stats:
+                self.stats.unexpected_exception(ex=e, where="schema_reader_exit")
+            self.log.exception("Unexpected exception closing schema reader")
 
     def handle_messages(self):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
