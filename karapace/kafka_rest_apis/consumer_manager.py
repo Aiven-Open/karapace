@@ -180,7 +180,8 @@ class ConsumerManager:
                     fetch_max_bytes=self.config["consumer_request_max_bytes"],
                     request_timeout_ms=request_data["consumer.request.timeout.ms"],
                     enable_auto_commit=request_data["auto.commit.enable"],
-                    auto_offset_reset=request_data["auto.offset.reset"]
+                    auto_offset_reset=request_data["auto.offset.reset"],
+                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
                 )
                 return c
             except:  # pylint: disable=bare-except
