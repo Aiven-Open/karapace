@@ -53,7 +53,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
         with self.client_lock:
             node_id = self._client.least_loaded_node()
             # normal admin code will call poll on client not ready which will sometime block indefinitely on select
-            if not self.first_boot or not self._client.ready(node_id):
+            if not node_id or not self.first_boot or not self._client.ready(node_id):
                 #  pylint: disable=protected-access
                 node_id = list(self._client.cluster._bootstrap_brokers.keys())[0]
                 self.first_boot = False

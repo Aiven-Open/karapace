@@ -185,6 +185,7 @@ class KafkaRest(KarapaceBase):
                     acks=acks,
                     compression_type=self.config["producer_compression_type"],
                     linger_ms=self.config["producer_linger_ms"],
+                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
                 )
                 await p.start()
                 return p
@@ -297,6 +298,7 @@ class KafkaRest(KarapaceBase):
                     ssl_keyfile=self.config["ssl_keyfile"],
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
+                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
                 )
                 break
             except:  # pylint: disable=bare-except

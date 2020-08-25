@@ -13,6 +13,7 @@ DEFAULTS = {
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
     "compatibility": "BACKWARD",
+    "connections_max_idle_ms": 15000,
     "consumer_enable_auto_commit": True,
     "consumer_request_timeout_ms": 11000,
     "consumer_request_max_bytes": 67108864,
