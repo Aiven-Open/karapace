@@ -1624,3 +1624,48 @@ async def test_remote(trail):
         pytest.skip("SERVER_URI env variable not set")
     c = Client(server_uri=server_uri)
     await run_schema_tests(c, trail)
+
+
+async def test_inner_type_compat_failure(registry_async_client):
+    sc = {
+        "type": "record",
+        "name": "record_line_movement_multiple_deleted",
+        "namespace": "sya",
+        "fields": [{
+            "name": "meta",
+            "type": {
+                "type": "record",
+                "name": "meta",
+                "fields": [{
+                    "name": "date",
+                    "type": "long"
+                }]
+            },
+        }]
+    }
+    ev = {
+        "type": "record",
+        "name": "record_line_movement_multiple_deleted",
+        "namespace": "sya",
+        "fields": [{
+            "name": "meta",
+            "type": {
+                "type": "record",
+                "name": "meta",
+                "fields": [{
+                    "name": "date",
+                    "type": {
+                        "type": "long",
+                        "logicalType": "timestamp-millis"
+                    }
+                }]
+            },
+        }]
+    }
+    subject = os.urandom(16).hex()
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(sc)})
+    assert res.ok
+    sc_id = res.json()["id"]
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(ev)})
+    assert res.ok
+    assert sc_id != res.json()["id"]
