@@ -252,10 +252,14 @@ class AvroCompatibility(Compatibility):
             for i, source_schema in enumerate(source_schema_fields):
                 for j, target_schema in enumerate(target_schema_fields):
                     # some types are unhashable
-                    if source_schema.type == target_schema.type and j not in target_idx_found and i not in source_idx_found:
-                        target_idx_found.add(j)
-                        source_idx_found.add(i)
-                        yield source_schema, target_schema
+                    if j not in target_idx_found and i not in source_idx_found:
+                        try:
+                            self.check_compatibility(source_schema, target_schema)
+                            target_idx_found.add(j)
+                            source_idx_found.add(i)
+                            yield source_schema, target_schema
+                        except IncompatibleSchema:
+                            pass
             if len(target_idx_found) < len(target_schema_fields) and len(source_idx_found) < len(source_schema_fields):
                 # sets overlap only
                 raise IncompatibleSchema("Union types are incompatible")
@@ -316,11 +320,15 @@ class AvroCompatibility(Compatibility):
                         break
 
                     # Simple presentation form for Union fields. Extract the correct schemas already here.
-                    for source_field_value, target_field_value in self.extract_schema_if_union(
+                    for current_source_field_value, current_target_field_value in self.extract_schema_if_union(
                         source_field_value, target_field_value
                     ):
-                        self.log.info("Recursing source with: source: %s target: %s", source_field_value, target_field_value)
-                        self.check_compatibility(source_field_value, target_field_value)
+                        self.log.info(
+                            "Recursing source with: source: %s target: %s",
+                            current_source_field_value,
+                            current_target_field_value,
+                        )
+                        self.check_compatibility(current_source_field_value, current_target_field_value)
                 else:
                     if not self.check_type_promotion(source_field.type, target_field.type):
                         raise IncompatibleSchema(
@@ -374,7 +382,13 @@ class AvroCompatibility(Compatibility):
                 raise IncompatibleSchema("Target field: {} added".format(target_field.name))
 
     def check_fields(self, source, target):
-        if source.type == "record":
+        if isinstance(source, avro.schema.Field):
+            self.check_fields(source.type, target)
+        elif isinstance(target, avro.schema.Field):
+            self.check_fields(source, target.type)
+        elif isinstance(source, avro.schema.PrimitiveSchema):
+            self.check_simple_value(self.get_schema_field(source), self.get_schema_field(target))
+        elif source.type == "record":
             self.iterate_over_record_source_fields(source, target)
             self.iterate_over_record_target_fields(source, target)
         elif source.type in {"array", "map", "union"}:
@@ -391,8 +405,6 @@ class AvroCompatibility(Compatibility):
             # For enums the only qualification is that the name must match
             if source.name != target.name:
                 raise IncompatibleSchema("Source name: {} must match target name: {}".format(source.name, target.name))
-        elif isinstance(source, avro.schema.PrimitiveSchema):
-            self.check_simple_value(self.get_schema_field(source), self.get_schema_field(target))
         else:
             raise UnknownSchemaType("Unknown schema type: {}".format(source.type))
 
