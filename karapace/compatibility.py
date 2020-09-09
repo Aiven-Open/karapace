@@ -159,6 +159,8 @@ class AvroCompatibility(Compatibility):
         self.log.info("source: %s, target: %s", source, target)
 
         # Simple form presentation of values e.g. "int"
+        if isinstance(source, tuple):
+            return isinstance(target, tuple), False
         if isinstance(source.type, str):
             if source.type in self._NUMBER_TYPES and target.type in self._NUMBER_TYPES:
                 return True, True

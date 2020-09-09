@@ -1669,3 +1669,55 @@ async def test_inner_type_compat_failure(registry_async_client):
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(ev)})
     assert res.ok
     assert sc_id != res.json()["id"]
+
+
+async def test_anon_type_union_failure(registry_async_client):
+    schema = {
+        "type": "record",
+        "name": "record_line_movement_updated",
+        "fields": [
+            {
+                "name": "dependencies",
+                "type": [
+                    "null", {
+                        "type": "record",
+                        "name": "record_line_movement_updated_dependencies",
+                        "fields": [{
+                            "name": "coefficient",
+                            "type": ["null", "double"],
+                        }]
+                    }
+                ],
+            },
+        ]
+    }
+    evolved = {
+        "type": "record",
+        "name": "record_line_movement_updated",
+        "fields": [
+            {
+                "name": "dependencies",
+                "type": [
+                    "null",
+                    {
+                        "type": "record",
+                        "name": "record_line_movement_updated_dependencies",
+                        "fields": [{
+                            "name": "coefficient",
+                            "type": ["null", "double"],
+                            # This is literally the only diff...
+                            "doc": "Coeff of unit product",
+                        }]
+                    }
+                ],
+            },
+        ]
+    }
+
+    subject = os.urandom(16).hex()
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+    assert res.ok
+    sc_id = res.json()["id"]
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
+    assert res.ok
+    assert sc_id != res.json()["id"]
