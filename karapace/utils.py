@@ -10,7 +10,6 @@ from urllib.parse import urljoin
 import datetime
 import decimal
 import json as jsonlib
-import karapace.rapu
 import logging
 import requests
 import types
@@ -186,4 +185,5 @@ def convert_to_int(object_: dict, key: str, content_type: str):
     try:
         object_[key] = int(object_[key])
     except ValueError:
-        karapace.rapu.http_error(f"{key} is not a valid int: {object_[key]}", content_type, 500)
+        from karapace.rapu import http_error
+        http_error(f"{key} is not a valid int: {object_[key]}", content_type, 500)
