@@ -220,6 +220,7 @@ async def fixture_registry_async(session_tmpdir, kafka_server):
         )
         registry = KarapaceSchemaRegistry(config_path)
         try:
+            await registry.get_master()
             yield registry
         finally:
             registry.close()
