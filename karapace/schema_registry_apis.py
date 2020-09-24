@@ -44,8 +44,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.ksr = None
         self.producer = None
         self.producer = self._create_producer()
-        self._create_schema_reader()
         self._create_master_coordinator()
+        self._create_schema_reader()
 
     def _add_routes(self):
         self.route(
@@ -79,7 +79,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_request=True
         )
         self.route(
-            "/subjects/<subject:path>/versions/<version:path>",
+            "/subjects/<subject:path>/versions/<version:path>",  # needs
             callback=self.subject_version_delete,
             method="DELETE",
             schema_request=True
@@ -90,7 +90,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             method="GET",
             schema_request=True
         )
-        self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)
+        self.route("/subjects/<subject:path>", callback=self.subject_delete, method="DELETE", schema_request=True)  # needs
 
     def close(self):
         super().close()
@@ -103,7 +103,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.producer.close()
 
     def _create_schema_reader(self):
-        self.ksr = KafkaSchemaReader(config=self.config, )
+        self.ksr = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)
         self.ksr.start()
 
     def _create_master_coordinator(self):
@@ -151,7 +151,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     time.monotonic() - start_time
                 )
                 break
-            self.log.error("Put the offset: %r back to queue, someone else is waiting for this?", offset)
+            self.log.warning("Put the offset: %r back to queue, someone else is waiting for this?", offset)
             self.ksr.queue.put(offset)
 
     def send_kafka_message(self, key, value):
@@ -249,9 +249,18 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r({"compatibilityLevel": self.ksr.config["compatibility"]}, content_type)
 
     async def config_set(self, content_type, *, request):
+        body = request.json
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
             compatibility_level = request.json["compatibility"]
-            self.send_config_message(compatibility_level=compatibility_level, subject=None)
+            are_we_master, master_url = await self.get_master()
+            if are_we_master:
+                self.send_config_message(compatibility_level=compatibility_level, subject=None)
+            elif are_we_master is None:
+                self.no_master_error(content_type)
+            else:
+                url = f"{master_url}/config"
+                await self.forward_request_remote(body=body, url=url, content_type=content_type, method="PUT")
+
         else:
             self.r(
                 body={
@@ -279,7 +288,14 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def config_subject_set(self, content_type, *, request, subject):
         if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
-            self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
+            are_we_master, master_url = await self.get_master()
+            if are_we_master:
+                self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
+            elif are_we_master is None:
+                self.no_master_error(content_type)
+            else:
+                url = f"{master_url}/config/{subject}"
+                await self.forward_request_remote(body=request.json, url=url, content_type=content_type, method="PUT")
         else:
             self.r(
                 body={
@@ -301,22 +317,30 @@ class KarapaceSchemaRegistry(KarapaceBase):
             latest_schema_id = version_list[-1]
         else:
             latest_schema_id = 0
-        self.send_delete_subject_message(subject, latest_schema_id)
-        self.r(version_list, content_type, status=200)
+        are_we_master, master_url = await self.get_master()
+        if are_we_master:
+            self.send_delete_subject_message(subject, latest_schema_id)
+            self.r(version_list, content_type, status=200)
+        elif are_we_master is None:
+            self.no_master_error(content_type)
+        else:
+            url = f"{master_url}/subjects/{subject}"
+            await self.forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_get(self, content_type, *, subject, version, return_dict=False):
         self._validate_version(content_type, version)
         subject_data = self._subject_get(subject, content_type)
-
+        schema_data = None
         max_version = max(subject_data["schemas"])
         if version == "latest":
-            schema_data = subject_data["schemas"][max(subject_data["schemas"])]
             version = max(subject_data["schemas"])
+            schema_data = subject_data["schemas"][version]
         elif int(version) <= max_version:
             schema_data = subject_data["schemas"].get(int(version))
         else:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
-
+        if not schema_data:
+            self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
         schema_id = schema_data["id"]
         schema = schema_data["schema"]
 
@@ -344,8 +368,15 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
         schema_id = subject_schema_data["id"]
         schema = subject_schema_data["schema"]
-        self.send_schema_message(subject=subject, schema=schema, schema_id=schema_id, version=version, deleted=True)
-        self.r(str(version), content_type, status=200)
+        are_we_master, master_url = await self.get_master()
+        if are_we_master:
+            self.send_schema_message(subject=subject, schema=schema, schema_id=schema_id, version=version, deleted=True)
+            self.r(str(version), content_type, status=200)
+        elif are_we_master is None:
+            self.no_master_error(content_type)
+        else:
+            url = f"{master_url}/subjects/{subject}/versions/{version}"
+            await self.forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(self, content_type, *, subject, version):
         self._validate_version(content_type, version)
@@ -448,14 +479,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if are_we_master:
             self.write_new_schema_local(subject, body, content_type)
         elif are_we_master is None:
-            self.r({
-                "error_code": 50003,
-                "message": "Error while forwarding the request to the master."
-            },
-                   content_type,
-                   status=500)
+            self.no_master_error(content_type)
         else:
-            await self.write_new_schema_remote(subject, body, master_url, content_type)
+            url = f"{master_url}/subjects/{subject}/versions"
+            await self.forward_request_remote(body=body, url=url, content_type=content_type, method="POST")
 
     def write_new_schema_local(self, subject, body, content_type):
         """Since we're the master we get to write the new schema"""
@@ -551,12 +578,18 @@ class KarapaceSchemaRegistry(KarapaceBase):
         )
         self.r({"id": schema_id}, content_type)
 
-    async def write_new_schema_remote(self, subject, body, master_url, content_type):
-        self.log.info("Writing new schema to remote url: %r since we're not the master", master_url)
-        response = await self.http_request(
-            url="{}/subjects/{}/versions".format(master_url, subject), method="POST", json=body, timeout=60.0
-        )
+    async def forward_request_remote(self, *, body, url, content_type, method="POST"):
+        self.log.info("Writing new schema to remote url: %r since we're not the master", url)
+        response = await self.http_request(url=url, method=method, json=body, timeout=60.0)
         self.r(body=response.body, content_type=content_type, status=response.status)
+
+    def no_master_error(self, content_type):
+        self.r({
+            "error_code": 50003,
+            "message": "Error while forwarding the request to the master."
+        },
+               content_type,
+               status=500)
 
 
 def main():
