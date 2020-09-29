@@ -85,8 +85,9 @@ class TypedSchema:
 
 
 class KafkaSchemaReader(Thread):
-    def __init__(self, config):
+    def __init__(self, config, master_coordinator=None):
         Thread.__init__(self)
+        self.master_coordinator = master_coordinator
         self.log = logging.getLogger("KafkaSchemaReader")
         self.timeout_ms = 200
         self.config = config
@@ -212,6 +213,14 @@ class KafkaSchemaReader(Thread):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False and raw_msgs == {}:
             self.ready = True
+        add_offsets = False
+        if self.master_coordinator is not None:
+            master, _ = self.master_coordinator.get_master_info()
+            # keep old behavior for True. When master is False, then we are a follower, so we should not accept direct
+            # writes anyway. When master is None, then this particular node is waiting for a stable value, so any
+            # messages off the topic are writes performed by another node
+            if master is True:
+                add_offsets = True
 
         for _, msgs in raw_msgs.items():
             for msg in msgs:
@@ -233,7 +242,7 @@ class KafkaSchemaReader(Thread):
                 self.handle_msg(key, value)
                 self.offset = msg.offset
                 self.log.info("Handled message, current offset: %r", self.offset)
-                if self.ready:
+                if self.ready and add_offsets:
                     self.queue.put(self.offset)
 
     def handle_msg(self, key: dict, value: dict):
