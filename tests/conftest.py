@@ -202,6 +202,47 @@ async def fixture_rest_async_client(rest_async, aiohttp_client):
     await cli.close()
 
 
+@pytest.fixture(scope="function", name="registry_async_pair")
+def fixture_registry_async_pair(session_tmpdir, kafka_server):
+    master_config_path = os.path.join(session_tmpdir(), "karapace_config_master.json")
+    slave_config_path = os.path.join(session_tmpdir(), "karapace_config_slave.json")
+    master_port, slave_port = 1234, 5678
+    kafka_port = kafka_server["kafka_port"]
+    topic_name = new_random_name("schema_pairs")
+    group_id = new_random_name("schema_pairs")
+    write_config(
+        master_config_path, {
+            "log_level": "WARNING",
+            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "topic_name": topic_name,
+            "group_id": group_id,
+            "advertised_hostname": "127.0.0.1",
+            "karapace_registry": True,
+            "port": master_port,
+        }
+    )
+    write_config(
+        slave_config_path, {
+            "log_level": "WARNING",
+            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "topic_name": topic_name,
+            "group_id": group_id,
+            "advertised_hostname": "127.0.0.1",
+            "karapace_registry": True,
+            "port": slave_port,
+        }
+    )
+    master_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", master_config_path])
+    slave_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", slave_config_path])
+    wait_for_port(1234)
+    wait_for_port(5678)
+    try:
+        yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
+    finally:
+        master_process.kill()
+        slave_process.kill()
+
+
 @pytest.fixture(scope="function", name="registry_async")
 async def fixture_registry_async(session_tmpdir, kafka_server):
     if REGISTRY_URI in os.environ or REST_URI in os.environ:
@@ -219,6 +260,7 @@ async def fixture_registry_async(session_tmpdir, kafka_server):
             }
         )
         registry = KarapaceSchemaRegistry(config_path)
+        await registry.get_master()
         try:
             yield registry
         finally:
