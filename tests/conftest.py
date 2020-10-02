@@ -4,7 +4,7 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from kafka import KafkaProducer
+from kafka import KafkaAdminClient, KafkaProducer
 from karapace.config import write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_reader import SchemaType, TypedSchema
@@ -42,6 +42,22 @@ def port_is_listening(hostname, port, ipv6):
         return True
     except socket.error:
         return False
+
+
+def wait_for_kafka(port, *, hostname="127.0.0.1", wait_time=20.0):
+    start_time = time.monotonic()
+    bootstrap_server = f"{hostname}:{port}"
+    while True:
+        if time.monotonic() - start_time > wait_time:
+            raise Timeout(f"Could not contact kafka cluster on host {hostname}, port {port}")
+        try:
+            client = KafkaAdminClient(bootstrap_servers=bootstrap_server)
+            _ = client.list_topics()
+            return
+        # pylint: disable=broad-except
+        except Exception as e:
+            print(f"Error checking kafka cluster: {e}")
+            time.sleep(2.0)
 
 
 def wait_for_port(port, *, hostname="127.0.0.1", wait_time=20.0, ipv6=False):
@@ -163,13 +179,6 @@ def fixture_admin(kafka_server):
         cli.close()
 
 
-@pytest.fixture(scope="session", name="kafka_rest")
-def fixture_kafka_rest(session_tmpdir, kafka_server):
-    instance = karapace_fixture_factory(session_tmpdir, kafka_server, KafkaRest)
-    yield instance.create_service
-    instance.shutdown()
-
-
 @pytest.fixture(scope="function", name="rest_async")
 async def fixture_rest_async(session_tmpdir, kafka_server, registry_async_client):
     if REST_URI in os.environ:
@@ -262,7 +271,6 @@ async def fixture_registry_async(session_tmpdir, kafka_server):
         registry = KarapaceSchemaRegistry(config_path)
         await registry.get_master()
         try:
-            await registry.get_master()
             yield registry
         finally:
             registry.close()
@@ -273,38 +281,6 @@ async def fixture_registry_async_client(registry_async, aiohttp_client):
     cli = await client_for(registry_async, aiohttp_client)
     yield cli
     await cli.close()
-
-
-@pytest.fixture(scope="function", name="karapace")
-def fixture_karapace(session_tmpdir, kafka_server):
-    instance = karapace_fixture_factory(session_tmpdir, kafka_server, KarapaceSchemaRegistry)
-    yield instance.create_service
-    instance.shutdown()
-
-
-def karapace_fixture_factory(session_tmpdir, kafka_server, karapace_class):
-    class _Karapace:
-        def __init__(self, datadir, kafka_port):
-            self.kc = None
-            self.datadir = datadir
-            self.config_path = os.path.join(self.datadir, "karapace_config.json")
-            self.kafka_port = kafka_port
-
-        def create_service(self, topic_name=None):
-            karapace_config = {"log_level": "INFO", "bootstrap_uri": f"127.0.0.1:{self.kafka_port}"}
-            if topic_name:
-                karapace_config["topic_name"] = topic_name
-            write_config(self.config_path, karapace_config)
-            self.kc = karapace_class(self.config_path)
-
-            return self.kc, self.datadir
-
-        def shutdown(self):
-            if self.kc:
-                self.kc.close()
-
-    _instance = _Karapace(datadir=session_tmpdir(), kafka_port=kafka_server["kafka_port"])
-    return _instance
 
 
 def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
@@ -410,7 +386,7 @@ def kafka_server_base(session_tmpdir, zk):
         ),
     )
     proc = subprocess.Popen(kafka_cmd, env={})
-    wait_for_port(config["kafka_port"], wait_time=60)
+    wait_for_kafka(config["kafka_port"], wait_time=60)
     return config, proc
 
 
