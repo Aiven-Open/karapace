@@ -1721,3 +1721,57 @@ async def test_anon_type_union_failure(registry_async_client):
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
     assert res.ok
     assert sc_id != res.json()["id"]
+
+
+@pytest.mark.parametrize("compatibility", ["FULL", "FULL_TRANSITIVE"])
+async def test_full_transitive_failure(registry_async_client, compatibility):
+    init = {
+        "type": "record",
+        "name": "order",
+        "namespace": "example",
+        "fields": [{
+            "name": "someField",
+            "type": [
+                "null", {
+                    "type": "record",
+                    "name": "someEmbeddedRecord",
+                    "namespace": "example",
+                    "fields": [{
+                        "name": "name",
+                        "type": "string"
+                    }]
+                }
+            ],
+            "default": "null"
+        }]
+    }
+    evolved = {
+        "type": "record",
+        "name": "order",
+        "namespace": "example",
+        "fields": [{
+            "name": "someField",
+            "type": [
+                "null", {
+                    "type": "record",
+                    "name": "someEmbeddedRecord",
+                    "namespace": "example",
+                    "fields": [{
+                        "name": "name",
+                        "type": "string"
+                    }, {
+                        "name": "price",
+                        "type": "int"
+                    }]
+                }
+            ],
+            "default": "null"
+        }]
+    }
+    subject = os.urandom(16).hex()
+    await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init)})
+    assert res.ok
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
+    assert not res.ok
+    assert res.status == 409
