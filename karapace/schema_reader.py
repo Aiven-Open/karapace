@@ -265,8 +265,14 @@ class KafkaSchemaReader(Thread):
                 self.config["compatibility"] = value["compatibilityLevel"]
         elif key["keytype"] == "SCHEMA":
             if not value:
-                self.log.info("Deleting subject: %r version: %r completely", key["subject"], key["version"])
-                self.subjects[key["subject"]]["schemas"].pop(key["version"], None)
+                subject, version = key["subject"], key["version"]
+                self.log.info("Deleting subject: %r version: %r completely", subject, version)
+                if subject not in self.subjects:
+                    self.log.error("Subject %s did not exist, should have", subject)
+                elif version not in self.subjects[subject]["schemas"]:
+                    self.log.error("Version %d for subject %s did not exist, should have", version, subject)
+                else:
+                    self.subjects[subject]["schemas"].pop(version, None)
                 return
             schema_type = value.get("schemaType", "AVRO")
             schema_str = value["schema"]
