@@ -4,6 +4,7 @@ karapace - master coordinator
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from kafka import KafkaConsumer
 from kafka.client_async import KafkaClient
 from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
@@ -139,10 +140,13 @@ class MasterCoordinator(Thread):
         return False
 
     def init_schema_coordinator(self):
+        session_timeout_ms = self.config["session_timeout_ms"]
         self.sc = SchemaCoordinator(
             client=self.kafka_client,
             metrics=self._metrics,
             group_id=self.config["group_id"],
+            session_timeout_ms=session_timeout_ms,
+            request_timeout_ms=max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]),
         )
         self.sc.hostname = self.config["advertised_hostname"]
         self.sc.port = self.config["port"]
