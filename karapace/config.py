@@ -4,7 +4,11 @@ karapace - configuration validation
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+
+from typing import Dict, Union
+
 import json
+import os
 import socket
 import ssl
 
@@ -46,18 +50,39 @@ class InvalidConfiguration(Exception):
     pass
 
 
-def set_config_defaults(config):
+def parse_env_value(value: str) -> Union[str, int, bool]:
+    # we only have ints, strings and bools in the config
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    if value.lower() == "false":
+        return False
+    if value.lower() == "true":
+        return True
+    return value
+
+
+def set_config_defaults(config: Dict[str, Union[str, int, bool]]) -> Dict[str, Union[str, int, bool]]:
     for k, v in DEFAULTS.items():
+        if k.startswith("karapace"):
+            env_name = k.upper()
+        else:
+            env_name = f"karapace_{k}".upper()
+        if env_name in os.environ:
+            val = os.environ[env_name]
+            print(f"Populating config value {k} from env var {env_name} with {val} instead of config file")
+            config[k] = parse_env_value(os.environ[env_name])
         config.setdefault(k, v)
     return config
 
 
-def write_config(config_path, custom_values):
+def write_config(config_path: str, custom_values: Dict[str, Union[str, int, bool]]):
     with open(config_path, "w") as fp:
         fp.write(json.dumps(custom_values))
 
 
-def read_config(config_path):
+def read_config(config_path: str) -> Dict[str, Union[str, int, bool]]:
     with open(config_path, "r") as cf:
         try:
             config = json.loads(cf.read())
@@ -67,7 +92,7 @@ def read_config(config_path):
             raise InvalidConfiguration(ex)
 
 
-def create_ssl_context(config):
+def create_ssl_context(config: Dict[str, Union[str, int, bool]]) -> ssl.SSLContext:
     # taken from conn.py, as it adds a lot more logic to the context configuration than the initial version
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)  # pylint: disable=no-member
     ssl_context.options |= ssl.OP_NO_SSLv2  # pylint: disable=no-member
