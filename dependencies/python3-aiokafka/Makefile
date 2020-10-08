@@ -2,7 +2,7 @@ FEDORA = $(shell source /etc/os-release && echo $$VERSION_ID)
 PROJ = aiokafka
 PYNAME = aiokafka
 GITHUB_ACCOUNT = aio-libs
-COMMIT = v0.6.0
+COMMIT = v0.6.0-0-g39d734a1613adf0dba1cf54886f394cd728c62e6
 VERSION = $(COMMIT)
 RELEASE = 0.aiven.fc$(FEDORA)
 
