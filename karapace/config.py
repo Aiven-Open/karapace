@@ -41,6 +41,7 @@ DEFAULTS = {
     "producer_compression_type": None,
     "producer_count": 5,
     "producer_linger_ms": 0,
+    "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
 }

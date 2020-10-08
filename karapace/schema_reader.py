@@ -110,6 +110,8 @@ class KafkaSchemaReader(Thread):
 
     def init_consumer(self):
         # Group not set on purpose, all consumers read the same data
+        session_timeout_ms = self.config["session_timeout_ms"]
+        request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
         self.consumer = KafkaConsumer(
             self.config["topic_name"],
             enable_auto_commit=False,
@@ -121,6 +123,8 @@ class KafkaSchemaReader(Thread):
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
             auto_offset_reset="earliest",
+            session_timeout_ms=session_timeout_ms,
+            request_timeout_ms=request_timeout_ms,
         )
 
     def init_admin_client(self):

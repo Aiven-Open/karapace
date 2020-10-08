@@ -168,6 +168,11 @@ class ConsumerManager:
     async def create_kafka_consumer(self, fetch_min_bytes, group_name, internal_name, request_data):
         while True:
             try:
+                session_timeout_ms = self.config["session_timeout_ms"]
+                request_timeout_ms = max(
+                    session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"],
+                    request_data["consumer.request.timeout.ms"]
+                )
                 c = KafkaConsumer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     client_id=internal_name,
@@ -178,10 +183,10 @@ class ConsumerManager:
                     group_id=group_name,
                     fetch_min_bytes=fetch_min_bytes,
                     fetch_max_bytes=self.config["consumer_request_max_bytes"],
-                    request_timeout_ms=request_data["consumer.request.timeout.ms"],
+                    request_timeout_ms=request_timeout_ms,
                     enable_auto_commit=request_data["auto.commit.enable"],
                     auto_offset_reset=request_data["auto.offset.reset"],
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
+                    session_timeout_ms=session_timeout_ms,
                 )
                 return c
             except:  # pylint: disable=bare-except
