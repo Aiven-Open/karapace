@@ -106,6 +106,12 @@ After this you need to create a suitable JSON configuration file for your
 installation.  Keys to take special care are the ones needed to configure
 Kafka and advertised_hostname.
 
+Each configuration key can be overridden with an environment variable prefixed with
+``KARAPACE_``, exception being configuration keys that actually start with the ``karapace`` string.
+For example, to override the ``bootstrap_uri`` config value, one would use the environment variable
+``KARAPACE_BOOTSTRAP_URI``
+
+
 To see descriptions of configuration keys see section ``config``.  Here's an
 example configuration file to give you an idea what you need to change::
 
