@@ -55,6 +55,7 @@ start-kafka: fetch-kafka
 stop-kafka:
 	$(KAFKA_PATH)/bin/kafka-server-stop.sh 9 || true
 	$(KAFKA_PATH)/bin/zookeeper-server-stop.sh 9 || true
+	rm -rf /tmp/kafka-logs /tmp/zookeeper
 
 .PHONY: kafka
 kafka: start-kafka
