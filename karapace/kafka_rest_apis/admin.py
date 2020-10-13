@@ -1,6 +1,6 @@
 from kafka import KafkaAdminClient
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
-from kafka.errors import for_code, UnrecognizedBrokerVersion
+from kafka.errors import Cancelled, for_code, UnrecognizedBrokerVersion
 from kafka.future import Future
 from kafka.protocol.admin import DescribeConfigsRequest
 from kafka.protocol.metadata import MetadataRequest
@@ -40,7 +40,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
     def new_topic(self, name: str):
         self.create_topics([NewTopic(name, 1, 1)])
 
-    def cluster_metadata(self, topics: List[str] = None) -> dict:
+    def cluster_metadata(self, topics: List[str] = None, retries=0) -> dict:
         """List all kafka topics."""
         node_found = True
         metadata_version = self._matching_api_version(MetadataRequest)
@@ -60,11 +60,16 @@ class KafkaRestAdminClient(KafkaAdminClient):
                 node_found = False
             future = self._send_request_to_node(node_id, request)
             self.log.info("Retrieved metadata using node id %s", node_id)
-        self._wait_for_futures([future])
-        response = future.value
-        if not node_found:
-            self._client.cluster.update_metadata(response)
-        return self._make_metadata_response(response)
+        try:
+            self._wait_for_futures([future])
+            response = future.value
+            if not node_found:
+                self._client.cluster.update_metadata(response)
+            return self._make_metadata_response(response)
+        except Cancelled:
+            if retries > 3:
+                raise
+            return self.cluster_metadata(topics, retries + 1)
 
     @staticmethod
     def _make_metadata_response(metadata):
