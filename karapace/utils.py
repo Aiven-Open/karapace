@@ -5,6 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from functools import partial
+from kafka.client_async import KafkaClient, MetadataRequest
 from urllib.parse import urljoin
 
 import datetime
@@ -187,3 +188,60 @@ def convert_to_int(object_: dict, key: str, content_type: str):
     except ValueError:
         from karapace.rapu import http_error
         http_error(f"{key} is not a valid int: {object_[key]}", content_type, 500)
+
+
+class KarapaceKafkaClient(KafkaClient):
+    def _maybe_refresh_metadata(self, wakeup=False):
+        """
+            Lifted from the parent class with the caveat that the node id will always belong to the bootstrap node,
+            thus ensuring we do not end up in a stale metadata loop
+        """
+        ttl = self.cluster.ttl()
+        wait_for_in_progress_ms = self.config['request_timeout_ms'] if self._metadata_refresh_in_progress else 0
+        metadata_timeout = max(ttl, wait_for_in_progress_ms)
+
+        if metadata_timeout > 0:
+            return metadata_timeout
+        # pylint: disable=protected-access
+        bootstrap_nodes = list(self.cluster._bootstrap_brokers.values())
+        # pylint: enable=protected-access
+        if not bootstrap_nodes:
+            node_id = self.least_loaded_node()
+        else:
+            node_id = bootstrap_nodes[0].nodeId
+        if node_id is None:
+            log.debug("Give up sending metadata request since no node is available")
+            return self.config['reconnect_backoff_ms']
+
+        if self._can_send_request(node_id):
+            topics = list(self._topics)
+            if not topics and self.cluster.is_bootstrap(node_id):
+                topics = list(self.config['bootstrap_topics_filter'])
+
+            if self.cluster.need_all_topic_metadata or not topics:
+                topics = [] if self.config['api_version'] < (0, 10) else None
+            api_version = 0 if self.config['api_version'] < (0, 10) else 1
+            request = MetadataRequest[api_version](topics)
+            log.debug("Sending metadata request %s to node %s", request, node_id)
+            future = self.send(node_id, request, wakeup=wakeup)
+            future.add_callback(self.cluster.update_metadata)
+            future.add_errback(self.cluster.failed_update)
+
+            self._metadata_refresh_in_progress = True
+
+            # pylint: disable=unused-argument
+            def refresh_done(val_or_error):
+                self._metadata_refresh_in_progress = False
+
+            # pylint: enable=unused-argument
+
+            future.add_callback(refresh_done)
+            future.add_errback(refresh_done)
+            return self.config['request_timeout_ms']
+        if self._connecting:
+            return self.config['reconnect_backoff_ms']
+
+        if self.maybe_connect(node_id, wakeup=wakeup):
+            log.debug("Initializing connection to node %s for metadata request", node_id)
+            return self.config['reconnect_backoff_ms']
+        return float('inf')

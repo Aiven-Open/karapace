@@ -5,11 +5,11 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from kafka import KafkaConsumer
-from kafka.client_async import KafkaClient
 from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
+from karapace.utils import KarapaceKafkaClient
 from threading import Lock, Thread
 
 import json
@@ -123,7 +123,7 @@ class MasterCoordinator(Thread):
 
     def init_kafka_client(self):
         try:
-            self.kafka_client = KafkaClient(
+            self.kafka_client = KarapaceKafkaClient(
                 api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
                 bootstrap_servers=self.config["bootstrap_uri"],
                 client_id=self.config["client_id"],
