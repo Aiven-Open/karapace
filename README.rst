@@ -277,12 +277,13 @@ You can restore the data from the previous step by running::
 
 Performance comparison to Confluent stack
 ==========================================
-- Latency
+Latency
+-------
 
 * 50 concurrent connections, 50.000 requests
 
 ====== ========== ===========
-        Karapace   Confluent
+Format  Karapace   Confluent
 ====== ========== ===========
 Avro    80.95      7.22
 Binary  66.32      46.99
@@ -292,7 +293,7 @@ Json    60.36      53.7
 * 15 concurrent connections, 50.000 requests
 
 ====== =========== ===========
-         Karapace   Confluent
+Format   Karapace   Confluent
 ====== =========== ===========
 Avro     25.05      18.14
 Binary   21.35      15.85
@@ -302,7 +303,7 @@ Json     21.38      14.83
 * 4 concurrent connections, 50.000 requests
 
 ====== =========== ===========
-         Karapace   Confluent
+Format  Karapace   Confluent
 ====== =========== ===========
 Avro     6.54        5.67
 Binary   6.51        4.56
@@ -315,7 +316,8 @@ more exact measurements are required, it's advised we increase the total req cou
 
 We'll focus on avro serialization only after this round, as it's the more expensive one, plus it tests the entire stack
 
-#### Consuming RAM
+Consuming RAM
+-------------
 
 A basic push pull test , with 12 connections on the publisher process and 3 connections on the subscriber process, with a
 10 minute duration. The publisher has the 100 ms timeout and 100 max_bytes parameters set on each request so both processes have work to do
