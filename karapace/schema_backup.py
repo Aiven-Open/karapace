@@ -10,7 +10,7 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExis
 from karapace import constants
 from karapace.karapace import KarapaceBase
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.utils import json_encode
+from karapace.utils import json_encode, KarapaceKafkaClient
 
 import argparse
 import json
@@ -43,7 +43,6 @@ class SchemaBackup:
         self.consumer = KafkaConsumer(
             self.topic_name,
             enable_auto_commit=False,
-            api_version=(1, 0, 0),
             bootstrap_servers=self.config["bootstrap_uri"],
             client_id=self.config["client_id"],
             security_protocol=self.config["security_protocol"],
@@ -52,6 +51,7 @@ class SchemaBackup:
             ssl_keyfile=self.config["ssl_keyfile"],
             auto_offset_reset="earliest",
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
+            client_factory=KarapaceKafkaClient,
         )
 
     def init_producer(self):
@@ -61,7 +61,7 @@ class SchemaBackup:
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
-            api_version=(1, 0, 0),
+            client_factory=KarapaceKafkaClient,
         )
 
     def init_admin_client(self):
@@ -80,6 +80,7 @@ class SchemaBackup:
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
+                    client_factory=KarapaceKafkaClient,
                 )
                 break
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):

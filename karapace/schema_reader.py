@@ -14,7 +14,7 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.statsd import StatsClient
-from karapace.utils import json_encode
+from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
 from threading import Lock, Thread
 from typing import Dict
@@ -125,6 +125,7 @@ class KafkaSchemaReader(Thread):
             auto_offset_reset="earliest",
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=request_timeout_ms,
+            client_factory=KarapaceKafkaClient,
         )
 
     def init_admin_client(self):
