@@ -5,16 +5,20 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from functools import partial
+from kafka.client_async import BrokerConnection, KafkaClient
 from urllib.parse import urljoin
 
 import datetime
 import decimal
 import json as jsonlib
+import kafka.client_async
 import logging
 import requests
+import time
 import types
 
 log = logging.getLogger("KarapaceUtils")
+BLACKLIST_DURATION = 120
 
 
 def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):
@@ -187,3 +191,48 @@ def convert_to_int(object_: dict, key: str, content_type: str):
     except ValueError:
         from karapace.rapu import http_error
         http_error(f"{key} is not a valid int: {object_[key]}", content_type, 500)
+
+
+class ResolutionError(Exception):
+    pass
+
+
+class KarapaceKafkaClient(KafkaClient):
+    def __init__(self, **configs):
+        kafka.client_async.BrokerConnection = KarapaceBrokerConnection
+        super().__init__(**configs)
+
+    def _maybe_connect(self, node_id):
+        with self._lock:
+            log.debug("Checking blackout state for node %r", node_id)
+            conn = self._conns.get(node_id)
+            if conn is not None and conn.ns_blacked_out():
+                log.debug("Skipping connect procedure for %r", node_id)
+                return False
+            log.debug("Node %r is not blacked out", node_id)
+        return super()._maybe_connect(node_id)
+
+
+class KarapaceBrokerConnection(BrokerConnection):
+    def __init__(self, host, port, afi, **configs):
+        super().__init__(host, port, afi, **configs)
+        self.error = None
+        self.fail_time = None
+
+    def close(self, error=None):
+        self.fail_time = time.monotonic()
+        self.error = error
+        super().close(error=error)
+
+    def ns_blacked_out(self):
+        now = time.monotonic()
+        ns_fail_black_out = "DNS failure" in str(self.error) and now <= self.fail_time + BLACKLIST_DURATION
+        log.debug(
+            "Node %r is ns blacked out %r, error is %r, fail time is %r, current time is: %r",
+            self.node_id, ns_fail_black_out, self.error, self.fail_time, now
+        )
+        return ns_fail_black_out
+
+    def blacked_out(self):
+        blacked_out = super().blacked_out()
+        return blacked_out or self.ns_blacked_out()
