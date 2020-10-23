@@ -31,14 +31,14 @@ class SchemaCoordinator(BaseCoordinator):
     scheme = None
     master = None
     master_url = None
+    master_eligibility = True
     log = logging.getLogger("SchemaCoordinator")
 
     def protocol_type(self):
         return "sr"
 
-    @staticmethod
-    def get_identity(*, host, port, scheme, json_encode=True):
-        res = {"version": 1, "host": host, "port": port, "scheme": scheme, "master_eligibility": True}
+    def get_identity(self, *, host, port, scheme, json_encode=True):
+        res = {"version": 1, "host": host, "port": port, "scheme": scheme, "master_eligibility": self.master_eligibility}
         if json_encode:
             return json.dumps(res)
         return res
@@ -151,6 +151,7 @@ class MasterCoordinator(Thread):
         self.sc.hostname = self.config["advertised_hostname"]
         self.sc.port = self.config["port"]
         self.sc.scheme = "http"
+        self.sc.master_eligibility = self.config["master_eligibility"]
         self.lock.release()  # self.sc now exists, we get to release the lock
 
     def get_master_info(self):
