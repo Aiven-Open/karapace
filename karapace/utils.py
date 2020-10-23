@@ -5,17 +5,20 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from functools import partial
-from kafka.client_async import KafkaClient, MetadataRequest
+from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
 from urllib.parse import urljoin
 
 import datetime
 import decimal
 import json as jsonlib
+import kafka.client_async
 import logging
 import requests
+import time
 import types
 
 log = logging.getLogger("KarapaceUtils")
+NS_BLACKOUT_DURATION_SECONDS = 120
 
 
 def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):
@@ -191,6 +194,27 @@ def convert_to_int(object_: dict, key: str, content_type: str):
 
 
 class KarapaceKafkaClient(KafkaClient):
+    def __init__(self, **configs):
+        kafka.client_async.BrokerConnection = KarpaceBrokerConnection
+        super().__init__(**configs)
+
+    def close_invalid_connections(self):
+        update_needed = False
+        with self._lock:
+            for conn in self._conns.values():
+                if conn.ns_blackout():
+                    log.info(
+                        "Node id %s no longer in cluster metadata, closing connection and requesting update", conn.node_id
+                    )
+                    self.close(conn.node_id)
+                    update_needed = True
+        if update_needed:
+            self.cluster.request_update()
+
+    def _poll(self, timeout):
+        super()._poll(timeout)
+        self.close_invalid_connections()
+
     def _maybe_refresh_metadata(self, wakeup=False):
         """
             Lifted from the parent class with the caveat that the node id will always belong to the bootstrap node,
@@ -245,3 +269,21 @@ class KarapaceKafkaClient(KafkaClient):
             log.debug("Initializing connection to node %s for metadata request", node_id)
             return self.config['reconnect_backoff_ms']
         return float('inf')
+
+
+class KarpaceBrokerConnection(BrokerConnection):
+    def __init__(self, host, port, afi, **configs):
+        super().__init__(host, port, afi, **configs)
+        self.error = None
+        self.fail_time = time.monotonic()
+
+    def close(self, error=None):
+        self.error = error
+        self.fail_time = time.monotonic()
+        super().close(error)
+
+    def ns_blackout(self):
+        return "DNS failure" in str(self.error) and self.fail_time + NS_BLACKOUT_DURATION_SECONDS > time.monotonic()
+
+    def blacked_out(self):
+        return self.ns_blackout() or super().blacked_out()
