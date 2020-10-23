@@ -9,7 +9,7 @@ from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
-from karapace.utils import convert_to_int
+from karapace.utils import convert_to_int, KarapaceKafkaClient
 from threading import Lock
 from typing import List, Optional, Tuple
 
@@ -299,6 +299,7 @@ class KafkaRest(KarapaceBase):
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
+                    client_factory=KarapaceKafkaClient,
                 )
                 break
             except:  # pylint: disable=bare-except
