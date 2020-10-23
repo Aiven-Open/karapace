@@ -22,6 +22,7 @@ Requires:       python3-aiokafka
 Requires:       python3-aiohttp_socks
 Requires:       python3-avro
 Requires:       python3-kafka
+Requires:       python3-lz4
 Requires:       python3-requests
 Requires:       python3-jsonschema
 Requires:       systemd
