@@ -191,6 +191,19 @@ def convert_to_int(object_: dict, key: str, content_type: str):
 
 
 class KarapaceKafkaClient(KafkaClient):
+    def close_invalid_connections(self):
+        with self._lock:
+            for node_id in self._conns:
+                if not self.cluster.broker_metadata(node_id):
+                    log.info("Node id %s no longer in cluster metadata, closing connection", node_id)
+                    self.close(node_id)
+                    if node_id in self._connecting:
+                        self._connecting.remove(node_id)
+
+    def _poll(self, timeout):
+        super()._poll(timeout)
+        self.close_invalid_connections()
+
     def _maybe_refresh_metadata(self, wakeup=False):
         """
             Lifted from the parent class with the caveat that the node id will always belong to the bootstrap node,
