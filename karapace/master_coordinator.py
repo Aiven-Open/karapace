@@ -26,6 +26,7 @@ def get_identity_url(scheme, host, port):
 
 
 class SchemaCoordinator(BaseCoordinator):
+    election_strategy = "lowest"
     hostname = None
     port = None
     scheme = None
@@ -56,9 +57,8 @@ class SchemaCoordinator(BaseCoordinator):
             if member_identity["master_eligibility"] is True:
                 urls[get_identity_url(member_identity["scheme"], member_identity["host"],
                                       member_identity["port"])] = (member_id, member_data)
-
-        lowest_url = sorted(urls)[0]
-        schema_master_id, member_data = urls[lowest_url]
+        self.master_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
+        schema_master_id, member_data = urls[self.master_url]
         member_identity = json.loads(member_data.decode("utf8"))
         identity = self.get_identity(
             host=member_identity["host"],
@@ -66,8 +66,7 @@ class SchemaCoordinator(BaseCoordinator):
             scheme=member_identity["scheme"],
             json_encode=False,
         )
-        self.log.info("Chose: %r with url: %r as the master", schema_master_id, lowest_url)
-        self.master_url = lowest_url
+        self.log.info("Chose: %r with url: %r as the master", schema_master_id, self.master_url)
 
         assignments = {}
         for member_id, member_data in members:
@@ -148,6 +147,7 @@ class MasterCoordinator(Thread):
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]),
         )
+        self.sc.election_strategy = self.config["master_election_strategy"]
         self.sc.hostname = self.config["advertised_hostname"]
         self.sc.port = self.config["port"]
         self.sc.scheme = "http"

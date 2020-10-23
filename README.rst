@@ -476,6 +476,10 @@ for the service to start
 
 Name strategy to use when storing schemas from the kafka rest proxy service
 
+``master_election_strategy`` (default ``lowest``)
+
+Decides on what basis the karapace cluster master is chosen (only relevant in a multi node setup)
+
 License
 =======
 

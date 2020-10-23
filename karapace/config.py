@@ -44,6 +44,7 @@ DEFAULTS = {
     "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
+    "master_election_strategy": "lowest"
 }
 
 
@@ -75,6 +76,8 @@ def set_config_defaults(config: Dict[str, Union[str, int, bool]]) -> Dict[str, U
             print(f"Populating config value {k} from env var {env_name} with {val} instead of config file")
             config[k] = parse_env_value(os.environ[env_name])
         config.setdefault(k, v)
+    strat = config["master_election_strategy"]
+    assert strat.lower() in {"highest", "lowest"}, f"Invalid master election strategy: {strat}"
     return config
 
 
