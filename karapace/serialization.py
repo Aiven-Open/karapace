@@ -108,15 +108,12 @@ class SchemaRegistryClient:
 
 
 class SchemaRegistrySerializerDeserializer:
-    def __init__(self, **cfg):
-        if not cfg.get("config_path"):
-            raise ValueError("config_path is empty or missing")
-        config_path = cfg["config_path"]
+    def __init__(self, config_path: str, name_strategy: str = "topic_name", **cfg) -> None:  # pylint: disable=unused-argument
         self.config = read_config(config_path)
         self.state_lock = asyncio.Lock()
         registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
         registry_client = SchemaRegistryClient(registry_url)
-        self.subject_name_strategy = NAME_STRATEGIES[cfg.get("name_strategy", "topic_name")]
+        self.subject_name_strategy = NAME_STRATEGIES[name_strategy]
         self.registry_client = registry_client
         self.ids_to_schemas = {}
         self.schemas_to_ids = {}
