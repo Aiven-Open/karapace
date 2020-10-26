@@ -4,6 +4,7 @@ from jsonschema import ValidationError
 from karapace.config import read_config
 from karapace.schema_reader import InvalidSchema, SchemaType, TypedSchema
 from karapace.utils import Client, json_encode
+from typing import Dict, Optional
 from urllib.parse import quote
 
 import aiohttp
@@ -108,63 +109,69 @@ class SchemaRegistryClient:
 
 
 class SchemaRegistrySerializerDeserializer:
-    def __init__(self, **cfg):
-        if not cfg.get("config_path"):
-            raise ValueError("config_path is empty or missing")
-        config_path = cfg["config_path"]
+    def __init__(
+        self,
+        config_path: str,
+        name_strategy: str = "topic_name",
+        **cfg,  # pylint: disable=unused-argument
+    ) -> None:
         self.config = read_config(config_path)
         self.state_lock = asyncio.Lock()
         registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
         registry_client = SchemaRegistryClient(registry_url)
-        self.subject_name_strategy = NAME_STRATEGIES[cfg.get("name_strategy", "topic_name")]
-        self.registry_client = registry_client
-        self.ids_to_schemas = {}
-        self.schemas_to_ids = {}
+        self.subject_name_strategy = NAME_STRATEGIES[name_strategy]
+        self.registry_client: Optional[SchemaRegistryClient] = registry_client
+        self.ids_to_schemas: Dict[int, TypedSchema] = {}
+        self.schemas_to_ids: Dict[str, int] = {}
 
-    async def close(self):
+    async def close(self) -> None:
         if self.registry_client:
             await self.registry_client.close()
             self.registry_client = None
 
     def get_subject_name(self, topic_name: str, schema: str, subject_type: str, schema_type: SchemaType) -> str:
-        schema = TypedSchema.parse(schema_type, schema)
+        schema_typed = TypedSchema.parse(schema_type, schema)
         namespace = "dummy"
         if schema_type is SchemaType.AVRO:
-            namespace = schema.schema.namespace
+            namespace = schema_typed.schema.namespace
         if schema_type is SchemaType.JSONSCHEMA:
-            namespace = schema.to_json().get("namespace", "dummy")
+            namespace = schema_typed.to_json().get("namespace", "dummy")
         return f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}"
 
     async def get_schema_for_subject(self, subject: str) -> TypedSchema:
+        assert self.registry_client, "must not call this method after the object is closed."
         schema_id, schema = await self.registry_client.get_latest_schema(subject)
         async with self.state_lock:
-            self.schemas_to_ids[schema.__str__()] = schema_id
+            schema_ser = schema.__str__()
+            self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema
         return schema
 
     async def get_id_for_schema(self, schema: str, subject: str, schema_type: SchemaType) -> int:
+        assert self.registry_client, "must not call this method after the object is closed."
         try:
-            schema = TypedSchema.parse(schema_type, schema)
+            schema_typed = TypedSchema.parse(schema_type, schema)
         except InvalidSchema as e:
             raise InvalidPayload(f"Schema string {schema} is invalid") from e
-        ser_schema = schema.__str__()
-        if ser_schema in self.schemas_to_ids:
-            return self.schemas_to_ids[ser_schema]
-        schema_id = await self.registry_client.post_new_schema(subject, schema)
+        schema_ser = schema_typed.__str__()
+        if schema_ser in self.schemas_to_ids:
+            return self.schemas_to_ids[schema_ser]
+        schema_id = await self.registry_client.post_new_schema(subject, schema_typed)
         async with self.state_lock:
-            self.schemas_to_ids[ser_schema] = schema_id
-            self.ids_to_schemas[schema_id] = schema
+            self.schemas_to_ids[schema_ser] = schema_id
+            self.ids_to_schemas[schema_id] = schema_typed
         return schema_id
 
     async def get_schema_for_id(self, schema_id: int) -> TypedSchema:
+        assert self.registry_client, "must not call this method after the object is closed."
         if schema_id in self.ids_to_schemas:
             return self.ids_to_schemas[schema_id]
-        schema = await self.registry_client.get_schema_for_id(schema_id)
-        schema_ser = schema.__str__()
+        schema_typed = await self.registry_client.get_schema_for_id(schema_id)
+        schema_ser = schema_typed.__str__()
         async with self.state_lock:
             self.schemas_to_ids[schema_ser] = schema_id
-            self.ids_to_schemas[schema_id] = schema
-        return schema
+            self.ids_to_schemas[schema_id] = schema_typed
+        return schema_typed
 
 
 def read_value(schema: TypedSchema, bio: io.BytesIO):
