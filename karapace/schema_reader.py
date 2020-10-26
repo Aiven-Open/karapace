@@ -74,7 +74,7 @@ class TypedSchema:
             return self.schema.to_json(names=None)
         return self.schema
 
-    def __str__(self):
+    def __str__(self) -> str:
         return json_encode(self.to_json(), compact=True)
 
     def __repr__(self):
