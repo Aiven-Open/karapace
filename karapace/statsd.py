@@ -9,6 +9,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from contextlib import contextmanager
+from typing import Any, Dict, Iterator, Optional
 
 import datetime
 import logging
@@ -21,10 +22,12 @@ STATSD_PORT = 8125
 
 
 class StatsClient:
-    def __init__(self, host=STATSD_HOST, port=STATSD_PORT, sentry_config=None):
+    def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, sentry_config: Dict = None) -> None:
+        self.sentry_config: Dict
+
         self.log = logging.getLogger("StatsClient")
         if sentry_config is None:
-            self.centry_config = {
+            self.sentry_config = {
                 "dsn": os.environ.get("SENTRY_DSN"),
                 "tags": {},
             }
@@ -48,12 +51,12 @@ class StatsClient:
         self._tags = self.sentry_config.get("tags")
 
     @contextmanager
-    def timing_manager(self, metric, tags=None):
+    def timing_manager(self, metric: str, tags: Optional[Dict] = None) -> Iterator[None]:
         start_time = time.monotonic()
         yield
         self.timing(metric, time.monotonic() - start_time, tags)
 
-    def update_sentry_config(self, config):
+    def update_sentry_config(self, config: Dict) -> None:
         new_config = self.sentry_config.copy()
         new_config.update(config)
         if new_config == self.sentry_config:
@@ -71,16 +74,18 @@ class StatsClient:
         else:
             self.raven_client = None
 
-    def gauge(self, metric, value, tags=None):
+    def gauge(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
         self._send(metric, b"g", value, tags)
 
-    def increase(self, metric, inc_value=1, tags=None):
+    def increase(self, metric: str, inc_value: int = 1, tags: Optional[Dict] = None) -> None:
         self._send(metric, b"c", inc_value, tags)
 
-    def timing(self, metric, value, tags=None):
+    def timing(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
         self._send(metric, b"ms", value, tags)
 
-    def unexpected_exception(self, ex, where, tags=None, *, elapsed=None):
+    def unexpected_exception(
+        self, ex: Exception, where: str, tags: Optional[Dict] = None, *, elapsed: Optional[float] = None
+    ) -> None:
         all_tags = {
             "exception": ex.__class__.__name__,
             "where": where,
@@ -91,7 +96,7 @@ class StatsClient:
             raven_tags = {**(tags or {}), "where": where}
             self.raven_client.captureException(tags=raven_tags, time_spent=elapsed)
 
-    def _send(self, metric, metric_type, value, tags):
+    def _send(self, metric: str, metric_type: bytes, value: Any, tags: Optional[Dict]) -> None:
         if None in self._dest_addr:
             # stats sending is disabled
             return
@@ -120,5 +125,5 @@ class StatsClient:
         except Exception as ex:  # pylint: disable=broad-except
             self.log.error("Unexpected exception in statsd send: %s: %s", ex.__class__.__name__, ex)
 
-    def close(self):
+    def close(self) -> None:
         self._socket.close()
