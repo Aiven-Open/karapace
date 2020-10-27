@@ -10,6 +10,7 @@ from karapace.master_coordinator import MasterCoordinator
 import asyncio
 import json
 import os
+import pytest
 import requests
 import time
 
@@ -24,20 +25,21 @@ def init_admin(config):
     return mc
 
 
-def test_master_selection(kafka_server):
+@pytest.mark.parametrize("strategy", ["lowest", "highest"])
+def test_master_selection(kafka_server, strategy):
     config_aa = set_config_defaults({})
     config_aa["advertised_hostname"] = "127.0.0.1"
     config_aa["bootstrap_uri"] = "127.0.0.1:{}".format(kafka_server["kafka_port"])
     config_aa["client_id"] = "aa"
     config_aa["port"] = 1234
-
+    config_aa["master_election_strategy"] = strategy
     mc_aa = init_admin(config_aa)
-
     config_bb = set_config_defaults({})
     config_bb["advertised_hostname"] = "127.0.0.1"
     config_bb["bootstrap_uri"] = "127.0.0.1:{}".format(kafka_server["kafka_port"])
     config_bb["client_id"] = "bb"
     config_bb["port"] = 5678
+    config_bb["master_election_strategy"] = strategy
     mc_bb = init_admin(config_bb)
     while True:
         if not (mc_aa.sc or mc_bb.sc):
@@ -46,9 +48,14 @@ def test_master_selection(kafka_server):
         if not (mc_aa.sc.master or mc_bb.sc.master or mc_aa.sc.master_url or mc_bb.sc.master_url):
             time.sleep(1.0)
             continue
-        assert mc_aa.sc.master is True
-        assert mc_bb.sc.master is False
-        master_url = "http://{}:{}".format(config_aa["host"], config_aa["port"])
+        assert mc_bb.sc.election_strategy == strategy
+        assert mc_aa.sc.election_strategy == strategy
+        aa_master = strategy == "lowest"
+        bb_master = strategy == "highest"
+        assert mc_aa.sc.master is aa_master
+        assert mc_bb.sc.master is bb_master
+        master_config = config_aa if strategy == "lowest" else config_bb
+        master_url = "http://{}:{}".format(master_config["host"], master_config["port"])
         assert mc_aa.sc.master_url == master_url
         assert mc_bb.sc.master_url == master_url
         break
