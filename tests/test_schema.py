@@ -1775,3 +1775,79 @@ async def test_full_transitive_failure(registry_async_client, compatibility):
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
     assert not res.ok
     assert res.status == 409
+
+
+@pytest.mark.parametrize("compatibility", ["BACKWARD", "FORWARD"])
+@pytest.mark.parametrize(
+    "field", [
+        {
+            "type": {
+                "type": "array",
+                "items": "string",
+                "name": "fn"
+            },
+            "name": "fn"
+        },
+        {
+            "type": {
+                "type": "record",
+                "name": "fn",
+                "fields": [{
+                    "type": "string",
+                    "name": "inner_rec"
+                }]
+            },
+            "name": "fn"
+        },
+        {
+            "type": {
+                "type": "enum",
+                "name": "fn",
+                "symbols": ["foo", "bar", "baz"]
+            },
+            "name": "fn"
+        },
+        {
+            "type": {
+                "type": "fixed",
+                "size": 16,
+                "name": "fn",
+                "aliases": ["testalias"]
+            },
+            "name": "fn"
+        },
+        {
+            "type": "string",
+            "name": "fn"
+        },
+        {
+            "type": {
+                "type": "map",
+                "values": "int",
+                "name": "fn"
+            },
+            "name": "fn"
+        },
+    ]
+)
+async def test_union_to_simple_comparison(registry_async_client, compatibility, field):
+    init = {"type": "record", "name": "name", "namespace": "namespace", "fields": [field]}
+    evolved = {
+        "type": "record",
+        "name": "name",
+        "namespace": "namespace",
+        "fields": [{
+            "type": ["null", field["type"]],
+            "name": "fn",
+        }]
+    }
+    if compatibility == "BACKWARD":
+        first, second = init, evolved
+    else:
+        second, first = init, evolved
+    subject = os.urandom(16).hex()
+    await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(first)})
+    assert res.ok
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(second)})
+    assert res.ok

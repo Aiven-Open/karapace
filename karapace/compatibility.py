@@ -159,6 +159,10 @@ class AvroCompatibility(Compatibility):
         self.log.info("source: %s, target: %s", source, target)
 
         # Simple form presentation of values e.g. "int"
+        if isinstance(source, str):
+            return target == source, True
+        if isinstance(target, str):
+            return source == target, True
         if isinstance(source, tuple):
             return isinstance(target, tuple), False
         if isinstance(source.type, str):
@@ -179,18 +183,56 @@ class AvroCompatibility(Compatibility):
                 if source.type.type in self._STRING_TYPES and target.type.type in self._STRING_TYPES:
                     return True, True
                 return source.type.type == target.type.type, True
+            if self._checking_for == "BACKWARD":
+                if isinstance(target.type, avro.schema.UnionSchema):
+                    # new schemas can be unions
+                    for union_type in target.type.schemas:
+                        if source.type.type in self._NUMBER_TYPES and union_type.type in self._NUMBER_TYPES:
+                            return True, False
+                        if source.type.type in self._STRING_TYPES and union_type.type in self._STRING_TYPES:
+                            return True, False
             return False, True
         if isinstance(source.type, avro.schema.RecordSchema):
+            if isinstance(target.type, avro.schema.UnionSchema) and self._checking_for == "BACKWARD":
+                if any(isinstance(t.type, avro.schema.RecordSchema) or t.type == "record" for t in target.type.schemas):
+                    return True, False
             return isinstance(target.type, avro.schema.RecordSchema), False
         if isinstance(source.type, avro.schema.EnumSchema):
+            if isinstance(target.type, avro.schema.UnionSchema) and self._checking_for == "BACKWARD":
+                if any(isinstance(t.type, avro.schema.EnumSchema) or t.type == "enum" for t in target.type.schemas):
+                    return True, False
             return isinstance(target.type, avro.schema.EnumSchema), True
         if isinstance(source.type, avro.schema.ArraySchema):
+            if isinstance(target.type, avro.schema.UnionSchema) and self._checking_for == "BACKWARD":
+                if any(isinstance(t.type, avro.schema.ArraySchema) or t.type == "array" for t in target.type.schemas):
+                    return True, False
             return isinstance(target.type, avro.schema.ArraySchema), False
         if isinstance(source.type, avro.schema.UnionSchema):
+            if self._checking_for == "FORWARD":
+                if isinstance(target.type, avro.schema.PrimitiveSchema):
+                    for union_type in source.type.schemas:
+                        if target.type.type in self._NUMBER_TYPES and union_type.type in self._NUMBER_TYPES:
+                            return True, False
+                        if target.type.type in self._STRING_TYPES and union_type.type in self._STRING_TYPES:
+                            return True, False
+                for typ, typ_str in [(avro.schema.FixedSchema, "fixed"), (avro.schema.MapSchema, "map"),
+                                     (avro.schema.ArraySchema, "array"), (avro.schema.RecordSchema, "record"),
+                                     (avro.schema.EnumSchema, "enum")]:
+                    if (
+                        isinstance(target.type, typ)
+                        and any(isinstance(t.type, typ) or t.type == typ_str for t in source.type.schemas)
+                    ):
+                        return True, False
             return isinstance(target.type, avro.schema.UnionSchema), False
         if isinstance(source.type, avro.schema.MapSchema):
+            if isinstance(target.type, avro.schema.UnionSchema) and self._checking_for == "BACKWARD":
+                if any(isinstance(t.type, avro.schema.MapSchema) or t.type == "map" for t in target.type.schemas):
+                    return True, False
             return isinstance(target.type, avro.schema.MapSchema), False
         if isinstance(source.type, avro.schema.FixedSchema):
+            if isinstance(target.type, avro.schema.UnionSchema) and self._checking_for == "BACKWARD":
+                if any(isinstance(t.type, avro.schema.FixedSchema) or t.type == "fixed" for t in target.type.schemas):
+                    return True, False
             return isinstance(target.type, avro.schema.FixedSchema), True
         raise IncompatibleSchema("Unhandled schema type: {}".format(type(source.type)))
 
@@ -313,24 +355,49 @@ class AvroCompatibility(Compatibility):
                     raise IncompatibleSchema(
                         "source_field.type: {} != target_field.type: {}".format(source_field.type, target_field.type)
                     )
+                if (
+                    isinstance(source_field.type, avro.schema.UnionSchema)
+                    and isinstance(target_field.type, avro.schema.UnionSchema)
+                ):
+                    for current_source_field_value, current_target_field_value in self.extract_schema_if_union(
+                        source_field.type, target_field.type
+                    ):
+                        self.check_compatibility(current_source_field_value, current_target_field_value)
+                    found = True
+                    continue
+                if isinstance(source_field.type, avro.schema.UnionSchema) and not base_type:
+                    for f in self.get_schema_field(source_field.type):
+                        try:
+                            self.check_compatibility(target_field.type, f)
+                            found = True
+                        except IncompatibleSchema:
+                            pass
+                    continue
                 if not base_type:  # same type but a complex type
                     found = True
                     source_field_value = self.get_schema_field(source_field.type)
                     target_field_value = self.get_schema_field(target_field.type)
-                    if isinstance(source_field_value, avro.schema.PrimitiveSchema):
+                    if (
+                        isinstance(source_field_value, avro.schema.PrimitiveSchema)
+                        and isinstance(target_field_value, avro.schema.PrimitiveSchema)
+                    ):
                         self.check_simple_value(source_field_value, target_field_value)
                         break
 
                     # Simple presentation form for Union fields. Extract the correct schemas already here.
-                    for current_source_field_value, current_target_field_value in self.extract_schema_if_union(
-                        source_field_value, target_field_value
-                    ):
-                        self.log.info(
-                            "Recursing source with: source: %s target: %s",
-                            current_source_field_value,
-                            current_target_field_value,
-                        )
-                        self.check_compatibility(current_source_field_value, current_target_field_value)
+                    try:
+                        for current_source_field_value, current_target_field_value in self.extract_schema_if_union(
+                            source_field_value, target_field_value
+                        ):
+                            self.log.info(
+                                "Recursing source with: source: %s target: %s",
+                                current_source_field_value,
+                                current_target_field_value,
+                            )
+                            self.check_compatibility(current_source_field_value, current_target_field_value)
+                    except IncompatibleSchema:
+                        found = False
+                        continue
                 else:
                     if not self.check_type_promotion(source_field.type, target_field.type):
                         raise IncompatibleSchema(
@@ -362,19 +429,47 @@ class AvroCompatibility(Compatibility):
                     raise IncompatibleSchema(
                         "source_field.type: {} != target_field.type: {}".format(source_field.type, target_field.type)
                     )
+                if (
+                    isinstance(source_field.type, avro.schema.UnionSchema)
+                    and isinstance(target_field.type, avro.schema.UnionSchema)
+                ):
+                    for current_source_field_value, current_target_field_value in self.extract_schema_if_union(
+                        source_field.type, target_field.type
+                    ):
+                        self.check_compatibility(current_source_field_value, current_target_field_value)
+                    found = True
+                    continue
+                if isinstance(target_field.type, avro.schema.UnionSchema) and not base_type:
+                    for f in self.get_schema_field(target_field.type):
+                        try:
+                            self.check_compatibility(source_field.type, f)
+                            found = True
+                        except IncompatibleSchema:
+                            pass
+                    continue
                 if not base_type:
+                    if found:
+                        continue
                     found = True
                     source_field_value = self.get_schema_field(source_field.type)
                     target_field_value = self.get_schema_field(target_field.type)
-                    if isinstance(source_field_value, avro.schema.PrimitiveSchema):
+                    if (
+                        isinstance(source_field_value, avro.schema.PrimitiveSchema)
+                        and isinstance(target_field_value, avro.schema.PrimitiveSchema)
+                    ):
                         self.check_simple_value(source_field_value, target_field_value)
                         break
-
-                    for source_field_value, target_field_value in self.extract_schema_if_union(
-                        source_field_value, target_field_value
-                    ):
-                        self.log.info("Recursing target with: source: %s target: %s", source_field_value, target_field_value)
-                        self.check_compatibility(source_field_value, target_field_value)
+                    try:
+                        for source_field_value, target_field_value in self.extract_schema_if_union(
+                            source_field_value, target_field_value
+                        ):
+                            self.log.info(
+                                "Recursing target with: source: %s target: %s", source_field_value, target_field_value
+                            )
+                            self.check_compatibility(source_field_value, target_field_value)
+                    except IncompatibleSchema:
+                        found = False
+                        continue
                 else:
                     found = True
                     self.log.info("source_field is: %s, target_field: %s added", source_field, target_field)
