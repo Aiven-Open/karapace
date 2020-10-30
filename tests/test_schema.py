@@ -982,16 +982,17 @@ async def test_transitive_compatibility(registry_async_client):
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema(registry_async_client, trail):
     subject = os.urandom(16).hex()
+    schema_str = '{"type": "string"}'
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
-        json={"schema": '{"type": "string"}'},
+        json={"schema": schema_str},
     )
     assert res.status == 200
     assert "id" in res.json()
     schema_id = res.json()["id"]
     res = await registry_async_client.get(f"schemas/ids/{schema_id}{trail}")
     assert res.status_code == 200
-    assert res.json()["schema"] == '"string"'
+    assert res.json()["schema"] == schema_str
 
     # repost same schema again to see that a new id is not generated but an old one is given back
     res = await registry_async_client.post(
@@ -1045,7 +1046,7 @@ async def test_schema(registry_async_client, trail):
     res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
     assert res.status_code == 200
     assert res.json()["subject"] == subject
-    assert res.json()["schema"] == '"string"'
+    assert res.json()["schema"] == schema_str
 
     # Find an invalid version 0
     res = await registry_async_client.get("subjects/{}/versions/0".format(subject))
@@ -1216,14 +1217,15 @@ async def test_schema(registry_async_client, trail):
 
     # The subject version schema endpoint returns the correct results
     subject = os.urandom(16).hex()
+    schema_str = '{"type": "string"}'
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
-        json={"schema": '{"type": "string"}'},
+        json={"schema": schema_str},
     )
     assert res.status == 200
     res = await registry_async_client.get(f"subjects/{subject}/versions/1/schema")
     assert res.status == 200
-    assert res.json() == "string"
+    assert res.json() == jsonlib.loads(schema_str)
     res = await registry_async_client.get(f"subjects/{os.urandom(16).hex()}/versions/1/schema")  # Invalid subject
     assert res.status == 404
     assert res.json()["error_code"] == 40401
@@ -1234,23 +1236,23 @@ async def test_schema(registry_async_client, trail):
     assert res.json()["message"] == "Version not found."
     res = await registry_async_client.get(f"subjects/{subject}/versions/latest/schema")
     assert res.status == 200
-    assert res.json() == "string"
+    assert res.json() == jsonlib.loads(schema_str)
 
     # The schema check for subject endpoint returns correct results
     subject = os.urandom(16).hex()
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
-        json={"schema": '{"type": "string"}'},
+        json={"schema": schema_str},
     )
     assert res.status == 200
     schema_id = res.json()["id"]
     # The same ID should be returned when checking the same schema against the same subject
     res = await registry_async_client.post(
         f"subjects/{subject}",
-        json={"schema": '{"type": "string"}'},
+        json={"schema": schema_str},
     )
     assert res.status == 200
-    assert res.json() == {"id": schema_id, "subject": subject, "schema": '"string"', "version": 1}
+    assert res.json() == {"id": schema_id, "subject": subject, "schema": schema_str, "version": 1}
     # Invalid schema should return 500
     res = await registry_async_client.post(
         f"subjects/{subject}",
@@ -1261,7 +1263,7 @@ async def test_schema(registry_async_client, trail):
     # Subject is not found
     res = await registry_async_client.post(
         f"subjects/{os.urandom(16).hex()}",
-        json={"schema": '{"type": "string"}'},
+        json={"schema": schema_str},
     )
     assert res.status == 404
     assert res.json()["error_code"] == 40401
@@ -1600,6 +1602,17 @@ async def test_invalid_namespace(registry_async_client):
     subject = os.urandom(16).hex()
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.ok, res.json()
+
+
+async def test_schema_remains_constant(registry_async_client):
+    schema = {"type": "record", "name": "foo", "namespace": "foo-bar-baz", "fields": [{"type": "string", "name": "bla"}]}
+    subject = os.urandom(16).hex()
+    schema_str = jsonlib.dumps(schema)
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": schema_str})
+    assert res.ok, res.json()
+    scid = res.json()["id"]
+    res = await registry_async_client.get(f"schemas/ids/{scid}")
+    assert res.json()["schema"] == schema_str
 
 
 async def test_malformed_kafka_message(registry_async, registry_async_client):
