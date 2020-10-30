@@ -38,9 +38,10 @@ class SchemaType(str, Enum):
 
 
 class TypedSchema:
-    def __init__(self, schema, schema_type: SchemaType):
+    def __init__(self, schema, schema_type: SchemaType, schema_str: str):
         self.schema_type = schema_type
         self.schema = schema
+        self.schema_str = schema_str
 
     @staticmethod
     def parse_json(schema_str: str):
@@ -48,14 +49,15 @@ class TypedSchema:
             js = loads(schema_str)
             Draft7Validator.check_schema(js)
             assert "type" in js
-            return TypedSchema(Draft7Validator(js), SchemaType.JSONSCHEMA)
+            return TypedSchema(Draft7Validator(js), SchemaType.JSONSCHEMA, schema_str)
         except (JSONDecodeError, SchemaError, AssertionError) as e:
             raise InvalidSchema from e
 
     @staticmethod
     def parse_avro(schema_str: str):  # pylint: disable=inconsistent-return-statements
         try:
-            return TypedSchema(parse(schema_str), SchemaType.AVRO)
+            ts = TypedSchema(parse(schema_str), SchemaType.AVRO, schema_str)
+            return ts
         except SchemaParseException as e:
             raise InvalidSchema from e
 
@@ -287,7 +289,9 @@ class KafkaSchemaReader(Thread):
             except InvalidSchema:
                 try:
                     schema_json = json.loads(schema_str)
-                    typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema=schema_json)
+                    typed_schema = TypedSchema(
+                        schema_type=SchemaType(schema_type), schema=schema_json, schema_str=schema_str
+                    )
                 except JSONDecodeError:
                     self.log.error("Invalid json: %s", value["schema"])
                     return

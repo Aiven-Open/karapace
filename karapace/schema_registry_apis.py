@@ -177,13 +177,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         deleted: bool,
     ):
         key = '{{"subject":"{}","version":{},"magic":1,"keytype":"SCHEMA"}}'.format(subject, version)
-        value = {
-            "subject": subject,
-            "version": version,
-            "id": schema_id,
-            "schema": json_encode(schema.to_json(), compact=True),
-            "deleted": deleted
-        }
+        value = {"subject": subject, "version": version, "id": schema_id, "schema": schema.schema_str, "deleted": deleted}
         if schema.schema_type is not SchemaType.AVRO:
             value["schemaType"] = schema.schema_type
         return self.send_kafka_message(key, json_encode(value, compact=True))
@@ -240,7 +234,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if not schema:
             self.log.warning("Schema: %r that was requested, not found", int(schema_id))
             self.r(body={"error_code": 40403, "message": "Schema not found"}, content_type=content_type, status=404)
-        response_body = {"schema": str(schema)}
+        response_body = {"schema": schema.schema_str}
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
         self.r(response_body, content_type)
@@ -348,7 +342,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             "subject": subject,
             "version": int(version),
             "id": schema_id,
-            "schema": str(schema),
+            "schema": schema.schema_str,
         }
         if schema.schema_type is not SchemaType.AVRO:
             ret["schemaType"] = schema.schema_type
@@ -389,7 +383,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_data = subject_data["schemas"].get(int(version))
         else:
             self.r({"error_code": 40402, "message": "Version not found."}, content_type, status=404)
-        self.r(str(schema_data["schema"]), content_type)
+        self.r(schema_data["schema"].schema_str, content_type)
 
     async def subject_versions_list(self, content_type, *, subject):
         subject_data = self._subject_get(subject, content_type)
@@ -459,7 +453,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "subject": subject,
                     "version": schema["version"],
                     "id": schema["id"],
-                    "schema": str(typed_schema),
+                    "schema": typed_schema.schema_str,
                 }
                 if schema_type is not SchemaType.AVRO:
                     ret["schemaType"] = schema_type
@@ -505,7 +499,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             version = 1
             self.log.info(
                 "Registering new subject: %r with version: %r to schema %r, schema_id: %r", subject, version,
-                new_schema.to_json(), schema_id
+                new_schema.schema_str, schema_id
             )
         else:
             # First check if any of the existing schemas for the subject match
@@ -516,7 +510,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 schema_id = self.ksr.get_schema_id(new_schema)
                 self.log.info(
                     "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
-                    version, new_schema.to_json(), schema_id
+                    version, new_schema.schema_str, schema_id
                 )
                 self.send_schema_message(
                     subject=subject,
