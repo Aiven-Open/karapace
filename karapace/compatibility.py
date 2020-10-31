@@ -4,6 +4,7 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.avro_compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityType
 from karapace.schema_reader import SchemaType, TypedSchema
 
 import avro.schema
@@ -37,7 +38,16 @@ class Compatibility:
             self.log.info("Compatibility level set to NONE, no schema compatibility checks performed")
             return True
         if self.source.schema_type is SchemaType.AVRO:
-            return AvroCompatibility(self.source.schema, self.target.schema, self.compatibility).check()
+            if self._checking_for in {"BACKWARD", "FULL"}:
+                writer, reader = self.source.schema, self.target.schema
+                compat = ReaderWriterCompatibilityChecker().get_compatibility(reader=reader, writer=writer).compatibility
+                if compat is SchemaCompatibilityType.incompatible:
+                    raise IncompatibleSchema(str(compat))
+            if self._checking_for in {"FORWARD", "FULL"}:
+                writer, reader = self.target.schema, self.source.schema
+                compat = ReaderWriterCompatibilityChecker().get_compatibility(reader=reader, writer=writer).compatibility
+                if compat is SchemaCompatibilityType.incompatible:
+                    raise IncompatibleSchema(str(compat))
         if self.source.schema_type is SchemaType.JSONSCHEMA:
             return JsonSchemaCompatibility(self.source.schema, self.target.schema, self.compatibility).check()
 
