@@ -29,6 +29,75 @@ def test_simple_schema_promotion():
     res = ReaderWriterCompatibilityChecker().get_compatibility(writer, reader)
     assert res.compatibility is SchemaCompatibilityType.incompatible, res
 
+    writer = Parse(
+        json.dumps({
+            "type": "record",
+            "name": "CA",
+            "namespace": "ns1",
+            "fields": [{
+                "type": "string",
+                "name": "provider"
+            }, {
+                "type": ["null", "string"],
+                "name": "name",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "phone",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "email",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "reference",
+                "default": None
+            }, {
+                "type": ["null", "double"],
+                "name": "price",
+                "default": None
+            }]
+        })
+    )
+    reader = Parse(
+        json.dumps({
+            "type": "record",
+            "name": "CA",
+            "namespace": "ns1",
+            "fields": [{
+                "type": "string",
+                "name": "provider"
+            }, {
+                "type": ["null", "string"],
+                "name": "name",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "phone",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "email",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "reference",
+                "default": None
+            }, {
+                "type": ["null", "double"],
+                "name": "price",
+                "default": None
+            }, {
+                "type": ["null", "string"],
+                "name": "status_date",
+                "default": None
+            }]
+        })
+    )
+    res = ReaderWriterCompatibilityChecker().get_compatibility(writer=writer, reader=reader)
+    assert res.compatibility is SchemaCompatibilityType.compatible, res
+
 
 @pytest.mark.parametrize(
     "field", [
