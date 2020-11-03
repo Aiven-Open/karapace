@@ -201,8 +201,9 @@ class KarapaceKafkaClient(KafkaClient):
     def close_invalid_connections(self):
         update_needed = False
         with self._lock:
-            for conn in self._conns.values():
-                if conn.ns_blackout():
+            conns = self._conns.copy().values()
+            for conn in conns:
+                if conn and conn.ns_blackout():
                     log.info(
                         "Node id %s no longer in cluster metadata, closing connection and requesting update", conn.node_id
                     )
@@ -213,7 +214,10 @@ class KarapaceKafkaClient(KafkaClient):
 
     def _poll(self, timeout):
         super()._poll(timeout)
-        self.close_invalid_connections()
+        try:
+            self.close_invalid_connections()
+        except Exception as e:  # pylint: disable=broad-except
+            log.error("Error closing invalid connections: %r", e)
 
     def _maybe_refresh_metadata(self, wakeup=False):
         """
