@@ -4,7 +4,9 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from karapace.avro_compatibility import ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityType
+from karapace.avro_compatibility import (
+    ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityType, SchemaIncompatibilityType
+)
 from karapace.schema_reader import SchemaType, TypedSchema
 
 import logging
@@ -39,14 +41,20 @@ class Compatibility:
         if self.source.schema_type is SchemaType.AVRO:
             if self._checking_for in {"BACKWARD", "FULL"}:
                 writer, reader = self.source.schema, self.target.schema
-                compat = AvroChecker().get_compatibility(reader=reader, writer=writer).compatibility
-                if compat is SchemaCompatibilityType.incompatible:
-                    raise IncompatibleSchema(str(compat))
+                result = AvroChecker().get_compatibility(reader=reader, writer=writer)
+                if (
+                    result.compatibility is SchemaCompatibilityType.incompatible
+                    and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
+                ):
+                    raise IncompatibleSchema(str(result.compatibility))
             if self._checking_for in {"FORWARD", "FULL"}:
                 writer, reader = self.target.schema, self.source.schema
-                compat = AvroChecker().get_compatibility(reader=reader, writer=writer).compatibility
-                if compat is SchemaCompatibilityType.incompatible:
-                    raise IncompatibleSchema(str(compat))
+                result = AvroChecker().get_compatibility(reader=reader, writer=writer)
+                if (
+                    result.compatibility is SchemaCompatibilityType.incompatible
+                    and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
+                ):
+                    raise IncompatibleSchema(str(result.compatibility))
         if self.source.schema_type is SchemaType.JSONSCHEMA:
             return JsonSchemaCompatibility(self.source.schema, self.target.schema, self.compatibility).check()
 
