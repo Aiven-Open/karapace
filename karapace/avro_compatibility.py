@@ -4,7 +4,7 @@ from avro.schema import (
 )
 from copy import copy
 from enum import Enum
-from typing import cast, Dict, List, Optional
+from typing import cast, Dict, List, Optional, Set
 
 
 class SchemaCompatibilityType(Enum):
@@ -31,9 +31,11 @@ class SchemaCompatibilityResult:
         self,
         compatibility: SchemaCompatibilityType = SchemaCompatibilityType.recursion_in_progress,
         incompatibilities: List[SchemaIncompatibilityType] = None,
-        message: str = "",
+        messages: Optional[Set[str]] = None,
+        locations: Optional[Set[str]] = None,
     ):
-        self.message = message
+        self.locations = locations if locations else set(["/"])
+        self.messages = messages if messages else set()
         self.compatibility = compatibility
         self.incompatibilities = incompatibilities or []
 
@@ -43,9 +45,15 @@ class SchemaCompatibilityResult:
         merged.extend(copy(that.incompatibilities))
         if self.compatibility is SchemaCompatibilityType.compatible:
             compat = that.compatibility
+            messages = that.messages
+            locations = that.locations
         else:
             compat = self.compatibility
-        return SchemaCompatibilityResult(compat, merged)
+            messages = self.messages.union(that.messages)
+            locations = self.locations.union(that.locations)
+        return SchemaCompatibilityResult(
+            compatibility=compat, incompatibilities=merged, messages=messages, locations=locations
+        )
 
     @staticmethod
     def compatible():
@@ -53,15 +61,19 @@ class SchemaCompatibilityResult:
 
     @staticmethod
     def incompatible(incompat_type: SchemaIncompatibilityType, message: str, location: List[str]):
-        path = "/".join(location)
-        message = f"{path}: {message}"
-
-        ret = SchemaCompatibilityResult(SchemaCompatibilityType.incompatible, [incompat_type])
-        ret.message = message
+        locations = "/".join(location)
+        if len(location) > 1:
+            locations = locations[1:]
+        ret = SchemaCompatibilityResult(
+            compatibility=SchemaCompatibilityType.incompatible,
+            incompatibilities=[incompat_type],
+            locations={locations},
+            messages={message},
+        )
         return ret
 
     def __str__(self):
-        return f"{self.compatibility}: {self.message}"
+        return f"{self.compatibility}: {self.messages}"
 
 
 class ReaderWriter:
@@ -74,11 +86,11 @@ class ReaderWriter:
     def __eq__(self, other) -> bool:
         if not isinstance(other, ReaderWriter):
             return False
-        return self.reader == other.reader and self.writer == other.writer
+        return self.reader is other.reader and self.writer is other.writer
 
 
 class ReaderWriterCompatibilityChecker:
-    ROOT_REFERENCE_TOKEN = ""
+    ROOT_REFERENCE_TOKEN = "/"
 
     def __init__(self):
         self.memoize_map: Dict[ReaderWriter, SchemaCompatibilityResult] = {}
@@ -145,7 +157,7 @@ class ReaderWriterCompatibilityChecker:
                         result = result.merged_with(
                             SchemaCompatibilityResult.incompatible(
                                 SchemaIncompatibilityType.missing_union_branch,
-                                f"reader union lacking writer type {writer_branch.type}", location
+                                f"reader union lacking writer type: {writer_branch.type.upper()}", location
                             )
                         )
                     location.pop()
@@ -167,7 +179,7 @@ class ReaderWriterCompatibilityChecker:
                 return result
             return result.merged_with(self.type_mismatch(reader, writer, location))
         if reader.type == DOUBLE:
-            if writer.type in {INT, LONG, DOUBLE}:
+            if writer.type in {INT, LONG, FLOAT}:
                 return result
             return result.merged_with(self.type_mismatch(reader, writer, location))
         if reader.type == BYTES:
@@ -212,7 +224,7 @@ class ReaderWriterCompatibilityChecker:
         actual = reader.size
         expected = writer.size
         if actual != expected:
-            message = f"expected: {expected}, found {actual}"
+            message = f"expected: {expected}, found: {actual}"
             result = SchemaCompatibilityResult.incompatible(
                 SchemaIncompatibilityType.fixed_size_mismatch,
                 message,
@@ -229,12 +241,14 @@ class ReaderWriterCompatibilityChecker:
         location.append("symbols")
         writer_symbols, reader_symbols = set(writer.symbols), set(reader.symbols)
         extra_symbols = writer_symbols.difference(reader_symbols)
-        # TODO-> it looks like this branch is never actually reached
-        if extra_symbols and False:
-            # TODO -> Again, there is java code here (line 395) that deals with enum defaults
-            result = SchemaCompatibilityResult.incompatible(
-                SchemaIncompatibilityType.missing_enum_symbols, f"{extra_symbols}", location
-            )
+        if extra_symbols:
+            default = reader.props.get("default")
+            if default and default in reader_symbols:
+                result = SchemaCompatibilityResult.compatible()
+            else:
+                result = SchemaCompatibilityResult.incompatible(
+                    SchemaIncompatibilityType.missing_enum_symbols, f"{extra_symbols}", location
+                )
         location.pop()
         return result
 
@@ -249,13 +263,14 @@ class ReaderWriterCompatibilityChecker:
             writer_field = writer.field_map.get(reader_field.name)
             if writer_field is None:
                 if not reader_field.has_default:
-                    # TODO -> Line 368 has extra checks but python enum has no default value built in
-                    # TODO -> So i guess we skip those for now, or look at any failing tests
-                    result = result.merged_with(
-                        SchemaCompatibilityResult.incompatible(
-                            SchemaIncompatibilityType.reader_field_missing_default_value, reader_field.name, location
+                    if reader_field.type.type == ENUM and reader_field.type.props.get("default"):
+                        result = result.merged_with(self.get_compatibility(reader_field.type, writer, "type", location))
+                    else:
+                        result = result.merged_with(
+                            SchemaCompatibilityResult.incompatible(
+                                SchemaIncompatibilityType.reader_field_missing_default_value, reader_field.name, location
+                            )
                         )
-                    )
             else:
                 result = result.merged_with(self.get_compatibility(reader_field.type, writer_field.type, "type", location), )
             location.pop()
@@ -264,5 +279,5 @@ class ReaderWriterCompatibilityChecker:
 
     @staticmethod
     def type_mismatch(reader: Schema, writer: Schema, location: List[str]) -> SchemaCompatibilityResult:
-        message = f"reader type {reader.type} is not compatible with writer type {writer.type}"
+        message = f"reader type: {reader.type.upper()} not compatible with writer type: {writer.type.upper()}"
         return SchemaCompatibilityResult.incompatible(SchemaIncompatibilityType.type_mismatch, message, location)
