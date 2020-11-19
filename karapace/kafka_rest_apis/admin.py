@@ -5,7 +5,6 @@ from kafka.future import Future
 from kafka.protocol.admin import DescribeConfigsRequest
 from kafka.protocol.metadata import MetadataRequest
 from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
-from threading import Lock
 from typing import List
 
 import logging
@@ -15,8 +14,6 @@ import six
 class KafkaRestAdminClient(KafkaAdminClient):
     def __init__(self, **configs):
         super().__init__(**configs)
-        self.client_lock = Lock()
-        self.first_boot = True
         self.log = logging.getLogger("AdminClient")
 
     def get_topic_config(self, topic: str) -> dict:
@@ -40,36 +37,23 @@ class KafkaRestAdminClient(KafkaAdminClient):
     def new_topic(self, name: str):
         self.create_topics([NewTopic(name, 1, 1)])
 
-    def cluster_metadata(self, topics: List[str] = None, retries=0) -> dict:
+    def cluster_metadata(self, topics: List[str] = None, retries: int = 0) -> dict:
         """List all kafka topics."""
-        node_found = True
         metadata_version = self._matching_api_version(MetadataRequest)
         if metadata_version > 6 or metadata_version < 1:
             raise UnrecognizedBrokerVersion(
                 "Kafka Admin interface cannot determine the controller using MetadataRequest_v{}.".format(metadata_version)
             )
-        # update_metadata on cluster only works with v1 type metadata
         request = MetadataRequest[1](topics=topics)
-        with self.client_lock:
-            node_id = self._client.least_loaded_node()
-            # normal admin code will call poll on client not ready which will sometime block indefinitely on select
-            if not node_id or not self.first_boot or not self._client.ready(node_id):
-                #  pylint: disable=protected-access
-                node_id = list(self._client.cluster._bootstrap_brokers.keys())[0]
-                self.first_boot = False
-                node_found = False
-            future = self._send_request_to_node(node_id, request)
-            self.log.info("Retrieved metadata using node id %s", node_id)
+        future = self._send_request_to_node(self._client.least_loaded_node(), request)
         try:
             self._wait_for_futures([future])
-            response = future.value
-            if not node_found:
-                self._client.cluster.update_metadata(response)
-            return self._make_metadata_response(response)
         except Cancelled:
             if retries > 3:
                 raise
+            self.log.debug("Retrying metadata with %d retires", retries)
             return self.cluster_metadata(topics, retries + 1)
+        return self._make_metadata_response(future.value)
 
     @staticmethod
     def _make_metadata_response(metadata):
