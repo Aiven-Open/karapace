@@ -151,10 +151,14 @@ class SchemaBackup:
                     except json.JSONDecodeError:
                         self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                 values.append((key, value))
-
-        with open(self.backup_location, "w") as fp:
-            fp.write(json.dumps(values))
-            self.log.info("Schema backup written to %r", self.backup_location)
+        ser = json.dumps(values)
+        if self.backup_location:
+            with open(self.backup_location, "w") as fp:
+                fp.write(ser)
+                self.log.info("Schema backup written to %r", self.backup_location)
+        else:
+            print(ser)
+            self.log.info("Schema backup written to stdout")
         self.close()
 
     def restore_backup(self):
@@ -200,7 +204,7 @@ def parse_args():
     parser_restore = subparsers.add_parser("restore", help="Restore the schema backup from a file")
     for p in {parser_get, parser_restore}:
         p.add_argument("--config", help="Configuration file path", required=True)
-        p.add_argument("--location", help="File path for the backup file", required=True)
+        p.add_argument("--location", default="", help="File path for the backup file")
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)
 
     return parser.parse_args()
