@@ -8,6 +8,206 @@ from karapace.avro_compatibility import ReaderWriterCompatibilityChecker, Schema
 import json
 import pytest
 
+# Schemas defined in AvroCompatibilityTest.java. Used here to ensure compatibility with the schema-registry
+schema1 = parse('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"}]}')
+schema2 = parse(
+    '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
+    '"name":"f2","default":"foo"}]}'
+)
+schema3 = parse('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string","name":"f2"}]}')
+schema4 = parse('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1_new","aliases":["f1"]}]}')
+schema6 = parse('{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","doc":"doc of f1"}]}')
+schema7 = parse(
+    '{"type":"record","name":"myrecord","fields":[{"type":["null","string","int"],"name":"f1","doc":"doc of f1"}]}'
+)
+# schema8 = (
+#     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
+#     '"name":"f2","default":"foo"}]},{"type":"string","name":"f3","default":"bar"}]}'
+# )
+badDefaultNullString = parse(
+    '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
+    '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
+)
+
+
+def test_schemaregistry_basic_backwards_compatibility():
+    """
+    Backward compatibility: A new schema is backward compatible if it can be used to read the data
+    written in the previous schema.
+    """
+    msg = "adding a field with default is a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding a field w/o default is NOT a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+
+    msg = "changing field name with alias is a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema4, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "evolving a field type to a union is a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema6, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a type from a union is NOT a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema6)
+    assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+
+    msg = "adding a new type in union is a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema7, schema6)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a type from a union is NOT a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema6, schema7)
+    assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+
+
+def test_schemaregistry_basic_backwards_transitive_compatibility():
+    """
+    Backward transitive compatibility: A new schema is backward compatible if it can be used to read the data
+    written in all previous schemas.
+    """
+    # msg = "iteratively adding fields with defaults is a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding a field with default is a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a default is a compatible change, but not transitively"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a default is not a transitively compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+
+
+def test_schemaregistry_basic_forwards_compatibility():
+    """
+    Forward compatibility: A new schema is forward compatible if the previous schema can read data written in this
+    schema.
+    """
+    msg = "adding a field is a forward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    # msg = "adding a field is a forward compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding a field is a forward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding a field is a forward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a default is not a transitively compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+
+def test_schemaregistry_basic_forwards_transitive_compatibility():
+    """
+    Forward transitive compatibility: A new schema is forward compatible if all previous schemas can read data written
+    in this schema.
+    """
+    # msg = "iteratively removing fields with defaults is a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding default to a field is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a field with a default is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    # msg = "removing a default is not a transitively compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    # assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+
+
+def test_basic_full_compatibility():
+    """Full compatibility: A new schema is fully compatible if it’s both backward and forward compatible."""
+    msg = "adding a field with default is a backward and a forward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    # msg = "transitively adding a field without a default is not a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    # assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    # msg = "transitively removing a field without a default is not a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+
+def test_basic_full_transitive_compatibility():
+    """
+    Full transitive compatibility: A new schema is fully compatible if it’s both transitively backward
+    and transitively forward compatible with the entire schema history.
+    """
+    # msg = "iteratively adding fields with defaults is a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    # msg = "iteratively removing fields with defaults is a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding default to a field is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a field with a default is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "adding a field with default is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    msg = "removing a default from a field compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
+    # msg = "transitively adding a field without a default is not a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    # assert res.compatibility is SchemaCompatibilityType.incompatible, msg
+
+    # msg = "transitively removing a field without a default is not a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    # assert res.compatibility is SchemaCompatibilityType.compatible, msg
+
 
 def test_simple_schema_promotion():
     reader = parse(json.dumps({"name": "foo", "type": "record", "fields": [{"type": "int", "name": "f1"}]}))
