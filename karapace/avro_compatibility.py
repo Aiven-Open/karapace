@@ -4,7 +4,7 @@ from avro.schema import (
 )
 from copy import copy
 from enum import Enum
-from typing import cast, Dict, List, Optional, Set
+from typing import Any, cast, Dict, List, Optional, Set
 
 
 class SchemaCompatibilityType(Enum):
@@ -71,6 +71,15 @@ class SchemaCompatibilityResult:
             messages={message},
         )
         return ret
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, SchemaCompatibilityResult):
+            return False
+
+        return (
+            self.locations == other.locations and self.messages == other.messages
+            and self.compatibility == other.compatibility and self.incompatibilities == other.incompatibilities
+        )
 
     def __str__(self):
         return f"{self.compatibility}: {self.messages}"
