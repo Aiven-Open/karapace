@@ -96,25 +96,26 @@ def test_schemaregistry_basic_forwards_compatibility():
     schema.
     """
     msg = "adding a field is a forward compatible change"
-    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
-    # msg = "adding a field is a forward compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-
     msg = "adding a field is a forward compatible change"
-    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "adding a field is a forward compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
-    msg = "removing a default is not a transitively compatible change"
-    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    msg = "adding a field is a forward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
-    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+
+    msg = "removing a default is not a transitively compatible change"
+    # Only schema 2 is checked!
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    # assert res != SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
 
@@ -124,24 +125,24 @@ def test_schemaregistry_basic_forwards_transitive_compatibility():
     in this schema.
     """
     # msg = "iteratively removing fields with defaults is a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
     # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
     # assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "adding default to a field is a compatible change"
-    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "removing a field with a default is a compatible change"
-    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
-    # msg = "removing a default is not a transitively compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
-    # assert res != SchemaCompatibilityResult.compatible(), msg
+    msg = "removing a default is not a transitively compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    assert res != SchemaCompatibilityResult.compatible(), msg
 
 
 def test_basic_full_compatibility():
@@ -149,18 +150,30 @@ def test_basic_full_compatibility():
     msg = "adding a field with default is a backward and a forward compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
     assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
-    # msg = "transitively adding a field without a default is not a compatible change"
+    msg = "transitively adding a field without a default is not a compatible change"
+    # Only schema 2 is checked!
     # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
     # assert res != SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    # assert res != SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
-    # msg = "transitively removing a field without a default is not a compatible change"
+    msg = "transitively removing a field without a default is not a compatible change"
+    # Only schema 2 is checked!
     # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
     # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
     # assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
 
 def test_basic_full_transitive_compatibility():
@@ -171,42 +184,66 @@ def test_basic_full_transitive_compatibility():
     # msg = "iteratively adding fields with defaults is a compatible change"
     # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
     # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-
-    # msg = "iteratively removing fields with defaults is a compatible change"
     # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
     # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
     # assert res == SchemaCompatibilityResult.compatible(), msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema8)
+    # assert res == SchemaCompatibilityResult.compatible(), msg
+
+    msg = "iteratively removing fields with defaults is a compatible change"
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
+    # assert res == SchemaCompatibilityResult.compatible(), msg
+    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    # assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "adding default to a field is a compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "removing a field with a default is a compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "adding a field with default is a compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "removing a default from a field compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
-    # msg = "transitively adding a field without a default is not a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
-    # assert res != SchemaCompatibilityResult.compatible(), msg
+    msg = "transitively adding a field without a default is not a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    assert res != SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema3)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
-    # msg = "transitively removing a field without a default is not a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
+    msg = "transitively removing a field without a default is not a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema3)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema1)
+    assert res != SchemaCompatibilityResult.compatible(), msg
 
 
 def test_simple_schema_promotion():
