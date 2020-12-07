@@ -211,7 +211,7 @@ class ReaderWriterCompatibilityChecker:
     def check_schema_names(reader: NamedSchema, writer: NamedSchema, location: List[str]) -> SchemaCompatibilityResult:
         result = SchemaCompatibilityResult.compatible()
         location.append("name")
-        if not reader.name == writer.name:
+        if not ReaderWriterCompatibilityChecker.schema_name_equals(reader, writer):
             message = f"expected: {writer.fullname}"
             result = SchemaCompatibilityResult.incompatible(SchemaIncompatibilityType.name_mismatch, message, location)
         location.pop()
@@ -252,6 +252,23 @@ class ReaderWriterCompatibilityChecker:
         location.pop()
         return result
 
+    @staticmethod
+    def schema_name_equals(reader: NamedSchema, writer: NamedSchema) -> bool:
+        if reader.name == writer.name:
+            return True
+        return writer.fullname in reader.props.get("aliases", [])
+
+    @staticmethod
+    def lookup_writer_field(writer_schema: RecordSchema, reader_field: Field) -> Optional[Field]:
+        direct = writer_schema.field_map.get(reader_field.name)
+        if direct:
+            return direct
+        for alias in reader_field.props.get("aliases", []):
+            writer_field = writer_schema.field_map.get(alias)
+            if writer_field is not None:
+                return writer_field
+        return None
+
     def check_reader_writer_record_fields(
         self, reader: RecordSchema, writer: RecordSchema, location: List[str]
     ) -> SchemaCompatibilityResult:
@@ -260,7 +277,7 @@ class ReaderWriterCompatibilityChecker:
         for reader_field in reader.fields:
             reader_field = cast(Field, reader_field)
             location.append(f"{reader_field.index}")
-            writer_field = writer.field_map.get(reader_field.name)
+            writer_field = self.lookup_writer_field(writer_schema=writer, reader_field=reader_field)
             if writer_field is None:
                 if not reader_field.has_default:
                     if reader_field.type.type == ENUM and reader_field.type.props.get("default"):
