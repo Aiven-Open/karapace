@@ -11,6 +11,29 @@ import pytest
 
 def test_simple_schema_promotion():
     reader = parse(json.dumps({"name": "foo", "type": "record", "fields": [{"type": "int", "name": "f1"}]}))
+    field_alias_reader = parse(
+        json.dumps({
+            "name": "foo",
+            "type": "record",
+            "fields": [{
+                "type": "int",
+                "name": "bar",
+                "aliases": ["f1"]
+            }]
+        })
+    )
+    record_alias_reader = parse(
+        json.dumps({
+            "name": "other",
+            "type": "record",
+            "fields": [{
+                "type": "int",
+                "name": "f1"
+            }],
+            "aliases": ["foo"]
+        })
+    )
+
     writer = parse(
         json.dumps({
             "name": "foo",
@@ -20,10 +43,16 @@ def test_simple_schema_promotion():
                 "name": "f1"
             }, {
                 "type": "string",
-                "name": "f2"
+                "name": "f2",
             }]
         })
     )
+    # alias testing
+    res = ReaderWriterCompatibilityChecker().get_compatibility(field_alias_reader, writer)
+    assert res.compatibility is SchemaCompatibilityType.compatible, res.locations
+    res = ReaderWriterCompatibilityChecker().get_compatibility(record_alias_reader, writer)
+    assert res.compatibility is SchemaCompatibilityType.compatible, res.locations
+
     res = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
     assert res.compatibility is SchemaCompatibilityType.compatible, res
     res = ReaderWriterCompatibilityChecker().get_compatibility(writer, reader)
