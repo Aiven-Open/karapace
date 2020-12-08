@@ -2,29 +2,37 @@
     These are duplicates of other test_schema.py tests, but do not make use of the registry client fixture
     and are here for debugging and speed, and as an initial sanity check
 """
-from avro.schema import ArraySchema, Field, MapSchema, parse, RecordSchema, Schema, UnionSchema
-from karapace.avro_compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
+from avro.schema import ArraySchema, Field, MapSchema, RecordSchema, Schema, UnionSchema
+from karapace.avro_compatibility import (
+    parse_json_ignore_trailing, ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
+)
 
 import json
 import pytest
 
 # Schemas defined in AvroCompatibilityTest.java. Used here to ensure compatibility with the schema-registry
-schema1 = parse('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"}]}')
-schema2 = parse(
+schema1 = parse_json_ignore_trailing('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"}]}')
+schema2 = parse_json_ignore_trailing(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
     '"name":"f2","default":"foo"}]}'
 )
-schema3 = parse('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string","name":"f2"}]}')
-schema4 = parse('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1_new","aliases":["f1"]}]}')
-schema6 = parse('{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","doc":"doc of f1"}]}')
-schema7 = parse(
+schema3 = parse_json_ignore_trailing(
+    '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string","name":"f2"}]}'
+)
+schema4 = parse_json_ignore_trailing(
+    '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1_new","aliases":["f1"]}]}'
+)
+schema6 = parse_json_ignore_trailing(
+    '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","doc":"doc of f1"}]}'
+)
+schema7 = parse_json_ignore_trailing(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string","int"],"name":"f1","doc":"doc of f1"}]}'
 )
-# schema8 = (
-#     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
-#     '"name":"f2","default":"foo"}]},{"type":"string","name":"f3","default":"bar"}]}'
-# )
-badDefaultNullString = parse(
+schema8 = parse_json_ignore_trailing(
+    '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
+    '"name":"f2","default":"foo"}]},{"type":"string","name":"f3","default":"bar"}]}'
+)
+badDefaultNullString = parse_json_ignore_trailing(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
     '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
 )
@@ -69,11 +77,11 @@ def test_schemaregistry_basic_backwards_transitive_compatibility():
     Backward transitive compatibility: A new schema is backward compatible if it can be used to read the data
     written in all previous schemas.
     """
-    # msg = "iteratively adding fields with defaults is a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
+    msg = "iteratively adding fields with defaults is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "adding a field with default is a backward compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
@@ -124,11 +132,11 @@ def test_schemaregistry_basic_forwards_transitive_compatibility():
     Forward transitive compatibility: A new schema is forward compatible if all previous schemas can read data written
     in this schema.
     """
-    # msg = "iteratively removing fields with defaults is a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
+    msg = "iteratively removing fields with defaults is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "adding default to a field is a compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema3, schema2)
@@ -181,21 +189,21 @@ def test_basic_full_transitive_compatibility():
     Full transitive compatibility: A new schema is fully compatible if it’s both transitively backward
     and transitively forward compatible with the entire schema history.
     """
-    # msg = "iteratively adding fields with defaults is a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema8)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
+    msg = "iteratively adding fields with defaults is a compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema2)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema8)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
     msg = "iteratively removing fields with defaults is a compatible change"
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
-    # res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
-    # assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema8)
+    assert res == SchemaCompatibilityResult.compatible(), msg
+    res = ReaderWriterCompatibilityChecker().get_compatibility(schema8, schema1)
+    assert res == SchemaCompatibilityResult.compatible(), msg
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema1, schema2)
     assert res == SchemaCompatibilityResult.compatible(), msg
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
@@ -247,8 +255,17 @@ def test_basic_full_transitive_compatibility():
 
 
 def test_simple_schema_promotion():
-    reader = parse(json.dumps({"name": "foo", "type": "record", "fields": [{"type": "int", "name": "f1"}]}))
-    field_alias_reader = parse(
+    reader = parse_json_ignore_trailing(
+        json.dumps({
+            "name": "foo",
+            "type": "record",
+            "fields": [{
+                "type": "int",
+                "name": "f1"
+            }]
+        })
+    )
+    field_alias_reader = parse_json_ignore_trailing(
         json.dumps({
             "name": "foo",
             "type": "record",
@@ -259,7 +276,7 @@ def test_simple_schema_promotion():
             }]
         })
     )
-    record_alias_reader = parse(
+    record_alias_reader = parse_json_ignore_trailing(
         json.dumps({
             "name": "other",
             "type": "record",
@@ -271,7 +288,7 @@ def test_simple_schema_promotion():
         })
     )
 
-    writer = parse(
+    writer = parse_json_ignore_trailing(
         json.dumps({
             "name": "foo",
             "type": "record",
@@ -295,7 +312,7 @@ def test_simple_schema_promotion():
     res = ReaderWriterCompatibilityChecker().get_compatibility(writer, reader)
     assert res != SchemaCompatibilityResult.compatible(), res
 
-    writer = parse(
+    writer = parse_json_ignore_trailing(
         json.dumps({
             "type": "record",
             "name": "CA",
@@ -326,7 +343,7 @@ def test_simple_schema_promotion():
             }]
         })
     )
-    reader = parse(
+    reader = parse_json_ignore_trailing(
         json.dumps({
             "type": "record",
             "name": "CA",
@@ -428,8 +445,8 @@ def test_union_to_simple_comparison(field):
             "name": "fn",
         }]
     }
-    reader = parse(json.dumps(reader))
-    writer = parse(json.dumps(writer))
+    reader = parse_json_ignore_trailing(json.dumps(reader))
+    writer = parse_json_ignore_trailing(json.dumps(writer))
     assert are_compatible(reader, writer)
 
 
@@ -438,25 +455,25 @@ def test_union_to_simple_comparison(field):
 #            There's one test per Java file, so expect the first one to be a mammoth
 #  ================================================================================================
 
-BOOLEAN_SCHEMA = parse(json.dumps("boolean"))
-NULL_SCHEMA = parse(json.dumps("null"))
-INT_SCHEMA = parse(json.dumps("int"))
-LONG_SCHEMA = parse(json.dumps("long"))
-STRING_SCHEMA = parse(json.dumps("string"))
-BYTES_SCHEMA = parse(json.dumps("bytes"))
-FLOAT_SCHEMA = parse(json.dumps("float"))
-DOUBLE_SCHEMA = parse(json.dumps("double"))
+BOOLEAN_SCHEMA = parse_json_ignore_trailing(json.dumps("boolean"))
+NULL_SCHEMA = parse_json_ignore_trailing(json.dumps("null"))
+INT_SCHEMA = parse_json_ignore_trailing(json.dumps("int"))
+LONG_SCHEMA = parse_json_ignore_trailing(json.dumps("long"))
+STRING_SCHEMA = parse_json_ignore_trailing(json.dumps("string"))
+BYTES_SCHEMA = parse_json_ignore_trailing(json.dumps("bytes"))
+FLOAT_SCHEMA = parse_json_ignore_trailing(json.dumps("float"))
+DOUBLE_SCHEMA = parse_json_ignore_trailing(json.dumps("double"))
 INT_ARRAY_SCHEMA = ArraySchema(INT_SCHEMA)
 LONG_ARRAY_SCHEMA = ArraySchema(LONG_SCHEMA)
 STRING_ARRAY_SCHEMA = ArraySchema(STRING_SCHEMA)
 INT_MAP_SCHEMA = MapSchema(INT_SCHEMA)
 LONG_MAP_SCHEMA = MapSchema(LONG_SCHEMA)
 STRING_MAP_SCHEMA = MapSchema(STRING_SCHEMA)
-ENUM1_AB_SCHEMA = parse(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B"]}))
-ENUM1_ABC_SCHEMA = parse(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B", "C"]}))
-ENUM1_BC_SCHEMA = parse(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["B", "C"]}))
-ENUM2_AB_SCHEMA = parse(json.dumps({"type": "enum", "name": "Enum2", "symbols": ["A", "B"]}))
-ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse(
+ENUM1_AB_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B"]}))
+ENUM1_ABC_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B", "C"]}))
+ENUM1_BC_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["B", "C"]}))
+ENUM2_AB_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum2", "symbols": ["A", "B"]}))
+ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse_json_ignore_trailing(
     json.dumps({
         "type": "enum",
         "name": "Enum",
@@ -464,8 +481,15 @@ ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse(
         "default": "A"
     })
 )
-ENUM_AB_ENUM_DEFAULT_A_SCHEMA = parse(json.dumps({"type": "enum", "name": "Enum", "symbols": ["A", "B"], "default": "A"}))
-ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse(
+ENUM_AB_ENUM_DEFAULT_A_SCHEMA = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "enum",
+        "name": "Enum",
+        "symbols": ["A", "B"],
+        "default": "A"
+    })
+)
+ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -480,7 +504,7 @@ ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse(
         }]
     })
 )
-ENUM_AB_ENUM_DEFAULT_A_RECORD = parse(
+ENUM_AB_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -495,7 +519,7 @@ ENUM_AB_ENUM_DEFAULT_A_RECORD = parse(
         }]
     })
 )
-ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse(
+ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -511,7 +535,7 @@ ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse(
         }]
     })
 )
-ENUM_AB_FIELD_DEFAULT_A_ENUM_DEFAULT_B_RECORD = parse(
+ENUM_AB_FIELD_DEFAULT_A_ENUM_DEFAULT_B_RECORD = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -542,11 +566,29 @@ INT_LONG_UNION_SCHEMA = UnionSchema([INT_SCHEMA, LONG_SCHEMA])
 INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA = UnionSchema([INT_SCHEMA, LONG_SCHEMA, FLOAT_SCHEMA, DOUBLE_SCHEMA])
 NULL_INT_ARRAY_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_ARRAY_SCHEMA])
 NULL_INT_MAP_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_MAP_SCHEMA])
-EMPTY_RECORD1 = parse(json.dumps({"type": "record", "name": "Record1", "fields": []}))
-EMPTY_RECORD2 = parse(json.dumps({"type": "record", "name": "Record2", "fields": []}))
-A_INT_RECORD1 = parse(json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "a", "type": "int"}]}))
-A_LONG_RECORD1 = parse(json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "a", "type": "long"}]}))
-A_INT_B_INT_RECORD1 = parse(
+EMPTY_RECORD1 = parse_json_ignore_trailing(json.dumps({"type": "record", "name": "Record1", "fields": []}))
+EMPTY_RECORD2 = parse_json_ignore_trailing(json.dumps({"type": "record", "name": "Record2", "fields": []}))
+A_INT_RECORD1 = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "record",
+        "name": "Record1",
+        "fields": [{
+            "name": "a",
+            "type": "int"
+        }]
+    })
+)
+A_LONG_RECORD1 = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "record",
+        "name": "Record1",
+        "fields": [{
+            "name": "a",
+            "type": "long"
+        }]
+    })
+)
+A_INT_B_INT_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -559,7 +601,7 @@ A_INT_B_INT_RECORD1 = parse(
         }]
     })
 )
-A_DINT_RECORD1 = parse(
+A_DINT_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -570,7 +612,7 @@ A_DINT_RECORD1 = parse(
         }]
     })
 )
-A_INT_B_DINT_RECORD1 = parse(
+A_INT_B_DINT_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -584,7 +626,7 @@ A_INT_B_DINT_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DINT_RECORD1 = parse(
+A_DINT_B_DINT_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -599,7 +641,7 @@ A_DINT_B_DINT_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse(
+A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -617,7 +659,7 @@ A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse(
+A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -635,7 +677,7 @@ A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DINT_STRING_UNION_RECORD1 = parse(
+A_DINT_B_DINT_STRING_UNION_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -650,7 +692,7 @@ A_DINT_B_DINT_STRING_UNION_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DINT_UNION_RECORD1 = parse(
+A_DINT_B_DINT_UNION_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -665,7 +707,7 @@ A_DINT_B_DINT_UNION_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DENUM_1_RECORD1 = parse(
+A_DINT_B_DENUM_1_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -683,7 +725,7 @@ A_DINT_B_DENUM_1_RECORD1 = parse(
         }]
     })
 )
-A_DINT_B_DENUM_2_RECORD1 = parse(
+A_DINT_B_DENUM_2_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -701,9 +743,9 @@ A_DINT_B_DENUM_2_RECORD1 = parse(
         }]
     })
 )
-FIXED_4_BYTES = parse(json.dumps({"type": "fixed", "name": "Fixed", "size": 4}))
-FIXED_8_BYTES = parse(json.dumps({"type": "fixed", "name": "Fixed", "size": 8}))
-NS_RECORD1 = parse(
+FIXED_4_BYTES = parse_json_ignore_trailing(json.dumps({"type": "fixed", "name": "Fixed", "size": 4}))
+FIXED_8_BYTES = parse_json_ignore_trailing(json.dumps({"type": "fixed", "name": "Fixed", "size": 8}))
+NS_RECORD1 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -726,7 +768,7 @@ NS_RECORD1 = parse(
         }]
     })
 )
-NS_RECORD2 = parse(
+NS_RECORD2 = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -749,8 +791,26 @@ NS_RECORD2 = parse(
         }]
     })
 )
-INT_LIST_RECORD = parse(json.dumps({"type": "record", "name": "List", "fields": [{"name": "head", "type": "int"}]}))
-LONG_LIST_RECORD = parse(json.dumps({"type": "record", "name": "List", "fields": [{"name": "head", "type": "long"}]}))
+INT_LIST_RECORD = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "record",
+        "name": "List",
+        "fields": [{
+            "name": "head",
+            "type": "int"
+        }]
+    })
+)
+LONG_LIST_RECORD = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "record",
+        "name": "List",
+        "fields": [{
+            "name": "head",
+            "type": "long"
+        }]
+    })
+)
 int_reader_field = Field(name="tail", type=INT_LIST_RECORD, index=1, has_default=False)
 long_reader_field = Field(name="tail", type=LONG_LIST_RECORD, index=1, has_default=False)
 
@@ -763,8 +823,26 @@ LONG_LIST_RECORD._field_map = RecordSchema._MakeFieldMap(LONG_LIST_RECORD._field
 INT_LIST_RECORD._props["fields"] = INT_LIST_RECORD._fields
 LONG_LIST_RECORD._props["fields"] = LONG_LIST_RECORD._fields
 # pylint: enable=protected-access
-RECORD1_WITH_INT = parse(json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "field1", "type": "int"}]}))
-RECORD2_WITH_INT = parse(json.dumps({"type": "record", "name": "Record2", "fields": [{"name": "field1", "type": "int"}]}))
+RECORD1_WITH_INT = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "record",
+        "name": "Record1",
+        "fields": [{
+            "name": "field1",
+            "type": "int"
+        }]
+    })
+)
+RECORD2_WITH_INT = parse_json_ignore_trailing(
+    json.dumps({
+        "type": "record",
+        "name": "Record2",
+        "fields": [{
+            "name": "field1",
+            "type": "int"
+        }]
+    })
+)
 UNION_INT_RECORD1 = UnionSchema([INT_SCHEMA, RECORD1_WITH_INT])
 UNION_INT_RECORD2 = UnionSchema([INT_SCHEMA, RECORD2_WITH_INT])
 UNION_INT_ENUM1_AB = UnionSchema([INT_SCHEMA, ENUM1_AB_SCHEMA])
@@ -773,8 +851,8 @@ UNION_INT_BOOLEAN = UnionSchema([INT_SCHEMA, BOOLEAN_SCHEMA])
 UNION_INT_ARRAY_INT = UnionSchema([INT_SCHEMA, INT_ARRAY_SCHEMA])
 UNION_INT_MAP_INT = UnionSchema([INT_SCHEMA, INT_MAP_SCHEMA])
 UNION_INT_NULL = UnionSchema([INT_SCHEMA, NULL_SCHEMA])
-FIXED_4_ANOTHER_NAME = parse(json.dumps({"type": "fixed", "name": "AnotherName", "size": 4}))
-RECORD1_WITH_ENUM_AB = parse(
+FIXED_4_ANOTHER_NAME = parse_json_ignore_trailing(json.dumps({"type": "fixed", "name": "AnotherName", "size": 4}))
+RECORD1_WITH_ENUM_AB = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -784,7 +862,7 @@ RECORD1_WITH_ENUM_AB = parse(
         }]
     })
 )
-RECORD1_WITH_ENUM_ABC = parse(
+RECORD1_WITH_ENUM_ABC = parse_json_ignore_trailing(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -798,7 +876,7 @@ RECORD1_WITH_ENUM_ABC = parse(
 
 def test_schema_compatibility():
     # testValidateSchemaPairMissingField
-    writer = parse(
+    writer = parse_json_ignore_trailing(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -811,13 +889,31 @@ def test_schema_compatibility():
             }]
         })
     )
-    reader = parse(json.dumps({"type": "record", "name": "Record", "fields": [{"name": "oldField1", "type": "int"}]}))
+    reader = parse_json_ignore_trailing(
+        json.dumps({
+            "type": "record",
+            "name": "Record",
+            "fields": [{
+                "name": "oldField1",
+                "type": "int"
+            }]
+        })
+    )
     assert are_compatible(reader, writer)
     # testValidateSchemaPairMissingSecondField
-    reader = parse(json.dumps({"type": "record", "name": "Record", "fields": [{"name": "oldField2", "type": "string"}]}))
+    reader = parse_json_ignore_trailing(
+        json.dumps({
+            "type": "record",
+            "name": "Record",
+            "fields": [{
+                "name": "oldField2",
+                "type": "string"
+            }]
+        })
+    )
     assert are_compatible(reader, writer)
     # testValidateSchemaPairAllFields
-    reader = parse(
+    reader = parse_json_ignore_trailing(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -832,7 +928,7 @@ def test_schema_compatibility():
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaNewFieldWithDefault
-    reader = parse(
+    reader = parse_json_ignore_trailing(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -848,7 +944,7 @@ def test_schema_compatibility():
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaNewField
-    reader = parse(
+    reader = parse_json_ignore_trailing(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -863,20 +959,20 @@ def test_schema_compatibility():
     )
     assert not are_compatible(reader, writer)
     # testValidateArrayWriterSchema
-    writer = parse(json.dumps({"type": "array", "items": {"type": "string"}}))
-    reader = parse(json.dumps({"type": "array", "items": {"type": "string"}}))
+    writer = parse_json_ignore_trailing(json.dumps({"type": "array", "items": {"type": "string"}}))
+    reader = parse_json_ignore_trailing(json.dumps({"type": "array", "items": {"type": "string"}}))
     assert are_compatible(reader, writer)
-    reader = parse(json.dumps({"type": "map", "values": {"type": "string"}}))
+    reader = parse_json_ignore_trailing(json.dumps({"type": "map", "values": {"type": "string"}}))
     assert not are_compatible(reader, writer)
     # testValidatePrimitiveWriterSchema
-    writer = parse(json.dumps({"type": "string"}))
-    reader = parse(json.dumps({"type": "string"}))
+    writer = parse_json_ignore_trailing(json.dumps({"type": "string"}))
+    reader = parse_json_ignore_trailing(json.dumps({"type": "string"}))
     assert are_compatible(reader, writer)
-    reader = parse(json.dumps({"type": "int"}))
+    reader = parse_json_ignore_trailing(json.dumps({"type": "int"}))
     assert not are_compatible(reader, writer)
     # testUnionReaderWriterSubsetIncompatibility
     # cannot have a union as a top level data type, so im cheating a bit here
-    writer = parse(
+    writer = parse_json_ignore_trailing(
         json.dumps({
             "name": "Record",
             "type": "record",
@@ -886,7 +982,16 @@ def test_schema_compatibility():
             }]
         })
     )
-    reader = parse(json.dumps({"name": "Record", "type": "record", "fields": [{"name": "f1", "type": ["int", "string"]}]}))
+    reader = parse_json_ignore_trailing(
+        json.dumps({
+            "name": "Record",
+            "type": "record",
+            "fields": [{
+                "name": "f1",
+                "type": ["int", "string"]
+            }]
+        })
+    )
     reader = reader.fields[0].type
     writer = writer.fields[0].type
     assert isinstance(reader, UnionSchema)
@@ -960,7 +1065,7 @@ def test_schema_compatibility():
         (A_DINT_B_DINT_RECORD1, EMPTY_RECORD1),
         (A_DINT_B_DINT_RECORD1, A_INT_RECORD1),
         (A_INT_B_INT_RECORD1, A_DINT_B_DINT_RECORD1),
-        (parse(json.dumps({"type": "null"})), parse(json.dumps({"type": "null"}))),
+        (parse_json_ignore_trailing(json.dumps({"type": "null"})), parse_json_ignore_trailing(json.dumps({"type": "null"}))),
         (INT_LIST_RECORD, INT_LIST_RECORD),
         (LONG_LIST_RECORD, LONG_LIST_RECORD),
         (LONG_LIST_RECORD, INT_LIST_RECORD),
