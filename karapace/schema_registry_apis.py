@@ -1,5 +1,7 @@
+from contextlib import closing
 from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
+from karapace.config import read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
@@ -8,7 +10,6 @@ from karapace.utils import json_encode
 
 import argparse
 import asyncio
-import os
 import sys
 import time
 
@@ -35,12 +36,12 @@ class InvalidSchemaType(Exception):
 
 class KarapaceSchemaRegistry(KarapaceBase):
     # pylint: disable=attribute-defined-outside-init
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config_file_path: str, config: dict) -> None:
+        super().__init__(config_file_path=config_file_path, config=config)
         self._add_routes()
-        self._init()
+        self._init(config=config)
 
-    def _init(self):
+    def _init(self, config: dict) -> None:  # pylint: disable=unused-argument
         self.ksr = None
         self.producer = None
         self.producer = self._create_producer()
@@ -268,6 +269,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def config_subject_get(self, content_type, subject: str, *, request: HTTPRequest):
         # Config for a subject can exist without schemas so no need to check for their existence
+        assert self.ksr, "KarapaceSchemaRegistry not initialized. Missing call to _init"
         subject_data = self.ksr.subjects.get(subject, {})
 
         if subject_data:
@@ -586,23 +588,24 @@ class KarapaceSchemaRegistry(KarapaceBase):
                status=500)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
     parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
-    parser.add_argument("config_file", help="configuration file path")
+    parser.add_argument("config_file", help="configuration file path", type=argparse.FileType())
     arg = parser.parse_args()
 
-    if not os.path.exists(arg.config_file):
-        print("Config file: {} does not exist, exiting".format(arg.config_file))
-        return 1
+    with closing(arg.config_file):
+        config = read_config(arg.config_file)
 
-    kc = KarapaceSchemaRegistry(arg.config_file)
+    kc = KarapaceSchemaRegistry(config_file_path=arg.config_file.name, config=config)
     try:
-        return kc.run(host=kc.config["host"], port=kc.config["port"])
+        kc.run(host=kc.config["host"], port=kc.config["port"])
     except Exception:  # pylint: disable-broad-except
         if kc.raven_client:
             kc.raven_client.captureException(tags={"where": "karapace"})
         raise
+
+    return 0
 
 
 if __name__ == "__main__":

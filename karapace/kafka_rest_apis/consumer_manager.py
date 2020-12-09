@@ -25,11 +25,11 @@ TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format",
 
 
 class ConsumerManager:
-    def __init__(self, config_path: str):
-        self.config = KarapaceBase.read_config(config_path)
+    def __init__(self, config: dict) -> None:
+        self.config = config
         self.hostname = f"http://{self.config['advertised_hostname']}:{self.config['port']}"
         self.log = logging.getLogger("RestConsumerManager")
-        self.deserializer = SchemaRegistryDeserializer(config_path=config_path)
+        self.deserializer = SchemaRegistryDeserializer(config=config)
         self.consumers = {}
         self.consumer_locks = defaultdict(Lock)
 
