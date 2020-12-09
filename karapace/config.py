@@ -5,7 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 
-from typing import Dict, Union
+from typing import Dict, IO, Union
 
 import json
 import os
@@ -86,14 +86,13 @@ def write_config(config_path: str, custom_values: Dict[str, Union[str, int, bool
         fp.write(json.dumps(custom_values))
 
 
-def read_config(config_path: str) -> Dict[str, Union[str, int, bool]]:
-    with open(config_path, "r") as cf:
-        try:
-            config = json.loads(cf.read())
-            config = set_config_defaults(config)
-            return config
-        except Exception as ex:
-            raise InvalidConfiguration(ex)
+def read_config(config_handler: IO) -> Dict[str, Union[str, int, bool]]:
+    try:
+        config = json.load(config_handler)
+        config = set_config_defaults(config)
+        return config
+    except Exception as ex:
+        raise InvalidConfiguration(ex)
 
 
 def create_ssl_context(config: Dict[str, Union[str, int, bool]]) -> ssl.SSLContext:
