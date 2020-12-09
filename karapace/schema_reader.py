@@ -4,7 +4,7 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from avro.schema import parse, Schema as AvroSchema, SchemaParseException
+from avro.schema import Schema as AvroSchema, SchemaParseException
 from enum import Enum, unique
 from json import JSONDecodeError, loads
 from jsonschema.exceptions import SchemaError
@@ -13,6 +13,7 @@ from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
+from karapace.avro_compatibility import parse_json_ignore_trailing
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
@@ -56,7 +57,7 @@ class TypedSchema:
     @staticmethod
     def parse_avro(schema_str: str):  # pylint: disable=inconsistent-return-statements
         try:
-            ts = TypedSchema(parse(schema_str), SchemaType.AVRO, schema_str)
+            ts = TypedSchema(parse_json_ignore_trailing(schema_str), SchemaType.AVRO, schema_str)
             return ts
         except SchemaParseException as e:
             raise InvalidSchema from e
