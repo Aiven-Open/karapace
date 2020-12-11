@@ -134,23 +134,31 @@ class SchemaBackup:
         if not self.consumer:
             self.init_consumer()
         self.log.info("Starting schema backup read for topic: %r", self.topic_name)
+
         values = []
-        raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
-        for _, messages in raw_msg.items():
-            for message in messages:
-                key = message.key.decode("utf8")
-                try:
-                    key = json.loads(key)
-                except json.JSONDecodeError:
-                    self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
-                value = None
-                if message.value:
-                    value = message.value.decode("utf8")
+        topic_fully_consumed = False
+
+        while not topic_fully_consumed:
+
+            raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
+            topic_fully_consumed = len(raw_msg) == 0
+
+            for _, messages in raw_msg.items():
+                for message in messages:
+                    key = message.key.decode("utf8")
                     try:
-                        value = json.loads(value)
+                        key = json.loads(key)
                     except json.JSONDecodeError:
-                        self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
-                values.append((key, value))
+                        self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
+                    value = None
+                    if message.value:
+                        value = message.value.decode("utf8")
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
+                    values.append((key, value))
+
         ser = json.dumps(values)
         if self.backup_location:
             with open(self.backup_location, "w") as fp:
