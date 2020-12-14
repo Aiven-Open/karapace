@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
 from unittest.mock import MagicMock
@@ -97,6 +98,14 @@ REST_HEADERS = {
 }
 REST_URI = "REST_URI"
 REGISTRY_URI = "REGISTRY_URI"
+
+
+@dataclass
+class KafkaConfig:
+    datadir: str
+    kafka_keystore_password: str
+    kafka_port: int
+    zookeeper_port: int
 
 
 def get_broker_ip():
