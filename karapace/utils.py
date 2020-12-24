@@ -195,7 +195,7 @@ def convert_to_int(object_: dict, key: str, content_type: str):
 
 class KarapaceKafkaClient(KafkaClient):
     def __init__(self, **configs):
-        kafka.client_async.BrokerConnection = KarpaceBrokerConnection
+        kafka.client_async.BrokerConnection = KarapaceBrokerConnection
         super().__init__(**configs)
 
     def close_invalid_connections(self):
@@ -275,7 +275,7 @@ class KarapaceKafkaClient(KafkaClient):
         return float('inf')
 
 
-class KarpaceBrokerConnection(BrokerConnection):
+class KarapaceBrokerConnection(BrokerConnection):
     def __init__(self, host, port, afi, **configs):
         super().__init__(host, port, afi, **configs)
         self.error = None
