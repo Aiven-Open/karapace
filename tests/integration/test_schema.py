@@ -12,7 +12,6 @@ import os
 import pytest
 import requests
 
-pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
 
 

@@ -10,7 +10,6 @@ import json as jsonlib
 import os
 import time
 
-pytest_plugins = "aiohttp.pytest_plugin"
 baseurl = "http://localhost:8081"
 
 
