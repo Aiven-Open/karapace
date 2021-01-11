@@ -55,7 +55,7 @@ class KarapaceBase(RestApp):
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],  # helps through cluster upgrades ??
-                    client_factory=KarapaceKafkaClient,
+                    kafka_client=KarapaceKafkaClient,
                 )
             except:  # pylint: disable=bare-except
                 self.log.exception("Unable to create producer, retrying")
