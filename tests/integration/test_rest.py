@@ -5,8 +5,6 @@ from tests.utils import new_topic, REST_HEADERS, schema_avro_json, second_obj, s
 import os
 import pytest
 
-pytest_plugins = "aiohttp.pytest_plugin"
-
 
 def check_successful_publish_response(success_response, objects, partition_id=None):
     assert success_response.ok

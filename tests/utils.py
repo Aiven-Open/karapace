@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
+from typing import Callable
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
@@ -8,6 +9,8 @@ import copy
 import json
 import os
 import random
+
+TempDirCreator = Callable[[], os.PathLike]
 
 consumer_valid_payload = {
     "format": "avro",
