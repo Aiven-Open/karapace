@@ -67,8 +67,8 @@ NAME_STRATEGIES = {
 
 
 class SchemaRegistryClient:
-    def __init__(self, schema_registry_url: str = "http://localhost:8081", loop: asyncio.AbstractEventLoop = None):
-        self.client = Client(server_uri=schema_registry_url, client=aiohttp.ClientSession(loop=loop))
+    def __init__(self, schema_registry_url: str = "http://localhost:8081"):
+        self.client = Client(server_uri=schema_registry_url, client=aiohttp.ClientSession())
         self.base_url = schema_registry_url
 
     async def post_new_schema(self, subject: str, schema: TypedSchema) -> int:
