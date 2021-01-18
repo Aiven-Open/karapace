@@ -54,7 +54,7 @@ class SchemaBackup:
             ssl_keyfile=self.config["ssl_keyfile"],
             auto_offset_reset="earliest",
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
-            client_factory=KarapaceKafkaClient,
+            kafka_client=KarapaceKafkaClient,
         )
 
     def init_producer(self):
@@ -64,7 +64,7 @@ class SchemaBackup:
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
-            client_factory=KarapaceKafkaClient,
+            kafka_client=KarapaceKafkaClient,
         )
 
     def init_admin_client(self):
@@ -83,7 +83,7 @@ class SchemaBackup:
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
-                    client_factory=KarapaceKafkaClient,
+                    kafka_client=KarapaceKafkaClient,
                 )
                 break
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):

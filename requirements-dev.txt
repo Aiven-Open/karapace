@@ -1,5 +1,5 @@
 git+https://github.com/aiven/avro.git@skip-namespace-validation#subdirectory=lang/py3/
-git+git://github.com/aiven/kafka-python.git@39a372538c6bdfbfcb7852c36bed5de61e34bad8
+git+git://github.com/aiven/kafka-python.git@346c01e4eec6bdcccc99ca613b79020f3be35eb7
 yapf==0.30.0
 aiohttp-socks==0.5.5
 pylint==2.4.4
