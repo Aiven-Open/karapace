@@ -7,7 +7,7 @@ See LICENSE for details
 from dataclasses import dataclass
 from kafka import KafkaAdminClient, KafkaProducer
 from karapace.avro_compatibility import SchemaCompatibilityResult
-from karapace.config import write_config
+from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
@@ -240,14 +240,9 @@ async def fixture_rest_async(
     else:
         config_path = os.path.join(session_tmpdir(), "karapace_config.json")
         kafka_port = kafka_server.kafka_port
-        write_config(
-            config_path, {
-                "log_level": "WARNING",
-                "bootstrap_uri": f"127.0.0.1:{kafka_port}",
-                "admin_metadata_max_age": 0
-            }
-        )
-        rest = KafkaRest(config_path)
+        config = {"log_level": "WARNING", "bootstrap_uri": f"127.0.0.1:{kafka_port}", "admin_metadata_max_age": 0}
+        write_config(config_path, config)
+        rest = KafkaRest(config_file_path=config_path, config=set_config_defaults(config))
         assert rest.serializer.registry_client
         assert rest.consumer_manager.deserializer.registry_client
         rest.serializer.registry_client.client = registry_async_client
@@ -319,15 +314,14 @@ async def fixture_registry_async(session_tmpdir: TempDirCreator,
     else:
         config_path = os.path.join(session_tmpdir(), "karapace_config.json")
         kafka_port = kafka_server.kafka_port
-        write_config(
-            config_path, {
-                "log_level": "WARNING",
-                "bootstrap_uri": f"127.0.0.1:{kafka_port}",
-                "topic_name": new_random_name(),
-                "group_id": new_random_name("schema_registry")
-            }
-        )
-        registry = KarapaceSchemaRegistry(config_path)
+        config = {
+            "log_level": "WARNING",
+            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "topic_name": new_random_name(),
+            "group_id": new_random_name("schema_registry")
+        }
+        write_config(config_path, config)
+        registry = KarapaceSchemaRegistry(config_file_path=config_path, config=set_config_defaults(config))
         await registry.get_master()
         try:
             yield registry

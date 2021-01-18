@@ -8,9 +8,10 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
-from karapace.karapace import KarapaceBase
+from karapace.config import read_config
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode, KarapaceKafkaClient
+from typing import Optional
 
 import argparse
 import json
@@ -29,8 +30,10 @@ class Timeout(Exception):
 
 
 class SchemaBackup:
-    def __init__(self, config_path, backup_path, topic_option=None):
-        self.config = KarapaceBase.read_config(config_path)
+    def __init__(self, config_path: str, backup_path: str, topic_option: Optional[str] = None) -> None:
+        with open(config_path) as handler:
+            self.config = read_config(handler)
+
         self.backup_location = backup_path
         self.topic_name = topic_option or self.config["topic_name"]
         self.log = logging.getLogger("SchemaBackup")
@@ -218,16 +221,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def main() -> int:
     args = parse_args()
     sb = SchemaBackup(args.config, args.location, args.topic)
 
     if args.command == "get":
-        return sb.request_backup()
+        sb.request_backup()
+        return 0
     if args.command == "restore":
-        return sb.restore_backup()
+        sb.restore_backup()
+        return 0
     return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    sys.exit(main())
