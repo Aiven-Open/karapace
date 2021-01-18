@@ -128,7 +128,7 @@ class KafkaSchemaReader(Thread):
             auto_offset_reset="earliest",
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=request_timeout_ms,
-            client_factory=KarapaceKafkaClient,
+            kafka_client=KarapaceKafkaClient,
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
         )
 

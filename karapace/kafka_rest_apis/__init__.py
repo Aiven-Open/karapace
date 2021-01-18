@@ -299,7 +299,7 @@ class KafkaRest(KarapaceBase):
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
-                    client_factory=KarapaceKafkaClient,
+                    kafka_client=KarapaceKafkaClient,
                 )
                 break
             except:  # pylint: disable=bare-except
