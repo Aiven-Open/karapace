@@ -7,7 +7,6 @@ See LICENSE for details
 
 from functools import partial
 from kafka import KafkaProducer
-from karapace.config import read_config
 from karapace.rapu import HTTPResponse, RestApp
 from karapace.utils import KarapaceKafkaClient
 
@@ -21,12 +20,12 @@ logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
 
 
 class KarapaceBase(RestApp):
-    def __init__(self, config_path):
+    def __init__(self, config_file_path: str, config: dict) -> None:
         self.config = {}
         self.producer = None
         self.kafka_timeout = 10
-        self.config_path = config_path
-        self.config = self.read_config(self.config_path)
+        self.config_path = config_file_path
+        self.config = config
         self._sentry_config = self.config.get("sentry", {"dsn": None}).copy()
         if os.environ.get("SENTRY_DSN"):
             self._sentry_config["dsn"] = os.environ["SENTRY_DSN"]
@@ -66,10 +65,6 @@ class KarapaceBase(RestApp):
             return
         self.producer.close()
         self.producer = None
-
-    @staticmethod
-    def read_config(config_path):
-        return read_config(config_path)
 
     def _set_log_level(self):
         try:

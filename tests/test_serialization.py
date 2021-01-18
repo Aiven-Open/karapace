@@ -1,3 +1,4 @@
+from karapace.config import read_config
 from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.serialization import (
     HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryClient,
@@ -16,8 +17,10 @@ pytest_plugins = "aiohttp.pytest_plugin"
 
 
 async def make_ser_deser(config_path, mock_client):
-    serializer = SchemaRegistrySerializer(config_path=config_path)
-    deserializer = SchemaRegistryDeserializer(config_path=config_path)
+    with open(config_path) as handler:
+        config = read_config(handler)
+    serializer = SchemaRegistrySerializer(config_path=config_path, config=config)
+    deserializer = SchemaRegistryDeserializer(config_path=config_path, config=config)
     await serializer.registry_client.close()
     await deserializer.registry_client.close()
     serializer.registry_client = mock_client

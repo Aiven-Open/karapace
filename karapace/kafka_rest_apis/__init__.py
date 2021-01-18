@@ -35,13 +35,13 @@ class FormatError(Exception):
 
 class KafkaRest(KarapaceBase):
     # pylint: disable=attribute-defined-outside-init
-    def __init__(self, config_path: str) -> None:
-        super().__init__(config_path)
+    def __init__(self, config_file_path: str, config: dict) -> None:
+        super().__init__(config_file_path=config_file_path, config=config)
         self._add_routes()
-        self._init(config_path)
+        self._init(config=config)
 
-    def _init(self, config_path: str) -> None:
-        self.serializer = SchemaRegistrySerializer(config_path=config_path)
+    def _init(self, config: dict) -> None:
+        self.serializer = SchemaRegistrySerializer(config=config)
         self.log = logging.getLogger("KarapaceRest")
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
@@ -51,7 +51,7 @@ class KafkaRest(KarapaceBase):
         self.admin_lock = Lock()
         self.metadata_cache = None
         self.schemas_cache = {}
-        self.consumer_manager = ConsumerManager(config_path)
+        self.consumer_manager = ConsumerManager(config=config)
         self.init_admin_client()
         self.producer_refs = []
         self.producer_queue = asyncio.Queue()

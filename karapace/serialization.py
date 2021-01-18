@@ -1,7 +1,6 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from json import load
 from jsonschema import ValidationError
-from karapace.config import read_config
 from karapace.schema_reader import InvalidSchema, SchemaType, TypedSchema
 from karapace.utils import Client, json_encode
 from typing import Dict, Optional
@@ -111,11 +110,11 @@ class SchemaRegistryClient:
 class SchemaRegistrySerializerDeserializer:
     def __init__(
         self,
-        config_path: str,
+        config: dict,
         name_strategy: str = "topic_name",
         **cfg,  # pylint: disable=unused-argument
     ) -> None:
-        self.config = read_config(config_path)
+        self.config = config
         self.state_lock = asyncio.Lock()
         registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
         registry_client = SchemaRegistryClient(registry_url)
