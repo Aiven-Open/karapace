@@ -45,7 +45,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
                 "Kafka Admin interface cannot determine the controller using MetadataRequest_v{}.".format(metadata_version)
             )
         request = MetadataRequest[1](topics=topics)
-        future = self._send_request_to_node(self._client.least_loaded_node(), request)
+        future = self._send_request_to_least_loaded_node(request)
         try:
             self._wait_for_futures([future])
         except Cancelled:
@@ -94,7 +94,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
         else:
             request = OffsetRequest[2](-1, 1, list(six.iteritems({topic: [(partition_id, timestamp)]})))
 
-        future = self._send_request_to_node(self._client.least_loaded_node(), request)
+        future = self._send_request_to_least_loaded_node(request)
         return future
 
     def get_offsets(self, topic: str, partition_id: int) -> dict:
