@@ -8,7 +8,6 @@ from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
 from typing import List
 
 import logging
-import six
 
 
 class KafkaRestAdminClient(KafkaAdminClient):
@@ -87,12 +86,21 @@ class KafkaRestAdminClient(KafkaAdminClient):
 
     def make_offsets_request(self, topic: str, partition_id: int, timestamp: int) -> Future:
         v = self._matching_api_version(OffsetRequest)
+        replica_id = -1
         if v == 0:
-            request = OffsetRequest[0](-1, list(six.iteritems({topic: [(partition_id, timestamp, 1)]})))
+            max_offsets = 1
+            partitions_v0 = [(partition_id, timestamp, max_offsets)]
+            topics_v0 = [(topic, partitions_v0)]
+            request = OffsetRequest[0](replica_id, topics_v0)
         elif v == 1:
-            request = OffsetRequest[1](-1, list(six.iteritems({topic: [(partition_id, timestamp)]})))
+            partitions_v1 = [(partition_id, timestamp)]
+            topics_v1 = [(topic, partitions_v1)]
+            request = OffsetRequest[1](replica_id, topics_v1)
         else:
-            request = OffsetRequest[2](-1, 1, list(six.iteritems({topic: [(partition_id, timestamp)]})))
+            isolation_level = 1
+            partitions = [(partition_id, timestamp)]
+            topics = [(topic, partitions)]
+            request = OffsetRequest[2](replica_id, isolation_level, topics)
 
         future = self._send_request_to_least_loaded_node(request)
         return future
