@@ -1,13 +1,22 @@
+# linters and formatters
+isort==4.3.10
+pycodestyle==2.6.0
+pylint==2.4.4
+yapf==0.30.0
+
+# testing
+pytest==5.4.1
+
+# workflow
+pre-commit>=2.2.0
+
+# patched dependencies
 git+https://github.com/aiven/avro.git@skip-namespace-validation#subdirectory=lang/py3/
 git+git://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
-yapf==0.30.0
+
+# runtime dependencies
 aiohttp-socks==0.5.5
-pylint==2.4.4
-pytest==5.4.1
-requests==2.23.0
-pre-commit>=2.2.0
 aiokafka==0.6.0
 jsonschema==3.2.0
-pycodestyle==2.6.0
-isort==4.3.10
 lz4==3.0.2
+requests==2.23.0

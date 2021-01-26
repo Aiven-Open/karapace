@@ -21,8 +21,22 @@ setup(
     version=version_for_setup_py,
     zip_safe=False,
     packages=find_packages(exclude=["test"]),
-    install_requires=["aiohttp"],
-    extras_require={},
+    install_requires=[
+        "aiohttp",
+        "aiohttp_socks",
+        "aiokafka",
+        "avro-python3",
+        "jsonschema",
+        "kafka-python",
+        "requests",
+    ],
+    extras_require={
+        # compression algorithms supported by AioKafka and KafkaConsumer
+        "snappy": ["python-snappy"],
+        # compression algorithms supported by KafkaConsumer
+        "lz4": ["lz4"],
+        "zstd": ["python-zstandard"],
+    },
     dependency_links=[],
     package_data={},
     entry_points={
