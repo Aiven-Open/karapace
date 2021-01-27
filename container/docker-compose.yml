@@ -1,42 +1,72 @@
+---
 version: '3'
 services:
-  zk:
-    image: karapace-all
-    hostname: "zk"
-    command: "zk"
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.0.0
     ports:
       - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
   kafka:
+    image: confluentinc/cp-server:6.0.0
     depends_on:
-      - zk
-    hostname: "kafka"
-    image: karapace-all
-    command: "kafka"
+      - zookeeper
     ports:
-      - "9092:9092"
-      - "9093:9093"
-  registry:
+      - "9101:9101"  # JMX
+      - "9092:9092"  # Kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      # Listeners:
+      # PLAINTEXT_HOST -> Expose kafka to the host network
+      # PLAINTEXT -> Used by kafka for inter broker communication / containers
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-registry:8081
+      # Metrics:
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: 'true'
+
+  karapace-registry:
+    image: karapace-registry
     depends_on:
       - kafka
-    image: karapace-all
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-    hostname: "registry"
-    command: ["registry"]
     ports:
       - "8081:8081"
-  rest:
+    environment:
+      KARAPACE_REGISTRY_ADVERTISED_HOSTNAME: karapace-registry
+      KARAPACE_REGISTRY_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_PORT: 8081
+      KARAPACE_REGISTRY_HOST: 0.0.0.0
+      KARAPACE_REGISTRY_CLIENT_ID: karapace
+      KARAPACE_REGISTRY_GROUP_ID: karapace-registry
+      KARAPACE_REGISTRY_MASTER_ELIGIBITY: "true"
+      KARAPACE_REGISTRY_TOPIC_NAME: _schemas
+
+  karapace-rest:
+    image: karapace-rest
     depends_on:
-      - registry
-    image: karapace-all
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: "1.0"
-    hostname: "rest"
-    command: ["rest"]
+      - kafka
+      - karapace-registry
     ports:
       - "8082:8082"
+    environment:
+      KARAPACE_REST_PORT: 8082
+      KARAPACE_REST_HOST: 0.0.0.0
+      KARAPACE_REST_ADVERTISED_HOSTNAME: karapace-rest
+      KARAPACE_REST_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REST_REGISTRY_HOST: karapace-registry
+      KARAPACE_REST_REGISTRY_PORT: 8081

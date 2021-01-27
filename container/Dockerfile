@@ -1,23 +1,33 @@
-FROM fedora:30
-ARG APACHE_MIRROR=https://archive.apache.org/dist
-ARG SCALA_VERSION=2.12
-ARG KAFKA_VERSION=2.4.1
+FROM fedora:31 AS karapace
 
-RUN dnf install -y java-openjdk python3 git make gcc python3-devel
-RUN groupadd -r karapace && useradd -r -g karapace karapace
-RUN mkdir /app
+# python3: required by karapace
+# git: required to install dependencies from git
+# gcc, python3: required to install multidict, a dependency of aiohttp
+RUN dnf install -y python3 git gcc python3-devel
+RUN groupadd --system karapace && useradd --system --gid karapace karapace
+RUN mkdir /opt/karapace /var/log/karapace && chown karapace:karapace /opt/karapace /var/log/karapace
 
-RUN curl https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh -o /opt/wait-for-it.sh
-RUN curl "$APACHE_MIRROR/kafka/$KAFKA_VERSION/kafka_$SCALA_VERSION-$KAFKA_VERSION.tgz" | tar xvzf - -C /opt
+# Files are added selectively to improve cacheability. The dir `.git` is
+# intentionally avoided since pulling from a remote would invalidate the cache.
 
-ADD requirements-dev.txt /opt/
-ADD . /app
+# Add the requirements and install the dependencies
+ADD ./requirements-dev.txt /app/
+RUN pip3 install --requirement /app/requirements-dev.txt
 
-RUN pip3 install -r /opt/requirements-dev.txt
-RUN chmod +x /opt/start.sh /opt/wait-for-it.sh
-RUN make
+# Add the files needed to install karapace
+ADD ./setup.py ./README.rst ./version.py /app/
+ADD ./karapace/ /app/karapace/
+RUN pip3 install /app
 
-USER karapace
+# Add shell script needed to run the container
+ADD ./container/start.sh /app/container/
+RUN chown --recursive karapace:karapace /app/
+
 WORKDIR /app
+USER karapace
 
-ENTRYPOINT ["/bin/bash", "/app/container/start.sh"]
+FROM karapace AS karapace_registry
+ENTRYPOINT ["/bin/bash", "/app/container/start.sh", "registry"]
+
+FROM karapace AS karapace_rest
+ENTRYPOINT ["/bin/bash", "/app/container/start.sh", "rest"]
