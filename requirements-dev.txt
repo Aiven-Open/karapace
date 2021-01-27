@@ -15,6 +15,7 @@ git+https://github.com/aiven/avro.git@skip-namespace-validation#subdirectory=lan
 git+git://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
 
 # runtime dependencies
+accept-types==0.4.1
 aiohttp-socks==0.5.5
 aiokafka==0.6.0
 jsonschema==3.2.0
