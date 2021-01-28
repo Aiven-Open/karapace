@@ -97,9 +97,11 @@ def read_config(config_handler: IO) -> Dict[str, Union[str, int, bool]]:
 
 def create_ssl_context(config: Dict[str, Union[str, int, bool]]) -> ssl.SSLContext:
     # taken from conn.py, as it adds a lot more logic to the context configuration than the initial version
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)  # pylint: disable=no-member
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)  # pylint: disable=no-member
     ssl_context.options |= ssl.OP_NO_SSLv2  # pylint: disable=no-member
     ssl_context.options |= ssl.OP_NO_SSLv3  # pylint: disable=no-member
+    ssl_context.options |= ssl.OP_NO_TLSv1  # pylint: disable=no-member
+    ssl_context.options |= ssl.OP_NO_TLSv1_1  # pylint: disable=no-member
     ssl_context.verify_mode = ssl.CERT_OPTIONAL
     if config.get('ssl_check_hostname'):
         ssl_context.check_hostname = True
