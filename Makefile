@@ -73,8 +73,12 @@ copyright:
 	grep -EL "Copyright \(c\) 20.* Aiven" $(shell git ls-files "*.py" | grep -v __init__.py)
 
 .PHONY: unittest
-unittest: fetch-kafka $(GENERATED)
-	python3 -m pytest -s -vvv tests/
+unittest: $(GENERATED)
+	python3 -m pytest -s -vvv tests/unit/
+
+.PHONY: integrationtest
+integrationtest: fetch-kafka $(GENERATED)
+	python3 -m pytest -s -vvv tests/integration/
 
 .PHONY: test
 test: lint copyright unittest
