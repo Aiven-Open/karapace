@@ -38,7 +38,7 @@ karapace/version.py: version.py
 	$(PYTHON) $^ $@
 
 $(KAFKA_TAR):
-	wget "http://www.nic.funet.fi/pub/mirrors/apache.org/kafka/$(KAFKA_VERSION)/$(KAFKA_PATH).tgz"
+	wget "https://archive.apache.org/dist/kafka/$(KAFKA_VERSION)/$(KAFKA_PATH).tgz"
 
 $(KAFKA_PATH): $(KAFKA_TAR)
 	tar zxf "$(KAFKA_TAR)"
