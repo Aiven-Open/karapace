@@ -1,6 +1,7 @@
 Name:           karapace
 Version:        %{major_version}
 Release:        %{minor_version}%{?dist}
+Epoch:          1000
 Url:            http://github.com/aiven/karapace
 Summary:        Your Kafka essentials in one tool
 License:        ASL 2.0
