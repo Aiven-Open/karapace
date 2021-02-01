@@ -1,5 +1,5 @@
 FROM fedora:30
-ARG APACHE_MIRROR=http://www.nic.funet.fi/pub/mirrors/apache.org
+ARG APACHE_MIRROR=https://archive.apache.org/dist
 ARG SCALA_VERSION=2.12
 ARG KAFKA_VERSION=2.4.1
 
