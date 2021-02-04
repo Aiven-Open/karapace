@@ -18,12 +18,7 @@ KAFKA = 9092
 default: $(GENERATED)
 
 clean:
-	rm -rf rpm/ $(KAFKA_PATH)*
-
-.PHONY: build-dep-fedora
-build-dep-fedora: /usr/bin/rpmbuild
-	$(MAKE) -C dependencies install
-	sudo dnf -y builddep karapace.spec
+	rm -rf $(KAFKA_PATH)*
 
 .PHONY: $(KAFKA_IMAGE)
 $(KAFKA_IMAGE):
@@ -100,18 +95,3 @@ pre-commit: $(GENERATED)
 
 .PHONY: lint
 lint: pre-commit
-
-/usr/lib/rpm/check-buildroot /usr/bin/rpmbuild:
-	$(DNF_INSTALL) rpm-build
-
-.PHONY: rpm
-rpm: $(GENERATED) /usr/bin/rpmbuild /usr/lib/rpm/check-buildroot
-	git archive --output=karapace-rpm-src.tar --prefix=karapace/ HEAD
-	# add generated files to the tar, they're not in git repository
-	tar -r -f karapace-rpm-src.tar --transform=s,karapace/,karapace/karapace/, $(GENERATED)
-	rpmbuild -bb karapace.spec \
-		--define '_topdir $(PWD)/rpm' \
-		--define '_sourcedir $(CURDIR)' \
-		--define 'major_version $(SHORT_VER)' \
-		--define 'minor_version $(subst -,.,$(subst $(SHORT_VER)-,,$(LONG_VER)))'
-	$(RM) karapace-rpm-src.tar
