@@ -148,7 +148,6 @@ class KafkaSchemaReader(Thread):
                 sasl_mechanism=self.config["sasl_mechanism"],
                 sasl_plain_username=self.config["sasl_plain_username"],
                 sasl_plain_password=self.config["sasl_plain_password"],
-
             )
             return True
         except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
