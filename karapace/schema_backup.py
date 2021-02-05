@@ -52,6 +52,9 @@ class SchemaBackup:
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
+            sasl_mechanism=self.config["sasl_mechanism"],
+            sasl_plain_username=self.config["sasl_plain_username"],
+            sasl_plain_password=self.config["sasl_plain_password"],
             auto_offset_reset="earliest",
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
             kafka_client=KarapaceKafkaClient,
@@ -64,6 +67,9 @@ class SchemaBackup:
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
+            sasl_mechanism=self.config["sasl_mechanism"],
+            sasl_plain_username=self.config["sasl_plain_username"],
+            sasl_plain_password=self.config["sasl_plain_password"],
             kafka_client=KarapaceKafkaClient,
         )
 

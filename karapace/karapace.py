@@ -50,6 +50,9 @@ class KarapaceBase(RestApp):
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
+                    sasl_mechanism=self.config["sasl_mechanism"],
+                    sasl_plain_username=self.config["sasl_plain_username"],
+                    sasl_plain_password=self.config["sasl_plain_password"],
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
