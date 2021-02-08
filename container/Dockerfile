@@ -75,8 +75,8 @@ LABEL org.opencontainers.image.created=$CREATED \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$COMMIT
 
-FROM karapace AS karapace_registry
+FROM karapace AS karapace-registry
 ENTRYPOINT ["/bin/bash", "/opt/karapace/start.sh", "registry"]
 
-FROM karapace AS karapace_rest
+FROM karapace AS karapace-rest
 ENTRYPOINT ["/bin/bash", "/opt/karapace/start.sh", "rest"]
