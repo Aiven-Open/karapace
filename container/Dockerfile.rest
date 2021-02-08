@@ -1,0 +1,3 @@
+ARG  TAG_NAME=latest
+FROM karapace:${TAG_NAME}
+ENTRYPOINT ["/bin/bash", "/opt/karapace/start.sh", "rest"]

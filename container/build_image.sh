@@ -16,12 +16,17 @@
 # call docker build directly.
 
 ARG_COMMIT=$1
+ARG_TAG_NAME=${2:-$1}
+
 COMMIT=$(git rev-parse -q --verify "${ARG_COMMIT}^{commit}")
+# replaces every occurence of / with -
+# this is useful if the commit is qualified with the repo name, e.g. aiven/master
+TAG_NAME=${ARG_TAG_NAME////-}
 
 if [[ -z "${COMMIT}" ]]; then
     echo "Invalid commit provided '${COMMIT}'"
     echo ""
-    echo "$0 <commitish_object>"
+    echo "$0 <commitish_object> [:tag]"
     exit 1
 fi
 
@@ -43,33 +48,24 @@ git checkout $COMMIT
 rm ${code_checkout}/.git/logs/HEAD
 rm ${code_checkout}/.git/index
 
-# replaces every occurence of / with -
-# this is useful if the commit is qualified with the repo name, e.g. aiven/master
-tag_name=${ARG_COMMIT////-}
-
-podman build \
+sudo docker build \
     --build-arg "CREATED=$(date --rfc-3339=seconds)" \
     --build-arg "VERSION=$(git describe --always)" \
     --build-arg "COMMIT=$COMMIT" \
-    --target karapace \
-    --tag "aiven/karapace:${tag_name}" \
+    --tag "karapace:${TAG_NAME}" \
     --file container/Dockerfile \
     ${code_checkout}
 
-podman build \
-    --build-arg "CREATED=$(date --rfc-3339=seconds)" \
-    --build-arg "VERSION=$(git describe --always)" \
-    --build-arg "COMMIT=$COMMIT" \
-    --target karapace-registry \
-    --tag "aiven/karapace-registry:${tag_name}" \
-    --file container/Dockerfile \
+# The TAG_NAME has to be explicitly provided, otherwise `latest` is assume,
+# which may not be the version we are currently building.
+sudo docker build \
+    --build-arg "TAG_NAME=${TAG_NAME}" \
+    --tag "karapace-registry:${TAG_NAME}" \
+    --file container/Dockerfile.registry \
     ${code_checkout}
 
-podman build \
-    --build-arg "CREATED=$(date --rfc-3339=seconds)" \
-    --build-arg "VERSION=$(git describe --always)" \
-    --build-arg "COMMIT=$COMMIT" \
-    --target karapace-rest \
-    --tag "aiven/karapace-rest:${tag_name}" \
-    --file container/Dockerfile \
+sudo docker build \
+    --build-arg "TAG_NAME=${TAG_NAME}" \
+    --tag "karapace-rest:${TAG_NAME}" \
+    --file container/Dockerfile.rest \
     ${code_checkout}
