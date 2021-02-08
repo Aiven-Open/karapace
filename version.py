@@ -39,14 +39,6 @@ def get_project_version(version_file):
         if save_version(git_ver, file_ver, version_file):
             return git_ver
 
-    makefile = os.path.join(os.path.dirname(__file__), "Makefile")
-    if os.path.exists(makefile):
-        with open(makefile, "r") as fp:
-            lines = fp.readlines()
-        short_ver = [line.split("=", 1)[1].strip() for line in lines if line.startswith("short_ver")][0]
-        if save_version(short_ver, file_ver, version_file):
-            return short_ver
-
     if not file_ver:
         raise Exception("version not available from git or from file {!r}".format(version_file))
 
