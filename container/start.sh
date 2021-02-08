@@ -41,7 +41,7 @@ start_karapace_registry(){
     "ssl_keyfile": null
 }
 EOF
-  python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json 2>&1 | tee /var/log/karapace/registry.log
+  exec python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json
 }
 
 start_karapace_rest(){
@@ -63,7 +63,7 @@ start_karapace_rest(){
     "ssl_keyfile": null
 }
 EOF
-  python3 -m karapace.kafka_rest_apis /opt/karapace/rest.config.json 2>&1 | tee /var/log/karapace/rest.log
+  exec python3 -m karapace.kafka_rest_apis /opt/karapace/rest.config.json
 }
 
 case $1 in
