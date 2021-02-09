@@ -1,0 +1,18 @@
+# PyPI dependencies
+accept-types==0.4.1
+aiohttp-socks==0.5.5
+aiokafka==0.6.0
+jsonschema==3.2.0
+lz4==3.0.2
+requests==2.23.0
+
+# Patched dependencies
+#
+# Note: It is important to use commits to reference patched dependencies. This
+# has two advantages:
+# - Reproducible builds
+# - The contents of the file change, which invalidates the existing docker
+#   images and forces a new image generation.
+#
+git+https://github.com/aiven/avro.git@513b153bac5040af6bba5847aef202adb680b67b#subdirectory=lang/py3/
+git+git://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
