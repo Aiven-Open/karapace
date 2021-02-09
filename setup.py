@@ -22,6 +22,7 @@ setup(
     zip_safe=False,
     packages=find_packages(exclude=["test"]),
     install_requires=[
+        "accept-types",
         "aiohttp",
         "aiohttp_socks",
         "aiokafka",
