@@ -10,14 +10,5 @@ pytest==5.4.1
 # workflow
 pre-commit>=2.2.0
 
-# patched dependencies
-git+https://github.com/aiven/avro.git@skip-namespace-validation#subdirectory=lang/py3/
-git+git://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
-
-# runtime dependencies
-accept-types==0.4.1
-aiohttp-socks==0.5.5
-aiokafka==0.6.0
-jsonschema==3.2.0
-lz4==3.0.2
-requests==2.23.0
+# runtime requirements
+-r requirements.txt
