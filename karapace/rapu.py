@@ -6,11 +6,11 @@ client components for use in Aiven's REST applications.
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from accept_types import get_best_match
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
 from typing import Dict, Optional
-from vendor.python_accept_types.accept_types import get_best_match
 
 import aiohttp
 import aiohttp.web
@@ -195,7 +195,7 @@ class RestApp:
             http_error("HTTP 415 Unsupported Media Type", response_default_content_type, 415)
         accept_val = request.get_header("Accept")
         if accept_val:
-            if accept_val == "*/*" or accept_val.startswith("*/"):
+            if accept_val in ("*/*", "*") or accept_val.startswith("*/"):
                 return response_default_content_type
             content_type_match = get_best_match(accept_val, SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
