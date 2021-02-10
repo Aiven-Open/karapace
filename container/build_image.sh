@@ -38,16 +38,6 @@ git clone $(dirname $0)/.. "${code_checkout}"
 pushd ${code_checkout}
 git checkout $COMMIT
 
-# HACK: Delete files from the `.git` which change on every operation.
-#
-# - .git/logs/HEAD - command history
-# - .git/index - binary file for the current index, very important for a
-#    working repository, not interesting for our image
-#
-# Being extra cautious here, to make sure only the temporary copy is modified.
-rm ${code_checkout}/.git/logs/HEAD
-rm ${code_checkout}/.git/index
-
 sudo docker build \
     --build-arg "CREATED=$(date --rfc-3339=seconds)" \
     --build-arg "VERSION=$(git describe --always)" \

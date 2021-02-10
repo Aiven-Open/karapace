@@ -1,0 +1,11 @@
+# Ignoring files that are specific to a given checkout, these change based on
+# the user commands and not on the repository history. They are not important
+# to determine the state of the repository and would invalidate the cache
+# layer.
+#
+# - .git/logs/HEAD - command history
+# - .git/index - binary file for the current index, very important for a
+#    working repository, not interesting for our image
+#
+.git/logs/HEAD
+.git/index
