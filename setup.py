@@ -47,7 +47,7 @@ setup(
         ],
     },
     author="Hannu Valtonen",
-    author_email="hannu.valtonen@aiven.io",
+    author_email="opensource@aiven.io",
     license="Apache 2.0",
     platforms=["POSIX", "MacOS"],
     description="Karapace",
