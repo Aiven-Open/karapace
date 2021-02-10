@@ -2,7 +2,7 @@
 # generate wheel files.
 FROM debian:stable-slim AS builder
 
-LABEL org.opencontainers.image.authors=hannu.valtonen@aiven.io \
+LABEL org.opencontainers.image.authors=opensource@aiven.io \
       org.opencontainers.image.url=https://karapace.io \
       org.opencontainers.image.documentation=https://github.com/aiven/karapace/ \
       org.opencontainers.image.source=https://github.com/aiven/karapace/ \
@@ -40,7 +40,7 @@ RUN pip3 wheel --no-deps /build/karapace-repo --wheel-dir /build/karapace-wheel
 FROM debian:stable-slim AS karapace
 
 # Labels must be redefined beucase the base image is debian
-LABEL org.opencontainers.image.authors=hannu.valtonen@aiven.io \
+LABEL org.opencontainers.image.authors=opensource@aiven.io \
       org.opencontainers.image.url=https://karapace.io \
       org.opencontainers.image.documentation=https://github.com/aiven/karapace/ \
       org.opencontainers.image.source=https://github.com/aiven/karapace/ \
