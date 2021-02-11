@@ -10,9 +10,8 @@ from karapace.avro_compatibility import SchemaCompatibilityResult
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from tests.utils import (
-    Client, client_for, get_broker_ip, KafkaConfig, mock_factory, new_random_name, REGISTRY_URI, REST_URI, TempDirCreator
-)
+from pathlib import Path
+from tests.utils import Client, client_for, get_broker_ip, KafkaConfig, mock_factory, new_random_name, REGISTRY_URI, REST_URI
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 import os
@@ -187,11 +186,11 @@ def get_random_port(*, port_range: PortRangeInclusive, blacklist: List[int]) -> 
 
 
 @pytest.fixture(scope="session", name="zkserver")
-def fixture_zkserver(session_tmpdir: TempDirCreator) -> Iterator[Optional[ZKConfig]]:
+def fixture_zkserver(session_tmppath: Path) -> Iterator[Optional[ZKConfig]]:
     if REGISTRY_URI in os.environ or REST_URI in os.environ:
         yield None
     else:
-        config, proc = zkserver_base(session_tmpdir)
+        config, proc = zkserver_base(session_tmppath)
         try:
             yield config
         finally:
@@ -201,11 +200,11 @@ def fixture_zkserver(session_tmpdir: TempDirCreator) -> Iterator[Optional[ZKConf
 
 
 @pytest.fixture(scope="session", name="kafka_server")
-def fixture_kafka_server(session_tmpdir: TempDirCreator, zkserver: ZKConfig) -> Iterator[Optional[KafkaConfig]]:
+def fixture_kafka_server(session_tmppath: Path, zkserver: ZKConfig) -> Iterator[Optional[KafkaConfig]]:
     if REGISTRY_URI in os.environ or REST_URI in os.environ:
         yield None
     else:
-        config, proc = kafka_server_base(session_tmpdir, zkserver)
+        config, proc = kafka_server_base(session_tmppath, zkserver)
         try:
             yield config
         finally:
@@ -243,15 +242,14 @@ def fixture_admin(kafka_server: Optional[KafkaConfig]) -> Iterator[KafkaRestAdmi
 
 
 @pytest.fixture(scope="function", name="rest_async")
-async def fixture_rest_async(
-    session_tmpdir: TempDirCreator, kafka_server: Optional[KafkaConfig], registry_async_client: Client
-) -> AsyncIterator[KafkaRest]:
+async def fixture_rest_async(tmp_path: Path, kafka_server: Optional[KafkaConfig],
+                             registry_async_client: Client) -> AsyncIterator[KafkaRest]:
     if not kafka_server:
         assert REST_URI in os.environ
         instance, _ = mock_factory("rest")()
         yield instance
     else:
-        config_path = os.path.join(session_tmpdir(), "karapace_config.json")
+        config_path = tmp_path / "karapace_config.json"
         kafka_port = kafka_server.kafka_port
 
         config = set_config_defaults({
@@ -260,7 +258,7 @@ async def fixture_rest_async(
             "admin_metadata_max_age": 0
         })
         write_config(config_path, config)
-        rest = KafkaRest(config_file_path=config_path, config=config)
+        rest = KafkaRest(config_file_path=str(config_path), config=config)
 
         assert rest.serializer.registry_client
         assert rest.consumer_manager.deserializer.registry_client
@@ -281,11 +279,11 @@ async def fixture_rest_async_client(rest_async: KafkaRest, aiohttp_client) -> As
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
-def fixture_registry_async_pair(session_tmpdir: TempDirCreator, kafka_server: Optional[KafkaConfig]):
+def fixture_registry_async_pair(tmp_path: Path, kafka_server: Optional[KafkaConfig]):
     assert kafka_server, f"registry_async_pair can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
 
-    master_config_path = os.path.join(session_tmpdir(), "karapace_config_master.json")
-    slave_config_path = os.path.join(session_tmpdir(), "karapace_config_slave.json")
+    master_config_path = tmp_path / "karapace_config_master.json"
+    slave_config_path = tmp_path / "karapace_config_slave.json"
     master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
     slave_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[master_port])
     kafka_port = kafka_server.kafka_port
@@ -313,8 +311,8 @@ def fixture_registry_async_pair(session_tmpdir: TempDirCreator, kafka_server: Op
             "port": slave_port,
         }
     )
-    master_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", master_config_path])
-    slave_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", slave_config_path])
+    master_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)])
+    slave_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)])
     try:
         wait_for_port(master_port)
         wait_for_port(slave_port)
@@ -325,14 +323,14 @@ def fixture_registry_async_pair(session_tmpdir: TempDirCreator, kafka_server: Op
 
 
 @pytest.fixture(scope="function", name="registry_async")
-async def fixture_registry_async(session_tmpdir: TempDirCreator,
+async def fixture_registry_async(tmp_path: Path,
                                  kafka_server: Optional[KafkaConfig]) -> AsyncIterator[KarapaceSchemaRegistry]:
     if not kafka_server:
         assert REGISTRY_URI in os.environ or REST_URI in os.environ
         instance, _ = mock_factory("registry")()
         yield instance
     else:
-        config_path = os.path.join(session_tmpdir(), "karapace_config.json")
+        config_path = tmp_path / "karapace_config.json"
         kafka_port = kafka_server.kafka_port
 
         config = set_config_defaults({
@@ -342,7 +340,7 @@ async def fixture_registry_async(session_tmpdir: TempDirCreator,
             "group_id": new_random_name("schema_registry")
         })
         write_config(config_path, config)
-        registry = KarapaceSchemaRegistry(config_file_path=config_path, config=set_config_defaults(config))
+        registry = KarapaceSchemaRegistry(config_file_path=str(config_path), config=set_config_defaults(config))
         await registry.get_master()
         try:
             yield registry
@@ -391,12 +389,11 @@ def get_java_process_configuration(java_args: List[str]) -> List[str]:
     return command
 
 
-def kafka_server_base(session_tmpdir: TempDirCreator, zk: ZKConfig) -> Tuple[KafkaConfig, subprocess.Popen]:
-    datadir = session_tmpdir()
+def kafka_server_base(session_tmppath: Path, zk: ZKConfig) -> Tuple[KafkaConfig, subprocess.Popen]:
     plaintext_port = get_random_port(port_range=KAFKA_PORTS, blacklist=[])
 
     config = KafkaConfig(
-        datadir=datadir.join("data").strpath,
+        datadir=str(session_tmppath / "data"),
         kafka_keystore_password="secret",
         kafka_port=plaintext_port,
         zookeeper_port=zk.client_port,
@@ -440,11 +437,12 @@ def kafka_server_base(session_tmpdir: TempDirCreator, zk: ZKConfig) -> Tuple[Kaf
         "zookeeper.connection.timeout.ms": 6000,
         "zookeeper.connect": "{}:{}".format("127.0.0.1", zk.client_port)
     }
-    kafka_config_path = os.path.join(datadir.strpath, "kafka", "config")
-    os.makedirs(kafka_config_path)
+    kafka_dir = session_tmppath / "kafka"
+    kafka_config_dir = kafka_dir / "config"
+    kafka_config_dir.mkdir(parents=True)
 
-    kafka_config_path = os.path.join(kafka_config_path, "server.properties")
-    with open(kafka_config_path, "w") as fp:
+    kafka_config_path = kafka_config_dir / "server.properties"
+    with kafka_config_path.open("w") as fp:
         for key, value in kafka_config.items():
             fp.write("{}={}\n".format(key, value))
 
@@ -453,9 +451,9 @@ def kafka_server_base(session_tmpdir: TempDirCreator, zk: ZKConfig) -> Tuple[Kaf
     kafka_cmd = get_java_process_configuration(
         java_args=kafka_java_args(
             heap_mb=256,
-            logs_dir=os.path.join(datadir.strpath, "kafka"),
+            logs_dir=str(kafka_dir),
             log4j_properties_path=log4j_properties_path,
-            kafka_config_path=kafka_config_path,
+            kafka_config_path=str(kafka_config_path),
         ),
     )
     env: Dict[bytes, bytes] = dict()
@@ -464,17 +462,15 @@ def kafka_server_base(session_tmpdir: TempDirCreator, zk: ZKConfig) -> Tuple[Kaf
     return config, proc
 
 
-def zkserver_base(session_tmpdir: TempDirCreator, subdir: str = "base") -> Tuple[ZKConfig, subprocess.Popen]:
-    datadir = session_tmpdir()
-    path = os.path.join(datadir.strpath, subdir)
-    os.makedirs(path)
-
+def zkserver_base(session_tmppath: Path, subdir: str = "base") -> Tuple[ZKConfig, subprocess.Popen]:
+    path = session_tmppath / subdir
+    path.mkdir()
     client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
     admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[client_port])
     config = ZKConfig(
         client_port=client_port,
         admin_port=admin_port,
-        path=path,
+        path=str(path),
     )
     zoo_cfg = """
 # The number of milliseconds of each tick
@@ -518,18 +514,18 @@ skipACL=yes
         admin_port=config.admin_port,
         path=config.path,
     )
-    zoo_cfg_path = os.path.join(path, "zoo.cfg")
-    with open(zoo_cfg_path, "w") as fp:
-        fp.write(zoo_cfg)
+    zoo_cfg_path = path / "zoo.cfg"
+    zoo_cfg_path.write_text(zoo_cfg)
     env = {
         "CLASSPATH": "/usr/share/java/slf4j/slf4j-simple.jar",
-        "ZOO_LOG_DIR": datadir.join("logs").strpath,
+        "ZOO_LOG_DIR": str(session_tmppath / "logs"),
     }
     java_args = get_java_process_configuration(
         java_args=[
             "-cp", ":".join([
                 os.path.join(BASEDIR, "libs", "*"),
-            ]), "org.apache.zookeeper.server.quorum.QuorumPeerMain", zoo_cfg_path
+            ]), "org.apache.zookeeper.server.quorum.QuorumPeerMain",
+            str(zoo_cfg_path)
         ]
     )
     proc = subprocess.Popen(java_args, env=env)
