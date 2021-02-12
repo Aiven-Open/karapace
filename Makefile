@@ -19,6 +19,8 @@ default: $(GENERATED)
 
 clean:
 	rm -rf $(KAFKA_PATH)*
+	find . -iname '*.pyc' -delete
+	find . -iname '__pycache__' -delete
 
 .PHONY: $(KAFKA_IMAGE)
 $(KAFKA_IMAGE):
