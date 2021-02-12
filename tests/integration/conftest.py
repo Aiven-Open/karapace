@@ -26,6 +26,7 @@ import time
 
 KAFKA_CURRENT_VERSION = "2.4"
 BASEDIR = "kafka_2.12-2.4.1"
+CLASSPATH = os.path.join(BASEDIR, "libs", "*")
 
 
 @dataclass(frozen=True)
@@ -395,16 +396,36 @@ async def fixture_registry_async_client(registry_async: KarapaceSchemaRegistry, 
     await cli.close()
 
 
+def zk_java_args(cfg_path: Path) -> List[str]:
+    if not os.path.exists(BASEDIR):
+        raise RuntimeError(
+            f"Couldn't find kafka installation to run integration tests. The "
+            f"expected folder {BASEDIR} does not exist. Run `make fetch-kafka` "
+            f"to download and extract the release."
+        )
+    java_args = [
+        "-cp",
+        CLASSPATH,
+        "org.apache.zookeeper.server.quorum.QuorumPeerMain",
+        str(cfg_path),
+    ]
+    return java_args
+
+
 def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
+    if not os.path.exists(BASEDIR):
+        raise RuntimeError(
+            f"Couldn't find kafka installation to run integration tests. The "
+            f"expected folder {BASEDIR} does not exist. Run `make fetch-kafka` "
+            f"to download and extract the release."
+        )
     java_args = [
         "-Xmx{}M".format(heap_mb),
         "-Xms{}M".format(heap_mb),
         "-Dkafka.logs.dir={}/logs".format(logs_dir),
         "-Dlog4j.configuration=file:{}".format(log4j_properties_path),
         "-cp",
-        ":".join([
-            os.path.join(BASEDIR, "libs", "*"),
-        ]),
+        CLASSPATH,
         "kafka.Kafka",
         kafka_config_path,
     ]
@@ -562,13 +583,6 @@ skipACL=yes
         "CLASSPATH": "/usr/share/java/slf4j/slf4j-simple.jar",
         "ZOO_LOG_DIR": str(logs_dir),
     }
-    java_args = get_java_process_configuration(
-        java_args=[
-            "-cp", ":".join([
-                os.path.join(BASEDIR, "libs", "*"),
-            ]), "org.apache.zookeeper.server.quorum.QuorumPeerMain",
-            str(cfg_path)
-        ]
-    )
+    java_args = get_java_process_configuration(java_args=zk_java_args(cfg_path))
     proc = Popen(java_args, env=env)
     return config, proc
