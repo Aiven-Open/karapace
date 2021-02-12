@@ -27,6 +27,38 @@ KAFKA_CURRENT_VERSION = "2.4"
 BASEDIR = "kafka_2.12-2.4.1"
 
 
+@dataclass(frozen=True)
+class PortRangeInclusive:
+    start: int
+    end: int
+
+    PRIVILEGE_END = 2 ** 10
+    MAX_PORTS = 2 ** 16 - 1
+
+    def __post_init__(self):
+        # Make sure the range is valid and that we don't need to be root
+        assert self.end > self.start, "there must be at least one port available"
+        assert self.end <= self.MAX_PORTS, f"end must be lower than {self.MAX_PORTS}"
+        assert self.start > self.PRIVILEGE_END, "start must not be a privileged port"
+
+    def next_range(self, number_of_ports: int) -> "PortRangeInclusive":
+        next_start = self.end + 1
+        next_end = next_start + number_of_ports - 1  # -1 because the range is inclusive
+
+        return PortRangeInclusive(next_start, next_end)
+
+
+# To find a good port range use the following:
+#
+#   curl --silent 'https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt' | \
+#       egrep -i -e '^\s*[0-9]+-[0-9]+\s*unassigned' | \
+#       awk '{print $1}'
+#
+KAFKA_PORTS = PortRangeInclusive(48700, 48800)
+ZK_PORT_RANGE = KAFKA_PORTS.next_range(100)
+REGISTRY_PORT_RANGE = ZK_PORT_RANGE.next_range(100)
+
+
 class Timeout(Exception):
     pass
 
@@ -114,11 +146,22 @@ def wait_for_port(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 
     print("Port {} on host {} started listening in {} seconds".format(port, hostname, time.monotonic() - start_time))
 
 
-def get_random_port(*, start: int = 3000, stop: int = 30000, blacklist: Optional[List[int]] = None) -> int:
-    while True:
-        value = random.randrange(start, stop)
-        if not blacklist or value not in blacklist:
-            return value
+def get_random_port(*, port_range: PortRangeInclusive, blacklist: List[int]) -> int:
+    """ Find a random port in the range `PortRangeInclusive`.
+
+    Note:
+        This function is *not* aware of the ports currently open in the system,
+        the blacklist only prevents two services of the same type to randomly
+        get the same ports for *a single test run*.
+
+        Because of that, the port range should be chosen such that there is no
+        system service in the range. Also note that running two sessions of the
+        tests with the same range is not supported and will lead to flakiness.
+    """
+    value = random.randint(port_range.start, port_range.end)
+    while value in blacklist:
+        value = random.randint(port_range.start, port_range.end)
+    return value
 
 
 @pytest.fixture(scope="session", name="zkserver")
@@ -221,7 +264,8 @@ def fixture_registry_async_pair(session_tmpdir: TempDirCreator, kafka_server: Op
 
     master_config_path = os.path.join(session_tmpdir(), "karapace_config_master.json")
     slave_config_path = os.path.join(session_tmpdir(), "karapace_config_slave.json")
-    master_port, slave_port = 1234, 5678
+    master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
+    slave_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[master_port])
     kafka_port = kafka_server.kafka_port
     topic_name = new_random_name("schema_pairs")
     group_id = new_random_name("schema_pairs")
@@ -249,8 +293,8 @@ def fixture_registry_async_pair(session_tmpdir: TempDirCreator, kafka_server: Op
     )
     master_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", master_config_path])
     slave_process = subprocess.Popen(["python", "-m", "karapace.karapace_all", slave_config_path])
-    wait_for_port(1234)
-    wait_for_port(5678)
+    wait_for_port(master_port)
+    wait_for_port(slave_port)
     try:
         yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
     finally:
@@ -327,8 +371,7 @@ def get_java_process_configuration(java_args: List[str]) -> List[str]:
 
 def kafka_server_base(session_tmpdir: TempDirCreator, zk: ZKConfig) -> Tuple[KafkaConfig, subprocess.Popen]:
     datadir = session_tmpdir()
-    blacklist = [zk.admin_port, zk.client_port]
-    plaintext_port = get_random_port(start=15000, blacklist=blacklist)
+    plaintext_port = get_random_port(port_range=KAFKA_PORTS, blacklist=[])
 
     config = KafkaConfig(
         datadir=datadir.join("data").strpath,
@@ -403,8 +446,9 @@ def zkserver_base(session_tmpdir: TempDirCreator, subdir: str = "base") -> Tuple
     datadir = session_tmpdir()
     path = os.path.join(datadir.strpath, subdir)
     os.makedirs(path)
-    client_port = get_random_port(start=15000)
-    admin_port = get_random_port(start=15000, blacklist=[client_port])
+
+    client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
+    admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[client_port])
     config = ZKConfig(
         client_port=client_port,
         admin_port=admin_port,
