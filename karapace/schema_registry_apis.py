@@ -1,4 +1,5 @@
 from contextlib import closing
+from enum import Enum, unique
 from karapace import version as karapace_version
 from karapace.compatibility import Compatibility, IncompatibleSchema
 from karapace.config import read_config
@@ -13,15 +14,17 @@ import asyncio
 import sys
 import time
 
-COMPATIBILITY_MODES = {
-    "BACKWARD",
-    "BACKWARD_TRANSITIVE",
-    "FORWARD",
-    "FORWARD_TRANSITIVE",
-    "FULL",
-    "FULL_TRANSITIVE",
-    "NONE",
-}
+
+@unique
+class CompatibilityModes(Enum):
+    BACKWARD = "BACKWARD"
+    BACKWARD_TRANSITIVE = "BACKWARD_TRANSITIVE"
+    FORWARD = "FORWARD"
+    FORWARD_TRANSITIVE = "FORWARD_TRANSITIVE"
+    FULL = "FULL"
+    FULL_TRANSITIVE = "FULL_TRANSITIVE"
+    NONE = "NONE"
+
 
 TRANSITIVE_MODES = {
     "BACKWARD_TRANSITIVE",
@@ -183,12 +186,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
             value["schemaType"] = schema.schema_type
         return self.send_kafka_message(key, json_encode(value, compact=True))
 
-    def send_config_message(self, compatibility_level, subject=None):
+    def send_config_message(self, compatibility_level: CompatibilityModes, subject=None):
         if subject is not None:
             key = '{{"subject":"{}","magic":0,"keytype":"CONFIG"}}'.format(subject)
         else:
             key = '{"subject":null,"magic":0,"keytype":"CONFIG"}'
-        value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level)
+        value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
         return self.send_kafka_message(key, value)
 
     def send_delete_subject_message(self, subject, version):
@@ -245,18 +248,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def config_set(self, content_type, *, request):
         body = request.json
-        if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
-            compatibility_level = request.json["compatibility"]
-            are_we_master, master_url = await self.get_master()
-            if are_we_master:
-                self.send_config_message(compatibility_level=compatibility_level, subject=None)
-            elif are_we_master is None:
-                self.no_master_error(content_type)
-            else:
-                url = f"{master_url}/config"
-                await self.forward_request_remote(body=body, url=url, content_type=content_type, method="PUT")
 
-        else:
+        try:
+            compatibility_level = CompatibilityModes(request.json["compatibility"])
+        except (ValueError, KeyError):
             self.r(
                 body={
                     "error_code": 42203,
@@ -265,6 +260,16 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 content_type=content_type,
                 status=422
             )
+
+        are_we_master, master_url = await self.get_master()
+        if are_we_master:
+            self.send_config_message(compatibility_level=compatibility_level, subject=None)
+        elif are_we_master is None:
+            self.no_master_error(content_type)
+        else:
+            url = f"{master_url}/config"
+            await self.forward_request_remote(body=body, url=url, content_type=content_type, method="PUT")
+
         self.r({"compatibility": self.ksr.config["compatibility"]}, content_type)
 
     async def config_subject_get(self, content_type, subject: str, *, request: HTTPRequest):
@@ -283,16 +288,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r({"error_code": 40401, "message": "Subject not found."}, content_type, status=404)
 
     async def config_subject_set(self, content_type, *, request, subject):
-        if "compatibility" in request.json and request.json["compatibility"] in COMPATIBILITY_MODES:
-            are_we_master, master_url = await self.get_master()
-            if are_we_master:
-                self.send_config_message(compatibility_level=request.json["compatibility"], subject=subject)
-            elif are_we_master is None:
-                self.no_master_error(content_type)
-            else:
-                url = f"{master_url}/config/{subject}"
-                await self.forward_request_remote(body=request.json, url=url, content_type=content_type, method="PUT")
-        else:
+        try:
+            compatibility_level = CompatibilityModes(request.json["compatibility"])
+        except (ValueError, KeyError):
             self.r(
                 body={
                     "error_code": 42203,
@@ -300,7 +298,16 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 }, content_type=content_type, status=422
             )
 
-        self.r({"compatibility": request.json["compatibility"]}, content_type)
+        are_we_master, master_url = await self.get_master()
+        if are_we_master:
+            self.send_config_message(compatibility_level=compatibility_level, subject=subject)
+        elif are_we_master is None:
+            self.no_master_error(content_type)
+        else:
+            url = f"{master_url}/config/{subject}"
+            await self.forward_request_remote(body=request.json, url=url, content_type=content_type, method="PUT")
+
+        self.r({"compatibility": compatibility_level.value}, content_type)
 
     async def subjects_list(self, content_type):
         subjects_list = [key for key, val in self.ksr.subjects.items() if self.ksr.get_schemas(key)]
