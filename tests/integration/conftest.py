@@ -63,6 +63,20 @@ class Timeout(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class Expiration:
+    msg: str
+    deadline: float
+
+    @classmethod
+    def from_timeout(cls, msg: str, timeout: float):
+        return cls(msg, time.monotonic() + timeout)
+
+    def raise_if_expired(self):
+        if time.monotonic() > self.deadline:
+            raise Timeout(self.msg)
+
+
 @dataclass
 class ZKConfig:
     client_port: int
@@ -121,30 +135,37 @@ def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
 
 
 def wait_for_kafka(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 20.0) -> None:
-    start_time = time.monotonic()
     bootstrap_server = f"{hostname}:{port}"
-    while True:
-        if time.monotonic() - start_time > wait_time:
-            raise Timeout(f"Could not contact kafka cluster on host {hostname}, port {port}")
+    expiration = Expiration.from_timeout(
+        msg=f"Could not contact kafka cluster on host `{bootstrap_server}`",
+        timeout=wait_time,
+    )
+
+    list_topics_successful = False
+    while not list_topics_successful:
+        expiration.raise_if_expired()
         try:
-            client = KafkaAdminClient(bootstrap_servers=bootstrap_server)
-            _ = client.list_topics()
-            return
-        # pylint: disable=broad-except
-        except Exception as e:
+            KafkaAdminClient(bootstrap_servers=bootstrap_server).list_topics()
+        except Exception as e:  # pylint: disable=broad-except
             print(f"Error checking kafka cluster: {e}")
             time.sleep(2.0)
+        else:
+            list_topics_successful = True
 
 
 def wait_for_port(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 20.0, ipv6: bool = False) -> None:
     start_time = time.monotonic()
-    while True:
-        if port_is_listening(hostname, port, ipv6):
-            break
-        if time.monotonic() - start_time > wait_time:
-            raise Timeout("Timeout waiting for port {} on host {}".format(port, hostname))
+    expiration = Expiration(
+        msg=f"Timeout waiting for `{hostname}:{port}`",
+        deadline=start_time + wait_time,
+    )
+
+    while not port_is_listening(hostname, port, ipv6):
+        expiration.raise_if_expired()
         time.sleep(2.0)
-    print("Port {} on host {} started listening in {} seconds".format(port, hostname, time.monotonic() - start_time))
+
+    elapsed = time.monotonic() - start_time
+    print(f"Server `{hostname}:{port}` listening after {elapsed} seconds")
 
 
 def get_random_port(*, port_range: PortRangeInclusive, blacklist: List[int]) -> int:
