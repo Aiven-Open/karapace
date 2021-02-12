@@ -114,6 +114,7 @@ def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
     s.settimeout(0.5)
     try:
         s.connect((hostname, port))
+        s.close()
         return True
     except socket.error:
         return False
