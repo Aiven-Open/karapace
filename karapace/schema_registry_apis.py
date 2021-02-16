@@ -2,7 +2,7 @@ from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
 from karapace import version as karapace_version
-from karapace.compatibility import Compatibility, IncompatibleSchema
+from karapace.compatibility import check_compatibility, IncompatibleSchema
 from karapace.config import read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
@@ -264,11 +264,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
             )
 
-        compat = Compatibility(
-            source=old_schema, target=new, compatibility=old.get("compatibility", self.ksr.config["compatibility"])
-        )
         try:
-            compat.check()
+            check_compatibility(
+                source=old_schema, target=new, compatibility=old.get("compatibility", self.ksr.config["compatibility"])
+            )
         except IncompatibleSchema as ex:
             self.log.warning("Invalid schema %s found by compatibility check: old: %s new: %s", ex, old_schema, new)
             self.r({"is_compatible": False}, content_type)
@@ -678,9 +677,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
             for old_version in check_against:
                 old_schema = subject_data["schemas"][old_version]["schema"]
-                compat = Compatibility(old_schema, new_schema, compatibility=compatibility)
                 try:
-                    compat.check()
+                    check_compatibility(source=old_schema, target=new_schema, compatibility=compatibility)
                 except IncompatibleSchema as ex:
                     self.log.warning("Incompatible schema: %s", ex)
                     self.r(

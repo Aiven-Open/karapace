@@ -11,57 +11,37 @@ from karapace.schema_reader import SchemaType, TypedSchema
 
 import logging
 
+LOG = logging.getLogger(__name__)
+
 
 class IncompatibleSchema(Exception):
     pass
 
 
-class UnknownSchemaType(Exception):
-    pass
+def check_compatibility(source: TypedSchema, target: TypedSchema, compatibility: str) -> bool:
+    if source.schema_type is not target.schema_type:
+        raise IncompatibleSchema(f"Comparing different schema types: {source.schema_type} with {target.schema_type}")
 
+    # Compatibility only checks between two versions, so we can drop the possible _TRANSITIVE
+    checking_for = compatibility.split("_")[0]
+    if checking_for == "NONE":
+        LOG.info("Compatibility level set to NONE, no schema compatibility checks performed")
+        return True
 
-class Compatibility:
-    def __init__(self, source, target, compatibility):
-        self.source = source
-        self.target = target
-        self.log = logging.getLogger("Compatibility")
-        self.compatibility = compatibility
-        self.log.info("Compatibility initialized with level: %r", self.compatibility)
-        # Compatibility only checks between two versions, so we can drop the possible _TRANSITIONAL
-        self._checking_for = compatibility.split("_")[0]
-
-    def check(self) -> bool:  # pylint: disable=inconsistent-return-statements
-        if self.source.schema_type is not self.target.schema_type:
-            raise IncompatibleSchema(
-                f"Comparing different schema types: {self.source.schema_type} with {self.target.schema_type}"
-            )
-        if self._checking_for == "NONE":
-            self.log.info("Compatibility level set to NONE, no schema compatibility checks performed")
-            return True
-        if self.source.schema_type is SchemaType.AVRO:
-            if self._checking_for in {"BACKWARD", "FULL"}:
-                writer, reader = self.source.schema, self.target.schema
-                result = AvroChecker().get_compatibility(reader=reader, writer=writer)
-                if (
-                    result.compatibility is SchemaCompatibilityType.incompatible
-                    and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
-                ):
-                    raise IncompatibleSchema(str(result.compatibility))
-            if self._checking_for in {"FORWARD", "FULL"}:
-                writer, reader = self.target.schema, self.source.schema
-                result = AvroChecker().get_compatibility(reader=reader, writer=writer)
-                if (
-                    result.compatibility is SchemaCompatibilityType.incompatible
-                    and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
-                ):
-                    raise IncompatibleSchema(str(result.compatibility))
-        if self.source.schema_type is SchemaType.JSONSCHEMA:
-            return JsonSchemaCompatibility(self.source.schema, self.target.schema, self.compatibility).check()
-
-
-class JsonSchemaCompatibility(Compatibility):
-    def check_compatibility(self, source: TypedSchema, target: TypedSchema) -> bool:
-        raise NotImplementedError("write me")
-
-    def check(self) -> bool:
-        return self.check_compatibility(self.source, self.target)
+    if source.schema_type is SchemaType.AVRO:
+        if checking_for in {"BACKWARD", "FULL"}:
+            writer, reader = source.schema, target.schema
+            result = AvroChecker().get_compatibility(reader=reader, writer=writer)
+            if (
+                result.compatibility is SchemaCompatibilityType.incompatible
+                and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
+            ):
+                raise IncompatibleSchema(str(result.compatibility))
+        if checking_for in {"FORWARD", "FULL"}:
+            writer, reader = target.schema, source.schema
+            result = AvroChecker().get_compatibility(reader=reader, writer=writer)
+            if (
+                result.compatibility is SchemaCompatibilityType.incompatible
+                and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
+            ):
+                raise IncompatibleSchema(str(result.compatibility))
