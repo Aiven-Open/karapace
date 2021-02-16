@@ -2,7 +2,6 @@ from avro.schema import (
     ARRAY, ArraySchema, BOOLEAN, BYTES, DOUBLE, ENUM, EnumSchema, Field, FIXED, FixedSchema, FLOAT, INT, LONG, MAP,
     MapSchema, NamedSchema, Names, NULL, RECORD, RecordSchema, Schema, SchemaFromJSONData, STRING, UNION, UnionSchema
 )
-from copy import copy
 from enum import Enum
 from typing import Any, cast, Dict, List, Optional, Set
 
@@ -52,19 +51,23 @@ class SchemaCompatibilityResult:
     def __init__(
         self,
         compatibility: SchemaCompatibilityType = SchemaCompatibilityType.recursion_in_progress,
-        incompatibilities: List[SchemaIncompatibilityType] = None,
+        incompatibilities: Optional[List[SchemaIncompatibilityType]] = None,
         messages: Optional[Set[str]] = None,
         locations: Optional[Set[str]] = None,
-    ):
-        self.locations = locations if locations else set(["/"])
-        self.messages = messages if messages else set()
+    ) -> None:
         self.compatibility = compatibility
         self.incompatibilities = incompatibilities or []
+        self.messages = messages or set()
+        self.locations = locations or set("/")  # Note: The empty set is replaced too
 
-    def merged_with(self, that):
-        that = cast(SchemaCompatibilityResult, that)
-        merged = copy(self.incompatibilities)
-        merged.extend(copy(that.incompatibilities))
+    def merged_with(self, that: "SchemaCompatibilityResult") -> "SchemaCompatibilityResult":
+        """ Returns a new instance with the results of `self` and `that` merged.
+
+        This will not modified any object in-place. It will instantiate a new
+        SchemaCompatibilityResult and return that.
+        """
+
+        # Ignore the messages and locations of `self` if it is a compatible object
         if self.compatibility is SchemaCompatibilityType.compatible:
             compat = that.compatibility
             messages = that.messages
@@ -73,26 +76,30 @@ class SchemaCompatibilityResult:
             compat = self.compatibility
             messages = self.messages.union(that.messages)
             locations = self.locations.union(that.locations)
+
+        incompatibilities = self.incompatibilities + that.incompatibilities
+
         return SchemaCompatibilityResult(
-            compatibility=compat, incompatibilities=merged, messages=messages, locations=locations
+            compatibility=compat, incompatibilities=incompatibilities, messages=messages, locations=locations
         )
 
     @staticmethod
-    def compatible():
+    def compatible() -> "SchemaCompatibilityResult":
         return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     @staticmethod
-    def incompatible(incompat_type: SchemaIncompatibilityType, message: str, location: List[str]):
+    def incompatible(
+        incompat_type: SchemaIncompatibilityType, message: str, location: List[str]
+    ) -> "SchemaCompatibilityResult":
         locations = "/".join(location)
-        if len(location) > 1:
+        if len(location) > 1:  # Remove ROOT_REFERENCE_TOKEN
             locations = locations[1:]
-        ret = SchemaCompatibilityResult(
+        return SchemaCompatibilityResult(
             compatibility=SchemaCompatibilityType.incompatible,
             incompatibilities=[incompat_type],
             locations={locations},
             messages={message},
         )
-        return ret
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SchemaCompatibilityResult):
@@ -103,7 +110,7 @@ class SchemaCompatibilityResult:
             and self.compatibility == other.compatibility and self.incompatibilities == other.incompatibilities
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.compatibility}: {self.messages}"
 
 
