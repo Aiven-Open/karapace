@@ -11,7 +11,7 @@ from http import HTTPStatus
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Dict, NoReturn, Optional, overload, Union
+from typing import Any, Dict, Generic, Optional, overload, TypeVar, Union
 
 import aiohttp
 import aiohttp.web
@@ -25,6 +25,8 @@ import logging
 import re
 import ssl
 import time
+
+T = TypeVar('T')
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 JSON_CONTENT_TYPE = "application/json"
@@ -51,13 +53,16 @@ REST_ACCEPT_RE = re.compile(
     r"(?P<serialization_format>json))|(?P<general_format>json|\*))"
 )
 
+DEFAULT_CONTENT_TYPE = "application/vnd.kafka.json.v2+json"
+DEFAULT_ACCEPT = "*/*"
+
 
 def is_success(http_status: HTTPStatus) -> bool:
     """True if response has a 2xx status_code"""
     return http_status.value >= 200 and http_status.value < 300
 
 
-class HTTPRequest:
+class HTTPRequest(Generic[T]):
     def __init__(
         self,
         *,
@@ -68,7 +73,7 @@ class HTTPRequest:
         method: str,
         content_type: Optional[str] = None,
         accepts: Optional[str] = None,
-    ):
+    ) -> None:
         self.url = url
         self.headers = headers
         self._header_cache: Dict[str, Optional[str]] = {}
@@ -84,7 +89,7 @@ class HTTPRequest:
         ...
 
     @overload
-    def get_header(self, header: str, default_value: str) -> str:  # pylint: disable=no-self-use
+    def get_header(self, header: str, default_value: T) -> T:  # pylint: disable=no-self-use
         ...
 
     def get_header(self, header, default_value=None):
@@ -142,8 +147,8 @@ class HTTPResponse(Exception):
         return f"HTTPResponse(status={self.status} body={self.body})"
 
 
-def http_error(message, content_type: str, code: HTTPStatus) -> NoReturn:
-    raise HTTPResponse(
+def http_error(message: Any, content_type: str, code: HTTPStatus) -> HTTPResponse:
+    return HTTPResponse(
         body=json_encode({
             "error_code": code,
             "message": message,
@@ -192,20 +197,19 @@ class RestApp:
 
     def check_rest_headers(self, request: HTTPRequest) -> dict:  # pylint:disable=inconsistent-return-statements
         method = request.method
-        default_content = "application/vnd.kafka.json.v2+json"
-        default_accept = "*/*"
-        result: dict = {"content_type": default_content}
-        content_matcher = REST_CONTENT_TYPE_RE.search(
-            cgi.parse_header(request.get_header("Content-Type", default_content))[0]
-        )
-        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(request.get_header("Accept", default_accept))[0])
+        content_type = request.get_header("Content-Type", DEFAULT_CONTENT_TYPE)
+        accept = request.get_header("Accept", DEFAULT_ACCEPT)
+        result: dict = {"content_type": DEFAULT_CONTENT_TYPE}
+        content_matcher = REST_CONTENT_TYPE_RE.search(cgi.parse_header(content_type)[0])
+        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(accept)[0])
         if method in {"POST", "PUT"}:
             if not content_matcher:
-                http_error(
+                raise http_error(
                     message=HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description,
                     content_type=result["content_type"],
                     code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
                 )
+
         if content_matcher and accept_matcher:
             header_info = content_matcher.groupdict()
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
@@ -213,7 +217,7 @@ class RestApp:
             result["accepts"] = accept_matcher.groupdict()
             return result
         self.log.error("Not acceptable: %r", request.get_header("accept"))
-        http_error(
+        raise http_error(
             message=HTTPStatus.NOT_ACCEPTABLE.description,
             content_type=result["content_type"],
             code=HTTPStatus.NOT_ACCEPTABLE,
@@ -225,7 +229,7 @@ class RestApp:
         content_type = request.get_header("Content-Type", JSON_CONTENT_TYPE)
 
         if method in {"POST", "PUT"} and cgi.parse_header(content_type)[0] not in SCHEMA_CONTENT_TYPES:
-            http_error(
+            raise http_error(
                 message=HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description,
                 content_type=response_default_content_type,
                 code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
@@ -237,7 +241,7 @@ class RestApp:
             content_type_match = get_best_match(accept_val, SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
                 self.log.debug("Unexpected Accept value: %r", accept_val)
-                http_error(
+                raise http_error(
                     message=HTTPStatus.NOT_ACCEPTABLE.description,
                     content_type=response_default_content_type,
                     code=HTTPStatus.NOT_ACCEPTABLE,
@@ -282,12 +286,12 @@ class RestApp:
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
                     rapu_request.json = jsonlib.loads(body_string)
-                except jsonlib.decoder.JSONDecodeError:
-                    raise HTTPResponse(body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST)
-                except UnicodeDecodeError:
-                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST)
-                except LookupError:
-                    raise HTTPResponse(body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST)
+                except jsonlib.decoder.JSONDecodeError as ex:
+                    raise HTTPResponse(body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST) from ex
+                except UnicodeDecodeError as ex:
+                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST) from ex
+                except LookupError as ex:
+                    raise HTTPResponse(body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST) from ex
             else:
                 if body not in {b"", b"{}"}:
                     raise HTTPResponse(body="No request body allowed for this operation", status=HTTPStatus.BAD_REQUEST)

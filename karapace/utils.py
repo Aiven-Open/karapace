@@ -189,13 +189,13 @@ def convert_to_int(object_: dict, key: str, content_type: str):
         return
     try:
         object_[key] = int(object_[key])
-    except ValueError:
+    except ValueError as exc:
         from karapace.rapu import http_error
-        http_error(
+        raise http_error(
             message=f"{key} is not a valid int: {object_[key]}",
             content_type=content_type,
             code=HTTPStatus.INTERNAL_SERVER_ERROR,
-        )
+        ) from exc
 
 
 class KarapaceKafkaClient(KafkaClient):
