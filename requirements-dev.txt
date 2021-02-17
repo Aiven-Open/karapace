@@ -7,6 +7,7 @@ yapf==0.30.0
 # testing
 pytest==6.2.2
 pytest-xdist[psutil]==2.2.1
+pytest-timeout==1.4.2
 
 # workflow
 pre-commit>=2.2.0
