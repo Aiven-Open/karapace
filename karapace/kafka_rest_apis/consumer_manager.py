@@ -4,6 +4,7 @@ from functools import partial
 from kafka import KafkaConsumer
 from kafka.errors import IllegalStateError, KafkaConfigurationError, KafkaError
 from kafka.structs import OffsetAndMetadata, TopicPartition
+from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
 from karapace.serialization import InvalidMessageHeader, InvalidPayload, SchemaRegistryDeserializer
 from karapace.utils import convert_to_int
@@ -48,11 +49,13 @@ class ConsumerManager:
             KarapaceBase.not_found(
                 message=f"Consumer for {internal_name} not found among {list(self.consumers.keys())}",
                 content_type=content_type,
-                sub_code=40403
+                sub_code=RESTErrorCodes.CONSUMER_NOT_FOUND.value,
             )
 
     @staticmethod
-    def _assert_positive_number(container: dict, key: str, content_type: str, code: int = 500, sub_code: int = 50001):
+    def _assert_positive_number(
+        container: dict, key: str, content_type: str, code: int = 500, sub_code: int = RESTErrorCodes.INVALID_VALUE.value
+    ):
         ConsumerManager._assert_has_key(container, key, content_type)
         ConsumerManager._assert(
             isinstance(container[key], int) and container[key] >= 0,
@@ -65,7 +68,11 @@ class ConsumerManager:
     @staticmethod
     def _assert_has_key(element: dict, key: str, content_type: str):
         ConsumerManager._assert(
-            key in element, code=500, sub_code=50001, message=f"{key} missing from {element}", content_type=content_type
+            key in element,
+            code=500,
+            sub_code=RESTErrorCodes.INVALID_VALUE.value,
+            message=f"{key} missing from {element}",
+            content_type=content_type
         )
 
     @staticmethod
@@ -79,11 +86,15 @@ class ConsumerManager:
         topic = topic_data["topic"]
         partition = topic_data["partition"]
         if topic not in cluster_metadata["topics"]:
-            KarapaceBase.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+            KarapaceBase.not_found(
+                message=f"Topic {topic} not found", content_type=content_type, sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value
+            )
         partitions = {pi["partition"] for pi in cluster_metadata["topics"][topic]["partitions"]}
         if partition not in partitions:
             KarapaceBase.not_found(
-                message=f"Partition {partition} not found for topic {topic}", content_type=content_type, sub_code=40402
+                message=f"Partition {partition} not found for topic {topic}",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
             )
 
     @staticmethod
@@ -92,7 +103,12 @@ class ConsumerManager:
 
     @staticmethod
     def _validate_create_consumer(request: dict, content_type: str):
-        consumer_data_valid = partial(ConsumerManager._assert, content_type=content_type, code=422, sub_code=42204)
+        consumer_data_valid = partial(
+            ConsumerManager._assert,
+            content_type=content_type,
+            code=422,
+            sub_code=RESTErrorCodes.INVALID_CONSUMER_PARAMETERS.value
+        )
         request["format"] = request.get("format", "binary")
         consumer_data_valid(request["format"] in KNOWN_FORMATS, message="Invalid format type")
         min_bytes_key = "fetch.min.bytes"
@@ -109,7 +125,9 @@ class ConsumerManager:
 
     @staticmethod
     def _illegal_state_fail(message: str, content_type: str):
-        return ConsumerManager._assert(cond=False, code=409, sub_code=40903, content_type=content_type, message=message)
+        return ConsumerManager._assert(
+            cond=False, code=409, sub_code=RESTErrorCodes.ILLEGAL_STATE.value, content_type=content_type, message=message
+        )
 
     @staticmethod
     def _update_partition_assignments(consumer: KafkaConsumer):
@@ -136,7 +154,7 @@ class ConsumerManager:
                     status=409,
                     content_type=content_type,
                     body={
-                        "error_code": 40902,
+                        "error_code": RESTErrorCodes.CONSUMER_ALREADY_EXISTS.value,
                         "message": f"Consumer {consumer_name} already exists"
                     }
                 )
@@ -384,7 +402,7 @@ class ConsumerManager:
             self._assert(
                 cond=serialization_format == request_format,
                 code=406,
-                sub_code=40601,
+                sub_code=RESTErrorCodes.UNSUPPORTED_FORMAT.value,
                 content_type=content_type,
                 message=f"Consumer format {serialization_format} does not match the embedded format {request_format}"
             )
