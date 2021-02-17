@@ -4,7 +4,7 @@ karapace - configuration validation
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-
+from pathlib import Path
 from typing import Dict, IO, Union
 
 import json
@@ -81,9 +81,8 @@ def set_config_defaults(config: Dict[str, Union[str, int, bool]]) -> Dict[str, U
     return config
 
 
-def write_config(config_path: str, custom_values: Dict[str, Union[str, int, bool]]):
-    with open(config_path, "w") as fp:
-        fp.write(json.dumps(custom_values))
+def write_config(config_path: Path, custom_values: Dict[str, Union[str, int, bool]]):
+    config_path.write_text(json.dumps(custom_values))
 
 
 def read_config(config_handler: IO) -> Dict[str, Union[str, int, bool]]:
