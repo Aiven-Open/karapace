@@ -1,6 +1,7 @@
 from asyncio import Lock
 from collections import defaultdict, namedtuple
 from functools import partial
+from http import HTTPStatus
 from kafka import KafkaConsumer
 from kafka.errors import IllegalStateError, KafkaConfigurationError, KafkaError
 from kafka.structs import OffsetAndMetadata, TopicPartition
@@ -54,7 +55,11 @@ class ConsumerManager:
 
     @staticmethod
     def _assert_positive_number(
-        container: dict, key: str, content_type: str, code: int = 500, sub_code: int = RESTErrorCodes.INVALID_VALUE.value
+        container: dict,
+        key: str,
+        content_type: str,
+        code: int = HTTPStatus.INTERNAL_SERVER_ERROR.value,
+        sub_code: int = RESTErrorCodes.INVALID_VALUE.value
     ):
         ConsumerManager._assert_has_key(container, key, content_type)
         ConsumerManager._assert(
@@ -62,17 +67,17 @@ class ConsumerManager:
             code=code,
             sub_code=sub_code,
             content_type=content_type,
-            message=f"{key} must be a positive number"
+            message=f"{key} must be a positive number",
         )
 
     @staticmethod
     def _assert_has_key(element: dict, key: str, content_type: str):
         ConsumerManager._assert(
             key in element,
-            code=500,
+            code=HTTPStatus.INTERNAL_SERVER_ERROR.value,
             sub_code=RESTErrorCodes.INVALID_VALUE.value,
             message=f"{key} missing from {element}",
-            content_type=content_type
+            content_type=content_type,
         )
 
     @staticmethod
@@ -106,7 +111,7 @@ class ConsumerManager:
         consumer_data_valid = partial(
             ConsumerManager._assert,
             content_type=content_type,
-            code=422,
+            code=HTTPStatus.UNPROCESSABLE_ENTITY.value,
             sub_code=RESTErrorCodes.INVALID_CONSUMER_PARAMETERS.value
         )
         request["format"] = request.get("format", "binary")
@@ -126,7 +131,11 @@ class ConsumerManager:
     @staticmethod
     def _illegal_state_fail(message: str, content_type: str):
         return ConsumerManager._assert(
-            cond=False, code=409, sub_code=RESTErrorCodes.ILLEGAL_STATE.value, content_type=content_type, message=message
+            cond=False,
+            code=HTTPStatus.CONFLICT.value,
+            sub_code=RESTErrorCodes.ILLEGAL_STATE.value,
+            content_type=content_type,
+            message=message,
         )
 
     @staticmethod
@@ -151,12 +160,12 @@ class ConsumerManager:
             if internal_name in self.consumers:
                 self.log.error("Error creating duplicate consumer in group %s with id %s", group_name, consumer_name)
                 KarapaceBase.r(
-                    status=409,
+                    status=HTTPStatus.CONFLICT.value,
                     content_type=content_type,
                     body={
                         "error_code": RESTErrorCodes.CONSUMER_ALREADY_EXISTS.value,
-                        "message": f"Consumer {consumer_name} already exists"
-                    }
+                        "message": f"Consumer {consumer_name} already exists",
+                    },
                 )
             self._validate_create_consumer(request_data, content_type)
             self.log.info(
@@ -401,7 +410,7 @@ class ConsumerManager:
             request_format = formats["embedded_format"]
             self._assert(
                 cond=serialization_format == request_format,
-                code=406,
+                code=HTTPStatus.NOT_ACCEPTABLE.value,
                 sub_code=RESTErrorCodes.UNSUPPORTED_FORMAT.value,
                 content_type=content_type,
                 message=f"Consumer format {serialization_format} does not match the embedded format {request_format}"

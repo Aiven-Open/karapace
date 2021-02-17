@@ -1,11 +1,12 @@
 from enum import Enum, unique
+from http import HTTPStatus
 
 
 @unique
 class RESTErrorCodes(Enum):
-    HTTP_BAD_REQUEST = 400
-    HTTP_NOT_FOUND = 404
-    HTTP_INTERNAL_SERVER_ERROR = 500
+    HTTP_BAD_REQUEST = HTTPStatus.BAD_REQUEST.value
+    HTTP_NOT_FOUND = HTTPStatus.NOT_FOUND.value
+    HTTP_INTERNAL_SERVER_ERROR = HTTPStatus.INTERNAL_SERVER_ERROR.value
     TOPIC_NOT_FOUND = 40401
     PARTITION_NOT_FOUND = 40402
     CONSUMER_NOT_FOUND = 40403
