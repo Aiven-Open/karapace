@@ -61,29 +61,18 @@ Building
 ========
 
 To build an installation package for your distribution, go to the root
-directory of a Karapace Git checkout and run:
-
-Fedora::
-
-  make rpm
-
-This will produce a ``.rpm`` package usually into ``rpm/RPMS/noarch/``.
-
-Python/Other::
+directory of a Karapace Git checkout and run::
 
   python3 setup.py bdist_egg
 
 This will produce an egg file into a dist directory within the same folder.
 
-
 Installation
 ============
 
-To install it run as root:
+Python/Other::
 
-Fedora::
-
-  dnf install rpm/RPMS/noarch/*
+  easy_install dist/karapace-0.1.0-py3.6.egg
 
 On Linux systems it is recommended to simply run ``karapace`` under
 ``systemd``::
@@ -93,11 +82,6 @@ On Linux systems it is recommended to simply run ``karapace`` under
 and eventually after the setup section, you can just run::
 
   systemctl start karapace.service
-
-Python/Other::
-
-  easy_install dist/karapace-0.1.0-py3.6.egg
-
 
 Setup
 =====
