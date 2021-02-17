@@ -1,10 +1,11 @@
-from .admin import KafkaRestAdminClient
-from .consumer_manager import ConsumerManager
 from aiokafka import AIOKafkaProducer
 from binascii import Error as B64DecodeError
 from collections import namedtuple
 from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
 from karapace.config import create_ssl_context
+from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
+from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
+from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
@@ -284,7 +285,14 @@ class KafkaRest(KarapaceBase):
                     self._cluster_metadata = self.admin_client.cluster_metadata(topics)
                 except NodeNotReadyError:
                     self.log.exception("Could not refresh cluster metadata")
-                    self.r({"message": "Kafka node not ready", "code": 500}, "application/json", 500)
+                    self.r(
+                        body={
+                            "message": "Kafka node not ready",
+                            "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                        },
+                        content_type="application/json",
+                        status=500,
+                    )
         return copy.deepcopy(self._cluster_metadata)
 
     def init_admin_client(self):
@@ -348,12 +356,26 @@ class KafkaRest(KarapaceBase):
             self.unprocessable_entity(
                 message=f"Request includes data improperly formatted given the format {ser_format}",
                 content_type=content_type,
-                sub_code=42205
+                sub_code=RESTErrorCodes.INVALID_DATA.value,
             )
         except InvalidMessageSchema as e:
-            self.r(body={"error_code": 42205, "message": str(e)}, content_type=content_type, status=422)
+            self.r(
+                body={
+                    "error_code": RESTErrorCodes.INVALID_DATA.value,
+                    "message": str(e)
+                },
+                content_type=content_type,
+                status=422,
+            )
         except SchemaRetrievalError as e:
-            self.r(body={"error_code": 40801, "message": str(e)}, content_type=content_type, status=408)
+            self.r(
+                body={
+                    "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
+                    "message": str(e)
+                },
+                content_type=content_type,
+                status=408,
+            )
         response = {
             "key_schema_id": data.get("key_schema_id"),
             "value_schema_id": data.get("value_schema_id"),
@@ -414,11 +436,11 @@ class KafkaRest(KarapaceBase):
         except KeyError:
             self.r(
                 body={
-                    "error_code": 404,
-                    "message": f"Unknown schema type {schema_type}"
+                    "error_code": RESTErrorCodes.HTTP_NOT_FOUND.value,
+                    "message": f"Unknown schema type {schema_type}",
                 },
                 content_type=content_type,
-                status=404
+                status=404,
             )
 
         # will do in place updates of id keys, since calling these twice would be expensive
@@ -426,7 +448,14 @@ class KafkaRest(KarapaceBase):
             data[f"{prefix}_schema_id"] = await self.get_schema_id(data, topic, prefix, schema_type)
         except InvalidPayload:
             self.log.exception("Unable to retrieve schema id")
-            self.r(body={"error_code": 400, "message": "Invalid schema string"}, content_type=content_type, status=400)
+            self.r(
+                body={
+                    "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
+                    "message": "Invalid schema string",
+                },
+                content_type=content_type,
+                status=400,
+            )
 
     async def _prepare_records(
         self,
