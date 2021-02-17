@@ -1,6 +1,7 @@
 from aiokafka import AIOKafkaProducer
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from http import HTTPStatus
 from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
 from karapace.config import create_ssl_context
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
@@ -291,7 +292,7 @@ class KafkaRest(KarapaceBase):
                             "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
                         },
                         content_type="application/json",
-                        status=500,
+                        status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
                     )
         return copy.deepcopy(self._cluster_metadata)
 
@@ -341,7 +342,7 @@ class KafkaRest(KarapaceBase):
         for k in ["key_schema_id", "value_schema_id"]:
             convert_to_int(data, k, content_type)
         await self.validate_publish_request_format(data, formats, content_type, topic)
-        status = 200
+        status = HTTPStatus.OK.value
         ser_format = formats["embedded_format"]
         prepared_records = []
         try:
@@ -365,7 +366,7 @@ class KafkaRest(KarapaceBase):
                     "message": str(e)
                 },
                 content_type=content_type,
-                status=422,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
             )
         except SchemaRetrievalError as e:
             self.r(
@@ -374,7 +375,7 @@ class KafkaRest(KarapaceBase):
                     "message": str(e)
                 },
                 content_type=content_type,
-                status=408,
+                status=HTTPStatus.REQUEST_TIMEOUT.value,
             )
         response = {
             "key_schema_id": data.get("key_schema_id"),
@@ -383,8 +384,8 @@ class KafkaRest(KarapaceBase):
         }
         for key, value, partition in prepared_records:
             publish_result = await self.produce_message(topic=topic, key=key, value=value, partition=partition)
-            if "error" in publish_result and status == 200:
-                status = 500
+            if "error" in publish_result and status == HTTPStatus.OK.value:
+                status = HTTPStatus.INTERNAL_SERVER_ERROR.value
             response["offsets"].append(publish_result)
         self.r(body=response, content_type=content_type, status=status)
 
@@ -440,7 +441,7 @@ class KafkaRest(KarapaceBase):
                     "message": f"Unknown schema type {schema_type}",
                 },
                 content_type=content_type,
-                status=404,
+                status=HTTPStatus.NOT_FOUND.value,
             )
 
         # will do in place updates of id keys, since calling these twice would be expensive
@@ -454,7 +455,7 @@ class KafkaRest(KarapaceBase):
                     "message": "Invalid schema string",
                 },
                 content_type=content_type,
-                status=400,
+                status=HTTPStatus.BAD_REQUEST.value,
             )
 
     async def _prepare_records(
