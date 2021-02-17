@@ -49,15 +49,21 @@ def test_master_selection(kafka_server: Optional[KafkaConfig], strategy: str) ->
         if not (mc_aa.sc or mc_bb.sc):
             time.sleep(1.0)
             continue
-        if not (mc_aa.sc.master or mc_bb.sc.master or mc_aa.sc.master_url or mc_bb.sc.master_url):
+
+        # These values may be modified by a background thread, make sure to use
+        # the same values for the loop condition below and the assertions.
+        aa_master = mc_aa.sc.master
+        bb_master = mc_bb.sc.master
+        aa_master_url = mc_aa.sc.master_url
+        bb_master_url = mc_bb.sc.master_url
+
+        if not (aa_master or bb_master or aa_master_url or bb_master_url):
             time.sleep(1.0)
             continue
         assert mc_bb.sc.election_strategy == strategy
         assert mc_aa.sc.election_strategy == strategy
-        aa_master = strategy == "lowest"
-        bb_master = strategy == "highest"
-        assert mc_aa.sc.master is aa_master
-        assert mc_bb.sc.master is bb_master
+        assert aa_master is (strategy == "lowest")
+        assert bb_master is (strategy == "highest")
         master_config = config_aa if strategy == "lowest" else config_bb
         master_url = "http://{}:{}".format(master_config["host"], master_config["port"])
         assert mc_aa.sc.master_url == master_url

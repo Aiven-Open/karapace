@@ -5,7 +5,8 @@ pylint==2.4.4
 yapf==0.30.0
 
 # testing
-pytest==5.4.1
+pytest==6.2.2
+pytest-xdist[psutil]==2.2.1
 
 # workflow
 pre-commit>=2.2.0
