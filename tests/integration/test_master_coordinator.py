@@ -27,48 +27,59 @@ def init_admin(config):
     return mc
 
 
+def is_master(mc: MasterCoordinator) -> bool:
+    """ True if `mc` is the master.
+
+    This takes care of a race condition were the flag `master` is set but
+    `master_url` is not yet set.
+    """
+    return bool(mc.sc and mc.sc.master and mc.sc.master_url)
+
+
+def has_master(mc: MasterCoordinator) -> bool:
+    """ True if `mc` has a master. """
+    return bool(mc.sc and not mc.sc.master and mc.sc.master_url)
+
+
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
 def test_master_selection(kafka_server: Optional[KafkaConfig], strategy: str) -> None:
     assert kafka_server, f"test_master_selection can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
 
     config_aa = set_config_defaults({})
     config_aa["advertised_hostname"] = "127.0.0.1"
-    config_aa["bootstrap_uri"] = "127.0.0.1:{}".format(kafka_server.kafka_port)
+    config_aa["bootstrap_uri"] = f"127.0.0.1:{kafka_server.kafka_port}"
     config_aa["client_id"] = "aa"
     config_aa["port"] = 1234
     config_aa["master_election_strategy"] = strategy
     mc_aa = init_admin(config_aa)
     config_bb = set_config_defaults({})
     config_bb["advertised_hostname"] = "127.0.0.1"
-    config_bb["bootstrap_uri"] = "127.0.0.1:{}".format(kafka_server.kafka_port)
+    config_bb["bootstrap_uri"] = f"127.0.0.1:{kafka_server.kafka_port}"
     config_bb["client_id"] = "bb"
     config_bb["port"] = 5678
     config_bb["master_election_strategy"] = strategy
     mc_bb = init_admin(config_bb)
-    while True:
-        if not (mc_aa.sc or mc_bb.sc):
-            time.sleep(1.0)
-            continue
 
-        # These values may be modified by a background thread, make sure to use
-        # the same values for the loop condition below and the assertions.
-        aa_master = mc_aa.sc.master
-        bb_master = mc_bb.sc.master
-        aa_master_url = mc_aa.sc.master_url
-        bb_master_url = mc_bb.sc.master_url
+    if strategy == "lowest":
+        master = mc_aa
+        slave = mc_bb
+    else:
+        master = mc_bb
+        slave = mc_aa
 
-        if not (aa_master or bb_master or aa_master_url or bb_master_url):
-            time.sleep(1.0)
-            continue
-        assert mc_bb.sc.election_strategy == strategy
-        assert mc_aa.sc.election_strategy == strategy
-        assert aa_master is (strategy == "lowest")
-        assert bb_master is (strategy == "highest")
-        master_config = config_aa if strategy == "lowest" else config_bb
-        master_url = "http://{}:{}".format(master_config["host"], master_config["port"])
-        assert mc_aa.sc.master_url == master_url
-        assert mc_bb.sc.master_url == master_url
-        break
+    # Wait for the election to happen
+    while not is_master(master):
+        time.sleep(0.3)
+
+    while not has_master(slave):
+        time.sleep(0.3)
+
+    # Make sure the end configuration is as expected
+    master_url = f'http://{master.config["host"]}:{master.config["port"]}'
+    assert master.sc.election_strategy == strategy
+    assert slave.sc.election_strategy == strategy
+    assert master.sc.master_url == master_url
+    assert slave.sc.master_url == master_url
     mc_aa.close()
     mc_bb.close()
 
