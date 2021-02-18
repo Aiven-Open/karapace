@@ -2,7 +2,7 @@ from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
 from karapace import version as karapace_version
-from karapace.compatibility import check_compatibility, IncompatibleSchema
+from karapace.compatibility import check_compatibility, CompatibilityModes, IncompatibleSchema
 from karapace.config import read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
@@ -14,17 +14,6 @@ import argparse
 import asyncio
 import sys
 import time
-
-
-@unique
-class CompatibilityModes(Enum):
-    BACKWARD = "BACKWARD"
-    BACKWARD_TRANSITIVE = "BACKWARD_TRANSITIVE"
-    FORWARD = "FORWARD"
-    FORWARD_TRANSITIVE = "FORWARD_TRANSITIVE"
-    FULL = "FULL"
-    FULL_TRANSITIVE = "FULL_TRANSITIVE"
-    NONE = "NONE"
 
 
 @unique
@@ -40,13 +29,6 @@ class SchemaErrorCodes(Enum):
     INVALID_COMPATIBILITY_LEVEL = 42203
     INVALID_AVRO_SCHEMA = 44201
     NO_MASTER_ERROR = 50003
-
-
-TRANSITIVE_MODES = {
-    "BACKWARD_TRANSITIVE",
-    "FORWARD_TRANSITIVE",
-    "FULL_TRANSITIVE",
-}
 
 
 class InvalidSchemaType(Exception):
@@ -176,6 +158,24 @@ class KarapaceSchemaRegistry(KarapaceBase):
             status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
         )
 
+    def _get_compatibility_mode(self, subject, content_type) -> CompatibilityModes:
+        compatibility = subject.get("compatibility", self.ksr.config["compatibility"])
+
+        try:
+            compatibility_mode = CompatibilityModes(compatibility)
+        except ValueError:
+            # Using INTERNAL_SERVER_ERROR because the subject and configuration
+            # should have been validated before.
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                    "message": f"Unknown compatibility mode {compatibility}",
+                },
+                content_type=content_type,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            )
+        return compatibility_mode
+
     def get_offset_from_queue(self, sent_offset):
         start_time = time.monotonic()
         while True:
@@ -264,10 +264,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
             )
 
+        compatibility_mode = self._get_compatibility_mode(subject=old, content_type=content_type)
+
         try:
-            check_compatibility(
-                source=old_schema, target=new, compatibility=old.get("compatibility", self.ksr.config["compatibility"])
-            )
+            check_compatibility(source=old_schema, target=new, compatibility_mode=compatibility_mode)
         except IncompatibleSchema as ex:
             self.log.warning("Invalid schema %s found by compatibility check: old: %s new: %s", ex, old_schema, new)
             self.r({"is_compatible": False}, content_type)
@@ -665,12 +665,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 else:
                     self.log.debug("schema: %s did not match with: %s", schema, new_schema)
 
-            compatibility = subject_data.get("compatibility", self.ksr.config["compatibility"])
+            compatibility_mode = self._get_compatibility_mode(subject=subject_data, content_type=content_type)
 
             # Run a compatibility check between on file schema(s) and the one being submitted now
             # the check is either towards the latest one or against all previous ones in case of
             # transitive mode
-            if compatibility in TRANSITIVE_MODES:
+            if compatibility_mode.is_transitive():
                 check_against = schema_versions
             else:
                 check_against = [schema_versions[-1]]
@@ -678,7 +678,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             for old_version in check_against:
                 old_schema = subject_data["schemas"][old_version]["schema"]
                 try:
-                    check_compatibility(source=old_schema, target=new_schema, compatibility=compatibility)
+                    check_compatibility(source=old_schema, target=new_schema, compatibility_mode=compatibility_mode)
                 except IncompatibleSchema as ex:
                     self.log.warning("Incompatible schema: %s", ex)
                     self.r(
