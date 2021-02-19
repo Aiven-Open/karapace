@@ -2,10 +2,12 @@ from avro.schema import (
     ARRAY, ArraySchema, BOOLEAN, BYTES, DOUBLE, ENUM, EnumSchema, Field, FIXED, FixedSchema, FLOAT, INT, LONG, MAP,
     MapSchema, NamedSchema, Names, NULL, RECORD, RecordSchema, Schema, SchemaFromJSONData, STRING, UNION, UnionSchema
 )
-from enum import Enum
-from typing import Any, cast, Dict, List, Optional, Set
+from enum import Enum, unique
+from typing import Any, cast, Dict, Generic, List, Optional, Set, TypeVar
 
 import json
+
+E = TypeVar("E", bound=Enum)
 
 
 def parse_json_ignore_trailing(s: str) -> Any:
@@ -28,12 +30,16 @@ def parse_json_ignore_trailing(s: str) -> Any:
     return SchemaFromJSONData(json_data, names)
 
 
+# TODO: remove SchemaCompatibilityType.incompatible, it can be determined from
+# SchemaCompatibilityResult.incompatibilities
+@unique
 class SchemaCompatibilityType(Enum):
     compatible = "compatible"
     incompatible = "incompatible"
     recursion_in_progress = "recursion_in_progress"
 
 
+@unique
 class SchemaIncompatibilityType(Enum):
     name_mismatch = "name_mismatch"
     fixed_size_mismatch = "fixed_size_mismatch"
@@ -47,11 +53,11 @@ class AvroRuntimeException(Exception):
     pass
 
 
-class SchemaCompatibilityResult:
+class SchemaCompatibilityResult(Generic[E]):
     def __init__(
         self,
         compatibility: SchemaCompatibilityType = SchemaCompatibilityType.recursion_in_progress,
-        incompatibilities: Optional[List[SchemaIncompatibilityType]] = None,
+        incompatibilities: Optional[List[E]] = None,
         messages: Optional[Set[str]] = None,
         locations: Optional[Set[str]] = None,
     ) -> None:
@@ -83,14 +89,21 @@ class SchemaCompatibilityResult:
             compatibility=compat, incompatibilities=incompatibilities, messages=messages, locations=locations
         )
 
+    def add_incompatibility(self, incompat_type: E, message: str, location: List[str]) -> None:
+        """Add an incompatibility, this will modify the object in-place."""
+        formatted_location = "/".join(location[1:] if len(location) > 1 else location)
+
+        self.compatibility = SchemaCompatibilityType.incompatible
+        self.incompatibilities.append(incompat_type)
+        self.messages.add(message)
+        self.locations.add(formatted_location)
+
     @staticmethod
     def compatible() -> "SchemaCompatibilityResult":
         return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     @staticmethod
-    def incompatible(
-        incompat_type: SchemaIncompatibilityType, message: str, location: List[str]
-    ) -> "SchemaCompatibilityResult":
+    def incompatible(incompat_type: E, message: str, location: List[str]) -> "SchemaCompatibilityResult":
         locations = "/".join(location)
         if len(location) > 1:  # Remove ROOT_REFERENCE_TOKEN
             locations = locations[1:]

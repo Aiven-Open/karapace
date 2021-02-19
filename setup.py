@@ -28,6 +28,7 @@ setup(
         "aiokafka",
         "avro-python3",
         "jsonschema",
+        "networkx",
         "kafka-python",
         "requests",
     ],
