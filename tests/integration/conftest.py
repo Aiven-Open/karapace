@@ -7,7 +7,6 @@ See LICENSE for details
 from dataclasses import dataclass
 from filelock import FileLock
 from kafka import KafkaAdminClient, KafkaProducer
-from karapace.avro_compatibility import SchemaCompatibilityResult
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
@@ -84,42 +83,6 @@ class ZKConfig:
     client_port: int
     admin_port: int
     path: str
-
-
-def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
-    if isinstance(left, SchemaCompatibilityResult) and isinstance(right, SchemaCompatibilityResult) and op in ("==", "!="):
-        lines = ["Comparing SchemaCompatibilityResult instances:"]
-
-        def pad(depth: int, *msg: str) -> str:
-            return "  " * depth + ' '.join(msg)
-
-        def list_details(header: str, depth: int, items: List[str]) -> None:
-            qty = len(items)
-
-            if qty == 1:
-                lines.append(pad(depth, header, *items))
-            elif qty > 1:
-                lines.append(pad(depth, header))
-                depth += 1
-                for loc in items:
-                    lines.append(pad(depth, loc))
-
-        def compatibility_details(header: str, depth: int, obj: SchemaCompatibilityResult) -> None:
-            lines.append(pad(depth, header))
-
-            depth += 1
-
-            lines.append(pad(depth, 'compatibility', str(obj.compatibility)))
-            list_details('locations:', depth, list(obj.locations))
-            list_details('messages:', depth, list(obj.messages))
-            list_details('incompatibilities:', depth, [str(i) for i in obj.incompatibilities])
-
-        depth = 1
-        compatibility_details("Left:", depth, left)
-        compatibility_details("Right:", depth, right)
-        return lines
-
-    return None
 
 
 def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
