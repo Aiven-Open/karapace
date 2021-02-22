@@ -317,9 +317,7 @@ class KafkaSchemaReader(Thread):
             elif value.get("deleted", False) is True:
                 self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
                 if not value["version"] in self.subjects[subject]["schemas"]:
-                    self.log.error(
-                        "Subject: %r, version: %r, value: %r did not exist, should have.", subject, value["version"], value
-                    )
+                    self.schemas[value["id"]] = typed_schema
                 else:
                     self.subjects[subject]["schemas"][value["version"]]["deleted"] = True
             elif value.get("deleted", False) is False:
