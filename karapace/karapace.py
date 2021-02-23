@@ -6,9 +6,11 @@ See LICENSE for details
 """
 
 from functools import partial
+from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.rapu import HTTPResponse, RestApp
 from karapace.utils import KarapaceKafkaClient
+from typing import NoReturn, Union
 
 import asyncio
 import logging
@@ -41,7 +43,7 @@ class KarapaceBase(RestApp):
         self._set_log_level()
         self.log.info("Karapace initialized")
 
-    def _create_producer(self):
+    def _create_producer(self) -> KafkaProducer:
         while True:
             try:
                 return KafkaProducer(
@@ -60,20 +62,20 @@ class KarapaceBase(RestApp):
                 self.log.exception("Unable to create producer, retrying")
                 time.sleep(1)
 
-    def close(self):
+    def close(self) -> None:
         if not self.producer:
             return
         self.producer.close()
         self.producer = None
 
-    def _set_log_level(self):
+    def _set_log_level(self) -> None:
         try:
             logging.getLogger().setLevel(self.config["log_level"])
         except ValueError:
             self.log.exception("Problem with log_level: %r", self.config["log_level"])
 
     @staticmethod
-    def r(body, content_type, status=200):
+    def r(body: Union[dict, list], content_type: str, status: HTTPStatus = HTTPStatus.OK) -> NoReturn:
         raise HTTPResponse(
             body=body,
             status=status,
@@ -82,23 +84,49 @@ class KarapaceBase(RestApp):
         )
 
     @staticmethod
-    def internal_error(message, content_type):
-        KarapaceBase.r(content_type=content_type, status=500, body={"message": message, "error_code": 500})
+    def internal_error(message: str, content_type: str) -> NoReturn:
+        KarapaceBase.r(
+            content_type=content_type,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            body={
+                "message": message,
+                "error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value
+            }
+        )
 
     @staticmethod
-    def unprocessable_entity(message, sub_code, content_type):
-        KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
+    def unprocessable_entity(message: str, sub_code: int, content_type: str) -> NoReturn:
+        KarapaceBase.r(
+            content_type=content_type,
+            status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            body={
+                "message": message,
+                "error_code": sub_code
+            }
+        )
 
     @staticmethod
-    def topic_entity(message, sub_code, content_type):
-        KarapaceBase.r(content_type=content_type, status=422, body={"message": message, "error_code": sub_code})
+    def topic_entity(message: str, sub_code: int, content_type: str) -> NoReturn:
+        KarapaceBase.r(
+            content_type=content_type,
+            status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            body={
+                "message": message,
+                "error_code": sub_code
+            }
+        )
 
     @staticmethod
-    def not_found(message, sub_code, content_type):
-        KarapaceBase.r(content_type=content_type, status=404, body={"message": message, "error_code": sub_code})
+    def not_found(message: str, sub_code: int, content_type: str) -> NoReturn:
+        KarapaceBase.r(
+            content_type=content_type, status=HTTPStatus.NOT_FOUND, body={
+                "message": message,
+                "error_code": sub_code
+            }
+        )
 
-    async def root_get(self):
+    async def root_get(self) -> NoReturn:
         self.r({}, "application/json")
 
 
-empty_response = partial(KarapaceBase.r, body={}, status=204, content_type="application/json")
+empty_response = partial(KarapaceBase.r, body={}, status=HTTPStatus.NO_CONTENT, content_type="application/json")

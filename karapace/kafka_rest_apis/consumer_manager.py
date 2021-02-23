@@ -41,11 +41,11 @@ class ConsumerManager:
         return name
 
     @staticmethod
-    def _assert(cond: bool, code: int, sub_code: int, message: str, content_type: str):
+    def _assert(cond: bool, code: HTTPStatus, sub_code: int, message: str, content_type: str) -> None:
         if not cond:
             KarapaceBase.r(content_type=content_type, status=code, body={"message": message, "error_code": sub_code})
 
-    def _assert_consumer_exists(self, internal_name: Tuple[str, str], content_type: str):
+    def _assert_consumer_exists(self, internal_name: Tuple[str, str], content_type: str) -> None:
         if internal_name not in self.consumers:
             KarapaceBase.not_found(
                 message=f"Consumer for {internal_name} not found among {list(self.consumers.keys())}",
@@ -58,9 +58,9 @@ class ConsumerManager:
         container: dict,
         key: str,
         content_type: str,
-        code: int = HTTPStatus.INTERNAL_SERVER_ERROR.value,
+        code: HTTPStatus = HTTPStatus.INTERNAL_SERVER_ERROR,
         sub_code: int = RESTErrorCodes.INVALID_VALUE.value
-    ):
+    ) -> None:
         ConsumerManager._assert_has_key(container, key, content_type)
         ConsumerManager._assert(
             isinstance(container[key], int) and container[key] >= 0,
@@ -71,10 +71,10 @@ class ConsumerManager:
         )
 
     @staticmethod
-    def _assert_has_key(element: dict, key: str, content_type: str):
+    def _assert_has_key(element: dict, key: str, content_type: str) -> None:
         ConsumerManager._assert(
             key in element,
-            code=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            code=HTTPStatus.INTERNAL_SERVER_ERROR,
             sub_code=RESTErrorCodes.INVALID_VALUE.value,
             message=f"{key} missing from {element}",
             content_type=content_type,
@@ -107,11 +107,11 @@ class ConsumerManager:
         return group_name, consumer_name
 
     @staticmethod
-    def _validate_create_consumer(request: dict, content_type: str):
+    def _validate_create_consumer(request: dict, content_type: str) -> None:
         consumer_data_valid = partial(
             ConsumerManager._assert,
             content_type=content_type,
-            code=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+            code=HTTPStatus.UNPROCESSABLE_ENTITY,
             sub_code=RESTErrorCodes.INVALID_CONSUMER_PARAMETERS.value
         )
         request["format"] = request.get("format", "binary")
@@ -129,10 +129,10 @@ class ConsumerManager:
         )
 
     @staticmethod
-    def _illegal_state_fail(message: str, content_type: str):
-        return ConsumerManager._assert(
+    def _illegal_state_fail(message: str, content_type: str) -> None:
+        ConsumerManager._assert(
             cond=False,
-            code=HTTPStatus.CONFLICT.value,
+            code=HTTPStatus.CONFLICT,
             sub_code=RESTErrorCodes.ILLEGAL_STATE.value,
             content_type=content_type,
             message=message,
@@ -160,7 +160,7 @@ class ConsumerManager:
             if internal_name in self.consumers:
                 self.log.error("Error creating duplicate consumer in group %s with id %s", group_name, consumer_name)
                 KarapaceBase.r(
-                    status=HTTPStatus.CONFLICT.value,
+                    status=HTTPStatus.CONFLICT,
                     content_type=content_type,
                     body={
                         "error_code": RESTErrorCodes.CONSUMER_ALREADY_EXISTS.value,
@@ -312,7 +312,7 @@ class ConsumerManager:
                 topics = list(consumer.subscription())
             KarapaceBase.r(content_type=content_type, body={"topics": topics})
 
-    async def delete_subscription(self, internal_name: Tuple[str], content_type: str):
+    async def delete_subscription(self, internal_name: Tuple[str, str], content_type: str):
         self.log.info("Deleting subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
@@ -410,7 +410,7 @@ class ConsumerManager:
             request_format = formats["embedded_format"]
             self._assert(
                 cond=serialization_format == request_format,
-                code=HTTPStatus.NOT_ACCEPTABLE.value,
+                code=HTTPStatus.NOT_ACCEPTABLE,
                 sub_code=RESTErrorCodes.UNSUPPORTED_FORMAT.value,
                 content_type=content_type,
                 message=f"Consumer format {serialization_format} does not match the embedded format {request_format}"

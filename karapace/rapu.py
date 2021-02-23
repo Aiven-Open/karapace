@@ -7,10 +7,11 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from accept_types import get_best_match
+from http import HTTPStatus
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Dict, Optional
+from typing import Dict, NoReturn, Optional, overload, Union
 
 import aiohttp
 import aiohttp.web
@@ -26,17 +27,18 @@ import ssl
 import time
 
 SERVER_NAME = "Karapace/{}".format(__version__)
+JSON_CONTENT_TYPE = "application/json"
 
 SCHEMA_CONTENT_TYPES = [
     "application/vnd.schemaregistry.v1+json",
     "application/vnd.schemaregistry+json",
-    "application/json",
+    JSON_CONTENT_TYPE,
     "application/octet-stream",
 ]
 SCHEMA_ACCEPT_VALUES = [
     "application/vnd.schemaregistry.v1+json",
     "application/vnd.schemaregistry+json",
-    "application/json",
+    JSON_CONTENT_TYPE,
 ]
 
 # TODO -> accept more general values as well
@@ -48,6 +50,11 @@ REST_ACCEPT_RE = re.compile(
     r"(application|\*)/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary|jsonschema))?(\.(?P<api_version>v[12]))?\+"
     r"(?P<serialization_format>json))|(?P<general_format>json|\*))"
 )
+
+
+def is_success(http_status: HTTPStatus) -> bool:
+    """True if response has a 2xx status_code"""
+    return http_status.value >= 200 and http_status.value < 300
 
 
 class HTTPRequest:
@@ -72,7 +79,15 @@ class HTTPRequest:
         self.method = method
         self.json = None
 
-    def get_header(self, header: str, default_value: Optional[str] = None) -> Optional[str]:
+    @overload
+    def get_header(self, header: str) -> Optional[str]:  # pylint: disable=no-self-use
+        ...
+
+    @overload
+    def get_header(self, header: str, default_value: str) -> str:  # pylint: disable=no-self-use
+        ...
+
+    def get_header(self, header, default_value=None):
         upper_cased = header.upper()
         if upper_cased in self._header_cache:
             return self._header_cache[upper_cased]
@@ -83,7 +98,7 @@ class HTTPRequest:
                 return value
         if upper_cased == "CONTENT-TYPE":
             # sensible default
-            self._header_cache[upper_cased] = "application/json"
+            self._header_cache[upper_cased] = JSON_CONTENT_TYPE
         else:
             self._header_cache[upper_cased] = default_value
         return self._header_cache[upper_cased]
@@ -95,30 +110,39 @@ class HTTPRequest:
 class HTTPResponse(Exception):
     """A custom Response object derived from Exception so it can be raised
     in response handler callbacks."""
+    status: HTTPStatus
+    json: Union[None, list, dict]
 
-    def __init__(self, body, *, status: int = 200, content_type: Optional[str] = None, headers: Dict[str, str] = None):
+    def __init__(
+        self,
+        body,
+        *,
+        status: HTTPStatus = HTTPStatus.OK,
+        content_type: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None
+    ) -> None:
         self.body = body
         self.status = status
         self.headers = dict(headers) if headers else {}
+
         if isinstance(body, (dict, list)):
-            self.headers["Content-Type"] = "application/json"
+            self.headers["Content-Type"] = JSON_CONTENT_TYPE
             self.json = body
         else:
             self.json = None
         if content_type:
             self.headers["Content-Type"] = content_type
-        super().__init__("HTTPResponse {}".format(status))
+        super().__init__(f"HTTPResponse {status.value}")
 
-    def ok(self):
-        if self.status < 200 or self.status >= 300:
-            return False
-        return True
+    def ok(self) -> bool:
+        """True if resposne has a 2xx status_code"""
+        return is_success(self.status)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"HTTPResponse(status={self.status} body={self.body})"
 
 
-def http_error(message, content_type, code):
+def http_error(message, content_type: str, code: HTTPStatus) -> NoReturn:
     raise HTTPResponse(
         body=json_encode({
             "error_code": code,
@@ -166,18 +190,22 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
-    def check_rest_headers(self, request: HTTPRequest):  # pylint: disable=R1710
+    def check_rest_headers(self, request: HTTPRequest) -> dict:  # pylint:disable=inconsistent-return-statements
         method = request.method
         default_content = "application/vnd.kafka.json.v2+json"
         default_accept = "*/*"
-        result = {"content_type": default_content}
+        result: dict = {"content_type": default_content}
         content_matcher = REST_CONTENT_TYPE_RE.search(
             cgi.parse_header(request.get_header("Content-Type", default_content))[0]
         )
         accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(request.get_header("Accept", default_accept))[0])
         if method in {"POST", "PUT"}:
             if not content_matcher:
-                http_error("HTTP 415 Unsupported Media Type", result["content_type"], 415)
+                http_error(
+                    message=HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description,
+                    content_type=result["content_type"],
+                    code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+                )
         if content_matcher and accept_matcher:
             header_info = content_matcher.groupdict()
             header_info["embedded_format"] = header_info.get("embedded_format") or "binary"
@@ -185,14 +213,23 @@ class RestApp:
             result["accepts"] = accept_matcher.groupdict()
             return result
         self.log.error("Not acceptable: %r", request.get_header("accept"))
-        http_error("HTTP 406 Not Acceptable", result["content_type"], 406)
+        http_error(
+            message=HTTPStatus.NOT_ACCEPTABLE.description,
+            content_type=result["content_type"],
+            code=HTTPStatus.NOT_ACCEPTABLE,
+        )
 
     def check_schema_headers(self, request: HTTPRequest):
         method = request.method
         response_default_content_type = "application/vnd.schemaregistry.v1+json"
+        content_type = request.get_header("Content-Type", JSON_CONTENT_TYPE)
 
-        if method in {"POST", "PUT"} and cgi.parse_header(request.get_header("Content-Type"))[0] not in SCHEMA_CONTENT_TYPES:
-            http_error("HTTP 415 Unsupported Media Type", response_default_content_type, 415)
+        if method in {"POST", "PUT"} and cgi.parse_header(content_type)[0] not in SCHEMA_CONTENT_TYPES:
+            http_error(
+                message=HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description,
+                content_type=response_default_content_type,
+                code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+            )
         accept_val = request.get_header("Accept")
         if accept_val:
             if accept_val in ("*/*", "*") or accept_val.startswith("*/"):
@@ -200,7 +237,11 @@ class RestApp:
             content_type_match = get_best_match(accept_val, SCHEMA_ACCEPT_VALUES)
             if not content_type_match:
                 self.log.debug("Unexpected Accept value: %r", accept_val)
-                http_error("HTTP 406 Not Acceptable", response_default_content_type, 406)
+                http_error(
+                    message=HTTPStatus.NOT_ACCEPTABLE.description,
+                    content_type=response_default_content_type,
+                    code=HTTPStatus.NOT_ACCEPTABLE,
+                )
             return content_type_match
         return response_default_content_type
 
@@ -228,28 +269,28 @@ class RestApp:
             if request.method == "OPTIONS":
                 origin = request.headers.get("Origin")
                 if not origin:
-                    raise HTTPResponse(body="OPTIONS missing Origin", status=400)
+                    raise HTTPResponse(body="OPTIONS missing Origin", status=HTTPStatus.BAD_REQUEST)
                 headers = self.cors_and_server_headers_for_request(request=rapu_request, origin=origin)
-                raise HTTPResponse(body=b"", status=200, headers=headers)
+                raise HTTPResponse(body=b"", status=HTTPStatus.OK, headers=headers)
 
             body = await request.read()
             if json_request:
                 if not body:
-                    raise HTTPResponse(body="Missing request JSON body", status=400)
+                    raise HTTPResponse(body="Missing request JSON body", status=HTTPStatus.BAD_REQUEST)
                 try:
                     _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
                     rapu_request.json = jsonlib.loads(body_string)
                 except jsonlib.decoder.JSONDecodeError:
-                    raise HTTPResponse(body="Invalid request JSON body", status=400)
+                    raise HTTPResponse(body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST)
                 except UnicodeDecodeError:
-                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=400)
+                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST)
                 except LookupError:
-                    raise HTTPResponse(body=f"Unknown charset {charset}", status=400)
+                    raise HTTPResponse(body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST)
             else:
                 if body not in {b"", b"{}"}:
-                    raise HTTPResponse(body="No request body allowed for this operation", status=400)
+                    raise HTTPResponse(body="No request body allowed for this operation", status=HTTPStatus.BAD_REQUEST)
 
             callback_kwargs = dict(request.match_info)
             if callback_with_request:
@@ -271,7 +312,7 @@ class RestApp:
 
             try:
                 data = await callback(**callback_kwargs)
-                status = 200
+                status = HTTPStatus.OK
                 headers = {}
             except HTTPResponse as ex:
                 data = ex.body
@@ -279,8 +320,8 @@ class RestApp:
                 headers = ex.headers
             except:  # pylint: disable=bare-except
                 self.log.exception("Internal server error")
-                data = {"error_code": 500, "message": "Internal server error"}
-                status = 500
+                data = {"error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value, "message": "Internal server error"}
+                status = HTTPStatus.INTERNAL_SERVER_ERROR
                 headers = {}
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
 
@@ -294,32 +335,32 @@ class RestApp:
                 resp_bytes = data
 
             # On 204 - NO CONTENT there is no point of calculating cache headers
-            if 200 >= status <= 299:
+            if is_success(status):
                 if resp_bytes:
                     etag = '"{}"'.format(hashlib.md5(resp_bytes).hexdigest())
                 else:
                     etag = '""'
                 if_none_match = request.headers.get("if-none-match")
                 if if_none_match and if_none_match.replace("W/", "") == etag:
-                    status = 304
+                    status = HTTPStatus.NOT_MODIFIED
                     resp_bytes = b""
 
                 headers["access-control-expose-headers"] = "etag"
                 headers["etag"] = etag
 
-            resp = aiohttp.web.Response(body=resp_bytes, status=status, headers=headers)
+            resp = aiohttp.web.Response(body=resp_bytes, status=status.value, headers=headers)
         except HTTPResponse as ex:
             if isinstance(ex.body, str):
-                resp = aiohttp.web.Response(text=ex.body, status=ex.status, headers=ex.headers)
+                resp = aiohttp.web.Response(text=ex.body, status=ex.status.value, headers=ex.headers)
             else:
-                resp = aiohttp.web.Response(body=ex.body, status=ex.status, headers=ex.headers)
+                resp = aiohttp.web.Response(body=ex.body, status=ex.status.value, headers=ex.headers)
         except asyncio.CancelledError:
             self.log.debug("Client closed connection")
             raise
         except Exception as ex:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=ex, where="rapu_wrapped_callback")
             self.log.exception("Unexpected error handling user request: %s %s", request.method, request.url)
-            resp = aiohttp.web.Response(text="Internal Server Error", status=500)
+            resp = aiohttp.web.Response(text="Internal Server Error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)
         finally:
             self.stats.timing(
                 self.app_request_metric,
@@ -415,11 +456,11 @@ class RestApp:
         try:
             with async_timeout.timeout(timeout):
                 async with func(url, json=json) as response:
-                    if response.headers.get("content-type", "").startswith("application/json"):
+                    if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
                         resp_content = await response.json()
                     else:
                         resp_content = await response.text()
-                    result = HTTPResponse(body=resp_content, status=response.status)
+                    result = HTTPResponse(body=resp_content, status=HTTPStatus(response.status))
         finally:
             if close_session:
                 await session.close()
