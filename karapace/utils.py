@@ -5,6 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from functools import partial
+from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
 from urllib.parse import urljoin
 
@@ -190,7 +191,11 @@ def convert_to_int(object_: dict, key: str, content_type: str):
         object_[key] = int(object_[key])
     except ValueError:
         from karapace.rapu import http_error
-        http_error(f"{key} is not a valid int: {object_[key]}", content_type, 500)
+        http_error(
+            message=f"{key} is not a valid int: {object_[key]}",
+            content_type=content_type,
+            code=HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
 
 
 class KarapaceKafkaClient(KafkaClient):

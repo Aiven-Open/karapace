@@ -138,7 +138,7 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     assign_path = f"/consumers/sub_group/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
-    assert res.status == 409, f"Expecting status code 409 on assign after subscribe on the same consumer instance"
+    assert res.status == 409, "Expecting status code 409 on assign after subscribe on the same consumer instance"
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
