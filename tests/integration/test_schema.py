@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from http import HTTPStatus
 from kafka import KafkaProducer
+from karapace.rapu import is_success
 
 import asyncio
 import json as jsonlib
@@ -1788,3 +1789,27 @@ async def test_full_transitive_failure(registry_async_client, compatibility):
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(evolved)})
     assert not res.ok
     assert res.status == 409
+
+
+async def test_invalid_schemas(registry_async_client):
+    subject = os.urandom(16).hex()
+
+    repated_field = {
+        "type": "record",
+        "name": "myrecord",
+        "fields": [{
+            "type": "string",
+            "name": "name"
+        }, {
+            "type": "string",
+            "name": "name",
+            "default": "test"
+        }]
+    }
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(repated_field)},
+    )
+    assert res.status != 500, "an invalid schema should not cause a server crash"
+    assert not is_success(HTTPStatus(res.status)), "an invalid schema must not be a success"
