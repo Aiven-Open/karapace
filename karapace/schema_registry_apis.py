@@ -121,7 +121,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Subject not found.",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
 
         schemas = self.ksr.get_schemas(subject)
@@ -132,7 +132,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Subject not found.",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
 
         subject_data["schemas"] = schemas
@@ -155,7 +155,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 ),
             },
             content_type=content_type,
-            status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+            status=HTTPStatus.UNPROCESSABLE_ENTITY,
         )
 
     def _get_compatibility_mode(self, subject, content_type) -> CompatibilityModes:
@@ -248,7 +248,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Invalid Avro schema",
                 },
                 content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         try:
             old_schema_type = SchemaType(old.get("schemaType", "AVRO"))
@@ -261,7 +261,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Invalid Avro schema",
                 },
                 content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
         compatibility_mode = self._get_compatibility_mode(subject=old, content_type=content_type)
@@ -283,7 +283,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "HTTP 404 Not Found",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
         with self.ksr.id_lock:
             schema = self.ksr.schemas.get(schema_id_int)
@@ -295,7 +295,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Schema not found",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
         response_body = {"schema": schema.schema_str}
         if schema.schema_type is not SchemaType.AVRO:
@@ -317,7 +317,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Invalid compatibility level. Valid values are none, backward, forward and full",
                 },
                 content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
         are_we_master, master_url = await self.get_master()
@@ -350,7 +350,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 "message": "Subject not found.",
             },
             content_type=content_type,
-            status=HTTPStatus.NOT_FOUND.value,
+            status=HTTPStatus.NOT_FOUND,
         )
 
     async def config_subject_set(self, content_type, *, request, subject):
@@ -363,7 +363,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Invalid compatibility level",
                 },
                 content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
         are_we_master, master_url = await self.get_master()
@@ -379,7 +379,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def subjects_list(self, content_type):
         subjects_list = [key for key, val in self.ksr.subjects.items() if self.ksr.get_schemas(key)]
-        self.r(subjects_list, content_type, status=HTTPStatus.OK.value)
+        self.r(subjects_list, content_type, status=HTTPStatus.OK)
 
     async def subject_delete(self, content_type, *, subject):
         self._subject_get(subject, content_type)
@@ -391,7 +391,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             self.send_delete_subject_message(subject, latest_schema_id)
-            self.r(version_list, content_type, status=HTTPStatus.OK.value)
+            self.r(version_list, content_type, status=HTTPStatus.OK)
         elif are_we_master is None:
             self.no_master_error(content_type)
         else:
@@ -415,7 +415,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Version not found.",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
         if not schema_data:
             self.r(
@@ -424,7 +424,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Version not found.",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
         schema_id = schema_data["id"]
         schema = schema_data["schema"]
@@ -456,14 +456,14 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Version not found.",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
         schema_id = subject_schema_data["id"]
         schema = subject_schema_data["schema"]
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             self.send_schema_message(subject=subject, schema=schema, schema_id=schema_id, version=version, deleted=True)
-            self.r(str(version), content_type, status=HTTPStatus.OK.value)
+            self.r(str(version), content_type, status=HTTPStatus.OK)
         elif are_we_master is None:
             self.no_master_error(content_type)
         else:
@@ -486,13 +486,13 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Version not found.",
                 },
                 content_type=content_type,
-                status=HTTPStatus.NOT_FOUND.value,
+                status=HTTPStatus.NOT_FOUND,
             )
         self.r(schema_data["schema"].schema_str, content_type)
 
     async def subject_versions_list(self, content_type, *, subject):
         subject_data = self._subject_get(subject, content_type)
-        self.r(list(subject_data["schemas"]), content_type, status=HTTPStatus.OK.value)
+        self.r(list(subject_data["schemas"]), content_type, status=HTTPStatus.OK)
 
     async def get_master(self):
         async with self.master_lock:
@@ -514,7 +514,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Internal Server Error",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         for field in body:
             if field not in {"schema", "schemaType"}:
@@ -524,7 +524,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                         "message": f"Unrecognized field: {field}",
                     },
                     content_type=content_type,
-                    status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                    status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 )
 
     def _validate_schema_type(self, content_type, body):
@@ -536,7 +536,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": f"unrecognized schemaType: {schema_type}",
                 },
                 content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
     async def subjects_schema_post(self, content_type, *, subject, request):
@@ -551,7 +551,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Internal Server Error",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         schema_str = body["schema"]
         schema_type = SchemaType(body.get("schemaType", "AVRO"))
@@ -565,7 +565,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": f"Error while looking up schema under subject {subject}",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         for schema in subject_data["schemas"].values():
             typed_schema = schema["schema"]
@@ -587,7 +587,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 "message": "Schema not found",
             },
             content_type=content_type,
-            status=HTTPStatus.NOT_FOUND.value,
+            status=HTTPStatus.NOT_FOUND,
         )
 
     async def subject_post(self, content_type, *, subject, request):
@@ -602,7 +602,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": "Internal Server Error",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         are_we_master, master_url = await self.get_master()
         if are_we_master:
@@ -627,7 +627,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": f"Invalid {schema_type} schema",
                 },
                 content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY.value,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
             schema_id = self.ksr.get_schema_id(new_schema)
@@ -687,7 +687,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                             "message": "Schema being registered is incompatible with an earlier schema",
                         },
                         content_type=content_type,
-                        status=HTTPStatus.CONFLICT.value,
+                        status=HTTPStatus.CONFLICT,
                     )
 
             # We didn't find an existing schema and the schema is compatible so go and create one
@@ -709,7 +709,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def forward_request_remote(self, *, body, url, content_type, method="POST"):
         self.log.info("Writing new schema to remote url: %r since we're not the master", url)
         response = await self.http_request(url=url, method=method, json=body, timeout=60.0)
-        self.r(body=response.body, content_type=content_type, status=response.status)
+        self.r(body=response.body, content_type=content_type, status=HTTPStatus(response.status))
 
     def no_master_error(self, content_type):
         self.r(
@@ -718,7 +718,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 "message": "Error while forwarding the request to the master.",
             },
             content_type=content_type,
-            status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
 
 
