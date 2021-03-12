@@ -4,7 +4,7 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from filelock import FileLock
 from kafka import KafkaAdminClient, KafkaProducer
 from karapace.config import set_config_defaults, write_config
@@ -15,8 +15,8 @@ from subprocess import Popen
 from tests.utils import Client, client_for, get_broker_ip, KafkaConfig, mock_factory, new_random_name, REGISTRY_URI, REST_URI
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
+import json
 import os
-import pickle
 import pytest
 import random
 import signal
@@ -83,6 +83,14 @@ class ZKConfig:
     client_port: int
     admin_port: int
     path: str
+
+    @staticmethod
+    def from_dict(data: dict) -> "ZKConfig":
+        return ZKConfig(
+            data['client_port'],
+            data['admin_port'],
+            data['path'],
+        )
 
 
 def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
@@ -173,10 +181,10 @@ def fixture_zkserver(session_tmppath: Path) -> Iterator[Optional[ZKConfig]]:
     # transfer_file (primarily the server's port number)
     with FileLock(str(lock_path_for(zk_dir))):
         if transfer_file.exists():
-            config = pickle.loads(transfer_file.read_bytes())
+            config = ZKConfig.from_dict(json.loads(transfer_file.read_text()))
         else:
             config, proc = configure_and_start_zk(zk_dir)
-            transfer_file.write_bytes(pickle.dumps(config))
+            transfer_file.write_text(json.dumps(asdict(config)))
     try:
         wait_for_port(config.client_port)
         yield config
@@ -202,10 +210,10 @@ def fixture_kafka_server(session_tmppath: Path, zkserver: ZKConfig) -> Iterator[
     # transfer_file (primarily the server's port number)
     with FileLock(str(lock_path_for(kafka_dir))):
         if transfer_file.exists():
-            config = pickle.loads(transfer_file.read_bytes())
+            config = KafkaConfig.from_dict(json.loads(transfer_file.read_text()))
         else:
             config, proc = configure_and_start_kafka(kafka_dir, zkserver)
-            transfer_file.write_bytes(pickle.dumps(config))
+            transfer_file.write_text(json.dumps(asdict(config)))
 
     try:
         wait_for_kafka(config.kafka_port, wait_time=60)
