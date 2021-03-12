@@ -107,6 +107,15 @@ class KafkaConfig:
     kafka_port: int
     zookeeper_port: int
 
+    @staticmethod
+    def from_dict(data: dict) -> "KafkaConfig":
+        return KafkaConfig(
+            data["datadir"],
+            data["kafka_keystore_password"],
+            data["kafka_port"],
+            data["zookeeper_port"],
+        )
+
 
 def get_broker_ip():
     if REST_URI in os.environ and REGISTRY_URI in os.environ:
