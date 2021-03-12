@@ -1,8 +1,7 @@
 from copy import copy
 from jsonschema import Draft7Validator
-from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from karapace.compatibility.jsonschema.types import BooleanSchema, Instance, Keyword, Subschema
-from typing import Any, List, Optional, Tuple, TypeVar, Union
+from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 
 import re
 
@@ -18,6 +17,7 @@ def normalize_schema_rec(validator, original_schema) -> Any:
     if isinstance(original_schema, (bool, str, float, int)) or original_schema is None:
         return original_schema
 
+    normalized: Any
     if isinstance(original_schema, dict):
         scope = validator.ID_OF(original_schema)
         resolver = validator.resolver
@@ -42,17 +42,9 @@ def normalize_schema_rec(validator, original_schema) -> Any:
     elif isinstance(original_schema, list):
         normalized = [normalize_schema_rec(validator, item) for item in original_schema]
     else:
-        raise ValueError("Cannot handle object of type {type(original_schema)}")
+        raise ValueError(f"Cannot handle object of type {type(original_schema)}")
 
     return normalized
-
-
-def is_incompatible(result: SchemaCompatibilityResult) -> bool:
-    return result.compatibility is SchemaCompatibilityType.incompatible
-
-
-def is_compatible(result: SchemaCompatibilityResult) -> bool:
-    return result.compatibility is SchemaCompatibilityType.compatible
 
 
 def maybe_get_subschemas_and_type(schema: Any) -> Optional[Tuple[List[Any], Subschema]]:
@@ -77,6 +69,7 @@ def maybe_get_subschemas_and_type(schema: Any) -> Optional[Tuple[List[Any], Subs
 
     type_value = schema.get(Keyword.TYPE.value)
 
+    subschema: Any
     if isinstance(type_value, list):
         normalized_schemas = []
         for subtype in type_value:
@@ -86,10 +79,17 @@ def maybe_get_subschemas_and_type(schema: Any) -> Optional[Tuple[List[Any], Subs
 
         return (normalized_schemas, Subschema.ANY_OF)
 
-    for type_ in (Subschema.ALL_OF, Subschema.ANY_OF, Subschema.ONE_OF, Subschema.NOT):
+    for type_ in (Subschema.ALL_OF, Subschema.ANY_OF, Subschema.ONE_OF):
         subschema = schema.get(type_.value)
         if subschema is not None:
+            # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.10.2.1
+            assert isinstance(subschema, list), "allOf/anyOf/oneOf must be an array"
             return (subschema, type_)
+
+    subschema = schema.get(Subschema.NOT.value)
+    if subschema is not None:
+        # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.10.2.1
+        return ([subschema], Subschema.NOT)
 
     return None
 
@@ -174,19 +174,19 @@ def is_false_schema(schema: Any) -> bool:
     The `false` schema forbids a given value. For writers this means the value
     is never produced, for readers it means the value is always rejected.
 
-    >>> is_false_schema(parse_schema_definition("false"))
+    >>> is_false_schema(parse_jsonschema_definition("false"))
     True
-    >>> is_false_schema(parse_schema_definition('{"not":{}}'))
+    >>> is_false_schema(parse_jsonschema_definition('{"not":{}}'))
     True
-    >>> is_false_schema(parse_schema_definition("{}"))
+    >>> is_false_schema(parse_jsonschema_definition("{}"))
     False
-    >>> is_false_schema(parse_schema_definition("true"))
+    >>> is_false_schema(parse_jsonschema_definition("true"))
     False
 
     Note:
         Negated schemas are not the same as the false schema:
 
-        >>> is_false_schema(parse_schema_definition('{"not":{"type":"number"}}'))
+        >>> is_false_schema(parse_jsonschema_definition('{"not":{"type":"number"}}'))
         False
     """
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
@@ -326,7 +326,7 @@ def schema_from_partially_open_content_model(schema: dict, target_property_name:
     return schema.get(Keyword.ADDITIONAL_PROPERTIES.value)
 
 
-def get_type_of(schema: Any) -> Union[Instance, Subschema, Keyword, BooleanSchema]:
+def get_type_of(schema: Any) -> Union[Instance, Subschema, Keyword, Type[BooleanSchema]]:
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.2.1
 
     # The difference is due to the convertion of the JSON value null to the Python value None

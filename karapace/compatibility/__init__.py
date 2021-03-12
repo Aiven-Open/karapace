@@ -5,9 +5,12 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from enum import Enum, unique
+from jsonschema import Draft7Validator
 from karapace.avro_compatibility import (
-    ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityType, SchemaIncompatibilityType
+    ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityResult, SchemaCompatibilityType,
+    SchemaIncompatibilityType
 )
+from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
 from karapace.schema_reader import SchemaType, TypedSchema
 
 import logging
@@ -34,36 +37,62 @@ class CompatibilityModes(Enum):
         return self.value in TRANSITIVE_MODES
 
 
-class IncompatibleSchema(Exception):
-    pass
-
-
-def check_avro_compatibility(reader_schema, writer_schema) -> None:
+def check_avro_compatibility(reader_schema, writer_schema) -> SchemaCompatibilityResult:
     result = AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
     if (
         result.compatibility is SchemaCompatibilityType.incompatible
         and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
     ):
-        raise IncompatibleSchema(str(result.compatibility))
+        return result
+
+    return SchemaCompatibilityResult.compatible()
 
 
-def check_compatibility(source: TypedSchema, target: TypedSchema, compatibility_mode: CompatibilityModes) -> None:
+def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
+    return jsonschema_compatibility(reader, writer)
+
+
+def check_compatibility(
+    source: TypedSchema, target: TypedSchema, compatibility_mode: CompatibilityModes
+) -> SchemaCompatibilityResult:
     if source.schema_type is not target.schema_type:
-        raise IncompatibleSchema(f"Comparing different schema types: {source.schema_type} with {target.schema_type}")
+        return SchemaCompatibilityResult.incompatible(
+            incompat_type=SchemaIncompatibilityType.type_mismatch,
+            message=f"Comparing different schema types: {source.schema_type} with {target.schema_type}",
+            location=[],
+        )
 
     if compatibility_mode is CompatibilityModes.NONE:
         LOG.info("Compatibility level set to NONE, no schema compatibility checks performed")
-        return
+        return SchemaCompatibilityResult.compatible()
 
     if source.schema_type is SchemaType.AVRO:
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
-            check_avro_compatibility(writer_schema=source.schema, reader_schema=target.schema)
+            result = check_avro_compatibility(reader_schema=target.schema, writer_schema=source.schema)
 
         elif compatibility_mode in {CompatibilityModes.FORWARD, CompatibilityModes.FORWARD_TRANSITIVE}:
-            check_avro_compatibility(writer_schema=target.schema, reader_schema=source.schema)
+            result = check_avro_compatibility(reader_schema=source.schema, writer_schema=target.schema)
 
         elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
-            check_avro_compatibility(writer_schema=source.schema, reader_schema=target.schema)
-            check_avro_compatibility(writer_schema=target.schema, reader_schema=source.schema)
+            result = check_avro_compatibility(reader_schema=target.schema, writer_schema=source.schema)
+            result = result.merged_with(check_avro_compatibility(reader_schema=source.schema, writer_schema=target.schema))
 
-    LOG.info("Unknow schema_type %r", source.schema_type)
+    elif source.schema_type is SchemaType.JSONSCHEMA:
+        if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
+            result = check_jsonschema_compatibility(reader=target.schema, writer=source.schema)
+
+        elif compatibility_mode in {CompatibilityModes.FORWARD, CompatibilityModes.FORWARD_TRANSITIVE}:
+            result = check_jsonschema_compatibility(reader=source.schema, writer=target.schema)
+
+        elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
+            result = check_jsonschema_compatibility(reader=target.schema, writer=source.schema)
+            result = result.merged_with(check_jsonschema_compatibility(reader=source.schema, writer=target.schema))
+
+    else:
+        result = SchemaCompatibilityResult.incompatible(
+            incompat_type=SchemaIncompatibilityType.type_mismatch,
+            message=f"Unknow schema_type {source.schema_type}",
+            location=[],
+        )
+
+    return result

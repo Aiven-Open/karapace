@@ -4,35 +4,35 @@
 """
 from avro.schema import ArraySchema, Field, MapSchema, RecordSchema, Schema, UnionSchema
 from karapace.avro_compatibility import (
-    parse_json_ignore_trailing, ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
+    parse_avro_schema_definition, ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 )
 
 import json
 import pytest
 
 # Schemas defined in AvroCompatibilityTest.java. Used here to ensure compatibility with the schema-registry
-schema1 = parse_json_ignore_trailing('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"}]}')
-schema2 = parse_json_ignore_trailing(
+schema1 = parse_avro_schema_definition('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"}]}')
+schema2 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
     '"name":"f2","default":"foo"}]}'
 )
-schema3 = parse_json_ignore_trailing(
+schema3 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string","name":"f2"}]}'
 )
-schema4 = parse_json_ignore_trailing(
+schema4 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1_new","aliases":["f1"]}]}'
 )
-schema6 = parse_json_ignore_trailing(
+schema6 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","doc":"doc of f1"}]}'
 )
-schema7 = parse_json_ignore_trailing(
+schema7 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string","int"],"name":"f1","doc":"doc of f1"}]}'
 )
-schema8 = parse_json_ignore_trailing(
+schema8 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
     '"name":"f2","default":"foo"}]},{"type":"string","name":"f3","default":"bar"}]}'
 )
-badDefaultNullString = parse_json_ignore_trailing(
+badDefaultNullString = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
     '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
 )
@@ -255,7 +255,7 @@ def test_basic_full_transitive_compatibility():
 
 
 def test_simple_schema_promotion():
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "name": "foo",
             "type": "record",
@@ -265,7 +265,7 @@ def test_simple_schema_promotion():
             }]
         })
     )
-    field_alias_reader = parse_json_ignore_trailing(
+    field_alias_reader = parse_avro_schema_definition(
         json.dumps({
             "name": "foo",
             "type": "record",
@@ -276,7 +276,7 @@ def test_simple_schema_promotion():
             }]
         })
     )
-    record_alias_reader = parse_json_ignore_trailing(
+    record_alias_reader = parse_avro_schema_definition(
         json.dumps({
             "name": "other",
             "type": "record",
@@ -288,7 +288,7 @@ def test_simple_schema_promotion():
         })
     )
 
-    writer = parse_json_ignore_trailing(
+    writer = parse_avro_schema_definition(
         json.dumps({
             "name": "foo",
             "type": "record",
@@ -312,7 +312,7 @@ def test_simple_schema_promotion():
     res = ReaderWriterCompatibilityChecker().get_compatibility(writer, reader)
     assert res != SchemaCompatibilityResult.compatible(), res
 
-    writer = parse_json_ignore_trailing(
+    writer = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "CA",
@@ -343,7 +343,7 @@ def test_simple_schema_promotion():
             }]
         })
     )
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "CA",
@@ -445,8 +445,8 @@ def test_union_to_simple_comparison(field):
             "name": "fn",
         }]
     }
-    reader = parse_json_ignore_trailing(json.dumps(reader))
-    writer = parse_json_ignore_trailing(json.dumps(writer))
+    reader = parse_avro_schema_definition(json.dumps(reader))
+    writer = parse_avro_schema_definition(json.dumps(writer))
     assert are_compatible(reader, writer)
 
 
@@ -455,25 +455,25 @@ def test_union_to_simple_comparison(field):
 #            There's one test per Java file, so expect the first one to be a mammoth
 #  ================================================================================================
 
-BOOLEAN_SCHEMA = parse_json_ignore_trailing(json.dumps("boolean"))
-NULL_SCHEMA = parse_json_ignore_trailing(json.dumps("null"))
-INT_SCHEMA = parse_json_ignore_trailing(json.dumps("int"))
-LONG_SCHEMA = parse_json_ignore_trailing(json.dumps("long"))
-STRING_SCHEMA = parse_json_ignore_trailing(json.dumps("string"))
-BYTES_SCHEMA = parse_json_ignore_trailing(json.dumps("bytes"))
-FLOAT_SCHEMA = parse_json_ignore_trailing(json.dumps("float"))
-DOUBLE_SCHEMA = parse_json_ignore_trailing(json.dumps("double"))
+BOOLEAN_SCHEMA = parse_avro_schema_definition(json.dumps("boolean"))
+NULL_SCHEMA = parse_avro_schema_definition(json.dumps("null"))
+INT_SCHEMA = parse_avro_schema_definition(json.dumps("int"))
+LONG_SCHEMA = parse_avro_schema_definition(json.dumps("long"))
+STRING_SCHEMA = parse_avro_schema_definition(json.dumps("string"))
+BYTES_SCHEMA = parse_avro_schema_definition(json.dumps("bytes"))
+FLOAT_SCHEMA = parse_avro_schema_definition(json.dumps("float"))
+DOUBLE_SCHEMA = parse_avro_schema_definition(json.dumps("double"))
 INT_ARRAY_SCHEMA = ArraySchema(INT_SCHEMA)
 LONG_ARRAY_SCHEMA = ArraySchema(LONG_SCHEMA)
 STRING_ARRAY_SCHEMA = ArraySchema(STRING_SCHEMA)
 INT_MAP_SCHEMA = MapSchema(INT_SCHEMA)
 LONG_MAP_SCHEMA = MapSchema(LONG_SCHEMA)
 STRING_MAP_SCHEMA = MapSchema(STRING_SCHEMA)
-ENUM1_AB_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B"]}))
-ENUM1_ABC_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B", "C"]}))
-ENUM1_BC_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["B", "C"]}))
-ENUM2_AB_SCHEMA = parse_json_ignore_trailing(json.dumps({"type": "enum", "name": "Enum2", "symbols": ["A", "B"]}))
-ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse_json_ignore_trailing(
+ENUM1_AB_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B"]}))
+ENUM1_ABC_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B", "C"]}))
+ENUM1_BC_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["B", "C"]}))
+ENUM2_AB_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "name": "Enum2", "symbols": ["A", "B"]}))
+ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse_avro_schema_definition(
     json.dumps({
         "type": "enum",
         "name": "Enum",
@@ -481,7 +481,7 @@ ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse_json_ignore_trailing(
         "default": "A"
     })
 )
-ENUM_AB_ENUM_DEFAULT_A_SCHEMA = parse_json_ignore_trailing(
+ENUM_AB_ENUM_DEFAULT_A_SCHEMA = parse_avro_schema_definition(
     json.dumps({
         "type": "enum",
         "name": "Enum",
@@ -489,7 +489,7 @@ ENUM_AB_ENUM_DEFAULT_A_SCHEMA = parse_json_ignore_trailing(
         "default": "A"
     })
 )
-ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
+ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -504,7 +504,7 @@ ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
         }]
     })
 )
-ENUM_AB_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
+ENUM_AB_ENUM_DEFAULT_A_RECORD = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -519,7 +519,7 @@ ENUM_AB_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
         }]
     })
 )
-ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
+ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -535,7 +535,7 @@ ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse_json_ignore_trailing(
         }]
     })
 )
-ENUM_AB_FIELD_DEFAULT_A_ENUM_DEFAULT_B_RECORD = parse_json_ignore_trailing(
+ENUM_AB_FIELD_DEFAULT_A_ENUM_DEFAULT_B_RECORD = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record",
@@ -566,9 +566,9 @@ INT_LONG_UNION_SCHEMA = UnionSchema([INT_SCHEMA, LONG_SCHEMA])
 INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA = UnionSchema([INT_SCHEMA, LONG_SCHEMA, FLOAT_SCHEMA, DOUBLE_SCHEMA])
 NULL_INT_ARRAY_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_ARRAY_SCHEMA])
 NULL_INT_MAP_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_MAP_SCHEMA])
-EMPTY_RECORD1 = parse_json_ignore_trailing(json.dumps({"type": "record", "name": "Record1", "fields": []}))
-EMPTY_RECORD2 = parse_json_ignore_trailing(json.dumps({"type": "record", "name": "Record2", "fields": []}))
-A_INT_RECORD1 = parse_json_ignore_trailing(
+EMPTY_RECORD1 = parse_avro_schema_definition(json.dumps({"type": "record", "name": "Record1", "fields": []}))
+EMPTY_RECORD2 = parse_avro_schema_definition(json.dumps({"type": "record", "name": "Record2", "fields": []}))
+A_INT_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -578,7 +578,7 @@ A_INT_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_LONG_RECORD1 = parse_json_ignore_trailing(
+A_LONG_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -588,7 +588,7 @@ A_LONG_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_INT_B_INT_RECORD1 = parse_json_ignore_trailing(
+A_INT_B_INT_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -601,7 +601,7 @@ A_INT_B_INT_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_RECORD1 = parse_json_ignore_trailing(
+A_DINT_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -612,7 +612,7 @@ A_DINT_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_INT_B_DINT_RECORD1 = parse_json_ignore_trailing(
+A_INT_B_DINT_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -626,7 +626,7 @@ A_INT_B_DINT_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DINT_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DINT_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -641,7 +641,7 @@ A_DINT_B_DINT_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -659,7 +659,7 @@ A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -677,7 +677,7 @@ A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DINT_STRING_UNION_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DINT_STRING_UNION_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -692,7 +692,7 @@ A_DINT_B_DINT_STRING_UNION_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DINT_UNION_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DINT_UNION_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -707,7 +707,7 @@ A_DINT_B_DINT_UNION_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DENUM_1_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DENUM_1_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -725,7 +725,7 @@ A_DINT_B_DENUM_1_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-A_DINT_B_DENUM_2_RECORD1 = parse_json_ignore_trailing(
+A_DINT_B_DENUM_2_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -743,9 +743,9 @@ A_DINT_B_DENUM_2_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-FIXED_4_BYTES = parse_json_ignore_trailing(json.dumps({"type": "fixed", "name": "Fixed", "size": 4}))
-FIXED_8_BYTES = parse_json_ignore_trailing(json.dumps({"type": "fixed", "name": "Fixed", "size": 8}))
-NS_RECORD1 = parse_json_ignore_trailing(
+FIXED_4_BYTES = parse_avro_schema_definition(json.dumps({"type": "fixed", "name": "Fixed", "size": 4}))
+FIXED_8_BYTES = parse_avro_schema_definition(json.dumps({"type": "fixed", "name": "Fixed", "size": 8}))
+NS_RECORD1 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -768,7 +768,7 @@ NS_RECORD1 = parse_json_ignore_trailing(
         }]
     })
 )
-NS_RECORD2 = parse_json_ignore_trailing(
+NS_RECORD2 = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -791,7 +791,7 @@ NS_RECORD2 = parse_json_ignore_trailing(
         }]
     })
 )
-INT_LIST_RECORD = parse_json_ignore_trailing(
+INT_LIST_RECORD = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "List",
@@ -801,7 +801,7 @@ INT_LIST_RECORD = parse_json_ignore_trailing(
         }]
     })
 )
-LONG_LIST_RECORD = parse_json_ignore_trailing(
+LONG_LIST_RECORD = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "List",
@@ -823,7 +823,7 @@ LONG_LIST_RECORD._field_map = RecordSchema._MakeFieldMap(LONG_LIST_RECORD._field
 INT_LIST_RECORD._props["fields"] = INT_LIST_RECORD._fields
 LONG_LIST_RECORD._props["fields"] = LONG_LIST_RECORD._fields
 # pylint: enable=protected-access
-RECORD1_WITH_INT = parse_json_ignore_trailing(
+RECORD1_WITH_INT = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -833,7 +833,7 @@ RECORD1_WITH_INT = parse_json_ignore_trailing(
         }]
     })
 )
-RECORD2_WITH_INT = parse_json_ignore_trailing(
+RECORD2_WITH_INT = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record2",
@@ -851,8 +851,8 @@ UNION_INT_BOOLEAN = UnionSchema([INT_SCHEMA, BOOLEAN_SCHEMA])
 UNION_INT_ARRAY_INT = UnionSchema([INT_SCHEMA, INT_ARRAY_SCHEMA])
 UNION_INT_MAP_INT = UnionSchema([INT_SCHEMA, INT_MAP_SCHEMA])
 UNION_INT_NULL = UnionSchema([INT_SCHEMA, NULL_SCHEMA])
-FIXED_4_ANOTHER_NAME = parse_json_ignore_trailing(json.dumps({"type": "fixed", "name": "AnotherName", "size": 4}))
-RECORD1_WITH_ENUM_AB = parse_json_ignore_trailing(
+FIXED_4_ANOTHER_NAME = parse_avro_schema_definition(json.dumps({"type": "fixed", "name": "AnotherName", "size": 4}))
+RECORD1_WITH_ENUM_AB = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -862,7 +862,7 @@ RECORD1_WITH_ENUM_AB = parse_json_ignore_trailing(
         }]
     })
 )
-RECORD1_WITH_ENUM_ABC = parse_json_ignore_trailing(
+RECORD1_WITH_ENUM_ABC = parse_avro_schema_definition(
     json.dumps({
         "type": "record",
         "name": "Record1",
@@ -876,7 +876,7 @@ RECORD1_WITH_ENUM_ABC = parse_json_ignore_trailing(
 
 def test_schema_compatibility():
     # testValidateSchemaPairMissingField
-    writer = parse_json_ignore_trailing(
+    writer = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -889,7 +889,7 @@ def test_schema_compatibility():
             }]
         })
     )
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -901,7 +901,7 @@ def test_schema_compatibility():
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaPairMissingSecondField
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -913,7 +913,7 @@ def test_schema_compatibility():
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaPairAllFields
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -928,7 +928,7 @@ def test_schema_compatibility():
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaNewFieldWithDefault
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -944,7 +944,7 @@ def test_schema_compatibility():
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaNewField
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "type": "record",
             "name": "Record",
@@ -959,20 +959,20 @@ def test_schema_compatibility():
     )
     assert not are_compatible(reader, writer)
     # testValidateArrayWriterSchema
-    writer = parse_json_ignore_trailing(json.dumps({"type": "array", "items": {"type": "string"}}))
-    reader = parse_json_ignore_trailing(json.dumps({"type": "array", "items": {"type": "string"}}))
+    writer = parse_avro_schema_definition(json.dumps({"type": "array", "items": {"type": "string"}}))
+    reader = parse_avro_schema_definition(json.dumps({"type": "array", "items": {"type": "string"}}))
     assert are_compatible(reader, writer)
-    reader = parse_json_ignore_trailing(json.dumps({"type": "map", "values": {"type": "string"}}))
+    reader = parse_avro_schema_definition(json.dumps({"type": "map", "values": {"type": "string"}}))
     assert not are_compatible(reader, writer)
     # testValidatePrimitiveWriterSchema
-    writer = parse_json_ignore_trailing(json.dumps({"type": "string"}))
-    reader = parse_json_ignore_trailing(json.dumps({"type": "string"}))
+    writer = parse_avro_schema_definition(json.dumps({"type": "string"}))
+    reader = parse_avro_schema_definition(json.dumps({"type": "string"}))
     assert are_compatible(reader, writer)
-    reader = parse_json_ignore_trailing(json.dumps({"type": "int"}))
+    reader = parse_avro_schema_definition(json.dumps({"type": "int"}))
     assert not are_compatible(reader, writer)
     # testUnionReaderWriterSubsetIncompatibility
     # cannot have a union as a top level data type, so im cheating a bit here
-    writer = parse_json_ignore_trailing(
+    writer = parse_avro_schema_definition(
         json.dumps({
             "name": "Record",
             "type": "record",
@@ -982,7 +982,7 @@ def test_schema_compatibility():
             }]
         })
     )
-    reader = parse_json_ignore_trailing(
+    reader = parse_avro_schema_definition(
         json.dumps({
             "name": "Record",
             "type": "record",
@@ -1065,7 +1065,10 @@ def test_schema_compatibility():
         (A_DINT_B_DINT_RECORD1, EMPTY_RECORD1),
         (A_DINT_B_DINT_RECORD1, A_INT_RECORD1),
         (A_INT_B_INT_RECORD1, A_DINT_B_DINT_RECORD1),
-        (parse_json_ignore_trailing(json.dumps({"type": "null"})), parse_json_ignore_trailing(json.dumps({"type": "null"}))),
+        (
+            parse_avro_schema_definition(json.dumps({"type": "null"})),
+            parse_avro_schema_definition(json.dumps({"type": "null"})),
+        ),
         (INT_LIST_RECORD, INT_LIST_RECORD),
         (LONG_LIST_RECORD, LONG_LIST_RECORD),
         (LONG_LIST_RECORD, INT_LIST_RECORD),
