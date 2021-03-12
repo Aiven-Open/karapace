@@ -493,7 +493,6 @@ async def test_record_schema_compatibility(registry_async_client, trail):
     assert res.status == 409
     res_json = res.json()
     assert res_json["error_code"] == 409
-    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
     schema3b = {
         "type": "record",
@@ -521,7 +520,6 @@ async def test_record_schema_compatibility(registry_async_client, trail):
     assert res.status == 409
     res_json = res.json()
     assert res_json["error_code"] == 409
-    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
     schema4 = {
         "type": "record",
@@ -977,7 +975,6 @@ async def test_transitive_compatibility(registry_async_client):
     assert res.status == 409
     res_json = res.json()
     assert res_json["error_code"] == 409
-    assert res_json["message"].startswith("Schema being registered is incompatible with an earlier schema")
 
 
 @pytest.mark.parametrize("trail", ["", "/"])

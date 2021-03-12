@@ -10,7 +10,7 @@ import json
 E = TypeVar("E", bound=Enum)
 
 
-def parse_json_ignore_trailing(s: str) -> Any:
+def parse_avro_schema_definition(s: str) -> Schema:
     """ Compatibility function with Avro which ignores trailing data in JSON
     strings.
 
@@ -28,6 +28,14 @@ def parse_json_ignore_trailing(s: str) -> Any:
 
     names = Names()
     return SchemaFromJSONData(json_data, names)
+
+
+def is_incompatible(result: "SchemaCompatibilityResult") -> bool:
+    return result.compatibility is SchemaCompatibilityType.incompatible
+
+
+def is_compatible(result: "SchemaCompatibilityResult") -> bool:
+    return result.compatibility is SchemaCompatibilityType.compatible
 
 
 # TODO: remove SchemaCompatibilityType.incompatible, it can be determined from
