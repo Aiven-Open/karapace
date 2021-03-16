@@ -5,6 +5,7 @@ aiokafka==0.6.0
 jsonschema==3.2.0
 lz4==3.0.2
 requests==2.23.0
+networkx==2.5
 
 # Patched dependencies
 #
