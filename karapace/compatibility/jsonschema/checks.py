@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from itertools import product
 from jsonschema import Draft7Validator
-from karapace.avro_compatibility import SchemaCompatibilityResult
+from karapace.avro_compatibility import is_compatible, is_incompatible, SchemaCompatibilityResult
 from karapace.compatibility.jsonschema.types import (
     AssertionCheck, BooleanSchema, Incompatibility, Instance, Keyword, Subschema
 )
 from karapace.compatibility.jsonschema.utils import (
-    get_type_of, gt, introduced_constraint, is_compatible, is_false_schema, is_incompatible, is_object_content_model_open,
-    is_simple_subschema, is_true_schema, is_tuple, is_tuple_without_additional_items, lt, maybe_get_subschemas_and_type, ne,
-    normalize_schema, schema_from_partially_open_content_model
+    get_type_of, gt, introduced_constraint, is_false_schema, is_object_content_model_open, is_simple_subschema,
+    is_true_schema, is_tuple, is_tuple_without_additional_items, lt, maybe_get_subschemas_and_type, ne, normalize_schema,
+    schema_from_partially_open_content_model
 )
 from typing import Any, List, Optional
 

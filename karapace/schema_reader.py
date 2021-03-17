@@ -6,14 +6,14 @@ See LICENSE for details
 """
 from avro.schema import Schema as AvroSchema, SchemaParseException
 from enum import Enum, unique
-from json import JSONDecodeError, loads
+from json import JSONDecodeError
+from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
-from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
-from karapace.avro_compatibility import parse_json_ignore_trailing
+from karapace.avro_compatibility import parse_avro_schema_definition
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
@@ -25,6 +25,17 @@ import logging
 import time
 
 log = logging.getLogger(__name__)
+
+
+def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
+    """ Parses and validates `schema_definition`.
+
+    Raises:
+        SchemaError: If `schema_definition` is not a valid Draft7 schema.
+    """
+    schema = json.loads(schema_definition)
+    Draft7Validator.check_schema(schema)
+    return Draft7Validator(schema)
 
 
 class InvalidSchema(Exception):
@@ -47,17 +58,15 @@ class TypedSchema:
     @staticmethod
     def parse_json(schema_str: str):
         try:
-            js = loads(schema_str)
-            Draft7Validator.check_schema(js)
-            assert "type" in js
-            return TypedSchema(Draft7Validator(js), SchemaType.JSONSCHEMA, schema_str)
-        except (JSONDecodeError, SchemaError, AssertionError) as e:
+            return TypedSchema(parse_jsonschema_definition(schema_str), SchemaType.JSONSCHEMA, schema_str)
+        # TypeError - Raised when the user forgets to encode the schema as a string.
+        except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
             raise InvalidSchema from e
 
     @staticmethod
     def parse_avro(schema_str: str):  # pylint: disable=inconsistent-return-statements
         try:
-            ts = TypedSchema(parse_json_ignore_trailing(schema_str), SchemaType.AVRO, schema_str)
+            ts = TypedSchema(parse_avro_schema_definition(schema_str), SchemaType.AVRO, schema_str)
             return ts
         except SchemaParseException as e:
             raise InvalidSchema from e

@@ -2,7 +2,8 @@ from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
 from karapace import version as karapace_version
-from karapace.compatibility import check_compatibility, CompatibilityModes, IncompatibleSchema
+from karapace.avro_compatibility import is_incompatible
+from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.config import read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
@@ -172,7 +173,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     "message": f"Unknown compatibility mode {compatibility}",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         return compatibility_mode
 
@@ -266,10 +267,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
         compatibility_mode = self._get_compatibility_mode(subject=old, content_type=content_type)
 
-        try:
-            check_compatibility(source=old_schema, target=new, compatibility_mode=compatibility_mode)
-        except IncompatibleSchema as ex:
-            self.log.warning("Invalid schema %s found by compatibility check: old: %s new: %s", ex, old_schema, new)
+        result = check_compatibility(source=old_schema, target=new, compatibility_mode=compatibility_mode)
+        if is_incompatible(result):
+            self.log.warning("Invalid schema %s found by compatibility check: old: %s new: %s", result, old_schema, new)
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
 
@@ -506,7 +506,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     return master, master_url
                 await asyncio.sleep(1.0)
 
-    def _validate_schema_request_body(self, content_type, body):
+    def _validate_schema_request_body(self, content_type, body) -> None:
         if not isinstance(body, dict):
             self.r(
                 body={
@@ -527,7 +527,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 )
 
-    def _validate_schema_type(self, content_type, body):
+    def _validate_schema_type(self, content_type, body) -> None:
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
         if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO}:
             self.r(
@@ -537,6 +537,17 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+
+    def _validate_schema_key(self, content_type, body) -> None:
+        if "schema" not in body:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                    "message": "Internal Server Error",
+                },
+                content_type=content_type,
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
     async def subjects_schema_post(self, content_type, *, subject, request):
@@ -595,15 +606,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.log.debug("POST with subject: %r, request: %r", subject, body)
         self._validate_schema_request_body(content_type, body)
         self._validate_schema_type(content_type, body)
-        if "schema" not in body:
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
-                    "message": "Internal Server Error",
-                },
-                content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR,
-            )
+        self._validate_schema_key(content_type, body)
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             self.write_new_schema_local(subject, body, content_type)
@@ -677,14 +680,14 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
             for old_version in check_against:
                 old_schema = subject_data["schemas"][old_version]["schema"]
-                try:
-                    check_compatibility(source=old_schema, target=new_schema, compatibility_mode=compatibility_mode)
-                except IncompatibleSchema as ex:
-                    self.log.warning("Incompatible schema: %s", ex)
+                result = check_compatibility(source=old_schema, target=new_schema, compatibility_mode=compatibility_mode)
+                if is_incompatible(result):
+                    message = set(result.messages).pop() if result.messages else ""
+                    self.log.warning("Incompatible schema: %s", result)
                     self.r(
                         body={
                             "error_code": SchemaErrorCodes.HTTP_CONFLICT.value,
-                            "message": "Schema being registered is incompatible with an earlier schema",
+                            "message": f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}",
                         },
                         content_type=content_type,
                         status=HTTPStatus.CONFLICT,
