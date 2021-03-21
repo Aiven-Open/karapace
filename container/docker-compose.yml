@@ -32,6 +32,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-registry:8081
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
       # Metrics:
       KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
       KAFKA_JMX_PORT: 9101
