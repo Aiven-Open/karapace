@@ -44,6 +44,14 @@ def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
     return None
 
 
+def split_by_comma(arg: str) -> List[str]:
+    return arg.split(',')
+
+
+def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
+    parser.addoption('--kafka-bootstrap-servers', type=split_by_comma)
+
+
 @pytest.fixture(scope="session", name="session_tmppath")
 def fixture_session_tmppath(tmp_path_factory) -> Path:
     return tmp_path_factory.mktemp("karapace")

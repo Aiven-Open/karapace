@@ -7,13 +7,16 @@ See LICENSE for details
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 from filelock import FileLock
-from kafka import KafkaAdminClient, KafkaProducer
+from kafka import KafkaProducer
+from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from pathlib import Path
 from subprocess import Popen
-from tests.utils import Client, client_for, get_broker_ip, KafkaConfig, mock_factory, new_random_name, REGISTRY_URI, REST_URI
+from tests.utils import (
+    Client, client_for, get_broker_ip, KafkaConfig, KafkaServers, mock_factory, new_random_name, REGISTRY_URI, REST_URI
+)
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 import json
@@ -27,6 +30,7 @@ import time
 KAFKA_CURRENT_VERSION = "2.4"
 BASEDIR = "kafka_2.12-2.4.1"
 CLASSPATH = os.path.join(BASEDIR, "libs", "*")
+KAFKA_WAIT_TIMEOUT = 60
 
 
 @dataclass(frozen=True)
@@ -114,23 +118,30 @@ def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
         return False
 
 
-def wait_for_kafka(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 20.0) -> None:
-    bootstrap_server = f"{hostname}:{port}"
-    expiration = Expiration.from_timeout(
-        msg=f"Could not contact kafka cluster on host `{bootstrap_server}`",
-        timeout=wait_time,
-    )
+def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
+    for server in kafka_servers.bootstrap_servers:
+        expiration = Expiration.from_timeout(
+            msg=f"Could not contact kafka cluster on host `{server}`",
+            timeout=wait_time,
+        )
 
-    list_topics_successful = False
-    while not list_topics_successful:
-        expiration.raise_if_expired()
-        try:
-            KafkaAdminClient(bootstrap_servers=bootstrap_server).list_topics()
-        except Exception as e:  # pylint: disable=broad-except
-            print(f"Error checking kafka cluster: {e}")
-            time.sleep(2.0)
-        else:
-            list_topics_successful = True
+        list_topics_successful = False
+        while not list_topics_successful:
+            expiration.raise_if_expired()
+            try:
+                KafkaRestAdminClient(bootstrap_servers=server).cluster_metadata()
+            # ValueError:
+            # - if the port number is invalid (i.e. not a number)
+            # - if the port is not bound yet
+            # NoBrokersAvailable:
+            # - if the address/port does not point to a running server
+            # LeaderNotAvailableError:
+            # - if there is no leader yet
+            except (NoBrokersAvailable, LeaderNotAvailableError, ValueError) as e:  # pylint: disable=broad-except
+                print(f"Error checking kafka cluster: {e}")
+                time.sleep(2.0)
+            else:
+                list_topics_successful = True
 
 
 def wait_for_port(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 20.0, ipv6: bool = False) -> None:
@@ -173,8 +184,16 @@ def lock_path_for(path: Path) -> Path:
     return path.with_suffix(''.join(suffixes))
 
 
-@pytest.fixture(scope="session", name="kafka_server")
-def fixture_kafka_server(session_tmppath: Path) -> Iterator[Optional[KafkaConfig]]:
+@pytest.fixture(scope="session", name="kafka_servers")
+def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[Optional[KafkaServers]]:
+    bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
+
+    if bootstrap_servers:
+        kafka_servers = KafkaServers(bootstrap_servers)
+        wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
+        yield kafka_servers
+        return
+
     if REGISTRY_URI in os.environ or REST_URI in os.environ:
         yield None
         return
@@ -208,18 +227,20 @@ def fixture_kafka_server(session_tmppath: Path) -> Iterator[Optional[KafkaConfig
                 transfer_file.write_text(json.dumps(config_data))
 
         # Make sure every test worker can communicate with kafka
-        wait_for_kafka(kafka_config.kafka_port, wait_time=60)
-        yield kafka_config
+        kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.kafka_port}"])
+        wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
+        yield kafka_servers
+        return
 
 
 @pytest.fixture(scope="function", name="producer")
-def fixture_producer(kafka_server: Optional[KafkaConfig]) -> KafkaProducer:
-    if not kafka_server:
+def fixture_producer(kafka_servers: Optional[KafkaServers]) -> KafkaProducer:
+    if not kafka_servers:
         assert REST_URI in os.environ or REGISTRY_URI in os.environ
-        kafka_uri = f"{get_broker_ip()}:9092"
+        bootstrap_servers = [f"{get_broker_ip()}:9092"]
     else:
-        kafka_uri = "127.0.0.1:{}".format(kafka_server.kafka_port)
-    prod = KafkaProducer(bootstrap_servers=kafka_uri)
+        bootstrap_servers = kafka_servers.bootstrap_servers
+    prod = KafkaProducer(bootstrap_servers=bootstrap_servers)
     try:
         yield prod
     finally:
@@ -227,13 +248,13 @@ def fixture_producer(kafka_server: Optional[KafkaConfig]) -> KafkaProducer:
 
 
 @pytest.fixture(scope="function", name="admin_client")
-def fixture_admin(kafka_server: Optional[KafkaConfig]) -> Iterator[KafkaRestAdminClient]:
-    if not kafka_server:
+def fixture_admin(kafka_servers: Optional[KafkaServers]) -> Iterator[KafkaRestAdminClient]:
+    if not kafka_servers:
         assert REST_URI in os.environ or REGISTRY_URI in os.environ
-        kafka_uri = f"{get_broker_ip()}:9092"
+        bootstrap_servers = [f"{get_broker_ip()}:9092"]
     else:
-        kafka_uri = "127.0.0.1:{}".format(kafka_server.kafka_port)
-    cli = KafkaRestAdminClient(bootstrap_servers=kafka_uri)
+        bootstrap_servers = kafka_servers.bootstrap_servers
+    cli = KafkaRestAdminClient(bootstrap_servers=bootstrap_servers)
     try:
         yield cli
     finally:
@@ -241,19 +262,18 @@ def fixture_admin(kafka_server: Optional[KafkaConfig]) -> Iterator[KafkaRestAdmi
 
 
 @pytest.fixture(scope="function", name="rest_async")
-async def fixture_rest_async(tmp_path: Path, kafka_server: Optional[KafkaConfig],
+async def fixture_rest_async(tmp_path: Path, kafka_servers: Optional[KafkaServers],
                              registry_async_client: Client) -> AsyncIterator[KafkaRest]:
-    if not kafka_server:
+    if not kafka_servers:
         assert REST_URI in os.environ
         instance, _ = mock_factory("rest")()
         yield instance
     else:
         config_path = tmp_path / "karapace_config.json"
-        kafka_port = kafka_server.kafka_port
 
         config = set_config_defaults({
             "log_level": "WARNING",
-            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
             "admin_metadata_max_age": 0
         })
         write_config(config_path, config)
@@ -278,20 +298,19 @@ async def fixture_rest_async_client(rest_async: KafkaRest, aiohttp_client) -> As
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
-def fixture_registry_async_pair(tmp_path: Path, kafka_server: Optional[KafkaConfig]):
-    assert kafka_server, f"registry_async_pair can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
+def fixture_registry_async_pair(tmp_path: Path, kafka_servers: Optional[KafkaServers]):
+    assert kafka_servers, f"registry_async_pair can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
 
     master_config_path = tmp_path / "karapace_config_master.json"
     slave_config_path = tmp_path / "karapace_config_slave.json"
     master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
     slave_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[master_port])
-    kafka_port = kafka_server.kafka_port
     topic_name = new_random_name("schema_pairs")
     group_id = new_random_name("schema_pairs")
     write_config(
         master_config_path, {
             "log_level": "WARNING",
-            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": topic_name,
             "group_id": group_id,
             "advertised_hostname": "127.0.0.1",
@@ -302,7 +321,7 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_server: Optional[KafkaConf
     write_config(
         slave_config_path, {
             "log_level": "WARNING",
-            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": topic_name,
             "group_id": group_id,
             "advertised_hostname": "127.0.0.1",
@@ -323,18 +342,17 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_server: Optional[KafkaConf
 
 @pytest.fixture(scope="function", name="registry_async")
 async def fixture_registry_async(tmp_path: Path,
-                                 kafka_server: Optional[KafkaConfig]) -> AsyncIterator[KarapaceSchemaRegistry]:
-    if not kafka_server:
+                                 kafka_servers: Optional[KafkaServers]) -> AsyncIterator[KarapaceSchemaRegistry]:
+    if not kafka_servers:
         assert REGISTRY_URI in os.environ or REST_URI in os.environ
         instance, _ = mock_factory("registry")()
         yield instance
     else:
         config_path = tmp_path / "karapace_config.json"
-        kafka_port = kafka_server.kafka_port
 
         config = set_config_defaults({
             "log_level": "WARNING",
-            "bootstrap_uri": f"127.0.0.1:{kafka_port}",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": new_random_name(),
             "group_id": new_random_name("schema_registry")
         })

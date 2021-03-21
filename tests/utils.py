@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
+from typing import List
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
@@ -115,6 +116,19 @@ class KafkaConfig:
             data["kafka_port"],
             data["zookeeper_port"],
         )
+
+
+@dataclass
+class KafkaServers:
+    bootstrap_servers: List[str]
+
+    def __post_init__(self):
+        is_bootstrap_uris_valid = (
+            isinstance(self.bootstrap_servers, list) and len(self.bootstrap_servers) > 0
+            and all(isinstance(url, str) for url in self.bootstrap_servers)
+        )
+        if not is_bootstrap_uris_valid:
+            raise ValueError("bootstrap_servers must be a non-empty list of urls")
 
 
 def get_broker_ip():
