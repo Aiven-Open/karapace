@@ -1,7 +1,5 @@
 SHORT_VER = $(shell git describe --tags --abbrev=0 | cut -f1-)
 LONG_VER = $(shell git describe --long 2>/dev/null || echo $(SHORT_VER)-0-unknown-g`git describe --always`)
-KAFKA_VERSION=2.4.1
-SCALA_VERSION=2.12
 KAFKA_PATH = kafka_$(SCALA_VERSION)-$(KAFKA_VERSION)
 KAFKA_TAR = $(KAFKA_PATH).tgz
 PYTHON_SOURCE_DIRS = karapace/
@@ -10,6 +8,10 @@ ALL_PYTHON_DIRS = $(PYTHON_SOURCE_DIRS) $(PYTHON_TEST_DIRS)
 GENERATED = karapace/version.py
 PYTHON = python3
 DNF_INSTALL = sudo dnf install -y
+
+# Keep these is sync with tests/integration/conftest.py
+KAFKA_VERSION=2.7.0
+SCALA_VERSION=2.13
 
 KAFKA_IMAGE = karapace-test-kafka
 ZK = 2181
