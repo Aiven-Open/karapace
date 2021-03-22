@@ -70,6 +70,7 @@ services:
       KARAPACE_REGISTRY_GROUP_ID: karapace-registry
       KARAPACE_REGISTRY_MASTER_ELIGIBITY: "true"
       KARAPACE_REGISTRY_TOPIC_NAME: _schemas
+      KARAPACE_REGISTRY_LOG_LEVEL: WARNING
 
   karapace-rest:
     image: karapace-rest
@@ -85,3 +86,7 @@ services:
       KARAPACE_REST_BOOTSTRAP_URI: kafka:29092
       KARAPACE_REST_REGISTRY_HOST: karapace-registry
       KARAPACE_REST_REGISTRY_PORT: 8081
+      # Keep in sync with tests/integration/conftest.py::fixture_rest_async,
+      # new entries may need to be added to containers/start.sh
+      KARAPACE_REST_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_REST_LOG_LEVEL: WARNING
