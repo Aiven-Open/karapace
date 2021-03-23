@@ -6,7 +6,7 @@ See LICENSE for details
 """
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
-from tests.utils import KafkaServers, REGISTRY_URI, REST_URI
+from tests.utils import KafkaServers
 from typing import Optional
 
 import asyncio
@@ -44,10 +44,6 @@ def has_master(mc: MasterCoordinator) -> bool:
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
 def test_master_selection(kafka_servers: Optional[KafkaServers], strategy: str) -> None:
-    assert kafka_servers, (
-        f"test_master_selection can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
-    )
-
     config_aa = set_config_defaults({})
     config_aa["advertised_hostname"] = "127.0.0.1"
     config_aa["bootstrap_uri"] = kafka_servers.bootstrap_servers

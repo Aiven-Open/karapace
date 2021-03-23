@@ -2,9 +2,6 @@ from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
 from tests.utils import new_topic, REST_HEADERS, schema_avro_json, second_obj, second_schema_json, test_objects_avro
 
-import os
-import pytest
-
 
 def check_successful_publish_response(success_response, objects, partition_id=None):
     assert success_response.ok
@@ -235,8 +232,6 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         res_json = res.json()
         assert res.status == 422
         assert res_json["error_code"] == 42201
-        if "REST_URI" in os.environ and "REGISTRY_URI" in os.environ:
-            pytest.skip("Skipping encoding tests for remote proxy")
         res = await rest_async_client.post(url, json={"records": [{"value": "not base64"}]}, headers=REST_HEADERS["binary"])
         res_json = res.json()
         assert res.status == 422
