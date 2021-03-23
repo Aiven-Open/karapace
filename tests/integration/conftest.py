@@ -15,13 +15,15 @@ from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from karapace.utils import Client
 from pathlib import Path
 from subprocess import Popen
-from tests.utils import KafkaConfig, KafkaServers, new_random_name
+from tests.utils import (
+    Expiration, get_random_port, KAFKA_PORT_RANGE, KafkaConfig, KafkaServers, new_random_name, REGISTRY_PORT_RANGE,
+    ZK_PORT_RANGE
+)
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 import json
 import os
 import pytest
-import random
 import signal
 import socket
 import time
@@ -30,56 +32,6 @@ KAFKA_CURRENT_VERSION = "2.4"
 BASEDIR = "kafka_2.12-2.4.1"
 CLASSPATH = os.path.join(BASEDIR, "libs", "*")
 KAFKA_WAIT_TIMEOUT = 60
-
-
-@dataclass(frozen=True)
-class PortRangeInclusive:
-    start: int
-    end: int
-
-    PRIVILEGE_END = 2 ** 10
-    MAX_PORTS = 2 ** 16 - 1
-
-    def __post_init__(self):
-        # Make sure the range is valid and that we don't need to be root
-        assert self.end > self.start, "there must be at least one port available"
-        assert self.end <= self.MAX_PORTS, f"end must be lower than {self.MAX_PORTS}"
-        assert self.start > self.PRIVILEGE_END, "start must not be a privileged port"
-
-    def next_range(self, number_of_ports: int) -> "PortRangeInclusive":
-        next_start = self.end + 1
-        next_end = next_start + number_of_ports - 1  # -1 because the range is inclusive
-
-        return PortRangeInclusive(next_start, next_end)
-
-
-# To find a good port range use the following:
-#
-#   curl --silent 'https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt' | \
-#       egrep -i -e '^\s*[0-9]+-[0-9]+\s*unassigned' | \
-#       awk '{print $1}'
-#
-KAFKA_PORTS = PortRangeInclusive(48700, 48800)
-ZK_PORT_RANGE = KAFKA_PORTS.next_range(100)
-REGISTRY_PORT_RANGE = ZK_PORT_RANGE.next_range(100)
-
-
-class Timeout(Exception):
-    pass
-
-
-@dataclass(frozen=True)
-class Expiration:
-    msg: str
-    deadline: float
-
-    @classmethod
-    def from_timeout(cls, msg: str, timeout: float):
-        return cls(msg, time.monotonic() + timeout)
-
-    def raise_if_expired(self):
-        if time.monotonic() > self.deadline:
-            raise Timeout(self.msg)
 
 
 @dataclass
@@ -119,14 +71,12 @@ def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
 
 def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
     for server in kafka_servers.bootstrap_servers:
-        expiration = Expiration.from_timeout(
-            msg=f"Could not contact kafka cluster on host `{server}`",
-            timeout=wait_time,
-        )
+        expiration = Expiration.from_timeout(timeout=wait_time)
 
         list_topics_successful = False
+        msg = f"Could not contact kafka cluster on host `{server}`"
         while not list_topics_successful:
-            expiration.raise_if_expired()
+            expiration.raise_if_expired(msg)
             try:
                 KafkaRestAdminClient(bootstrap_servers=server).cluster_metadata()
             # ValueError:
@@ -145,35 +95,15 @@ def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
 
 def wait_for_port(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 20.0, ipv6: bool = False) -> None:
     start_time = time.monotonic()
-    expiration = Expiration(
-        msg=f"Timeout waiting for `{hostname}:{port}`",
-        deadline=start_time + wait_time,
-    )
+    expiration = Expiration(deadline=start_time + wait_time)
+    msg = f"Timeout waiting for `{hostname}:{port}`"
 
     while not port_is_listening(hostname, port, ipv6):
-        expiration.raise_if_expired()
+        expiration.raise_if_expired(msg)
         time.sleep(2.0)
 
     elapsed = time.monotonic() - start_time
     print(f"Server `{hostname}:{port}` listening after {elapsed} seconds")
-
-
-def get_random_port(*, port_range: PortRangeInclusive, blacklist: List[int]) -> int:
-    """ Find a random port in the range `PortRangeInclusive`.
-
-    Note:
-        This function is *not* aware of the ports currently open in the system,
-        the blacklist only prevents two services of the same type to randomly
-        get the same ports for *a single test run*.
-
-        Because of that, the port range should be chosen such that there is no
-        system service in the range. Also note that running two sessions of the
-        tests with the same range is not supported and will lead to flakiness.
-    """
-    value = random.randint(port_range.start, port_range.end)
-    while value in blacklist:
-        value = random.randint(port_range.start, port_range.end)
-    return value
 
 
 def lock_path_for(path: Path) -> Path:
@@ -423,7 +353,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
     data_dir.mkdir(parents=True)
     config_dir.mkdir(parents=True)
 
-    plaintext_port = get_random_port(port_range=KAFKA_PORTS, blacklist=[])
+    plaintext_port = get_random_port(port_range=KAFKA_PORT_RANGE, blacklist=[])
 
     config = KafkaConfig(
         datadir=str(data_dir),
