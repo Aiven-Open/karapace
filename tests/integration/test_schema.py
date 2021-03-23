@@ -7,8 +7,8 @@ See LICENSE for details
 from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.rapu import is_success
+from tests.utils import repeat_until_successful_request
 
-import asyncio
 import json as jsonlib
 import os
 import pytest
@@ -1624,16 +1624,18 @@ async def test_malformed_kafka_message(registry_async, registry_async_client):
     message_value = {"deleted": False, "id": schema_id, "subject": "foo", "version": 1}
     message_value.update(payload)
     prod.send(topic, key=jsonlib.dumps(message_key).encode(), value=jsonlib.dumps(message_value).encode()).get()
-    found = False
-    for _ in range(30):
-        if schema_id in registry_async.ksr.schemas:
-            found = True
-            break
-        await asyncio.sleep(0.1)
-    assert found, f"{schema_id} not in {registry_async.ksr.schemas}"
-    res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+
+    path = f"schemas/ids/{schema_id}"
+    res = await repeat_until_successful_request(
+        registry_async_client.get,
+        path,
+        json_data=None,
+        headers=None,
+        error_msg=f"Schema id {schema_id} not found",
+        timeout=20,
+        sleep=1,
+    )
     res_data = res.json()
-    assert res.ok, res_data
     assert res_data == payload, res_data
 
 

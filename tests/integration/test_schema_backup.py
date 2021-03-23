@@ -5,6 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from karapace.schema_backup import SchemaBackup
+from tests.utils import Expiration
 
 import json as jsonlib
 import os
@@ -61,11 +62,13 @@ async def test_backup_restore(registry_async, registry_async_client):
     sb.restore_backup()
 
     # The restored karapace should have the previously created subject
-    time.sleep(1.0)
-    res = await registry_async_client.get("subjects")
-    assert res.status_code == 200
-    data = res.json()
-    assert subject in data
+    all_subjects = []
+    expiration = Expiration.from_timeout(timeout=10)
+    while subject not in all_subjects:
+        expiration.raise_if_expired(msg=f"{subject} not in {all_subjects}")
+        res = await registry_async_client.get("subjects")
+        assert res.status_code == 200
+        all_subjects = res.json()
 
     # Test a few exotic scenarios
     subject = os.urandom(16).hex()

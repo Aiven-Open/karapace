@@ -231,3 +231,17 @@ async def wait_for_topics(rest_async_client: Client, topic_names: List[str], tim
             assert res.ok, f"Status code is not 200: {res.status_code}"
             current_topics = res.json()
             topic_found = topic in current_topics
+
+
+async def repeat_until_successful_request(
+    callback, path: str, json_data, headers, error_msg: str, timeout: float, sleep: float
+) -> None:
+    expiration = Expiration.from_timeout(timeout=timeout)
+
+    res = await callback(path, json=json_data, headers=headers)
+    while not res.ok:
+        await asyncio.sleep(sleep)
+        expiration.raise_if_expired(msg=f"{error_msg} {res} after {timeout} secs")
+        res = await callback(path, json=json_data, headers=headers)
+
+    return res
