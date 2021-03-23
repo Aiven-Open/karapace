@@ -5,7 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from karapace.schema_backup import SchemaBackup
-from tests.utils import Expiration
+from tests.utils import Expiration, new_random_name
 
 import json as jsonlib
 import os
@@ -15,7 +15,7 @@ baseurl = "http://localhost:8081"
 
 
 async def insert_data(c):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await c.post(
         "subjects/{}/versions".format(subject),
         json={"schema": '{"type": "string"}'},
@@ -38,8 +38,7 @@ async def test_backup_get(registry_async, registry_async_client):
 
 
 async def test_backup_restore(registry_async, registry_async_client):
-
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     restore_location = os.path.join(os.path.dirname(registry_async.config_path), "restore.log")
     with open(restore_location, "w") as fp:
         jsonlib.dump([[
@@ -71,7 +70,7 @@ async def test_backup_restore(registry_async, registry_async_client):
         all_subjects = res.json()
 
     # Test a few exotic scenarios
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
     assert res.status == 200
     assert res.json()["compatibility"] == "NONE"
@@ -100,7 +99,7 @@ async def test_backup_restore(registry_async, registry_async_client):
     assert res.status == 404
 
     # Restore a complete schema delete message
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "int"}'})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "float"}'})
@@ -130,7 +129,7 @@ async def test_backup_restore(registry_async, registry_async_client):
     assert res.json() == [1]
 
     # Schema delete for a nonexistent subject version is ignored
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
     with open(restore_location, "w") as fp:
         fp.write(
