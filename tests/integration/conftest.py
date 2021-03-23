@@ -4,7 +4,7 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from contextlib import ExitStack
+from contextlib import closing, ExitStack
 from dataclasses import asdict, dataclass
 from filelock import FileLock
 from kafka import KafkaProducer
@@ -12,11 +12,10 @@ from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
+from karapace.utils import Client
 from pathlib import Path
 from subprocess import Popen
-from tests.utils import (
-    Client, client_for, get_broker_ip, KafkaConfig, KafkaServers, mock_factory, new_random_name, REGISTRY_URI, REST_URI
-)
+from tests.utils import KafkaConfig, KafkaServers, new_random_name
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 import json
@@ -185,17 +184,13 @@ def lock_path_for(path: Path) -> Path:
 
 
 @pytest.fixture(scope="session", name="kafka_servers")
-def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[Optional[KafkaServers]]:
+def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
 
     if bootstrap_servers:
         kafka_servers = KafkaServers(bootstrap_servers)
         wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
         yield kafka_servers
-        return
-
-    if REGISTRY_URI in os.environ or REST_URI in os.environ:
-        yield None
         return
 
     kafka_dir = session_tmppath / "kafka"
@@ -234,73 +229,58 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[Optional[Ka
 
 
 @pytest.fixture(scope="function", name="producer")
-def fixture_producer(kafka_servers: Optional[KafkaServers]) -> KafkaProducer:
-    if not kafka_servers:
-        assert REST_URI in os.environ or REGISTRY_URI in os.environ
-        bootstrap_servers = [f"{get_broker_ip()}:9092"]
-    else:
-        bootstrap_servers = kafka_servers.bootstrap_servers
-    prod = KafkaProducer(bootstrap_servers=bootstrap_servers)
-    try:
+def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
+    with closing(KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)) as prod:
         yield prod
-    finally:
-        prod.close()
 
 
 @pytest.fixture(scope="function", name="admin_client")
-def fixture_admin(kafka_servers: Optional[KafkaServers]) -> Iterator[KafkaRestAdminClient]:
-    if not kafka_servers:
-        assert REST_URI in os.environ or REGISTRY_URI in os.environ
-        bootstrap_servers = [f"{get_broker_ip()}:9092"]
-    else:
-        bootstrap_servers = kafka_servers.bootstrap_servers
-    cli = KafkaRestAdminClient(bootstrap_servers=bootstrap_servers)
-    try:
+def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]:
+    with closing(KafkaRestAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)) as cli:
         yield cli
-    finally:
-        cli.close()
 
 
 @pytest.fixture(scope="function", name="rest_async")
-async def fixture_rest_async(tmp_path: Path, kafka_servers: Optional[KafkaServers],
+async def fixture_rest_async(tmp_path: Path, kafka_servers: KafkaServers,
                              registry_async_client: Client) -> AsyncIterator[KafkaRest]:
-    if not kafka_servers:
-        assert REST_URI in os.environ
-        instance, _ = mock_factory("rest")()
-        yield instance
-    else:
-        config_path = tmp_path / "karapace_config.json"
+    config_path = tmp_path / "karapace_config.json"
 
-        config = set_config_defaults({
-            "log_level": "WARNING",
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "admin_metadata_max_age": 0
-        })
-        write_config(config_path, config)
-        rest = KafkaRest(config_file_path=str(config_path), config=config)
+    config = set_config_defaults({
+        "log_level": "WARNING",
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "admin_metadata_max_age": 0
+    })
+    write_config(config_path, config)
+    rest = KafkaRest(config_file_path=str(config_path), config=config)
 
-        assert rest.serializer.registry_client
-        assert rest.consumer_manager.deserializer.registry_client
-        rest.serializer.registry_client.client = registry_async_client
-        rest.consumer_manager.deserializer.registry_client.client = registry_async_client
-        try:
-            yield rest
-        finally:
-            rest.close()
-            await rest.close_producers()
+    assert rest.serializer.registry_client
+    assert rest.consumer_manager.deserializer.registry_client
+    rest.serializer.registry_client.client = registry_async_client
+    rest.consumer_manager.deserializer.registry_client.client = registry_async_client
+    try:
+        yield rest
+    finally:
+        rest.close()
+        await rest.close_producers()
 
 
 @pytest.fixture(scope="function", name="rest_async_client")
-async def fixture_rest_async_client(rest_async: KafkaRest, aiohttp_client) -> AsyncIterator[Client]:
-    cli = await client_for(rest_async, aiohttp_client)
-    yield cli
-    await cli.close()
+async def fixture_rest_async_client(request, rest_async: KafkaRest, aiohttp_client) -> AsyncIterator[Client]:
+    rest_url = request.config.getoption("rest_url")
+
+    # client and server_uri are incompatible settings.
+    if rest_url:
+        client = Client(server_uri=rest_url)
+    else:
+        client_factory = await aiohttp_client(rest_async.app)
+        client = Client(client=client_factory)
+
+    with closing(client):
+        yield client
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
-def fixture_registry_async_pair(tmp_path: Path, kafka_servers: Optional[KafkaServers]):
-    assert kafka_servers, f"registry_async_pair can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
-
+def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
     master_config_path = tmp_path / "karapace_config_master.json"
     slave_config_path = tmp_path / "karapace_config_slave.json"
     master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
@@ -341,35 +321,44 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: Optional[KafkaSer
 
 
 @pytest.fixture(scope="function", name="registry_async")
-async def fixture_registry_async(tmp_path: Path,
-                                 kafka_servers: Optional[KafkaServers]) -> AsyncIterator[KarapaceSchemaRegistry]:
-    if not kafka_servers:
-        assert REGISTRY_URI in os.environ or REST_URI in os.environ
-        instance, _ = mock_factory("registry")()
-        yield instance
-    else:
-        config_path = tmp_path / "karapace_config.json"
+async def fixture_registry_async(tmp_path: Path, kafka_servers: KafkaServers) -> AsyncIterator[KarapaceSchemaRegistry]:
+    config_path = tmp_path / "karapace_config.json"
 
-        config = set_config_defaults({
-            "log_level": "WARNING",
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": new_random_name(),
-            "group_id": new_random_name("schema_registry")
-        })
-        write_config(config_path, config)
-        registry = KarapaceSchemaRegistry(config_file_path=str(config_path), config=set_config_defaults(config))
-        await registry.get_master()
-        try:
-            yield registry
-        finally:
-            registry.close()
+    config = set_config_defaults({
+        "log_level": "WARNING",
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+
+        # Using the default settings instead of random values, otherwise it
+        # would not be possible to run the tests with external services.
+        # Because of this every test must be written in such a way that it can
+        # be executed twice with the same servers.
+        # "topic_name": new_random_name("topic"),
+        # "group_id": new_random_name("schema_registry")
+    })
+    write_config(config_path, config)
+    registry = KarapaceSchemaRegistry(config_file_path=str(config_path), config=config)
+    await registry.get_master()
+    try:
+        yield registry
+    finally:
+        registry.close()
 
 
 @pytest.fixture(scope="function", name="registry_async_client")
-async def fixture_registry_async_client(registry_async: KarapaceSchemaRegistry, aiohttp_client) -> AsyncIterator[Client]:
-    cli = await client_for(registry_async, aiohttp_client)
-    yield cli
-    await cli.close()
+async def fixture_registry_async_client(request, registry_async: KarapaceSchemaRegistry,
+                                        aiohttp_client) -> AsyncIterator[Client]:
+
+    registry_url = request.config.getoption("registry_url")
+
+    # client and server_uri are incompatible settings.
+    if registry_url:
+        client = Client(server_uri=registry_url)
+    else:
+        client_factory = await aiohttp_client(registry_async.app)
+        client = Client(client=client_factory)
+
+    with closing(client):
+        yield client
 
 
 def zk_java_args(cfg_path: Path) -> List[str]:
