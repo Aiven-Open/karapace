@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
+from karapace.utils import Client
 from typing import List
 
+import asyncio
 import copy
 import json
 import random
@@ -214,3 +216,18 @@ def new_topic(admin_client, prefix="topic"):
     except TopicAlreadyExistsError:
         pass
     return tn
+
+
+async def wait_for_topics(rest_async_client: Client, topic_names: List[str], timeout: float, sleep: float) -> None:
+    for topic in topic_names:
+        expiration = Expiration.from_timeout(timeout=timeout)
+        topic_found = False
+        current_topics = None
+
+        while not topic_found:
+            await asyncio.sleep(sleep)
+            expiration.raise_if_expired(msg=f"New topic {topic} must be in the result of /topics. Result={current_topics}")
+            res = await rest_async_client.get("/topics")
+            assert res.ok, f"Status code is not 200: {res.status_code}"
+            current_topics = res.json()
+            topic_found = topic in current_topics
