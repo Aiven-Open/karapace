@@ -1,4 +1,7 @@
-from tests.utils import consumer_valid_payload, new_consumer, new_random_name, new_topic, REST_HEADERS, schema_data
+from tests.utils import (
+    consumer_valid_payload, new_consumer, new_random_name, new_topic, repeat_until_successful_request, REST_HEADERS,
+    schema_data
+)
 
 import base64
 import copy
@@ -186,14 +189,19 @@ async def test_offsets(rest_async_client, admin_client, trail):
     )
     assert res.ok, f"Unexpected response status for assignment {res}"
 
-    res = await rest_async_client.post(
-        offsets_path, json={"offsets": [{
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        offsets_path,
+        json_data={"offsets": [{
             "topic": topic_name,
             "partition": 0,
-            "offset": 0
-        }]}, headers=header
+            "offset": 0,
+        }]},
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=20,
+        sleep=1,
     )
-    assert res.ok, f"Unexpected response status for offset commit {res}"
 
     res = await rest_async_client.get(
         offsets_path, headers=header, json={"partitions": [{
@@ -282,9 +290,20 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
     res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
     assert res.ok
     publish_payload = schema_data[schema_type][1]
-    pl = {"value_schema": schema_data[schema_type][0], "records": [{"value": o} for o in publish_payload]}
-    res = await rest_async_client.post(f"topics/{tn}{trail}", json=pl, headers=header)
-    assert res.ok
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        f"topics/{tn}{trail}",
+        json_data={
+            "value_schema": schema_data[schema_type][0],
+            "records": [{
+                "value": o
+            } for o in publish_payload]
+        },
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=10,
+        sleep=1,
+    )
     resp = await rest_async_client.get(consume_path, headers=header)
     assert resp.ok, f"Expected a successful response: {resp}"
     data = resp.json()
