@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
-from karapace.utils import Client
-from unittest.mock import MagicMock
-from urllib.parse import urlparse
+from typing import List
 
 import copy
 import json
-import os
 import random
 
 consumer_valid_payload = {
@@ -96,8 +93,6 @@ REST_HEADERS = {
         "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
 }
-REST_URI = "REST_URI"
-REGISTRY_URI = "REGISTRY_URI"
 
 
 @dataclass
@@ -117,10 +112,17 @@ class KafkaConfig:
         )
 
 
-def get_broker_ip():
-    if REST_URI in os.environ and REGISTRY_URI in os.environ:
-        return urlparse(os.environ[REGISTRY_URI]).hostname
-    return "127.0.0.1"
+@dataclass
+class KafkaServers:
+    bootstrap_servers: List[str]
+
+    def __post_init__(self):
+        is_bootstrap_uris_valid = (
+            isinstance(self.bootstrap_servers, list) and len(self.bootstrap_servers) > 0
+            and all(isinstance(url, str) for url in self.bootstrap_servers)
+        )
+        if not is_bootstrap_uris_valid:
+            raise ValueError("bootstrap_servers must be a non-empty list of urls")
 
 
 async def new_consumer(c, group, fmt="avro", trail=""):
@@ -129,18 +131,6 @@ async def new_consumer(c, group, fmt="avro", trail=""):
     resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS[fmt])
     assert resp.ok
     return resp.json()["instance_id"]
-
-
-async def client_for(app, client_factory):
-    if REST_URI in os.environ and REGISTRY_URI in os.environ:
-        # least intrusive way of figuring out which client is which
-        if app.type == "rest":
-            return Client(server_uri=os.environ[REST_URI])
-        return Client(server_uri=os.environ[REGISTRY_URI])
-
-    client_factory = await client_factory(app.app)
-    c = Client(client=client_factory)
-    return c
 
 
 def new_random_name(prefix="topic"):
@@ -155,18 +145,3 @@ def new_topic(admin_client, prefix="topic"):
     except TopicAlreadyExistsError:
         pass
     return tn
-
-
-def mock_factory(app_name):
-    def inner():
-        app = MagicMock()
-        app.type = app_name
-        app.serializer = MagicMock()
-        app.consumer_manager = MagicMock()
-        app.serializer.registry_client = MagicMock()
-        app.consumer_manager.deserializer = MagicMock()
-        app.consumer_manager.hostname = "http://localhost:8082"
-        app.consumer_manager.deserializer.registry_client = MagicMock()
-        return app, None
-
-    return inner
