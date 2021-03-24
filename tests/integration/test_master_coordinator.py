@@ -6,7 +6,7 @@ See LICENSE for details
 """
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
-from tests.utils import KafkaConfig, REGISTRY_URI, REST_URI
+from tests.utils import KafkaServers
 from typing import Optional
 
 import asyncio
@@ -41,20 +41,19 @@ def has_master(mc: MasterCoordinator) -> bool:
     return bool(mc.sc and not mc.sc.master and mc.sc.master_url)
 
 
+@pytest.mark.timeout(60)
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
-def test_master_selection(kafka_server: Optional[KafkaConfig], strategy: str) -> None:
-    assert kafka_server, f"test_master_selection can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
-
+def test_master_selection(kafka_servers: Optional[KafkaServers], strategy: str) -> None:
     config_aa = set_config_defaults({})
     config_aa["advertised_hostname"] = "127.0.0.1"
-    config_aa["bootstrap_uri"] = f"127.0.0.1:{kafka_server.kafka_port}"
+    config_aa["bootstrap_uri"] = kafka_servers.bootstrap_servers
     config_aa["client_id"] = "aa"
     config_aa["port"] = 1234
     config_aa["master_election_strategy"] = strategy
     mc_aa = init_admin(config_aa)
     config_bb = set_config_defaults({})
     config_bb["advertised_hostname"] = "127.0.0.1"
-    config_bb["bootstrap_uri"] = f"127.0.0.1:{kafka_server.kafka_port}"
+    config_bb["bootstrap_uri"] = kafka_servers.bootstrap_servers
     config_bb["client_id"] = "bb"
     config_bb["port"] = 5678
     config_bb["master_election_strategy"] = strategy

@@ -2,9 +2,6 @@ from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
 from tests.utils import new_topic, REST_HEADERS, schema_avro_json, second_obj, second_schema_json, test_objects_avro
 
-import os
-import pytest
-
 
 def check_successful_publish_response(success_response, objects, partition_id=None):
     assert success_response.ok
@@ -179,11 +176,13 @@ async def test_internal(rest_async, admin_client):
 
 
 async def test_topics(rest_async_client, admin_client):
+    topic_foo = "foo"
     tn = new_topic(admin_client)
     res = await rest_async_client.get("/topics")
     assert res.ok, "Status code is not 200: %r" % res.status_code
-    data = res.json()
-    assert {tn}.difference(set(data)) == set(), "Retrieved topic names do not match: %r" % data
+    current_topics = set(res.json())
+    assert topic_foo not in current_topics, f"Topic {topic_foo} should not exist"
+    assert {tn}.difference(current_topics) == set(), f"Retrieved topic names do not match: {current_topics}"
     res = await rest_async_client.get(f"/topics/{tn}")
     assert res.ok, "Status code is not 200: %r" % res.status_code
     data = res.json()
@@ -196,8 +195,8 @@ async def test_topics(rest_async_client, admin_client):
     assert len(data["partitions"][0]["replicas"]) == 1, "should only have one replica"
     assert data["partitions"][0]["replicas"][0]["leader"], "Replica should be leader"
     assert data["partitions"][0]["replicas"][0]["in_sync"], "Replica should be in sync"
-    res = await rest_async_client.get("/topics/foo")
-    assert res.status_code == 404, "Topic should not exist"
+    res = await rest_async_client.get(f"/topics/{topic_foo}")
+    assert res.status_code == 404, f"Topic {topic_foo} should not exist, status_code={res.status_code}"
     assert res.json()["error_code"] == 40401, "Error code does not match"
 
 
@@ -233,8 +232,6 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         res_json = res.json()
         assert res.status == 422
         assert res_json["error_code"] == 42201
-        if "REST_URI" in os.environ and "REGISTRY_URI" in os.environ:
-            pytest.skip("Skipping encoding tests for remote proxy")
         res = await rest_async_client.post(url, json={"records": [{"value": "not base64"}]}, headers=REST_HEADERS["binary"])
         res_json = res.json()
         assert res.status == 422
