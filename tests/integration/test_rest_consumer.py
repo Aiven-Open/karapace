@@ -1,4 +1,4 @@
-from tests.utils import consumer_valid_payload, new_consumer, new_topic, REST_HEADERS, schema_data
+from tests.utils import consumer_valid_payload, new_consumer, new_random_name, new_topic, REST_HEADERS, schema_data
 
 import base64
 import copy
@@ -64,8 +64,11 @@ async def test_assignment(rest_async_client, admin_client, trail):
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_subscription(rest_async_client, admin_client, producer, trail):
+    # The random name is necessary to avoid test errors, without it the second
+    # parametrize test will fail. Issue: #178
+    group_name = new_random_name("group")
+
     header = REST_HEADERS["binary"]
-    group_name = "sub_group"
     topic_name = new_topic(admin_client)
     instance_id = await new_consumer(rest_async_client, group_name, fmt="binary", trail=trail)
     sub_path = f"/consumers/{group_name}/instances/{instance_id}/subscription{trail}"
@@ -135,7 +138,7 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     data = res.json()
     assert data["error_code"] == 40903, f"Invalid state error expected: {data}"
     # assign after subscribe will fail
-    assign_path = f"/consumers/sub_group/instances/{instance_id}/assignments{trail}"
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.status == 409, "Expecting status code 409 on assign after subscribe on the same consumer instance"
