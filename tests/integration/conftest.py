@@ -28,8 +28,10 @@ import signal
 import socket
 import time
 
-KAFKA_CURRENT_VERSION = "2.4"
-BASEDIR = "kafka_2.12-2.4.1"
+# Keep these in sync with the Makefile
+KAFKA_CURRENT_VERSION = "2.7"
+BASEDIR = "kafka_2.13-2.7.0"
+
 CLASSPATH = os.path.join(BASEDIR, "libs", "*")
 KAFKA_WAIT_TIMEOUT = 60
 
@@ -369,6 +371,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         "PLAINTEXT://:{}".format(plaintext_port),
     ])
 
+    # Keep in sync with containers/docker-compose.yml
     kafka_config = {
         "broker.id": 1,
         "broker.rack": "local",
@@ -397,7 +400,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         "transaction.state.log.num.partitions": 16,
         "transaction.state.log.replication.factor": 1,
         "zookeeper.connection.timeout.ms": 6000,
-        "zookeeper.connect": "{}:{}".format("127.0.0.1", zk.client_port)
+        "zookeeper.connect": f"127.0.0.1:{zk.client_port}",
     }
 
     with config_path.open("w") as fp:
