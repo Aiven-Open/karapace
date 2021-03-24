@@ -1,6 +1,10 @@
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
-from tests.utils import new_topic, REST_HEADERS, schema_avro_json, second_obj, second_schema_json, test_objects_avro
+from tests.utils import (
+    new_topic, REST_HEADERS, schema_avro_json, second_obj, second_schema_json, test_objects_avro, wait_for_topics
+)
+
+NEW_TOPIC_TIMEOUT = 10
 
 
 def check_successful_publish_response(success_response, objects, partition_id=None):
@@ -18,6 +22,7 @@ def check_successful_publish_response(success_response, objects, partition_id=No
 
 async def test_content_types(rest_async_client, admin_client):
     tn = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     valid_headers = [
         "application/vnd.kafka.v1+json",
         "application/vnd.kafka.binary.v1+json",
@@ -91,6 +96,7 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
     # pylint: disable=W0612
     tn = new_topic(admin_client)
     other_tn = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn, other_tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     header = REST_HEADERS["avro"]
     # check succeeds with 1 record and brand new schema
     res = await registry_async_client.post(f"subjects/{other_tn}/versions", json={"schema": second_schema_json})
@@ -118,7 +124,7 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
             # assert res.status == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
 
-def test_admin_client(admin_client, producer):
+async def test_admin_client(admin_client, producer):
     topic_names = [new_topic(admin_client) for i in range(10, 13)]
     topic_info = admin_client.cluster_metadata()
     retrieved_names = list(topic_info["topics"].keys())
@@ -178,11 +184,7 @@ async def test_internal(rest_async, admin_client):
 async def test_topics(rest_async_client, admin_client):
     topic_foo = "foo"
     tn = new_topic(admin_client)
-    res = await rest_async_client.get("/topics")
-    assert res.ok, "Status code is not 200: %r" % res.status_code
-    current_topics = set(res.json())
-    assert topic_foo not in current_topics, f"Topic {topic_foo} should not exist"
-    assert {tn}.difference(current_topics) == set(), f"Retrieved topic names do not match: {current_topics}"
+    await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     res = await rest_async_client.get(f"/topics/{tn}")
     assert res.ok, "Status code is not 200: %r" % res.status_code
     data = res.json()
@@ -202,6 +204,7 @@ async def test_topics(rest_async_client, admin_client):
 
 async def test_publish(rest_async_client, admin_client):
     topic = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     topic_url = f"/topics/{topic}"
     partition_url = f"/topics/{topic}/partitions/0"
     # Proper Json / Binary
@@ -219,6 +222,7 @@ async def test_publish(rest_async_client, admin_client):
 
 async def test_publish_malformed_requests(rest_async_client, admin_client):
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     for url in [f"/topics/{topic_name}", f"/topics/{topic_name}/partitions/0"]:
         # Malformed schema ++ empty records
         for js in [{"records": []}, {"foo": "bar"}, {"records": [{"valur": {"foo": "bar"}}]}]:
@@ -247,6 +251,7 @@ async def test_brokers(rest_async_client):
 async def test_partitions(rest_async_client, admin_client, producer):
     # TODO -> This seems to be the only combination accepted by the offsets endpoint
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     header = {"Accept": "*/*", "Content-Type": "application/vnd.kafka.v2+json"}
     all_partitions_res = await rest_async_client.get(f"/topics/{topic_name}/partitions")
     assert all_partitions_res.ok, "Topic should exist"
