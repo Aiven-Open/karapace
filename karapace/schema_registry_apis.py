@@ -310,6 +310,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(response_body, content_type)
 
     async def config_get(self, content_type):
+        # Note: The format sent by the user differs from the return value, this
+        # is for compatibility reasons.
         self.r({"compatibilityLevel": self.ksr.config["compatibility"]}, content_type)
 
     async def config_set(self, content_type, *, request):
@@ -349,7 +351,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
             if not compatibility and default_to_global:
                 compatibility = self.ksr.config["compatibility"]
             if compatibility:
-                self.r({"compatibilityLevel": compatibility}, content_type)
+                # Note: The format sent by the user differs from the return
+                # value, this is for compatibility reasons.
+                self.r(
+                    {"compatibilityLevel": compatibility},
+                    content_type,
+                )
 
         self.r(
             body={
