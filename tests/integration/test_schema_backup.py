@@ -4,8 +4,11 @@ karapace - test schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
-from tests.utils import Expiration, new_random_name
+from karapace.utils import Client
+from pathlib import Path
+from tests.utils import Expiration, KafkaServers, new_random_name
 
 import json as jsonlib
 import os
@@ -25,39 +28,49 @@ async def insert_data(c):
     return subject
 
 
-async def test_backup_get(registry_async, registry_async_client):
+async def test_backup_get(registry_async_client, kafka_servers: KafkaServers, tmp_path: Path):
     _ = await insert_data(registry_async_client)
 
     # Get the backup
-    backup_location = os.path.join(os.path.dirname(registry_async.config_path), "schemas.log")
-    sb = SchemaBackup(registry_async.config_path, backup_location)
+    backup_location = tmp_path / "schemas.log"
+    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
+    sb = SchemaBackup(config, str(backup_location))
     sb.request_backup()
 
     # The backup file has been created
     assert os.path.exists(backup_location)
 
 
-async def test_backup_restore(registry_async, registry_async_client):
+async def test_backup_restore(
+    registry_async_client: Client,
+    kafka_servers: KafkaServers,
+    tmp_path: Path,
+) -> None:
     subject = new_random_name("subject")
-    restore_location = os.path.join(os.path.dirname(registry_async.config_path), "restore.log")
-    with open(restore_location, "w") as fp:
-        jsonlib.dump([[
-            {
-                "subject": subject,
-                "version": 1,
-                "magic": 1,
-                "keytype": "SCHEMA",
-            },
-            {
-                "deleted": False,
-                "id": 1,
-                "schema": "\"string\"",
-                "subject": subject,
-                "version": 1,
-            },
-        ]],
-                     fp=fp)
-    sb = SchemaBackup(registry_async.config_path, restore_location)
+    restore_location = tmp_path / "restore.log"
+
+    with restore_location.open("w") as fp:
+        jsonlib.dump(
+            [[
+                {
+                    "subject": subject,
+                    "version": 1,
+                    "magic": 1,
+                    "keytype": "SCHEMA",
+                },
+                {
+                    "deleted": False,
+                    "id": 1,
+                    "schema": "\"string\"",
+                    "subject": subject,
+                    "version": 1,
+                },
+            ]],
+            fp=fp,
+        )
+
+    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
+    sb = SchemaBackup(config, str(restore_location))
     sb.restore_backup()
 
     # The restored karapace should have the previously created subject
