@@ -177,11 +177,7 @@ async def fixture_rest_async(tmp_path: Path, kafka_servers: KafkaServers,
                              registry_async_client: Client) -> AsyncIterator[KafkaRest]:
     config_path = tmp_path / "karapace_config.json"
 
-    config = set_config_defaults({
-        "log_level": "WARNING",
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "admin_metadata_max_age": 0
-    })
+    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers, "admin_metadata_max_age": 0})
     write_config(config_path, config)
     rest = KafkaRest(config_file_path=str(config_path), config=config)
 
@@ -221,7 +217,6 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
     group_id = new_random_name("schema_pairs")
     write_config(
         master_config_path, {
-            "log_level": "WARNING",
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": topic_name,
             "group_id": group_id,
@@ -232,7 +227,6 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
     )
     write_config(
         slave_config_path, {
-            "log_level": "WARNING",
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": topic_name,
             "group_id": group_id,
@@ -257,7 +251,6 @@ async def fixture_registry_async(tmp_path: Path, kafka_servers: KafkaServers) ->
     config_path = tmp_path / "karapace_config.json"
 
     config = set_config_defaults({
-        "log_level": "WARNING",
         "bootstrap_uri": kafka_servers.bootstrap_servers,
 
         # Using the default settings instead of random values, otherwise it

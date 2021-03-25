@@ -13,6 +13,7 @@ from karapace.utils import json_encode
 
 import argparse
 import asyncio
+import logging
 import sys
 import time
 
@@ -734,6 +735,7 @@ def main() -> int:
     with closing(arg.config_file):
         config = read_config(arg.config_file)
 
+    logging.getLogger().setLevel(config["log_level"])
     kc = KarapaceSchemaRegistry(config_file_path=arg.config_file.name, config=config)
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])

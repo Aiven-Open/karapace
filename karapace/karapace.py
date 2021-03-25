@@ -40,7 +40,6 @@ class KarapaceBase(RestApp):
         self.log = logging.getLogger("Karapace")
         self.app.on_startup.append(self.create_http_client)
         self.master_lock = asyncio.Lock()
-        self._set_log_level()
         self.log.info("Karapace initialized")
 
     def _create_producer(self) -> KafkaProducer:
@@ -67,12 +66,6 @@ class KarapaceBase(RestApp):
             return
         self.producer.close()
         self.producer = None
-
-    def _set_log_level(self) -> None:
-        try:
-            logging.getLogger().setLevel(self.config["log_level"])
-        except ValueError:
-            self.log.exception("Problem with log_level: %r", self.config["log_level"])
 
     @staticmethod
     def r(body: Union[dict, list], content_type: str, status: HTTPStatus = HTTPStatus.OK) -> NoReturn:
