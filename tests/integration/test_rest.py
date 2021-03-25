@@ -199,7 +199,7 @@ async def test_topics(rest_async_client, admin_client):
     assert data["partitions"][0]["replicas"][0]["in_sync"], "Replica should be in sync"
     res = await rest_async_client.get(f"/topics/{topic_foo}")
     assert res.status_code == 404, f"Topic {topic_foo} should not exist, status_code={res.status_code}"
-    assert res.json()["error_code"] == 40401, "Error code does not match"
+    assert res.json()["error_code"] == 40403, "Error code does not match"
 
 
 async def test_publish(rest_async_client, admin_client):

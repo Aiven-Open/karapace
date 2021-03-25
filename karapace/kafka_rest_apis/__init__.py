@@ -600,7 +600,7 @@ class KafkaRest(KarapaceBase):
             data["configs"] = config
             self.r(data, content_type)
         except UnknownTopicOrPartitionError:
-            self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+            self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40403)
 
     def list_partitions(self, content_type: str, *, topic: Optional[str]):
         self.log.info("Retrieving partition details for topic %s", topic)
