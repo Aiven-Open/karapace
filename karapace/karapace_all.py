@@ -46,6 +46,8 @@ def main() -> int:
 
     config_file_path = arg.config_file.name
 
+    logging.getLogger().setLevel(config["log_level"])
+
     kc: RestApp
     if config["karapace_rest"] and config["karapace_registry"]:
         info_str = "both services"
