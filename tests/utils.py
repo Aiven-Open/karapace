@@ -1,3 +1,4 @@
+from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
@@ -235,13 +236,29 @@ async def wait_for_topics(rest_async_client: Client, topic_names: List[str], tim
 
 async def repeat_until_successful_request(
     callback, path: str, json_data, headers, error_msg: str, timeout: float, sleep: float
-) -> None:
+):
     expiration = Expiration.from_timeout(timeout=timeout)
+    ok = False
+    res = None
 
-    res = await callback(path, json=json_data, headers=headers)
-    while not res.ok:
+    try:
+        res = await callback(path, json=json_data, headers=headers)
+    # ClientOSError: Raised when the listening socket is not yet open in the server
+    # ServerDisconnectedError: Wrong url
+    except (ClientOSError, ServerDisconnectedError):
+        pass
+    else:
+        ok = res.ok
+
+    while not ok:
         await asyncio.sleep(sleep)
         expiration.raise_if_expired(msg=f"{error_msg} {res} after {timeout} secs")
-        res = await callback(path, json=json_data, headers=headers)
+
+        try:
+            res = await callback(path, json=json_data, headers=headers)
+        except (ClientOSError, ServerDisconnectedError):
+            pass
+        else:
+            ok = res.ok
 
     return res
