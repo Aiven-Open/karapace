@@ -204,7 +204,7 @@ async def new_consumer(c, group, fmt="avro", trail=""):
     return resp.json()["instance_id"]
 
 
-def new_random_name(prefix="topic"):
+def new_random_name(prefix):
     suffix = hash(random.random())
     return f"{prefix}{suffix}"
 
