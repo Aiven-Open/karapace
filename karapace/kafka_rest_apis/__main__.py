@@ -4,6 +4,7 @@ from karapace.config import read_config
 from karapace.kafka_rest_apis import KafkaRest
 
 import argparse
+import logging
 import sys
 
 
@@ -16,6 +17,7 @@ def main() -> int:
     with closing(arg.config_file):
         config = read_config(arg.config_file)
 
+    logging.getLogger().setLevel(config["log_level"])
     kc = KafkaRest(config_file_path=arg.config_file.name, config=config)
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])
