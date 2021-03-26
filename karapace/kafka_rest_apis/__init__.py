@@ -402,7 +402,11 @@ class KafkaRest(KarapaceBase):
         try:
             return int(partition_id)
         except ValueError:
-            KafkaRest.not_found(message=f"Partition {partition_id} not found", content_type=content_type, sub_code=404)
+            KafkaRest.not_found(
+                message=f"Partition {partition_id} not found",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_NOT_FOUND.value,
+            )
 
     @staticmethod
     def is_valid_schema_request(data: dict, prefix: str) -> bool:
@@ -483,18 +487,32 @@ class KafkaRest(KarapaceBase):
             for p in partitions:
                 if p["partition"] == partition:
                     return p
-            self.not_found(message=f"Partition {partition} not found", content_type=content_type, sub_code=40402)
+            self.not_found(
+                message=f"Partition {partition} not found",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
+            )
         except UnknownTopicOrPartitionError:
-            self.not_found(message=f"Partition {partition} not found", content_type=content_type, sub_code=40402)
+            self.not_found(
+                message=f"Partition {partition} not found",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
+            )
         except KeyError:
-            self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+            self.not_found(
+                message=f"Topic {topic} not found",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
+            )
         return {}
 
     def get_topic_info(self, topic: str, content_type: str) -> dict:
         md = self.cluster_metadata()["topics"]
         if topic not in md:
             self.not_found(
-                message=f"Topic {topic} not found in {list(md.keys())}", content_type=content_type, sub_code=40401
+                message=f"Topic {topic} not found in {list(md.keys())}",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
             )
         return md[topic]
 
@@ -531,11 +549,19 @@ class KafkaRest(KarapaceBase):
 
         # disallow missing or non empty 'records' key , plus any other keys
         if "records" not in data or set(data.keys()).difference(PUBLISH_KEYS) or not data["records"]:
-            self.unprocessable_entity(message="Invalid request format", content_type=content_type, sub_code=422)
+            self.unprocessable_entity(
+                message="Invalid request format",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+            )
         for r in data["records"]:
             convert_to_int(r, "partition", content_type)
             if set(r.keys()).difference(RECORD_KEYS):
-                self.unprocessable_entity(message="Invalid request format", content_type=content_type, sub_code=422)
+                self.unprocessable_entity(
+                    message="Invalid request format",
+                    content_type=content_type,
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                )
         # disallow missing id and schema for any key/value list that has at least one populated element
         if formats["embedded_format"] in {"avro", "jsonschema"}:
             for prefix, code in zip(RECORD_KEYS, RECORD_CODES):
@@ -551,7 +577,11 @@ class KafkaRest(KarapaceBase):
                 try:
                     await self.validate_schema_info(data, prefix, content_type, topic, formats["embedded_format"])
                 except InvalidMessageSchema as e:
-                    self.unprocessable_entity(message=str(e), content_type=content_type, sub_code=42205)
+                    self.unprocessable_entity(
+                        message=str(e),
+                        content_type=content_type,
+                        sub_code=RESTErrorCodes.INVALID_DATA.value,
+                    )
 
     async def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
         prod = None
@@ -594,13 +624,21 @@ class KafkaRest(KarapaceBase):
             metadata = self.cluster_metadata([topic])
             config = self.get_topic_config(topic)
             if topic not in metadata["topics"]:
-                self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+                self.not_found(
+                    message=f"Topic {topic} not found",
+                    content_type=content_type,
+                    sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
+                )
             data = metadata["topics"][topic]
             data["name"] = topic
             data["configs"] = config
             self.r(data, content_type)
         except UnknownTopicOrPartitionError:
-            self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+            self.not_found(
+                message=f"Topic {topic} not found",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
+            )
 
     def list_partitions(self, content_type: str, *, topic: Optional[str]):
         self.log.info("Retrieving partition details for topic %s", topic)
@@ -608,7 +646,11 @@ class KafkaRest(KarapaceBase):
             topic_details = self.cluster_metadata([topic])["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
         except (UnknownTopicOrPartitionError, KeyError):
-            self.not_found(message=f"Topic {topic} not found", content_type=content_type, sub_code=40401)
+            self.not_found(
+                message=f"Topic {topic} not found",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
+            )
 
     def partition_details(self, content_type: str, *, topic: str, partition_id: str):
         self.log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
@@ -623,8 +665,16 @@ class KafkaRest(KarapaceBase):
         except UnknownTopicOrPartitionError as e:
             # Do a topics request on failure, figure out faster ways once we get correctness down
             if topic not in self.cluster_metadata()["topics"]:
-                self.not_found(message=f"Topic {topic} not found: {e}", content_type=content_type, sub_code=40401)
-            self.not_found(message=f"Partition {partition_id} not found: {e}", content_type=content_type, sub_code=40402)
+                self.not_found(
+                    message=f"Topic {topic} not found: {e}",
+                    content_type=content_type,
+                    sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
+                )
+            self.not_found(
+                message=f"Partition {partition_id} not found: {e}",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
+            )
 
     def list_brokers(self, content_type: str):
         metadata = self.cluster_metadata()
