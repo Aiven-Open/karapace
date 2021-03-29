@@ -241,7 +241,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             schema_type = SchemaType(body.get("schemaType", "AVRO"))
-            new = TypedSchema.parse(schema_type, body["schema"])
+            new_schema = TypedSchema.parse(schema_type, body["schema"])
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(
@@ -268,9 +268,15 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
         compatibility_mode = self._get_compatibility_mode(subject=old, content_type=content_type)
 
-        result = check_compatibility(source=old_schema, target=new, compatibility_mode=compatibility_mode)
+        result = check_compatibility(
+            old_schema=old_schema,
+            new_schema=new_schema,
+            compatibility_mode=compatibility_mode,
+        )
         if is_incompatible(result):
-            self.log.warning("Invalid schema %s found by compatibility check: old: %s new: %s", result, old_schema, new)
+            self.log.warning(
+                "Invalid schema %s found by compatibility check: old: %s new: %s", result, old_schema, new_schema
+            )
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
 
@@ -681,7 +687,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
             for old_version in check_against:
                 old_schema = subject_data["schemas"][old_version]["schema"]
-                result = check_compatibility(source=old_schema, target=new_schema, compatibility_mode=compatibility_mode)
+                result = check_compatibility(
+                    old_schema=old_schema,
+                    new_schema=new_schema,
+                    compatibility_mode=compatibility_mode,
+                )
                 if is_incompatible(result):
                     message = set(result.messages).pop() if result.messages else ""
                     self.log.warning("Incompatible schema: %s", result)
