@@ -7,25 +7,29 @@ from tests.schemas.json_schemas import (
     A_INT_B_INT_REQUIRED_OBJECT_SCHEMA, A_INT_OBJECT_SCHEMA, A_INT_OPEN_OBJECT_SCHEMA, A_OBJECT_SCHEMA, ARRAY_OF_INT_SCHEMA,
     ARRAY_OF_NUMBER_SCHEMA, ARRAY_OF_POSITIVE_INTEGER, ARRAY_OF_POSITIVE_INTEGER_THROUGH_REF, ARRAY_OF_STRING_SCHEMA,
     ARRAY_SCHEMA, B_DINT_OPEN_OBJECT_SCHEMA, B_INT_OBJECT_SCHEMA, B_INT_OPEN_OBJECT_SCHEMA, B_NUM_C_DINT_OPEN_OBJECT_SCHEMA,
-    B_NUM_C_INT_OBJECT_SCHEMA, B_NUM_C_INT_OPEN_OBJECT_SCHEMA, BOOLEAN_SCHEMA, EMPTY_OBJECT_SCHEMA, EMPTY_SCHEMA,
-    ENUM_AB_SCHEMA, ENUM_ABC_SCHEMA, ENUM_BC_SCHEMA, EVERY_TYPE_SCHEMA, EXCLUSIVE_MAXIMUM_DECREASED_INTEGER_SCHEMA,
-    EXCLUSIVE_MAXIMUM_DECREASED_NUMBER_SCHEMA, EXCLUSIVE_MAXIMUM_INTEGER_SCHEMA, EXCLUSIVE_MAXIMUM_NUMBER_SCHEMA,
-    EXCLUSIVE_MINIMUM_INCREASED_INTEGER_SCHEMA, EXCLUSIVE_MINIMUM_INCREASED_NUMBER_SCHEMA, EXCLUSIVE_MINIMUM_INTEGER_SCHEMA,
-    EXCLUSIVE_MINIMUM_NUMBER_SCHEMA, FALSE_SCHEMA, INT_SCHEMA, MAX_ITEMS_DECREASED_SCHEMA, MAX_ITEMS_SCHEMA,
-    MAX_LENGTH_DECREASED_SCHEMA, MAX_LENGTH_SCHEMA, MAX_PROPERTIES_DECREASED_SCHEMA, MAX_PROPERTIES_SCHEMA,
+    B_NUM_C_INT_OBJECT_SCHEMA, B_NUM_C_INT_OPEN_OBJECT_SCHEMA, BOOLEAN_SCHEMA, BOOLEAN_SCHEMAS, EMPTY_OBJECT_SCHEMA,
+    EMPTY_SCHEMA, ENUM_AB_SCHEMA, ENUM_ABC_SCHEMA, ENUM_BC_SCHEMA, EVERY_TYPE_SCHEMA,
+    EXCLUSIVE_MAXIMUM_DECREASED_INTEGER_SCHEMA, EXCLUSIVE_MAXIMUM_DECREASED_NUMBER_SCHEMA, EXCLUSIVE_MAXIMUM_INTEGER_SCHEMA,
+    EXCLUSIVE_MAXIMUM_NUMBER_SCHEMA, EXCLUSIVE_MINIMUM_INCREASED_INTEGER_SCHEMA, EXCLUSIVE_MINIMUM_INCREASED_NUMBER_SCHEMA,
+    EXCLUSIVE_MINIMUM_INTEGER_SCHEMA, EXCLUSIVE_MINIMUM_NUMBER_SCHEMA, FALSE_SCHEMA, INT_SCHEMA, MAX_ITEMS_DECREASED_SCHEMA,
+    MAX_ITEMS_SCHEMA, MAX_LENGTH_DECREASED_SCHEMA, MAX_LENGTH_SCHEMA, MAX_PROPERTIES_DECREASED_SCHEMA, MAX_PROPERTIES_SCHEMA,
     MAXIMUM_DECREASED_INTEGER_SCHEMA, MAXIMUM_DECREASED_NUMBER_SCHEMA, MAXIMUM_INTEGER_SCHEMA, MAXIMUM_NUMBER_SCHEMA,
     MIN_ITEMS_INCREASED_SCHEMA, MIN_ITEMS_SCHEMA, MIN_LENGTH_INCREASED_SCHEMA, MIN_LENGTH_SCHEMA, MIN_PATTERN_SCHEMA,
     MIN_PATTERN_STRICT_SCHEMA, MIN_PROPERTIES_INCREASED_SCHEMA, MIN_PROPERTIES_SCHEMA, MINIMUM_INCREASED_INTEGER_SCHEMA,
-    MINIMUM_INCREASED_NUMBER_SCHEMA, MINIMUM_INTEGER_SCHEMA, MINIMUM_NUMBER_SCHEMA, NOT_ARRAY_SCHEMA, NOT_BOOLEAN_SCHEMA,
-    NOT_INT_SCHEMA, NOT_NUMBER_SCHEMA, NOT_OBJECT_SCHEMA, NOT_OF_EMPTY_SCHEMA, NOT_OF_TRUE_SCHEMA, NOT_STRING_SCHEMA,
-    NUMBER_SCHEMA, OBJECT_SCHEMA, ONEOF_ARRAY_A_DINT_B_NUM_SCHEMA, ONEOF_ARRAY_B_NUM_C_DINT_OPEN_SCHEMA,
-    ONEOF_ARRAY_B_NUM_C_INT_SCHEMA, ONEOF_INT_SCHEMA, ONEOF_NUMBER_SCHEMA, ONEOF_STRING_INT_SCHEMA, ONEOF_STRING_SCHEMA,
-    PROPERTY_ASTAR_OBJECT_SCHEMA, STRING_SCHEMA, TRUE_SCHEMA, TUPLE_OF_INT_INT_SCHEMA, TUPLE_OF_INT_OPEN_SCHEMA,
-    TUPLE_OF_INT_SCHEMA, TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
+    MINIMUM_INCREASED_NUMBER_SCHEMA, MINIMUM_INTEGER_SCHEMA, MINIMUM_NUMBER_SCHEMA, NON_OBJECT_SCHEMAS, NOT_ARRAY_SCHEMA,
+    NOT_BOOLEAN_SCHEMA, NOT_INT_SCHEMA, NOT_NUMBER_SCHEMA, NOT_OBJECT_SCHEMA, NOT_OF_EMPTY_SCHEMA, NOT_OF_TRUE_SCHEMA,
+    NOT_STRING_SCHEMA, NUMBER_SCHEMA, OBJECT_SCHEMA, OBJECT_SCHEMAS, ONEOF_ARRAY_A_DINT_B_NUM_SCHEMA,
+    ONEOF_ARRAY_B_NUM_C_DINT_OPEN_SCHEMA, ONEOF_ARRAY_B_NUM_C_INT_SCHEMA, ONEOF_INT_SCHEMA, ONEOF_NUMBER_SCHEMA,
+    ONEOF_STRING_INT_SCHEMA, ONEOF_STRING_SCHEMA, PROPERTY_ASTAR_OBJECT_SCHEMA, STRING_SCHEMA, TRUE_SCHEMA,
+    TUPLE_OF_INT_INT_OPEN_SCHEMA, TUPLE_OF_INT_INT_SCHEMA, TUPLE_OF_INT_OPEN_SCHEMA, TUPLE_OF_INT_SCHEMA,
+    TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
 )
+
+import pytest
 
 COMPATIBLE = SchemaCompatibilityResult.compatible()
 
+COMPATIBILIY = "compatibility with schema registry"
 COMPATIBLE_READER_IS_TRUE_SCHEMA = "The reader is a true schema which _accepts_ every value"
 COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES = "The reader schema is an open schema and ignores unknown values"
 COMPATIBLE_READER_NEW_FIELD_IS_NOT_REQUIRED = "The new fields in the reader schema are not required"
@@ -496,11 +500,18 @@ def test_extra_optional_field_with_open_model_is_compatible() -> None:
 
 
 def test_extra_field_with_closed_model_is_incompatible() -> None:
-    # The field here is not required but forbidden, because of this the reader
-    # will reject the writer data
+    # The false schema always falways validation, so the values produced by the
+    # writer won't be valid.
+    # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
+    #
+    # not_schemas_are_compatible(
+    #     reader=FALSE_SCHEMA,
+    #     writer=A_INT_OBJECT_SCHEMA,
+    #     msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
+    # )
     not_schemas_are_compatible(
-        reader=FALSE_SCHEMA,
-        writer=A_INT_OBJECT_SCHEMA,
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=FALSE_SCHEMA,
         msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
     )
     not_schemas_are_compatible(
@@ -536,9 +547,16 @@ def test_missing_required_field_is_incompatible() -> None:
         writer=A_INT_OBJECT_SCHEMA,
         msg=INCOMPATIBLE_READER_HAS_A_NEW_REQUIRED_FIELDg,
     )
+    # The writer is not producing the value `b`, which is required by the
+    # reader
+    # not_schemas_are_compatible(
+    #     reader=A_INT_B_DINT_REQUIRED_OBJECT_SCHEMA,
+    #     writer=A_INT_OBJECT_SCHEMA,
+    #     msg=INCOMPATIBLE_READER_HAS_A_NEW_REQUIRED_FIELDg,
+    # )
     not_schemas_are_compatible(
-        reader=A_INT_B_DINT_REQUIRED_OBJECT_SCHEMA,
-        writer=A_INT_OBJECT_SCHEMA,
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=A_INT_B_DINT_REQUIRED_OBJECT_SCHEMA,
         msg=INCOMPATIBLE_READER_HAS_A_NEW_REQUIRED_FIELDg,
     )
 
@@ -591,12 +609,27 @@ def test_giving_a_default_value_for_a_non_required_field_is_compatible() -> None
     )
 
 
-def test_from_closed_to_open_is_incompatible() -> None:
-    not_schemas_are_compatible(
+def test_boolean_schemas_are_backward_compatible() -> None:
+    # reader is the false schema, which never accepts a value
+    # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
+    # not_schemas_are_compatible(
+    #     reader=FALSE_SCHEMA,
+    #     writer=TRUE_SCHEMA,
+    #     msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
+    # )
+    schemas_are_compatible(
         reader=FALSE_SCHEMA,
         writer=TRUE_SCHEMA,
         msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
     )
+    schemas_are_compatible(
+        reader=TRUE_SCHEMA,
+        writer=FALSE_SCHEMA,
+        msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
+    )
+
+
+def test_from_closed_to_open_is_incompatible() -> None:
     not_schemas_are_compatible(
         reader=B_NUM_C_INT_OBJECT_SCHEMA,
         writer=B_NUM_C_DINT_OPEN_OBJECT_SCHEMA,
@@ -618,6 +651,48 @@ def test_union_with_compatible_elements() -> None:
         writer=ONEOF_ARRAY_A_DINT_B_NUM_SCHEMA,
         msg=COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES,
     )
+
+
+def test_array_and_tuples_are_incompatible() -> None:
+    # both tuple and arrays are represented using lists, this should be
+    # compatible
+    # schemas_are_compatible(
+    #     reader=ARRAY_OF_INT_SCHEMA,
+    #     writer=TUPLE_OF_INT_OPEN_SCHEMA,
+    #     msg=COMPATIBLE_READER_FIELD_TYPE_IS_A_SUPERSET,
+    # )
+    # schemas_are_compatible(
+    #     reader=ARRAY_OF_INT_SCHEMA,
+    #     writer=TUPLE_OF_INT_INT_SCHEMA,
+    #     msg=COMPATIBLE_READER_FIELD_TYPE_IS_A_SUPERSET,
+    # )
+    not_schemas_are_compatible(
+        reader=TUPLE_OF_INT_OPEN_SCHEMA,
+        writer=ARRAY_OF_INT_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        reader=ARRAY_OF_INT_SCHEMA,
+        writer=TUPLE_OF_INT_OPEN_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+
+
+def test_true_schema_is_compatible_with_object() -> None:
+    for schema in OBJECT_SCHEMAS + BOOLEAN_SCHEMAS:
+        if schema != TRUE_SCHEMA:
+            schemas_are_compatible(
+                reader=TRUE_SCHEMA,
+                writer=schema,
+                msg=COMPATIBILIY,
+            )
+
+    for schema in NON_OBJECT_SCHEMAS:
+        not_schemas_are_compatible(
+            reader=TRUE_SCHEMA,
+            writer=schema,
+            msg=COMPATIBILIY,
+        )
 
 
 def test_schema_compatibility_successes() -> None:
@@ -643,16 +718,6 @@ def test_schema_compatibility_successes() -> None:
         msg=COMPATIBLE_READER_FIELD_TYPE_IS_A_SUPERSET,
     )
     schemas_are_compatible(
-        reader=ARRAY_OF_INT_SCHEMA,
-        writer=TUPLE_OF_INT_OPEN_SCHEMA,
-        msg=COMPATIBLE_READER_FIELD_TYPE_IS_A_SUPERSET,
-    )
-    schemas_are_compatible(
-        reader=ARRAY_OF_INT_SCHEMA,
-        writer=TUPLE_OF_INT_INT_SCHEMA,
-        msg=COMPATIBLE_READER_FIELD_TYPE_IS_A_SUPERSET,
-    )
-    schemas_are_compatible(
         reader=ENUM_ABC_SCHEMA,
         writer=ENUM_AB_SCHEMA,
         msg=COMPATIBLE_READER_FIELD_TYPE_IS_A_SUPERSET,
@@ -674,6 +739,11 @@ def test_schema_compatibility_successes() -> None:
     )
 
     # requiring less values is compatible
+    schemas_are_compatible(
+        reader=TUPLE_OF_INT_OPEN_SCHEMA,
+        writer=TUPLE_OF_INT_INT_OPEN_SCHEMA,
+        msg=COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES,
+    )
     schemas_are_compatible(
         reader=TUPLE_OF_INT_OPEN_SCHEMA,
         writer=TUPLE_OF_INT_INT_SCHEMA,
@@ -775,6 +845,11 @@ def test_type_mismatch_incompabilities() -> None:
         msg=INCOMPATIBLE_READER_CHANGED_FIELD_TYPE,
     )
     not_schemas_are_compatible(
+        reader=TUPLE_OF_INT_INT_OPEN_SCHEMA,
+        writer=TUPLE_OF_INT_OPEN_SCHEMA,
+        msg=INCOMPATIBLE_READER_CHANGED_FIELD_TYPE,
+    )
+    not_schemas_are_compatible(
         reader=INT_SCHEMA,
         writer=ENUM_AB_SCHEMA,
         msg=INCOMPATIBLE_READER_CHANGED_FIELD_TYPE,
@@ -792,16 +867,17 @@ def test_true_and_false_schemas() -> None:
         reader=NOT_OF_TRUE_SCHEMA,
         msg="both schemas reject every value",
     )
-    schemas_are_compatible(
-        writer=NOT_OF_TRUE_SCHEMA,
-        reader=FALSE_SCHEMA,
-        msg="both schemas reject every value",
-    )
-    schemas_are_compatible(
-        writer=NOT_OF_EMPTY_SCHEMA,
-        reader=FALSE_SCHEMA,
-        msg="both schemas reject every value",
-    )
+    # the schemas below are just different ways of representing the same schema
+    # schemas_are_compatible(
+    #     writer=NOT_OF_TRUE_SCHEMA,
+    #     reader=FALSE_SCHEMA,
+    #     msg="both schemas reject every value",
+    # )
+    # schemas_are_compatible(
+    #     writer=NOT_OF_EMPTY_SCHEMA,
+    #     reader=FALSE_SCHEMA,
+    #     msg="both schemas reject every value",
+    # )
 
     schemas_are_compatible(
         writer=TRUE_SCHEMA,
@@ -810,22 +886,23 @@ def test_true_and_false_schemas() -> None:
     )
 
     # the true schema accepts anything ... including nothing
-    schemas_are_compatible(
-        writer=NOT_OF_EMPTY_SCHEMA,
-        reader=TRUE_SCHEMA,
-        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
-    )
-    schemas_are_compatible(
-        writer=NOT_OF_TRUE_SCHEMA,
-        reader=TRUE_SCHEMA,
-        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
-    )
-    schemas_are_compatible(
-        writer=NOT_OF_EMPTY_SCHEMA,
-        reader=TRUE_SCHEMA,
-        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
-    )
+    # schemas_are_compatible(
+    #     writer=NOT_OF_EMPTY_SCHEMA,
+    #     reader=TRUE_SCHEMA,
+    #     msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    # )
+    # schemas_are_compatible(
+    #     writer=NOT_OF_TRUE_SCHEMA,
+    #     reader=TRUE_SCHEMA,
+    #     msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    # )
+    # schemas_are_compatible(
+    #     writer=NOT_OF_EMPTY_SCHEMA,
+    #     reader=TRUE_SCHEMA,
+    #     msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    # )
 
+    # the reader rejects every value
     not_schemas_are_compatible(
         writer=TRUE_SCHEMA,
         reader=NOT_OF_EMPTY_SCHEMA,
@@ -834,11 +911,6 @@ def test_true_and_false_schemas() -> None:
     not_schemas_are_compatible(
         writer=TRUE_SCHEMA,
         reader=NOT_OF_TRUE_SCHEMA,
-        msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
-    )
-    not_schemas_are_compatible(
-        writer=TRUE_SCHEMA,
-        reader=NOT_OF_EMPTY_SCHEMA,
         msg=INCOMPATIBLE_READER_IS_FALSE_SCHEMA,
     )
 
@@ -851,6 +923,57 @@ def test_true_and_false_schemas() -> None:
         writer=FALSE_SCHEMA,
         reader=A_INT_B_INT_REQUIRED_OBJECT_SCHEMA,
         msg=INCOMPATIBLE_READER_HAS_A_NEW_REQUIRED_FIELDg,
+    )
+
+    not_schemas_are_compatible(
+        writer=NOT_OF_TRUE_SCHEMA,
+        reader=FALSE_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=FALSE_SCHEMA,
+        reader=NOT_OF_TRUE_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=FALSE_SCHEMA,
+        reader=NOT_OF_EMPTY_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=NOT_OF_EMPTY_SCHEMA,
+        reader=FALSE_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=TRUE_SCHEMA,
+        reader=NOT_OF_EMPTY_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=NOT_OF_EMPTY_SCHEMA,
+        reader=TRUE_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=TRUE_SCHEMA,
+        reader=NOT_OF_TRUE_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=NOT_OF_TRUE_SCHEMA,
+        reader=TRUE_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=TRUE_SCHEMA,
+        reader=NOT_OF_EMPTY_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        writer=NOT_OF_EMPTY_SCHEMA,
+        reader=TRUE_SCHEMA,
+        msg=COMPATIBILIY,
     )
 
 
@@ -1140,16 +1263,22 @@ def test_schema_broadenning_attributes_is_compatible() -> None:
     )
 
 
+@pytest.mark.skip("not implemented yet")
 def test_property_name():
     schemas_are_compatible(
         reader=OBJECT_SCHEMA,
         writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
         msg=COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES,
     )
-    schemas_are_compatible(
+    not_schemas_are_compatible(
         reader=A_OBJECT_SCHEMA,
         writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
-        msg=COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES,
+        msg=COMPATIBILIY,
+    )
+    schemas_are_compatible(
+        reader=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
     )
 
     # - writer accept any value for `a`
