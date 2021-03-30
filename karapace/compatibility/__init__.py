@@ -11,6 +11,7 @@ from karapace.avro_compatibility import (
     SchemaIncompatibilityType
 )
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
+from karapace.protobuf_compatibility import check_protobuf_schema_compatibility
 from karapace.schema_reader import SchemaType, TypedSchema
 
 import logging
@@ -52,6 +53,11 @@ def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Valida
     return jsonschema_compatibility(reader, writer)
 
 
+def check_protobuf_compatibility(reader_schema, writer_schema) -> SchemaCompatibilityResult:
+    result = check_protobuf_schema_compatibility(reader_schema, writer_schema)
+    return result
+
+
 def check_compatibility(
     source: TypedSchema, target: TypedSchema, compatibility_mode: CompatibilityModes
 ) -> SchemaCompatibilityResult:
@@ -88,6 +94,18 @@ def check_compatibility(
             result = check_jsonschema_compatibility(reader=target.schema, writer=source.schema)
             result = result.merged_with(check_jsonschema_compatibility(reader=source.schema, writer=target.schema))
 
+    elif source.schema_type is SchemaType.PROTOBUF:
+        if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
+            result = check_protobuf_compatibility(reader_schema=target.schema, writer_schema=source.schema)
+
+        elif compatibility_mode in {CompatibilityModes.FORWARD, CompatibilityModes.FORWARD_TRANSITIVE}:
+            result = check_protobuf_compatibility(reader_schema=source.schema, writer_schema=target.schema)
+
+        elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
+            result = check_protobuf_compatibility(reader_schema=target.schema, writer_schema=source.schema)
+            result = result.merged_with(
+                check_protobuf_compatibility(reader_schema=source.schema, writer_schema=target.schema)
+            )
     else:
         result = SchemaCompatibilityResult.incompatible(
             incompat_type=SchemaIncompatibilityType.type_mismatch,
