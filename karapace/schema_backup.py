@@ -184,8 +184,9 @@ class SchemaBackup:
         with open(self.backup_location, "r") as fp:
             raw_msg = fp.read()
             values = json.loads(raw_msg)
+
         if not values:
-            raise BackupError("Nothing to restore in %s" % self.backup_location)
+            return
 
         for item in values:
             key = encode_value(item[0])
