@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 import re
 
 T = TypeVar('T')
+JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, Type[BooleanSchema]]
 
 
 def normalize_schema(validator: Draft7Validator) -> Any:
@@ -164,8 +165,7 @@ def is_true_schema(schema: Any) -> bool:
     """True if the value of `schema` is equal to the explicit accept schema `{}`."""
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
     is_true = schema is True
-    is_empty_schema = isinstance(schema, dict) and len(schema) == 0
-    return is_true or is_empty_schema
+    return is_true
 
 
 def is_false_schema(schema: Any) -> bool:
@@ -176,8 +176,6 @@ def is_false_schema(schema: Any) -> bool:
 
     >>> is_false_schema(parse_jsonschema_definition("false"))
     True
-    >>> is_false_schema(parse_jsonschema_definition('{"not":{}}'))
-    True
     >>> is_false_schema(parse_jsonschema_definition("{}"))
     False
     >>> is_false_schema(parse_jsonschema_definition("true"))
@@ -186,14 +184,14 @@ def is_false_schema(schema: Any) -> bool:
     Note:
         Negated schemas are not the same as the false schema:
 
+        >>> is_false_schema(parse_jsonschema_definition('{"not":{}}'))
+        False
         >>> is_false_schema(parse_jsonschema_definition('{"not":{"type":"number"}}'))
         False
     """
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
     is_false = schema is False
-    not_subschema = isinstance(schema, dict) and schema.get("not")
-    is_not_of_true = not_subschema is not None and is_true_schema(not_subschema)
-    return is_false or is_not_of_true
+    return is_false
 
 
 def is_array_content_model_open(schema: Any) -> bool:
@@ -326,7 +324,7 @@ def schema_from_partially_open_content_model(schema: dict, target_property_name:
     return schema.get(Keyword.ADDITIONAL_PROPERTIES.value)
 
 
-def get_type_of(schema: Any) -> Union[Instance, Subschema, Keyword, Type[BooleanSchema]]:
+def get_type_of(schema: Any) -> JSONSCHEMA_TYPES:
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.2.1
 
     # The difference is due to the convertion of the JSON value null to the Python value None
@@ -358,7 +356,16 @@ def get_type_of(schema: Any) -> Union[Instance, Subschema, Keyword, Type[Boolean
         if Keyword.ENUM.value in schema:
             return Keyword.ENUM
 
+        return Instance.OBJECT
+
     raise ValueError("Couldnt determine type of schema")
+
+
+def get_name_of(schema_type: JSONSCHEMA_TYPES) -> str:
+    if isinstance(schema_type, (Instance, Subschema, Keyword)):
+        return schema_type.value
+
+    return ""
 
 
 def is_simple_subschema(schema: Any) -> bool:

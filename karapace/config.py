@@ -5,12 +5,14 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from pathlib import Path
-from typing import Dict, IO, Union
+from typing import Dict, IO, List, Union
 
 import json
 import os
 import socket
 import ssl
+
+Config = Dict[str, Union[str, int, bool, List[str]]]
 
 DEFAULTS = {
     "advertised_hostname": socket.gethostname(),
@@ -65,7 +67,7 @@ def parse_env_value(value: str) -> Union[str, int, bool]:
     return value
 
 
-def set_config_defaults(config: Dict[str, Union[str, int, bool]]) -> Dict[str, Union[str, int, bool]]:
+def set_config_defaults(config: Config) -> Config:
     for k, v in DEFAULTS.items():
         if k.startswith("karapace"):
             env_name = k.upper()
@@ -81,11 +83,11 @@ def set_config_defaults(config: Dict[str, Union[str, int, bool]]) -> Dict[str, U
     return config
 
 
-def write_config(config_path: Path, custom_values: Dict[str, Union[str, int, bool]]):
+def write_config(config_path: Path, custom_values: Config) -> None:
     config_path.write_text(json.dumps(custom_values))
 
 
-def read_config(config_handler: IO) -> Dict[str, Union[str, int, bool]]:
+def read_config(config_handler: IO) -> Config:
     try:
         config = json.load(config_handler)
         config = set_config_defaults(config)
@@ -94,7 +96,7 @@ def read_config(config_handler: IO) -> Dict[str, Union[str, int, bool]]:
         raise InvalidConfiguration(ex)
 
 
-def create_ssl_context(config: Dict[str, Union[str, int, bool]]) -> ssl.SSLContext:
+def create_ssl_context(config: Config) -> ssl.SSLContext:
     # taken from conn.py, as it adds a lot more logic to the context configuration than the initial version
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)  # pylint: disable=no-member
     ssl_context.options |= ssl.OP_NO_SSLv2  # pylint: disable=no-member

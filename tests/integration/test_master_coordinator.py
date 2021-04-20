@@ -4,14 +4,13 @@ karapace - master coordination test
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from contextlib import closing
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
-from tests.utils import KafkaConfig, REGISTRY_URI, REST_URI
-from typing import Optional
+from tests.utils import get_random_port, KafkaServers, new_random_name, TESTS_PORT_RANGE
 
 import asyncio
 import json
-import os
 import pytest
 import requests
 import time
@@ -41,54 +40,62 @@ def has_master(mc: MasterCoordinator) -> bool:
     return bool(mc.sc and not mc.sc.master and mc.sc.master_url)
 
 
+@pytest.mark.timeout(60)  # Github workflows need a bit of extra time
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
-def test_master_selection(kafka_server: Optional[KafkaConfig], strategy: str) -> None:
-    assert kafka_server, f"test_master_selection can not be used if the env variable `{REGISTRY_URI}` or `{REST_URI}` is set"
+def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> None:
+    # Use random port to allow for parallel runs.
+    port1 = get_random_port(port_range=TESTS_PORT_RANGE, blacklist=[])
+    port2 = get_random_port(port_range=TESTS_PORT_RANGE, blacklist=[port1])
+    port_aa, port_bb = sorted((port1, port2))
+    client_id_aa = new_random_name("master_selection_aa_")
+    client_id_bb = new_random_name("master_selection_bb_")
+    group_id = new_random_name("group_id")
 
-    config_aa = set_config_defaults({})
-    config_aa["advertised_hostname"] = "127.0.0.1"
-    config_aa["bootstrap_uri"] = f"127.0.0.1:{kafka_server.kafka_port}"
-    config_aa["client_id"] = "aa"
-    config_aa["port"] = 1234
-    config_aa["master_election_strategy"] = strategy
-    mc_aa = init_admin(config_aa)
-    config_bb = set_config_defaults({})
-    config_bb["advertised_hostname"] = "127.0.0.1"
-    config_bb["bootstrap_uri"] = f"127.0.0.1:{kafka_server.kafka_port}"
-    config_bb["client_id"] = "bb"
-    config_bb["port"] = 5678
-    config_bb["master_election_strategy"] = strategy
-    mc_bb = init_admin(config_bb)
+    config_aa = set_config_defaults({
+        "advertised_hostname": "127.0.0.1",
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "client_id": client_id_aa,
+        "group_id": group_id,
+        "port": port_aa,
+        "master_election_strategy": strategy,
+    })
+    config_bb = set_config_defaults({
+        "advertised_hostname": "127.0.0.1",
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "client_id": client_id_bb,
+        "group_id": group_id,
+        "port": port_bb,
+        "master_election_strategy": strategy,
+    })
 
-    if strategy == "lowest":
-        master = mc_aa
-        slave = mc_bb
-    else:
-        master = mc_bb
-        slave = mc_aa
+    with closing(init_admin(config_aa)) as mc_aa, closing(init_admin(config_bb)) as mc_bb:
+        if strategy == "lowest":
+            master = mc_aa
+            slave = mc_bb
+        else:
+            master = mc_bb
+            slave = mc_aa
 
-    # Wait for the election to happen
-    while not is_master(master):
-        time.sleep(0.3)
+        # Wait for the election to happen
+        while not is_master(master):
+            time.sleep(0.3)
 
-    while not has_master(slave):
-        time.sleep(0.3)
+        while not has_master(slave):
+            time.sleep(0.3)
 
-    # Make sure the end configuration is as expected
-    master_url = f'http://{master.config["host"]}:{master.config["port"]}'
-    assert master.sc.election_strategy == strategy
-    assert slave.sc.election_strategy == strategy
-    assert master.sc.master_url == master_url
-    assert slave.sc.master_url == master_url
-    mc_aa.close()
-    mc_bb.close()
+        # Make sure the end configuration is as expected
+        master_url = f'http://{master.config["host"]}:{master.config["port"]}'
+        assert master.sc.election_strategy == strategy
+        assert slave.sc.election_strategy == strategy
+        assert master.sc.master_url == master_url
+        assert slave.sc.master_url == master_url
 
 
 async def test_schema_request_forwarding(registry_async_pair):
     master_url, slave_url = registry_async_pair
     max_tries, counter = 5, 0
     wait_time = 0.5
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema = {"type": "string"}
     other_schema = {"type": "int"}
     # Config updates

@@ -7,8 +7,8 @@ See LICENSE for details
 from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.rapu import is_success
+from tests.utils import new_random_name, repeat_until_successful_request
 
-import asyncio
 import json as jsonlib
 import os
 import pytest
@@ -20,8 +20,7 @@ baseurl = "http://localhost:8081"
 @pytest.mark.parametrize("trail", ["", "/"])
 @pytest.mark.parametrize("compatibility", ["FORWARD", "BACKWARD", "FULL"])
 async def test_enum_schema_compatibility(registry_async_client, compatibility, trail):
-    subject = os.urandom(16).hex()
-
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config{trail}", json={"compatibility": compatibility})
     assert res.status == 200
     schema = {
@@ -98,7 +97,7 @@ async def test_enum_schema_compatibility(registry_async_client, compatibility, t
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_union_to_union(registry_async_client, trail):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status == 200
     init_schema = {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["string", "int"]}]}
@@ -132,7 +131,7 @@ async def test_union_to_union(registry_async_client, trail):
     )
     assert res.status == 200
     # fw compat check
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "FORWARD"})
     assert res.status == 200
     res = await registry_async_client.post(
@@ -150,7 +149,7 @@ async def test_union_to_union(registry_async_client, trail):
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_missing_subject_compatibility(registry_async_client, trail):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps({"type": "string"})}
     )
@@ -167,7 +166,7 @@ async def test_missing_subject_compatibility(registry_async_client, trail):
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_record_union_schema_compatibility(registry_async_client, trail):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status == 200
     original_schema = {
@@ -246,8 +245,7 @@ async def test_record_union_schema_compatibility(registry_async_client, trail):
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_record_nested_schema_compatibility(registry_async_client, trail):
-    subject = os.urandom(16).hex()
-
+    subject = new_random_name("subject")
     res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
     assert res.status == 200
     schema = {
@@ -294,7 +292,7 @@ async def test_compatibility_endpoint(registry_async_client, trail):
     res = await registry_async_client.put(f"config{trail}", json={"compatibility": "BACKWARD"})
     assert res.status == 200
 
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema = {
         "type": "record",
         "name": "Objct",
@@ -387,7 +385,7 @@ async def test_type_compatibility(registry_async_client, trail):
             yield "FULL", source, target, False
 
     for compatibility, source_type, target_type, expected in _test_cases():
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         schema = {
             "type": "record",
@@ -416,7 +414,7 @@ async def test_type_compatibility(registry_async_client, trail):
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_record_schema_compatibility(registry_async_client, trail):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
 
     res = await registry_async_client.put("config", json={"compatibility": "FORWARD"})
     assert res.status == 200
@@ -601,7 +599,7 @@ async def test_record_schema_compatibility(registry_async_client, trail):
     )
     assert res.status == 409
 
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     schema = {"type": "record", "name": "Object", "fields": [{"name": "first_name", "type": "string"}]}
     res = await registry_async_client.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
@@ -615,7 +613,7 @@ async def test_record_schema_compatibility(registry_async_client, trail):
 async def test_enum_schema_field_add_compatibility(registry_async_client, trail):
     expected_results = [("BACKWARD", 200), ("FORWARD", 200), ("FULL", 200)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {"type": "enum", "name": "Suit", "symbols": ["SPADES", "HEARTS", "DIAMONDS"]}
@@ -632,7 +630,7 @@ async def test_enum_schema_field_add_compatibility(registry_async_client, trail)
 async def test_array_schema_field_add_compatibility(registry_async_client, trail):
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {"type": "array", "items": "int"}
@@ -649,7 +647,7 @@ async def test_array_schema_field_add_compatibility(registry_async_client, trail
 async def test_array_nested_record_compatibility(registry_async_client, trail):
     expected_results = [("BACKWARD", 409), ("FORWARD", 200), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {
@@ -676,7 +674,7 @@ async def test_array_nested_record_compatibility(registry_async_client, trail):
 async def test_record_nested_array_compatibility(registry_async_client, trail):
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {
@@ -704,7 +702,7 @@ async def test_map_schema_field_add_compatibility(
 ):  # TODO: Rename to pålain check map schema and add additional steps
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {"type": "map", "values": "int"}
@@ -719,7 +717,7 @@ async def test_map_schema_field_add_compatibility(
 
 async def test_enum_schema(registry_async_client):
     for compatibility in {"BACKWARD", "FORWARD", "FULL"}:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
         schema = {"type": "enum", "name": "testenum", "symbols": ["first"]}
@@ -741,7 +739,7 @@ async def test_enum_schema(registry_async_client):
         assert res.status == 409
 
         # Inside record
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         schema = {
             "type": "record",
             "name": "object",
@@ -776,7 +774,7 @@ async def test_enum_schema(registry_async_client):
 async def test_fixed_schema(registry_async_client, compatibility):
     status_code_allowed = 200
     status_code_denied = 409
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
     assert res.status == 200
     schema = {"type": "fixed", "size": 16, "name": "md5", "aliases": ["testalias"]}
@@ -799,7 +797,7 @@ async def test_fixed_schema(registry_async_client, compatibility):
     assert res.status == status_code_denied
 
     # In a record
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema = {
         "type": "record",
         "name": "object",
@@ -835,7 +833,7 @@ async def test_fixed_schema(registry_async_client, compatibility):
 async def test_primitive_schema(registry_async_client):
     expected_results = [("BACKWARD", 200), ("FORWARD", 200), ("FULL", 200)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
 
@@ -849,7 +847,7 @@ async def test_primitive_schema(registry_async_client):
 
     expected_results = [("BACKWARD", 409), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
 
@@ -864,7 +862,7 @@ async def test_primitive_schema(registry_async_client):
 async def test_union_comparing_to_other_types(registry_async_client):
     expected_results = [("BACKWARD", 409), ("FORWARD", 200), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
 
@@ -878,7 +876,7 @@ async def test_union_comparing_to_other_types(registry_async_client):
 
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
 
@@ -892,7 +890,7 @@ async def test_union_comparing_to_other_types(registry_async_client):
 
     expected_results = [("BACKWARD", 409), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
-        subject = os.urandom(16).hex()
+        subject = new_random_name("subject")
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
 
@@ -908,7 +906,7 @@ async def test_union_comparing_to_other_types(registry_async_client):
 
 
 async def test_transitive_compatibility(registry_async_client):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD_TRANSITIVE"})
     assert res.status == 200
 
@@ -979,7 +977,7 @@ async def test_transitive_compatibility(registry_async_client):
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema(registry_async_client, trail):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema_str = '{"type": "string"}'
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -1108,7 +1106,7 @@ async def test_schema(registry_async_client, trail):
     assert res.json() == [4]
 
     # Check version number generation when deleting an entire subjcect
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put("config/{}".format(subject), json={"compatibility": "NONE"})
     assert res.status == 200
     schema = {
@@ -1152,7 +1150,7 @@ async def test_schema(registry_async_client, trail):
     assert res.json() == [3]  # Version number generation should now begin at 3
 
     # Check the return format on a more complex schema for version get
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema = {
         "type": "record",
         "name": "Objct",
@@ -1173,7 +1171,7 @@ async def test_schema(registry_async_client, trail):
     assert sorted(jsonlib.loads(res.json()["schema"])) == sorted(schema)
 
     # Submitting the exact same schema for a different subject should return the same schema ID.
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema = {
         "type": "record",
         "name": "Object",
@@ -1189,7 +1187,7 @@ async def test_schema(registry_async_client, trail):
     assert "id" in res.json()
     original_schema_id = res.json()["id"]
     # New subject with the same schema
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
@@ -1197,7 +1195,7 @@ async def test_schema(registry_async_client, trail):
     assert original_schema_id == new_schema_id
 
     # It also works for multiple versions in a single subject
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(
         "config/{}".format(subject), json={"compatibility": "NONE"}
     )  # We don't care about the compatibility in this test
@@ -1214,7 +1212,7 @@ async def test_schema(registry_async_client, trail):
     assert res.json()["id"] == new_schema_id  # Same ID as in the previous test step
 
     # The subject version schema endpoint returns the correct results
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema_str = '{"type": "string"}'
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
@@ -1224,7 +1222,8 @@ async def test_schema(registry_async_client, trail):
     res = await registry_async_client.get(f"subjects/{subject}/versions/1/schema")
     assert res.status == 200
     assert res.json() == jsonlib.loads(schema_str)
-    res = await registry_async_client.get(f"subjects/{os.urandom(16).hex()}/versions/1/schema")  # Invalid subject
+    subject2 = new_random_name("subject")
+    res = await registry_async_client.get(f"subjects/{subject2}/versions/1/schema")  # Invalid subject
     assert res.status == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == "Subject not found."
@@ -1237,7 +1236,7 @@ async def test_schema(registry_async_client, trail):
     assert res.json() == jsonlib.loads(schema_str)
 
     # The schema check for subject endpoint returns correct results
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
         json={"schema": schema_str},
@@ -1259,8 +1258,9 @@ async def test_schema(registry_async_client, trail):
     assert res.status == 500
     assert res.json()["message"] == f"Error while looking up schema under subject {subject}"
     # Subject is not found
+    subject3 = new_random_name("subject")
     res = await registry_async_client.post(
-        f"subjects/{os.urandom(16).hex()}",
+        f"subjects/{subject3}",
         json={"schema": schema_str},
     )
     assert res.status == 404
@@ -1280,8 +1280,9 @@ async def test_schema(registry_async_client, trail):
     assert res.json()["error_code"] == 500
     assert res.json()["message"] == "Internal Server Error"
     # Schema not included in the request body for subject that does not exist
+    subject4 = new_random_name("subject")
     res = await registry_async_client.post(
-        f"subjects/{os.urandom(16).hex()}",
+        f"subjects/{subject4}",
         json={},
     )
     assert res.status == 404
@@ -1289,7 +1290,7 @@ async def test_schema(registry_async_client, trail):
     assert res.json()["message"] == "Subject not found."
 
     # Test that global ID values stay consistent after using pre-existing schema ids
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(
         "config/{}".format(subject), json={"compatibility": "NONE"}
     )  # We don't care about compatibility
@@ -1330,7 +1331,7 @@ async def test_schema(registry_async_client, trail):
     assert res.status == 200
     assert res.json()["id"] == first_schema_id + 1
     # Reuse the first schema in another subject
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(
         "config/{}".format(subject), json={"compatibility": "NONE"}
     )  # We don't care about compatibility
@@ -1368,7 +1369,7 @@ async def test_config(registry_async_client, trail):
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
     # Create a new subject so we can try setting its config
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
         json={"schema": '{"type": "string"}'},
@@ -1391,7 +1392,7 @@ async def test_config(registry_async_client, trail):
     assert res.json()["compatibilityLevel"] == "FULL"
 
     # It's possible to add a config to a subject that doesn't exist yet
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
     assert res.json()["compatibility"] == "FULL"
@@ -1413,7 +1414,7 @@ async def test_config(registry_async_client, trail):
     assert res.json()["compatibilityLevel"] == "FULL"
 
     # Test that config is returned for a subject that does not have an existing schema
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
     assert res.status == 200
     assert res.json()["compatibility"] == "NONE"
@@ -1528,7 +1529,7 @@ async def test_http_headers(registry_async_client):
 
 
 async def test_schema_body_validation(registry_async_client):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     post_endpoints = {f"subjects/{subject}", f"subjects/{subject}/versions"}
     for endpoint in post_endpoints:
         # Wrong field name
@@ -1555,7 +1556,7 @@ async def test_schema_body_validation(registry_async_client):
 
 async def test_version_number_validation(registry_async_client):
     # Create a schema
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
         json={"schema": '{"type": "string"}'},
@@ -1597,14 +1598,14 @@ async def test_common_endpoints(registry_async_client):
 
 async def test_invalid_namespace(registry_async_client):
     schema = {"type": "record", "name": "foo", "namespace": "foo-bar-baz", "fields": []}
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.ok, res.json()
 
 
 async def test_schema_remains_constant(registry_async_client):
     schema = {"type": "record", "name": "foo", "namespace": "foo-bar-baz", "fields": [{"type": "string", "name": "bla"}]}
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     schema_str = jsonlib.dumps(schema)
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": schema_str})
     assert res.ok, res.json()
@@ -1624,16 +1625,18 @@ async def test_malformed_kafka_message(registry_async, registry_async_client):
     message_value = {"deleted": False, "id": schema_id, "subject": "foo", "version": 1}
     message_value.update(payload)
     prod.send(topic, key=jsonlib.dumps(message_key).encode(), value=jsonlib.dumps(message_value).encode()).get()
-    found = False
-    for _ in range(30):
-        if schema_id in registry_async.ksr.schemas:
-            found = True
-            break
-        await asyncio.sleep(0.1)
-    assert found, f"{schema_id} not in {registry_async.ksr.schemas}"
-    res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+
+    path = f"schemas/ids/{schema_id}"
+    res = await repeat_until_successful_request(
+        registry_async_client.get,
+        path,
+        json_data=None,
+        headers=None,
+        error_msg=f"Schema id {schema_id} not found",
+        timeout=20,
+        sleep=1,
+    )
     res_data = res.json()
-    assert res.ok, res_data
     assert res_data == payload, res_data
 
 
@@ -1673,7 +1676,7 @@ async def test_inner_type_compat_failure(registry_async_client):
             },
         }]
     }
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(sc)})
     assert res.ok
     sc_id = res.json()["id"]
@@ -1725,7 +1728,7 @@ async def test_anon_type_union_failure(registry_async_client):
         ]
     }
 
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.ok
     sc_id = res.json()["id"]
@@ -1779,7 +1782,7 @@ async def test_full_transitive_failure(registry_async_client, compatibility):
             "default": "null"
         }]
     }
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
     await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init)})
     assert res.ok
@@ -1789,7 +1792,7 @@ async def test_full_transitive_failure(registry_async_client, compatibility):
 
 
 async def test_invalid_schemas(registry_async_client):
-    subject = os.urandom(16).hex()
+    subject = new_random_name("subject")
 
     repated_field = {
         "type": "record",

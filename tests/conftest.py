@@ -44,6 +44,30 @@ def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
     return None
 
 
+def split_by_comma(arg: str) -> List[str]:
+    return arg.split(',')
+
+
+def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
+    parser.addoption('--kafka-bootstrap-servers', type=split_by_comma)
+    parser.addoption('--registry-url')
+    parser.addoption('--rest-url')
+
+
+@pytest.fixture(autouse=True, scope="session")
+def fixture_validate_options(request) -> None:
+    """This fixture only exists to validate the custom command line flags."""
+    bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
+    registry_url = request.config.getoption("registry_url")
+    rest_url = request.config.getoption("rest_url")
+
+    needs_bootstrap_url = registry_url or rest_url
+
+    if needs_bootstrap_url and not bootstrap_servers:
+        msg = "When using an external registry or rest, the kafka bootstrap URIs must also be provided."
+        raise ValueError(msg)
+
+
 @pytest.fixture(scope="session", name="session_tmppath")
 def fixture_session_tmppath(tmp_path_factory) -> Path:
     return tmp_path_factory.mktemp("karapace")
