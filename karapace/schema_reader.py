@@ -14,7 +14,6 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.avro_compatibility import parse_avro_schema_definition
-from karapace.protobuf_compatibility import parse_protobuf_schema_definition
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
@@ -23,7 +22,6 @@ from typing import Dict
 
 import json
 import logging
-import sys
 import time
 
 log = logging.getLogger(__name__)
@@ -74,22 +72,11 @@ class TypedSchema:
             raise InvalidSchema from e
 
     @staticmethod
-    def parse_protobuf(schema_str: str):
-        try:
-            return TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
-        # TypeError - Raised when the user forgets to encode the schema as a string.
-        except:  # FIXME: bare except
-            print("Unexpected error:", sys.exc_info()[0])
-            raise InvalidSchema
-
-    @staticmethod
     def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
         if schema_type is SchemaType.AVRO:
             return TypedSchema.parse_avro(schema_str)
         if schema_type is SchemaType.JSONSCHEMA:
             return TypedSchema.parse_json(schema_str)
-        if schema_type is SchemaType.PROTOBUF:
-            return TypedSchema.parse_protobuf(schema_str)
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
     def to_json(self):

@@ -529,7 +529,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     def _validate_schema_type(self, content_type, body) -> None:
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
-        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO, SchemaType.PROTOBUF}:
+        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO}:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
