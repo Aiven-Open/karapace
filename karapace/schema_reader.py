@@ -4,8 +4,6 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-import sys
-
 from avro.schema import Schema as AvroSchema, SchemaParseException
 from enum import Enum, unique
 from json import JSONDecodeError
@@ -25,6 +23,7 @@ from typing import Dict
 
 import json
 import logging
+import sys
 import time
 
 log = logging.getLogger(__name__)

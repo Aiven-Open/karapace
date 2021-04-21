@@ -11,8 +11,8 @@ from karapace.avro_compatibility import (
     SchemaIncompatibilityType
 )
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
-from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.protobuf_compatibility import check_protobuf_schema_compatibility
+from karapace.schema_reader import SchemaType, TypedSchema
 
 import logging
 
@@ -61,6 +61,7 @@ def check_avro_compatibility(reader_schema, writer_schema) -> SchemaCompatibilit
 
 def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
     return jsonschema_compatibility(reader, writer)
+
 
 def check_protobuf_compatibility(reader_schema, writer_schema) -> SchemaCompatibilityResult:
     result = check_protobuf_schema_compatibility(reader_schema, writer_schema)
@@ -141,7 +142,7 @@ def check_compatibility(
         elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
             result = check_protobuf_compatibility(reader_schema=new_schema.schema, writer_schema=old_schema.schema)
             result = result.merged_with(
-                        check_protobuf_compatibility(reader_schema=old_schema.schema, writer_schema=new_schema.schema)
+                check_protobuf_compatibility(reader_schema=old_schema.schema, writer_schema=new_schema.schema)
             )
 
     else:
