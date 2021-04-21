@@ -15,6 +15,3 @@ async def test_remote_client(registry_async_client):
     stored_id, stored_schema = await reg_cli.get_latest_schema(subject)
     assert stored_id == sc_id
     assert stored_schema == schema_avro
-
-
-

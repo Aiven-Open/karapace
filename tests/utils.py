@@ -42,8 +42,6 @@ schema_avro_json = json.dumps({
     }]
 })
 
-
-
 test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
 
 test_objects_avro = [
