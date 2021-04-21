@@ -42,21 +42,7 @@ schema_avro_json = json.dumps({
     }]
 })
 
-schema_protobuf_json = json.dumps({
-    "namespace": "example.avro",
-    "type": "record",
-    "name": "example.avro.User",
-    "fields": [{
-        "name": "name",
-        "type": "string"
-    }, {
-        "name": "favorite_number",
-        "type": "int"
-    }, {
-        "name": "favorite_color",
-        "type": "string"
-    }]
-})
+
 
 test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
 
