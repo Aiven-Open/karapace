@@ -27,8 +27,13 @@ Karapace rest provides a RESTful interface to your Kafka cluster, allowing you t
 tasks such as producing and consuming messages and perform administrative cluster work,
 all the while using the language of the WEB.
 
+Setup
+=====
+
+Karapace is a Python project, and requires Kafka for its backend storage. There is also a `Docker setup for development`_.
+
 Requirements
-============
+------------
 
 Karapace requires Python 3.6 or later and some additional components in
 order to operate:
@@ -58,7 +63,7 @@ should work on other platforms that provide the required modules.
 
 
 Building
-========
+--------
 
 To build an installation package for your distribution, go to the root
 directory of a Karapace Git checkout and run::
@@ -68,7 +73,7 @@ directory of a Karapace Git checkout and run::
 This will produce an egg file into a dist directory within the same folder.
 
 Installation
-============
+------------
 
 Python/Other::
 
@@ -83,8 +88,8 @@ and eventually after the setup section, you can just run::
 
   systemctl start karapace.service
 
-Setup
-=====
+Configuration
+-------------
 
 After this you need to create a suitable JSON configuration file for your
 installation.  Keys to take special care are the ones needed to configure
@@ -117,6 +122,48 @@ example configuration file to give you an idea what you need to change::
       "topic_name": "_schemas"
   }
 
+Local Development
+-----------------
+
+Follow the instructions here to run the local/current version of the code, not as a service.
+
+Install the dependencies::
+
+    python3 -m pip install -r requirements.txt
+
+(also the dev dependencies if you'd like to, they are in ``requirements-dev.txt``)
+
+Set up the configuration file in ``karapace.config.json`` to include connection details for Kafka and any other config you want to change, then run::
+
+    python3 -m karapace.karapace_all karapace.config.json
+
+
+Docker setup for development
+----------------------------
+
+To get you up and running with a development copy of Karapace, a docker setup is available. You can find everything you need for this in the ``container/`` folder.
+
+**Build images locally**
+
+Start by building the ``karapace-registry`` and ``karapace-rest`` images for the current commit::
+
+    ./build_image.sh HEAD
+
+Now update the ``docker-compose.yaml`` to refer to your version of those images:
+
+* Change the ``karapace-registry`` image to be ``karapace-registry:HEAD``
+* Change the ``karapace-rest`` image to be ``karapace-rest:HEAD``
+
+**Run Karapace**
+
+Get the containers running::
+
+    docker-compose up
+
+Then you should be able to reach two sets of endpoints:
+
+* Karapace schema registry on http://localhost:8081
+* Karapace REST on http://localhost:8082
 
 Quickstart
 ==========
