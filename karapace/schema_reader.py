@@ -15,7 +15,6 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExis
 from karapace import constants
 from karapace.avro_compatibility import parse_avro_schema_definition
 from karapace.protobuf.schema import ProtobufSchema
-from karapace.protobuf.utils import protobuf_encode
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
@@ -101,7 +100,6 @@ class TypedSchema:
         if schema_type is SchemaType.JSONSCHEMA:
             return TypedSchema.parse_json(schema_str)
         if schema_type is SchemaType.PROTOBUF:
-            sys.stderr.write(f"ZVALA1: {TypedSchema.parse_protobuf(schema_str)}")
             return TypedSchema.parse_protobuf(schema_str)
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
@@ -117,14 +115,12 @@ class TypedSchema:
     def __str__(self) -> str:
         if isinstance(self.schema, ProtobufSchema):
             return self.schema.to_json()
-        else:
-            return json_encode(self.to_json(), compact=True)
+        return json_encode(self.to_json(), compact=True)
 
     def __repr__(self):
         if isinstance(self.schema, ProtobufSchema):
             return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
-        else:
-            return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
+        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
 
     def __eq__(self, other):
         return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type

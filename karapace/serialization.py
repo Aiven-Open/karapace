@@ -12,7 +12,6 @@ import avro
 import io
 import logging
 import struct
-import sys
 
 log = logging.getLogger(__name__)
 
