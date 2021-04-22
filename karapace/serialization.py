@@ -12,6 +12,7 @@ import avro
 import io
 import logging
 import struct
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +72,10 @@ class SchemaRegistryClient:
         self.base_url = schema_registry_url
 
     async def post_new_schema(self, subject: str, schema: TypedSchema) -> int:
-        payload = {"schema": json_encode(schema.to_json()), "schemaType": schema.schema_type.value}
+        if schema.schema_type is SchemaType.PROTOBUF:
+            payload = {"schema": schema.to_json(), "schemaType": schema.schema_type.value}
+        else:
+            payload = {"schema": json_encode(schema.to_json()), "schemaType": schema.schema_type.value}
         result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)
         if not result.ok:
             raise SchemaRetrievalError(result.json())
@@ -175,10 +179,12 @@ class SchemaRegistrySerializerDeserializer:
 
 
 def read_value(schema: TypedSchema, bio: io.BytesIO):
+
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
+
         value = load(bio)
         try:
             schema.schema.validate(value)

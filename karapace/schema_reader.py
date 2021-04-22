@@ -14,7 +14,8 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.avro_compatibility import parse_avro_schema_definition
-from karapace.protobuf_compatibility import parse_protobuf_schema_definition
+from karapace.protobuf.schema import ProtobufSchema
+from karapace.protobuf.utils import protobuf_encode
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
@@ -38,6 +39,17 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     schema = json.loads(schema_definition)
     Draft7Validator.check_schema(schema)
     return Draft7Validator(schema)
+
+
+def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
+    """ Parses and validates `schema_definition`.
+
+    Raises:
+        Nothing yet.
+
+    """
+
+    return ProtobufSchema(schema_definition)
 
 
 class InvalidSchema(Exception):
@@ -89,6 +101,7 @@ class TypedSchema:
         if schema_type is SchemaType.JSONSCHEMA:
             return TypedSchema.parse_json(schema_str)
         if schema_type is SchemaType.PROTOBUF:
+            sys.stderr.write(f"ZVALA1: {TypedSchema.parse_protobuf(schema_str)}")
             return TypedSchema.parse_protobuf(schema_str)
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
@@ -97,13 +110,21 @@ class TypedSchema:
             return self.schema.schema
         if isinstance(self.schema, AvroSchema):
             return self.schema.to_json(names=None)
+        if isinstance(self.schema, ProtobufSchema):
+            return self.schema.to_json()
         return self.schema
 
     def __str__(self) -> str:
-        return json_encode(self.to_json(), compact=True)
+        if isinstance(self.schema, ProtobufSchema):
+            return self.schema.to_json()
+        else:
+            return json_encode(self.to_json(), compact=True)
 
     def __repr__(self):
-        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
+        if isinstance(self.schema, ProtobufSchema):
+            return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
+        else:
+            return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
 
     def __eq__(self, other):
         return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type

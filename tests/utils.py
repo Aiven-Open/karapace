@@ -42,6 +42,10 @@ schema_avro_json = json.dumps({
     }]
 })
 
+schema_protobuf_plain = "syntax = \"proto3\";\npackage com.codingharbour.protobuf;\n\noption java_outer_classname = \""\
+                        "SimpleMessageProtos\";\n\nmessage SimpleMessage {\n  string content = 1;\n"\
+                        "  string date_time = 2;\n  string content2 = 3;\n}\n"
+
 test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
 
 test_objects_avro = [
