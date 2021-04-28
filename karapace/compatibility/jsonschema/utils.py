@@ -318,7 +318,7 @@ def schema_from_partially_open_content_model(schema: dict, target_property_name:
             return pattern_schema
 
     # additionalProperties is used when
-    # - the propety does not have a schema
+    # - the property does not have a schema
     # - none of the patternProperties matches the property_name
     # https://json-schema.org/draft/2020-12/json-schema-core.html#additionalProperties
     return schema.get(Keyword.ADDITIONAL_PROPERTIES.value)
