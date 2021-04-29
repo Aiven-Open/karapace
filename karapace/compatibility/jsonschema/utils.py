@@ -147,18 +147,7 @@ def is_object_content_model_open(schema: Any) -> bool:
     does_not_restrict_properties_by_pattern = len(schema.get(Keyword.PATTERN_PROPERTIES.value, list())) == 0
     does_not_restrict_additional_properties = is_true_schema(schema.get(Keyword.ADDITIONAL_PROPERTIES.value, True))
 
-    # For propertyNames the type is implictly "string":
-    #
-    #   https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.10.3.2.4
-    #
-    property_names = schema.get(Keyword.PROPERTY_NAMES.value, {})
-    assert property_names.setdefault(Keyword.TYPE.value, Instance.STRING.value) == Instance.STRING.value
-    does_restrict_properties_names = is_string_and_constrained(property_names)
-
-    return (
-        does_not_restrict_properties_by_pattern and does_not_restrict_additional_properties
-        and not does_restrict_properties_names
-    )
+    return does_not_restrict_properties_by_pattern and does_not_restrict_additional_properties
 
 
 def is_true_schema(schema: Any) -> bool:
@@ -311,7 +300,7 @@ def introduced_constraint(reader: Optional[T], writer: Optional[T]) -> bool:
 
 def schema_from_partially_open_content_model(schema: dict, target_property_name: str) -> Any:
     """Returns the schema from patternProperties or additionalProperties that
-    valdiates `target_property_name`, if any.
+    validates `target_property_name`, if any.
     """
     for pattern, pattern_schema in schema.get(Keyword.PATTERN_PROPERTIES.value, dict()).items():
         if re.match(pattern, target_property_name):

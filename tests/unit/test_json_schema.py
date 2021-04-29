@@ -25,8 +25,6 @@ from tests.schemas.json_schemas import (
     TUPLE_OF_INT_SCHEMA, TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
 )
 
-import pytest
-
 COMPATIBLE = SchemaCompatibilityResult.compatible()
 
 COMPATIBILIY = "compatibility with schema registry"
@@ -1323,7 +1321,6 @@ def test_object_properties():
     )
 
 
-@pytest.mark.skip("not implemented yet")
 def test_property_names():
     schemas_are_compatible(
         reader=OBJECT_SCHEMA,
