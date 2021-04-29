@@ -1300,8 +1300,31 @@ def test_pattern_properties():
     )
 
 
+def test_object_properties():
+    not_schemas_are_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    schemas_are_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=B_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_IS_CLOSED_AND_REMOVED_FIELD,
+    )
+
+
 @pytest.mark.skip("not implemented yet")
-def test_property_name():
+def test_property_names():
     schemas_are_compatible(
         reader=OBJECT_SCHEMA,
         writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,

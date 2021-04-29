@@ -1056,6 +1056,31 @@ async def test_schemaregistry_pattern_properties(registry_async_client: Client):
     )
 
 
+async def test_schemaregistry_object_properties(registry_async_client: Client):
+    await not_schemas_are_backward_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+    await schemas_are_backward_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+    await not_schemas_are_backward_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+    await not_schemas_are_backward_compatible(
+        reader=B_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+
 @pytest.mark.skip("not implemented yet")
 async def test_schemaregistry_property_names(registry_async_client: Client):
     await schemas_are_backward_compatible(
