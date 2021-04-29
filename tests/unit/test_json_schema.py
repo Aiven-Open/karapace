@@ -1330,8 +1330,8 @@ def test_property_name():
     # - writer has property `b`
     # - reader only accepts properties with match regex `a*`
     not_schemas_are_compatible(
-        reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
-        writer=B_INT_OBJECT_SCHEMA,
+        reader=B_INT_OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
         msg=INCOMPATIBLE_READER_IS_CLOSED_AND_REMOVED_FIELD,
     )
 
