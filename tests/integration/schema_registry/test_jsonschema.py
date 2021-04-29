@@ -1081,7 +1081,6 @@ async def test_schemaregistry_object_properties(registry_async_client: Client):
     )
 
 
-@pytest.mark.skip("not implemented yet")
 async def test_schemaregistry_property_names(registry_async_client: Client):
     await schemas_are_backward_compatible(
         reader=OBJECT_SCHEMA,
