@@ -28,7 +28,7 @@ class Location:
         """ Returns a copy of this location including only its path. """
         return Location("", self.path, -1, -1)
 
-    def to_string(self) -> str:
+    def __str__(self) -> str:
         result = ""
         if self.base:
             result += self.base + "/"

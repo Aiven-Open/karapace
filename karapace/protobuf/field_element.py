@@ -1,3 +1,5 @@
+from typing import Union
+
 from karapace.protobuf.field import Field
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
@@ -16,7 +18,7 @@ class FieldElement:
     documentation: str = "",
     options: list = list()
 
-    def __init__(self, location: Location, label: Field.Label, element_type: str,
+    def __init__(self, location: Location, label: Union[None, Field.Label], element_type: str,
                  name: str, default_value: str, json_name: str, tag: int,
                  documentation: str, options: list):
         self.location = location

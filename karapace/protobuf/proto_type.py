@@ -3,10 +3,18 @@ Names a protocol buffer message, enumerated type, service, map, or a scalar. Thi
 fully-qualified name using the protocol buffer package.
 """
 
+
 from karapace.protobuf.kotlin_wrapper import check, require
 from karapace.protobuf.option_element import OptionElement
 
 
+def static_init(cls):
+    if getattr(cls, "static_init", None):
+        cls.static_init()
+    return cls
+
+
+@static_init
 class ProtoType:
     is_scalar: bool
     string: str
@@ -22,79 +30,81 @@ class ProtoType:
         dot = self.string.rfind(".")
         return self.string[dot + 1]
 
+    @classmethod
+    def static_init(cls):
+        cls.BOOL = ProtoType(True, "bool")
+        cls.BYTES = ProtoType(True, "bytes")
+        cls.DOUBLE = ProtoType(True, "double")
+        cls.FLOAT = ProtoType(True, "float")
+        cls.FIXED32 = ProtoType(True, "fixed32")
+        cls.FIXED64 = ProtoType(True, "fixed64")
+        cls.INT32 = ProtoType(True, "int32")
+        cls.INT64 = ProtoType(True, "int64")
+        cls.SFIXED32 = ProtoType(True, "sfixed32")
+        cls.SFIXED64 = ProtoType(True, "sfixed64")
+        cls.SINT32 = ProtoType(True, "sint32")
+        cls.SINT64 = ProtoType(True, "sint64")
+        cls.STRING = ProtoType(True, "string")
+        cls.UINT32 = ProtoType(True, "uint32")
+        cls.UINT64 = ProtoType(True, "uint64")
+        cls.ANY = ProtoType(False, "google.protobuf.Any")
+        cls.DURATION = ProtoType(False, "google.protobuf.Duration")
+        cls.TIMESTAMP = ProtoType(False, "google.protobuf.Timestamp")
+        cls.EMPTY = ProtoType(False, "google.protobuf.Empty")
+        cls.STRUCT_MAP = ProtoType(False, "google.protobuf.Struct")
+        cls.STRUCT_VALUE = ProtoType(False, "google.protobuf.Value")
+        cls.STRUCT_NULL = ProtoType(False, "google.protobuf.NullValue")
+        cls.STRUCT_LIST = ProtoType(False, "google.protobuf.ListValue")
+        cls.DOUBLE_VALUE = ProtoType(False, "google.protobuf.DoubleValue")
+        cls.FLOAT_VALUE = ProtoType(False, "google.protobuf.FloatValue")
+        cls.INT64_VALUE = ProtoType(False, "google.protobuf.Int64Value")
+        cls.UINT64_VALUE = ProtoType(False, "google.protobuf.UInt64Value")
+        cls.INT32_VALUE = ProtoType(False, "google.protobuf.Int32Value")
+        cls.UINT32_VALUE = ProtoType(False, "google.protobuf.UInt32Value")
+        cls.BOOL_VALUE = ProtoType(False, "google.protobuf.BoolValue")
+        cls.STRING_VALUE = ProtoType(False, "google.protobuf.StringValue")
+        cls.BYTES_VALUE = ProtoType(False, "google.protobuf.BytesValue")
+
+        cls.SCALAR_TYPES_ = [cls.BOOL,
+                             cls.BYTES,
+                             cls.DOUBLE,
+                             cls.FLOAT,
+                             cls.FIXED32,
+                             cls.FIXED64,
+                             cls.INT32,
+                             cls.INT64,
+                             cls.SFIXED32,
+                             cls.SFIXED64,
+                             cls.SINT32,
+                             cls.SINT64,
+                             cls.STRING,
+                             cls.UINT32,
+                             cls.UINT64
+                             ]
+
+        cls.SCALAR_TYPES: dict = dict()
+
+        for a in cls.SCALAR_TYPES_:
+            cls.SCALAR_TYPES[a.string] = a
+
+        cls.NUMERIC_SCALAR_TYPES: tuple = (
+            cls.DOUBLE,
+            cls.FLOAT,
+            cls.FIXED32,
+            cls.FIXED64,
+            cls.INT32,
+            cls.INT64,
+            cls.SFIXED32,
+            cls.SFIXED64,
+            cls.SINT32,
+            cls.SINT64,
+            cls.UINT32,
+            cls.UINT64
+        )
+
     """ Creates a scalar or message type.  """
 
     def __init__(self, is_scalar: bool, string: str, key_type=None, value_type=None):
-
-        self.BOOL = ProtoType(True, "bool")
-        self.BYTES = ProtoType(True, "bytes")
-        self.DOUBLE = ProtoType(True, "double")
-        self.FLOAT = ProtoType(True, "float")
-        self.FIXED32 = ProtoType(True, "fixed32")
-        self.FIXED64 = ProtoType(True, "fixed64")
-        self.INT32 = ProtoType(True, "int32")
-        self.INT64 = ProtoType(True, "int64")
-        self.SFIXED32 = ProtoType(True, "sfixed32")
-        self.SFIXED64 = ProtoType(True, "sfixed64")
-        self.SINT32 = ProtoType(True, "sint32")
-        self.SINT64 = ProtoType(True, "sint64")
-        self.STRING = ProtoType(True, "string")
-        self.UINT32 = ProtoType(True, "uint32")
-        self.UINT64 = ProtoType(True, "uint64")
-        self.ANY = ProtoType(False, "google.protobuf.Any")
-        self.DURATION = ProtoType(False, "google.protobuf.Duration")
-        self.TIMESTAMP = ProtoType(False, "google.protobuf.Timestamp")
-        self.EMPTY = ProtoType(False, "google.protobuf.Empty")
-        self.STRUCT_MAP = ProtoType(False, "google.protobuf.Struct")
-        self.STRUCT_VALUE = ProtoType(False, "google.protobuf.Value")
-        self.STRUCT_NULL = ProtoType(False, "google.protobuf.NullValue")
-        self.STRUCT_LIST = ProtoType(False, "google.protobuf.ListValue")
-        self.DOUBLE_VALUE = ProtoType(False, "google.protobuf.DoubleValue")
-        self.FLOAT_VALUE = ProtoType(False, "google.protobuf.FloatValue")
-        self.INT64_VALUE = ProtoType(False, "google.protobuf.Int64Value")
-        self.UINT64_VALUE = ProtoType(False, "google.protobuf.UInt64Value")
-        self.INT32_VALUE = ProtoType(False, "google.protobuf.Int32Value")
-        self.UINT32_VALUE = ProtoType(False, "google.protobuf.UInt32Value")
-        self.BOOL_VALUE = ProtoType(False, "google.protobuf.BoolValue")
-        self.STRING_VALUE = ProtoType(False, "google.protobuf.StringValue")
-        self.BYTES_VALUE = ProtoType(False, "google.protobuf.BytesValue")
-
-        self.SCALAR_TYPES_ = [self.BOOL,
-                              self.BYTES,
-                              self.DOUBLE,
-                              self.FLOAT,
-                              self.FIXED32,
-                              self.FIXED64,
-                              self.INT32,
-                              self.INT64,
-                              self.SFIXED32,
-                              self.SFIXED64,
-                              self.SINT32,
-                              self.SINT64,
-                              self.STRING,
-                              self.UINT32,
-                              self.UINT64
-                              ]
-
-        self.SCALAR_TYPES: dict = dict()
-
-        for a in self.SCALAR_TYPES_:
-            self.SCALAR_TYPES[a.string] = a
-
-        self.NUMERIC_SCALAR_TYPES: tuple = (
-            self.DOUBLE,
-            self.FLOAT,
-            self.FIXED32,
-            self.FIXED64,
-            self.INT32,
-            self.INT64,
-            self.SFIXED32,
-            self.SFIXED64,
-            self.SINT32,
-            self.SINT64,
-            self.UINT32,
-            self.UINT64
-        )
 
         if key_type is None and value_type is None:
             self.is_scalar = is_scalar
@@ -164,26 +174,28 @@ class ProtoType:
     def __ne__(self, other):
         return type(other) is not ProtoType or self.string != other.string
 
-    def to_string(self) -> str:
+    def __str__(self) -> str:
         return self.string
 
     def hash_code(self) -> int:
         return hash(self.string)
 
-    def get(self, enclosing_type_or_package: str, type_name: str) -> object:
-        return self.get2(f"{enclosing_type_or_package}.{type_name}") if enclosing_type_or_package else self.get2(
-            type_name)
+    @staticmethod
+    def get(enclosing_type_or_package: str, type_name: str) -> object:
+        return ProtoType.get2(f"{enclosing_type_or_package}.{type_name}") \
+            if enclosing_type_or_package else ProtoType.get2(type_name)
 
-    def get2(self, name: str) -> object:
-        scalar = self.SCALAR_TYPES[name]
+    @staticmethod
+    def get2(name: str) -> object:
+        scalar = ProtoType.SCALAR_TYPES[name]
         if scalar:
             return scalar
         require(name and len(name) != 0 and name.rfind("#") == -1, f"unexpected name: {name}")
         if name.startswith("map<") and name.endswith(">"):
             comma = name.rfind(",")
             require(comma != -1, f"expected ',' in map type: {name}")
-            key = self.get2(name[4:comma].strip())
-            value = self.get2(name[comma + 1:len(name)].strip())
+            key = ProtoType.get2(name[4:comma].strip())
+            value = ProtoType.get2(name[comma + 1:len(name)].strip())
             return ProtoType(False, name, key, value)
         return ProtoType(False, name)
 

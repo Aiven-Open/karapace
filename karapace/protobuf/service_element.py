@@ -1,7 +1,5 @@
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_indented
-from karapace.protobuf.kotlin_wrapper import *
-from karapace.protobuf.option_element import OptionsList
 
 
 class ServiceElement:
@@ -9,9 +7,9 @@ class ServiceElement:
     name: str
     documentation: str
     rpcs: list
-    options: OptionsList
+    options: list
 
-    def __init__(self, location: Location, name: str, documentation: str, rpcs: list, options: OptionsList
+    def __init__(self, location: Location, name: str, documentation: str, rpcs: list, options: list
                  ):
         self.location = location
         self.name = name

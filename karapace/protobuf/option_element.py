@@ -3,10 +3,6 @@ from karapace.protobuf.kotlin_wrapper import *
 from karapace.protobuf.utils import append_indented
 
 
-class OptionsList(list):
-    pass
-
-
 class ListOptionElement(list):
     pass
 
@@ -40,12 +36,12 @@ class OptionElement:
             self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]: f"{self.formattedName} = {self.value}",
             self.kind == self.Kind.OPTION: f"{self.formattedName}.{self.value.to_schema()}",
             self.kind == self.Kind.MAP: list([f"{self.formattedName} = {{\n",
-                                         self.format_option_map(self.value),
-                                         "}"
-                                         ]),
+                                              self.format_option_map(self.value),
+                                              "}"
+                                              ]),
             self.kind == self.Kind.LIST: list([f"{self.formattedName} = ",
-                                          self.append_options(self.value)
-                                          ])
+                                               self.append_options(self.value)
+                                               ])
         }[True]
         if type(aline) is list:
             return "".join(aline)
@@ -55,7 +51,8 @@ class OptionElement:
     def to_schema_declaration(self):
         return f"option {self.to_schema()};\n"
 
-    def append_options(self, options: list):
+    @staticmethod
+    def append_options(options: list):
         data: list = list()
         count = len(options)
         if count == 1:

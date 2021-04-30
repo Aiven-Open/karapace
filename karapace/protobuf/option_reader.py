@@ -1,3 +1,5 @@
+from typing import Union
+
 from karapace.protobuf.syntax_reader import SyntaxReader
 from karapace.protobuf.option_element import OptionElement
 
@@ -129,7 +131,8 @@ class OptionReader:
 
     """ Adds an object or objects to a List.  """
 
-    def add_to_list(self, _list: list, value: object):
+    @staticmethod
+    def add_to_list(_list: list, value: Union[list, str]):
         if type(value) is list:
             for v in list(value):
                 _list.append(v)

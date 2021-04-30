@@ -1,5 +1,3 @@
-
-
 def check(q: bool, message: str):
     if not q:
         raise IllegalStateException(message)
@@ -10,10 +8,19 @@ def require(q: bool, message: str):
         raise IllegalArgumentException(message)
 
 
+def options_to_list(a: list) -> list:
+    # TODO
+    return a
+
+
 class IllegalStateException(Exception):
     def __init__(self, message="IllegalStateException"):
         self.message = message
         super().__init__(self.message)
+
+
+class IntRange(list):
+    pass
 
 
 class IllegalArgumentException(Exception):
@@ -45,3 +52,15 @@ class StringBuilder(list):
 
 class OptionsList(list):
     pass
+
+
+class KotlinRange:
+    min: object
+    max: object
+
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+
+    def __str__(self) -> str:
+        return f"{self.min}..{self.max}"
