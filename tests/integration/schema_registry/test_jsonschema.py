@@ -1109,9 +1109,9 @@ async def test_schemaregistry_property_names(registry_async_client: Client):
 
     # - older has property `b`
     # - newer only accepts properties with match regex `a*`
-    await not_schemas_are_backward_compatible(
-        reader=B_INT_OBJECT_SCHEMA,
-        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+    await schemas_are_backward_compatible(
+        reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        writer=B_INT_OBJECT_SCHEMA,
         client=registry_async_client,
     )
 
