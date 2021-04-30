@@ -25,8 +25,6 @@ from tests.schemas.json_schemas import (
     TUPLE_OF_INT_SCHEMA, TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
 )
 
-import pytest
-
 COMPATIBLE = SchemaCompatibilityResult.compatible()
 
 COMPATIBILIY = "compatibility with schema registry"
@@ -1300,8 +1298,30 @@ def test_pattern_properties():
     )
 
 
-@pytest.mark.skip("not implemented yet")
-def test_property_name():
+def test_object_properties():
+    not_schemas_are_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=B_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+
+
+def test_property_names():
     schemas_are_compatible(
         reader=OBJECT_SCHEMA,
         writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
@@ -1310,7 +1330,7 @@ def test_property_name():
     not_schemas_are_compatible(
         reader=A_OBJECT_SCHEMA,
         writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
-        msg=COMPATIBILIY,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
     )
     schemas_are_compatible(
         reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
@@ -1329,10 +1349,10 @@ def test_property_name():
 
     # - writer has property `b`
     # - reader only accepts properties with match regex `a*`
-    not_schemas_are_compatible(
+    schemas_are_compatible(
         reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
         writer=B_INT_OBJECT_SCHEMA,
-        msg=INCOMPATIBLE_READER_IS_CLOSED_AND_REMOVED_FIELD,
+        msg=COMPATIBILIY,
     )
 
 
