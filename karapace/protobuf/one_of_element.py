@@ -19,15 +19,15 @@ class OneOfElement:
         result: list = list()
         append_documentation(result, self.documentation)
         result.append(f"oneof {self.name} {{")
-        if self.options and len(self.options):
+        if self.options:
             for option in self.options:
                 append_indented(result, option.to_schema_declaration())
 
-        if self.fields and len(self.fields):
+        if self.fields:
             result.append("\n")
             for field in self.fields:
                 append_indented(result, field.to_schema())
-        if self.groups and len(self.groups):
+        if self.groups:
             result.append("\n")
             for group in self.groups:
                 append_indented(result, group.to_schema())

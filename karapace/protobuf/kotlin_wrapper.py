@@ -33,12 +33,11 @@ class String(str):
     pass
 
 
-class Any(object):
+class Any:
     pass
 
 
 class StringBuilder(list):
-
     def append_indented(self: list, value: str):
         lines = value.split("\n")
         if len(lines) > 1 and not lines[-1]:
@@ -55,12 +54,12 @@ class OptionsList(list):
 
 
 class KotlinRange:
-    min: object
-    max: object
+    minimum: int
+    maximum: int
 
-    def __init__(self, min, max):
-        self.min = min
-        self.max = max
+    def __init__(self, minimum, maximum):
+        self.minimum = minimum
+        self.maximum = maximum
 
     def __str__(self) -> str:
-        return f"{self.min}..{self.max}"
+        return f"{self.minimum}..{self.maximum}"

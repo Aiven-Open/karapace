@@ -1,5 +1,6 @@
 from enum import Enum
-from karapace.protobuf.kotlin_wrapper import *
+# from karapace.protobuf.kotlin_wrapper import *
+# from karapace.protobuf.kotlin_wrapper import *
 from karapace.protobuf.utils import append_indented
 
 
@@ -36,17 +37,13 @@ class OptionElement:
             self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]: f"{self.formattedName} = {self.value}",
             self.kind == self.Kind.OPTION: f"{self.formattedName}.{self.value.to_schema()}",
             self.kind == self.Kind.MAP: list([f"{self.formattedName} = {{\n",
-                                              self.format_option_map(self.value),
-                                              "}"
-                                              ]),
+                                              self.format_option_map(self.value), "}"]),
             self.kind == self.Kind.LIST: list([f"{self.formattedName} = ",
-                                               self.append_options(self.value)
-                                               ])
+                                               self.append_options(self.value)])
         }[True]
-        if type(aline) is list:
+        if isinstance(aline, list):
             return "".join(aline)
-        else:
-            return aline
+        return aline
 
     def to_schema_declaration(self):
         return f"option {self.to_schema()};\n"
@@ -74,53 +71,30 @@ class OptionElement:
     def format_option_map(self, value: dict) -> str:
         keys = list(value.keys())
         last_index = len(keys) - 1
-        result: StringBuilder = StringBuilder()
-        for index in range(len(keys)):
+        result: list = list()
+        for index, key in enumerate(keys):
             endl = "," if (index != last_index) else ""
-            result.append_indented(f"{keys[index]}: {self.format_option_map_value(value[keys[index]])}{endl}")
+            append_indented(result, f"{key}: {self.format_option_map_value(value[key])}{endl}")
         return "".join(result)
 
     def format_option_map_value(self, value) -> str:
         aline = {
-            type(value) is str: f"\"{value}\"",
-            type(value) is dict: list(["{\n",
-                                       self.format_option_map_value(value),
-                                       "}"
-                                       ]),
-            type(value) is list: list(["[\n",
-                                       self.format_list_map_value(value),
-                                       "]"
-                                       ])
+            isinstance(value, str): f"\"{value}\"",
+            isinstance(value, dict): list(["{\n", self.format_option_map_value(value), "}"]),
+            isinstance(value, list): list(["[\n", self.format_list_map_value(value), "]"])
         }[True]
 
-        if type(aline) is list:
+        if isinstance(aline, list):
             return "".join(aline)
-        if type(aline) is str:
+        if isinstance(aline, str):
             return aline
         return value
 
     def format_list_map_value(self, value) -> str:
         keys = value.keys()
         last_index = len(value) - 1
-        result: StringBuilder = StringBuilder()
-        for index in range(len(keys)):
+        result: list = list()
+        for index, key in enumerate(keys):
             endl = "," if (index != last_index) else ""
-            result.append_indented(f"{self.format_option_map_value(value[keys[index]])}{endl}")
+            append_indented(result, f"{self.format_option_map_value(value[key])}{endl}")
         return "".join(result)
-
-    # TODO: REMOVE WHEN ALL CLEAN
-    """ companion object {
-    internal PACKED_OPTION_ELEMENT =
-        OptionElement("packed", BOOLEAN, value = "true", is_parenthesized = false)
-
-    @JvmOverloads
-    def create(
-      name: String,
-      kind: Kind,
-      value: Any,
-      is_parenthesized: Boolean = false
-    ) = OptionElement(name, kind, value, is_parenthesized)
-  }
-}
- 
- """

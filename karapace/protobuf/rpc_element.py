@@ -12,16 +12,17 @@ class RpcElement:
     response_streaming: bool
     options: list
 
-    def __init__(self,
-                 location: Location,
-                 name: str,
-                 documentation: str,
-                 request_type: str,
-                 response_type: str,
-                 request_streaming: bool,
-                 response_streaming: bool,
-                 options: list,
-                 ):
+    def __init__(
+        self,
+        location: Location,
+        name: str,
+        documentation: str,
+        request_type: str,
+        response_type: str,
+        request_streaming: bool,
+        response_streaming: bool,
+        options: list,
+    ):
         self.location = location
         self.name = name
         self.documentation = documentation
@@ -44,7 +45,7 @@ class RpcElement:
             result.append("stream ")
         result.append(f"{self.response_type})")
 
-        if self.options and len(self.options):
+        if self.options:
             result.append(" {\n")
             for option in self.options:
                 append_indented(result, option.to_schema_declaration())

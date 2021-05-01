@@ -7,7 +7,6 @@ class ProtobufParserRuntimeException(Exception):
 
 
 class IllegalStateException(Exception):
-
     def __init__(self, message="IllegalStateException"):
         self.message = message
         super().__init__(self.message)
@@ -15,14 +14,11 @@ class IllegalStateException(Exception):
 
 class Error(Exception):
     """Base class for errors in this module."""
-    pass
 
 
 class ProtobufException(Error):
-    """Generic Avro schema error."""
-    pass
+    """Generic Protobuf schema error."""
 
 
 class SchemaParseException(ProtobufException):
-    """Error while parsing a JSON schema descriptor."""
-    pass
+    """Error while parsing a Protobuf schema descriptor."""

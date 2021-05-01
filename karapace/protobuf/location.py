@@ -45,13 +45,17 @@ class Location:
         return result
 
     @staticmethod
-    def get(*args, **kwds):
+    def get(*args):
+        result = None
         if len(args) == 1:  # (path)
             path = args[0]
-            return Location.get("", path)
+            result = Location.get("", path)
         if len(args) == 2:  # (base,path)
             path: str = args[1]
             base: str = args[0]
             if base.endswith("/"):
                 base = base[:-1]
-                return Location(base, path)
+                result = Location(base, path)
+            else:
+                raise Exception()
+        return result

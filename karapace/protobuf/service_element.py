@@ -9,8 +9,7 @@ class ServiceElement:
     rpcs: list
     options: list
 
-    def __init__(self, location: Location, name: str, documentation: str, rpcs: list, options: list
-                 ):
+    def __init__(self, location: Location, name: str, documentation: str, rpcs: list, options: list):
         self.location = location
         self.name = name
         self.documentation = documentation

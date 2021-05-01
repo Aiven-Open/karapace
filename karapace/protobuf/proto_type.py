@@ -3,7 +3,6 @@ Names a protocol buffer message, enumerated type, service, map, or a scalar. Thi
 fully-qualified name using the protocol buffer package.
 """
 
-
 from karapace.protobuf.kotlin_wrapper import check, require
 from karapace.protobuf.option_element import OptionElement
 
@@ -21,7 +20,6 @@ class ProtoType:
     is_map: bool
     """ The type of the map's keys. Only present when [is_map] is True.  """
     key_type: object  # ProtoType
-
     """ The type of the map's values. Only present when [is_map] is True.  """
     value_type: object  # ProtoType
 
@@ -65,22 +63,10 @@ class ProtoType:
         cls.STRING_VALUE = ProtoType(False, "google.protobuf.StringValue")
         cls.BYTES_VALUE = ProtoType(False, "google.protobuf.BytesValue")
 
-        cls.SCALAR_TYPES_ = [cls.BOOL,
-                             cls.BYTES,
-                             cls.DOUBLE,
-                             cls.FLOAT,
-                             cls.FIXED32,
-                             cls.FIXED64,
-                             cls.INT32,
-                             cls.INT64,
-                             cls.SFIXED32,
-                             cls.SFIXED64,
-                             cls.SINT32,
-                             cls.SINT64,
-                             cls.STRING,
-                             cls.UINT32,
-                             cls.UINT64
-                             ]
+        cls.SCALAR_TYPES_ = [
+            cls.BOOL, cls.BYTES, cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32,
+            cls.SFIXED64, cls.SINT32, cls.SINT64, cls.STRING, cls.UINT32, cls.UINT64
+        ]
 
         cls.SCALAR_TYPES: dict = dict()
 
@@ -88,24 +74,12 @@ class ProtoType:
             cls.SCALAR_TYPES[a.string] = a
 
         cls.NUMERIC_SCALAR_TYPES: tuple = (
-            cls.DOUBLE,
-            cls.FLOAT,
-            cls.FIXED32,
-            cls.FIXED64,
-            cls.INT32,
-            cls.INT64,
-            cls.SFIXED32,
-            cls.SFIXED64,
-            cls.SINT32,
-            cls.SINT64,
-            cls.UINT32,
-            cls.UINT64
+            cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32, cls.SFIXED64, cls.SINT32,
+            cls.SINT64, cls.UINT32, cls.UINT64
         )
 
-    """ Creates a scalar or message type.  """
-
     def __init__(self, is_scalar: bool, string: str, key_type=None, value_type=None):
-
+        """ Creates a scalar or message type.  """
         if key_type is None and value_type is None:
             self.is_scalar = is_scalar
             self.string = string
@@ -123,7 +97,6 @@ class ProtoType:
                 # TODO: must be IllegalArgumentException
                 raise Exception("map key must be non-byte, non-floating point scalar: $key_type")
 
-    @staticmethod
     def to_kind(self) -> OptionElement.Kind:
         return {
             "bool": OptionElement.Kind.BOOLEAN,
@@ -143,21 +116,18 @@ class ProtoType:
             "uint64": OptionElement.Kind.NUMBER
         }.get(self.simple_name, OptionElement.Kind.ENUM)
 
-    """ Returns the enclosing type, or null if self type is not nested in another type.  """
-
     @property
     def enclosing_type_or_package(self) -> str:
+        """ Returns the enclosing type, or null if self type is not nested in another type.  """
         dot = self.string.rfind(".")
         return None if (dot == -1) else self.string[:dot]
 
-    """
-     Returns a string like "type.googleapis.com/packagename.messagename" or null if self type is
-     a scalar or a map. Note that self returns a non-null string for enums because it doesn't know
-     if the named type is a message or an enum.
-    """
-
     @property
     def type_url(self) -> str:
+        """ Returns a string like "type.googleapis.com/packagename.messagename" or null if self type is
+        a scalar or a map. Note that self returns a non-null string for enums because it doesn't know
+        if the named type is a message or an enum.
+        """
         return None if self.is_scalar or self.is_map else f"type.googleapis.com/{self.string}"
 
     def nested_type(self, name: str) -> object:  # ProtoType
@@ -169,10 +139,10 @@ class ProtoType:
         return ProtoType(False, f"{self.string}.{name}")
 
     def __eq__(self, other):
-        return type(other) is ProtoType and self.string == other.string
+        return isinstance(other, ProtoType) and self.string == other.string
 
     def __ne__(self, other):
-        return type(other) is not ProtoType or self.string != other.string
+        return not isinstance(other, ProtoType) or self.string != other.string
 
     def __str__(self) -> str:
         return self.string
@@ -186,7 +156,7 @@ class ProtoType:
             if enclosing_type_or_package else ProtoType.get2(type_name)
 
     @staticmethod
-    def get2(name: str) -> object:
+    def get2(name: str):
         scalar = ProtoType.SCALAR_TYPES[name]
         if scalar:
             return scalar

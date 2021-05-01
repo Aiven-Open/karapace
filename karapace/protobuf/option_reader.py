@@ -1,7 +1,6 @@
-from typing import Union
-
-from karapace.protobuf.syntax_reader import SyntaxReader
 from karapace.protobuf.option_element import OptionElement
+from karapace.protobuf.syntax_reader import SyntaxReader
+from typing import Union
 
 
 class KindAndValue:
@@ -19,12 +18,10 @@ class OptionReader:
     def __init__(self, reader: SyntaxReader):
         self.reader = reader
 
-    """
-    Reads options enclosed in '[' and ']' if they are present and returns them. Returns an empty
-    list if no options are present.
-    """
-
     def read_options(self) -> list:
+        """ Reads options enclosed in '[' and ']' if they are present and returns them. Returns an empty
+            list if no options are present.
+        """
         if not self.reader.peek_char('['):
             return list()
         result: list = list()
@@ -39,9 +36,9 @@ class OptionReader:
             self.reader.expect(self.reader.peek_char(','), "Expected ',' or ']")
         return result
 
-    """ Reads a option containing a name, an '=' or ':', and a value.  """
-
     def read_option(self, key_value_separator: str) -> OptionElement:
+        """ Reads a option containing a name, an '=' or ':', and a value.
+        """
         is_extension = (self.reader.peek_char() == '[')
         is_parenthesized = (self.reader.peek_char() == '(')
         name = self.reader.read_name()  # Option name.
@@ -70,33 +67,32 @@ class OptionReader:
             kind = OptionElement.Kind.OPTION
         return OptionElement(name, kind, value, is_parenthesized)
 
-    """ Reads a value that can be a map, list, string, number, boolean or enum.  """
-
     def read_kind_and_value(self) -> KindAndValue:
+        """ Reads a value that can be a map, list, string, number, boolean or enum.  """
         peeked = self.reader.peek_char()
+        result: KindAndValue
         if peeked == '{':
-            return KindAndValue(OptionElement.Kind.MAP, self.read_map('{', '}', ':'))
-        if peeked == '[':
-            return KindAndValue(OptionElement.Kind.LIST, self.read_list())
-        if peeked == '"' or peeked == "'":
-            return KindAndValue(OptionElement.Kind.STRING, self.reader.read_string())
-
-        if peeked.is_digit() or peeked == '-':
-            return KindAndValue(OptionElement.Kind.NUMBER, self.reader.read_word())
-
-        word = self.reader.read_word()
-        if word == "true":
-            return KindAndValue(OptionElement.Kind.BOOLEAN, "true")
-        if word == "false":
-            return KindAndValue(OptionElement.Kind.BOOLEAN, "false")
-        return KindAndValue(OptionElement.Kind.ENUM, word)
-
-    """
-    Returns a map of string keys and values. This is similar to a JSON object, with ':' and '}'
-    surrounding the map, ':' separating keys from values, and ',' or ';' separating entries.
-    """
+            result = KindAndValue(OptionElement.Kind.MAP, self.read_map('{', '}', ':'))
+        elif peeked == '[':
+            result = KindAndValue(OptionElement.Kind.LIST, self.read_list())
+        elif peeked in ('"', "'"):
+            result = KindAndValue(OptionElement.Kind.STRING, self.reader.read_string())
+        elif peeked.is_digit() or peeked == '-':
+            result = KindAndValue(OptionElement.Kind.NUMBER, self.reader.read_word())
+        else:
+            word = self.reader.read_word()
+            if word == "true":
+                result = KindAndValue(OptionElement.Kind.BOOLEAN, "true")
+            elif word == "false":
+                result = KindAndValue(OptionElement.Kind.BOOLEAN, "false")
+            else:
+                result = KindAndValue(OptionElement.Kind.ENUM, word)
+        return result
 
     def read_map(self, open_brace: str, close_brace: str, key_value_separator: str) -> dict:
+        """ Returns a map of string keys and values. This is similar to a JSON object, with ':' and '}'
+        surrounding the map, ':' separating keys from values, and ',' or ';' separating entries.
+        """
         if self.reader.read_char() != open_brace:
             raise AssertionError()
         result: dict = dict()
@@ -119,7 +115,7 @@ class OptionReader:
                 previous = result[name]
                 if not previous:
                     result[name] = value
-                elif type(previous) is list:  # Add to previous List
+                elif isinstance(previous, list):  # Add to previous List
                     self.add_to_list(previous, value)
                 else:
                     new_list: list = list()
@@ -127,24 +123,22 @@ class OptionReader:
                     self.add_to_list(new_list, value)
                     result[name] = new_list
             # Discard optional separator.
-            self.reader.peek_char(',') or self.reader.peek_char(';')
-
-    """ Adds an object or objects to a List.  """
+            if not self.reader.peek_char(','):
+                self.reader.peek_char(';')
 
     @staticmethod
     def add_to_list(_list: list, value: Union[list, str]):
-        if type(value) is list:
+        """ Adds an object or objects to a List.  """
+        if isinstance(value, list):
             for v in list(value):
                 _list.append(v)
         else:
             _list.append(value)
 
-    """
-    * Returns a list of values. This is similar to JSON with '[' and ']' surrounding the list and ','
-    * separating values.
-    """
-
     def read_list(self) -> list:
+        """ Returns a list of values. This is similar to JSON with '[' and ']' surrounding the list and ','
+        separating values.
+        """
         self.reader.require('[')
         result: list = list()
         while True:
