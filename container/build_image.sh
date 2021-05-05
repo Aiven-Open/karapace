@@ -45,17 +45,3 @@ sudo docker build \
     --tag "karapace:${TAG_NAME}" \
     --file container/Dockerfile \
     ${code_checkout}
-
-# The TAG_NAME has to be explicitly provided, otherwise `latest` is assume,
-# which may not be the version we are currently building.
-sudo docker build \
-    --build-arg "TAG_NAME=${TAG_NAME}" \
-    --tag "karapace-registry:${TAG_NAME}" \
-    --file container/Dockerfile.registry \
-    ${code_checkout}
-
-sudo docker build \
-    --build-arg "TAG_NAME=${TAG_NAME}" \
-    --tag "karapace-rest:${TAG_NAME}" \
-    --file container/Dockerfile.rest \
-    ${code_checkout}

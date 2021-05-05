@@ -57,6 +57,10 @@ services:
 
   karapace-registry:
     image: aivenoy/karapace:latest
+    entrypoint:
+      - /bin/bash
+      - /opt/karapace/start.sh
+      - registry
     depends_on:
       - kafka
     ports:
@@ -74,6 +78,10 @@ services:
 
   karapace-rest:
     image: aivenoy/karapace:latest
+    entrypoint:
+      - /bin/bash
+      - /opt/karapace/start.sh
+      - rest
     depends_on:
       - kafka
       - karapace-registry
