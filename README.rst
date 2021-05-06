@@ -138,6 +138,26 @@ Set up the configuration file in ``karapace.config.json`` to include connection 
     python3 -m karapace.karapace_all karapace.config.json
 
 
+Running tests
+-------------
+
+There are two flavors of tests, unit tests and integration tests. The unit tests are standalone,
+the integration tests need a running ZooKeeper and Kafka, but take internally care of
+starting and stopping them.
+
+Running unit tests::
+
+    make unittest
+
+Running integration tests::
+
+    make integrationtest
+
+The tests can be run in an IDE too, gotchas:
+
+* Before running integration tests, you need to download and untar the Kafka distribution, :code:`make fetch-kafka`.
+* Ensure that the working directory is set to Git root, e.g. in PyCharm you can create a configuration template with the correct Working directory.
+
 Docker setup for development
 ----------------------------
 
