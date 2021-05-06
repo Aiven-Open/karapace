@@ -10,7 +10,7 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
 from karapace.utils import json_encode
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import argparse
 import asyncio
@@ -128,7 +128,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.mc = MasterCoordinator(config=self.config)
         self.mc.start()
 
-    def _subject_get(self, subject, content_type, include_deleted=False):
+    def _subject_get(self, subject, content_type, include_deleted=False) -> Dict[str, Any]:
         subject_data = self.ksr.subjects.get(subject)
         if not subject_data:
             self.r(
@@ -230,7 +230,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         deleted: bool,
     ):
         key = '{{"subject":"{}","version":{},"magic":1,"keytype":"SCHEMA"}}'.format(subject, version)
-        if schema is not None:
+        if schema:
             valuedict = {
                 "subject": subject,
                 "version": version,
@@ -425,9 +425,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
         subject_data = self._subject_get(subject, content_type, include_deleted=permanent)
 
-        if permanent is True and [
-            version for version, value in subject_data["schemas"].items() if value.get("deleted", False) is False
-        ]:
+        if permanent and [version for version, value in subject_data["schemas"].items() if not value.get("deleted", False)]:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_SOFT_DELETED.value,
@@ -437,7 +435,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-        version_list = list(self.ksr.get_schemas(subject, include_deleted=permanent))
+        version_list = list(subject_data["schemas"])
         if version_list:
             latest_schema_id = version_list[-1]
         else:
@@ -457,7 +455,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         elif are_we_master is None:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}"
+            url = f"{master_url}/subjects/{subject}?permanent={permanent}"
             await self.forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_get(self, content_type, *, subject, version, return_dict=False):
@@ -513,10 +511,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
         subject_data = self._subject_get(subject, content_type, include_deleted=True)
 
         subject_schema_data = subject_data["schemas"].get(version, None)
-        self.log.info("subject scjema data %s", subject_schema_data)
-        self.log.info("subject  data %s", subject_data)
         if not subject_schema_data:
-            return self.r(
+            self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
                     "message": f"Version {version} not found.",
@@ -524,8 +520,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
-        if subject_schema_data.get("deleted", False) is True and permanent is False:
-            return self.r(
+        if subject_schema_data.get("deleted", False) and not permanent:
+            self.r(
                 body={
                     "error_code": SchemaErrorCodes.SCHEMAVERSION_SOFT_DELETED.value,
                     "message": f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently",
@@ -535,8 +531,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
             )
 
         # Cannot directly hard delete
-        if subject_schema_data.get("deleted", False) is False and permanent is True:
-            return self.r(
+        if permanent and not subject_schema_data.get("deleted", False):
+            self.r(
                 body={
                     "error_code": SchemaErrorCodes.SCHEMAVERSION_NOT_SOFT_DELETED.value,
                     "message": (
@@ -559,7 +555,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         elif are_we_master is None:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}/versions/{version}"
+            url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
             await self.forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(self, content_type, *, subject, version):

@@ -1938,7 +1938,6 @@ async def test_schema_hard_delete_whole_schema(registry_async_client):
     assert "id" in res.json()
     schemav2_id = res.json()["id"]
     assert schemav1_id != schemav2_id
-    print("schemav2_id: ", schemav2_id)
 
     # Hard delete whole schema cannot be done before soft delete
     res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
