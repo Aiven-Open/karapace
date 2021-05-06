@@ -141,20 +141,9 @@ Set up the configuration file in ``karapace.config.json`` to include connection 
 Docker setup for development
 ----------------------------
 
-To get you up and running with a development copy of Karapace, a docker setup is available. You can find everything you need for this in the ``container/`` folder.
-
-**Build images locally**
-
-Start by building the ``karapace-registry`` and ``karapace-rest`` images for the current commit::
-
-    ./build_image.sh HEAD
-
-Now update the ``docker-compose.yaml`` to refer to your version of those images:
-
-* Change the ``karapace-registry`` image to be ``karapace-registry:HEAD``
-* Change the ``karapace-rest`` image to be ``karapace-rest:HEAD``
-
-**Run Karapace**
+To get you up and running with a development copy of Karapace, a docker setup
+is available. You can find everything you need for this in the ``container/``
+folder.
 
 Get the containers running::
 
