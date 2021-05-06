@@ -134,6 +134,9 @@ class KafkaSchemaReader(Thread):
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
+            sasl_mechanism=self.config["sasl_mechanism"],
+            sasl_plain_username=self.config["sasl_plain_username"],
+            sasl_plain_password=self.config["sasl_plain_password"],
             auto_offset_reset="earliest",
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=request_timeout_ms,
@@ -151,6 +154,9 @@ class KafkaSchemaReader(Thread):
                 ssl_cafile=self.config["ssl_cafile"],
                 ssl_certfile=self.config["ssl_certfile"],
                 ssl_keyfile=self.config["ssl_keyfile"],
+                sasl_mechanism=self.config["sasl_mechanism"],
+                sasl_plain_username=self.config["sasl_plain_username"],
+                sasl_plain_password=self.config["sasl_plain_password"],
             )
             return True
         except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
