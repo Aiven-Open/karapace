@@ -361,7 +361,9 @@ class KafkaSchemaReader(Thread):
             schema["deleted"] = True
         return schema
 
-    def get_schemas(self, subject):
+    def get_schemas(self, subject, *, include_deleted=False):
+        if include_deleted is True:
+            return self.subjects[subject]["schemas"]
         non_deleted_schemas = {
             key: val
             for key, val in self.subjects[subject]["schemas"].items()

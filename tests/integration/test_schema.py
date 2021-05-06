@@ -1055,7 +1055,7 @@ async def test_schema(registry_async_client, trail):
     res = await registry_async_client.get("subjects/{}/versions/15".format(subject))
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
-    assert res.json()["message"] == "Version not found."
+    assert res.json()["message"] == "Version 15 not found."
 
     # Delete an actual version
     res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
@@ -1090,11 +1090,11 @@ async def test_schema(registry_async_client, trail):
     res = await registry_async_client.get("subjects/{}/versions".format(subject))
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == "Subject not found."
+    assert res.json()["message"] == f"Subject '{subject}' not found."
     res = await registry_async_client.get("subjects/{}/versions/latest".format(subject))
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == "Subject not found."
+    assert res.json()["message"] == f"Subject '{subject}' not found."
 
     # Creating a new schema works after deleting the only available version
     res = await registry_async_client.post(
@@ -1226,11 +1226,11 @@ async def test_schema(registry_async_client, trail):
     res = await registry_async_client.get(f"subjects/{subject2}/versions/1/schema")  # Invalid subject
     assert res.status == 404
     assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == "Subject not found."
+    assert res.json()["message"] == f"Subject '{subject2}' not found."
     res = await registry_async_client.get(f"subjects/{subject}/versions/2/schema")
     assert res.status == 404
     assert res.json()["error_code"] == 40402
-    assert res.json()["message"] == "Version not found."
+    assert res.json()["message"] == "Version 2 not found."
     res = await registry_async_client.get(f"subjects/{subject}/versions/latest/schema")
     assert res.status == 200
     assert res.json() == jsonlib.loads(schema_str)
@@ -1265,7 +1265,7 @@ async def test_schema(registry_async_client, trail):
     )
     assert res.status == 404
     assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == "Subject not found."
+    assert res.json()["message"] == f"Subject '{subject3}' not found."
     # Schema not found for subject
     res = await registry_async_client.post(
         f"subjects/{subject}",
@@ -1287,7 +1287,7 @@ async def test_schema(registry_async_client, trail):
     )
     assert res.status == 404
     assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == "Subject not found."
+    assert res.json()["message"] == f"Subject '{subject4}' not found."
 
     # Test that global ID values stay consistent after using pre-existing schema ids
     subject = new_random_name("subject")
@@ -1813,3 +1813,155 @@ async def test_invalid_schemas(registry_async_client):
     )
     assert res.status != 500, "an invalid schema should not cause a server crash"
     assert not is_success(HTTPStatus(res.status)), "an invalid schema must not be a success"
+
+
+async def test_schema_hard_delete_version(registry_async_client):
+    subject = new_random_name("subject")
+    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    schemav1 = {
+        "type": "record",
+        "name": "myenumtest",
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schemav1)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    schemav1_id = res.json()["id"]
+
+    schemav2 = {
+        "type": "record",
+        "name": "myenumtest",
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second", "third"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schemav2)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    schemav2_id = res.json()["id"]
+    assert schemav1_id != schemav2_id
+
+    # Cannot directly hard delete schema v1
+    res = await registry_async_client.delete("subjects/{}/versions/1?permanent=true".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40407
+    assert res.json()["message"] == f"Subject '{subject}' Version 1 was not deleted first before being permanently deleted"
+
+    # Soft delete schema v1
+    res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
+    assert res.status_code == 200
+    assert res.json() == 1
+
+    # Cannot soft delete twice
+    res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40406
+    assert res.json(
+    )["message"] == f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently"
+
+    res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
+    assert res.json()["message"] == "Version 1 not found."
+
+    # Hard delete schema v1
+    res = await registry_async_client.delete("subjects/{}/versions/1?permanent=true".format(subject))
+    assert res.status_code == 200
+
+    # Cannot hard delete twice
+    res = await registry_async_client.delete("subjects/{}/versions/1?permanent=true".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
+    assert res.json()["message"] == "Version 1 not found."
+
+
+async def test_schema_hard_delete_whole_schema(registry_async_client):
+    subject = new_random_name("subject")
+    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    schemav1 = {
+        "type": "record",
+        "name": "myenumtest",
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schemav1)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    schemav1_id = res.json()["id"]
+
+    schemav2 = {
+        "type": "record",
+        "name": "myenumtest",
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second", "third"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schemav2)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    schemav2_id = res.json()["id"]
+    assert schemav1_id != schemav2_id
+    print("schemav2_id: ", schemav2_id)
+
+    # Hard delete whole schema cannot be done before soft delete
+    res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40405
+    assert res.json()["message"] == f"Subject '{subject}' was not deleted first before being permanently deleted"
+
+    # Soft delete whole schema
+    res = await registry_async_client.delete("subjects/{}".format(subject))
+    assert res.status_code == 200
+    assert res.json() == [1, 2]
+
+    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
+    # Hard delete whole schema
+    res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
+    assert res.status_code == 200
+    assert res.json() == [1, 2]
+
+    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
