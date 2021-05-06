@@ -4,5 +4,5 @@ class ProtobufSchema:
     def __init__(self, schema: str):
         self.schema = schema
 
-    def to_json(self):
+    def __str__(self) -> str:
         return self.schema
