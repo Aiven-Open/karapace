@@ -125,21 +125,16 @@ example configuration file to give you an idea what you need to change::
 Local Development
 -----------------
 
-Follow the instructions here to run the local/current version of the code, not as a service.
-
 Install the dependencies::
 
+    # Runtime
     python3 -m pip install -r requirements.txt
+    # Development, e.g. if you run tests
+    python3 -m pip install -r requirements-dev.txt
 
-(also the dev dependencies if you'd like to, they are in ``requirements-dev.txt``)
-
-Set up the configuration file in ``karapace.config.json`` to include connection details for Kafka and any other config you want to change, then run::
+To run the local/current version of the code, set up the configuration file in ``karapace.config.json`` to include connection details for Kafka and any other config you want to change, then run::
 
     python3 -m karapace.karapace_all karapace.config.json
-
-
-Running tests
--------------
 
 There are two flavors of tests, unit tests and integration tests. The unit tests are standalone,
 the integration tests need a running ZooKeeper and Kafka, but take internally care of
@@ -151,12 +146,16 @@ Running unit tests::
 
 Running integration tests::
 
+    # fetch-kafka needed only once
+    make fetch-kafka
     make integrationtest
 
-The tests can be run in an IDE too, gotchas:
+When running tests in an IDE, ensure that the working directory is set to Git root, e.g. in PyCharm you can create a configuration template with the correct Working directory.
 
-* Before running integration tests, you need to download and untar the Kafka distribution, :code:`make fetch-kafka`.
-* Ensure that the working directory is set to Git root, e.g. in PyCharm you can create a configuration template with the correct Working directory.
+It's recommended to install :code:`pre-commit` GitHub. There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_,
+using :code:`pre-commit` automatically runs the checks to catch problems before they get to GitHub::
+
+    pre-commit install
 
 Docker setup for development
 ----------------------------
