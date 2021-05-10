@@ -70,6 +70,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
         self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
         self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
+        self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True)
         self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
         self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
         self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
@@ -309,6 +310,30 @@ class KarapaceSchemaRegistry(KarapaceBase):
             response_body["schemaType"] = schema.schema_type
         self.r(response_body, content_type)
 
+    async def schemas_types(self, content_type):
+        """
+        According to spec returns "Error code 40403 – Schema not found",
+        but it doesn't specify when. Assuming when there are no schemas at all.
+
+        Including the schemas that are marked deleted.
+        """
+        with self.ksr.id_lock:
+            schema_types = [
+                ts.schema_type.value for ts in (ts for ts in self.ksr.schemas.values() if isinstance(ts, TypedSchema))
+            ]
+        if not schema_types:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
+                    "message": "Schema not found",
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+        unique_schema_types = list(set(schema_types))
+        unique_schema_types.sort()
+        self.r(unique_schema_types, content_type)
+
     async def config_get(self, content_type):
         # Note: The format sent by the user differs from the return value, this
         # is for compatibility reasons.
@@ -543,7 +568,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     def _validate_schema_type(self, content_type, body) -> None:
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
-        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO}:
+        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO, SchemaType.PROTOBUF}:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,

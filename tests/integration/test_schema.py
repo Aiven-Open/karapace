@@ -8,6 +8,7 @@ from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.rapu import is_success
 from tests.utils import new_random_name, repeat_until_successful_request
+from typing import List, Optional
 
 import json as jsonlib
 import os
@@ -973,6 +974,68 @@ async def test_transitive_compatibility(registry_async_client):
     assert res.status == 409
     res_json = res.json()
     assert res_json["error_code"] == 409
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_types(registry_async_client, trail):
+    """
+    Tests for /schemas/types endpoint.
+    """
+    index = 1
+
+    async def assert_schema_types(expected: Optional[List[str]]):
+        res = await registry_async_client.get("/schemas/types")
+        if expected:
+            assert res.status_code == 200
+            assert expected == res.json()
+        else:
+            assert res.status_code == 404
+            assert res.json()["error_code"] == 40403
+            assert res.json()["message"] == "Schema not found"
+
+    async def post_schema(schema_type: str):
+        nonlocal index, registry_async_client
+
+        avro_schema = """
+{
+     "type": "record",
+     "namespace": "com.example",
+     "name": "FullName",
+     "fields": [
+       { "name": "first", "type": "string" },
+       { "name": "last", "type": "string" },
+       { "name": "dummy%d", "type": "string" }
+     ]
+}""" % index
+
+        json_schema = '{"type": "string", "index" : "%d"}' % index
+
+        if schema_type == "JSON":
+            schema = json_schema
+        else:
+            schema = avro_schema
+
+        index = index + 1
+        subject = new_random_name("subject")
+        res = await registry_async_client.post(
+            f"subjects/{subject}/versions{trail}",
+            json={
+                "schema": schema,
+                "schemaType": schema_type
+            },
+        )
+        assert res.status == 200
+
+    await assert_schema_types(None)
+
+    await post_schema("AVRO")
+    await assert_schema_types(["AVRO"])
+
+    await post_schema("AVRO")
+    await assert_schema_types(["AVRO"])
+
+    await post_schema("JSON")
+    await assert_schema_types(["AVRO", "JSON"])
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
