@@ -70,6 +70,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
         self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
         self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
+        self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True)
         self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
         self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
         self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
@@ -308,6 +309,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
         self.r(response_body, content_type)
+
+    async def schemas_types(self, content_type):
+        self.r(["JSON", "AVRO"], content_type)
 
     async def config_get(self, content_type):
         # Note: The format sent by the user differs from the return value, this
