@@ -1964,3 +1964,62 @@ async def test_schema_hard_delete_whole_schema(registry_async_client):
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
+
+
+async def test_schema_hard_delete_and_recreate(registry_async_client):
+    subject = new_random_name("subject")
+    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    schema = {
+        "type": "record",
+        "name": "myenumtest",
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    # Soft delete whole schema
+    res = await registry_async_client.delete("subjects/{}".format(subject))
+    assert res.status_code == 200
+
+    # Recreate with same subject after soft delete
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"], "the same schema registered, the same identifier"
+
+    # Soft delete whole schema
+    res = await registry_async_client.delete("subjects/{}".format(subject))
+    assert res.status_code == 200
+    # Hard delete whole schema
+    res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
+    assert res.status_code == 200
+
+    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
+    # Recreate with same subject after hard delete
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"], "the same schema registered, the same identifier"
