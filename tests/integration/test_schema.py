@@ -976,6 +976,19 @@ async def test_transitive_compatibility(registry_async_client):
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_types(registry_async_client, trail):
+    """
+    Tests for /schemas/types endpoint.
+    """
+    res = await registry_async_client.get(f"/schemas/types{trail}")
+    assert res.status_code == 200
+    json = res.json()
+    assert len(json) == 2
+    assert "AVRO" in json
+    assert "JSON" in json
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema(registry_async_client, trail):
     subject = new_random_name("subject")
     schema_str = '{"type": "string"}'
