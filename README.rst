@@ -170,7 +170,7 @@ you can run them manually::
     # Runs all coding style checks
     make pre-commit
 
-Alternatively, you can use :code:`pre-commit` to automatically run the checks on commit time::
+Alternatively,you can use `pre-commit <https://pre-commit.com/>`_ to automatically run the checks on commit time::
 
     pre-commit install
 
