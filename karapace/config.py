@@ -33,6 +33,7 @@ DEFAULTS = {
     "master_eligibility": True,
     "replication_factor": 1,
     "security_protocol": "PLAINTEXT",
+    "ssl_check_hostname": True,
     "ssl_cafile": None,
     "ssl_certfile": None,
     "ssl_keyfile": None,
@@ -107,8 +108,7 @@ def create_ssl_context(config: Config) -> ssl.SSLContext:
     ssl_context.options |= ssl.OP_NO_TLSv1  # pylint: disable=no-member
     ssl_context.options |= ssl.OP_NO_TLSv1_1  # pylint: disable=no-member
     ssl_context.verify_mode = ssl.CERT_OPTIONAL
-    if config.get('ssl_check_hostname'):
-        ssl_context.check_hostname = True
+    ssl_context.check_hostname = config['ssl_check_hostname']
     if config['ssl_cafile']:
         ssl_context.load_verify_locations(config['ssl_cafile'])
         ssl_context.verify_mode = ssl.CERT_REQUIRED

@@ -75,6 +75,11 @@ services:
       KARAPACE_REGISTRY_MASTER_ELIGIBITY: "true"
       KARAPACE_REGISTRY_TOPIC_NAME: _schemas
       KARAPACE_REGISTRY_LOG_LEVEL: WARNING
+      KARAPACE_SECURITY_PROTOCOL: PLAINTEXT
+      KARAPACE_SSL_CA_FILE_PATH: null
+      KARAPACE_SSL_CERT_FILE_PATH: null
+      KARAPACE_SSL_KEY_FILE_PATH: null
+      KARAPACE_SSL_CHECK_HOSTANME: True
 
   karapace-rest:
     image: aivenoy/karapace:latest
@@ -98,3 +103,7 @@ services:
       # new entries may need to be added to containers/start.sh
       KARAPACE_REST_ADMIN_METADATA_MAX_AGE: 0
       KARAPACE_REST_LOG_LEVEL: WARNING
+      KARAPACE_SECURITY_PROTOCOL: PLAINTEXT
+      KARAPACE_SSL_CA_FILE_PATH: null
+      KARAPACE_SSL_CERT_FILE_PATH: null
+      KARAPACE_SSL_KEY_FILE_PATH: null

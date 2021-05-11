@@ -40,10 +40,11 @@ start_karapace_registry(){
     "compatibility": "FULL",
     "log_level": "${KARAPACE_REGISTRY_LOG_LEVEL:-$KARAPACE_REGISTRY_LOG_LEVEL_DEFAULT}",
     "replication_factor": 1,
-    "security_protocol": "PLAINTEXT",
-    "ssl_cafile": null,
-    "ssl_certfile": null,
-    "ssl_keyfile": null
+    "security_protocol": "${KARAPACE_SECURITY_PROTOCOL:-PLAINTEXT}",
+    "ssl_cafile": "${KARAPACE_SSL_CA_FILE_PATH:-null}",
+    "ssl_certfile": "${KARAPACE_SSL_CERT_FILE_PATH:-null}",,
+    "ssl_keyfile": "${KARAPACE_SSL_KEY_FILE_PATH:-null}",
+    "ssl_check_hostname": "${KARAPACE_SSL_CHECK_HOSTANME:-True}"
 }
 EOF
   exec python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json
@@ -63,10 +64,10 @@ start_karapace_rest(){
     "port": ${KARAPACE_REST_PORT:-$KARAPACE_REST_PORT_DEFAULT},
     "admin_metadata_max_age": ${KARAPACE_REST_ADMIN_METADATA_MAX_AGE:-$KARAPACE_REST_ADMIN_METADATA_MAX_AGE_DEFAULT},
     "log_level": "${KARAPACE_REST_LOG_LEVEL:-$KARAPACE_REST_LOG_LEVEL_DEFAULT}",
-    "security_protocol": "PLAINTEXT",
-    "ssl_cafile": null,
-    "ssl_certfile": null,
-    "ssl_keyfile": null
+    "security_protocol": "${KARAPACE_SECURITY_PROTOCOL:-PLAINTEXT}",
+    "ssl_cafile": "${KARAPACE_SSL_CA_FILE_PATH:-null}",
+    "ssl_certfile": "${KARAPACE_SSL_CERT_FILE_PATH:-null}",,
+    "ssl_keyfile": "${KARAPACE_SSL_KEY_FILE_PATH:-null}"
 }
 EOF
   exec python3 -m karapace.kafka_rest_apis /opt/karapace/rest.config.json
