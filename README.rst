@@ -163,6 +163,9 @@ by :code:`make fetch-kafka`. Additionally ensure that the working directory
 when running tests, is set to Git root, e.g. in PyCharm you can
 create a configuration template with the correct working directory.
 
+The integration tests are run in parallel e.g. in the CI-pipeline.
+The tests need to be engineered taking this in mind.
+
 There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_.
 Your code changes need to pass these tests. To run the checks locally,
 you can run them manually::
