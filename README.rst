@@ -125,11 +125,21 @@ example configuration file to give you an idea what you need to change::
 Local Development
 -----------------
 
-Install the dependencies::
+Currently Karapace runs on the Python major versions 3.7, 3.8 and 3.9. You can use any of these for development.
+Naturally, independently of Python version you use, the code needs to run on all the supported versions.
+The CI pipeline in GitHub actions will run the tests on all these Python versions to ensure this.
 
-    # Runtime
+To run Karapace locally, or develop it, first install the dependencies.
+If you only need the runtime, i.e. you're not running tests or committing to Git,
+it's enough to install the runtime dependencies::
+
+    # Runtime dependencies
     python3 -m pip install -r requirements.txt
-    # Development, e.g. if you run tests
+
+If you are developing and e.g. running tests, install the development dependencies.
+This will install also the runtime dependencies::
+
+    # Development dependencies, contains runtime dependencies
     python3 -m pip install -r requirements-dev.txt
 
 To run the local/current version of the code, set up the configuration file in ``karapace.config.json`` to include connection details for Kafka and any other config you want to change, then run::
@@ -137,23 +147,30 @@ To run the local/current version of the code, set up the configuration file in `
     python3 -m karapace.karapace_all karapace.config.json
 
 There are two flavors of tests, unit tests and integration tests. The unit tests are standalone,
-the integration tests need a running ZooKeeper and Kafka, but take internally care of
-starting and stopping them.
+i.e. can be run without anything outside of the test running. The integration tests in turn need
+a running ZooKeeper and Kafka, but take internally care of starting and stopping them.
 
-Running unit tests::
+The tests can be run from the command line using :code:`make`::
 
+    # Running unit tests
     make unittest
 
-Running integration tests::
-
-    # fetch-kafka needed only once
-    make fetch-kafka
+    # Running integration tests
     make integrationtest
 
-When running tests in an IDE, ensure that the working directory is set to Git root, e.g. in PyCharm you can create a configuration template with the correct Working directory.
+To run the tests in an IDE, you need once download and untar Kafka
+by :code:`make fetch-kafka`. Additionally ensure that the working directory
+when running tests, is set to Git root, e.g. in PyCharm you can
+create a configuration template with the correct working directory.
 
-It's recommended to install :code:`pre-commit` GitHub. There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_,
-using :code:`pre-commit` automatically runs the checks to catch problems before they get to GitHub::
+There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_.
+Your code changes need to pass these tests. To run the checks locally,
+you can run them manually::
+
+    # Runs all coding style checks
+    make pre-commit
+
+Alternatively, you can use :code:`pre-commit` to automatically run the checks on commit time::
 
     pre-commit install
 
