@@ -79,7 +79,7 @@ services:
       KARAPACE_SSL_CA_FILE_PATH: null
       KARAPACE_SSL_CERT_FILE_PATH: null
       KARAPACE_SSL_KEY_FILE_PATH: null
-      KARAPACE_SSL_CHECK_HOSTANME: True
+      KARAPACE_SSL_CHECK_HOSTNAME: True
 
   karapace-rest:
     image: aivenoy/karapace:latest
