@@ -8,9 +8,7 @@ from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.rapu import is_success
 from karapace.utils import Client
-from tests.utils import (
-    create_field_name_factory, create_subject_name_factory, new_random_name, repeat_until_successful_request
-)
+from tests.utils import create_field_name_factory, create_subject_name_factory, repeat_until_successful_request
 from typing import List, Tuple
 
 import json as jsonlib
@@ -1096,9 +1094,15 @@ async def test_schema_types(registry_async_client, trail):
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_schema(registry_async_client, trail):
-    subject = new_random_name("subject")
-    schema_str = '{"type": "string"}'
+async def test_schema_repost(registry_async_client, trail):
+    """"
+    Repost same schema again to see that a new id is not generated but an old one is given back
+    """
+    subject = create_subject_name_factory(f"test_schema_repost-{trail}")()
+    unique_field_factory = create_field_name_factory(trail)
+
+    unique = unique_field_factory()
+    schema_str = '{"type": "string", "unique" : "%s"}' % unique
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
         json={"schema": schema_str},
@@ -1106,20 +1110,26 @@ async def test_schema(registry_async_client, trail):
     assert res.status == 200
     assert "id" in res.json()
     schema_id = res.json()["id"]
+
     res = await registry_async_client.get(f"schemas/ids/{schema_id}{trail}")
     assert res.status_code == 200
     assert res.json()["schema"] == schema_str
 
-    # repost same schema again to see that a new id is not generated but an old one is given back
+    await assert_schema_versions(registry_async_client, trail, schema_id, [(subject, 1)])
+
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
-        json={"schema": '{"type": "string"}'},
+        json={"schema": '{"type": "string", "unique" : "%s"}' % unique},
     )
     assert res.status == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
 
-    # Schema missing in the json body
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_missing_body(registry_async_client, trail):
+    subject = create_subject_name_factory(f"test_schema_missing_body-{trail}")()
+
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
         json={},
@@ -1128,41 +1138,39 @@ async def test_schema(registry_async_client, trail):
     assert res.json()["error_code"] == 500
     assert res.json()["message"] == "Internal Server Error"
 
-    # nonexistent schema id
+
+async def test_schema_non_existing_id(registry_async_client):
+    """
+    Tests getting a non-existing schema id
+    """
     result = await registry_async_client.get(os.path.join("schemas/ids/123456789"))
     assert result.json()["error_code"] == 40403
 
-    # invalid schema_id
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_non_invalid_id(registry_async_client, trail):
+    """
+    Tests getting an invalid schema id
+    """
     result = await registry_async_client.get(f"schemas/ids/invalid{trail}")
     assert result.status == 404
     assert result.json()["error_code"] == 404
     assert result.json()["message"] == "HTTP 404 Not Found"
 
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_subject_invalid_id(registry_async_client, trail):
+    """
+    Creates a subject with a schema and trying to find the invalid versions for the subject.
+    """
+    subject = create_subject_name_factory(f"test_schema_subject_invalid_id-{trail}")()
+    unique_field_factory = create_field_name_factory(trail)
+
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject), json={"schema": "{\"type\": \"string\", \"foo\": \"string\"}"}
+        "subjects/{}/versions".format(subject),
+        json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_field_factory()}
     )
     assert res.status_code == 200
-    assert "id" in res.json()
-    assert schema_id != res.json()["id"]
-
-    # Fetch the schema back to see how it was mangled
-    result = await registry_async_client.get(os.path.join("schemas/ids/{}".format(res.json()["id"])))
-    schema = jsonlib.loads(result.json()["schema"])
-    assert schema["type"] == "string"
-    assert schema["foo"] == "string"
-
-    res = await registry_async_client.get("subjects")
-    assert res.status_code == 200
-    assert subject in res.json()
-
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
-    assert res.status_code == 200
-    assert res.json() == [1, 2]
-
-    res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
-    assert res.status_code == 200
-    assert res.json()["subject"] == subject
-    assert res.json()["schema"] == schema_str
 
     # Find an invalid version 0
     res = await registry_async_client.get("subjects/{}/versions/0".format(subject))
@@ -1177,10 +1185,134 @@ async def test_schema(registry_async_client, trail):
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 15 not found."
 
+
+async def test_schema_subject_post_invalid(registry_async_client):
+    """
+    Tests posting to /subjects/{subject} with different invalid values.
+    """
+    subject_name_factory = create_subject_name_factory("test_schema_subject_post_invalid")
+
+    schema_str = '{"type": "string"}'
+
+    # Create the subject
+    subject_1 = subject_name_factory()
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject_1),
+        json={"schema": schema_str},
+    )
+    assert res.status == 200
+
+    # Invalid schema for existing subject should return 500
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}",
+        json={"schema": '{"type": "invalid_type"}'},
+    )
+    assert res.status == 500
+    assert res.json()["message"] == f"Error while looking up schema under subject {subject_1}"
+
+    # Subject is not found
+    subject_2 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_2}",
+        json={"schema": schema_str},
+    )
+    assert res.status == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject_2}' not found."
+
+    # Schema not found for subject
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}",
+        json={"schema": '{"type": "int"}'},
+    )
+    assert res.status == 404
+    assert res.json()["error_code"] == 40403
+    assert res.json()["message"] == "Schema not found"
+
+    # Schema not included in the request body
+    res = await registry_async_client.post(f"subjects/{subject_1}", json={})
+    assert res.status == 500
+    assert res.json()["error_code"] == 500
+    assert res.json()["message"] == "Internal Server Error"
+
+    # Schema not included in the request body for subject that does not exist
+    subject_3 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_3}",
+        json={},
+    )
+    assert res.status == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject_3}' not found."
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_lifecycle(registry_async_client, trail):
+    subject = create_subject_name_factory(f"test_schema_lifecycle-{trail}")()
+    unique_field_factory = create_field_name_factory(trail)
+
+    unique_1 = unique_field_factory()
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_1}
+    )
+    assert res.status_code == 200
+    schema_id_1 = res.json()["id"]
+
+    unique_2 = unique_field_factory()
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject),
+        json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_2}
+    )
+    schema_id_2 = res.json()["id"]
+    assert res.status_code == 200
+    assert schema_id_1 != schema_id_2
+
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, [(subject, 1)])
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [(subject, 2)])
+
+    result = await registry_async_client.get(os.path.join("schemas/ids/{}".format(schema_id_1)))
+    schema_json_1 = jsonlib.loads(result.json()["schema"])
+    assert schema_json_1["type"] == "string"
+    assert schema_json_1["foo"] == "string"
+    assert schema_json_1[unique_1] == "string"
+
+    result = await registry_async_client.get(os.path.join("schemas/ids/{}".format(schema_id_2)))
+    schema_json_2 = jsonlib.loads(result.json()["schema"])
+    assert schema_json_2["type"] == "string"
+    assert schema_json_2["foo"] == "string"
+    assert schema_json_2[unique_2] == "string"
+
+    res = await registry_async_client.get("subjects")
+    assert res.status_code == 200
+    assert subject in res.json()
+
+    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    assert res.status_code == 200
+    assert res.json() == [1, 2]
+
+    res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
+    assert res.status_code == 200
+    assert res.json()["subject"] == subject
+    assert jsonlib.loads(res.json()["schema"]) == schema_json_1
+
     # Delete an actual version
     res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
     assert res.status_code == 200
     assert res.json() == 1
+
+    # Get the schema by id, still there, wasn't hard-deleted
+    res = await registry_async_client.get(f"schemas/ids/{schema_id_1}{trail}")
+    assert res.status_code == 200
+    assert jsonlib.loads(res.json()["schema"]) == schema_json_1
+
+    # Get the schema by id
+    res = await registry_async_client.get(f"schemas/ids/{schema_id_2}{trail}")
+    assert res.status_code == 200
+
+    # Get the versions, old version not found anymore (even if schema itself is)
+    await assert_schema_versions_failed(registry_async_client, trail, schema_id_1)
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [(subject, 2)])
 
     # Delete a whole subject
     res = await registry_async_client.delete("subjects/{}".format(subject))
@@ -1195,7 +1327,7 @@ async def test_schema(registry_async_client, trail):
     # After deleting the last version of a subject, it shouldn't be in the list
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
-        json={"schema": '{"type": "string"}'},
+        json={"schema": '{"type": "string", "unique": "%s"}' % unique_field_factory()},
     )
     assert res.status == 200
     res = await registry_async_client.get("subjects")
@@ -1219,16 +1351,26 @@ async def test_schema(registry_async_client, trail):
     # Creating a new schema works after deleting the only available version
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
-        json={"schema": '{"type": "string"}'},
+        json={"schema": '{"type": "string", "unique": "%s"}' % unique_field_factory()}
     )
     assert res.status == 200
     res = await registry_async_client.get("subjects/{}/versions".format(subject))
     assert res.json() == [4]
 
-    # Check version number generation when deleting an entire subjcect
-    subject = new_random_name("subject")
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_version_numbering(registry_async_client, trail):
+    """
+    Test updating the schema of a subject increases its version number.
+    Deletes the subjects and asserts that when recreated, has a greater version number.
+    """
+    subject = create_subject_name_factory(f"test_schema_version_numbering-{trail}")()
+    unique_field_factory = create_field_name_factory(trail)
+
+    # Check version number generation when deleting an entire subject
     res = await registry_async_client.put("config/{}".format(subject), json={"compatibility": "NONE"})
     assert res.status == 200
+    unique = unique_field_factory()
     schema = {
         "type": "record",
         "name": "Object",
@@ -1237,7 +1379,11 @@ async def test_schema(registry_async_client, trail):
                 "name": "first_name",
                 "type": "string",
             },
-        ]
+            {
+                "name": f"{unique}",
+                "type": "string",
+            },
+        ],
     }
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
@@ -1251,10 +1397,15 @@ async def test_schema(registry_async_client, trail):
                 "type": "string",
             },
             {
+                "name": f"{unique}",
+                "type": "string",
+            },
+            {
                 "name": "last_name",
                 "type": "string",
             },
-        ]
+        ],
+        "unique": f"{unique_field_factory()}"
     }
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
     assert res.status == 200
@@ -1262,36 +1413,60 @@ async def test_schema(registry_async_client, trail):
     res = await registry_async_client.get("subjects/{}/versions".format(subject))
     assert res.status == 200
     assert res.json() == [1, 2]
+
+    # Recreate subject
     res = await registry_async_client.delete("subjects/{}".format(subject))
     assert res.status == 200
-    # Recreate subject
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
     res = await registry_async_client.get("subjects/{}/versions".format(subject))
     assert res.json() == [3]  # Version number generation should now begin at 3
 
-    # Check the return format on a more complex schema for version get
-    subject = new_random_name("subject")
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_version_numbering_complex(registry_async_client, trail):
+    """
+    Tests that when fetching a more complex schema, it matches with the created one.
+    """
+    subject = create_subject_name_factory(f"test_schema_version_numbering_complex-{trail}")()
+    unique_field_factory = create_field_name_factory(trail)
+
     schema = {
         "type": "record",
-        "name": "Objct",
+        "name": "Object",
         "fields": [
             {
                 "name": "first_name",
                 "type": "string",
             },
-        ]
+        ],
+        "unique": f"{unique_field_factory()}"
     }
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
         json={"schema": jsonlib.dumps(schema)},
     )
+    schema_id = res.json()["id"]
+
     res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
     assert res.status == 200
     assert res.json()["subject"] == subject
     assert sorted(jsonlib.loads(res.json()["schema"])) == sorted(schema)
 
+    await assert_schema_versions(registry_async_client, trail, schema_id, [(subject, 1)])
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_three_subjects_sharing_schema(registry_async_client, trail):
+    """"
+    Submits two subjects with the same schema.
+    Submits a third subject initially with different schema. Updates to share the schema.
+    Asserts all three subjects have the same schema.
+    """
+    subject_name_factory = create_subject_name_factory(f"test_schema_XXX-{trail}")
+    unique_field_factory = create_field_name_factory(trail)
+
     # Submitting the exact same schema for a different subject should return the same schema ID.
-    subject = new_random_name("subject")
+    subject_1 = subject_name_factory()
     schema = {
         "type": "record",
         "name": "Object",
@@ -1300,121 +1475,116 @@ async def test_schema(registry_async_client, trail):
                 "name": "just_a_value",
                 "type": "string",
             },
-        ]
+            {
+                "name": f"{unique_field_factory()}",
+                "type": "string",
+            },
+        ],
     }
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post("subjects/{}/versions".format(subject_1), json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
-    original_schema_id = res.json()["id"]
+    schema_id_1 = res.json()["id"]
+
     # New subject with the same schema
-    subject = new_random_name("subject")
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    subject_2 = subject_name_factory()
+    res = await registry_async_client.post("subjects/{}/versions".format(subject_2), json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
-    new_schema_id = res.json()["id"]
-    assert original_schema_id == new_schema_id
+    schema_id_2 = res.json()["id"]
+    assert schema_id_1 == schema_id_2
 
     # It also works for multiple versions in a single subject
-    subject = new_random_name("subject")
+    subject_3 = subject_name_factory()
     res = await registry_async_client.put(
-        "config/{}".format(subject), json={"compatibility": "NONE"}
+        "config/{}".format(subject_3), json={"compatibility": "NONE"}
     )  # We don't care about the compatibility in this test
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        "subjects/{}/versions".format(subject_3),
         json={"schema": '{"type": "string"}'},
     )
     assert res.status == 200
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        "subjects/{}/versions".format(subject_3),
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
-    assert res.json()["id"] == new_schema_id  # Same ID as in the previous test step
+    assert res.json()["id"] == schema_id_1  # Same ID as in the previous test step
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_subject_version_schema(registry_async_client, trail):
+    """
+    Tests for the /subjects/(string: subject)/versions/(versionId: version)/schema endpoint.
+    """
+    subject_name_factory = create_subject_name_factory(f"test_schema_XXX-{trail}")
 
     # The subject version schema endpoint returns the correct results
-    subject = new_random_name("subject")
+    subject_1 = subject_name_factory()
     schema_str = '{"type": "string"}'
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        "subjects/{}/versions".format(subject_1),
         json={"schema": schema_str},
     )
     assert res.status == 200
-    res = await registry_async_client.get(f"subjects/{subject}/versions/1/schema")
-    assert res.status == 200
-    assert res.json() == jsonlib.loads(schema_str)
-    subject2 = new_random_name("subject")
-    res = await registry_async_client.get(f"subjects/{subject2}/versions/1/schema")  # Invalid subject
-    assert res.status == 404
-    assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == f"Subject '{subject2}' not found."
-    res = await registry_async_client.get(f"subjects/{subject}/versions/2/schema")
-    assert res.status == 404
-    assert res.json()["error_code"] == 40402
-    assert res.json()["message"] == "Version 2 not found."
-    res = await registry_async_client.get(f"subjects/{subject}/versions/latest/schema")
+    res = await registry_async_client.get(f"subjects/{subject_1}/versions/1/schema")
     assert res.status == 200
     assert res.json() == jsonlib.loads(schema_str)
 
-    # The schema check for subject endpoint returns correct results
-    subject = new_random_name("subject")
+    subject_2 = subject_name_factory()
+    res = await registry_async_client.get(f"subjects/{subject_2}/versions/1/schema")  # Invalid subject
+    assert res.status == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject_2}' not found."
+
+    res = await registry_async_client.get(f"subjects/{subject_1}/versions/2/schema")
+    assert res.status == 404
+    assert res.json()["error_code"] == 40402
+    assert res.json()["message"] == "Version 2 not found."
+
+    res = await registry_async_client.get(f"subjects/{subject_1}/versions/latest/schema")
+    assert res.status == 200
+    assert res.json() == jsonlib.loads(schema_str)
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_same_subject(registry_async_client, trail):
+    """
+    The same ID should be returned when checking the same schema against the same subject
+    """
+    subject_name_factory = create_subject_name_factory(f"test_schema_XXX-{trail}")
+    unique_field_factory = create_field_name_factory(trail)
+
+    schema_str = '{"type": "string", "%s" : "string"}' % unique_field_factory()
+    subject_1 = subject_name_factory()
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        "subjects/{}/versions".format(subject_1),
         json={"schema": schema_str},
     )
     assert res.status == 200
     schema_id = res.json()["id"]
-    # The same ID should be returned when checking the same schema against the same subject
     res = await registry_async_client.post(
-        f"subjects/{subject}",
+        f"subjects/{subject_1}",
         json={"schema": schema_str},
     )
     assert res.status == 200
-    assert res.json() == {"id": schema_id, "subject": subject, "schema": schema_str, "version": 1}
-    # Invalid schema should return 500
-    res = await registry_async_client.post(
-        f"subjects/{subject}",
-        json={"schema": '{"type": "invalid_type"}'},
-    )
-    assert res.status == 500
-    assert res.json()["message"] == f"Error while looking up schema under subject {subject}"
-    # Subject is not found
-    subject3 = new_random_name("subject")
-    res = await registry_async_client.post(
-        f"subjects/{subject3}",
-        json={"schema": schema_str},
-    )
-    assert res.status == 404
-    assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == f"Subject '{subject3}' not found."
-    # Schema not found for subject
-    res = await registry_async_client.post(
-        f"subjects/{subject}",
-        json={"schema": '{"type": "int"}'},
-    )
-    assert res.status == 404
-    assert res.json()["error_code"] == 40403
-    assert res.json()["message"] == "Schema not found"
-    # Schema not included in the request body
-    res = await registry_async_client.post(f"subjects/{subject}", json={})
-    assert res.status == 500
-    assert res.json()["error_code"] == 500
-    assert res.json()["message"] == "Internal Server Error"
-    # Schema not included in the request body for subject that does not exist
-    subject4 = new_random_name("subject")
-    res = await registry_async_client.post(
-        f"subjects/{subject4}",
-        json={},
-    )
-    assert res.status == 404
-    assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == f"Subject '{subject4}' not found."
+    assert res.json() == {"id": schema_id, "subject": subject_1, "schema": schema_str, "version": 1}
 
-    # Test that global ID values stay consistent after using pre-existing schema ids
-    subject = new_random_name("subject")
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_version_number_existing_schema(registry_async_client, trail):
+    """
+    Tests creating the same schemas for two subjects. Asserts the schema ids are the same for both subjects.
+    """
+    subject_name_factory = create_subject_name_factory(f"test_schema_version_number_existing_schema-{trail}")
+    unique_field_factory = create_field_name_factory(trail)
+
+    subject_1 = subject_name_factory()
     res = await registry_async_client.put(
-        "config/{}".format(subject), json={"compatibility": "NONE"}
+        "config/{}".format(subject_1), json={"compatibility": "NONE"}
     )  # We don't care about compatibility
-    schema = {
+    unique = unique_field_factory()
+    schema_1 = {
         "type": "record",
         "name": "Object",
         "fields": [
@@ -1422,9 +1592,13 @@ async def test_schema(registry_async_client, trail):
                 "name": "just_a_value",
                 "type": "string",
             },
-        ]
+            {
+                "name": f"{unique}",
+                "type": "string",
+            },
+        ],
     }
-    schema2 = {
+    schema_2 = {
         "type": "record",
         "name": "Object",
         "fields": [
@@ -1432,9 +1606,13 @@ async def test_schema(registry_async_client, trail):
                 "name": "just_a_value2",
                 "type": "string",
             },
-        ]
+            {
+                "name": f"{unique}",
+                "type": "string",
+            },
+        ],
     }
-    schema3 = {
+    schema_3 = {
         "type": "record",
         "name": "Object",
         "fields": [
@@ -1442,26 +1620,43 @@ async def test_schema(registry_async_client, trail):
                 "name": "just_a_value3",
                 "type": "int",
             },
-        ]
+            {
+                "name": f"{unique}",
+                "type": "string",
+            },
+        ],
     }
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject_1), json={"schema": jsonlib.dumps(schema_1)}
+    )
     assert res.status == 200
-    first_schema_id = res.json()["id"]
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
+    schema_id_1 = res.json()["id"]
+
+    schema_id_2 = schema_id_1 + 1
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject_1), json={"schema": jsonlib.dumps(schema_2)}
+    )
     assert res.status == 200
-    assert res.json()["id"] == first_schema_id + 1
+    assert res.json()["id"] == schema_id_2
+
     # Reuse the first schema in another subject
-    subject = new_random_name("subject")
+    subject_2 = subject_name_factory()
     res = await registry_async_client.put(
-        "config/{}".format(subject), json={"compatibility": "NONE"}
+        "config/{}".format(subject_2), json={"compatibility": "NONE"}
     )  # We don't care about compatibility
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject_2), json={"schema": jsonlib.dumps(schema_1)}
+    )
     assert res.status == 200
-    assert res.json()["id"] == first_schema_id
+    assert res.json()["id"] == schema_id_1
+
     # Create a new schema
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema3)})
+    schema_id_3 = schema_id_2 + 1
+    res = await registry_async_client.post(
+        "subjects/{}/versions".format(subject_2), json={"schema": jsonlib.dumps(schema_3)}
+    )
     assert res.status == 200
-    assert res.json()["id"] == first_schema_id + 2
+    assert res.json()["id"] == schema_id_3
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
