@@ -2,7 +2,7 @@ from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
 from karapace.utils import Client
-from typing import List
+from typing import Callable, List
 from urllib.parse import quote
 
 import asyncio
@@ -212,22 +212,22 @@ def new_random_name(prefix: str) -> str:
     return f"{prefix}{suffix}"
 
 
-def create_subject_name_factory(prefix: str) -> str:
+def create_subject_name_factory(prefix: str) -> Callable[[], str]:
     return create_id_factory(f"subject-{prefix}")
 
 
-def create_field_name_factory(prefix: str) -> str:
+def create_field_name_factory(prefix: str) -> Callable[[], str]:
     return create_id_factory(f"field-{prefix}")
 
 
-def create_id_factory(prefix: str) -> str:
+def create_id_factory(prefix: str) -> Callable[[], str]:
     """
     Creates unique ids prefixed with prefix..
     The resulting ids are safe to embed in URLs.
     """
     index = 1
 
-    def create_name():
+    def create_name() -> str:
         nonlocal index
         random_name = str(uuid.uuid4())[:8]
         name = f"{quote(prefix).replace('/', '_')}_{index}_{random_name}"
