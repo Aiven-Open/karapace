@@ -75,6 +75,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
         self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
+        self.route(
+            "/schemas/ids/<schema_id:path>/versions", callback=self.schemas_get_versions, method="GET", schema_request=True
+        )
         self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
         self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True)
         self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
@@ -335,6 +338,41 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
         self.r(response_body, content_type)
+
+    async def schemas_get_versions(self, content_type, *, schema_id):
+        try:
+            schema_id_int = int(schema_id)
+        except ValueError:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.HTTP_NOT_FOUND.value,
+                    "message": "HTTP 404 Not Found",
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+
+        subject_versions = []
+        with self.ksr.id_lock:
+            for subject, val in self.ksr.subjects.items():
+                if self.ksr.get_schemas(subject) and "schemas" in val:
+                    schemas = val["schemas"]
+                    for version, schema in schemas.items():
+                        if int(schema["id"]) == schema_id_int and not schema["deleted"]:
+                            subject_versions.append({"subject": subject, "version": int(version)})
+
+        if not subject_versions:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.HTTP_NOT_FOUND.value,
+                    "message": "HTTP 404 Not Found",
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+
+        subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
+        self.r(subject_versions, content_type)
 
     async def schemas_types(self, content_type):
         self.r(["JSON", "AVRO"], content_type)
