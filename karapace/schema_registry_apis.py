@@ -39,6 +39,16 @@ class SchemaErrorCodes(Enum):
     NO_MASTER_ERROR = 50003
 
 
+@unique
+class SchemaErrorMessages(Enum):
+    SUBJECT_NOT_FOUND_FMT = "Subject '{subject}' not found."
+    INVALID_COMPATIBILITY_LEVEL = (
+        "Invalid compatibility level. Valid values are none, backward, "
+        "forward, full, backward_transitive, forward_transitive, and "
+        "full_transitive"
+    )
+
+
 class InvalidSchemaType(Exception):
     pass
 
@@ -140,7 +150,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                    "message": f"Subject '{subject}' not found.",
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
@@ -151,7 +161,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                    "message": f"Subject '{subject}' not found.",
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
@@ -381,7 +391,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_COMPATIBILITY_LEVEL.value,
-                    "message": "Invalid compatibility level. Valid values are none, backward, forward and full",
+                    "message": SchemaErrorMessages.INVALID_COMPATIBILITY_LEVEL.value,
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -419,7 +429,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(
             body={
                 "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                "message": "Subject not found.",
+                "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
             },
             content_type=content_type,
             status=HTTPStatus.NOT_FOUND,
