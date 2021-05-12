@@ -44,7 +44,7 @@ start_karapace_registry(){
     "ssl_cafile": "${KARAPACE_SSL_CA_FILE_PATH}",
     "ssl_certfile": "${KARAPACE_SSL_CERT_FILE_PATH}",
     "ssl_keyfile": "${KARAPACE_SSL_KEY_FILE_PATH}",
-    "ssl_check_hostname": ${KARAPACE_SSL_CHECK_HOSTANME:-true}
+    "ssl_check_hostname": ${KARAPACE_SSL_CHECK_HOSTNAME:-true}
 }
 EOF
   exec python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json
