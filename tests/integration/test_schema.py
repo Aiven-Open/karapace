@@ -1177,9 +1177,9 @@ async def test_schema_missing_body(registry_async_client: Client, trail: str) ->
         f"subjects/{subject}/versions{trail}",
         json={},
     )
-    assert res.status == 500
-    assert res.json()["error_code"] == 500
-    assert res.json()["message"] == "Internal Server Error"
+    assert res.status == 422
+    assert res.json()["error_code"] == 42201
+    assert res.json()["message"] == "Empty schema"
 
 
 async def test_schema_non_existing_id(registry_async_client: Client) -> None:
