@@ -6,11 +6,13 @@ See LICENSE for details
 """
 from http import HTTPStatus
 from kafka import KafkaProducer
+from karapace import config
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from karapace.utils import Client
 from tests.utils import (
-    create_field_name_factory, create_schema_name_factory, create_subject_name_factory, repeat_until_successful_request
+    create_field_name_factory, create_schema_name_factory, create_subject_name_factory, KafkaServers,
+    repeat_until_successful_request
 )
 from typing import List, Tuple
 
@@ -2013,17 +2015,22 @@ async def test_schema_remains_constant(registry_async_client: Client) -> None:
     assert jsonlib.loads(res.json()["schema"]) == jsonlib.loads(schema_str)
 
 
-async def test_malformed_kafka_message(registry_async: KarapaceSchemaRegistry, registry_async_client: Client) -> None:
-    topic = registry_async.config["topic_name"]
+async def test_malformed_kafka_message(
+    kafka_servers: KafkaServers, registry_async: KarapaceSchemaRegistry, registry_async_client: Client
+) -> None:
+    if registry_async:
+        topic = registry_async.config["topic_name"]
+    else:
+        topic = config.DEFAULTS["topic_name"]
 
-    prod = KafkaProducer(bootstrap_servers=registry_async.config["bootstrap_uri"])
+    producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
     message_key = {"subject": "foo", "version": 1, "magic": 1, "keytype": "SCHEMA"}
     import random
     schema_id = random.randint(20000, 30000)
     payload = {"schema": jsonlib.dumps({"foo": "bar"}, indent=None, separators=(",", ":"))}
     message_value = {"deleted": False, "id": schema_id, "subject": "foo", "version": 1}
     message_value.update(payload)
-    prod.send(topic, key=jsonlib.dumps(message_key).encode(), value=jsonlib.dumps(message_value).encode()).get()
+    producer.send(topic, key=jsonlib.dumps(message_key).encode(), value=jsonlib.dumps(message_value).encode()).get()
 
     path = f"schemas/ids/{schema_id}"
     res = await repeat_until_successful_request(
