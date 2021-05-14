@@ -1988,14 +1988,26 @@ async def test_invalid_namespace(registry_async_client: Client) -> None:
 
 
 async def test_schema_remains_constant(registry_async_client: Client) -> None:
+    """
+    Creates a subject with schema. Asserts the schema is the same when fetching it using schemas/ids/{schema_id}
+    """
     subject = create_subject_name_factory("test_schema_remains_constant")()
-    schema = {"type": "record", "name": "foo", "namespace": "foo-bar-baz", "fields": [{"type": "string", "name": "bla"}]}
+    schema_name = create_schema_name_factory("test_schema_remains_constant")()
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "namespace": "foo-bar-baz",
+        "fields": [{
+            "type": "string",
+            "name": "bla"
+        }]
+    }
     schema_str = jsonlib.dumps(schema)
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": schema_str})
     assert res.ok, res.json()
-    scid = res.json()["id"]
-    res = await registry_async_client.get(f"schemas/ids/{scid}")
-    assert res.json()["schema"] == schema_str
+    schema_id = res.json()["id"]
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+    assert jsonlib.loads(res.json()["schema"]) == jsonlib.loads(schema_str)
 
 
 async def test_malformed_kafka_message(registry_async: KarapaceSchemaRegistry, registry_async_client: Client) -> None:
