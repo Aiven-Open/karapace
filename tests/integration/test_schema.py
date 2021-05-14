@@ -12,7 +12,7 @@ from karapace.utils import Client
 from tests.utils import (
     create_field_name_factory, create_schema_name_factory, create_subject_name_factory, repeat_until_successful_request
 )
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import json as jsonlib
 import os
@@ -1967,10 +1967,17 @@ async def test_schema_remains_constant(registry_async_client: Client) -> None:
     assert jsonlib.loads(res.json()["schema"]) == jsonlib.loads(schema_str)
 
 
-async def test_malformed_kafka_message(registry_async: KarapaceSchemaRegistry, registry_async_client: Client) -> None:
-    topic = registry_async.config["topic_name"]
+async def test_malformed_kafka_message(
+    command_line: Dict[str, str], registry_async: KarapaceSchemaRegistry, registry_async_client: Client
+) -> None:
+    if registry_async:
+        topic = registry_async.config["topic_name"]
+        bootstrap_servers = registry_async.config["bootstrap_uri"]
+    else:
+        topic = "_schemas"
+        bootstrap_servers = command_line["kafka_bootstrap_servers"]
 
-    prod = KafkaProducer(bootstrap_servers=registry_async.config["bootstrap_uri"])
+    prod = KafkaProducer(bootstrap_servers=bootstrap_servers)
     message_key = {"subject": "foo", "version": 1, "magic": 1, "keytype": "SCHEMA"}
     import random
     schema_id = random.randint(20000, 30000)

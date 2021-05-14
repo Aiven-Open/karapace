@@ -115,6 +115,15 @@ def lock_path_for(path: Path) -> Path:
     return path.with_suffix(''.join(suffixes))
 
 
+@pytest.fixture(scope="session", name="command_line")
+def fixture_command_line(request) -> Dict[str, str]:
+    yield {
+        "kafka_bootstrap_servers": request.config.getoption("kafka_bootstrap_servers", default=None),
+        "registry_url": request.config.getoption("registry_url"),
+        "rest_url": request.config.getoption("rest_url")
+    }
+
+
 @pytest.fixture(scope="session", name="kafka_servers")
 def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
