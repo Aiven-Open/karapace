@@ -1930,7 +1930,12 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
 
 
 async def test_version_number_validation(registry_async_client: Client) -> None:
-    # Create a schema
+    """
+    Creates a subject and schema. Tests that the endpoints
+    subjects/{subject}/versions/{version} and
+    subjects/{subject}/versions/{version}/schema
+    return correct values both with valid and invalid parameters.
+    """
     subject = create_subject_name_factory("test_version_number_validation")()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -1939,18 +1944,24 @@ async def test_version_number_validation(registry_async_client: Client) -> None:
     assert res.status_code == 200
     assert "id" in res.json()
 
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert res.status == 200
+    schema_version = res.json()[0]
+    invalid_schema_version = schema_version - 1
+
     version_endpoints = {f"subjects/{subject}/versions/$VERSION", f"subjects/{subject}/versions/$VERSION/schema"}
     for endpoint in version_endpoints:
         # Valid schema id
-        res = await registry_async_client.get(endpoint.replace("$VERSION", "1"))
+        res = await registry_async_client.get(endpoint.replace("$VERSION", str(schema_version)))
         assert res.status == 200
+
         # Invalid number
-        res = await registry_async_client.get(endpoint.replace("$VERSION", "0"))
+        res = await registry_async_client.get(endpoint.replace("$VERSION", str(invalid_schema_version)))
         assert res.status == 422
         assert res.json()["error_code"] == 42202
         assert res.json()[
             "message"
-        ] == "The specified version is not a valid version id. " \
+        ] == f"The specified version '{invalid_schema_version}' is not a valid version id. " \
             "Allowed values are between [1, 2^31-1] and the string \"latest\""
         # Valid latest string
         res = await registry_async_client.get(endpoint.replace("$VERSION", "latest"))
@@ -1961,7 +1972,7 @@ async def test_version_number_validation(registry_async_client: Client) -> None:
         assert res.json()["error_code"] == 42202
         assert res.json()[
             "message"
-        ] == "The specified version is not a valid version id. " \
+        ] == "The specified version 'invalid' is not a valid version id. " \
             "Allowed values are between [1, 2^31-1] and the string \"latest\""
 
 
