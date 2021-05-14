@@ -202,7 +202,7 @@ class RestApp:
         if method in {"POST", "PUT"}:
             if not content_matcher:
                 http_error(
-                    message=HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description,
+                    message="HTTP 415 Unsupported Media Type",
                     content_type=result["content_type"],
                     code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
                 )
@@ -214,7 +214,7 @@ class RestApp:
             return result
         self.log.error("Not acceptable: %r", request.get_header("accept"))
         http_error(
-            message=HTTPStatus.NOT_ACCEPTABLE.description,
+            message="HTTP 406 Not Acceptable",
             content_type=result["content_type"],
             code=HTTPStatus.NOT_ACCEPTABLE,
         )
@@ -226,7 +226,7 @@ class RestApp:
 
         if method in {"POST", "PUT"} and cgi.parse_header(content_type)[0] not in SCHEMA_CONTENT_TYPES:
             http_error(
-                message=HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description,
+                message="HTTP 415 Unsupported Media Type",
                 content_type=response_default_content_type,
                 code=HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
             )
@@ -238,7 +238,7 @@ class RestApp:
             if not content_type_match:
                 self.log.debug("Unexpected Accept value: %r", accept_val)
                 http_error(
-                    message=HTTPStatus.NOT_ACCEPTABLE.description,
+                    message="HTTP 406 Not Acceptable",
                     content_type=response_default_content_type,
                     code=HTTPStatus.NOT_ACCEPTABLE,
                 )
