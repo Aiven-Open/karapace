@@ -1566,25 +1566,29 @@ async def test_schema_subject_version_schema(registry_async_client: Client, trai
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_same_subject(registry_async_client: Client, trail: str) -> None:
     """
-    The same ID should be returned when checking the same schema against the same subject
+    The same schema JSON should be returned when checking the same schema str against the same subject
     """
-    subject_name_factory = create_subject_name_factory(f"test_schema_XXX-{trail}")
-    unique_field_factory = create_field_name_factory(trail)
+    subject_name_factory = create_subject_name_factory(f"test_schema_same_subject_{trail}")
+    unique_field_factory = create_field_name_factory(f"test_schema_same_subject_{trail}")
 
     schema_str = jsonlib.dumps({"type": "string", unique_field_factory(): "string"})
-    subject_1 = subject_name_factory()
+    subject = subject_name_factory()
     res = await registry_async_client.post(
-        f"subjects/{subject_1}/versions",
+        f"subjects/{subject}/versions",
         json={"schema": schema_str},
     )
     assert res.status == 200
     schema_id = res.json()["id"]
     res = await registry_async_client.post(
-        f"subjects/{subject_1}",
+        f"subjects/{subject}",
         json={"schema": schema_str},
     )
     assert res.status == 200
-    assert res.json() == {"id": schema_id, "subject": subject_1, "schema": schema_str, "version": 1}
+
+    # Switch the str schema to a dict for comparison
+    json = res.json()
+    json["schema"] = jsonlib.loads(json["schema"])
+    assert json == {"id": schema_id, "subject": subject, "schema": jsonlib.loads(schema_str), "version": 1}
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
