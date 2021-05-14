@@ -172,7 +172,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             body={
                 "error_code": SchemaErrorCodes.INVALID_VERSION_ID.value,
                 "message": (
-                    "The specified version is not a valid version id. "
+                    f"The specified version '{version}' is not a valid version id. "
                     "Allowed values are between [1, 2^31-1] and the string \"latest\""
                 ),
             },
