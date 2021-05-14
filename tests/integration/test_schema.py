@@ -1178,7 +1178,8 @@ async def test_schema_subject_invalid_id(registry_async_client: Client, trail: s
     assert res.status_code == 422
     assert res.json()["error_code"] == 42202
     assert res.json()["message"] == \
-        'The specified version is not a valid version id. Allowed values are between [1, 2^31-1] and the string "latest"'
+        'The specified version \'0\' is not a valid version id. '\
+           + 'Allowed values are between [1, 2^31-1] and the string "latest"'
 
     # Find an invalid version (too large)
     res = await registry_async_client.get(f"subjects/{subject}/versions/15")
