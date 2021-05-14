@@ -1070,7 +1070,7 @@ async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
 
     res = await registry_async_client.get(f"schemas/ids/{schema_id}{trail}")
     assert res.status_code == 200
-    assert res.json()["schema"] == schema_str
+    assert jsonlib.loads(res.json()["schema"]) == jsonlib.loads(schema_str)
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
