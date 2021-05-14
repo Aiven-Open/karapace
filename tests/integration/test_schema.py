@@ -1635,10 +1635,10 @@ async def test_schema_version_number_existing_schema(registry_async_client: Clie
     assert res.status == 200
     schema_id_1 = res.json()["id"]
 
-    schema_id_2 = schema_id_1 + 1
     res = await registry_async_client.post(f"subjects/{subject_1}/versions", json={"schema": jsonlib.dumps(schema_2)})
     assert res.status == 200
-    assert res.json()["id"] == schema_id_2
+    schema_id_2 = res.json()["id"]
+    assert schema_id_2 > schema_id_1
 
     # Reuse the first schema in another subject
     subject_2 = subject_name_factory()
@@ -1650,10 +1650,11 @@ async def test_schema_version_number_existing_schema(registry_async_client: Clie
     assert res.json()["id"] == schema_id_1
 
     # Create a new schema
-    schema_id_3 = schema_id_2 + 1
     res = await registry_async_client.post(f"subjects/{subject_2}/versions", json={"schema": jsonlib.dumps(schema_3)})
     assert res.status == 200
+    schema_id_3 = res.json()["id"]
     assert res.json()["id"] == schema_id_3
+    assert schema_id_3 > schema_id_2
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
