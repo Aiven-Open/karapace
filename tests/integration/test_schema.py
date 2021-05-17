@@ -2372,11 +2372,13 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
 
 async def test_schema_hard_delete_and_recreate(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_schema_hard_delete_and_recreate")()
+    field_name = create_field_name_factory("test_schema_remains_constant")()
+
     res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
     assert res.status == 200
     schema = {
         "type": "record",
-        "name": "myenumtest",
+        "name": field_name,
         "fields": [{
             "type": {
                 "type": "enum",
@@ -2405,7 +2407,7 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     )
     assert res.status == 200
     assert "id" in res.json()
-    assert schema_id == res.json()["id"], "the same schema registered, the same identifier"
+    assert schema_id == res.json()["id"], "after soft delete the same schema registered, the same identifier"
 
     # Soft delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}")
@@ -2426,4 +2428,4 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     )
     assert res.status == 200
     assert "id" in res.json()
-    assert schema_id == res.json()["id"], "the same schema registered, the same identifier"
+    assert schema_id == res.json()["id"], "after permanent deleted the same schema registered, the same identifier"
