@@ -360,17 +360,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     for version, schema in schemas.items():
                         if int(schema["id"]) == schema_id_int and not schema["deleted"]:
                             subject_versions.append({"subject": subject, "version": int(version)})
-
-        if not subject_versions:
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.HTTP_NOT_FOUND.value,
-                    "message": "HTTP 404 Not Found",
-                },
-                content_type=content_type,
-                status=HTTPStatus.NOT_FOUND,
-            )
-
         subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
         self.r(subject_versions, content_type)
 
