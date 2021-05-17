@@ -1092,12 +1092,32 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     """
     Tests getting schema versions when removing a schema version and eventually the subject.
     """
-    subject = create_subject_name_factory(f"test_schema_versions_deleting-{trail}")()
-    unique_field_factory = create_field_name_factory(trail)
+    subject = create_subject_name_factory(f"test_schema_versions_deleting_{trail}")()
+    schema_name = create_schema_name_factory(f"test_schema_versions_deleting_{trail}")()
 
-    schema_1 = {"type": "string", "unique": unique_field_factory()}
+    field_name = create_field_name_factory(trail)()
+    schema_1 = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{
+            "name": field_name,
+            "type": "string"
+        }, {
+            "name": "field_1",
+            "type": "string"
+        }]
+    }
     schema_str_1 = jsonlib.dumps(schema_1)
-    schema_2 = {"type": "string", "unique": unique_field_factory()}
+    schema_2 = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {
+                "name": field_name,
+                "type": "string"
+            },
+        ]
+    }
     schema_str_2 = jsonlib.dumps(schema_2)
 
     schema_id_1, version_1 = await register_schema(registry_async_client, trail, subject, schema_str_1)
@@ -1109,11 +1129,11 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
     # Deleting one version, the other still found
-    res = await registry_async_client.delete("subjects/{}/versions/{}".format(subject, schema_id_1))
+    res = await registry_async_client.delete("subjects/{}/versions/{}".format(subject, version_1))
     assert res.status_code == 200
-    assert res.json() == schema_id_1
+    assert res.json() == version_1
 
-    await assert_schema_versions_failed(registry_async_client, trail, schema_id_1)
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, [])
     await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
     # Deleting the subject, the schema version 2 cannot be found anymore
@@ -1121,8 +1141,8 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     assert res.status_code == 200
     assert res.json() == [version_2]
 
-    await assert_schema_versions_failed(registry_async_client, trail, schema_id_1)
-    await assert_schema_versions_failed(registry_async_client, trail, schema_id_2)
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, [])
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -1362,7 +1382,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     assert res.status_code == 200
 
     # Get the versions, old version not found anymore (even if schema itself is)
-    await assert_schema_versions_failed(registry_async_client, trail, schema_id_1)
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, [])
     await assert_schema_versions(registry_async_client, trail, schema_id_2, [(subject, 2)])
 
     # Delete a whole subject
