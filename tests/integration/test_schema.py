@@ -1233,7 +1233,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     res = await registry_async_client.post(f"subjects/{subject_1}", json={})
     assert res.status == 500
     assert res.json()["error_code"] == 500
-    assert res.json()["message"] == "Internal Server Error"
+    assert res.json()["message"] == f"Error while looking up schema under subject {subject_1}"
 
     # Schema not included in the request body for subject that does not exist
     subject_3 = subject_name_factory()

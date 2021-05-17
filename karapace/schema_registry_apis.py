@@ -697,7 +697,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
-                    "message": "Internal Server Error",
+                    "message": f"Error while looking up schema under subject {subject}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
