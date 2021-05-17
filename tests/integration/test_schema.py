@@ -1019,13 +1019,71 @@ async def assert_schema_versions_failed(client: Client, trail: str, schema_id: i
     assert res.status_code == response_code
 
 
+async def register_schema(registry_async_client: Client, trail, subject: str, schema_str: str) -> Tuple[int, int]:
+    # Register to get the id
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}",
+        json={"schema": schema_str},
+    )
+    assert res.status == 200
+    schema_id = res.json()["id"]
+
+    # Get version
+    res = await registry_async_client.post(
+        f"subjects/{subject}{trail}",
+        json={"schema": schema_str},
+    )
+    assert res.status == 200
+    assert res.json()["id"] == schema_id
+    return schema_id, res.json()["version"]
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_schema_versions(registry_async_client: Client, trail: str) -> None:
+async def test_schema_versions_multiple_subjects_same_schema(registry_async_client: Client, trail: str) -> None:
     """
     Tests case where there are multiple subjects with the same schema.
     The schema/versions endpoint returns all these subjects.
     """
-    subject_name_factory = create_subject_name_factory(f"test_schema-{trail}")
+    subject_name_factory = create_subject_name_factory(f"test_schema_versions_multiple_subjects_same_schema-{trail}")
+    unique_field_factory = create_field_name_factory(trail)
+
+    schema_1 = {"type": "string", unique_field_factory(): "string"}
+    schema_str_1 = jsonlib.dumps(schema_1)
+    schema_2 = {"type": "string", unique_field_factory(): "string"}
+    schema_str_2 = jsonlib.dumps(schema_2)
+
+    subject_1 = subject_name_factory()
+    schema_id_1, version_1 = await register_schema(registry_async_client, trail, subject_1, schema_str_1)
+    schema_1_versions = [(subject_1, version_1)]
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+
+    subject_2 = subject_name_factory()
+    schema_id_2, version_2 = await register_schema(registry_async_client, trail, subject_2, schema_str_1)
+    schema_1_versions = [(subject_1, version_1), (subject_2, version_2)]
+    assert schema_id_1 == schema_id_2
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+
+    subject_3 = subject_name_factory()
+    schema_id_3, version_3 = await register_schema(registry_async_client, trail, subject_3, schema_str_1)
+    schema_1_versions = [(subject_1, version_1), (subject_2, version_2), (subject_3, version_3)]
+    assert schema_id_1 == schema_id_3
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+
+    # subject_4 with different schema to check there are no side effects
+    subject_4 = subject_name_factory()
+    schema_id_4, version_4 = await register_schema(registry_async_client, trail, subject_4, schema_str_2)
+    schema_2_versions = [(subject_4, version_4)]
+    assert schema_id_1 != schema_id_4
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+    await assert_schema_versions(registry_async_client, trail, schema_id_4, schema_2_versions)
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_versions_deleting(registry_async_client: Client, trail: str) -> None:
+    """
+    Tests getting schema versions when removing a schema version and eventually the subject.
+    """
+    subject = create_subject_name_factory(f"test_schema_versions_deleting-{trail}")()
     unique_field_factory = create_field_name_factory(trail)
 
     schema_1 = {"type": "string", "unique": unique_field_factory()}
@@ -1033,55 +1091,29 @@ async def test_schema_versions(registry_async_client: Client, trail: str) -> Non
     schema_2 = {"type": "string", "unique": unique_field_factory()}
     schema_str_2 = jsonlib.dumps(schema_2)
 
-    async def register_schema(subject: str, schema_str: str) -> Tuple[int, int]:
-        # Register to get the id
-        res = await registry_async_client.post(
-            f"subjects/{subject}/versions{trail}",
-            json={"schema": schema_str},
-        )
-        assert res.status == 200
-        schema_id = res.json()["id"]
-
-        # Get version
-        res = await registry_async_client.post(
-            f"subjects/{subject}{trail}",
-            json={"schema": schema_str},
-        )
-        assert res.status == 200
-        assert res.json()["id"] == schema_id
-        return schema_id, res.json()["version"]
-
-    subject_1 = subject_name_factory()
-    schema_id_1, version_1 = await register_schema(subject_1, schema_str_1)
-    schema_1_versions = [(subject_1, version_1)]
+    schema_id_1, version_1 = await register_schema(registry_async_client, trail, subject, schema_str_1)
+    schema_1_versions = [(subject, version_1)]
     await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
 
-    subject_2 = subject_name_factory()
-    schema_id_2, version_2 = await register_schema(subject_2, schema_str_1)
-    schema_1_versions = [(subject_1, version_1), (subject_2, version_2)]
-    assert schema_id_1 == schema_id_2
-    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+    schema_id_2, version_2 = await register_schema(registry_async_client, trail, subject, schema_str_2)
+    schema_2_versions = [(subject, version_2)]
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
-    subject_3 = subject_name_factory()
-    schema_id_3, version_3 = await register_schema(subject_3, schema_str_1)
-    schema_1_versions = [(subject_1, version_1), (subject_2, version_2), (subject_3, version_3)]
-    assert schema_id_1 == schema_id_3
-    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+    # Deleting one version, the other still found
+    res = await registry_async_client.delete("subjects/{}/versions/{}".format(subject, schema_id_1))
+    assert res.status_code == 200
+    assert res.json() == schema_id_1
 
-    # subject_4 with different schema
-    subject_4 = subject_name_factory()
-    schema_id_4, version_4 = await register_schema(subject_4, schema_str_2)
-    schema_2_versions = [(subject_4, version_4)]
-    assert schema_id_1 != schema_id_4
-    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
-    await assert_schema_versions(registry_async_client, trail, schema_id_4, schema_2_versions)
+    await assert_schema_versions_failed(registry_async_client, trail, schema_id_1)
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
-    # subject_4 now with the same schema, will have different version
-    schema_id_5, version_5 = await register_schema(subject_4, schema_str_1)
-    assert schema_id_1 == schema_id_5
-    schema_1_versions = [(subject_1, version_1), (subject_2, version_2), (subject_3, version_3), (subject_4, version_5)]
-    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
-    await assert_schema_versions(registry_async_client, trail, schema_id_4, schema_2_versions)
+    # Deleting the subject, the schema version 2 cannot be found anymore
+    res = await registry_async_client.delete("subjects/{}".format(subject))
+    assert res.status_code == 200
+    assert res.json() == [version_2]
+
+    await assert_schema_versions_failed(registry_async_client, trail, schema_id_1)
+    await assert_schema_versions_failed(registry_async_client, trail, schema_id_2)
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
