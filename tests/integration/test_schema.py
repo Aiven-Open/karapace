@@ -1522,11 +1522,22 @@ async def test_schema_subject_version_schema(registry_async_client: Client, trai
     """
     Tests for the /subjects/(string: subject)/versions/(versionId: version)/schema endpoint.
     """
-    subject_name_factory = create_subject_name_factory(f"test_schema_XXX-{trail}")
+    subject_name_factory = create_subject_name_factory(f"test_schema_subject_version_schema_{trail}")
+    schema_name = create_schema_name_factory(f"test_schema_subject_version_schema_{trail}")()
 
     # The subject version schema endpoint returns the correct results
     subject_1 = subject_name_factory()
-    schema_str = jsonlib.dumps({"type": "string"})
+
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{
+            "name": "just_a_value",
+            "type": "string",
+        }],
+    }
+    schema_str = jsonlib.dumps(schema)
+
     res = await registry_async_client.post(
         f"subjects/{subject_1}/versions",
         json={"schema": schema_str},
