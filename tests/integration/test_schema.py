@@ -590,24 +590,6 @@ async def test_record_schema_compatibility_backward(registry_async_client: Clien
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_enum_schema_field_add_compatibility(registry_async_client: Client, trail: str) -> None:
-    subject_name_factory = create_subject_name_factory(f"test_enum_schema_field_add_compatibility-{trail}")
-    expected_results = [("BACKWARD", 200), ("FORWARD", 200), ("FULL", 200)]
-    for compatibility, status_code in expected_results:
-        subject = subject_name_factory()
-        res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
-        assert res.status == 200
-        schema = {"type": "enum", "name": "Suit", "symbols": ["SPADES", "HEARTS", "DIAMONDS"]}
-        res = await registry_async_client.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
-        assert res.status == 200
-
-        # Add a field
-        schema["symbols"].append("CLUBS")
-        res = await registry_async_client.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
-        assert res.status == status_code
-
-
-@pytest.mark.parametrize("trail", ["", "/"])
 async def test_array_schema_field_add_compatibility(registry_async_client: Client, trail: str) -> None:
     subject_name_factory = create_subject_name_factory(f"test_array_schema_field_add_compatibility-{trail}")
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
