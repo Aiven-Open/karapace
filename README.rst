@@ -166,6 +166,23 @@ create a configuration template with the correct working directory.
 The integration tests are run in parallel e.g. in the CI-pipeline.
 The tests need to be engineered taking this in mind.
 
+Since the integration tests run against a Kafka cluster, Kafka REST and Kafka Schema Registry using
+their APIs, it's possible to run them not only against Karapace that the tests internally
+setup and teardown but against long-running services. This allows you to start
+Karapace independently from the integration tests and e.g. inspect Kafka contents after the tests have run.
+
+The integration tests can be configured to use a running (ZooKeeper),
+Kafka (:code:`--kafka-bootstrap-servers`), Kafka REST (:code:`--rest-url`)
+and Schema Registry (:code:`--registry-url`), e.g. like this::
+
+    python -m pytest -vvv --registry-url http://127.0.0.1:8081 --rest-url http://127.0.0.1:8082/ --kafka-bootstrap-servers 127.0.0.1:9092 tests
+
+You can run the integration tests against Kafka REST and Schema Registry from Confluent.
+You can freely start these services before running the tests however you wish, but for convenience
+you can use the provided Docker Compose file to start ZooKeeper, Kafka, Kafka REST and Schema Registry::
+
+    docker-compose -f tests/integration/confluent-docker-compose.yml up -d
+
 There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_.
 Your code changes need to pass these tests. To run the checks locally,
 you can run them manually::
