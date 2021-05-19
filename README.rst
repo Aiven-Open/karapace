@@ -7,7 +7,7 @@ Karapace
 Features
 ========
 
-* Schema Registry and Rest Proxy that are 1:1 Compatible with the pre-existing proprietary
+* Schema Registry and Rest Proxy aim to be API compatible with the pre-existing proprietary
   Confluent Schema Registry and Kafka Rest Proxy
 * Drop in replacement both on pre-existing Schema Registry / Kafka Rest Proxy client and
   server-sides
@@ -26,6 +26,10 @@ between their different respective versions.
 Karapace rest provides a RESTful interface to your Kafka cluster, allowing you to perform
 tasks such as producing and consuming messages and perform administrative cluster work,
 all the while using the language of the WEB.
+
+Karapace is compatible with Schema Registry 6.1.1 on API level with the following exceptions
+
+* Protobuf schemas are unsupported
 
 Setup
 =====
