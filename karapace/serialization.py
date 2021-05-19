@@ -71,7 +71,10 @@ class SchemaRegistryClient:
         self.base_url = schema_registry_url
 
     async def post_new_schema(self, subject: str, schema: TypedSchema) -> int:
-        payload = {"schema": json_encode(schema.to_json()), "schemaType": schema.schema_type.value}
+        if schema.schema_type is SchemaType.PROTOBUF:
+            payload = {"schema": str(schema), "schemaType": schema.schema_type.value}
+        else:
+            payload = {"schema": json_encode(schema.to_json()), "schemaType": schema.schema_type.value}
         result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)
         if not result.ok:
             raise SchemaRetrievalError(result.json())
@@ -135,6 +138,7 @@ class SchemaRegistrySerializerDeserializer:
             namespace = schema_typed.schema.namespace
         if schema_type is SchemaType.JSONSCHEMA:
             namespace = schema_typed.to_json().get("namespace", "dummy")
+        # TODO: PROTOBUF* Seems protobuf does not use namespaces in terms of AVRO
         return f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}"
 
     async def get_schema_for_subject(self, subject: str) -> TypedSchema:
@@ -174,15 +178,21 @@ class SchemaRegistrySerializerDeserializer:
 
 
 def read_value(schema: TypedSchema, bio: io.BytesIO):
+
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
+
         value = load(bio)
         try:
             schema.schema.validate(value)
         except ValidationError as e:
             raise InvalidPayload from e
+        return value
+    if schema.schema_type is SchemaType.PROTOBUF:
+        # TODO: PROTOBUF* we need use protobuf validator there
+        value = bio.read()
         return value
     raise ValueError("Unknown schema type")
 
@@ -197,6 +207,10 @@ def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict):
         except ValidationError as e:
             raise InvalidPayload from e
         bio.write(json_encode(value, binary=True))
+    elif schema.schema_type is SchemaType.PROTOBUF:
+        # TODO: PROTOBUF* we need use protobuf validator there
+        bio.write(value)
+
     else:
         raise ValueError("Unknown schema type")
 
