@@ -404,23 +404,35 @@ main daemon process that should be run under a service manager such as
 Configuration keys
 ==================
 
-``advertised_hostname`` (default ``socket.gethostname()``)
 
-The hostname being advertised to other instances of Karapace that are
-attached to the same Kafka group.  All nodes within the cluster need to have
-their advertised_hostname's set so that they can all reach each other.
+.. list-table::
+   :header-rows: 1
 
-``bootstrap_uri`` (default ``localhost:9092``)
+   * - Parameter
+     - Default Value
+     - Description
+   * - ``advertised_hostname``
+     - ``socket.gethostname()``
+     - The hostname being advertised to other instances of Karapace that are attached to the same Kafka group.  All nodes within the cluster need to have their ``advertised_hostname``'s set so that they can all reach each other.
+   * - ``bootstrap_uri``
+     - ``localhost:9092``
+     - The URI to the Kafka service where to store the schemas and to run
+       coordination among the Karapace instances.
+   * - ``client_id``
+     - ``sr-1``
+     - The client_id name by which the Karapace will use when coordinating with
+       other Karapaces who is master.  The one with the name that sorts as the
+       first alphabetically is chosen as master from among the services with
+       master_eligibility set to true.
 
-The URI to the Kafka service where to store the schemas and to run
-coordination among the Karapace instances.
 
-``client_id`` (default ``sr-1``)
+ (default )
 
-The client_id name by which the Karapace will use when coordinating with
-other Karapaces who is master.  The one with the name that sorts as the
-first alphabetically is chosen as master from among the services with
-master_eligibility set to true.
+
+
+ (default )
+
+
 
 ``consumer_enable_autocommit`` (default ``True``)
 
