@@ -14,29 +14,29 @@ class ProtoFileElement:
     options: list
 
     def __init__(
-        self,
-        location: Location,
-        package_name: str = None,
-        syntax: Syntax = None,
-        imports=None,
-        public_imports=None,
-        types=None,
-        services=None,
-        extend_declarations=None,
-        options=None
+            self,
+            location: Location,
+            package_name: str = None,
+            syntax: Syntax = None,
+            imports=None,
+            public_imports=None,
+            types=None,
+            services=None,
+            extend_declarations=None,
+            options=None
     ):
 
-        if options is None:
-            options = list()
-        if extend_declarations is None:
-            extend_declarations = list()
-        if services is None:
-            services = list()
-        if types is None:
-            types = list()
-        if public_imports is None:
+        if not options:
+            options = []
+        if not extend_declarations:
+            extend_declarations = []
+        if not services:
+            services = []
+        if not types:
+            types = []
+        if not public_imports:
             public_imports = []
-        if imports is None:
+        if not imports:
             imports = []
         self.location = location
         self.package_name = package_name
@@ -80,20 +80,42 @@ class ProtoFileElement:
         if self.types:
             for type_element in self.types:
                 strings.append("\n")
-                strings.append(str(type_element.to_schema))
+                strings.append(str(type_element.to_schema()))
 
         if self.extend_declarations:
             for extend_declaration in self.extend_declarations:
                 strings.append("\n")
-                strings.append(extend_declaration.to_schema())
+                strings.append(str(extend_declaration.to_schema()))
 
         if self.services:
             for service in self.services:
                 strings.append("\n")
-                strings.append(str(service.to_schema))
+                strings.append(str(service.to_schema()))
 
         return "".join(strings)
 
     @staticmethod
     def empty(path):
         return ProtoFileElement(Location.get(path))
+
+    # TODO: there maybe be faster comparison workaround
+    def __eq__(self, other: 'ProtoFileElement'):
+        a = self.to_schema()
+        b = other.to_schema()
+        # sys.stderr.write("\n\nTESTA=[")
+        # sys.stderr.write(a)
+        # sys.stderr.write("]\n\nTESTB=[")
+        # sys.stderr.write(b)
+        # sys.stderr.write("]\n\n")
+
+        return a == b
+
+    #    return str(self.location) == str(other.location) and \
+    #           self.package_name == other.package_name and \
+    #           str(self.syntax) == str(other.syntax) and \
+    #           str(self.imports) == str(other.imports) and \
+    #           str(self.public_imports) == str(self.public_imports) and \
+    #           str(self.types) == str(self.types) and \
+    #           str(self.services) == str(self.services) and \
+    #           str(self.extend_declarations) == str(self.extend_declarations) and \
+    #           str(self.options) == str(self.options)

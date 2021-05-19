@@ -1,6 +1,3 @@
-import builtins
-
-
 def protobuf_encode(a: str) -> str:
     # TODO: PROTOBUF
     return a
@@ -31,7 +28,7 @@ def append_options(data: list, options: list):
 
     data.append("[\n")
     for i in range(0, count):
-        if i < count - 1:
+        if i < count:
             endl = ","
         else:
             endl = ""
@@ -42,7 +39,7 @@ def append_options(data: list, options: list):
 def append_indented(data: list, value: str):
     lines = value.split("\n")
     if len(lines) > 1 and not lines[-1]:
-        lines = lines.pop()
+        del lines[-1]
 
     for line in lines:
         data.append("  ")
@@ -57,11 +54,9 @@ RESERVED_TAG_VALUE_START = 19000
 RESERVED_TAG_VALUE_END = 19999
 """ True if the supplied value is in the valid tag range and not reserved.  """
 
+# class MyInt(int):
+#    def is_valid_tag(self) -> bool:
+#        return (MIN_TAG_VALUE <= self <= RESERVED_TAG_VALUE_START) or\
+#               (RESERVED_TAG_VALUE_END + 1 <= self <= MAX_TAG_VALUE + 1)
 
-class MyInt(int):
-    def is_valid_tag(self) -> bool:
-        return (MIN_TAG_VALUE <= self <= RESERVED_TAG_VALUE_START) or\
-               (RESERVED_TAG_VALUE_END + 1 <= self <= MAX_TAG_VALUE + 1)
-
-
-builtins.int = MyInt
+# builtins.int = MyInt

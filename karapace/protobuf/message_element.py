@@ -14,14 +14,14 @@ class MessageElement(TypeElement):
         self,
         location: Location,
         name: str,
-        documentation: str,
-        nested_types: list,
-        options: list,
-        reserveds: list,
-        fields: list,
-        one_ofs: list,
-        extensions: list,
-        groups: list,
+        documentation: str = None,
+        nested_types: list = None,
+        options: list = None,
+        reserveds: list = None,
+        fields: list = None,
+        one_ofs: list = None,
+        extensions: list = None,
+        groups: list = None,
     ):
         self.location = location
         self.name = name

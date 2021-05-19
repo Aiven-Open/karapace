@@ -21,7 +21,7 @@ class ExtendElement:
         if self.fields:
             result.append("\n")
         for field in self.fields:
-            append_indented(result, field.to_schema_declaration())
+            append_indented(result, field.to_schema())
 
         result.append("}\n")
         return result

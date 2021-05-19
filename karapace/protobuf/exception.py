@@ -12,6 +12,12 @@ class IllegalStateException(Exception):
         super().__init__(self.message)
 
 
+class IllegalArgumentException(Exception):
+    def __init__(self, message="IllegalArgumentException"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class Error(Exception):
     """Base class for errors in this module."""
 

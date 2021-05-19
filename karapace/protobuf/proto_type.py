@@ -26,42 +26,42 @@ class ProtoType:
     @property
     def simple_name(self) -> str:
         dot = self.string.rfind(".")
-        return self.string[dot + 1]
+        return self.string[dot + 1:]
 
     @classmethod
     def static_init(cls):
-        cls.BOOL = ProtoType(True, "bool")
-        cls.BYTES = ProtoType(True, "bytes")
-        cls.DOUBLE = ProtoType(True, "double")
-        cls.FLOAT = ProtoType(True, "float")
-        cls.FIXED32 = ProtoType(True, "fixed32")
-        cls.FIXED64 = ProtoType(True, "fixed64")
-        cls.INT32 = ProtoType(True, "int32")
-        cls.INT64 = ProtoType(True, "int64")
-        cls.SFIXED32 = ProtoType(True, "sfixed32")
-        cls.SFIXED64 = ProtoType(True, "sfixed64")
-        cls.SINT32 = ProtoType(True, "sint32")
-        cls.SINT64 = ProtoType(True, "sint64")
-        cls.STRING = ProtoType(True, "string")
-        cls.UINT32 = ProtoType(True, "uint32")
-        cls.UINT64 = ProtoType(True, "uint64")
-        cls.ANY = ProtoType(False, "google.protobuf.Any")
-        cls.DURATION = ProtoType(False, "google.protobuf.Duration")
-        cls.TIMESTAMP = ProtoType(False, "google.protobuf.Timestamp")
-        cls.EMPTY = ProtoType(False, "google.protobuf.Empty")
-        cls.STRUCT_MAP = ProtoType(False, "google.protobuf.Struct")
-        cls.STRUCT_VALUE = ProtoType(False, "google.protobuf.Value")
-        cls.STRUCT_NULL = ProtoType(False, "google.protobuf.NullValue")
-        cls.STRUCT_LIST = ProtoType(False, "google.protobuf.ListValue")
-        cls.DOUBLE_VALUE = ProtoType(False, "google.protobuf.DoubleValue")
-        cls.FLOAT_VALUE = ProtoType(False, "google.protobuf.FloatValue")
-        cls.INT64_VALUE = ProtoType(False, "google.protobuf.Int64Value")
-        cls.UINT64_VALUE = ProtoType(False, "google.protobuf.UInt64Value")
-        cls.INT32_VALUE = ProtoType(False, "google.protobuf.Int32Value")
-        cls.UINT32_VALUE = ProtoType(False, "google.protobuf.UInt32Value")
-        cls.BOOL_VALUE = ProtoType(False, "google.protobuf.BoolValue")
-        cls.STRING_VALUE = ProtoType(False, "google.protobuf.StringValue")
-        cls.BYTES_VALUE = ProtoType(False, "google.protobuf.BytesValue")
+        cls.BOOL = cls(True, "bool")
+        cls.BYTES = cls(True, "bytes")
+        cls.DOUBLE = cls(True, "double")
+        cls.FLOAT = cls(True, "float")
+        cls.FIXED32 = cls(True, "fixed32")
+        cls.FIXED64 = cls(True, "fixed64")
+        cls.INT32 = cls(True, "int32")
+        cls.INT64 = cls(True, "int64")
+        cls.SFIXED32 = cls(True, "sfixed32")
+        cls.SFIXED64 = cls(True, "sfixed64")
+        cls.SINT32 = cls(True, "sint32")
+        cls.SINT64 = cls(True, "sint64")
+        cls.STRING = cls(True, "string")
+        cls.UINT32 = cls(True, "uint32")
+        cls.UINT64 = cls(True, "uint64")
+        cls.ANY = cls(False, "google.protobuf.Any")
+        cls.DURATION = cls(False, "google.protobuf.Duration")
+        cls.TIMESTAMP = cls(False, "google.protobuf.Timestamp")
+        cls.EMPTY = cls(False, "google.protobuf.Empty")
+        cls.STRUCT_MAP = cls(False, "google.protobuf.Struct")
+        cls.STRUCT_VALUE = cls(False, "google.protobuf.Value")
+        cls.STRUCT_NULL = cls(False, "google.protobuf.NullValue")
+        cls.STRUCT_LIST = cls(False, "google.protobuf.ListValue")
+        cls.DOUBLE_VALUE = cls(False, "google.protobuf.DoubleValue")
+        cls.FLOAT_VALUE = cls(False, "google.protobuf.FloatValue")
+        cls.INT64_VALUE = cls(False, "google.protobuf.Int64Value")
+        cls.UINT64_VALUE = cls(False, "google.protobuf.UInt64Value")
+        cls.INT32_VALUE = cls(False, "google.protobuf.Int32Value")
+        cls.UINT32_VALUE = cls(False, "google.protobuf.UInt32Value")
+        cls.BOOL_VALUE = cls(False, "google.protobuf.BoolValue")
+        cls.STRING_VALUE = cls(False, "google.protobuf.StringValue")
+        cls.BYTES_VALUE = cls(False, "google.protobuf.BytesValue")
 
         cls.SCALAR_TYPES_ = [
             cls.BOOL, cls.BYTES, cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32,
@@ -80,7 +80,7 @@ class ProtoType:
 
     def __init__(self, is_scalar: bool, string: str, key_type=None, value_type=None):
         """ Creates a scalar or message type.  """
-        if key_type is None and value_type is None:
+        if not key_type and not value_type:
             self.is_scalar = is_scalar
             self.string = string
             self.is_map = False
@@ -95,7 +95,7 @@ class ProtoType:
                 self.value_type = value_type
             else:
                 # TODO: must be IllegalArgumentException
-                raise Exception("map key must be non-byte, non-floating point scalar: $key_type")
+                raise Exception(f"map key must be non-byte, non-floating point scalar: {key_type}")
 
     def to_kind(self) -> OptionElement.Kind:
         return {

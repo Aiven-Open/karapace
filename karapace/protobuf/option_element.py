@@ -24,7 +24,7 @@ class OptionElement:
     """ If true, this [OptionElement] is a custom option. """
     is_parenthesized: bool
 
-    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool):
+    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None):
         self.name = name
         self.kind = kind
         self.value = value
@@ -32,15 +32,18 @@ class OptionElement:
         self.formattedName = f"({self.name})" if is_parenthesized else self.name
 
     def to_schema(self) -> str:
-        aline = {
-            self.kind == self.Kind.STRING: f"{self.formattedName} = \"{self.value}\"",
-            self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]: f"{self.formattedName} = {self.value}",
-            self.kind == self.Kind.OPTION: f"{self.formattedName}.{self.value.to_schema()}",
-            self.kind == self.Kind.MAP: list([f"{self.formattedName} = {{\n",
-                                              self.format_option_map(self.value), "}"]),
-            self.kind == self.Kind.LIST: list([f"{self.formattedName} = ",
-                                               self.append_options(self.value)])
-        }[True]
+        aline = None
+        if self.kind == self.Kind.STRING:
+            aline = f"{self.formattedName} = \"{self.value}\""
+        elif self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]:
+            aline = f"{self.formattedName} = {self.value}"
+        elif self.kind == self.Kind.OPTION:
+            aline = f"{self.formattedName}.{self.value.to_schema()}"
+        elif self.kind == self.Kind.MAP:
+            aline = [f"{self.formattedName} = {{\n", self.format_option_map(self.value), "}"]
+        elif self.kind == self.Kind.LIST:
+            aline = [f"{self.formattedName} = ", self.append_options(self.value)]
+
         if isinstance(aline, list):
             return "".join(aline)
         return aline
@@ -60,7 +63,7 @@ class OptionElement:
 
         data.append("[\n")
         for i in range(0, count):
-            if i < count - 1:
+            if i < count:
                 endl = ","
             else:
                 endl = ""

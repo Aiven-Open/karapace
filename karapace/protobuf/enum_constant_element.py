@@ -7,7 +7,7 @@ class EnumConstantElement:
     name: str
     tag: int
     documentation: str
-    options: list = list()
+    options: list = []
 
     def __init__(
         self,

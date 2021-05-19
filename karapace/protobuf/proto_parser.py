@@ -2,7 +2,7 @@ from builtins import str
 from enum import Enum
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
-from karapace.protobuf.exception import error
+from karapace.protobuf.exception import error, IllegalArgumentException
 from karapace.protobuf.extend_element import ExtendElement
 from karapace.protobuf.extensions_element import ExtensionsElement
 from karapace.protobuf.field import Field
@@ -67,18 +67,31 @@ class Context(Enum):
 class ProtoParser:
     location: Location
     reader: SyntaxReader
-    public_imports: list
-    imports: list
-    nested_types: list
-    services: list
-    extends_list: list
-    options: list
+    public_imports: list = []
+    imports: list = []
+    nested_types: list = []
+    services: list = []
+    extends_list: list = []
+    options: list = []
     declaration_count: int = 0
     syntax: Syntax = None
     package_name: str = None
     prefix: str = ""
+    data: str
 
     def __init__(self, location: Location, data: str):
+        self.location = location
+        self.imports = []
+        self.nested_types = []
+        self.services = []
+        self.extends_list = []
+        self.options = []
+        self.declaration_count = 0
+        self.syntax = None
+        self.package_name = None
+        self.prefix = ""
+        self.data = data
+        self.public_imports = []
         self.reader = SyntaxReader(data, location)
 
     def read_proto_file(self) -> ProtoFileElement:
@@ -91,27 +104,28 @@ class ProtoParser:
                 )
             declaration = self.read_declaration(documentation, Context.FILE)
             if isinstance(declaration, TypeElement):
-                # TODO: must add check for exception
+                # TODO: add check for exception?
                 duplicate = next((x for x in iter(self.nested_types) if x.name == declaration.name), None)
                 if duplicate:
                     error(f"{declaration.name} ({declaration.location}) is already defined at {duplicate.location}")
                 self.nested_types.append(declaration)
 
-            if isinstance(declaration, ServiceElement):
+            elif isinstance(declaration, ServiceElement):
                 duplicate = next((x for x in iter(self.services) if x.name == declaration.name), None)
                 if duplicate:
                     error(f"{declaration.name} ({declaration.location}) is already defined at {duplicate.location}")
                 self.services.append(declaration)
 
-            if isinstance(declaration, OptionElement):
+            elif isinstance(declaration, OptionElement):
                 self.options.append(declaration)
 
-            if isinstance(declaration, ExtendElement):
+            elif isinstance(declaration, ExtendElement):
                 self.extends_list.append(declaration)
 
     def read_declaration(self, documentation: str, context: Context):
-        self.declaration_count += 1
+
         index = self.declaration_count
+        self.declaration_count += 1
 
         # Skip unnecessary semicolons, occasionally used after a nested message declaration.
         if self.reader.peek_char(';'):
@@ -146,10 +160,11 @@ class ProtoParser:
 
             syntax_string = self.reader.read_quoted_string()
             try:
-                Syntax(syntax_string)
-            except ValueError as e:
+                self.syntax = Syntax(syntax_string)
+            except IllegalArgumentException as e:
                 self.reader.unexpected(str(e), location)
             self.reader.require(";")
+            result = None
         elif label == "option":
             result = OptionReader(self.reader).read_option("=")
             self.reader.require(";")
@@ -174,22 +189,19 @@ class ProtoParser:
         elif context == Context.ENUM:
             result = self.read_enum_constant(documentation, location, label)
         else:
-            result = None
-
-        if not result:
-            self.reader.unexpected("unexpected label: $label", location)
+            self.reader.unexpected(f"unexpected label: {label}", location)
         return result
 
     def read_message(self, location: Location, documentation: str) -> MessageElement:
         """ Reads a message declaration. """
         name: str = self.reader.read_name()
-        fields: list = list()
-        one_ofs: list = list()
-        nested_types: list = list()
-        extensions: list = list()
-        options: list = list()
-        reserveds: list = list()
-        groups: list = list()
+        fields: list = []
+        one_ofs: list = []
+        nested_types: list = []
+        extensions: list = []
+        options: list = []
+        reserveds: list = []
+        groups: list = []
 
         previous_prefix = self.prefix
         self.prefix = f"{self.prefix}{name}."
@@ -245,7 +257,7 @@ class ProtoParser:
                 break
 
             declared = self.read_declaration(nested_documentation, Context.EXTEND)
-            if declared is FieldElement:
+            if isinstance(declared, FieldElement):
                 fields.append(declared)
             # TODO: add else clause to catch unexpected declarations.
             else:
@@ -269,9 +281,9 @@ class ProtoParser:
             if self.reader.peek_char("}"):
                 break
             declared = self.read_declaration(rpc_documentation, Context.SERVICE)
-            if declared is RpcElement:
+            if isinstance(declared, RpcElement):
                 rpcs.append(declared)
-            elif declared is OptionElement:
+            elif isinstance(declared, OptionElement):
                 options.append(declared)
             # TODO: add else clause to catch unexpected declarations.
             else:
@@ -298,14 +310,13 @@ class ProtoParser:
                 break
             declared = self.read_declaration(value_documentation, Context.ENUM)
 
-        if declared is EnumConstantElement:
-            constants.append(declared)
-        elif declared is OptionElement:
-            options.append(declared)
-        # TODO: add else clause to catch unexpected declarations.
-        else:
-            pass
-
+            if isinstance(declared, EnumConstantElement):
+                constants.append(declared)
+            elif isinstance(declared, OptionElement):
+                options.append(declared)
+            # TODO: add else clause to catch unexpected declarations.
+            else:
+                pass
         return EnumElement(location, name, documentation, options, constants)
 
     def read_field(self, documentation: str, location: Location, word: str):
@@ -333,10 +344,8 @@ class ProtoParser:
             label = None
             atype = self.reader.read_data_type_by_name(word)
 
-        self.reader.expect_with_location(
-            not atype.startswith("map<") or not label, location, "'map' atype cannot have label"
-        )
-        if atype == "group ":
+        self.reader.expect_with_location(not atype.startswith("map<") or not label, location, "'map' type cannot have label")
+        if atype == "group":
             return self.read_group(location, documentation, label)
         return self.read_field_with_label(location, documentation, label, atype)
 
@@ -439,7 +448,7 @@ class ProtoParser:
             field_location = self.reader.location()
             field_label = self.reader.read_word()
             field = self.read_field(nested_documentation, field_location, field_label)
-            if field is FieldElement:
+            if isinstance(field, FieldElement):
                 fields.append(field)
             else:
                 self.reader.unexpected(f"expected field declaration, was {field}")
@@ -565,7 +574,7 @@ class ProtoParser:
                     break
 
             declared = self.read_declaration(rpc_documentation, Context.RPC)
-            if declared is OptionElement:
+            if isinstance(declared, OptionElement):
                 options.append(declared)
             # TODO: add else clause to catch unexpected declarations.
             else:

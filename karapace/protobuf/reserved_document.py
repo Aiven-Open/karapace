@@ -24,11 +24,11 @@ class ReservedElement:
             if index > 0:
                 result.append(", ")
 
-            if value is str:
+            if isinstance(value, str):
                 result.append(f"\"{value}\"")
-            elif value is int:
+            elif isinstance(value, int):
                 result.append(f"{value}")
-            elif value is IntRange:
+            elif isinstance(value, IntRange):
                 last_index = len(value) - 1
                 result.append(f"{value[0]} to {value[last_index]}")
             else:

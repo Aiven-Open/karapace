@@ -1,6 +1,29 @@
+from karapace.protobuf.exception import IllegalArgumentException, IllegalStateException
+
+
 def check(q: bool, message: str):
     if not q:
         raise IllegalStateException(message)
+
+
+def trim_margin(s: str) -> str:
+    lines = s.split("\n")
+    new_lines = list()
+
+    for line in lines:
+        idx = line.find("|")
+        if idx < 0:
+            new_lines.append(line)
+        else:
+            new_lines.append(line[idx + 1:].rstrip())
+
+    if not new_lines[0].strip():
+        del new_lines[0]
+
+    if not new_lines[-1].strip():
+        del new_lines[-1]
+
+    return "\n".join(new_lines)
 
 
 def require(q: bool, message: str):
@@ -13,20 +36,8 @@ def options_to_list(a: list) -> list:
     return a
 
 
-class IllegalStateException(Exception):
-    def __init__(self, message="IllegalStateException"):
-        self.message = message
-        super().__init__(self.message)
-
-
 class IntRange(list):
     pass
-
-
-class IllegalArgumentException(Exception):
-    def __init__(self, message="IllegalArgumentException"):
-        self.message = message
-        super().__init__(self.message)
 
 
 class String(str):

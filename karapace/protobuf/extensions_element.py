@@ -23,10 +23,10 @@ class ExtensionsElement:
             value = self.values[index]
             if index > 0:
                 result.append(", ")
-            if value is int:
+            if isinstance(value, int):
                 result.append(value)
             # TODO: maybe replace Kotlin IntRange by list?
-            elif value is IntRange:
+            elif isinstance(value, IntRange):
                 result.append(f"{value[0]} to ")
                 last_value = value[len(value) - 1]
                 if last_value < MAX_TAG_VALUE:

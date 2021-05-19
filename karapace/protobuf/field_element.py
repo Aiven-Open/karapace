@@ -3,7 +3,6 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.utils import append_documentation, append_options
-from typing import Union
 
 
 class FieldElement:
@@ -15,11 +14,19 @@ class FieldElement:
     json_name: str = None
     tag: int = 0
     documentation: str = ""
-    options: list = list()
+    options: list = []
 
     def __init__(
-        self, location: Location, label: Union[None, Field.Label], element_type: str, name: str, default_value: str,
-        json_name: str, tag: int, documentation: str, options: list
+        self,
+        location: Location,
+        label: Field.Label = None,
+        element_type: str = None,
+        name: str = None,
+        default_value: str = None,
+        json_name: str = None,
+        tag: int = None,
+        documentation: str = None,
+        options: list = None
     ):
         self.location = location
         self.label = label
@@ -29,14 +36,17 @@ class FieldElement:
         self.json_name = json_name
         self.tag = tag
         self.documentation = documentation
-        self.options = options
+        if not options:
+            self.options = []
+        else:
+            self.options = options
 
     def to_schema(self):
         result: list = list()
         append_documentation(result, self.documentation)
 
         if self.label:
-            result.append(f"{self.label.name.to_english_lower_case()} ")
+            result.append(f"{self.label.name.lower()} ")
 
         result.append(f"{self.element_type} {self.name} = {self.tag}")
 
@@ -44,7 +54,9 @@ class FieldElement:
         if options_with_default:
             result.append(' ')
             append_options(result, options_with_default)
-            result.append(";\n")
+        result.append(";\n")
+
+        return "".join(result)
 
     def options_with_special_values(self) -> list:
         """ Both `default` and `json_name` are defined in the schema like options but they are actually

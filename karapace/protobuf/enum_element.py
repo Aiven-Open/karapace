@@ -4,7 +4,7 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class EnumElement(TypeElement):
-    constants: list = list()
+    constants: list = []
 
     def __init__(self, location: Location, name: str, documentation: str, options: list, constants: list):
         self.location = location
@@ -13,7 +13,7 @@ class EnumElement(TypeElement):
         self.options = options
         self.constants = constants
         # Enums do not allow nested type declarations.
-        self.nested_types = list()
+        self.nested_types = []
 
     def to_schema(self) -> str:
         result: list = list()

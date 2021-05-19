@@ -9,7 +9,7 @@ class KindAndValue:
 
     def __init__(self, kind: OptionElement.Kind, value: object):
         self.kind = kind
-        self.valuer = value
+        self.value = value
 
 
 class OptionReader:
@@ -104,7 +104,7 @@ class OptionReader:
             option = self.read_option(key_value_separator)
             name = option.name
             value = option.value
-            if value is OptionElement:
+            if isinstance(value, OptionElement):
                 nested = result[name]
                 if not nested:
                     nested = dict()

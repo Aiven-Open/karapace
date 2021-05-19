@@ -37,10 +37,10 @@ class Location:
 
         if self.line != -1:
             result += ":"
-            result += self.line
+            result += str(self.line)
             if self.column != -1:
                 result += ":"
-                result += self.column
+                result += str(self.column)
 
         return result
 
@@ -55,7 +55,6 @@ class Location:
             base: str = args[0]
             if base.endswith("/"):
                 base = base[:-1]
-                result = Location(base, path)
-            else:
-                raise Exception()
+            result = Location(base, path)
+
         return result

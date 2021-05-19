@@ -1,13 +1,13 @@
-from karapace.protobuf.exception import IllegalStateException, ProtobufParserRuntimeException
+from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
 
 
 def hex_digit(c: str) -> int:
-    if ord(c) in range(ord('0'), ord('9')):
+    if ord(c) in range(ord('0'), ord('9') + 1):
         return ord(c) - ord('0')
-    if ord(c) in range(ord('a'), ord('f')):
+    if ord(c) in range(ord('a'), ord('f') + 1):
         return ord('a') + 10
-    if ord(c) in range(ord('A'), ord('F')):
+    if ord(c) in range(ord('A'), ord('F') + 1):
         return ord(c) - ord('A') + 10
     return -1
 
@@ -27,6 +27,9 @@ class SyntaxReader:
     line_start: int = 0
 
     def __init__(self, data: str, location: Location):
+        self.pos = 0
+        self.line = 0
+        self.line_start = 0
         self.data = data
         self._location = location
 
@@ -53,6 +56,7 @@ class SyntaxReader:
             if self.peek_char() == ch:
                 self.pos += 1
                 return True
+            return False
         self.skip_whitespace(True)
         self.expect(self.pos < len(self.data), "unexpected end of file")
         return self.data[self.pos]
@@ -77,8 +81,8 @@ class SyntaxReader:
         result: list = []
 
         while self.pos < len(self.data):
-            self.pos += 1
             c = self.data[self.pos]
+            self.pos += 1
             if c == start_quote:
                 if self.peek_char() == '"' or self.peek_char() == "'":
                     # Adjacent strings are concatenated.  Consume new quote and continue reading.
@@ -87,9 +91,8 @@ class SyntaxReader:
                 return "".join(result)
             if c == "\\":
                 self.expect(self.pos < len(self.data), "unexpected end of file")
-                self.pos += 1
                 c = self.data[self.pos]
-
+                self.pos += 1
                 d: str = {
                     'a': "\u0007",  # Alert.
                     'b': "\b",  # Backspace.
@@ -104,7 +107,7 @@ class SyntaxReader:
                 else:
                     if c in ['x', 'X']:
                         c = self.read_numeric_escape(16, 2)
-                    elif ord(c) in range(ord('0'), ord('7')):
+                    elif ord(c) in range(ord('0'), ord('7') + 1):
                         self.pos -= 1
                         c = self.read_numeric_escape(8, 3)
 
@@ -172,14 +175,14 @@ class SyntaxReader:
         start = self.pos
         while self.pos < len(self.data):
             c = self.data[self.pos]
-            if ord(c) in range(ord('a'), ord('z')) \
-                    or ord(c) in range(ord('A'), ord('Z')) \
-                    or ord(c) in range(ord('0'), ord('9')) or c in ['_', '-', '.']:
+            if ord(c) in range(ord('a'), ord('z') + 1) \
+                    or ord(c) in range(ord('A'), ord('Z') + 1) \
+                    or ord(c) in range(ord('0'), ord('9') + 1) or c in ['_', '-', '.']:
                 self.pos += 1
             else:
                 break
         self.expect(start < self.pos, "expected a word")
-        return self.data[start:self.pos - start]
+        return self.data[start:self.pos]
 
     def read_int(self) -> int:
         """ Reads an integer and returns it. """
@@ -210,7 +213,7 @@ class SyntaxReader:
             if result:
                 result = f"{result}\n{comment}"
             else:
-                result = "$result\n$comment"
+                result = f"{comment}"
 
     def read_comment(self) -> str:
         """ Reads a comment and returns its body. """
@@ -220,8 +223,8 @@ class SyntaxReader:
         self.pos += 1
         tval = -1
         if self.pos < len(self.data):
-            self.pos += 1
             tval = ord(self.data[self.pos])
+            self.pos += 1
         result: str = ""
         if tval == ord('*'):
             buffer: list = list()
@@ -254,12 +257,12 @@ class SyntaxReader:
                 self.pos += 1  # Skip a single leading space, if present.
             start = self.pos
             while self.pos < len(self.data):
-                self.pos += 1
                 c = self.data[self.pos]
+                self.pos += 1
                 if c == "\n":
                     self.newline()
                     break
-            result = self.data[start:self.pos - 1 - start]
+            result = self.data[start:self.pos - 1]
         if not result:
             self.unexpected("unexpected '/'")
         return result
@@ -269,15 +272,15 @@ class SyntaxReader:
         while self.pos < len(self.data):
             if self.data[self.pos] in [' ', "\t"]:
                 self.pos += 1
-
-            if self.data[self.pos] == '/':
+            elif self.data[self.pos] == '/':
                 self.pos += 1
                 break
-            # Not a whitespace or comment-starting character. Return original documentation.
-            return documentation
+            else:
+                # Not a whitespace or comment-starting character. Return original documentation.
+                return documentation
         bval = (self.pos < len(self.data) and (self.data[self.pos] == '/' or self.data[self.pos] == '*'))
-        # Backtrack to start of comment.
         if not bval:
+            # Backtrack to start of comment.
             self.pos -= 1
         self.expect(bval, "expected '//' or '/*'")
         is_star = self.data[self.pos] == '*'
@@ -302,8 +305,8 @@ class SyntaxReader:
                 self.pos += 1
             # Ensure nothing follows a trailing star comment.
             while self.pos < len(self.data):
-                self.pos += 1
                 c = self.data[self.pos]
+                self.pos += 1
                 if c == "\n":
                     self.newline()
                     break
@@ -316,12 +319,13 @@ class SyntaxReader:
                 if self.pos == len(self.data):
                     end = self.pos - 1
                     break
-                self.pos += 1
                 c = self.data[self.pos]
+                self.pos += 1
                 if c == "\n":
                     self.newline()
                     end = self.pos - 2  # Account for stepping past the newline.
                     break
+
         # Remove trailing whitespace.
         while end > start and (self.data[end] == " " or self.data[end] == "\t"):
             end -= 1
@@ -329,8 +333,8 @@ class SyntaxReader:
         if end == start:
             return documentation
 
-        trailing_documentation = self.data[start:end - start + 1]
-        if not documentation.strip:
+        trailing_documentation = self.data[start:end + 1]
+        if not documentation.strip():
             return trailing_documentation
         return f"{documentation}\n{trailing_documentation}"
 
@@ -344,10 +348,10 @@ class SyntaxReader:
                 self.pos += 1
                 if c == "\n":
                     self.newline()
-            if skip_comments and c == "/":
+            elif skip_comments and c == "/":
                 self.read_comment()
-
-            return
+            else:
+                return
 
     def newline(self):
         """ Call this every time a '\n' is encountered. """
@@ -369,4 +373,5 @@ class SyntaxReader:
     def unexpected(self, message: str, location: Location = None):
         if not location:
             location = self.location()
-        raise ProtobufParserRuntimeException(f"Syntax error in {str(location)}: {message}")
+        w = f"Syntax error in {str(location)}: {message}"
+        raise IllegalStateException(w)

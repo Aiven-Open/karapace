@@ -10,3 +10,11 @@ class TypeElement:
 
     def to_schema(self) -> str:
         pass
+
+    def __repr__(self):
+        mytype = type(self)
+        return f"{mytype}({self.to_schema()})"
+
+    def __str__(self):
+        mytype = type(self)
+        return f"{mytype}({self.to_schema()})"
