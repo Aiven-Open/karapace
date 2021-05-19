@@ -14,16 +14,16 @@ class ProtoFileElement:
     options: list
 
     def __init__(
-            self,
-            location: Location,
-            package_name: str = None,
-            syntax: Syntax = None,
-            imports=None,
-            public_imports=None,
-            types=None,
-            services=None,
-            extend_declarations=None,
-            options=None
+        self,
+        location: Location,
+        package_name: str = None,
+        syntax: Syntax = None,
+        imports=None,
+        public_imports=None,
+        types=None,
+        services=None,
+        extend_declarations=None,
+        options=None
     ):
 
         if not options:
