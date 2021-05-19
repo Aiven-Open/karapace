@@ -181,7 +181,7 @@ class KafkaRest(KarapaceBase):
                 p = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
-                    ssl_context=None if self.config["security_protocol"] != "SSL" else create_ssl_context(self.config),
+                    ssl_context=None if self.config["security_protocol"] == "PLAINTEXT" else create_ssl_context(self.config),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     loop=self.loop,
                     acks=acks,
@@ -305,6 +305,9 @@ class KafkaRest(KarapaceBase):
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
+                    sasl_mechanism=self.config["sasl_mechanism"],
+                    sasl_plain_username=self.config["sasl_plain_username"],
+                    sasl_plain_password=self.config["sasl_plain_password"],
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],

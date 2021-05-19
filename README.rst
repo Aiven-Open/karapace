@@ -27,8 +27,13 @@ Karapace rest provides a RESTful interface to your Kafka cluster, allowing you t
 tasks such as producing and consuming messages and perform administrative cluster work,
 all the while using the language of the WEB.
 
+Setup
+=====
+
+Karapace is a Python project, and requires Kafka for its backend storage. There is also a `Docker setup for development`_.
+
 Requirements
-============
+------------
 
 Karapace requires Python 3.6 or later and some additional components in
 order to operate:
@@ -58,7 +63,7 @@ should work on other platforms that provide the required modules.
 
 
 Building
-========
+--------
 
 To build an installation package for your distribution, go to the root
 directory of a Karapace Git checkout and run::
@@ -68,7 +73,7 @@ directory of a Karapace Git checkout and run::
 This will produce an egg file into a dist directory within the same folder.
 
 Installation
-============
+------------
 
 Python/Other::
 
@@ -83,8 +88,8 @@ and eventually after the setup section, you can just run::
 
   systemctl start karapace.service
 
-Setup
-=====
+Configuration
+-------------
 
 After this you need to create a suitable JSON configuration file for your
 installation.  Keys to take special care are the ones needed to configure
@@ -117,6 +122,76 @@ example configuration file to give you an idea what you need to change::
       "topic_name": "_schemas"
   }
 
+Local Development
+-----------------
+
+Currently Karapace runs on the Python major versions 3.7, 3.8 and 3.9. You can use any of these for development.
+Naturally, independently of Python version you use, the code needs to run on all the supported versions.
+The CI pipeline in GitHub actions will run the tests on all these Python versions to ensure this.
+
+To run Karapace locally, or develop it, first install the dependencies.
+If you only need the runtime, i.e. you're not running tests or committing to Git,
+it's enough to install the runtime dependencies::
+
+    # Runtime dependencies
+    python3 -m pip install -r requirements.txt
+
+If you are developing and e.g. running tests, install the development dependencies.
+This will install also the runtime dependencies::
+
+    # Development dependencies, contains runtime dependencies
+    python3 -m pip install -r requirements-dev.txt
+
+To run the local/current version of the code, set up the configuration file in ``karapace.config.json`` to include connection details for Kafka and any other config you want to change, then run::
+
+    python3 -m karapace.karapace_all karapace.config.json
+
+There are two flavors of tests, unit tests and integration tests. The unit tests are standalone,
+i.e. can be run without anything outside of the test running. The integration tests in turn need
+a running ZooKeeper and Kafka, but take internally care of starting and stopping them.
+
+The tests can be run from the command line using :code:`make`::
+
+    # Running unit tests
+    make unittest
+
+    # Running integration tests
+    make integrationtest
+
+To run the tests in an IDE, you need once download and untar Kafka
+by :code:`make fetch-kafka`. Additionally ensure that the working directory
+when running tests, is set to Git root, e.g. in PyCharm you can
+create a configuration template with the correct working directory.
+
+The integration tests are run in parallel e.g. in the CI-pipeline.
+The tests need to be engineered taking this in mind.
+
+There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_.
+Your code changes need to pass these tests. To run the checks locally,
+you can run them manually::
+
+    # Runs all coding style checks
+    make pre-commit
+
+Alternatively,you can use `pre-commit <https://pre-commit.com/>`_ to automatically run the checks on commit time::
+
+    pre-commit install
+
+Docker setup for development
+----------------------------
+
+To get you up and running with a development copy of Karapace, a docker setup
+is available. You can find everything you need for this in the ``container/``
+folder.
+
+Get the containers running::
+
+    docker-compose up
+
+Then you should be able to reach two sets of endpoints:
+
+* Karapace schema registry on http://localhost:8081
+* Karapace REST on http://localhost:8082
 
 Quickstart
 ==========

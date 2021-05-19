@@ -20,9 +20,9 @@ from tests.schemas.json_schemas import (
     MINIMUM_INCREASED_NUMBER_SCHEMA, MINIMUM_INTEGER_SCHEMA, MINIMUM_NUMBER_SCHEMA, NON_OBJECT_SCHEMAS, NOT_OF_EMPTY_SCHEMA,
     NOT_OF_TRUE_SCHEMA, NUMBER_SCHEMA, OBJECT_SCHEMA, OBJECT_SCHEMAS, ONEOF_ARRAY_A_DINT_B_NUM_SCHEMA,
     ONEOF_ARRAY_B_NUM_C_DINT_OPEN_SCHEMA, ONEOF_ARRAY_B_NUM_C_INT_SCHEMA, ONEOF_INT_SCHEMA, ONEOF_NUMBER_SCHEMA,
-    ONEOF_STRING_INT_SCHEMA, ONEOF_STRING_SCHEMA, PROPERTY_ASTAR_OBJECT_SCHEMA, STRING_SCHEMA, TRUE_SCHEMA,
-    TUPLE_OF_INT_INT_OPEN_SCHEMA, TUPLE_OF_INT_INT_SCHEMA, TUPLE_OF_INT_OPEN_SCHEMA, TUPLE_OF_INT_SCHEMA,
-    TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
+    ONEOF_STRING_INT_SCHEMA, ONEOF_STRING_SCHEMA, PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA, PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+    STRING_SCHEMA, TRUE_SCHEMA, TUPLE_OF_INT_INT_OPEN_SCHEMA, TUPLE_OF_INT_INT_SCHEMA, TUPLE_OF_INT_OPEN_SCHEMA,
+    TUPLE_OF_INT_SCHEMA, TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
 )
 from tests.utils import new_random_name
 
@@ -1019,20 +1019,21 @@ async def test_schemaregistry_schema_broadenning_attributes_is_compatible(regist
     )
 
 
-@pytest.mark.skip("not implemented yet")
-async def test_schemaregistry_property_name(registry_async_client: Client):
+async def test_schemaregistry_pattern_properties(registry_async_client: Client):
     await schemas_are_backward_compatible(
         reader=OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         client=registry_async_client,
     )
-    await not_schemas_are_backward_compatible(
-        reader=A_OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
-        client=registry_async_client,
-    )
+    # In backward compatibility mode it is allowed to delete fields
     await schemas_are_backward_compatible(
-        reader=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        reader=A_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+    # In backward compatibility mode it is allowed to add optional fields
+    await schemas_are_backward_compatible(
+        reader=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         writer=A_OBJECT_SCHEMA,
         client=registry_async_client,
     )
@@ -1042,7 +1043,7 @@ async def test_schemaregistry_property_name(registry_async_client: Client):
     # invalid
     await not_schemas_are_backward_compatible(
         reader=A_INT_OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         client=registry_async_client,
     )
 
@@ -1050,7 +1051,67 @@ async def test_schemaregistry_property_name(registry_async_client: Client):
     # - newer only accepts properties with match regex `a*`
     await not_schemas_are_backward_compatible(
         reader=B_INT_OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+
+async def test_schemaregistry_object_properties(registry_async_client: Client):
+    await not_schemas_are_backward_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+    await schemas_are_backward_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+    await not_schemas_are_backward_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+    await not_schemas_are_backward_compatible(
+        reader=B_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+
+async def test_schemaregistry_property_names(registry_async_client: Client):
+    await schemas_are_backward_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+    await not_schemas_are_backward_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+    await schemas_are_backward_compatible(
+        reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+    # - older accept any value for `a`
+    # - newer requires it to be an `int`, therefore the other values became
+    # invalid
+    await not_schemas_are_backward_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        client=registry_async_client,
+    )
+
+    # - older has property `b`
+    # - newer only accepts properties with match regex `a*`
+    await schemas_are_backward_compatible(
+        reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        writer=B_INT_OBJECT_SCHEMA,
         client=registry_async_client,
     )
 
