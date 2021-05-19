@@ -420,13 +420,10 @@ Configuration keys
        coordination among the Karapace instances.
    * - ``client_id``
      - ``sr-1``
-     - The client_id name by which the Karapace will use when coordinating with
-       other Karapaces who is master.  The one with the name that sorts as the
+     - The ``client_id`` name by which the Karapace will use when coordinating with
+       other Karapaces who is master. The one with the name that sorts as the
        first alphabetically is chosen as master from among the services with
        master_eligibility set to true.
-   * - ``consumer_enable_autocommit``
-     - ``True``
-     - Enable auto commit on rest proxy consumers
    * - ``consumer_enable_autocommit``
      - ``True``
      - Enable auto commit on rest proxy consumers
@@ -445,7 +442,7 @@ Configuration keys
    * - ``master_eligibility``
      - ``true``
      - Should the service instance be considered for promotion to be the master
-       service.  Reason to turn this off would be to have an instances of Karapace
+       service. Reason to turn this off would be to have an instances of Karapace
        running somewhere else for HA purposes but which you wouldn't want to
        automatically promote to master if the primary instances were to become
        unavailable.
@@ -454,11 +451,11 @@ Configuration keys
      - Type of compression to be used by rest proxy producers
    * - ``producer_acks``
      - ``1``
-     - Level of consistency desired by each producer message sent on the rest proxy
-       More on
+     - Level of consistency desired by each producer message sent on the rest proxy.
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
    * - ``producer_linger_ms``
      - ``0``
-     - Time to wait for grouping together requests
+     - Time to wait for grouping together requests.
        More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
    * - ``security_protocol``
      - ``PLAINTEXT``
@@ -471,13 +468,13 @@ Configuration keys
        environment variable ``SENTRY_DSN`` will also enable sentry integration.
    * - ``ssl_cafile``
      - ``/path/to/cafile``
-     - Used when security_protocol is set to SSL, the path to the SSL CA certificate.
+     - Used when ``security_protocol`` is set to SSL, the path to the SSL CA certificate.
    * - ``ssl_certfile``
      - ``/path/to/certfile``
-     - Used when security_protocol is set to SSL, the path to the SSL certfile.
+     - Used when ``security_protocol`` is set to SSL, the path to the SSL certfile.
    * - ``ssl_keyfile``
      - ``/path/to/keyfile``
-     - Used when security_protocol is set to SSL, the path to the SSL keyfile.
+     - Used when ``security_protocol`` is set to SSL, the path to the SSL keyfile.
    * - ``topic_name``
      - ``_schemas``
      - The name of the Kafka topic where to store the schemas.
@@ -485,11 +482,11 @@ Configuration keys
      - ``1``
      - The replication factor to be used with the schema topic.
    * - ``host``
-     - ``"127.0.0.1"``
+     - ``127.0.0.1``
      - Address to bind the Karapace HTTP server to.  Set to an empty string to
        listen to all available addresses.
    * - ``registry_host``
-     - ``"127.0.0.1"``
+     - ``127.0.0.1``
      - Kafka Registry host, used by Kafka Rest for avro related requests.
        If running both in the same process, it should be left to its default value
    * - ``port``
