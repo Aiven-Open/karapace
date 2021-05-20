@@ -72,7 +72,7 @@ class SchemaRegistryClient:
 
     async def post_new_schema(self, subject: str, schema: TypedSchema) -> int:
         if schema.schema_type is SchemaType.PROTOBUF:
-            payload = {"schema": schema.to_json(), "schemaType": schema.schema_type.value}
+            payload = {"schema": str(schema), "schemaType": schema.schema_type.value}
         else:
             payload = {"schema": json_encode(schema.to_json()), "schemaType": schema.schema_type.value}
         result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)

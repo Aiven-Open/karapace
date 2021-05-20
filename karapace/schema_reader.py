@@ -89,8 +89,8 @@ class TypedSchema:
         try:
             return TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
         # TypeError - Raised when the user forgets to encode the schema as a string.
-        except Exception as e:  # FIXME: bare except
-            print("Unexpected error:", sys.exc_info()[0])
+        except Exception as e:  # FIXME: bare exception
+            log.exception("Unexpected error:")
             raise InvalidSchema from e
 
     @staticmethod
@@ -114,12 +114,12 @@ class TypedSchema:
 
     def __str__(self) -> str:
         if isinstance(self.schema, ProtobufSchema):
-            return self.schema.to_json()
+            return str(self.schema)
         return json_encode(self.to_json(), compact=True)
 
     def __repr__(self):
         if isinstance(self.schema, ProtobufSchema):
-            return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
+            return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
         return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
 
     def __eq__(self, other):

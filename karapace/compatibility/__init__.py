@@ -139,11 +139,20 @@ def check_compatibility(
                 writer=old_schema.schema,
             )
         elif compatibility_mode in {CompatibilityModes.FORWARD, CompatibilityModes.FORWARD_TRANSITIVE}:
-            result = check_protobuf_compatibility(reader=old_schema.schema, writer=new_schema.schema)
+            result = check_protobuf_compatibility(
+                reader=old_schema.schema,
+                writer=new_schema.schema,
+            )
 
         elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
-            result = check_protobuf_compatibility(reader=new_schema.schema, writer=old_schema.schema)
-            result = result.merged_with(check_protobuf_compatibility(reader=old_schema.schema, writer=new_schema.schema))
+            result = check_protobuf_compatibility(
+                reader=new_schema.schema,
+                writer=old_schema.schema,
+            )
+            result = result.merged_with(check_protobuf_compatibility(
+                reader=old_schema.schema,
+                writer=new_schema.schema,
+            ))
 
     else:
         result = SchemaCompatibilityResult.incompatible(
