@@ -23,7 +23,6 @@ from typing import Dict
 
 import json
 import logging
-import sys
 import time
 
 log = logging.getLogger(__name__)

@@ -6,3 +6,6 @@ class ProtobufSchema:
 
     def __str__(self) -> str:
         return self.schema
+
+    def to_json(self):
+        return self.schema

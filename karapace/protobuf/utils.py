@@ -2,6 +2,7 @@ def protobuf_encode(a: str) -> str:
     # TODO: PROTOBUF
     return a
 
+
 def append_documentation(data: list, documentation: str):
     if not documentation:
         return
