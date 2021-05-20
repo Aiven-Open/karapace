@@ -425,140 +425,119 @@ main daemon process that should be run under a service manager such as
 Configuration keys
 ==================
 
-``advertised_hostname`` (default ``socket.gethostname()``)
 
-The hostname being advertised to other instances of Karapace that are
-attached to the same Kafka group.  All nodes within the cluster need to have
-their advertised_hostname's set so that they can all reach each other.
+.. list-table::
+   :header-rows: 1
 
-``bootstrap_uri`` (default ``localhost:9092``)
+   * - Parameter
+     - Default Value
+     - Description
+   * - ``advertised_hostname``
+     - ``socket.gethostname()``
+     - The hostname being advertised to other instances of Karapace that are attached to the same Kafka group.  All nodes within the cluster need to have their ``advertised_hostname``'s set so that they can all reach each other.
+   * - ``bootstrap_uri``
+     - ``localhost:9092``
+     - The URI to the Kafka service where to store the schemas and to run
+       coordination among the Karapace instances.
+   * - ``client_id``
+     - ``sr-1``
+     - The ``client_id`` name by which the Karapace will use when coordinating with
+       other Karapaces who is master. The one with the name that sorts as the
+       first alphabetically is chosen as master from among the services with
+       master_eligibility set to true.
+   * - ``consumer_enable_autocommit``
+     - ``True``
+     - Enable auto commit on rest proxy consumers
+   * - ``consumer_request_timeout_ms``
+     - ``11000``
+     - Rest proxy consumers timeout for reads that do not limit the max bytes or provide their own timeout
+   * - ``consumer_request_max_bytes``
+     - ``67108864``
+     - Rest proxy consumers maximum bytes to be fetched per request
+   * - ``fetch_min_bytes``
+     - ``-1``
+     - Rest proxy consumers minimum bytes to be fetched per request. ``-1`` means no limit
+   * - ``group_id``
+     - ``schema-registry``
+     - The Kafka group name used for selecting a master service to coordinate the storing of Schemas.
+   * - ``master_eligibility``
+     - ``true``
+     - Should the service instance be considered for promotion to be the master
+       service. Reason to turn this off would be to have an instances of Karapace
+       running somewhere else for HA purposes but which you wouldn't want to
+       automatically promote to master if the primary instances were to become
+       unavailable.
+   * - ``producer_compression_type``
+     - ``None``
+     - Type of compression to be used by rest proxy producers
+   * - ``producer_acks``
+     - ``1``
+     - Level of consistency desired by each producer message sent on the rest proxy.
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+   * - ``producer_linger_ms``
+     - ``0``
+     - Time to wait for grouping together requests.
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+   * - ``security_protocol``
+     - ``PLAINTEXT``
+     - Default Kafka security protocol needed to communicate with the Kafka
+       cluster.  Other options is to use SSL for SSL client certificate
+       authentication.
+   * - ``sentry``
+     - ``None``
+     - Used to configure parameters for sentry integration (dsn, tags, ...). Setting the
+       environment variable ``SENTRY_DSN`` will also enable sentry integration.
+   * - ``ssl_cafile``
+     - ``/path/to/cafile``
+     - Used when ``security_protocol`` is set to SSL, the path to the SSL CA certificate.
+   * - ``ssl_certfile``
+     - ``/path/to/certfile``
+     - Used when ``security_protocol`` is set to SSL, the path to the SSL certfile.
+   * - ``ssl_keyfile``
+     - ``/path/to/keyfile``
+     - Used when ``security_protocol`` is set to SSL, the path to the SSL keyfile.
+   * - ``topic_name``
+     - ``_schemas``
+     - The name of the Kafka topic where to store the schemas.
+   * - ``replication_factor``
+     - ``1``
+     - The replication factor to be used with the schema topic.
+   * - ``host``
+     - ``127.0.0.1``
+     - Address to bind the Karapace HTTP server to.  Set to an empty string to
+       listen to all available addresses.
+   * - ``registry_host``
+     - ``127.0.0.1``
+     - Kafka Registry host, used by Kafka Rest for avro related requests.
+       If running both in the same process, it should be left to its default value
+   * - ``port``
+     - ``8081``
+     - HTTP webserver port to bind the Karapace to.
+   * - ``registry_port``
+     - ``8081``
+     - Kafka Registry port, used by Kafka Rest for avro related requests.
+       If running both in the same process, it should be left to its default value
+   * - ``metadata_max_age_ms``
+     - ``60000``
+     - Period of time in milliseconds after Kafka metadata is force refreshed.
+   * - ``karapace_rest``
+     - ``true``
+     - If the rest part of the app should be included in the starting process
+       At least one of this and ``karapace_registry`` options need to be enabled in order
+       for the service to start
+   * - ``karapace_registry``
+     - ``true``
+     - If the registry part of the app should be included in the starting process
+       At least one of this and ``karapace_rest`` options need to be enabled in order
+       for the service to start
+   * - ``name_strategy``
+     - ``subject_name``
+     - Name strategy to use when storing schemas from the kafka rest proxy service
+   * - ``master_election_strategy``
+     - ``lowest``
+     - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
 
-The URI to the Kafka service where to store the schemas and to run
-coordination among the Karapace instances.
 
-``client_id`` (default ``sr-1``)
-
-The client_id name by which the Karapace will use when coordinating with
-other Karapaces who is master.  The one with the name that sorts as the
-first alphabetically is chosen as master from among the services with
-master_eligibility set to true.
-
-``consumer_enable_autocommit`` (default ``True``)
-
-Enable auto commit on rest proxy consumers
-
-``consumer_request_timeout_ms`` (default ``11000``)
-
-Rest proxy consumers timeout for reads that do not limit the max bytes or provide their own timeout
-
-``consumer_request_max_bytes`` (default ``67108864``)
-
-Rest proxy consumers maximum bytes to be fetched per request
-
-``fetch_min_bytes`` (default ``-1``)
-
-Rest proxy consumers minimum bytes to be fetched per request. -1 means no limit
-
-``group_id`` (default ``schema-registry``)
-
-The Kafka group name used for selecting a master service to coordinate the
-storing of Schemas.
-
-``master_eligibility`` (``true``)
-
-Should the service instance be considered for promotion to be the master
-service.  Reason to turn this off would be to have an instances of Karapace
-running somewhere else for HA purposes but which you wouldn't want to
-automatically promote to master if the primary instances were to become
-unavailable.
-
-``producer_compression_type`` (default ``None``)
-
-Type of compression to be used by rest proxy producers
-
-``producer_acks`` (default ``1``)
-
-Level of consistency desired by each producer message sent on the rest proxy
-More on https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html
-
-``producer_linger_ms`` (default ``0``)
-
-Time to wait for grouping together requests
-More on https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html
-
-``security_protocol`` (default ``PLAINTEXT``)
-
-Default Kafka security protocol needed to communicate with the Kafka
-cluster.  Other options is to use SSL for SSL client certificate
-authentication.
-
-``sentry`` (default ``None``)
-
-Used to configure parameters for sentry integration (dsn, tags, ...). Setting the
-environment variable ``SENTRY_DSN`` will also enable sentry integration.
-
-``ssl_cafile`` (default ``Path to CA certificate``)
-
-Used when security_protocol is set to SSL, the path to the SSL CA certificate.
-
-``ssl_certfile`` (default ``/path/to/certfile``)
-
-Used when security_protocol is set to SSL, the path to the SSL certfile.
-
-``ssl_keyfile`` (default ``/path/to/keyfile``)
-
-Used when security_protocol is set to SSL, the path to the SSL keyfile.
-
-``topic_name`` (default ``_schemas``)
-
-The name of the Kafka topic where to store the schemas.
-
-``replication_factor`` (default ``1``)
-
-The replication factor to be used with the schema topic.
-
-``host`` (default ``"127.0.0.1"``)
-
-Address to bind the Karapace HTTP server to.  Set to an empty string to
-listen to all available addresses.
-
-``registry_host`` (default ``"127.0.0.1"``)
-
-Kafka Registry host, used by Kafka Rest for avro related requests.
-If running both in the same process, it should be left to its default value
-
-``port`` (default ``8081``)
-
-HTTP webserver port to bind the Karapace to.
-
-``registry_port`` (default ``8081``)
-
-Kafka Registry port, used by Kafka Rest for avro related requests.
-If running both in the same process, it should be left to its default value
-
-``metadata_max_age_ms`` (default ``60000``)
-
-Preiod of time in milliseconds after Kafka metadata is force refreshed.
-
-``karapace_rest`` (default ``true``)
-
-If the rest part of the app should be included in the starting process
-At least one of this and karapace_registry options need to be enabled in order
-for the service to start
-
-``karapace_registry`` (default ``true``)
-
-If the registry part of the app should be included in the starting process
-At least one of this and karapace_registry options need to be enabled in order
-for the service to start
-
-``name_strategy`` (default ``subject_name``)
-
-Name strategy to use when storing schemas from the kafka rest proxy service
-
-``master_election_strategy`` (default ``lowest``)
-
-Decides on what basis the karapace cluster master is chosen (only relevant in a multi node setup)
 
 License
 =======
