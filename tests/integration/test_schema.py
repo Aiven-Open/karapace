@@ -1365,45 +1365,35 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
     subject = create_subject_name_factory(f"test_schema_version_numbering-{trail}")()
     unique_field_factory = create_field_name_factory(trail)
 
-    # Check version number generation when deleting an entire subject
-    res = await registry_async_client.put("config/{}".format(subject), json={"compatibility": "NONE"})
-    assert res.status == 200
     unique = unique_field_factory()
     schema = {
         "type": "record",
-        "name": "Object",
-        "fields": [
-            {
-                "name": "first_name",
-                "type": "string",
-            },
-            {
-                "name": unique,
-                "type": "string",
-            },
-        ],
+        "name": unique,
+        "fields": [{
+            "name": "first_name",
+            "type": "string",
+        }],
     }
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
+
+    res = await registry_async_client.put("config/{}".format(subject), json={"compatibility": "FORWARD"})
+    assert res.status == 200
+
     schema2 = {
         "type": "record",
-        "name": "Object",
+        "name": unique,
         "fields": [
             {
                 "name": "first_name",
-                "type": "string",
-            },
-            {
-                "name": unique,
                 "type": "string",
             },
             {
                 "name": "last_name",
                 "type": "string",
             },
-        ],
-        "unique": unique_field_factory()
+        ]
     }
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
     assert res.status == 200
@@ -1416,7 +1406,9 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
     res = await registry_async_client.delete("subjects/{}".format(subject))
     assert res.status == 200
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
     res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    assert res.status == 200
     assert res.json() == [3]  # Version number generation should now begin at 3
 
 
