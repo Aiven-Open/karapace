@@ -1115,8 +1115,6 @@ async def test_schema_repost(registry_async_client, trail):
     assert res.status_code == 200
     assert res.json()["schema"] == schema_str
 
-    await assert_schema_versions(registry_async_client, trail, schema_id, [(subject, 1)])
-
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
         json={"schema": '{"type": "string", "unique" : "%s"}' % unique},
