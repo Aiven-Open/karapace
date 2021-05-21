@@ -1378,7 +1378,7 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
                 "type": "string",
             },
             {
-                "name": f"{unique}",
+                "name": unique,
                 "type": "string",
             },
         ],
@@ -1395,7 +1395,7 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
                 "type": "string",
             },
             {
-                "name": f"{unique}",
+                "name": unique,
                 "type": "string",
             },
             {
