@@ -1028,8 +1028,10 @@ async def test_schema_versions(registry_async_client: Client, trail: str) -> Non
     subject_name_factory = create_subject_name_factory(f"test_schema-{trail}")
     unique_field_factory = create_field_name_factory(trail)
 
-    schema_str1 = '{"type": "string", "unique" : "%s"}' % unique_field_factory()
-    schema_str2 = '{"type": "string", "unique" : "%s"}' % unique_field_factory()
+    schema_1 = {"type": "string", "unique": unique_field_factory()}
+    schema_str_1 = jsonlib.dumps(schema_1)
+    schema_2 = {"type": "string", "unique": unique_field_factory()}
+    schema_str_2 = jsonlib.dumps(schema_2)
 
     async def register_schema(subject: str, schema_str: str) -> Tuple[int, int]:
         # Register to get the id
@@ -1050,32 +1052,32 @@ async def test_schema_versions(registry_async_client: Client, trail: str) -> Non
         return schema_id, res.json()["version"]
 
     subject_1 = subject_name_factory()
-    schema_id_1, version_1 = await register_schema(subject_1, schema_str1)
+    schema_id_1, version_1 = await register_schema(subject_1, schema_str_1)
     schema_1_versions = [(subject_1, version_1)]
     await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
 
     subject_2 = subject_name_factory()
-    schema_id_2, version_2 = await register_schema(subject_2, schema_str1)
+    schema_id_2, version_2 = await register_schema(subject_2, schema_str_1)
     schema_1_versions = [(subject_1, version_1), (subject_2, version_2)]
     assert schema_id_1 == schema_id_2
     await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
 
     subject_3 = subject_name_factory()
-    schema_id_3, version_3 = await register_schema(subject_3, schema_str1)
+    schema_id_3, version_3 = await register_schema(subject_3, schema_str_1)
     schema_1_versions = [(subject_1, version_1), (subject_2, version_2), (subject_3, version_3)]
     assert schema_id_1 == schema_id_3
     await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
 
     # subject_4 with different schema
     subject_4 = subject_name_factory()
-    schema_id_4, version_4 = await register_schema(subject_4, schema_str2)
+    schema_id_4, version_4 = await register_schema(subject_4, schema_str_2)
     schema_2_versions = [(subject_4, version_4)]
     assert schema_id_1 != schema_id_4
     await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
     await assert_schema_versions(registry_async_client, trail, schema_id_4, schema_2_versions)
 
     # subject_4 now with the same schema, will have different version
-    schema_id_5, version_5 = await register_schema(subject_4, schema_str1)
+    schema_id_5, version_5 = await register_schema(subject_4, schema_str_1)
     assert schema_id_1 == schema_id_5
     schema_1_versions = [(subject_1, version_1), (subject_2, version_2), (subject_3, version_3), (subject_4, version_5)]
     await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
@@ -1104,7 +1106,7 @@ async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
     unique_field_factory = create_field_name_factory(trail)
 
     unique = unique_field_factory()
-    schema_str = '{"type": "string", "unique" : "%s"}' % unique
+    schema_str = jsonlib.dumps({"type": "string", "unique": unique})
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
         json={"schema": schema_str},
@@ -1192,7 +1194,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     """
     subject_name_factory = create_subject_name_factory("test_schema_subject_post_invalid")
 
-    schema_str = '{"type": "string"}'
+    schema_str = jsonlib.dumps({"type": "string"})
 
     # Create the subject
     subject_1 = subject_name_factory()
@@ -1204,7 +1206,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
 
     res = await registry_async_client.post(
         f"subjects/{subject_1}",
-        json={"schema": '{"type": "invalid_type"}'},
+        json={"schema": jsonlib.dumps({"type": "invalid_type"})},
     )
     assert res.status == 500, "Invalid schema for existing subject should return 500"
     assert res.json()["message"] == f"Error while looking up schema under subject {subject_1}"
@@ -1253,7 +1255,11 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     unique_1 = unique_field_factory()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
-        json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_1}
+        json={"schema": jsonlib.dumps({
+            "type": "string",
+            "foo": "string",
+            unique_1: "string"
+        })}
     )
     assert res.status_code == 200
     schema_id_1 = res.json()["id"]
@@ -1261,7 +1267,11 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     unique_2 = unique_field_factory()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
-        json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_2}
+        json={"schema": jsonlib.dumps({
+            "type": "string",
+            "foo": "string",
+            unique_2: "string"
+        })}
     )
     schema_id_2 = res.json()["id"]
     assert res.status_code == 200
@@ -1348,8 +1358,14 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
     # Creating a new schema works after deleting the only available version
+    unique_3 = unique_field_factory()
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions", json={"schema": '{"type": "string", "unique": "%s"}' % unique_field_factory()}
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps({
+            "type": "string",
+            "foo": "string",
+            unique_3: "string"
+        })}
     )
     assert res.status == 200
     res = await registry_async_client.get(f"subjects/{subject}/versions")
@@ -1511,7 +1527,7 @@ async def test_schema_subject_version_schema(registry_async_client: Client, trai
 
     # The subject version schema endpoint returns the correct results
     subject_1 = subject_name_factory()
-    schema_str = '{"type": "string"}'
+    schema_str = jsonlib.dumps({"type": "string"})
     res = await registry_async_client.post(
         f"subjects/{subject_1}/versions",
         json={"schema": schema_str},
@@ -1545,7 +1561,7 @@ async def test_schema_same_subject(registry_async_client: Client, trail: str) ->
     subject_name_factory = create_subject_name_factory(f"test_schema_XXX-{trail}")
     unique_field_factory = create_field_name_factory(trail)
 
-    schema_str = '{"type": "string", "%s" : "string"}' % unique_field_factory()
+    schema_str = jsonlib.dumps({"type": "string", unique_field_factory(): "string"})
     subject_1 = subject_name_factory()
     res = await registry_async_client.post(
         f"subjects/{subject_1}/versions",
