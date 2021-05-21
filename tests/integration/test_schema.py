@@ -700,56 +700,98 @@ async def test_map_schema_field_add_compatibility(
         assert res.status == status_code
 
 
-async def test_enum_schema(registry_async_client: Client) -> None:
-    subject_name_factory = create_subject_name_factory("test_enum_schema")
-    for compatibility in {"BACKWARD", "FORWARD", "FULL"}:
-        subject = subject_name_factory()
-        res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
-        assert res.status == 200
-        schema = {"type": "enum", "name": "testenum", "symbols": ["first"]}
-        res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+@pytest.mark.parametrize("compatibility", ["BACKWARD", "FORWARD", "FULL"])
+@pytest.mark.parametrize("operation", ["ADD", "REMOVE", "RENAME"])
+async def test_enum_schema(registry_async_client: Client, compatibility: str, operation: str) -> None:
+    """
+    Tests changing schema (subjects/{subject}/versions) that has enum field.
+    Adds and removes possible values in the enum.
+    """
+    subject_name_factory = create_subject_name_factory(f"test_enum_schema_{compatibility}")
+    field_name_factory = create_field_name_factory(f"test_enum_schema_{compatibility}")
+    subject = subject_name_factory()
 
-        # Add a symbol.
-        schema["symbols"].append("second")
-        res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
-        assert res.status == 200
+    field_name_1 = field_name_factory()
+    schema = {"type": "enum", "name": field_name_1, "symbols": ["a", "b"]}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
 
-        # Remove a symbol
-        schema["symbols"].pop(1)
-        res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
-        assert res.status == 200
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
+    assert res.status == 200
 
-        # Change the name
+    if operation == "ADD":
+        old_symbols = schema["symbols"]
+        schema["symbols"].append("c")
+        res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        if compatibility == "BACKWARD":
+            assert res.status == 200
+        else:
+            assert res.status == 409
+            schema["symbols"] = old_symbols
+    elif operation == "REMOVE":
+        schema["symbols"].pop()
+        old_symbols = schema["symbols"]
+        res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+        if compatibility == "FORWARD":
+            assert res.status == 200
+        else:
+            assert res.status == 409
+            schema["symbols"] = old_symbols
+    elif operation == "RENAME":
         schema["name"] = "another"
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 409
+    else:
+        pass
 
-        # Inside record
-        subject = subject_name_factory()
-        schema = {
-            "type": "record",
-            "name": "object",
-            "fields": [{
-                "name": "enumkey",
-                "type": {
-                    "type": "enum",
-                    "name": "testenum",
-                    "symbols": ["first"]
-                }
-            }]
-        }
+
+@pytest.mark.parametrize("compatibility", ["BACKWARD", "FORWARD", "FULL"])
+@pytest.mark.parametrize("operation", ["ADD", "REMOVE", "RENAME"])
+async def test_enum_schema_nested(registry_async_client, compatibility, operation):
+    """
+    Tests changing schema (subjects/{subject}/versions) that has a nested enum field.
+    Adds and removes possible values in the nested enum.
+    """
+    subject_name_factory = create_subject_name_factory(f"test_enum_schema_nested{compatibility}")
+    field_name_factory = create_field_name_factory(f"test_enum_schema_nested{compatibility}")
+    subject = subject_name_factory()
+    schema_name = field_name_factory()
+
+    # Inside record
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{
+            "name": "enumkey",
+            "type": {
+                "type": "enum",
+                "name": "testenum",
+                "symbols": ["a", "b"]
+            }
+        }]
+    }
+
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
+    assert res.status == 200
+
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
+    assert res.status == 200
+
+    if operation == "ADD":
+        schema["fields"][0]["type"]["symbols"].append("c")
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
-
-        # Add a symbol.
-        schema["fields"][0]["type"]["symbols"].append("second")
+        if compatibility == "BACKWARD":
+            assert res.status == 200
+        else:
+            assert res.status == 409
+    elif operation == "REMOVE":
+        schema["fields"][0]["type"]["symbols"].pop()
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
-        assert res.status == 200
-
-        # Remove a symbol
-        schema["fields"][0]["type"]["symbols"].pop(1)
-        res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
-        assert res.status == 200
-
+        if compatibility == "FORWARD":
+            assert res.status == 200
+        else:
+            assert res.status == 409
+    elif operation == "RENAME":
         # Change the name
         schema["fields"][0]["type"]["name"] = "another"
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})

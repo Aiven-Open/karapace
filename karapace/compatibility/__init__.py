@@ -7,8 +7,7 @@ See LICENSE for details
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from karapace.avro_compatibility import (
-    ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityResult, SchemaCompatibilityType,
-    SchemaIncompatibilityType
+    ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityResult, SchemaIncompatibilityType
 )
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
 from karapace.schema_reader import SchemaType, TypedSchema
@@ -48,14 +47,7 @@ class CompatibilityModes(Enum):
 
 
 def check_avro_compatibility(reader_schema, writer_schema) -> SchemaCompatibilityResult:
-    result = AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
-    if (
-        result.compatibility is SchemaCompatibilityType.incompatible
-        and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
-    ):
-        return result
-
-    return SchemaCompatibilityResult.compatible()
+    return AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
 
 
 def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
