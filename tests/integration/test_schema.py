@@ -1118,7 +1118,7 @@ async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
-        json={"schema": '{"type": "string", "unique" : "%s"}' % unique},
+        json={"schema": schema_str},
     )
     assert res.status == 200
     assert "id" in res.json()
@@ -1404,7 +1404,7 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
                 "type": "string",
             },
         ],
-        "unique": f"{unique_field_factory()}"
+        "unique": unique_field_factory()
     }
     res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
     assert res.status == 200
@@ -1438,7 +1438,7 @@ async def test_schema_version_numbering_complex(registry_async_client: Client, t
                 "type": "string",
             },
         ],
-        "unique": f"{unique_field_factory()}"
+        "unique": unique_field_factory()
     }
     res = await registry_async_client.post(
         "subjects/{}/versions".format(subject),
@@ -1475,7 +1475,7 @@ async def test_schema_three_subjects_sharing_schema(registry_async_client: Clien
                 "type": "string",
             },
             {
-                "name": f"{unique_field_factory()}",
+                "name": unique_field_factory(),
                 "type": "string",
             },
         ],
