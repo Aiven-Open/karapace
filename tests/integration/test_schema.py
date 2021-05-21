@@ -290,7 +290,7 @@ async def test_record_nested_schema_compatibility(registry_async_client: Client,
     # change string to integer in the nested record, should fail
     schema["fields"][1]["type"]["fields"][0]["type"] = "int"
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 409
@@ -319,8 +319,9 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
+    schema_id = res.json()['id']
 
-    res = await registry_async_client.get("schemas/ids/{}{}".format(res.json()["id"], trail))
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}{trail}")
     schema_gotten_back = jsonlib.loads(res.json()["schema"])
     assert schema_gotten_back == schema
 
@@ -1166,20 +1167,20 @@ async def test_schema_subject_invalid_id(registry_async_client: Client, trail: s
     unique_field_factory = create_field_name_factory(trail)
 
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_field_factory()}
     )
     assert res.status_code == 200
 
     # Find an invalid version 0
-    res = await registry_async_client.get("subjects/{}/versions/0".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions/0")
     assert res.status_code == 422
     assert res.json()["error_code"] == 42202
     assert res.json()["message"] == \
         'The specified version is not a valid version id. Allowed values are between [1, 2^31-1] and the string "latest"'
 
     # Find an invalid version (too large)
-    res = await registry_async_client.get("subjects/{}/versions/15".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions/15")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 15 not found."
@@ -1196,7 +1197,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     # Create the subject
     subject_1 = subject_name_factory()
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_1),
+        f"subjects/{subject_1}/versions",
         json={"schema": schema_str},
     )
     assert res.status == 200
@@ -1251,7 +1252,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
 
     unique_1 = unique_field_factory()
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_1}
     )
     assert res.status_code == 200
@@ -1259,7 +1260,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
 
     unique_2 = unique_field_factory()
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_2}
     )
     schema_id_2 = res.json()["id"]
@@ -1269,13 +1270,13 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     await assert_schema_versions(registry_async_client, trail, schema_id_1, [(subject, 1)])
     await assert_schema_versions(registry_async_client, trail, schema_id_2, [(subject, 2)])
 
-    result = await registry_async_client.get(os.path.join("schemas/ids/{}".format(schema_id_1)))
+    result = await registry_async_client.get(os.path.join(f"schemas/ids/{schema_id_1}"))
     schema_json_1 = jsonlib.loads(result.json()["schema"])
     assert schema_json_1["type"] == "string"
     assert schema_json_1["foo"] == "string"
     assert schema_json_1[unique_1] == "string"
 
-    result = await registry_async_client.get(os.path.join("schemas/ids/{}".format(schema_id_2)))
+    result = await registry_async_client.get(os.path.join(f"schemas/ids/{schema_id_2}"))
     schema_json_2 = jsonlib.loads(result.json()["schema"])
     assert schema_json_2["type"] == "string"
     assert schema_json_2["foo"] == "string"
@@ -1285,17 +1286,17 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     assert res.status_code == 200
     assert subject in res.json()
 
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 200
     assert res.json() == [1, 2]
 
-    res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1")
     assert res.status_code == 200
     assert res.json()["subject"] == subject
     assert jsonlib.loads(res.json()["schema"]) == schema_json_1
 
     # Delete an actual version
-    res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
     assert res.status_code == 200
     assert res.json() == 1
 
@@ -1313,7 +1314,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     await assert_schema_versions(registry_async_client, trail, schema_id_2, [(subject, 2)])
 
     # Delete a whole subject
-    res = await registry_async_client.delete("subjects/{}".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
     assert res.json() == [2]
 
@@ -1324,35 +1325,34 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
 
     # After deleting the last version of a subject, it shouldn't be in the list
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": '{"type": "string", "unique": "%s"}' % unique_field_factory()},
     )
     assert res.status == 200
     res = await registry_async_client.get("subjects")
     assert subject in res.json()
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.json() == [3]
-    res = await registry_async_client.delete("subjects/{}/versions/3".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/3")
     assert res.status_code == 200
     res = await registry_async_client.get("subjects")
     assert subject not in res.json()
 
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
-    res = await registry_async_client.get("subjects/{}/versions/latest".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
     # Creating a new schema works after deleting the only available version
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
-        json={"schema": '{"type": "string", "unique": "%s"}' % unique_field_factory()}
+        f"subjects/{subject}/versions", json={"schema": '{"type": "string", "unique": "%s"}' % unique_field_factory()}
     )
     assert res.status == 200
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.json() == [4]
 
 
@@ -1374,11 +1374,11 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
             "type": "string",
         }],
     }
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
 
-    res = await registry_async_client.put("config/{}".format(subject), json={"compatibility": "FORWARD"})
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "FORWARD"})
     assert res.status == 200
 
     schema2 = {
@@ -1395,19 +1395,19 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
             },
         ]
     }
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema2)})
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema2)})
     assert res.status == 200
     assert "id" in res.json()
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status == 200
     assert res.json() == [1, 2]
 
     # Recreate subject
-    res = await registry_async_client.delete("subjects/{}".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status == 200
-    res = await registry_async_client.post("subjects/{}/versions".format(subject), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status == 200
     assert res.json() == [3]  # Version number generation should now begin at 3
 
@@ -1432,12 +1432,12 @@ async def test_schema_version_numbering_complex(registry_async_client: Client, t
         "unique": unique_field_factory()
     }
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": jsonlib.dumps(schema)},
     )
     schema_id = res.json()["id"]
 
-    res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1")
     assert res.status == 200
     assert res.json()["subject"] == subject
     assert sorted(jsonlib.loads(res.json()["schema"])) == sorted(schema)
@@ -1471,14 +1471,14 @@ async def test_schema_three_subjects_sharing_schema(registry_async_client: Clien
             },
         ],
     }
-    res = await registry_async_client.post("subjects/{}/versions".format(subject_1), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post(f"subjects/{subject_1}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
     schema_id_1 = res.json()["id"]
 
     # New subject with the same schema
     subject_2 = subject_name_factory()
-    res = await registry_async_client.post("subjects/{}/versions".format(subject_2), json={"schema": jsonlib.dumps(schema)})
+    res = await registry_async_client.post(f"subjects/{subject_2}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
     assert "id" in res.json()
     schema_id_2 = res.json()["id"]
@@ -1487,15 +1487,15 @@ async def test_schema_three_subjects_sharing_schema(registry_async_client: Clien
     # It also works for multiple versions in a single subject
     subject_3 = subject_name_factory()
     res = await registry_async_client.put(
-        "config/{}".format(subject_3), json={"compatibility": "NONE"}
+        f"config/{subject_3}", json={"compatibility": "NONE"}
     )  # We don't care about the compatibility in this test
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_3),
+        f"subjects/{subject_3}/versions",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status == 200
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_3),
+        f"subjects/{subject_3}/versions",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
@@ -1513,7 +1513,7 @@ async def test_schema_subject_version_schema(registry_async_client: Client, trai
     subject_1 = subject_name_factory()
     schema_str = '{"type": "string"}'
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_1),
+        f"subjects/{subject_1}/versions",
         json={"schema": schema_str},
     )
     assert res.status == 200
@@ -1548,7 +1548,7 @@ async def test_schema_same_subject(registry_async_client: Client, trail: str) ->
     schema_str = '{"type": "string", "%s" : "string"}' % unique_field_factory()
     subject_1 = subject_name_factory()
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_1),
+        f"subjects/{subject_1}/versions",
         json={"schema": schema_str},
     )
     assert res.status == 200
@@ -1571,7 +1571,7 @@ async def test_schema_version_number_existing_schema(registry_async_client: Clie
 
     subject_1 = subject_name_factory()
     res = await registry_async_client.put(
-        "config/{}".format(subject_1), json={"compatibility": "NONE"}
+        f"config/{subject_1}", json={"compatibility": "NONE"}
     )  # We don't care about compatibility
     unique = unique_field_factory()
     schema_1 = {
@@ -1616,35 +1616,27 @@ async def test_schema_version_number_existing_schema(registry_async_client: Clie
             },
         ],
     }
-    res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_1), json={"schema": jsonlib.dumps(schema_1)}
-    )
+    res = await registry_async_client.post(f"subjects/{subject_1}/versions", json={"schema": jsonlib.dumps(schema_1)})
     assert res.status == 200
     schema_id_1 = res.json()["id"]
 
     schema_id_2 = schema_id_1 + 1
-    res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_1), json={"schema": jsonlib.dumps(schema_2)}
-    )
+    res = await registry_async_client.post(f"subjects/{subject_1}/versions", json={"schema": jsonlib.dumps(schema_2)})
     assert res.status == 200
     assert res.json()["id"] == schema_id_2
 
     # Reuse the first schema in another subject
     subject_2 = subject_name_factory()
     res = await registry_async_client.put(
-        "config/{}".format(subject_2), json={"compatibility": "NONE"}
+        f"config/{subject_2}", json={"compatibility": "NONE"}
     )  # We don't care about compatibility
-    res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_2), json={"schema": jsonlib.dumps(schema_1)}
-    )
+    res = await registry_async_client.post(f"subjects/{subject_2}/versions", json={"schema": jsonlib.dumps(schema_1)})
     assert res.status == 200
     assert res.json()["id"] == schema_id_1
 
     # Create a new schema
     schema_id_3 = schema_id_2 + 1
-    res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_2), json={"schema": jsonlib.dumps(schema_3)}
-    )
+    res = await registry_async_client.post(f"subjects/{subject_2}/versions", json={"schema": jsonlib.dumps(schema_3)})
     assert res.status == 200
     assert res.json()["id"] == schema_id_3
 
@@ -1706,17 +1698,17 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
     # The subject doesn't exist from the schema point of view
-    res = await registry_async_client.get("subjects/{}/versions".format(subject_2))
+    res = await registry_async_client.get(f"subjects/{subject_2}/versions")
     assert res.status_code == 404
 
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject_2),
+        f"subjects/{subject_2}/versions",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status_code == 200
     assert "id" in res.json()
 
-    res = await registry_async_client.get("config/{}".format(subject_2))
+    res = await registry_async_client.get(f"config/{subject_2}")
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
 
@@ -1865,7 +1857,7 @@ async def test_version_number_validation(registry_async_client: Client) -> None:
     # Create a schema
     subject = create_subject_name_factory("test_version_number_validation")()
     res = await registry_async_client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status_code == 200
@@ -2170,34 +2162,34 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     assert schemav1_id != schemav2_id
 
     # Cannot directly hard delete schema v1
-    res = await registry_async_client.delete("subjects/{}/versions/1?permanent=true".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40407
     assert res.json()["message"] == f"Subject '{subject}' Version 1 was not deleted first before being permanently deleted"
 
     # Soft delete schema v1
-    res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
     assert res.status_code == 200
     assert res.json() == 1
 
     # Cannot soft delete twice
-    res = await registry_async_client.delete("subjects/{}/versions/1".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40406
     assert res.json(
     )["message"] == f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently"
 
-    res = await registry_async_client.get("subjects/{}/versions/1".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 1 not found."
 
     # Hard delete schema v1
-    res = await registry_async_client.delete("subjects/{}/versions/1?permanent=true".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
     assert res.status_code == 200
 
     # Cannot hard delete twice
-    res = await registry_async_client.delete("subjects/{}/versions/1?permanent=true".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 1 not found."
@@ -2249,27 +2241,27 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     assert schemav1_id != schemav2_id
 
     # Hard delete whole schema cannot be done before soft delete
-    res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40405
     assert res.json()["message"] == f"Subject '{subject}' was not deleted first before being permanently deleted"
 
     # Soft delete whole schema
-    res = await registry_async_client.delete("subjects/{}".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
     assert res.json() == [1, 2]
 
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
     # Hard delete whole schema
-    res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 200
     assert res.json() == [1, 2]
 
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
@@ -2300,7 +2292,7 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     schema_id = res.json()["id"]
 
     # Soft delete whole schema
-    res = await registry_async_client.delete("subjects/{}".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
 
     # Recreate with same subject after soft delete
@@ -2313,13 +2305,13 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert schema_id == res.json()["id"], "the same schema registered, the same identifier"
 
     # Soft delete whole schema
-    res = await registry_async_client.delete("subjects/{}".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
     # Hard delete whole schema
-    res = await registry_async_client.delete("subjects/{}?permanent=true".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 200
 
-    res = await registry_async_client.get("subjects/{}/versions".format(subject))
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
