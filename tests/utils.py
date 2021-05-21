@@ -217,7 +217,7 @@ def create_subject_name_factory(prefix: str) -> Callable[[], str]:
 
 
 def create_field_name_factory(prefix: str) -> Callable[[], str]:
-    return create_id_factory(f"field-{prefix}")
+    return create_id_factory(f"field_{prefix}")
 
 
 def create_id_factory(prefix: str) -> Callable[[], str]:
