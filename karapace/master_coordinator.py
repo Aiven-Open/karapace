@@ -30,7 +30,8 @@ class SchemaCoordinator(BaseCoordinator):
     hostname = None
     port = None
     scheme = None
-    master = None
+    are_we_master = None
+    is_master_eligible = None
     master_url = None
     master_eligibility = True
     log = logging.getLogger("SchemaCoordinator")
@@ -49,16 +50,25 @@ class SchemaCoordinator(BaseCoordinator):
 
     def _perform_assignment(self, leader_id, protocol, members):
         self.log.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
-        self.master = None
+        self.are_we_master = None
         error = NO_ERROR
         urls = {}
+        fallback_urls = {}
         for member_id, member_data in members:
             member_identity = json.loads(member_data.decode("utf8"))
             if member_identity["master_eligibility"] is True:
                 urls[get_identity_url(member_identity["scheme"], member_identity["host"],
                                       member_identity["port"])] = (member_id, member_data)
-        self.master_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
-        schema_master_id, member_data = urls[self.master_url]
+            else:
+                fallback_urls[get_identity_url(member_identity["scheme"], member_identity["host"],
+                                               member_identity["port"])] = (member_id, member_data)
+        if len(urls) > 0:
+            self.master_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
+            schema_master_id, member_data = urls[self.master_url]
+        else:
+            # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
+            self.master_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
+            schema_master_id, member_data = fallback_urls[self.master_url]
         member_identity = json.loads(member_data.decode("utf8"))
         identity = self.get_identity(
             host=member_identity["host"],
@@ -92,10 +102,12 @@ class SchemaCoordinator(BaseCoordinator):
         )
         if member_assignment["master"] == member_id:
             self.master_url = master_url
-            self.master = True
+            self.are_we_master = True
+            self.is_master_eligible = member_identity["master_eligibility"]
         else:
             self.master_url = master_url
-            self.master = False
+            self.are_we_master = False
+            self.is_master_eligible = member_identity["master_eligibility"]
         return super(SchemaCoordinator, self)._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
     def _on_join_follower(self):
@@ -160,7 +172,7 @@ class MasterCoordinator(Thread):
     def get_master_info(self):
         """Return whether we're the master, and the actual master url that can be used if we're not"""
         with self.lock:
-            return self.sc.master, self.sc.master_url
+            return self.sc.are_we_master, self.sc.is_master_eligible, self.sc.master_url
 
     def close(self):
         self.log.info("Closing master_coordinator")
@@ -179,7 +191,10 @@ class MasterCoordinator(Thread):
 
                 self.sc.ensure_active_group()
                 self.sc.poll_heartbeat()
-                self.log.debug("We're master: %r: master_uri: %r", self.sc.master, self.sc.master_url)
+                self.log.debug(
+                    "We're master: %r (eligible master: %r): master_uri: %r", self.sc.are_we_master,
+                    self.sc.is_master_eligible, self.sc.master_url
+                )
                 time.sleep(min(_hb_interval, self.sc.time_to_next_heartbeat()))
             except:  # pylint: disable=bare-except
                 self.log.exception("Exception in master_coordinator")
