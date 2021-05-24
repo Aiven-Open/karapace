@@ -9,7 +9,9 @@ from kafka import KafkaProducer
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from karapace.utils import Client
-from tests.utils import create_field_name_factory, create_subject_name_factory, repeat_until_successful_request
+from tests.utils import (
+    create_field_name_factory, create_schema_name_factory, create_subject_name_factory, repeat_until_successful_request
+)
 from typing import List, Tuple
 
 import json as jsonlib
@@ -219,14 +221,18 @@ async def test_record_nested_schema_compatibility(registry_async_client: Client,
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_compatibility_endpoint(registry_async_client: Client, trail: str) -> None:
+    """
+    Creates a subject with a schema.
+    Calls compatibility/subjects/{subject}/versions/latest endpoint
+    and checks it return is_compatible true for a compatible new schema
+    and false for incompatible schema.
+    """
     subject = create_subject_name_factory(f"test_compatibility_endpoint-{trail}")()
-
-    res = await registry_async_client.put(f"config{trail}", json={"compatibility": "BACKWARD"})
-    assert res.status == 200
+    schema_name = create_schema_name_factory(f"test_compatibility_endpoint_{trail}")()
 
     schema = {
         "type": "record",
-        "name": "Objct",
+        "name": schema_name,
         "fields": [
             {
                 "name": "age",
@@ -240,11 +246,9 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
-    schema_id = res.json()['id']
 
-    res = await registry_async_client.get(f"schemas/ids/{schema_id}{trail}")
-    schema_gotten_back = jsonlib.loads(res.json()["schema"])
-    assert schema_gotten_back == schema
+    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
 
     # replace int with long
     schema["fields"] = [{"type": "long", "name": "age"}]
@@ -255,6 +259,7 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
     assert res.status == 200
     assert res.json() == {"is_compatible": True}
 
+    # replace int with string
     schema["fields"] = [{"type": "string", "name": "age"}]
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
