@@ -32,12 +32,12 @@ def is_master(mc: MasterCoordinator) -> bool:
     This takes care of a race condition were the flag `master` is set but
     `master_url` is not yet set.
     """
-    return bool(mc.sc and mc.sc.master and mc.sc.master_url)
+    return bool(mc.sc and mc.sc.are_we_master and mc.sc.master_url)
 
 
 def has_master(mc: MasterCoordinator) -> bool:
     """ True if `mc` has a master. """
-    return bool(mc.sc and not mc.sc.master and mc.sc.master_url)
+    return bool(mc.sc and not mc.sc.are_we_master and mc.sc.master_url)
 
 
 @pytest.mark.timeout(60)  # Github workflows need a bit of extra time
@@ -89,6 +89,31 @@ def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> None:
         assert slave.sc.election_strategy == strategy
         assert master.sc.master_url == master_url
         assert slave.sc.master_url == master_url
+
+
+def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
+    client_id = new_random_name("master_selection_")
+    group_id = new_random_name("group_id")
+
+    config_aa = set_config_defaults({
+        "advertised_hostname": "127.0.0.1",
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "client_id": client_id,
+        "group_id": group_id,
+        "port": get_random_port(port_range=TESTS_PORT_RANGE, blacklist=[]),
+        "master_eligibility": False,
+    })
+
+    with closing(init_admin(config_aa)) as mc:
+        # Wait for the election to happen, ie. flag is not None
+        while not mc.sc or mc.sc.are_we_master is None:
+            time.sleep(0.3)
+
+        # Make sure the end configuration is as expected
+        master_url = f'http://{mc.config["host"]}:{mc.config["port"]}'
+        assert mc.sc.master_url == master_url
+        assert mc.sc.are_we_master is True
+        assert mc.sc.is_master_eligible is False
 
 
 async def test_schema_request_forwarding(registry_async_pair):
