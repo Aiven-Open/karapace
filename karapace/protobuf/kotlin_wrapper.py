@@ -36,10 +36,6 @@ def options_to_list(a: list) -> list:
     return a
 
 
-class IntRange(list):
-    pass
-
-
 class String(str):
     pass
 

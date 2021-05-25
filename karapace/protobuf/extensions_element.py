@@ -1,4 +1,4 @@
-from karapace.protobuf.kotlin_wrapper import IntRange
+from karapace.protobuf.kotlin_wrapper import KotlinRange
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, MAX_TAG_VALUE
 
@@ -19,18 +19,18 @@ class ExtensionsElement:
         append_documentation(result, self.documentation)
         result.append("extensions ")
 
-        for index in range(len(self.values)):
+        for index in range(0, len(self.values)):
             value = self.values[index]
             if index > 0:
                 result.append(", ")
             if isinstance(value, int):
-                result.append(value)
+                result.append(str(value))
             # TODO: maybe replace Kotlin IntRange by list?
-            elif isinstance(value, IntRange):
-                result.append(f"{value[0]} to ")
-                last_value = value[len(value) - 1]
+            elif isinstance(value, KotlinRange):
+                result.append(f"{value.minimum} to ")
+                last_value = value.maximum
                 if last_value < MAX_TAG_VALUE:
-                    result.append(last_value)
+                    result.append(str(last_value))
                 else:
                     result.append("max")
             else:

@@ -572,13 +572,12 @@ class ProtoParser:
                 rpc_documentation = self.reader.read_documentation()
                 if self.reader.peek_char('}'):
                     break
-
-            declared = self.read_declaration(rpc_documentation, Context.RPC)
-            if isinstance(declared, OptionElement):
-                options.append(declared)
-            # TODO: add else clause to catch unexpected declarations.
-            else:
-                pass
+                declared = self.read_declaration(rpc_documentation, Context.RPC)
+                if isinstance(declared, OptionElement):
+                    options.append(declared)
+                # TODO: add else clause to catch unexpected declarations.
+                else:
+                    pass
 
         else:
             self.reader.require(';')

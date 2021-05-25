@@ -45,7 +45,7 @@ class OptionReader:
         if is_extension:
             name = f"[{name}]"
 
-        sub_names: list = list()
+        sub_names: list = []
         c = self.reader.read_char()
         if c == '.':
             # Read nested field name. For example "baz" in "(foo.bar).baz = 12".
@@ -77,7 +77,7 @@ class OptionReader:
             result = KindAndValue(OptionElement.Kind.LIST, self.read_list())
         elif peeked in ('"', "'"):
             result = KindAndValue(OptionElement.Kind.STRING, self.reader.read_string())
-        elif peeked.is_digit() or peeked == '-':
+        elif ord(str(peeked)) in range(ord("0"), ord("9")) or peeked == '-':
             result = KindAndValue(OptionElement.Kind.NUMBER, self.reader.read_word())
         else:
             word = self.reader.read_word()
@@ -105,14 +105,14 @@ class OptionReader:
             name = option.name
             value = option.value
             if isinstance(value, OptionElement):
-                nested = result[name]
+                nested = result.get(name)
                 if not nested:
                     nested = dict()
                     result[name] = nested
                 nested[value.name] = value.value
             else:
                 # Add the value(s) to any previous values with the same key
-                previous = result[name]
+                previous = result.get(name)
                 if not previous:
                     result[name] = value
                 elif isinstance(previous, list):  # Add to previous List

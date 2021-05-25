@@ -6,11 +6,11 @@ def protobuf_encode(a: str) -> str:
 def append_documentation(data: list, documentation: str):
     if not documentation:
         return
-    documentation.split()
+
     lines: list = documentation.split("\n")
 
-    if len(lines) > 1 and lines[-1]:
-        lines = lines.pop()
+    if len(lines) > 1 and not lines[-1]:
+        lines.pop()
 
     for line in lines:
         data.append("# ")

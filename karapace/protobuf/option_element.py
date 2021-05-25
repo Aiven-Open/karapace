@@ -4,6 +4,15 @@ from enum import Enum
 from karapace.protobuf.utils import append_indented
 
 
+def try_to_schema(obj: object) -> str:
+    try:
+        return obj.to_schema()
+    except AttributeError:
+        if isinstance(obj, str):
+            return obj
+        raise AttributeError
+
+
 class ListOptionElement(list):
     pass
 
@@ -38,7 +47,7 @@ class OptionElement:
         elif self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]:
             aline = f"{self.formattedName} = {self.value}"
         elif self.kind == self.Kind.OPTION:
-            aline = f"{self.formattedName}.{self.value.to_schema()}"
+            aline = f"{self.formattedName}.{try_to_schema(self.value)}"
         elif self.kind == self.Kind.MAP:
             aline = [f"{self.formattedName} = {{\n", self.format_option_map(self.value), "}"]
         elif self.kind == self.Kind.LIST:
@@ -57,7 +66,7 @@ class OptionElement:
         count = len(options)
         if count == 1:
             data.append('[')
-            data.append(options[0].to_schema())
+            data.append(try_to_schema(options[0]))
             data.append(']')
             return "".join(data)
 
@@ -67,7 +76,7 @@ class OptionElement:
                 endl = ","
             else:
                 endl = ""
-            append_indented(data, options[i].to_schema() + endl)
+            append_indented(data, try_to_schema(options[i]) + endl)
         data.append(']')
         return "".join(data)
 
@@ -81,11 +90,13 @@ class OptionElement:
         return "".join(result)
 
     def format_option_map_value(self, value) -> str:
-        aline = {
-            isinstance(value, str): f"\"{value}\"",
-            isinstance(value, dict): list(["{\n", self.format_option_map_value(value), "}"]),
-            isinstance(value, list): list(["[\n", self.format_list_map_value(value), "]"])
-        }[True]
+        aline = value
+        if isinstance(value, str):
+            aline = f"\"{value}\""
+        elif isinstance(value, dict):
+            aline = ["{\n", self.format_option_map(value), "}"]
+        elif isinstance(value, list):
+            aline = ["[\n", self.format_list_map_value(value), "]"]
 
         if isinstance(aline, list):
             return "".join(aline)
@@ -94,10 +105,16 @@ class OptionElement:
         return value
 
     def format_list_map_value(self, value) -> str:
-        keys = value.keys()
+
         last_index = len(value) - 1
-        result: list = list()
-        for index, key in enumerate(keys):
+        result: list = []
+        for index, elm in enumerate(value):
             endl = "," if (index != last_index) else ""
-            append_indented(result, f"{self.format_option_map_value(value[key])}{endl}")
+            append_indented(result, f"{self.format_option_map_value(elm)}{endl}")
         return "".join(result)
+
+    def __repr__(self):
+        return self.to_schema()
+
+    def __eq__(self, other):
+        return str(self) == str(other)

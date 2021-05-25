@@ -110,6 +110,9 @@ class ProtoFileElement:
 
         return a == b
 
+    def __repr__(self):
+        return self.to_schema()
+
     #    return str(self.location) == str(other.location) and \
     #           self.package_name == other.package_name and \
     #           str(self.syntax) == str(other.syntax) and \

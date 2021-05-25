@@ -6,7 +6,7 @@ def hex_digit(c: str) -> int:
     if ord(c) in range(ord('0'), ord('9') + 1):
         return ord(c) - ord('0')
     if ord(c) in range(ord('a'), ord('f') + 1):
-        return ord('a') + 10
+        return ord(c) - ord('a') + 10
     if ord(c) in range(ord('A'), ord('F') + 1):
         return ord(c) - ord('A') + 10
     return -1

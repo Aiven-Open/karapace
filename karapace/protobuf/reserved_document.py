@@ -1,4 +1,4 @@
-from karapace.protobuf.kotlin_wrapper import IntRange
+from karapace.protobuf.kotlin_wrapper import KotlinRange
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation
 
@@ -28,9 +28,8 @@ class ReservedElement:
                 result.append(f"\"{value}\"")
             elif isinstance(value, int):
                 result.append(f"{value}")
-            elif isinstance(value, IntRange):
-                last_index = len(value) - 1
-                result.append(f"{value[0]} to {value[last_index]}")
+            elif isinstance(value, KotlinRange):
+                result.append(f"{value.minimum} to {value.maximum}")
             else:
                 raise AssertionError()
         result.append(";\n")
