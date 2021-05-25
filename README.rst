@@ -3,216 +3,64 @@ Karapace
 
 ``karapace`` Your Kafka essentials in one tool
 
-
-Features
-========
-
-* Schema Registry and Rest Proxy aim to be API compatible with the pre-existing proprietary
-  Confluent Schema Registry and Kafka Rest Proxy
-* Drop in replacement both on pre-existing Schema Registry / Kafka Rest Proxy client and
-  server-sides
-* Moderate memory consumption
-* Asynchronous architecture based on aiohttp
-
+.. image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg
 
 Overview
 ========
 
-Karapace supports the storing of schemas in a central repository, which
-clients can access to serialize and deserialize messages.  The schemas also
-maintain their own version histories and can be checked for compatibility
-between their different respective versions.
+Karapace supports the storing of schemas in a central repository, which clients can access to
+serialize and deserialize messages. The schemas also maintain their own version histories and can be
+checked for compatibility between their different respective versions.
 
-Karapace rest provides a RESTful interface to your Kafka cluster, allowing you to perform
-tasks such as producing and consuming messages and perform administrative cluster work,
-all the while using the language of the WEB.
+Karapace rest provides a RESTful interface to your Kafka cluster, allowing you to perform tasks such
+as producing and consuming messages and perform administrative cluster work, all the while using the
+language of the WEB.
 
-Karapace is compatible with Schema Registry 6.1.1 on API level with the following exceptions
+Karapace is compatible with Schema Registry 6.1.1 on API level.
 
-* Protobuf schemas are unsupported
+Features
+========
+
+* Drop in replacement both on pre-existing Schema Registry / Kafka Rest Proxy client and
+  server-sides
+* Moderate memory consumption
+* Asynchronous architecture based on aiohttp
+* Supports Avro and JSON Schema. Protobuf development is tracked with `Issue 67`_.
+
+.. _Issue 67: https://github.com/aiven/karapace/issues/67
 
 Setup
 =====
 
-Karapace is a Python project, and requires Kafka for its backend storage. There is also a `Docker setup for development`_.
-
-Requirements
+Using Docker
 ------------
 
-Karapace requires Python 3.6 or later and some additional components in
-order to operate:
+To get you up and running with the latest release of Karapace, a docker setup is available::
 
-* aiohttp_ for serving schemas over HTTP in an asynchronous fashion
-* avro-python3_ for Avro serialization
-* kafka-python_ to read, write and coordinate Karapace's persistence in Kafka
-* raven-python_ (optional) to report exceptions to sentry
-* aiokafka_ for some components of the rest proxy
-
-.. _`aiohttp`: https://github.com/aio-libs/aiohttp
-.. _`aiokafka`: https://github.com/aio-libs/aiokafka
-.. _`avro-python3`: https://github.com/apache/avro
-.. _`kafka-python`: https://github.com/dpkp/kafka-python
-.. _`raven-python`: https://github.com/getsentry/raven-python
-
-Developing and testing Karapace also requires the following utilities:
-requests_, flake8_, pylint_ and pytest_.
-
-.. _`flake8`: https://flake8.readthedocs.io/
-.. _`requests`: http://www.python-requests.org/en/latest/
-.. _`pylint`: https://www.pylint.org/
-.. _`pytest`: http://pytest.org/
-
-Karapace has been developed and tested on modern Linux x86-64 systems, but
-should work on other platforms that provide the required modules.
-
-
-Building
---------
-
-To build an installation package for your distribution, go to the root
-directory of a Karapace Git checkout and run::
-
-  python3 setup.py bdist_egg
-
-This will produce an egg file into a dist directory within the same folder.
-
-Installation
-------------
-
-Python/Other::
-
-  easy_install dist/karapace-0.1.0-py3.6.egg
-
-On Linux systems it is recommended to simply run ``karapace`` under
-``systemd``::
-
-  systemctl enable karapace.service
-
-and eventually after the setup section, you can just run::
-
-  systemctl start karapace.service
-
-Configuration
--------------
-
-After this you need to create a suitable JSON configuration file for your
-installation.  Keys to take special care are the ones needed to configure
-Kafka and advertised_hostname.
-
-Each configuration key can be overridden with an environment variable prefixed with
-``KARAPACE_``, exception being configuration keys that actually start with the ``karapace`` string.
-For example, to override the ``bootstrap_uri`` config value, one would use the environment variable
-``KARAPACE_BOOTSTRAP_URI``
-
-
-To see descriptions of configuration keys see section ``config``.  Here's an
-example configuration file to give you an idea what you need to change::
-
-  {
-      "advertised_hostname": "localhost",
-      "bootstrap_uri": "127.0.0.1:9092",
-      "client_id": "sr-1",
-      "compatibility": "FULL",
-      "group_id": "schema-registry",
-      "host": "127.0.0.1",
-      "log_level": "DEBUG",
-      "port": 8081,
-      "master_eligibility": true,
-      "replication_factor": 1,
-      "security_protocol": "PLAINTEXT",
-      "ssl_cafile": null,
-      "ssl_certfile": null,
-      "ssl_keyfile": null,
-      "topic_name": "_schemas"
-  }
-
-Local Development
------------------
-
-Currently Karapace runs on the Python major versions 3.7, 3.8 and 3.9. You can use any of these for development.
-Naturally, independently of Python version you use, the code needs to run on all the supported versions.
-The CI pipeline in GitHub actions will run the tests on all these Python versions to ensure this.
-
-To run Karapace locally, or develop it, first install the dependencies.
-If you only need the runtime, i.e. you're not running tests or committing to Git,
-it's enough to install the runtime dependencies::
-
-    # Runtime dependencies
-    python3 -m pip install -r requirements.txt
-
-If you are developing and e.g. running tests, install the development dependencies.
-This will install also the runtime dependencies::
-
-    # Development dependencies, contains runtime dependencies
-    python3 -m pip install -r requirements-dev.txt
-
-To run the local/current version of the code, set up the configuration file in ``karapace.config.json`` to include connection details for Kafka and any other config you want to change, then run::
-
-    python3 -m karapace.karapace_all karapace.config.json
-
-There are two flavors of tests, unit tests and integration tests. The unit tests are standalone,
-i.e. can be run without anything outside of the test running. The integration tests in turn need
-a running ZooKeeper and Kafka, but take internally care of starting and stopping them.
-
-The tests can be run from the command line using :code:`make`::
-
-    # Running unit tests
-    make unittest
-
-    # Running integration tests
-    make integrationtest
-
-To run the tests in an IDE, you need once download and untar Kafka
-by :code:`make fetch-kafka`. Additionally ensure that the working directory
-when running tests, is set to Git root, e.g. in PyCharm you can
-create a configuration template with the correct working directory.
-
-The integration tests are run in parallel e.g. in the CI-pipeline.
-The tests need to be engineered taking this in mind.
-
-Since the integration tests run against a Kafka cluster, Kafka REST and Kafka Schema Registry using
-their APIs, it's possible to run them not only against Karapace that the tests internally
-setup and teardown but against long-running services. This allows you to start
-Karapace independently from the integration tests and e.g. inspect Kafka contents after the tests have run.
-
-The integration tests can be configured to use a running (ZooKeeper),
-Kafka (:code:`--kafka-bootstrap-servers`), Kafka REST (:code:`--rest-url`)
-and Schema Registry (:code:`--registry-url`), e.g. like this::
-
-    python -m pytest -vvv --registry-url http://127.0.0.1:8081 --rest-url http://127.0.0.1:8082/ --kafka-bootstrap-servers 127.0.0.1:9092 tests
-
-You can run the integration tests against Kafka REST and Schema Registry from Confluent.
-You can freely start these services before running the tests however you wish, but for convenience
-you can use the provided Docker Compose file to start ZooKeeper, Kafka, Kafka REST and Schema Registry::
-
-    docker-compose -f tests/integration/confluent-docker-compose.yml up -d
-
-There are several coding style checks in `GitHub Actions <https://github.com/aiven/karapace/actions>`_.
-Your code changes need to pass these tests. To run the checks locally,
-you can run them manually::
-
-    # Runs all coding style checks
-    make pre-commit
-
-Alternatively,you can use `pre-commit <https://pre-commit.com/>`_ to automatically run the checks on commit time::
-
-    pre-commit install
-
-Docker setup for development
-----------------------------
-
-To get you up and running with a development copy of Karapace, a docker setup
-is available. You can find everything you need for this in the ``container/``
-folder.
-
-Get the containers running::
-
-    docker-compose up
+    docker-compose -f ./container/docker-compose.yml up -d
 
 Then you should be able to reach two sets of endpoints:
 
 * Karapace schema registry on http://localhost:8081
 * Karapace REST on http://localhost:8082
+
+Configuration
+^^^^^^^^^^^^^
+
+Each configuration key can be overridden with an environment variable prefixed with ``KARAPACE_``,
+exception being configuration keys that actually start with the ``karapace`` string. For example, to
+override the ``bootstrap_uri`` config value, one would use the environment variable
+``KARAPACE_BOOTSTRAP_URI``. Here_ you can find an example configuration file to give you an idea
+what you need to change.
+
+.. _`Here`: https://github.com/aiven/karapace/blob/master/karapace.config.json
+
+Source install
+--------------
+
+Alternatively you can do a source install using::
+
+  python setup.py install
 
 Quickstart
 ==========
@@ -324,6 +172,7 @@ Delete consumer::
 
   $ curl -X DELETE -H "Accept: application/vnd.kafka.v2+json" \
   http://localhost:8081/consumers/avro_consumers/instances/my_consumer
+
 Backing up your Karapace
 ========================
 
@@ -339,7 +188,6 @@ consumer::
 
   ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
 
-
 Restoring Karapace from backup
 ==============================
 
@@ -353,7 +201,6 @@ to a new Kafka cluster.
 You can restore the data from the previous step by running::
 
   ./kafka-console-producer.sh --broker-list brokerhostname:9092 --topic _schemas --property parse.key=true < schemas.log
-
 
 Performance comparison to Confluent stack
 ==========================================
@@ -413,7 +260,6 @@ Ram consumption, different consumer count, over 300s
     20           83                  530
 =========== =================== ================
 
-
 Commands
 ========
 
@@ -421,10 +267,10 @@ Once installed, the ``karapace`` program should be in your path.  It is the
 main daemon process that should be run under a service manager such as
 ``systemd`` to serve clients.
 
-
 Configuration keys
 ==================
 
+Keys to take special care are the ones needed to configure Kafka and advertised_hostname.
 
 .. list-table::
    :header-rows: 1
@@ -537,8 +383,6 @@ Configuration keys
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
 
-
-
 License
 =======
 
@@ -548,7 +392,6 @@ available in the ``LICENSE`` file.
 Please note that the project explicitly does not require a CLA (Contributor
 License Agreement) from its contributors.
 
-
 Contact
 =======
 
@@ -556,7 +399,6 @@ Bug reports and patches are very welcome, please post them as GitHub issues
 and pull requests at https://github.com/aiven/karapace .  Any possible
 vulnerabilities or other serious issues should be reported directly to the
 maintainers <opensource@aiven.io>.
-
 
 Credits
 =======
