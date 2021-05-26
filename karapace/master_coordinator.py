@@ -11,6 +11,7 @@ from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.utils import KarapaceKafkaClient
 from threading import Lock, Thread
+from typing import Tuple
 
 import json
 import logging
@@ -31,7 +32,7 @@ class SchemaCoordinator(BaseCoordinator):
     port = None
     scheme = None
     are_we_master = None
-    is_master_eligible = None
+    has_eligible_master = None
     master_url = None
     master_eligibility = True
     log = logging.getLogger("SchemaCoordinator")
@@ -100,14 +101,14 @@ class SchemaCoordinator(BaseCoordinator):
             host=member_identity["host"],
             port=member_identity["port"],
         )
-        if member_assignment["master"] == member_id:
+        # On Kafka protocol we can be assigned to be master, but if not master eligible, then we're not master for real
+        if member_assignment["master"] == member_id and member_identity["master_eligibility"]:
             self.master_url = master_url
             self.are_we_master = True
-            self.is_master_eligible = member_identity["master_eligibility"]
         else:
             self.master_url = master_url
             self.are_we_master = False
-            self.is_master_eligible = member_identity["master_eligibility"]
+        self.has_eligible_master = member_identity["master_eligibility"]
         return super(SchemaCoordinator, self)._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
     def _on_join_follower(self):
@@ -169,10 +170,10 @@ class MasterCoordinator(Thread):
         self.sc.master_eligibility = self.config["master_eligibility"]
         self.lock.release()  # self.sc now exists, we get to release the lock
 
-    def get_master_info(self):
+    def get_master_info(self) -> Tuple[bool, bool, str]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
         with self.lock:
-            return self.sc.are_we_master, self.sc.is_master_eligible, self.sc.master_url
+            return self.sc.are_we_master, self.sc.has_eligible_master, self.sc.master_url
 
     def close(self):
         self.log.info("Closing master_coordinator")
@@ -193,7 +194,7 @@ class MasterCoordinator(Thread):
                 self.sc.poll_heartbeat()
                 self.log.debug(
                     "We're master: %r (eligible master: %r): master_uri: %r", self.sc.are_we_master,
-                    self.sc.is_master_eligible, self.sc.master_url
+                    self.sc.has_eligible_master, self.sc.master_url
                 )
                 time.sleep(min(_hb_interval, self.sc.time_to_next_heartbeat()))
             except:  # pylint: disable=bare-except
