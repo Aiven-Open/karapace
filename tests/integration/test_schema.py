@@ -1811,12 +1811,12 @@ async def test_http_headers(registry_async_client: Client) -> None:
     # Giving an invalid Accept value
     res = await registry_async_client.get("subjects", headers={"Accept": "application/vnd.schemaregistry.v2+json"})
     assert res.status == 406
-    assert res.json()["message"] == HTTPStatus.NOT_ACCEPTABLE.description
+    assert res.json()["message"] == "HTTP 406 Not Acceptable"
 
     # PUT with an invalid Content type
     res = await registry_async_client.put("config", json={"compatibility": "NONE"}, headers={"Content-Type": "text/html"})
     assert res.status == 415
-    assert res.json()["message"] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE.description
+    assert res.json()["message"] == "HTTP 415 Unsupported Media Type"
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
     # Multiple Accept values
@@ -1840,7 +1840,7 @@ async def test_http_headers(registry_async_client: Client) -> None:
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
     res = await registry_async_client.get("subjects", headers={"Accept": "text/*"})
     assert res.status == 406
-    assert res.json()["message"] == HTTPStatus.NOT_ACCEPTABLE.description
+    assert res.json()["message"] == "HTTP 406 Not Acceptable"
 
     # Accept without any type works
     res = await registry_async_client.get("subjects", headers={"Accept": "*/does_not_matter"})
@@ -1863,7 +1863,6 @@ async def test_http_headers(registry_async_client: Client) -> None:
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
     res = await registry_async_client.get("subjects", headers={"Accept": "application/octet-stream"})
     assert res.status == 406
-    assert res.json()["message"] == HTTPStatus.NOT_ACCEPTABLE.description
 
     # Parse Content-Type correctly
     res = await registry_async_client.put(
