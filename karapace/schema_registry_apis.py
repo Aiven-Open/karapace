@@ -21,6 +21,7 @@ import time
 
 @unique
 class SchemaErrorCodes(Enum):
+    EMPTY_SCHEMA = 42201
     HTTP_NOT_FOUND = HTTPStatus.NOT_FOUND.value
     HTTP_CONFLICT = HTTPStatus.CONFLICT.value
     HTTP_UNPROCESSABLE_ENTITY = HTTPStatus.UNPROCESSABLE_ENTITY.value
@@ -681,11 +682,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if "schema" not in body:
             self.r(
                 body={
-                    "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
-                    "message": "Internal Server Error",
+                    "error_code": SchemaErrorCodes.EMPTY_SCHEMA.value,
+                    "message": "Empty schema",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
     async def subjects_schema_post(self, content_type, *, subject, request):
