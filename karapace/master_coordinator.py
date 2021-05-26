@@ -11,7 +11,7 @@ from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.utils import KarapaceKafkaClient
 from threading import Lock, Thread
-from typing import Tuple
+from typing import Optional, Tuple
 
 import json
 import logging
@@ -32,7 +32,6 @@ class SchemaCoordinator(BaseCoordinator):
     port = None
     scheme = None
     are_we_master = None
-    has_eligible_master = None
     master_url = None
     master_eligibility = True
     log = logging.getLogger("SchemaCoordinator")
@@ -64,12 +63,12 @@ class SchemaCoordinator(BaseCoordinator):
                 fallback_urls[get_identity_url(member_identity["scheme"], member_identity["host"],
                                                member_identity["port"])] = (member_id, member_data)
         if len(urls) > 0:
-            self.master_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
-            schema_master_id, member_data = urls[self.master_url]
+            chosen_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
+            schema_master_id, member_data = urls[chosen_url]
         else:
             # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
-            self.master_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
-            schema_master_id, member_data = fallback_urls[self.master_url]
+            chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
+            schema_master_id, member_data = fallback_urls[chosen_url]
         member_identity = json.loads(member_data.decode("utf8"))
         identity = self.get_identity(
             host=member_identity["host"],
@@ -77,7 +76,7 @@ class SchemaCoordinator(BaseCoordinator):
             scheme=member_identity["scheme"],
             json_encode=False,
         )
-        self.log.info("Chose: %r with url: %r as the master", schema_master_id, self.master_url)
+        self.log.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
 
         assignments = {}
         for member_id, member_data in members:
@@ -105,10 +104,12 @@ class SchemaCoordinator(BaseCoordinator):
         if member_assignment["master"] == member_id and member_identity["master_eligibility"]:
             self.master_url = master_url
             self.are_we_master = True
+        elif not member_identity["master_eligibility"]:
+            self.master_url = None
+            self.are_we_master = False
         else:
             self.master_url = master_url
             self.are_we_master = False
-        self.has_eligible_master = member_identity["master_eligibility"]
         return super(SchemaCoordinator, self)._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
     def _on_join_follower(self):
@@ -170,10 +171,10 @@ class MasterCoordinator(Thread):
         self.sc.master_eligibility = self.config["master_eligibility"]
         self.lock.release()  # self.sc now exists, we get to release the lock
 
-    def get_master_info(self) -> Tuple[bool, bool, str]:
+    def get_master_info(self) -> Tuple[bool, Optional[str]]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
         with self.lock:
-            return self.sc.are_we_master, self.sc.has_eligible_master, self.sc.master_url
+            return self.sc.are_we_master, self.sc.master_url
 
     def close(self):
         self.log.info("Closing master_coordinator")
@@ -192,10 +193,7 @@ class MasterCoordinator(Thread):
 
                 self.sc.ensure_active_group()
                 self.sc.poll_heartbeat()
-                self.log.debug(
-                    "We're master: %r (eligible master: %r): master_uri: %r", self.sc.are_we_master,
-                    self.sc.has_eligible_master, self.sc.master_url
-                )
+                self.log.debug("We're master: %r: master_uri: %r", self.sc.are_we_master, self.sc.master_url)
                 time.sleep(min(_hb_interval, self.sc.time_to_next_heartbeat()))
             except:  # pylint: disable=bare-except
                 self.log.exception("Exception in master_coordinator")
