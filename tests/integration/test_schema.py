@@ -1070,15 +1070,14 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     subject = create_subject_name_factory(f"test_schema_versions_deleting_{trail}")()
     schema_name = create_schema_name_factory(f"test_schema_versions_deleting_{trail}")()
 
-    field_name = create_field_name_factory(trail)()
     schema_1 = {
         "type": "record",
         "name": schema_name,
         "fields": [{
-            "name": field_name,
+            "name": "field_1",
             "type": "string"
         }, {
-            "name": "field_1",
+            "name": "field_2",
             "type": "string"
         }]
     }
@@ -1088,7 +1087,7 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
         "name": schema_name,
         "fields": [
             {
-                "name": field_name,
+                "name": "field_1",
                 "type": "string"
             },
         ]
