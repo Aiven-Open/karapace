@@ -112,8 +112,8 @@ def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
         # Make sure the end configuration is as expected
         master_url = f'http://{mc.config["host"]}:{mc.config["port"]}'
         assert mc.sc.master_url == master_url
-        assert mc.sc.are_we_master is True
-        assert mc.sc.is_master_eligible is False
+        assert mc.sc.are_we_master is False
+        assert mc.sc.has_eligible_master is False
 
 
 async def test_schema_request_forwarding(registry_async_pair):
