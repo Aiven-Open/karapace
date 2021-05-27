@@ -1,7 +1,11 @@
 Karapace
 ========
 
-``karapace`` Your Kafka essentials in one tool
+``karapace``. Your Kafka essentials in one tool.
+
+An `open-source <https://github.com/aiven/karapace/blob/master/LICENSE>`_ implementation
+of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html#features>`_ and
+`Schema Registry <https://docs.confluent.io/platform/current/schema-registry/index.html>`_.
 
 .. image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg
 
@@ -16,8 +20,6 @@ Karapace rest provides a RESTful interface to your Kafka cluster, allowing you t
 as producing and consuming messages and perform administrative cluster work, all the while using the
 language of the WEB.
 
-Karapace is compatible with Schema Registry 6.1.1 on API level.
-
 Features
 ========
 
@@ -28,6 +30,13 @@ Features
 * Supports Avro and JSON Schema. Protobuf development is tracked with `Issue 67`_.
 
 .. _Issue 67: https://github.com/aiven/karapace/issues/67
+
+Compatibility details
+---------------------
+
+Karapace is compatible with Schema Registry 6.1.1 on API level. When a new version of SR is released, the goal is
+to support it in a reasonable time. Karapace supports all operations in the API.
+The goal is that even the error messages are the same as in Schema Registry, which cannot be always fully guaranteed.
 
 Setup
 =====
