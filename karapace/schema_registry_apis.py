@@ -10,7 +10,7 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
 from karapace.utils import json_encode
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import argparse
 import asyncio
@@ -390,7 +390,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             self.send_config_message(compatibility_level=compatibility_level, subject=None)
-        elif are_we_master is None:
+        elif not master_url:
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/config"
@@ -441,7 +441,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             self.send_config_message(compatibility_level=compatibility_level, subject=subject)
-        elif are_we_master is None:
+        elif not master_url:
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/config/{subject}"
@@ -488,7 +488,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if are_we_master:
             async with self.schema_lock:
                 await self._subject_delete_local(content_type, subject, permanent)
-        elif are_we_master is None:
+        elif not master_url:
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}?permanent={permanent}"
@@ -592,7 +592,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if are_we_master:
             async with self.schema_lock:
                 await self._subject_version_delete_local(content_type, subject, version, permanent)
-        elif are_we_master is None:
+        elif not master_url:
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
@@ -622,16 +622,16 @@ class KarapaceSchemaRegistry(KarapaceBase):
         subject_data = self._subject_get(subject, content_type)
         self.r(list(subject_data["schemas"]), content_type, status=HTTPStatus.OK)
 
-    async def get_master(self):
+    async def get_master(self) -> Tuple[bool, Optional[str]]:
         async with self.master_lock:
             while True:
-                master, master_url = self.mc.get_master_info()
-                if master is None:
-                    self.log.info("No master set: %r, url: %r", master, master_url)
+                are_we_master, master_url = self.mc.get_master_info()
+                if are_we_master is None:
+                    self.log.info("No master set: %r, url: %r", are_we_master, master_url)
                 elif self.ksr.ready is False:
                     self.log.info("Schema reader isn't ready yet: %r", self.ksr.ready)
                 else:
-                    return master, master_url
+                    return are_we_master, master_url
                 await asyncio.sleep(1.0)
 
     def _validate_schema_request_body(self, content_type, body) -> None:
@@ -739,7 +739,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if are_we_master:
             async with self.schema_lock:
                 await self.write_new_schema_local(subject, body, content_type)
-        elif are_we_master is None:
+        elif not master_url:
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions"
