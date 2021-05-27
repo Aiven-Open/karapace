@@ -14,7 +14,7 @@ There is very little you need to get started coding for Karapace:
 
 - Use [one of the supported python versions](https://github.com/aiven/karapace/blob/master/setup.py)
   documented in the `setup.py` classifiers.
-- Create a local virtual env, then install karapace and the dev dependencies in it:
+- Create [a virtual environment](https://docs.python.org/3/tutorial/venv.html) and install the dev dependencies in it:
 
 ```python
 python -m venv <path_to_venv>
@@ -25,8 +25,8 @@ pip install -e .
 
 ## Tests
 
-Tests are written with the [pytest](https://docs.pytest.org/) framework, and All PRs are test for
-each supported python version using [GitHub Flow](https://guides.github.com/introduction/flow/).
+Tests are written with the [pytest](https://docs.pytest.org/) framework, and All PRs are tested for
+each supported Python version using [GitHub Flow](https://guides.github.com/introduction/flow/).
 
 There are two flavors of tests, unit tests and integration tests:
 
@@ -41,7 +41,7 @@ tests should be engineered with this in mind:
 - Don't reuse schema/subject/topic names
 - Expect other clients to be interacting with the servers at the same time.
 
-To run the tests use the Makefile, it will download Kafka to be used in the tests for you:
+To run the tests use `make`. It will download Kafka to be used in the tests for you:
 
 ```sh
 make unittest
@@ -55,8 +55,9 @@ make use the project root as for working directory.
 
 ### Compatibility tests
 
-The integration tests can be configured to use an external REST (:code:`--rest-url`) or Registry
-(:code:`--registry-url`) service. This is be used to make sure our tests conform to the Kafka REST
+The integration tests can be configured to use an external REST (`--rest-url`), Registry
+(`--registry-url`) service and Kafka (`--kafka-bootstrap-servers`).
+These can be used to make sure the tests conform to the Kafka REST
 or Schema Registry APIs, and then that Karapace conform to the tests:
 
 ```sh
@@ -68,7 +69,7 @@ pytest --kafka-bootstrap-servers localhost:9092 --registry-url http://locahost:8
 
 The code is statically checked and formatted using [a few
 tools](https://github.com/aiven/karapace/blob/master/requirements-dev.txt). To run these
-automatically on before each commit please enable the [pre-commit](https://pre-commit.com) hooks.
+automatically on each commit please enable the [pre-commit](https://pre-commit.com) hooks.
 Alternatively you can run it manually with `make pre-commit`.
 
 ## Manual testing
