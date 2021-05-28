@@ -49,7 +49,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
         super().__init__(config_file_path=config_file_path, config=config)
         self._add_routes()
         self._init(config=config)
-        self.schema_lock = asyncio.Lock()
 
     def _init(self, config: dict) -> None:  # pylint: disable=unused-argument
         self.ksr = None
@@ -57,6 +56,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.producer = self._create_producer()
         self._create_master_coordinator()
         self._create_schema_reader()
+        self.schema_lock = asyncio.Lock()
 
     def _add_routes(self):
         self.route(
