@@ -18,7 +18,7 @@ def main() -> int:
         config = read_config(arg.config_file)
 
     logging.getLogger().setLevel(config["log_level"])
-    kc = KafkaRest(config_file_path=arg.config_file.name, config=config)
+    kc = KafkaRest(config=config)
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])
     except Exception:  # pylint: disable-broad-except

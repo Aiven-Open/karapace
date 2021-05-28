@@ -34,7 +34,10 @@ class SchemaCoordinator(BaseCoordinator):
     are_we_master = None
     master_url = None
     master_eligibility = True
-    log = logging.getLogger("SchemaCoordinator")
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.log = logging.getLogger("SchemaCoordinator")
 
     def protocol_type(self):
         return "sr"
@@ -121,7 +124,7 @@ class MasterCoordinator(Thread):
     """Handles schema topic creation and master election"""
 
     def __init__(self, config):
-        Thread.__init__(self)
+        super().__init__()
         self.config = config
         self.timeout_ms = 10000
         self.kafka_client = None
