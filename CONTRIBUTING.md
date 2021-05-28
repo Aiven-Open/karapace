@@ -62,7 +62,7 @@ tests:
 
 ```sh
 docker-compose -f ./tests/integration/confluent-docker-compose.yml up -d
-pytest --kafka-bootstrap-servers localhost:9092 --registry-url http://locahost:8081 --rest-url http://localhost:8082/ tests/integration
+pytest --kafka-bootstrap-servers localhost:9092 --registry-url http://localhost:8081 --rest-url http://localhost:8082/ tests/integration
 ```
 
 ## Static checking and Linting
