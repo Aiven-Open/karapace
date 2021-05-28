@@ -51,14 +51,14 @@ make integrationtest
 ### PyCharm
 
 If you want to run the tests from within the IDE, first download Kafka using `make fetch-kafka`, and
-make use the project root as for working directory.
+use the project root as the working directory.
 
 ### Compatibility tests
 
 The integration tests can be configured to use an external REST (`--rest-url`), Registry
-(`--registry-url`) service and Kafka (`--kafka-bootstrap-servers`).
-These can be used to make sure the tests conform to the Kafka REST
-or Schema Registry APIs, and then that Karapace conform to the tests:
+(`--registry-url`) and Kafka (`--kafka-bootstrap-servers`).  These can be used to make sure the
+tests conform to the Kafka REST or Schema Registry APIs, and then that Karapace conform to the
+tests:
 
 ```sh
 docker-compose -f ./tests/integration/confluent-docker-compose.yml up -d
