@@ -1,3 +1,6 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
+
 from karapace.protobuf.location import Location
 
 

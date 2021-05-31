@@ -1,3 +1,7 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/Util.kt
+
+
 def protobuf_encode(a: str) -> str:
     # TODO: PROTOBUF
     return a

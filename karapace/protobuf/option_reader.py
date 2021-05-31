@@ -1,3 +1,6 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OptionReader.kt
+
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.syntax_reader import SyntaxReader
 from typing import Union

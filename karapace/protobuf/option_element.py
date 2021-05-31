@@ -1,3 +1,6 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OptionElement.kt
+
 from enum import Enum
 # from karapace.protobuf.kotlin_wrapper import *
 # from karapace.protobuf.kotlin_wrapper import *

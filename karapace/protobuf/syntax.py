@@ -1,3 +1,6 @@
+# Ported from square/wire:
+# wire-library/wire-runtime/src/commonMain/kotlin/com/squareup/wire/Syntax.kt
+
 from enum import Enum
 from karapace.protobuf.exception import IllegalArgumentException
 

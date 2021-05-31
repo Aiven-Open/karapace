@@ -1,3 +1,5 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/ProtoType.kt
 """
 Names a protocol buffer message, enumerated type, service, map, or a scalar. This class models a
 fully-qualified name using the protocol buffer package.

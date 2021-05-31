@@ -1,4 +1,7 @@
-# TODO: ...
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Field.kt
+
+# TODO: We ported only code which is used by schema parser. Full class may be ported if required
 from enum import Enum
 
 

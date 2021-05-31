@@ -1,3 +1,5 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumConstantElement.kt
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_options
 

@@ -1,3 +1,7 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Location.kt
+
+
 class Location:
     """ Locates a .proto file, or a self.position within a .proto file, on the file system """
 

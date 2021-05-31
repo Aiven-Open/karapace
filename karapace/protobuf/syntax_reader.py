@@ -1,3 +1,6 @@
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
+
 from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
 
