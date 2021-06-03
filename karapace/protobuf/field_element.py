@@ -39,9 +39,7 @@ class FieldElement:
         self.json_name = json_name
         self.tag = tag
         self.documentation = documentation
-        if not options:
-            self.options = []
-        else:
+        if options:
             self.options = options
 
     def to_schema(self):

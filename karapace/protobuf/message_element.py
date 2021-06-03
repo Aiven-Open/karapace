@@ -12,6 +12,8 @@ class MessageElement(TypeElement):
     one_ofs: list = []
     extensions: list = []
     groups: list = []
+    options: list = []
+    nested_types: list = []
 
     def __init__(
         self,
@@ -29,13 +31,20 @@ class MessageElement(TypeElement):
         self.location = location
         self.name = name
         self.documentation = documentation
-        self.nested_types = nested_types
-        self.options = options
-        self.reserveds = reserveds
-        self.fields = fields
-        self.one_ofs = one_ofs
-        self.extensions = extensions
-        self.groups = groups
+        if nested_types:
+            self.nested_types = nested_types
+        if options:
+            self.options = options
+        if reserveds:
+            self.reserveds = reserveds
+        if fields:
+            self.fields = fields
+        if one_ofs:
+            self.one_ofs = one_ofs
+        if extensions:
+            self.extensions = extensions
+        if groups:
+            self.groups = groups
 
     def to_schema(self) -> str:
         result: list = list()

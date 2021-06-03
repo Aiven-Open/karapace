@@ -13,18 +13,18 @@ class RpcElement:
     response_type: str
     request_streaming: bool
     response_streaming: bool
-    options: list
+    options: list = []
 
     def __init__(
         self,
         location: Location,
         name: str,
-        documentation: str,
-        request_type: str,
-        response_type: str,
-        request_streaming: bool,
-        response_streaming: bool,
-        options: list,
+        documentation: str = "",
+        request_type: str = "",
+        response_type: str = "",
+        request_streaming: bool = False,
+        response_streaming: bool = False,
+        options: list = None
     ):
         self.location = location
         self.name = name
@@ -33,7 +33,8 @@ class RpcElement:
         self.response_type = response_type
         self.request_streaming = request_streaming
         self.response_streaming = response_streaming
-        self.options = options
+        if options:
+            self.options = options
 
     def to_schema(self) -> str:
         result: list = list()

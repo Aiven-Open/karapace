@@ -10,12 +10,13 @@ class ReservedElement:
     location: Location
     documentation: str
     """ A [String] name or [Int] or [IntRange] tag. """
-    values: list
+    values: list = []
 
-    def __init__(self, location: Location, documentation: str, values: list):
+    def __init__(self, location: Location, documentation: str = "", values: list = None):
         self.location = location
         self.documentation = documentation
-        self.values = values
+        if values:
+            self.values = values
 
     def to_schema(self) -> str:
         result: list = list()

@@ -121,3 +121,6 @@ class OptionElement:
 
     def __eq__(self, other):
         return str(self) == str(other)
+
+
+PACKED_OPTION_ELEMENT = OptionElement("packed", OptionElement.Kind.BOOLEAN, value="true", is_parenthesized=False)

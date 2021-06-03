@@ -9,12 +9,12 @@ class ProtoFileElement:
     location: Location
     package_name: str
     syntax: Syntax
-    imports: list
-    public_imports: list
-    types: list
-    services: list
-    extend_declarations: list
-    options: list
+    imports: list = []
+    public_imports: list = []
+    types: list = []
+    services: list = []
+    extend_declarations: list = []
+    options: list = []
 
     def __init__(
         self,
@@ -28,28 +28,21 @@ class ProtoFileElement:
         extend_declarations=None,
         options=None
     ):
-
-        if not options:
-            options = []
-        if not extend_declarations:
-            extend_declarations = []
-        if not services:
-            services = []
-        if not types:
-            types = []
-        if not public_imports:
-            public_imports = []
-        if not imports:
-            imports = []
         self.location = location
         self.package_name = package_name
         self.syntax = syntax
-        self.imports = imports
-        self.public_imports = public_imports
-        self.types = types
-        self.services = services
-        self.extend_declarations = extend_declarations
-        self.options = options
+        if options:
+            self.options = options
+        if extend_declarations:
+            self.extend_declarations = extend_declarations
+        if services:
+            self.services = services
+        if types:
+            self.types = types
+        if public_imports:
+            self.public_imports = public_imports
+        if imports:
+            self.imports = imports
 
     def to_schema(self):
         strings: list = [

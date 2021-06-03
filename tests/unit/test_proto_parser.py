@@ -16,6 +16,7 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
+from karapace.protobuf.reserved_document import ReservedElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
@@ -1726,3 +1727,919 @@ def test_options_with_nested_maps_and_trailing_commas():
     expected = MessageElement(location=location.at(1, 1), name="StructuredOption", fields=[field])
     proto_file = ProtoFileElement(location=location, types=[expected])
     assert ProtoParser.parse(location, proto) == proto_file
+
+
+def test_option_numerical_bounds():
+    proto = r"""
+            |message Test {
+            |  optional int32 default_int32 = 401 [x = 2147483647];
+            |  optional uint32 default_uint32 = 402 [x = 4294967295];
+            |  optional sint32 default_sint32 = 403 [x = -2147483648];
+            |  optional fixed32 default_fixed32 = 404 [x = 4294967295];
+            |  optional sfixed32 default_sfixed32 = 405 [x = -2147483648];
+            |  optional int64 default_int64 = 406 [x = 9223372036854775807];
+            |  optional uint64 default_uint64 = 407 [x = 18446744073709551615];
+            |  optional sint64 default_sint64 = 408 [x = -9223372036854775808];
+            |  optional fixed64 default_fixed64 = 409 [x = 18446744073709551615];
+            |  optional sfixed64 default_sfixed64 = 410 [x = -9223372036854775808];
+            |  optional bool default_bool = 411 [x = true];
+            |  optional float default_float = 412 [x = 123.456e7];
+            |  optional double default_double = 413 [x = 123.456e78];
+            |  optional string default_string = 414 """ + \
+            r"""[x = "çok\a\b\f\n\r\t\v\1\01\001\17\017\176\x1\x01\x11\X1\X01\X11güzel" ];
+            |  optional bytes default_bytes = 415 """ + \
+            r"""[x = "çok\a\b\f\n\r\t\v\1\01\001\17\017\176\x1\x01\x11\X1\X01\X11güzel" ];
+            |  optional NestedEnum default_nested_enum = 416 [x = A ];
+            |}"""
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        types=[
+            MessageElement(
+                location=location.at(1, 1),
+                name="Test",
+                fields=[
+                    FieldElement(
+                        location=location.at(2, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="int32",
+                        name="default_int32",
+                        tag=401,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "2147483647")]
+                    ),
+                    FieldElement(
+                        location=location.at(3, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="uint32",
+                        name="default_uint32",
+                        tag=402,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "4294967295")]
+                    ),
+                    FieldElement(
+                        location=location.at(4, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="sint32",
+                        name="default_sint32",
+                        tag=403,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "-2147483648")]
+                    ),
+                    FieldElement(
+                        location=location.at(5, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="fixed32",
+                        name="default_fixed32",
+                        tag=404,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "4294967295")]
+                    ),
+                    FieldElement(
+                        location=location.at(6, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="sfixed32",
+                        name="default_sfixed32",
+                        tag=405,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "-2147483648")]
+                    ),
+                    FieldElement(
+                        location=location.at(7, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="int64",
+                        name="default_int64",
+                        tag=406,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "9223372036854775807")]
+                    ),
+                    FieldElement(
+                        location=location.at(8, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="uint64",
+                        name="default_uint64",
+                        tag=407,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "18446744073709551615")]
+                    ),
+                    FieldElement(
+                        location=location.at(9, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="sint64",
+                        name="default_sint64",
+                        tag=408,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "-9223372036854775808")]
+                    ),
+                    FieldElement(
+                        location=location.at(10, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="fixed64",
+                        name="default_fixed64",
+                        tag=409,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "18446744073709551615")]
+                    ),
+                    FieldElement(
+                        location=location.at(11, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="sfixed64",
+                        name="default_sfixed64",
+                        tag=410,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "-9223372036854775808")]
+                    ),
+                    FieldElement(
+                        location=location.at(12, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="bool",
+                        name="default_bool",
+                        tag=411,
+                        options=[OptionElement("x", OptionElement.Kind.BOOLEAN, "true")]
+                    ),
+                    FieldElement(
+                        location=location.at(13, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="float",
+                        name="default_float",
+                        tag=412,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "123.456e7")]
+                    ),
+                    FieldElement(
+                        location=location.at(14, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="double",
+                        name="default_double",
+                        tag=413,
+                        options=[OptionElement("x", OptionElement.Kind.NUMBER, "123.456e78")]
+                    ),
+                    FieldElement(
+                        location=location.at(15, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="string",
+                        name="default_string",
+                        tag=414,
+                        options=[
+                            OptionElement(
+                                "x", OptionElement.Kind.STRING,
+                                "çok\u0007\b\u000C\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
+                                "\u0001\u0001\u0011güzel"
+                            )
+                        ]
+                    ),
+                    FieldElement(
+                        location=location.at(17, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="bytes",
+                        name="default_bytes",
+                        tag=415,
+                        options=[
+                            OptionElement(
+                                "x", OptionElement.Kind.STRING,
+                                "çok\u0007\b\u000C\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
+                                "\u0001\u0001\u0011güzel"
+                            )
+                        ]
+                    ),
+                    FieldElement(
+                        location=location.at(19, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="NestedEnum",
+                        name="default_nested_enum",
+                        tag=416,
+                        options=[OptionElement("x", OptionElement.Kind.ENUM, "A")]
+                    )
+                ]
+            )
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_extension_with_nested_message():
+    proto = """
+        |message Foo {
+        |  optional int32 bar = 1[
+        |      (validation.range).min = 1,
+        |      (validation.range).max = 100,
+        |      old_default = 20
+        |  ];
+        |}
+        """
+    proto = trim_margin(proto)
+    field = FieldElement(
+        location=location.at(2, 3),
+        label=Field.Label.OPTIONAL,
+        element_type="int32",
+        name="bar",
+        tag=1,
+        options=[
+            OptionElement(
+                "validation.range", OptionElement.Kind.OPTION, OptionElement("min", OptionElement.Kind.NUMBER, "1"), True
+            ),
+            OptionElement(
+                "validation.range", OptionElement.Kind.OPTION, OptionElement("max", OptionElement.Kind.NUMBER, "100"), True
+            ),
+            OptionElement("old_default", OptionElement.Kind.NUMBER, "20")
+        ]
+    )
+    assert len(field.options) == 3
+    assert OptionElement(
+        "validation.range", OptionElement.Kind.OPTION, OptionElement("min", OptionElement.Kind.NUMBER, "1"), True
+    ) in field.options
+
+    assert OptionElement(
+        "validation.range", OptionElement.Kind.OPTION, OptionElement("max", OptionElement.Kind.NUMBER, "100"), True
+    ) in field.options
+
+    assert OptionElement("old_default", OptionElement.Kind.NUMBER, "20") in field.options
+
+    expected = MessageElement(location=location.at(1, 1), name="Foo", fields=[field])
+    proto_file = ProtoFileElement(location=location, types=[expected])
+    assert ProtoParser.parse(location, proto) == proto_file
+
+
+def test_reserved():
+    proto = """
+        |message Foo {
+        |  reserved 10, 12 to 14, 'foo';
+        |}
+        """
+    proto = trim_margin(proto)
+    message = MessageElement(
+        location=location.at(1, 1),
+        name="Foo",
+        reserveds=[ReservedElement(location=location.at(2, 3), values=[10, KotlinRange(12, 14), "foo"], documentation="")]
+    )
+    expected = ProtoFileElement(location=location, types=[message])
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_reserved_with_comments():
+    proto = """
+        |message Foo {
+        |  optional string a = 1; // This is A.
+        |  reserved 2; // This is reserved.
+        |  optional string c = 3; // This is C.
+        |}
+        """
+    proto = trim_margin(proto)
+    message = MessageElement(
+        location=location.at(1, 1),
+        name="Foo",
+        fields=[
+            FieldElement(
+                location=location.at(2, 3),
+                label=Field.Label.OPTIONAL,
+                element_type="string",
+                name="a",
+                tag=1,
+                documentation="This is A."
+            ),
+            FieldElement(
+                location=location.at(4, 3),
+                label=Field.Label.OPTIONAL,
+                element_type="string",
+                name="c",
+                tag=3,
+                documentation="This is C."
+            )
+        ],
+        reserveds=[ReservedElement(location=location.at(3, 3), values=[2], documentation="This is reserved.")]
+    )
+    expected = ProtoFileElement(location=location, types=[message])
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_no_whitespace():
+    proto = "message C {optional A.B ab = 1;}"
+    expected = ProtoFileElement(
+        location=location,
+        types=[
+            MessageElement(
+                location=location.at(1, 1),
+                name="C",
+                fields=[
+                    FieldElement(
+                        location=location.at(1, 12), label=Field.Label.OPTIONAL, element_type="A.B", name="ab", tag=1
+                    )
+                ]
+            )
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_deep_option_assignments():
+    proto = """
+      |message Foo {
+      |  optional string a = 1 [(wire.my_field_option).baz.value = "a"];
+      |}
+      |"""
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        types=[
+            MessageElement(
+                location=location.at(1, 1),
+                name="Foo",
+                fields=[
+                    FieldElement(
+                        location=location.at(2, 3),
+                        label=Field.Label.OPTIONAL,
+                        element_type="string",
+                        name="a",
+                        tag=1,
+                        options=[
+                            OptionElement(
+                                name="wire.my_field_option",
+                                kind=OptionElement.Kind.OPTION,
+                                is_parenthesized=True,
+                                value=OptionElement(
+                                    name="baz",
+                                    kind=OptionElement.Kind.OPTION,
+                                    is_parenthesized=False,
+                                    value=OptionElement(
+                                        name="value", kind=OptionElement.Kind.STRING, is_parenthesized=False, value="a"
+                                    )
+                                )
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_proto_keyword_as_enum_constants():
+    # Note: this is consistent with protoc.
+    proto = """
+      |enum Foo {
+      |  syntax = 0;
+      |  import = 1;
+      |  package = 2;
+      |  // option = 3;
+      |  // reserved = 4;
+      |  message = 5;
+      |  enum = 6;
+      |  service = 7;
+      |  extend = 8;
+      |  rpc = 9;
+      |  oneof = 10;
+      |  extensions = 11;
+      |}
+      |"""
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        types=[
+            EnumElement(
+                location=location.at(1, 1),
+                name="Foo",
+                constants=[
+                    EnumConstantElement(location.at(2, 3), "syntax", 0),
+                    EnumConstantElement(location.at(3, 3), "import", 1),
+                    EnumConstantElement(location.at(4, 3), "package", 2),
+                    EnumConstantElement(location.at(7, 3), "message", 5, documentation="option = 3;\nreserved = 4;"),
+                    EnumConstantElement(location.at(8, 3), "enum", 6),
+                    EnumConstantElement(location.at(9, 3), "service", 7),
+                    EnumConstantElement(location.at(10, 3), "extend", 8),
+                    EnumConstantElement(location.at(11, 3), "rpc", 9),
+                    EnumConstantElement(location.at(12, 3), "oneof", 10),
+                    EnumConstantElement(location.at(13, 3), "extensions", 11),
+                ]
+            )
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_proto_keyword_as_message_name_and_field_proto2():
+    # Note: this is consistent with protoc.
+    proto = """
+      |message syntax {
+      |  optional syntax syntax = 1;
+      |}
+      |message import {
+      |  optional import import = 1;
+      |}
+      |message package {
+      |  optional package package = 1;
+      |}
+      |message option {
+      |  optional option option = 1;
+      |}
+      |message reserved {
+      |  optional reserved reserved = 1;
+      |}
+      |message message {
+      |  optional message message = 1;
+      |}
+      |message enum {
+      |  optional enum enum = 1;
+      |}
+      |message service {
+      |  optional service service = 1;
+      |}
+      |message extend {
+      |  optional extend extend = 1;
+      |}
+      |message rpc {
+      |  optional rpc rpc = 1;
+      |}
+      |message oneof {
+      |  optional oneof oneof = 1;
+      |}
+      |message extensions {
+      |  optional extensions extensions = 1;
+      |}
+      |"""
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        types=[
+            MessageElement(
+                location=location.at(1, 1),
+                name="syntax",
+                fields=[
+                    FieldElement(location.at(2, 3), label=Field.Label.OPTIONAL, element_type="syntax", name="syntax", tag=1)
+                ]
+            ),
+            MessageElement(
+                location=location.at(4, 1),
+                name="import",
+                fields=[
+                    FieldElement(location.at(5, 3), label=Field.Label.OPTIONAL, element_type="import", name="import", tag=1)
+                ]
+            ),
+            MessageElement(
+                location=location.at(7, 1),
+                name="package",
+                fields=[
+                    FieldElement(
+                        location.at(8, 3), label=Field.Label.OPTIONAL, element_type="package", name="package", tag=1
+                    )
+                ]
+            ),
+            MessageElement(
+                location=location.at(10, 1),
+                name="option",
+                fields=[
+                    FieldElement(
+                        location.at(11, 3), label=Field.Label.OPTIONAL, element_type="option", name="option", tag=1
+                    )
+                ]
+            ),
+            MessageElement(
+                location=location.at(13, 1),
+                name="reserved",
+                fields=[
+                    FieldElement(
+                        location.at(14, 3), label=Field.Label.OPTIONAL, element_type="reserved", name="reserved", tag=1
+                    )
+                ]
+            ),
+            MessageElement(
+                location=location.at(16, 1),
+                name="message",
+                fields=[
+                    FieldElement(
+                        location.at(17, 3), label=Field.Label.OPTIONAL, element_type="message", name="message", tag=1
+                    )
+                ]
+            ),
+            MessageElement(
+                location=location.at(19, 1),
+                name="enum",
+                fields=[
+                    FieldElement(location.at(20, 3), label=Field.Label.OPTIONAL, element_type="enum", name="enum", tag=1)
+                ]
+            ),
+            MessageElement(
+                location=location.at(22, 1),
+                name="service",
+                fields=[
+                    FieldElement(
+                        location.at(23, 3), label=Field.Label.OPTIONAL, element_type="service", name="service", tag=1
+                    )
+                ]
+            ),
+            MessageElement(
+                location=location.at(25, 1),
+                name="extend",
+                fields=[
+                    FieldElement(
+                        location.at(26, 3), label=Field.Label.OPTIONAL, element_type="extend", name="extend", tag=1
+                    )
+                ]
+            ),
+            MessageElement(
+                location=location.at(28, 1),
+                name="rpc",
+                fields=[FieldElement(location.at(29, 3), label=Field.Label.OPTIONAL, element_type="rpc", name="rpc", tag=1)]
+            ),
+            MessageElement(
+                location=location.at(31, 1),
+                name="oneof",
+                fields=[
+                    FieldElement(location.at(32, 3), label=Field.Label.OPTIONAL, element_type="oneof", name="oneof", tag=1)
+                ]
+            ),
+            MessageElement(
+                location=location.at(34, 1),
+                name="extensions",
+                fields=[
+                    FieldElement(
+                        location.at(35, 3), label=Field.Label.OPTIONAL, element_type="extensions", name="extensions", tag=1
+                    )
+                ]
+            ),
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_proto_keyword_as_message_name_and_field_proto3():
+    # Note: this is consistent with protoc.
+    proto = """
+      |syntax = "proto3";
+      |message syntax {
+      |  syntax syntax = 1;
+      |}
+      |message import {
+      |  import import = 1;
+      |}
+      |message package {
+      |  package package = 1;
+      |}
+      |message option {
+      |  option option = 1;
+      |}
+      |message reserved {
+      |  // reserved reserved = 1;
+      |}
+      |message message {
+      |  // message message = 1;
+      |}
+      |message enum {
+      |  // enum enum = 1;
+      |}
+      |message service {
+      |  service service = 1;
+      |}
+      |message extend {
+      |  // extend extend = 1;
+      |}
+      |message rpc {
+      |  rpc rpc = 1;
+      |}
+      |message oneof {
+      |  // oneof oneof = 1;
+      |}
+      |message extensions {
+      |  // extensions extensions = 1;
+      |}
+      |"""
+
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        syntax=Syntax.PROTO_3,
+        location=location,
+        types=[
+            MessageElement(
+                location=location.at(2, 1),
+                name="syntax",
+                fields=[FieldElement(location.at(3, 3), element_type="syntax", name="syntax", tag=1)]
+            ),
+            MessageElement(
+                location=location.at(5, 1),
+                name="import",
+                fields=[FieldElement(location.at(6, 3), element_type="import", name="import", tag=1)]
+            ),
+            MessageElement(
+                location=location.at(8, 1),
+                name="package",
+                fields=[FieldElement(location.at(9, 3), element_type="package", name="package", tag=1)]
+            ),
+            MessageElement(
+                location=location.at(11, 1),
+                name="option",
+                options=[OptionElement(name="option", kind=OptionElement.Kind.NUMBER, value="1", is_parenthesized=False)],
+            ),
+            MessageElement(
+                location=location.at(14, 1),
+                name="reserved",
+            ),
+            MessageElement(
+                location=location.at(17, 1),
+                name="message",
+            ),
+            MessageElement(
+                location=location.at(20, 1),
+                name="enum",
+            ),
+            MessageElement(
+                location=location.at(23, 1),
+                name="service",
+                fields=[FieldElement(location.at(24, 3), element_type="service", name="service", tag=1)]
+            ),
+            MessageElement(
+                location=location.at(26, 1),
+                name="extend",
+            ),
+            MessageElement(
+                location=location.at(29, 1),
+                name="rpc",
+                fields=[FieldElement(location.at(30, 3), element_type="rpc", name="rpc", tag=1)]
+            ),
+            MessageElement(
+                location=location.at(32, 1),
+                name="oneof",
+            ),
+            MessageElement(
+                location=location.at(35, 1),
+                name="extensions",
+            ),
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_proto_keyword_as_service_name_and_rpc():
+    # Note: this is consistent with protoc.
+    proto = """
+      |service syntax {
+      |  rpc syntax (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service import {
+      |  rpc import (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service package {
+      |  rpc package (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service option {
+      |  rpc option (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service reserved {
+      |  rpc reserved (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service message {
+      |  rpc message (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service enum {
+      |  rpc enum (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service service {
+      |  rpc service (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service extend {
+      |  rpc extend (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service rpc {
+      |  rpc rpc (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service oneof {
+      |  rpc oneof (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |service extensions {
+      |  rpc extensions (google.protobuf.StringValue) returns (google.protobuf.StringValue);
+      |}
+      |"""
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        services=[
+            ServiceElement(
+                location=location.at(1, 1),
+                name="syntax",
+                rpcs=[
+                    RpcElement(
+                        location.at(2, 3),
+                        name="syntax",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(4, 1),
+                name="import",
+                rpcs=[
+                    RpcElement(
+                        location.at(5, 3),
+                        name="import",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(7, 1),
+                name="package",
+                rpcs=[
+                    RpcElement(
+                        location.at(8, 3),
+                        name="package",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(10, 1),
+                name="option",
+                rpcs=[
+                    RpcElement(
+                        location.at(11, 3),
+                        name="option",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(13, 1),
+                name="reserved",
+                rpcs=[
+                    RpcElement(
+                        location.at(14, 3),
+                        name="reserved",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(16, 1),
+                name="message",
+                rpcs=[
+                    RpcElement(
+                        location.at(17, 3),
+                        name="message",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(19, 1),
+                name="enum",
+                rpcs=[
+                    RpcElement(
+                        location.at(20, 3),
+                        name="enum",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(22, 1),
+                name="service",
+                rpcs=[
+                    RpcElement(
+                        location.at(23, 3),
+                        name="service",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(25, 1),
+                name="extend",
+                rpcs=[
+                    RpcElement(
+                        location.at(26, 3),
+                        name="extend",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(28, 1),
+                name="rpc",
+                rpcs=[
+                    RpcElement(
+                        location.at(29, 3),
+                        name="rpc",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue",
+                        documentation=""
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(31, 1),
+                name="oneof",
+                rpcs=[
+                    RpcElement(
+                        location.at(32, 3),
+                        name="oneof",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue"
+                    )
+                ]
+            ),
+            ServiceElement(
+                location=location.at(34, 1),
+                name="extensions",
+                rpcs=[
+                    RpcElement(
+                        location.at(35, 3),
+                        name="extensions",
+                        request_type="google.protobuf.StringValue",
+                        response_type="google.protobuf.StringValue"
+                    )
+                ]
+            ),
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_forbid_multiple_syntax_definitions():
+    proto = """
+          |  syntax = "proto2";
+          |  syntax = "proto2";
+          """
+    proto = trim_margin(proto)
+    with pytest.raises(IllegalStateException, match="Syntax error in file.proto:2:3: too many syntax definitions"):
+        # TODO: this test in Kotlin source contains "2:13:" Need compile square.wire and check how it can be?
+        ProtoParser.parse(location, proto)
+        pytest.fail("")
+
+
+def test_one_of_options():
+    proto = """
+        |message SearchRequest {
+        |  required string query = 1;
+        |  oneof page_info {
+        |    option (my_option) = true;
+        |    int32 page_number = 2;
+        |    int32 result_per_page = 3;
+        |  }
+        |}
+    """
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        types=[
+            MessageElement(
+                location=location.at(1, 1),
+                name="SearchRequest",
+                fields=[
+                    FieldElement(
+                        location=location.at(2, 3), label=Field.Label.REQUIRED, element_type="string", name="query", tag=1
+                    )
+                ],
+                one_ofs=[
+                    OneOfElement(
+                        name="page_info",
+                        fields=[
+                            FieldElement(location=location.at(5, 5), element_type="int32", name="page_number", tag=2),
+                            FieldElement(location=location.at(6, 5), element_type="int32", name="result_per_page", tag=3)
+                        ],
+                        options=[
+                            OptionElement("my_option", OptionElement.Kind.BOOLEAN, value="true", is_parenthesized=True)
+                        ]
+                    )
+                ]
+            )
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected
+
+
+def test_semi_colon_as_options_delimiters():
+    proto = """
+      |service MyService {
+      |    option (custom_rule) = {
+      |        my_string: "abc"; my_int: 3;
+      |        my_list: ["a", "b", "c"];
+      |    };
+      |}
+    """
+    proto = trim_margin(proto)
+    expected = ProtoFileElement(
+        location=location,
+        services=[
+            ServiceElement(
+                location=location.at(1, 1),
+                name="MyService",
+                options=[
+                    OptionElement(
+                        "custom_rule",
+                        OptionElement.Kind.MAP, {
+                            "my_string": "abc",
+                            "my_int": "3",
+                            "my_list": ["a", "b", "c"]
+                        },
+                        is_parenthesized=True
+                    )
+                ]
+            )
+        ]
+    )
+    assert ProtoParser.parse(location, proto) == expected

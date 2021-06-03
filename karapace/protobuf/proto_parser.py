@@ -58,7 +58,7 @@ class Context(Enum):
         return self in [Context.FILE, Context.MESSAGE]
 
     def permits_service(self) -> bool:
-        return self in [Context.FILE, Context.MESSAGE]
+        return self in [Context.FILE]
 
     def permits_enum(self) -> bool:
         return self in [Context.FILE, Context.MESSAGE]

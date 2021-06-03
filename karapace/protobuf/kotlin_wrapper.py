@@ -10,18 +10,18 @@ def trim_margin(s: str) -> str:
     lines = s.split("\n")
     new_lines = list()
 
+    if not lines[0].strip():
+        del lines[0]
+
+    if not lines[-1].strip():
+        del lines[-1]
+
     for line in lines:
         idx = line.find("|")
         if idx < 0:
             new_lines.append(line)
         else:
             new_lines.append(line[idx + 1:].rstrip())
-
-    if not new_lines[0].strip():
-        del new_lines[0]
-
-    if not new_lines[-1].strip():
-        del new_lines[-1]
 
     return "\n".join(new_lines)
 

@@ -8,7 +8,7 @@ class EnumConstantElement:
     location: Location
     name: str
     tag: int
-    documentation: str
+    documentation: str = ""
     options: list = []
 
     def __init__(
@@ -16,17 +16,17 @@ class EnumConstantElement:
         location: Location,
         name: str,
         tag: int,
-        documentation: str,
-        options: list,
+        documentation: str = "",
+        options: list = None,
     ):
         self.location = location
         self.name = name
 
         self.tag = tag
-        self.options = options
-        if not documentation:
-            self.documentation = ""
-        else:
+        if options:
+            self.options = options
+
+        if documentation:
             self.documentation = documentation
 
     def to_schema(self) -> str:

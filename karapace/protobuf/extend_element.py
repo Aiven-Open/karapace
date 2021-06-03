@@ -8,14 +8,15 @@ from karapace.protobuf.utils import append_documentation, append_indented
 class ExtendElement:
     location: Location
     name: str
-    documentation: str
-    fields: list
+    documentation: str = ""
+    fields: list = []
 
-    def __init__(self, location: Location, name: str, documentation: str, fields: list):
+    def __init__(self, location: Location, name: str, documentation: str = "", fields: list = None):
         self.location = location
         self.name = name
         self.documentation = documentation
-        self.fields = fields
+        if fields:
+            self.fields = fields
 
     def to_schema(self):
         result: list = list()
@@ -27,4 +28,4 @@ class ExtendElement:
             append_indented(result, field.to_schema())
 
         result.append("}\n")
-        return result
+        return "".join(result)

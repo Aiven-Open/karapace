@@ -9,15 +9,17 @@ class ServiceElement:
     location: Location
     name: str
     documentation: str
-    rpcs: list
-    options: list
+    rpcs: list = []
+    options: list = []
 
-    def __init__(self, location: Location, name: str, documentation: str, rpcs: list, options: list):
+    def __init__(self, location: Location, name: str, documentation: str = "", rpcs: list = None, options: list = None):
         self.location = location
         self.name = name
         self.documentation = documentation
-        self.rpcs = rpcs
-        self.options = options
+        if rpcs:
+            self.rpcs = rpcs
+        if options:
+            self.options = options
 
     def to_schema(self):
         result: list = list()
@@ -34,4 +36,4 @@ class ServiceElement:
                 append_indented(result, rpc.to_schema())
 
         result.append("}\n")
-        return result
+        return "".join(result)

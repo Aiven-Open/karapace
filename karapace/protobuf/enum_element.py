@@ -9,7 +9,7 @@ from karapace.protobuf.utils import append_documentation, append_indented
 class EnumElement(TypeElement):
     constants: list = []
 
-    def __init__(self, location: Location, name: str, documentation: str, options: list, constants: list):
+    def __init__(self, location: Location, name: str, documentation: str = "", options: list = None, constants: list = None):
         self.location = location
         self.name = name
         self.documentation = documentation
