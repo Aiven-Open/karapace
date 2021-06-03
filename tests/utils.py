@@ -217,11 +217,15 @@ def new_random_name(prefix: str) -> str:
 
 
 def create_subject_name_factory(prefix: str) -> Callable[[], str]:
-    return create_id_factory(f"subject-{prefix}")
+    return create_id_factory(f"subject_{prefix}")
 
 
 def create_field_name_factory(prefix: str) -> Callable[[], str]:
-    return create_id_factory(f"field-{prefix}")
+    return create_id_factory(f"field_{prefix}")
+
+
+def create_schema_name_factory(prefix: str) -> Callable[[], str]:
+    return create_id_factory(f"schema_{prefix}")
 
 
 def create_id_factory(prefix: str) -> Callable[[], str]:
