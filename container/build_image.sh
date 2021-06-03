@@ -2,7 +2,7 @@
 # Helper script to generate a karapace image.
 #
 # Notes:
-# - The script will always createa fresh temporary directory to run from. This
+# - The script will always create a fresh temporary directory to run from. This
 # has a few benefits:
 #  - Ensures a clean state for copying files into the docker image. This is
 #  important specially important for the generate version.py file.
@@ -24,7 +24,7 @@ COMMIT=$(git rev-parse -q --verify "${ARG_COMMIT}^{commit}")
 TAG_NAME=${ARG_TAG_NAME////-}
 
 if [[ -z "${COMMIT}" ]]; then
-    echo "Invalid commit provided '${COMMIT}'"
+    echo "Invalid commit provided '${ARG_COMMIT}'"
     echo ""
     echo "$0 <commitish_object> [:tag]"
     exit 1
@@ -44,18 +44,4 @@ sudo docker build \
     --build-arg "COMMIT=$COMMIT" \
     --tag "karapace:${TAG_NAME}" \
     --file container/Dockerfile \
-    ${code_checkout}
-
-# The TAG_NAME has to be explicitly provided, otherwise `latest` is assume,
-# which may not be the version we are currently building.
-sudo docker build \
-    --build-arg "TAG_NAME=${TAG_NAME}" \
-    --tag "karapace-registry:${TAG_NAME}" \
-    --file container/Dockerfile.registry \
-    ${code_checkout}
-
-sudo docker build \
-    --build-arg "TAG_NAME=${TAG_NAME}" \
-    --tag "karapace-rest:${TAG_NAME}" \
-    --file container/Dockerfile.rest \
     ${code_checkout}

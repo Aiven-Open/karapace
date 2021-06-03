@@ -131,7 +131,8 @@ B_NUM_C_INT_OPEN_OBJECT_SCHEMA = parse_jsonschema_definition(
 B_NUM_C_INT_OBJECT_SCHEMA = parse_jsonschema_definition(
     '{"type":"object","additionalProperties":false,"properties":{"b":{"type":"number"},"c":{"type":"integer"}}}'
 )
-PROPERTY_ASTAR_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","propertyNames":{"pattern":"a*"}}')
+PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","patternProperties":{"^a*": {}}}')
+PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","propertyNames":{"pattern":"a*"}}')
 ARRAY_OF_POSITIVE_INTEGER = parse_jsonschema_definition(
     '''
     {
@@ -181,7 +182,7 @@ OBJECT_SCHEMAS = (
     B_DINT_OPEN_OBJECT_SCHEMA, B_INT_OBJECT_SCHEMA, B_INT_OPEN_OBJECT_SCHEMA, B_NUM_C_DINT_OPEN_OBJECT_SCHEMA,
     B_NUM_C_INT_OBJECT_SCHEMA, B_NUM_C_INT_OPEN_OBJECT_SCHEMA, EMPTY_OBJECT_SCHEMA, EMPTY_SCHEMA, EVERY_TYPE_SCHEMA,
     MAX_PROPERTIES_SCHEMA, MAX_PROPERTIES_DECREASED_SCHEMA, MIN_PROPERTIES_SCHEMA, MIN_PROPERTIES_INCREASED_SCHEMA,
-    OBJECT_SCHEMA, PROPERTY_ASTAR_OBJECT_SCHEMA
+    OBJECT_SCHEMA, PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA, PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA
 )
 BOOLEAN_SCHEMAS = (TRUE_SCHEMA, FALSE_SCHEMA)
 NON_OBJECT_SCHEMAS = (

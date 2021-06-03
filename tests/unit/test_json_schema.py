@@ -20,12 +20,10 @@ from tests.schemas.json_schemas import (
     NOT_BOOLEAN_SCHEMA, NOT_INT_SCHEMA, NOT_NUMBER_SCHEMA, NOT_OBJECT_SCHEMA, NOT_OF_EMPTY_SCHEMA, NOT_OF_TRUE_SCHEMA,
     NOT_STRING_SCHEMA, NUMBER_SCHEMA, OBJECT_SCHEMA, OBJECT_SCHEMAS, ONEOF_ARRAY_A_DINT_B_NUM_SCHEMA,
     ONEOF_ARRAY_B_NUM_C_DINT_OPEN_SCHEMA, ONEOF_ARRAY_B_NUM_C_INT_SCHEMA, ONEOF_INT_SCHEMA, ONEOF_NUMBER_SCHEMA,
-    ONEOF_STRING_INT_SCHEMA, ONEOF_STRING_SCHEMA, PROPERTY_ASTAR_OBJECT_SCHEMA, STRING_SCHEMA, TRUE_SCHEMA,
-    TUPLE_OF_INT_INT_OPEN_SCHEMA, TUPLE_OF_INT_INT_SCHEMA, TUPLE_OF_INT_OPEN_SCHEMA, TUPLE_OF_INT_SCHEMA,
-    TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
+    ONEOF_STRING_INT_SCHEMA, ONEOF_STRING_SCHEMA, PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA, PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+    STRING_SCHEMA, TRUE_SCHEMA, TUPLE_OF_INT_INT_OPEN_SCHEMA, TUPLE_OF_INT_INT_SCHEMA, TUPLE_OF_INT_OPEN_SCHEMA,
+    TUPLE_OF_INT_SCHEMA, TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA, TYPES_STRING_INT_SCHEMA, TYPES_STRING_SCHEMA
 )
-
-import pytest
 
 COMPATIBLE = SchemaCompatibilityResult.compatible()
 
@@ -1263,20 +1261,21 @@ def test_schema_broadenning_attributes_is_compatible() -> None:
     )
 
 
-@pytest.mark.skip("not implemented yet")
-def test_property_name():
+def test_pattern_properties():
     schemas_are_compatible(
         reader=OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         msg=COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES,
     )
-    not_schemas_are_compatible(
+    # In backward compatibility mode it is allowed to delete fields
+    schemas_are_compatible(
         reader=A_OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         msg=COMPATIBILIY,
     )
+    # In backward compatibility mode it is allowed to add optional fields
     schemas_are_compatible(
-        reader=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        reader=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         writer=A_OBJECT_SCHEMA,
         msg=COMPATIBILIY,
     )
@@ -1286,16 +1285,74 @@ def test_property_name():
     # invalid
     not_schemas_are_compatible(
         reader=A_INT_OBJECT_SCHEMA,
-        writer=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        writer=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
     )
 
     # - writer has property `b`
     # - reader only accepts properties with match regex `a*`
     not_schemas_are_compatible(
-        reader=PROPERTY_ASTAR_OBJECT_SCHEMA,
+        reader=PATTERN_PROPERTY_ASTAR_OBJECT_SCHEMA,
         writer=B_INT_OBJECT_SCHEMA,
         msg=INCOMPATIBLE_READER_IS_CLOSED_AND_REMOVED_FIELD,
+    )
+
+
+def test_object_properties():
+    not_schemas_are_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+    not_schemas_are_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=B_INT_OBJECT_SCHEMA,
+        writer=OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+
+
+def test_property_names():
+    schemas_are_compatible(
+        reader=OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        msg=COMPATIBLE_READER_IS_OPEN_AND_IGNORE_UNKNOWN_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=A_OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        writer=A_OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
+    )
+
+    # - writer accept any value for `a`
+    # - reader requires it to be an `int`, therefore the other values became
+    # invalid
+    not_schemas_are_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+
+    # - writer has property `b`
+    # - reader only accepts properties with match regex `a*`
+    schemas_are_compatible(
+        reader=PROPERTY_NAMES_ASTAR_OBJECT_SCHEMA,
+        writer=B_INT_OBJECT_SCHEMA,
+        msg=COMPATIBILIY,
     )
 
 

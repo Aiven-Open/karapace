@@ -161,6 +161,9 @@ class KafkaSchemaReader(Thread):
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
+            sasl_mechanism=self.config["sasl_mechanism"],
+            sasl_plain_username=self.config["sasl_plain_username"],
+            sasl_plain_password=self.config["sasl_plain_password"],
             auto_offset_reset="earliest",
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=request_timeout_ms,
@@ -178,6 +181,9 @@ class KafkaSchemaReader(Thread):
                 ssl_cafile=self.config["ssl_cafile"],
                 ssl_certfile=self.config["ssl_certfile"],
                 ssl_keyfile=self.config["ssl_keyfile"],
+                sasl_mechanism=self.config["sasl_mechanism"],
+                sasl_plain_username=self.config["sasl_plain_username"],
+                sasl_plain_password=self.config["sasl_plain_password"],
             )
             return True
         except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
@@ -260,11 +266,12 @@ class KafkaSchemaReader(Thread):
             self.ready = True
         add_offsets = False
         if self.master_coordinator is not None:
-            master, _ = self.master_coordinator.get_master_info()
-            # keep old behavior for True. When master is False, then we are a follower, so we should not accept direct
-            # writes anyway. When master is None, then this particular node is waiting for a stable value, so any
+            are_we_master, _ = self.master_coordinator.get_master_info()
+            # keep old behavior for True. When are_we_master is False, then we are a follower, so we should not accept direct
+            # writes anyway. When are_we_master is None, then this particular node is waiting for a stable value, so any
             # messages off the topic are writes performed by another node
-            if master is True:
+            # Also if master_elibility is disabled by configuration, disable writes too
+            if are_we_master is True:
                 add_offsets = True
 
         for _, msgs in raw_msgs.items():
@@ -388,7 +395,9 @@ class KafkaSchemaReader(Thread):
             schema["deleted"] = True
         return schema
 
-    def get_schemas(self, subject):
+    def get_schemas(self, subject, *, include_deleted=False):
+        if include_deleted:
+            return self.subjects[subject]["schemas"]
         non_deleted_schemas = {
             key: val
             for key, val in self.subjects[subject]["schemas"].items()
