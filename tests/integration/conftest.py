@@ -175,6 +175,7 @@ def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]
 @pytest.fixture(scope="function", name="rest_async")
 async def fixture_rest_async(
     request,
+    loop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
@@ -207,7 +208,12 @@ async def fixture_rest_async(
 
 
 @pytest.fixture(scope="function", name="rest_async_client")
-async def fixture_rest_async_client(request, rest_async: KafkaRest, aiohttp_client) -> AsyncIterator[Client]:
+async def fixture_rest_async_client(
+    request,
+    loop,  # pylint: disable=unused-argument
+    rest_async: KafkaRest,
+    aiohttp_client,
+) -> AsyncIterator[Client]:
     rest_url = request.config.getoption("rest_url")
 
     # client and server_uri are incompatible settings.
@@ -273,6 +279,7 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
 @pytest.fixture(scope="function", name="registry_async")
 async def fixture_registry_async(
     request,
+    loop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[Optional[KarapaceSchemaRegistry]]:
@@ -307,8 +314,12 @@ async def fixture_registry_async(
 
 
 @pytest.fixture(scope="function", name="registry_async_client")
-async def fixture_registry_async_client(request, registry_async: KarapaceSchemaRegistry,
-                                        aiohttp_client) -> AsyncIterator[Client]:
+async def fixture_registry_async_client(
+    request,
+    loop,  # pylint: disable=unused-argument
+    registry_async: KarapaceSchemaRegistry,
+    aiohttp_client,
+) -> AsyncIterator[Client]:
 
     registry_url = request.config.getoption("registry_url")
 
