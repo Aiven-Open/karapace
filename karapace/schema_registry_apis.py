@@ -4,7 +4,7 @@ from http import HTTPStatus
 from karapace import version as karapace_version
 from karapace.avro_compatibility import is_incompatible
 from karapace.compatibility import check_compatibility, CompatibilityModes
-from karapace.config import read_config
+from karapace.config import DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
@@ -867,6 +867,7 @@ def main() -> int:
     with closing(arg.config_file):
         config = read_config(arg.config_file)
 
+    logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
     logging.getLogger().setLevel(config["log_level"])
     kc = KarapaceSchemaRegistry(config=config)
     try:
