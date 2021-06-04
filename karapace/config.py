@@ -51,6 +51,7 @@ DEFAULTS = {
     "karapace_registry": False,
     "master_election_strategy": "lowest"
 }
+DEFAULT_LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 
 
 class InvalidConfiguration(Exception):

@@ -17,9 +17,6 @@ import logging
 import os
 import time
 
-LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
-
 
 class KarapaceBase(RestApp):
     def __init__(self, config: dict) -> None:
