@@ -2,7 +2,6 @@ from contextlib import closing
 from karapace import version as karapace_version
 from karapace.config import read_config
 from karapace.kafka_rest_apis import KafkaRest
-from karapace.karapace import KarapaceBase
 from karapace.rapu import RestApp
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 
@@ -11,28 +10,16 @@ import logging
 import sys
 
 
-class KarapaceAll(KafkaRest, KarapaceSchemaRegistry, KarapaceBase):
+class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
     # pylint: disable=super-init-not-called
-    def __init__(self, config_file_path: str, config: dict) -> None:
-        KarapaceBase.__init__(self, config_file_path=config_file_path, config=config)
-        KafkaRest._init(self, config=config)
-        KafkaRest._add_routes(self)
-        KarapaceSchemaRegistry._init(self, config=config)
-        KarapaceSchemaRegistry._add_routes(self)
+    def __init__(self, config: dict) -> None:
+        super().__init__(config=config)
         self.log = logging.getLogger("KarapaceAll")
         self.app.on_shutdown.append(self.close_by_app)
 
-    def close_by_app(self, app):
+    async def close_by_app(self, app):
         # pylint: disable=unused-argument
-        self.close()
-
-    def close(self):
-        for cls in [KarapaceBase, KafkaRest, KarapaceSchemaRegistry]:
-            try:
-                cls.close(self)
-            except:  # pylint: disable=bare-except
-                pass
-            KafkaRest.close_producers(self)
+        await self.close()
 
 
 def main() -> int:
@@ -44,20 +31,18 @@ def main() -> int:
     with closing(arg.config_file):
         config = read_config(arg.config_file)
 
-    config_file_path = arg.config_file.name
-
     logging.getLogger().setLevel(config["log_level"])
 
     kc: RestApp
     if config["karapace_rest"] and config["karapace_registry"]:
         info_str = "both services"
-        kc = KarapaceAll(config_file_path=config_file_path, config=config)
+        kc = KarapaceAll(config=config)
     elif config["karapace_rest"]:
         info_str = "karapace rest"
-        kc = KafkaRest(config_file_path=config_file_path, config=config)
+        kc = KafkaRest(config=config)
     elif config["karapace_registry"]:
         info_str = "karapace schema registry"
-        kc = KarapaceSchemaRegistry(config_file_path=config_file_path, config=config)
+        kc = KarapaceSchemaRegistry(config=config)
     else:
         print("Both rest and registry options are disabled, exiting")
         return 1
