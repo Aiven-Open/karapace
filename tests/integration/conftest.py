@@ -193,7 +193,7 @@ async def fixture_rest_async(
 
     config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers, "admin_metadata_max_age": 0})
     write_config(config_path, config)
-    rest = KafkaRest(config_file_path=str(config_path), config=config)
+    rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
     assert rest.consumer_manager.deserializer.registry_client
@@ -202,8 +202,7 @@ async def fixture_rest_async(
     try:
         yield rest
     finally:
-        rest.close()
-        await rest.close_producers()
+        await rest.close()
 
 
 @pytest.fixture(scope="function", name="rest_async_client")
@@ -298,12 +297,12 @@ async def fixture_registry_async(
         # "group_id": new_random_name("schema_registry")
     })
     write_config(config_path, config)
-    registry = KarapaceSchemaRegistry(config_file_path=str(config_path), config=config)
+    registry = KarapaceSchemaRegistry(config=config)
     await registry.get_master()
     try:
         yield registry
     finally:
-        registry.close()
+        await registry.close()
 
 
 @pytest.fixture(scope="function", name="registry_async_client")

@@ -45,12 +45,12 @@ class InvalidSchemaType(Exception):
 
 class KarapaceSchemaRegistry(KarapaceBase):
     # pylint: disable=attribute-defined-outside-init
-    def __init__(self, config_file_path: str, config: dict) -> None:
-        super().__init__(config_file_path=config_file_path, config=config)
-        self._add_routes()
-        self._init(config=config)
+    def __init__(self, config: dict) -> None:
+        super().__init__(config=config)
+        self._add_schema_registry_routes()
+        self._init_schema_registry(config=config)
 
-    def _init(self, config: dict) -> None:  # pylint: disable=unused-argument
+    def _init_schema_registry(self, config: dict) -> None:  # pylint: disable=unused-argument
         self.ksr = None
         self.producer = None
         self.producer = self._create_producer()
@@ -58,7 +58,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self._create_schema_reader()
         self.schema_lock = asyncio.Lock()
 
-    def _add_routes(self):
+    def _add_schema_registry_routes(self) -> None:
         self.route(
             "/compatibility/subjects/<subject:path>/versions/<version:path>",
             callback=self.compatibility_check,
@@ -116,8 +116,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
             json_body=False,
         )
 
-    def close(self):
-        super().close()
+    async def close(self) -> None:
+        await super().close()
         self.log.info("Shutting down all auxiliary threads")
         if self.mc:
             self.mc.close()
@@ -868,7 +868,7 @@ def main() -> int:
         config = read_config(arg.config_file)
 
     logging.getLogger().setLevel(config["log_level"])
-    kc = KarapaceSchemaRegistry(config_file_path=arg.config_file.name, config=config)
+    kc = KarapaceSchemaRegistry(config=config)
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])
     except Exception:  # pylint: disable-broad-except
