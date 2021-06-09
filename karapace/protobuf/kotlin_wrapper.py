@@ -21,7 +21,7 @@ def trim_margin(s: str) -> str:
         if idx < 0:
             new_lines.append(line)
         else:
-            new_lines.append(line[idx + 1:].rstrip())
+            new_lines.append(line[idx + 1:])
 
     return "\n".join(new_lines)
 

@@ -64,13 +64,14 @@ class FieldElement:
         not options themselves as they're missing from `google.protobuf.FieldOptions`.
         """
 
-        options = self.options.copy()
+        options: list = self.options.copy()
 
         if self.default_value:
             proto_type: ProtoType = ProtoType.get2(self.element_type)
             options.append(OptionElement("default", proto_type.to_kind(), self.default_value, False))
+
         if self.json_name:
-            self.options.append(OptionElement("json_name", OptionElement.Kind.STRING, self.json_name, False))
+            options.append(OptionElement("json_name", OptionElement.Kind.STRING, self.json_name, False))
 
         return options
 

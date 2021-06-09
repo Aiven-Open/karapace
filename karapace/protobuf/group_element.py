@@ -27,9 +27,9 @@ class GroupElement:
         self.location = location
         self.name = name
         self.tag = tag
-        self.documentation = documentation
-        if self.fields:
+        if fields:
             self.fields = fields
+        self.documentation = documentation
 
     def to_schema(self) -> str:
         result: list = []

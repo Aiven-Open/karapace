@@ -1,7 +1,5 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElementTest.kt
-import copy
-
 from karapace.protobuf.extend_element import ExtendElement
 from karapace.protobuf.field import Field
 from karapace.protobuf.field_element import FieldElement
@@ -13,6 +11,8 @@ from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
+
+import copy
 
 location: Location = Location.get("some/folder", "file.proto")
 
@@ -28,10 +28,7 @@ def test_empty_to_schema():
 
 
 def test_empty_with_package_to_schema():
-    file = ProtoFileElement(
-        location=location,
-        package_name="example.simple"
-    )
+    file = ProtoFileElement(location=location, package_name="example.simple")
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -43,14 +40,8 @@ def test_empty_with_package_to_schema():
 
 
 def test_simple_to_schema():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    file = ProtoFileElement(
-        location=location,
-        types=[element]
-    )
+    element = MessageElement(location=location, name="Message")
+    file = ProtoFileElement(location=location, types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -62,15 +53,8 @@ def test_simple_to_schema():
 
 
 def test_simple_with_imports_to_schema():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    file = ProtoFileElement(
-        location=location,
-        imports=["example.other"],
-        types=[element]
-    )
+    element = MessageElement(location=location, name="Message")
+    file = ProtoFileElement(location=location, imports=["example.other"], types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -84,28 +68,14 @@ def test_simple_with_imports_to_schema():
 
 
 def test_add_multiple_dependencies():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    file = ProtoFileElement(
-        location=location,
-        imports=["example.other", "example.another"],
-        types=[element]
-    )
+    element = MessageElement(location=location, name="Message")
+    file = ProtoFileElement(location=location, imports=["example.other", "example.another"], types=[element])
     assert len(file.imports) == 2
 
 
 def test_simple_with_public_imports_to_schema():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    file = ProtoFileElement(
-        location=location,
-        public_imports=["example.other"],
-        types=[element]
-    )
+    element = MessageElement(location=location, name="Message")
+    file = ProtoFileElement(location=location, public_imports=["example.other"], types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -119,28 +89,15 @@ def test_simple_with_public_imports_to_schema():
 
 
 def test_add_multiple_public_dependencies():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    file = ProtoFileElement(location=location,
-                            public_imports=["example.other", "example.another"],
-                            types=[element]
-                            )
+    element = MessageElement(location=location, name="Message")
+    file = ProtoFileElement(location=location, public_imports=["example.other", "example.another"], types=[element])
 
     assert len(file.public_imports) == 2
 
 
 def test_simple_with_both_imports_to_schema():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    file = ProtoFileElement(location=location,
-                            imports=["example.thing"],
-                            public_imports=["example.other"],
-                            types=[element]
-                            )
+    element = MessageElement(location=location, name="Message")
+    file = ProtoFileElement(location=location, imports=["example.thing"], public_imports=["example.other"], types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -155,19 +112,9 @@ def test_simple_with_both_imports_to_schema():
 
 
 def test_simple_with_services_to_schema():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
-    service = ServiceElement(
-        location=location,
-        name="Service"
-    )
-    file = ProtoFileElement(
-        location=location,
-        types=[element],
-        services=[service]
-    )
+    element = MessageElement(location=location, name="Message")
+    service = ServiceElement(location=location, name="Service")
+    file = ProtoFileElement(location=location, types=[element], services=[service])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -181,32 +128,16 @@ def test_simple_with_services_to_schema():
 
 
 def test_add_multiple_services():
-    service1 = ServiceElement(
-        location=location,
-        name="Service1"
-    )
-    service2 = ServiceElement(
-        location=location,
-        name="Service2"
-    )
-    file = ProtoFileElement(
-        location=location,
-        services=[service1, service2]
-    )
+    service1 = ServiceElement(location=location, name="Service1")
+    service2 = ServiceElement(location=location, name="Service2")
+    file = ProtoFileElement(location=location, services=[service1, service2])
     assert len(file.services) == 2
 
 
 def test_simple_with_options_to_schema():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
+    element = MessageElement(location=location, name="Message")
     option = OptionElement("kit", OptionElement.Kind.STRING, "kat")
-    file = ProtoFileElement(
-        location=location,
-        options=[option],
-        types=[element]
-    )
+    file = ProtoFileElement(location=location, options=[option], types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -220,17 +151,10 @@ def test_simple_with_options_to_schema():
 
 
 def test_add_multiple_options():
-    element = MessageElement(
-        location=location,
-        name="Message"
-    )
+    element = MessageElement(location=location, name="Message")
     kit_kat = OptionElement("kit", OptionElement.Kind.STRING, "kat")
     foo_bar = OptionElement("foo", OptionElement.Kind.STRING, "bar")
-    file = ProtoFileElement(
-        location=location,
-        options=[kit_kat, foo_bar],
-        types=[element]
-    )
+    file = ProtoFileElement(location=location, options=[kit_kat, foo_bar], types=[element])
     assert len(file.options) == 2
 
 
@@ -255,10 +179,7 @@ def test_simple_with_extends_to_schema():
 def test_add_multiple_extends():
     extend1 = ExtendElement(location=location, name="Extend1")
     extend2 = ExtendElement(location=location, name="Extend2")
-    file = ProtoFileElement(
-        location=location,
-        extend_declarations=[extend1, extend2]
-    )
+    file = ProtoFileElement(location=location, extend_declarations=[extend1, extend2])
     assert len(file.extend_declarations) == 2
 
 
@@ -269,14 +190,8 @@ def test_multiple_everything_to_schema():
     extend2 = ExtendElement(location=location.at(18, 1), name="Extend2")
     option1 = OptionElement("kit", OptionElement.Kind.STRING, "kat")
     option2 = OptionElement("foo", OptionElement.Kind.STRING, "bar")
-    service1 = ServiceElement(
-        location=location.at(20, 1),
-        name="Service1"
-    )
-    service2 = ServiceElement(
-        location=location.at(22, 1),
-        name="Service2"
-    )
+    service1 = ServiceElement(location=location.at(20, 1), name="Service1")
+    service2 = ServiceElement(location=location.at(22, 1), name="Service2")
     file = ProtoFileElement(
         location=location,
         package_name="example.simple",
@@ -321,11 +236,7 @@ def test_multiple_everything_to_schema():
 
 def test_syntax_to_schema():
     element = MessageElement(location=location, name="Message")
-    file = ProtoFileElement(
-        location=location,
-        syntax=Syntax.PROTO_2,
-        types=[element]
-    )
+    file = ProtoFileElement(location=location, syntax=Syntax.PROTO_2, types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -347,11 +258,7 @@ def test_default_is_set_in_proto2():
         tag=1,
         default_value="defaultValue"
     )
-    message = MessageElement(
-        location=location.at(11, 1),
-        name="Message",
-        fields=[field]
-    )
+    message = MessageElement(location=location.at(11, 1), name="Message", fields=[field])
     file = ProtoFileElement(
         syntax=Syntax.PROTO_2,
         location=location,
@@ -438,8 +345,11 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
     message = MessageElement(
         location=location.at(8, 1),
         name="Message",
-        fields=[field_numeric, field_numeric_packed_true, field_numeric_packed_false, field_string,
-                field_string_packed_true, field_string_packed_false])
+        fields=[
+            field_numeric, field_numeric_packed_true, field_numeric_packed_false, field_string, field_string_packed_true,
+            field_string_packed_false
+        ]
+    )
     file = ProtoFileElement(
         syntax=Syntax.PROTO_2,
         location=location,
@@ -533,8 +443,10 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
     message = MessageElement(
         location=location.at(8, 1),
         name="Message",
-        fields=[field_numeric, field_numeric_packed_true, field_numeric_packed_false, field_string,
-                field_string_packed_true, field_string_packed_false]
+        fields=[
+            field_numeric, field_numeric_packed_true, field_numeric_packed_false, field_string, field_string_packed_true,
+            field_string_packed_false
+        ]
     )
     file = ProtoFileElement(
         syntax=Syntax.PROTO_3,

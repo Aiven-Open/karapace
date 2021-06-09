@@ -17,7 +17,7 @@ def append_documentation(data: list, documentation: str):
         lines.pop()
 
     for line in lines:
-        data.append("# ")
+        data.append("// ")
         data.append(line)
         data.append("\n")
 
@@ -32,7 +32,7 @@ def append_options(data: list, options: list):
 
     data.append("[\n")
     for i in range(0, count):
-        if i < count:
+        if i < count - 1:
             endl = ","
         else:
             endl = ""

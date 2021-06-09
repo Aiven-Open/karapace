@@ -27,6 +27,7 @@ class OneOfElement:
         append_documentation(result, self.documentation)
         result.append(f"oneof {self.name} {{")
         if self.options:
+            result.append("\n")
             for option in self.options:
                 append_indented(result, option.to_schema_declaration())
 

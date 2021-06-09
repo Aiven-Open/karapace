@@ -10,12 +10,14 @@ class ExtensionsElement:
     location: Location
     documentation: str = ""
     """ An [Int] or [IntRange] tag. """
-    values: list
+    values: list = []
 
-    def __init__(self, location: Location, documentation: str, values: list):
+    def __init__(self, location: Location, documentation: str = None, values: list = None):
         self.location = location
-        self.documentation = documentation
-        self.values = values
+        if documentation:
+            self.documentation = documentation
+        if values:
+            self.values = values
 
     def to_schema(self) -> str:
         result: list = []

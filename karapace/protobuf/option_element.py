@@ -75,7 +75,7 @@ class OptionElement:
 
         data.append("[\n")
         for i in range(0, count):
-            if i < count:
+            if i < count - 1:
                 endl = ","
             else:
                 endl = ""
