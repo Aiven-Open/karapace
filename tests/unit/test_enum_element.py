@@ -1,8 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/EnumElementTest.kt
 
-import pytest
-
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.kotlin_wrapper import trim_margin
@@ -13,10 +11,7 @@ location: Location = Location.get("file.proto")
 
 
 def test_empty_to_schema():
-    element = EnumElement(
-        location=location,
-        name="Enum"
-    )
+    element = EnumElement(location=location, name="Enum")
     expected = "enum Enum {}\n"
     assert element.to_schema() == expected
 
@@ -46,11 +41,7 @@ def test_add_multiple_constants():
     one = EnumConstantElement(location=location, name="ONE", tag=1)
     two = EnumConstantElement(location=location, name="TWO", tag=2)
     six = EnumConstantElement(location=location, name="SIX", tag=6)
-    element = EnumElement(
-        location=location,
-        name="Enum",
-        constants=[one, two, six]
-    )
+    element = EnumElement(location=location, name="Enum", constants=[one, two, six])
     assert len(element.constants) == 3
 
 
@@ -119,12 +110,7 @@ def test_field_to_schema():
 
 
 def test_field_with_documentation_to_schema():
-    value = EnumConstantElement(
-        location=location,
-        name="NAME",
-        tag=1,
-        documentation="Hello"
-    )
+    value = EnumConstantElement(location=location, name="NAME", tag=1, documentation="Hello")
     expected = """
         |// Hello
         |NAME = 1;

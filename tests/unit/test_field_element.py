@@ -1,8 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/FieldElementTest.kt
 
-import pytest
-
 from karapace.protobuf.field import Field
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.kotlin_wrapper import trim_margin
@@ -34,12 +32,7 @@ def test_add_multiple_options():
     kit_kat = OptionElement("kit", OptionElement.Kind.STRING, "kat")
     foo_bar = OptionElement("foo", OptionElement.Kind.STRING, "bar")
     field = FieldElement(
-        location=location,
-        label=Field.Label.REQUIRED,
-        element_type="string",
-        name="name",
-        tag=1,
-        options=[kit_kat, foo_bar]
+        location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1, options=[kit_kat, foo_bar]
     )
 
     assert len(field.options) == 2
@@ -55,7 +48,8 @@ def test_default_is_set():
         default_value="defaultValue"
     )
 
-    assert field.to_schema() == trim_margin("""
+    assert field.to_schema(
+    ) == trim_margin("""
             |required string name = 1 [default = "defaultValue"];
             |""")
 
@@ -71,24 +65,22 @@ def test_json_name_and_default_value():
         tag=1
     )
 
-    assert field.to_schema() == trim_margin("""
+    assert field.to_schema() == trim_margin(
+        """
             |required string name = 1 [
             |  default = "defaultValue",
             |  json_name = "my_json"
             |];
-            |""")
+            |"""
+    )
 
 
 def test_json_name():
     field = FieldElement(
-        location=location,
-        label=Field.Label.REQUIRED,
-        element_type="string",
-        name="name",
-        json_name="my_json",
-        tag=1
+        location=location, label=Field.Label.REQUIRED, element_type="string", name="name", json_name="my_json", tag=1
     )
 
-    assert field.to_schema() == trim_margin("""
+    assert field.to_schema(
+    ) == trim_margin("""
             |required string name = 1 [json_name = "my_json"];
             |""")

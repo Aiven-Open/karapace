@@ -1,8 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ExtendElementTest.kt
 
-import pytest
-
 from karapace.protobuf.extend_element import ExtendElement
 from karapace.protobuf.field import Field
 from karapace.protobuf.field_element import FieldElement
@@ -13,10 +11,7 @@ location = Location.get("file.proto")
 
 
 def test_empty_to_schema():
-    extend = ExtendElement(
-        location=location,
-        name="Name"
-    )
+    extend = ExtendElement(location=location, name="Name")
     expected = "extend Name {}\n"
     assert extend.to_schema() == expected
 
@@ -25,15 +20,7 @@ def test_simple_to_schema():
     extend = ExtendElement(
         location=location,
         name="Name",
-        fields=[
-            FieldElement(
-                location=location,
-                label=Field.Label.REQUIRED,
-                element_type="string",
-                name="name",
-                tag=1
-            )
-        ]
+        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)]
     )
     expected = """
         |extend Name {
@@ -45,25 +32,9 @@ def test_simple_to_schema():
 
 
 def test_add_multiple_fields():
-    first_name = FieldElement(
-        location=location,
-        label=Field.Label.REQUIRED,
-        element_type="string",
-        name="first_name",
-        tag=1
-    )
-    last_name = FieldElement(
-        location=location,
-        label=Field.Label.REQUIRED,
-        element_type="string",
-        name="last_name",
-        tag=2
-    )
-    extend = ExtendElement(
-        location=location,
-        name="Name",
-        fields=[first_name, last_name]
-    )
+    first_name = FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="first_name", tag=1)
+    last_name = FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="last_name", tag=2)
+    extend = ExtendElement(location=location, name="Name", fields=[first_name, last_name])
     assert len(extend.fields) == 2
 
 
@@ -72,15 +43,7 @@ def test_simple_with_documentation_to_schema():
         location=location,
         name="Name",
         documentation="Hello",
-        fields=[
-            FieldElement(
-                location=location,
-                label=Field.Label.REQUIRED,
-                element_type="string",
-                name="name",
-                tag=1
-            )
-        ]
+        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)]
     )
     expected = """
         |// Hello

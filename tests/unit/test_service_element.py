@@ -1,8 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ServiceElementTest.kt
 
-import pytest
-
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
@@ -13,10 +11,7 @@ location: Location = Location.get("file.proto")
 
 
 def test_empty_to_schema():
-    service = ServiceElement(
-        location=location,
-        name="Service"
-    )
+    service = ServiceElement(location=location, name="Service")
     expected = "service Service {}\n"
     assert service.to_schema() == expected
 
@@ -25,14 +20,7 @@ def test_single_to_schema():
     service = ServiceElement(
         location=location,
         name="Service",
-        rpcs=[
-            RpcElement(
-                location=location,
-                name="Name",
-                request_type="RequestType",
-                response_type="ResponseType"
-            )
-        ]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
     )
     expected = """
         |service Service {
@@ -44,23 +32,9 @@ def test_single_to_schema():
 
 
 def test_add_multiple_rpcs():
-    first_name = RpcElement(
-        location=location,
-        name="FirstName",
-        request_type="RequestType",
-        response_type="ResponseType"
-    )
-    last_name = RpcElement(
-        location=location,
-        name="LastName",
-        request_type="RequestType",
-        response_type="ResponseType"
-    )
-    service = ServiceElement(
-        location=location,
-        name="Service",
-        rpcs=[first_name, last_name]
-    )
+    first_name = RpcElement(location=location, name="FirstName", request_type="RequestType", response_type="ResponseType")
+    last_name = RpcElement(location=location, name="LastName", request_type="RequestType", response_type="ResponseType")
+    service = ServiceElement(location=location, name="Service", rpcs=[first_name, last_name])
     assert len(service.rpcs) == 2
 
 
@@ -69,14 +43,7 @@ def test_single_with_options_to_schema():
         location=location,
         name="Service",
         options=[OptionElement("foo", OptionElement.Kind.STRING, "bar")],
-        rpcs=[
-            RpcElement(
-                location=location,
-                name="Name",
-                request_type="RequestType",
-                response_type="ResponseType"
-            )
-        ]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
     )
     expected = """
         |service Service {
@@ -96,14 +63,7 @@ def test_add_multiple_options():
         location=location,
         name="Service",
         options=[kit_kat, foo_bar],
-        rpcs=[
-            RpcElement(
-                location=location,
-                name="Name",
-                request_type="RequestType",
-                response_type="ResponseType"
-            )
-        ]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
     )
     assert len(service.options) == 2
 
@@ -113,14 +73,7 @@ def test_single_with_documentation_to_schema():
         location=location,
         name="Service",
         documentation="Hello",
-        rpcs=[
-            RpcElement(
-                location=location,
-                name="Name",
-                request_type="RequestType",
-                response_type="ResponseType"
-            )
-        ]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
     )
     expected = """
         |// Hello
@@ -133,17 +86,8 @@ def test_single_with_documentation_to_schema():
 
 
 def test_multiple_to_schema():
-    rpc = RpcElement(
-        location=location,
-        name="Name",
-        request_type="RequestType",
-        response_type="ResponseType"
-    )
-    service = ServiceElement(
-        location=location,
-        name="Service",
-        rpcs=[rpc, rpc]
-    )
+    rpc = RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")
+    service = ServiceElement(location=location, name="Service", rpcs=[rpc, rpc])
     expected = """
         |service Service {
         |  rpc Name (RequestType) returns (ResponseType);
@@ -156,23 +100,14 @@ def test_multiple_to_schema():
 
 
 def test_rpc_to_schema():
-    rpc = RpcElement(
-        location=location,
-        name="Name",
-        request_type="RequestType",
-        response_type="ResponseType"
-    )
+    rpc = RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")
     expected = "rpc Name (RequestType) returns (ResponseType);\n"
     assert rpc.to_schema() == expected
 
 
 def test_rpc_with_documentation_to_schema():
     rpc = RpcElement(
-        location=location,
-        name="Name",
-        documentation="Hello",
-        request_type="RequestType",
-        response_type="ResponseType"
+        location=location, name="Name", documentation="Hello", request_type="RequestType", response_type="ResponseType"
     )
     expected = """
         |// Hello
@@ -202,11 +137,7 @@ def test_rpc_with_options_to_schema():
 
 def test_rpc_with_request_streaming_to_schema():
     rpc = RpcElement(
-        location=location,
-        name="Name",
-        request_type="RequestType",
-        response_type="ResponseType",
-        request_streaming=True
+        location=location, name="Name", request_type="RequestType", response_type="ResponseType", request_streaming=True
     )
     expected = "rpc Name (stream RequestType) returns (ResponseType);\n"
     assert rpc.to_schema() == expected
@@ -214,11 +145,7 @@ def test_rpc_with_request_streaming_to_schema():
 
 def test_rpc_with_response_streaming_to_schema():
     rpc = RpcElement(
-        location=location,
-        name="Name",
-        request_type="RequestType",
-        response_type="ResponseType",
-        response_streaming=True
+        location=location, name="Name", request_type="RequestType", response_type="ResponseType", response_streaming=True
     )
     expected = "rpc Name (RequestType) returns (stream ResponseType);\n"
     assert rpc.to_schema() == expected
