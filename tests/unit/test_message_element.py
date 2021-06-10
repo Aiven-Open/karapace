@@ -207,11 +207,13 @@ def test_one_of_with_group_to_schema():
             )
         ]
     )
+
     expected = """
         |message Message {
         |  oneof hi {
         |    string name = 1;
-        |
+        |  """ + \
+        """
         |    group Stuff = 3 {
         |      optional int32 result_per_page = 4;
         |      optional int32 page_count = 5;
