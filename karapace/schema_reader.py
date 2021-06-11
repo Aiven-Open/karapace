@@ -107,6 +107,8 @@ class TypedSchema:
             return self.schema.schema
         if isinstance(self.schema, AvroSchema):
             return self.schema.to_json(names=None)
+        if isinstance(self.schema, ProtobufSchema):
+            return self.schema.to_json()
         return self.schema
 
     def __str__(self) -> str:

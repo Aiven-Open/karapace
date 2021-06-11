@@ -4,16 +4,7 @@
 from enum import Enum
 # from karapace.protobuf.kotlin_wrapper import *
 # from karapace.protobuf.kotlin_wrapper import *
-from karapace.protobuf.utils import append_indented
-
-
-def try_to_schema(obj: object) -> str:
-    try:
-        return obj.to_schema()
-    except AttributeError:
-        if isinstance(obj, str):
-            return obj
-        raise AttributeError
+from karapace.protobuf.utils import append_indented, append_options, try_to_schema
 
 
 class ListOptionElement(list):
@@ -65,22 +56,8 @@ class OptionElement:
 
     @staticmethod
     def append_options(options: list):
-        data: list = list()
-        count = len(options)
-        if count == 1:
-            data.append('[')
-            data.append(try_to_schema(options[0]))
-            data.append(']')
-            return "".join(data)
-
-        data.append("[\n")
-        for i in range(0, count):
-            if i < count - 1:
-                endl = ","
-            else:
-                endl = ""
-            append_indented(data, try_to_schema(options[i]) + endl)
-        data.append(']')
+        data: list = []
+        append_options(data, options)
         return "".join(data)
 
     def format_option_map(self, value: dict) -> str:

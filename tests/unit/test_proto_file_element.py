@@ -331,8 +331,6 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
         tag=5,
         options=[PACKED_OPTION_ELEMENT]
     )
-    el = copy.copy(PACKED_OPTION_ELEMENT)
-    el.value = "false"
     field_string_packed_false = FieldElement(
         location=location.at(19, 3),
         label=Field.Label.REPEATED,
@@ -350,14 +348,7 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
             field_string_packed_false
         ]
     )
-    file = ProtoFileElement(
-        syntax=Syntax.PROTO_2,
-        location=location,
-        package_name="example.simple",
-        imports=[],
-        public_imports=[],
-        types=[message]
-    )
+    file = ProtoFileElement(syntax=Syntax.PROTO_2, location=location, package_name="example.simple", types=[message])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -429,8 +420,7 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
         tag=5,
         options=[PACKED_OPTION_ELEMENT]
     )
-    el = copy.copy(PACKED_OPTION_ELEMENT)
-    el.value = "false"
+
     field_string_packed_false = FieldElement(
         location=location.at(19, 3),
         label=Field.Label.REPEATED,
@@ -448,14 +438,7 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
             field_string_packed_false
         ]
     )
-    file = ProtoFileElement(
-        syntax=Syntax.PROTO_3,
-        location=location,
-        package_name="example.simple",
-        imports=[],
-        public_imports=[],
-        types=[message]
-    )
+    file = ProtoFileElement(syntax=Syntax.PROTO_3, location=location, package_name="example.simple", types=[message])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto

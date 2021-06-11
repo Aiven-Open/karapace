@@ -14,12 +14,13 @@ class MessageElement(TypeElement):
     groups: list = []
     options: list = []
     nested_types: list = []
+    documentation = ""
 
     def __init__(
         self,
         location: Location,
         name: str,
-        documentation: str = None,
+        documentation: str = "",
         nested_types: list = None,
         options: list = None,
         reserveds: list = None,

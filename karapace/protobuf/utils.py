@@ -26,7 +26,7 @@ def append_options(data: list, options: list):
     count = len(options)
     if count == 1:
         data.append('[')
-        data.append(options[0].to_schema())
+        data.append(try_to_schema(options[0]))
         data.append(']')
         return
 
@@ -36,8 +36,17 @@ def append_options(data: list, options: list):
             endl = ","
         else:
             endl = ""
-        append_indented(data, options[i].to_schema() + endl)
+        append_indented(data, try_to_schema(options[i]) + endl)
     data.append(']')
+
+
+def try_to_schema(obj: object) -> str:
+    try:
+        return obj.to_schema()
+    except AttributeError:
+        if isinstance(obj, str):
+            return obj
+        raise AttributeError
 
 
 def append_indented(data: list, value: str):

@@ -1,5 +1,5 @@
 # Ported from square/wire:
-# wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/parsing_tester.kt
+# wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ParsingTester.kt
 
 from karapace.protobuf.location import Location
 from karapace.protobuf.proto_parser import ProtoParser

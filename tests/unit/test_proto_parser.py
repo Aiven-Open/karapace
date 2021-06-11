@@ -596,7 +596,6 @@ def test_proto3_extension_fields_do_not_require_labels():
             ExtendElement(
                 location=location.at(4, 1),
                 name="Message",
-                documentation="",
                 fields=[
                     FieldElement(location=location.at(5, 3), element_type="string", name="a", tag=1),
                     FieldElement(location=location.at(6, 3), element_type="int32", name="b", tag=2)
@@ -669,7 +668,6 @@ def test_proto3_extension_fields_allow_optional():
             ExtendElement(
                 location=location.at(4, 1),
                 name="Message",
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(5, 3), element_type="string", name="a", tag=1, label=Field.Label.OPTIONAL
@@ -745,7 +743,6 @@ def test_proto3_extension_fields_permit_repeated():
             ExtendElement(
                 location=location.at(4, 1),
                 name="Message",
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(5, 3), label=Field.Label.REPEATED, element_type="string", name="a", tag=1
@@ -817,7 +814,6 @@ def test_group():
                 label=Field.Label.REPEATED,
                 name="Result",
                 tag=1,
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(3, 5), label=Field.Label.REQUIRED, element_type="string", name="url", tag=2
@@ -865,13 +861,10 @@ def test_parse_message_and_one_of():
                 one_ofs=[
                     OneOfElement(
                         name="page_info",
-                        documentation="",
                         fields=[
                             FieldElement(location=location.at(4, 5), element_type="int32", name="page_number", tag=2),
                             FieldElement(location=location.at(5, 5), element_type="int32", name="result_per_page", tag=3)
                         ],
-                        groups=[],
-                        options=[]
                     )
                 ]
             )
@@ -908,7 +901,6 @@ def test_parse_message_and_one_of_with_group():
                 one_ofs=[
                     OneOfElement(
                         name="page_info",
-                        documentation="",
                         fields=[FieldElement(location=location.at(4, 5), element_type="int32", name="page_number", tag=2)],
                         groups=[
                             GroupElement(
@@ -916,7 +908,6 @@ def test_parse_message_and_one_of_with_group():
                                 location=location.at(5, 5),
                                 name="Stuff",
                                 tag=3,
-                                documentation="",
                                 fields=[
                                     FieldElement(
                                         location=location.at(6, 7),
@@ -935,7 +926,6 @@ def test_parse_message_and_one_of_with_group():
                                 ]
                             )
                         ],
-                        options=[]
                     )
                 ]
             )
@@ -968,15 +958,20 @@ def test_parse_enum():
                 name="Topping",
                 documentation="What's on my waffles.\nAlso works on pancakes.",
                 constants=[
-                    EnumConstantElement(location=location.at(6, 3), name="FRUIT", tag=1, documentation="", options=[]),
+                    EnumConstantElement(location=location.at(6, 3), name="FRUIT", tag=1),
                     EnumConstantElement(
-                        location=location.at(8, 3), name="CREAM", tag=2, documentation="Yummy, yummy cream.", options=[]
+                        location=location.at(8, 3),
+                        name="CREAM",
+                        tag=2,
+                        documentation="Yummy, yummy cream.",
                     ),
                     EnumConstantElement(
-                        location=location.at(11, 3), name="SYRUP", tag=3, documentation="Quebec Maple syrup", options=[]
+                        location=location.at(11, 3),
+                        name="SYRUP",
+                        tag=3,
+                        documentation="Quebec Maple syrup",
                     )
                 ],
-                options=[]
             )
         ]
     )
@@ -1014,14 +1009,19 @@ def test_parse_enum_with_options():
                         location=location.at(8, 3),
                         name="FRUIT",
                         tag=1,
-                        documentation="",
                         options=[OptionElement("healthy", OptionElement.Kind.BOOLEAN, "true", True)]
                     ),
                     EnumConstantElement(
-                        location=location.at(10, 3), name="CREAM", tag=2, documentation="Yummy, yummy cream.", options=[]
+                        location=location.at(10, 3),
+                        name="CREAM",
+                        tag=2,
+                        documentation="Yummy, yummy cream.",
                     ),
                     EnumConstantElement(
-                        location=location.at(13, 3), name="SYRUP", tag=3, documentation="Quebec Maple syrup", options=[]
+                        location=location.at(13, 3),
+                        name="SYRUP",
+                        tag=3,
+                        documentation="Quebec Maple syrup",
                     )
                 ]
             )
@@ -1073,20 +1073,17 @@ def test_nesting_in_message():
     enum_element = EnumElement(
         location=location.at(3, 3),
         name="CType",
-        documentation="",
         constants=[
             EnumConstantElement(
                 location=location.at(4, 5),
                 name="STRING",
                 tag=0,
-                documentation="",
                 options=[
                     OptionElement("opt_a", OptionElement.Kind.NUMBER, "1", True),
                     OptionElement("opt_b", OptionElement.Kind.NUMBER, "2", True)
                 ]
             )
         ],
-        options=[]
     )
     field = FieldElement(
         location=location.at(2, 3),
@@ -1133,14 +1130,9 @@ def test_multi_ranges_extensions():
     message_element = MessageElement(
         location=location.at(1, 1),
         name="MeGustaExtensions",
-        documentation="",
-        fields=[],
-        nested_types=[],
         extensions=[
             ExtensionsElement(
-                location=location.at(2, 3),
-                documentation="",
-                values=[1] + [KotlinRange(5, 200)] + [500] + [KotlinRange(1000, MAX_TAG_VALUE)]
+                location=location.at(2, 3), values=[1] + [KotlinRange(5, 200)] + [500] + [KotlinRange(1000, MAX_TAG_VALUE)]
             )
         ]
     )
@@ -1265,7 +1257,6 @@ def test_extend_in_message():
             ExtendElement(
                 location=location.at(2, 3),
                 name="Foo",
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(3, 5), label=Field.Label.OPTIONAL, element_type="Bar", name="bar", tag=126
@@ -1296,7 +1287,6 @@ def test_extend_in_message_with_package():
             ExtendElement(
                 location=location.at(4, 3),
                 name="Foo",
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(5, 5), label=Field.Label.OPTIONAL, element_type="Bar", name="bar", tag=126
@@ -1324,7 +1314,6 @@ def test_fqcn_extend_in_message():
             ExtendElement(
                 location=location.at(2, 3),
                 name="example.Foo",
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(3, 5), label=Field.Label.OPTIONAL, element_type="Bar", name="bar", tag=126
@@ -1355,7 +1344,6 @@ def test_fqcn_extend_in_message_with_package():
             ExtendElement(
                 location=location.at(4, 3),
                 name="example.Foo",
-                documentation="",
                 fields=[
                     FieldElement(
                         location=location.at(5, 5), label=Field.Label.OPTIONAL, element_type="Bar", name="bar", tag=126
@@ -1507,23 +1495,19 @@ def test_service():
             ServiceElement(
                 location=location.at(1, 1),
                 name="SearchService",
-                documentation="",
                 options=[OptionElement("default_timeout", OptionElement.Kind.NUMBER, "30", True)],
                 rpcs=[
                     RpcElement(
                         location=location.at(4, 3),
                         name="Search",
-                        documentation="",
                         request_type="SearchRequest",
                         response_type="SearchResponse",
-                        options=[],
                         response_streaming=False,
                         request_streaming=False
                     ),
                     RpcElement(
                         location=location.at(5, 3),
                         name="Purchase",
-                        documentation="",
                         request_type="PurchaseRequest",
                         response_type="PurchaseResponse",
                         options=[
@@ -1556,51 +1540,41 @@ def test_streaming_service():
             ServiceElement(
                 location=location.at(1, 1),
                 name="RouteGuide",
-                documentation="",
                 rpcs=[
                     RpcElement(
                         location=location.at(2, 3),
                         name="GetFeature",
-                        documentation="",
                         request_type="Point",
                         response_type="Feature",
-                        options=[],
                         response_streaming=False,
                         request_streaming=False
                     ),
                     RpcElement(
                         location=location.at(3, 3),
                         name="ListFeatures",
-                        documentation="",
                         request_type="Rectangle",
                         response_type="Feature",
                         response_streaming=True,
                         # TODO: Report Square.Wire there was mistake True instead of False!
                         request_streaming=False,
-                        options=[]
                     ),
                     RpcElement(
                         location=location.at(4, 3),
                         name="RecordRoute",
-                        documentation="",
                         request_type="Point",
                         response_type="RouteSummary",
                         request_streaming=True,
                         response_streaming=False,
-                        options=[]
                     ),
                     RpcElement(
                         location=location.at(5, 3),
                         name="RouteChat",
-                        documentation="",
                         request_type="RouteNote",
                         response_type="RouteNote",
                         request_streaming=True,
                         response_streaming=True,
-                        options=[]
                     )
                 ],
-                options=[]
             )
         ]
     )
@@ -1959,7 +1933,7 @@ def test_reserved():
     message = MessageElement(
         location=location.at(1, 1),
         name="Foo",
-        reserveds=[ReservedElement(location=location.at(2, 3), values=[10, KotlinRange(12, 14), "foo"], documentation="")]
+        reserveds=[ReservedElement(location=location.at(2, 3), values=[10, KotlinRange(12, 14), "foo"])]
     )
     expected = ProtoFileElement(location=location, types=[message])
     assert ProtoParser.parse(location, proto) == expected
@@ -2422,7 +2396,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="import",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2435,7 +2408,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="package",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2448,7 +2420,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="option",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2461,7 +2432,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="reserved",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2474,7 +2444,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="message",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2487,7 +2456,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="enum",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2500,7 +2468,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="service",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2513,7 +2480,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="extend",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
@@ -2526,7 +2492,6 @@ def test_proto_keyword_as_service_name_and_rpc():
                         name="rpc",
                         request_type="google.protobuf.StringValue",
                         response_type="google.protobuf.StringValue",
-                        documentation=""
                     )
                 ]
             ),
