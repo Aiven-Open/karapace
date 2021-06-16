@@ -1,8 +1,8 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
-
 from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
+from typing import Union
 
 
 def hex_digit(c: str) -> int:
@@ -20,18 +20,12 @@ def min_of(a: int, b: int) -> int:
 
 
 class SyntaxReader:
-    data: str
-    _location: Location
-    """ Next character to be read """
-    pos: int = 0
-    """ The number of newline characters  """
-    line: int = 0
-    """ The index of the most recent newline character. """
-    line_start: int = 0
-
     def __init__(self, data: str, location: Location):
+        """ Next character to be read """
         self.pos = 0
+        """ The number of newline characters  """
         self.line = 0
+        """ The index of the most recent newline character. """
         self.line_start = 0
         self.data = data
         self._location = location
@@ -96,7 +90,7 @@ class SyntaxReader:
                 self.expect(self.pos < len(self.data), "unexpected end of file")
                 c = self.data[self.pos]
                 self.pos += 1
-                d: str = {
+                d: Union[str, None] = {
                     'a': "\u0007",  # Alert.
                     'b': "\b",  # Backspace.
                     'f': "\u000c",  # Form feed.
@@ -200,6 +194,7 @@ class SyntaxReader:
             print("OS error: {0}".format(err))
         except ValueError:
             self.unexpected(f"expected an integer but was {tag}")
+        return -22  # this return never be called but mypy think we need it
 
     def read_documentation(self) -> str:
         """ Like skip_whitespace(), but this returns a string containing all comment text. By convention,

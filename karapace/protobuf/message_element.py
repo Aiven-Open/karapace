@@ -7,15 +7,6 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class MessageElement(TypeElement):
-    reserveds: list = []
-    fields: list = []
-    one_ofs: list = []
-    extensions: list = []
-    groups: list = []
-    options: list = []
-    nested_types: list = []
-    documentation = ""
-
     def __init__(
         self,
         location: Location,
@@ -29,23 +20,12 @@ class MessageElement(TypeElement):
         extensions: list = None,
         groups: list = None,
     ):
-        self.location = location
-        self.name = name
-        self.documentation = documentation
-        if nested_types:
-            self.nested_types = nested_types
-        if options:
-            self.options = options
-        if reserveds:
-            self.reserveds = reserveds
-        if fields:
-            self.fields = fields
-        if one_ofs:
-            self.one_ofs = one_ofs
-        if extensions:
-            self.extensions = extensions
-        if groups:
-            self.groups = groups
+        super().__init__(location, name, documentation, options or [], nested_types or [])
+        self.reserveds = reserveds or []
+        self.fields = fields or []
+        self.one_ofs = one_ofs or []
+        self.extensions = extensions or []
+        self.groups = groups or []
 
     def to_schema(self) -> str:
         result: list = list()

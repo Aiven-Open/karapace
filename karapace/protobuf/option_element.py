@@ -21,17 +21,12 @@ class OptionElement:
         LIST = 6
         OPTION = 7
 
-    name: str
-    kind: Kind
-    value = None
-    """ If true, this [OptionElement] is a custom option. """
-    is_parenthesized: bool
-
     def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None):
         self.name = name
         self.kind = kind
         self.value = value
-        self.is_parenthesized = is_parenthesized
+        """ If true, this [OptionElement] is a custom option. """
+        self.is_parenthesized = is_parenthesized or False
         self.formattedName = f"({self.name})" if is_parenthesized else self.name
 
     def to_schema(self) -> str:
@@ -51,11 +46,11 @@ class OptionElement:
             return "".join(aline)
         return aline
 
-    def to_schema_declaration(self):
+    def to_schema_declaration(self) -> str:
         return f"option {self.to_schema()};\n"
 
     @staticmethod
-    def append_options(options: list):
+    def append_options(options: list) -> str:
         data: list = []
         append_options(data, options)
         return "".join(data)
@@ -93,7 +88,7 @@ class OptionElement:
             append_indented(result, f"{self.format_option_map_value(elm)}{endl}")
         return "".join(result)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.to_schema()
 
     def __eq__(self, other):

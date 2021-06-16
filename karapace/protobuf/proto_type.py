@@ -17,14 +17,6 @@ def static_init(cls):
 
 @static_init
 class ProtoType:
-    is_scalar: bool
-    string: str
-    is_map: bool
-    """ The type of the map's keys. Only present when [is_map] is True.  """
-    key_type: object  # ProtoType
-    """ The type of the map's values. Only present when [is_map] is True.  """
-    value_type: object  # ProtoType
-
     @property
     def simple_name(self) -> str:
         dot = self.string.rfind(".")
@@ -86,7 +78,9 @@ class ProtoType:
             self.is_scalar = is_scalar
             self.string = string
             self.is_map = False
+            """ The type of the map's keys. Only present when [is_map] is True.  """
             self.key_type = None
+            """ The type of the map's values. Only present when [is_map] is True.  """
             self.value_type = None
         else:
             if key_type.is_scalar() and key_type != self.BYTES and key_type != self.DOUBLE and key_type != self.FLOAT:
@@ -158,7 +152,7 @@ class ProtoType:
             if enclosing_type_or_package else ProtoType.get2(type_name)
 
     @staticmethod
-    def get2(name: str):
+    def get2(name: str) -> 'ProtoType':
         scalar = ProtoType.SCALAR_TYPES[name]
         if scalar:
             return scalar
@@ -172,5 +166,5 @@ class ProtoType:
         return ProtoType(False, name)
 
     @staticmethod
-    def get3(key_type: object, value_type: object, name: str):
+    def get3(key_type: object, value_type: object, name: str) -> object:
         return ProtoType(False, name, key_type, value_type)

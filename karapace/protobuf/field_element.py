@@ -9,26 +9,16 @@ from karapace.protobuf.utils import append_documentation, append_options
 
 
 class FieldElement:
-    location: Location
-    label: Field.Label
-    element_type: str
-    name: str
-    default_value: str = None
-    json_name: str = None
-    tag: int = 0
-    documentation: str = ""
-    options: list = []
-
     def __init__(
         self,
         location: Location,
         label: Field.Label = None,
-        element_type: str = None,
+        element_type: str = "",
         name: str = None,
         default_value: str = None,
         json_name: str = None,
         tag: int = None,
-        documentation: str = None,
+        documentation: str = "",
         options: list = None
     ):
         self.location = location
@@ -39,10 +29,9 @@ class FieldElement:
         self.json_name = json_name
         self.tag = tag
         self.documentation = documentation
-        if options:
-            self.options = options
+        self.options = options or []
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         result: list = list()
         append_documentation(result, self.documentation)
 

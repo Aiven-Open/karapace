@@ -5,12 +5,6 @@ from karapace.protobuf.utils import append_documentation, append_options
 
 
 class EnumConstantElement:
-    location: Location
-    name: str
-    tag: int
-    documentation: str = ""
-    options: list = []
-
     def __init__(
         self,
         location: Location,
@@ -23,11 +17,8 @@ class EnumConstantElement:
         self.name = name
 
         self.tag = tag
-        if options:
-            self.options = options
-
-        if documentation:
-            self.documentation = documentation
+        self.options = options or []
+        self.documentation = documentation or ""
 
     def to_schema(self) -> str:
         result: list = list()

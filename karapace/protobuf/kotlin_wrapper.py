@@ -1,5 +1,7 @@
 from karapace.protobuf.exception import IllegalArgumentException, IllegalStateException
 
+import textwrap
+
 
 def check(q: bool, message: str):
     if not q:
@@ -10,10 +12,10 @@ def trim_margin(s: str) -> str:
     lines = s.split("\n")
     new_lines = list()
 
-    if not lines[0].strip():
+    if not textwrap.dedent(lines[0]):
         del lines[0]
 
-    if not lines[-1].strip():
+    if not textwrap.dedent(lines[-1]):
         del lines[-1]
 
     for line in lines:
@@ -26,7 +28,7 @@ def trim_margin(s: str) -> str:
     return "\n".join(new_lines)
 
 
-def require(q: bool, message: str):
+def require(q: bool, message: str) -> None:
     if not q:
         raise IllegalArgumentException(message)
 
@@ -42,18 +44,6 @@ class String(str):
 
 class Any:
     pass
-
-
-class StringBuilder(list):
-    def append_indented(self: list, value: str):
-        lines = value.split("\n")
-        if len(lines) > 1 and not lines[-1]:
-            lines = lines.pop()
-
-        for line in lines:
-            self.append("  ")
-            self.append(line)
-            self.append("\n")
 
 
 class OptionsList(list):

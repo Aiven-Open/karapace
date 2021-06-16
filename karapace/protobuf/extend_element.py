@@ -6,19 +6,13 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class ExtendElement:
-    location: Location
-    name: str
-    documentation: str = ""
-    fields: list = []
-
     def __init__(self, location: Location, name: str, documentation: str = "", fields: list = None):
         self.location = location
         self.name = name
         self.documentation = documentation
-        if fields:
-            self.fields = fields
+        self.fields = fields or []
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         result: list = list()
         append_documentation(result, self.documentation)
         result.append(f"extend {self.name} {{")

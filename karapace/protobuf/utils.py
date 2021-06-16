@@ -7,7 +7,7 @@ def protobuf_encode(a: str) -> str:
     return a
 
 
-def append_documentation(data: list, documentation: str):
+def append_documentation(data: list, documentation: str) -> None:
     if not documentation:
         return
 
@@ -22,7 +22,7 @@ def append_documentation(data: list, documentation: str):
         data.append("\n")
 
 
-def append_options(data: list, options: list):
+def append_options(data: list, options: list) -> None:
     count = len(options)
     if count == 1:
         data.append('[')
@@ -49,7 +49,7 @@ def try_to_schema(obj: object) -> str:
         raise AttributeError
 
 
-def append_indented(data: list, value: str):
+def append_indented(data: list, value: str) -> None:
     lines = value.split("\n")
     if len(lines) > 1 and not lines[-1]:
         del lines[-1]

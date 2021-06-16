@@ -7,9 +7,6 @@ from typing import Union
 
 
 class KindAndValue:
-    kind: OptionElement.Kind
-    value: object
-
     def __init__(self, kind: OptionElement.Kind, value: object):
         self.kind = kind
         self.value = value
@@ -130,7 +127,7 @@ class OptionReader:
                 self.reader.peek_char(';')
 
     @staticmethod
-    def add_to_list(_list: list, value: Union[list, str]):
+    def add_to_list(_list: list, value: Union[list, str]) -> None:
         """ Adds an object or objects to a List.  """
         if isinstance(value, list):
             for v in list(value):
