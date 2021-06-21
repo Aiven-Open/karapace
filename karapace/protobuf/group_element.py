@@ -7,7 +7,6 @@ from typing import Union
 
 
 class GroupElement:
-
     def __init__(
         self,
         label: Union[None, Field.Label],

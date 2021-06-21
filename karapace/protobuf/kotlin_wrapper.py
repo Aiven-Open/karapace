@@ -51,7 +51,6 @@ class OptionsList(list):
 
 
 class KotlinRange:
-
     def __init__(self, minimum, maximum):
         self.minimum = minimum
         self.maximum = maximum
