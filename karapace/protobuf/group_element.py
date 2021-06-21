@@ -7,12 +7,6 @@ from typing import Union
 
 
 class GroupElement:
-    label: Field.Label
-    location: Location
-    name: str
-    tag: int
-    documentation: str = ""
-    fields: list = []
 
     def __init__(
         self,
@@ -27,8 +21,8 @@ class GroupElement:
         self.location = location
         self.name = name
         self.tag = tag
-        if fields:
-            self.fields = fields
+
+        self.fields = fields or []
         self.documentation = documentation
 
     def to_schema(self) -> str:
