@@ -97,3 +97,8 @@ pre-commit: $(GENERATED)
 
 .PHONY: lint
 lint: pre-commit
+
+.PHONY: openapi
+openapi:
+	npx @redocly/openapi-cli lint openapi/schema-registry.yaml
+	npx redoc-cli bundle --output openapi/schema-registry.html openapi/schema-registry.yaml

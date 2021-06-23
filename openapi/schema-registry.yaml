@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: Karapace Schema Registry
+  description: Apache Kafka open source schema registry trool
+  version: 0.0.1
+  license:
+    name: Apache 2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: http://localhost:8081
+
+paths:
+  /subjects:
+    get:
+      summary: List the subjects the schema registry knows about
+      operationId: subject-list
+      responses:
+        '200':
+          description: The registered subjects
+          content:
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: array
+                items:
+                  type: string
+              examples:
+                success:
+                  value:
+                    - "tortoise"
+                    - "hare"
+                empty:
+                  value: []
+
+
+  /subjects/{subject}/versions:
+    post:
+      summary: Register a new schema
+      operationId: schema-create
+      parameters:
+        - name: subject
+          description: Subject (or topic) to add the schema to
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "tortoise"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                schema:
+                  type: object
+                  required:
+                    - type
+                    - name
+                    - fields
+                  properties:
+                    type:
+                      type: string
+                    name:
+                      type: string
+                    fields:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          type:
+                            type: string
+            examples:
+              create:
+                value:
+                  schema:
+                    type: record
+                    name: racer
+                    fields:
+                      - name: competitor_name
+                        type: string
+                      - name: starting_position
+                        type: integer
+      responses:
+        '200':
+          description: Schema registered successfully
+          content:
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: ID of the newly registered schema
+
+
+
+
