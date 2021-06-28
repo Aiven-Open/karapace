@@ -74,13 +74,19 @@ Alternatively you can do a source install using::
 Quickstart
 ==========
 
-To Register the first version of a schema under the subject "test"::
+To register the first version of a schema under the subject "test" using Avro schema::
 
   $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
   --data '{"schema": "{\"type\": \"record\", \"name\": \"Obj\", \"fields\":[{\"name\": \"age\", \"type\": \"int\"}]}"}' \
     http://localhost:8081/subjects/test-key/versions
   {"id":1}
 
+To register a version of a schema using JSON Schema, one needs to use `schemaType` property::
+
+  $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"schemaType": "JSON", "schema": "{\"type\": \"object\",\"properties\":{\"age\":{\"type\": \"number\"}},\"additionalProperties\":true}"}' \
+    http://localhost:8081/subjects/test-key-json-schema/versions
+  {"id":2}
 
 To list all subjects (including the one created just above)::
 
