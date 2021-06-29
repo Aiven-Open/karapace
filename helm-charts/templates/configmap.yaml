@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{include "karapace.fullname" .}}
+  name: {{include "karapace-registry.fullname" .}}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    {{- include "karapace.labels" . | nindent 4}}
+    {{- include "karapace-registry.labels" . | nindent 4}}
 data:
   config.yaml: |
     {{- toYaml .Values.karapace.config | nindent 4}}
