@@ -1,0 +1,116 @@
+# Default values for cp-schema-registry.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+## ------------------------------------------------------
+## karapace Registry
+## ------------------------------------------------------
+
+## Number of Karapace Registry Pod
+replicaCount: 1
+
+## Image Info
+## https://github.com/aiven/karapace/blob/master/container/docker-compose.yml
+image: aivenoy/karapace
+imageTag: 863bf4a7faec3b13eba57a0864e63f5e416cd6e3
+
+## Specify a imagePullPolicy
+## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+imagePullPolicy: IfNotPresent
+
+## Specify an array of imagePullSecrets.
+## Secrets must be manually created in the namespace.
+## ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+imagePullSecrets:
+
+configurationOverrides: {}
+
+## Additional env variables
+customEnv: {}
+
+## Deployment Annotations
+deploymentAnnotations: {}
+
+## The port on which the karapace Registry will be available and serving requests
+servicePort: 8081
+
+
+kafka:
+  bootstrapServers: ""
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+## Custom pod annotations
+podAnnotations: {}
+
+## Node labels for pod assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+nodeSelector: {}
+
+## Taints to tolerate on node assignment:
+## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+
+## Pod scheduling constraints
+## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+
+rest:
+  servicPort: 8082
+
+## Privilege and access control settings for a Pod or Container
+## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+securityContext: {}
+
+podSecurityContext:
+  runAsUser: 99
+  fsGroup: 99
+
+
+autoScaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+customLables: {}
+
+serviceMonitor:
+  create: false
+  additionalLabels: {}
+  honorLables: false
+
+deployment:
+  annotations: {}
+  volumes:
+    secrets: []
+  env:
+    values: []
+    configMapKeyRefs: []
+    secretKeyRefs: []
+
+  karapace:
+    config: {}
+  
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+
+  ingress:
+    enabled: false
+    annotations: {}
+    hosts:
+    - host: chart-example.local
+      paths: []
+    tls: []

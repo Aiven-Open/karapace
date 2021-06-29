@@ -1,0 +1,20 @@
+{{- if .Values.serviceMonitor.create }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{include "karapace.fullname" .}}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "karapace.labels" . | nindent 4}}
+    {{- if .Values.serviceMonitor.additionalLabels}}
+    {{toYaml .Values.serviceMonitor.additionalLabels | nindent 4}}
+    {{- end}}
+spec:
+  selector:
+    matchLabels:
+      {{- include "karapace.labels" . | nindent 6}}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      honorLabels: {{ .Values.serviceMonitor.honorLabels }}
+{{- end }}

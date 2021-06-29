@@ -1,0 +1,122 @@
+{{- if .Capabilities.APIVersions.Has "apps/v1" }}
+apiVersion: apps/v1
+{{- else }}
+apiVersion: apps/v1beta2
+{{- end }}
+kind: Deployment
+metadata:
+  {{- with .Values.deploymentAnnotations}}
+  annotations:
+    {{- toYaml . | nindent 4}}
+  {{- end}}
+  name: {{ template "karapace-registry.fullname" . }}
+  labels:
+    app: {{ template "karapace-registry.name" . }}
+    chart: {{ template "karapace-registry.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "karapace-registry.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "karapace-registry.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: karapace-rest-server
+          image: "{{ .Values.image }}:{{ .Values.imageTag }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          ports:
+            - containerPort: {{ .Values.rest.servicePort }}
+          resources:
+        {{ toYaml .Values.resources | indent 12 }}
+          env:
+            - name: KARAPACE_REST_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: KARAPACE_REST_ADVERTISED_HOSTNAME
+              value: "karapace-rest"
+            - name: KARAPACE_REST_BOOTSTRAP_URI
+              value: {{ template "karapace-registry.kafka.bootstrapServers" . }}
+            - name: KARAPACE_REST_PORT
+              value: {{ .Values.rest.servicePort | quote }}
+            - name: KARAPACE_REST_REGISTRY_HOST
+              value: {{ template "karapace-registry.name" . }}
+            - name: KARAPACE_REST_REGISTRY_PORT
+              value: {{ .Values.servicePort | quote }}
+            - name: KARAPACE_REST_ADMIN_METADATA_MAX_AGE
+              value: "0"
+            - name: KARAPACE_REST_LOG_LEVEL
+              value: "WARNING"
+          {{- if .Values.imagePullSecrets }}
+          imagePullSecrets:
+          {{ toYaml .Values.imagePullSecrets | indent 8 }}
+          {{- end }}
+          {{- if .Values.nodeSelector }}
+          nodeSelector:
+          {{ toYaml .Values.nodeSelector | indent 8 }}
+          {{- end }}
+          {{- if .Values.tolerations }}
+          tolerations:
+          {{ toYaml .Values.tolerations | indent 8 }}
+          {{- end }}
+          {{- if .Values.affinity }}
+          affinity:
+          {{ toYaml .Values.affinity | indent 8 }}
+          {{- end }}
+        - name: {{ template "karapace-registry.name" . }}-server
+          image: "{{ .Values.image }}:{{ .Values.imageTag }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          ports:
+            - name: karapace-reg
+              containerPort: {{ .Values.servicePort }}
+              protocol: TCP
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          env:
+          - name: KARAPACE_REGISTRY_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: KARAPACE_REGISTRY_ADVERTISED_HOSTNAME
+            value: {{ template "karapace-registry.name" . }}
+          - name: KARAPACE_REGISTRY_BOOTSTRAP_URI
+            value: {{ template "karapace-registry.kafka.bootstrapServers" . }}
+          - name: KARAPACE_REGISTRY_PORT
+            value: {{ .Values.servicePort | quote }}
+          - name: KARAPACE_REGISTRY_CLIENT_ID
+            value: "karapace"
+          - name: KARAPACE_REGISTRY_GROUP_ID
+            value: {{ template "karapace-registry.name" . }}
+          - name: SCHEMA_REGISTRY_MASTER_ELIGIBILITY
+            value: "true"
+          - name: KARAPACE_REGISTRY_TOPIC_NAME
+            value: "_schemas"
+          - name: KARAPACE_REGISTRY_LOG_LEVEL
+            value: "WARNING"
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+      volumes:
+      - name: karapace-registry-config
+        configMap:
+          name: {{ template "karapace-registry.fullname" . }}-configmap
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
