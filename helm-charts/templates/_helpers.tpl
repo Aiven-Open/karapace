@@ -71,7 +71,7 @@ Default GroupId to Release Name but allow it to be overridden
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "karapace.serviceAccountName" -}}
+{{- define "karapace-registry.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
 {{- default (include "karapace-registry.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
@@ -82,7 +82,7 @@ Create the name of the service account to use
 {{/*
 Selector labels
 */}}
-{{- define "karapace.selectorLabels" -}}
+{{- define "karapace-registry.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "karapace-registry.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
@@ -90,9 +90,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/*
 Common labels
 */}}
-{{- define "karapace.labels" -}}
+{{- define "karapace-registry.labels" -}}
 helm.sh/chart: {{ include "karapace-registry.chart" . }}
-{{ include "karapace.selectorLabels" . }}
+{{ include "karapace-registry.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
