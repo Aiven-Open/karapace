@@ -6,9 +6,9 @@ from karapace.compatibility.jsonschema.types import (
     AssertionCheck, BooleanSchema, Incompatibility, Instance, Keyword, Subschema
 )
 from karapace.compatibility.jsonschema.utils import (
-    get_type_of, gt, introduced_constraint, is_false_schema, is_object_content_model_open, is_simple_subschema,
-    is_true_schema, is_tuple, is_tuple_without_additional_items, lt, maybe_get_subschemas_and_type, ne, normalize_schema,
-    schema_from_partially_open_content_model
+    get_name_of, get_type_of, gt, introduced_constraint, is_false_schema, is_object_content_model_open, is_simple_subschema,
+    is_true_schema, is_tuple, is_tuple_without_additional_items, JSONSCHEMA_TYPES, lt, maybe_get_subschemas_and_type, ne,
+    normalize_schema, schema_from_partially_open_content_model
 )
 from typing import Any, List, Optional
 
@@ -224,15 +224,27 @@ def compatibility_rec(
 
     reader_is_true_schema = is_true_schema(reader_schema)
 
+    reader_is_object = reader_type == Instance.OBJECT
+    reader_is_true_schema = is_true_schema(reader_schema)
+    writer_is_object = writer_type == Instance.OBJECT
+    writer_is_true_schema = is_true_schema(writer_schema)
+    both_are_object = (reader_is_object or reader_is_true_schema) and (writer_is_object or writer_is_true_schema)
+
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.1.1
-    if not both_are_numbers and not either_has_subschema and not reader_is_true_schema and reader_type != writer_type:
+    if not both_are_numbers and not either_has_subschema and not both_are_object and reader_type != writer_type:
         result = type_mismatch(reader_type, writer_type, location)
     elif both_are_numbers:
         result = compatibility_numerical(reader_schema, writer_schema, location)
     elif either_has_subschema:
         result = compatibility_subschemas(reader_schema, writer_schema, location)
-    elif reader_is_true_schema:
-        return SchemaCompatibilityResult.compatible()
+    elif both_are_object:
+        if reader_is_true_schema:
+            reader_schema = {"type": Instance.OBJECT.value}
+        if writer_is_true_schema:
+            writer_schema = {"type": Instance.OBJECT.value}
+        result = compatibility_object(reader_schema, writer_schema, location)
+    elif reader_type is BooleanSchema:
+        result = SchemaCompatibilityResult.compatible()
     elif reader_type is Subschema.NOT:
         assert reader_schema, "if just one schema is NOT the result should have been a type_mismatch"
         assert writer_schema, "if just one schema is NOT the result should have been a type_mismatch"
@@ -243,14 +255,10 @@ def compatibility_rec(
             writer_schema[Subschema.NOT.value],
             location_not,
         )
-    elif reader_type is BooleanSchema:
-        result = compatibility_boolean_schema(reader_schema, writer_schema, location)
     elif reader_type == Instance.BOOLEAN:
         result = SchemaCompatibilityResult.compatible()
     elif reader_type == Instance.STRING:
         result = compatibility_string(reader_schema, writer_schema, location)
-    elif reader_type == Instance.OBJECT:
-        result = compatibility_object(reader_schema, writer_schema, location)
     elif reader_type == Instance.ARRAY:
         result = compatibility_array(reader_schema, writer_schema, location)
     elif reader_type == Keyword.ENUM:
@@ -367,27 +375,6 @@ def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -
     return result
 
 
-def compatibility_boolean_schema(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
-    assert get_type_of(reader_schema) is BooleanSchema, "types should have been previously checked"
-    assert get_type_of(writer_schema) is BooleanSchema, "types should have been previously checked"
-
-    # The true schema accepts everything, so the writer can produce anything
-    if is_true_schema(reader_schema):
-        return SchemaCompatibilityResult.compatible()
-
-    # The false schema is only compatible with itself
-    if is_false_schema(writer_schema):
-        return SchemaCompatibilityResult.compatible()
-
-    reader_has_not = isinstance(reader_schema, dict) and Subschema.NOT.value in reader_schema
-    location_not = location + [Subschema.NOT.value]
-    return SchemaCompatibilityResult.incompatible(
-        incompat_type=Incompatibility.type_changed,
-        message=f"All new values are rejected by {reader_schema}",
-        location=location_not if reader_has_not else location,
-    )
-
-
 def compatibility_string(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.3
     result = SchemaCompatibilityResult.compatible()
@@ -409,8 +396,10 @@ def compatibility_string(reader_schema, writer_schema, location: List[str]) -> S
 
 def compatibility_array(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.4
-    assert get_type_of(reader_schema) == Instance.ARRAY, "types should have been previously checked"
-    assert get_type_of(writer_schema) == Instance.ARRAY, "types should have been previously checked"
+    reader_type = get_type_of(reader_schema)
+    writer_type = get_type_of(writer_schema)
+    assert reader_type == Instance.ARRAY, "types should have been previously checked"
+    assert writer_type == Instance.ARRAY, "types should have been previously checked"
 
     reader_items = reader_schema.get(Keyword.ITEMS.value)
     writer_items = writer_schema.get(Keyword.ITEMS.value)
@@ -420,22 +409,15 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     reader_is_tuple = is_tuple(reader_schema)
     writer_is_tuple = is_tuple(writer_schema)
 
+    if reader_is_tuple != writer_is_tuple:
+        return type_mismatch(reader_type, writer_type, location)
+
     # Extend the array iterator to match the tuple size
     if reader_is_tuple and writer_is_tuple:
         reader_items_iter = iter(reader_items)
         writer_items_iter = iter(writer_items)
         reader_requires_more_items = len(reader_items) > len(writer_items)
         writer_has_more_items = len(writer_items) > len(reader_items)
-    elif reader_is_tuple:
-        reader_items_iter = iter(reader_items)
-        writer_items_iter = iter([writer_items] * (len(reader_items) + 1))  # +1 for the writer_has_more_items loop
-        reader_requires_more_items = False
-        writer_has_more_items = True
-    elif writer_is_tuple:
-        reader_items_iter = iter([reader_items] * len(writer_items))
-        writer_items_iter = iter(writer_items)
-        reader_requires_more_items = False  # The reader accepts but doesn't require more items
-        writer_has_more_items = False
     else:
         reader_items_iter = iter([reader_items])
         writer_items_iter = iter([writer_items])
@@ -726,6 +708,8 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
     reader_subschemas_and_type = maybe_get_subschemas_and_type(reader_schema)
     writer_subschemas_and_type = maybe_get_subschemas_and_type(writer_schema)
 
+    reader_subschemas: Optional[List[Any]]
+    reader_type: JSONSCHEMA_TYPES
     if reader_subschemas_and_type is not None:
         reader_subschemas = reader_subschemas_and_type[0]
         reader_type = reader_subschemas_and_type[1]
@@ -735,6 +719,8 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
         reader_type = get_type_of(reader_schema)
         reader_has_subschema = False
 
+    writer_subschemas: Optional[List[Any]]
+    writer_type: JSONSCHEMA_TYPES
     if writer_subschemas_and_type is not None:
         writer_subschemas = writer_subschemas_and_type[0]
         writer_type = writer_subschemas_and_type[1]
@@ -747,15 +733,18 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
     is_reader_special_case = reader_has_subschema and not writer_has_subschema and is_simple_subschema(reader_schema)
     is_writer_special_case = not reader_has_subschema and writer_has_subschema and is_simple_subschema(writer_schema)
 
-    subschema_location = location + [reader_type.value]
+    subschema_location = location + [get_name_of(reader_type)]
 
     if is_reader_special_case:
+        assert reader_subschemas
         return check_simple_subschema(reader_subschemas[0], writer_schema, reader_type, writer_type, subschema_location)
 
     if is_writer_special_case:
+        assert writer_subschemas
         return check_simple_subschema(reader_schema, writer_subschemas[0], reader_type, writer_type, subschema_location)
 
     if reader_type in (Subschema.ANY_OF, Subschema.ONE_OF) and not writer_has_subschema:
+        assert isinstance(reader_type, Subschema)
         for reader_subschema in reader_schema[reader_type.value]:
             rec_result = compatibility_rec(reader_subschema, writer_schema, subschema_location)
             if is_compatible(rec_result):

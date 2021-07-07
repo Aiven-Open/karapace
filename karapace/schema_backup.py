@@ -8,7 +8,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
-from karapace.config import read_config
+from karapace.config import Config, read_config
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Optional
@@ -30,10 +30,8 @@ class Timeout(Exception):
 
 
 class SchemaBackup:
-    def __init__(self, config_path: str, backup_path: str, topic_option: Optional[str] = None) -> None:
-        with open(config_path) as handler:
-            self.config = read_config(handler)
-
+    def __init__(self, config: Config, backup_path: str, topic_option: Optional[str] = None) -> None:
+        self.config = config
         self.backup_location = backup_path
         self.topic_name = topic_option or self.config["topic_name"]
         self.log = logging.getLogger("SchemaBackup")
@@ -52,6 +50,9 @@ class SchemaBackup:
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
+            sasl_mechanism=self.config["sasl_mechanism"],
+            sasl_plain_username=self.config["sasl_plain_username"],
+            sasl_plain_password=self.config["sasl_plain_password"],
             auto_offset_reset="earliest",
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
             kafka_client=KarapaceKafkaClient,
@@ -64,6 +65,9 @@ class SchemaBackup:
             ssl_cafile=self.config["ssl_cafile"],
             ssl_certfile=self.config["ssl_certfile"],
             ssl_keyfile=self.config["ssl_keyfile"],
+            sasl_mechanism=self.config["sasl_mechanism"],
+            sasl_plain_username=self.config["sasl_plain_username"],
+            sasl_plain_password=self.config["sasl_plain_password"],
             kafka_client=KarapaceKafkaClient,
         )
 
@@ -186,8 +190,9 @@ class SchemaBackup:
         with open(self.backup_location, "r") as fp:
             raw_msg = fp.read()
             values = json.loads(raw_msg)
+
         if not values:
-            raise BackupError("Nothing to restore in %s" % self.backup_location)
+            return
 
         for item in values:
             key = encode_value(item[0])
@@ -223,7 +228,11 @@ def parse_args():
 
 def main() -> int:
     args = parse_args()
-    sb = SchemaBackup(args.config, args.location, args.topic)
+
+    with open(args.config) as handler:
+        config = read_config(handler)
+
+    sb = SchemaBackup(config, args.location, args.topic)
 
     if args.command == "get":
         sb.request_backup()
