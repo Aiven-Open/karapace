@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 import re
 
 T = TypeVar('T')
+JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, Type[BooleanSchema]]
 
 
 def normalize_schema(validator: Draft7Validator) -> Any:
@@ -146,26 +147,14 @@ def is_object_content_model_open(schema: Any) -> bool:
     does_not_restrict_properties_by_pattern = len(schema.get(Keyword.PATTERN_PROPERTIES.value, list())) == 0
     does_not_restrict_additional_properties = is_true_schema(schema.get(Keyword.ADDITIONAL_PROPERTIES.value, True))
 
-    # For propertyNames the type is implictly "string":
-    #
-    #   https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.10.3.2.4
-    #
-    property_names = schema.get(Keyword.PROPERTY_NAMES.value, {})
-    assert property_names.setdefault(Keyword.TYPE.value, Instance.STRING.value) == Instance.STRING.value
-    does_restrict_properties_names = is_string_and_constrained(property_names)
-
-    return (
-        does_not_restrict_properties_by_pattern and does_not_restrict_additional_properties
-        and not does_restrict_properties_names
-    )
+    return does_not_restrict_properties_by_pattern and does_not_restrict_additional_properties
 
 
 def is_true_schema(schema: Any) -> bool:
     """True if the value of `schema` is equal to the explicit accept schema `{}`."""
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
     is_true = schema is True
-    is_empty_schema = isinstance(schema, dict) and len(schema) == 0
-    return is_true or is_empty_schema
+    return is_true
 
 
 def is_false_schema(schema: Any) -> bool:
@@ -176,8 +165,6 @@ def is_false_schema(schema: Any) -> bool:
 
     >>> is_false_schema(parse_jsonschema_definition("false"))
     True
-    >>> is_false_schema(parse_jsonschema_definition('{"not":{}}'))
-    True
     >>> is_false_schema(parse_jsonschema_definition("{}"))
     False
     >>> is_false_schema(parse_jsonschema_definition("true"))
@@ -186,14 +173,14 @@ def is_false_schema(schema: Any) -> bool:
     Note:
         Negated schemas are not the same as the false schema:
 
+        >>> is_false_schema(parse_jsonschema_definition('{"not":{}}'))
+        False
         >>> is_false_schema(parse_jsonschema_definition('{"not":{"type":"number"}}'))
         False
     """
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.3.2
     is_false = schema is False
-    not_subschema = isinstance(schema, dict) and schema.get("not")
-    is_not_of_true = not_subschema is not None and is_true_schema(not_subschema)
-    return is_false or is_not_of_true
+    return is_false
 
 
 def is_array_content_model_open(schema: Any) -> bool:
@@ -313,20 +300,20 @@ def introduced_constraint(reader: Optional[T], writer: Optional[T]) -> bool:
 
 def schema_from_partially_open_content_model(schema: dict, target_property_name: str) -> Any:
     """Returns the schema from patternProperties or additionalProperties that
-    valdiates `target_property_name`, if any.
+    validates `target_property_name`, if any.
     """
     for pattern, pattern_schema in schema.get(Keyword.PATTERN_PROPERTIES.value, dict()).items():
         if re.match(pattern, target_property_name):
             return pattern_schema
 
     # additionalProperties is used when
-    # - the propety does not have a schema
+    # - the property does not have a schema
     # - none of the patternProperties matches the property_name
     # https://json-schema.org/draft/2020-12/json-schema-core.html#additionalProperties
     return schema.get(Keyword.ADDITIONAL_PROPERTIES.value)
 
 
-def get_type_of(schema: Any) -> Union[Instance, Subschema, Keyword, Type[BooleanSchema]]:
+def get_type_of(schema: Any) -> JSONSCHEMA_TYPES:
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.4.2.1
 
     # The difference is due to the convertion of the JSON value null to the Python value None
@@ -358,7 +345,16 @@ def get_type_of(schema: Any) -> Union[Instance, Subschema, Keyword, Type[Boolean
         if Keyword.ENUM.value in schema:
             return Keyword.ENUM
 
+        return Instance.OBJECT
+
     raise ValueError("Couldnt determine type of schema")
+
+
+def get_name_of(schema_type: JSONSCHEMA_TYPES) -> str:
+    if isinstance(schema_type, (Instance, Subschema, Keyword)):
+        return schema_type.value
+
+    return ""
 
 
 def is_simple_subschema(schema: Any) -> bool:
