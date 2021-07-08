@@ -92,25 +92,94 @@ serviceMonitor:
 
 deployment:
   annotations: {}
+
+  rest:
+    adminMetadataMaxAge: "0"
+    args: ["-c", "/opt/karapace/start.sh rest"]
+    command: ["/bin/sh"]
+    extraEnvs:
+      - name: KARAPACE_REST_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: KARAPACE_REST_ADMIN_METADATA_MAX_AGE
+        value: "0"
+      - name: KARAPACE_REST_LOG_LEVEL
+        value: "INFO"
+      - name: KARAPACE_REST_SECURITY_PROTOCOL
+        value: SASL_SSL
+      - name: KARAPACE_REST_SSL_CAFILE
+        value: /opt/karapace/configs/tls/ca.crt
+      - name: KARAPACE_REST_SASL_MECHANISM
+        value: SCRAM-SHA-512
+      - name: KARAPACE_REST_SASL_PLAIN_USERNAME
+        value: karapace-registry-user
+      - name: KARAPACE_REST_SASL_PLAIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: karapace-registry-user
+            key: password
+
+    volumeMounts:
+      - name: kafka-cluster-ca-cert
+        mountPath: /opt/karapace/configs/tls
+        readOnly: true
+
+  registry:
+    args: ["-c", "/opt/karapace/start.sh registry"]
+    command: ["/bin/sh"]
+    extraEnvs:
+      - name: KARAPACE_REGISTRY_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: KARAPACE_REGISTRY_CLIENT_ID
+        value: "karapace"
+      - name: SCHEMA_REGISTRY_MASTER_ELIGIBILITY
+        value: "true"
+      - name: KARAPACE_REGISTRY_TOPIC_NAME
+        value: "_schemas"
+      - name: KARAPACE_REGISTRY_LOG_LEVEL
+        value: "INFO"
+      - name: KARAPACE_REGISTRY_SECURITY_PROTOCOL
+        value: SASL_SSL
+      - name: KARAPACE_REGISTRY_SSL_CAFILE
+        value: /opt/karapace/configs/tls/ca.crt
+      - name: KARAPACE_REGISTRY_SASL_MECHANISM
+        value: SCRAM-SHA-512
+      - name: KARAPACE_REGISTRY_SASL_PLAIN_USERNAME
+        value: karapace-registry-user
+      - name: KARAPACE_REGISTRY_SASL_PLAIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: karapace-registry-user
+            key: password
+
+    volumeMounts:
+      - name: kafka-cluster-ca-cert
+        mountPath: /opt/karapace/configs/tls
+        readOnly: true
+
   volumes:
-    secrets: []
-  env:
-    values: []
-    configMapKeyRefs: []
-    secretKeyRefs: []
+    - name: kafka-cluster-ca-cert
+      secret:
+        secretName: karapace-cluster-ca-cert
 
-  karapace:
-    config: {}
-  
-  serviceAccount:
-    create: true
-    annotations: {}
-    name: ""
+configMap:
+  enabled: false
+  spec: {}
 
-  ingress:
-    enabled: false
-    annotations: {}
-    hosts:
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  name: ""
+
+ingress:
+  enabled: false
+  annotations: {}
+  hosts:
     - host: chart-example.local
       paths: []
-    tls: []
+  tls: []
