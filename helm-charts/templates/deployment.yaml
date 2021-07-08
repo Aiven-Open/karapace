@@ -31,6 +31,16 @@ spec:
         - name: karapace-rest-server
           image: "{{ .Values.image }}:{{ .Values.imageTag }}"
           imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          
+          {{- with .Values.deployment.rest.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          {{- with .Values.deployment.rest.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.rest.servicePort }}
           resources:
@@ -54,10 +64,25 @@ spec:
               value: "0"
             - name: KARAPACE_REST_LOG_LEVEL
               value: "WARNING"
+          {{- with .Values.deployment.rest.extraEnvs }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+
+          volumeMounts:
+          {{- if .Values.configMap.enabled }}
+            - name: karapace-registry-config
+              mountPath: /opt/karapace/configs/registry
+              readOnly: true
+          {{- end }}
+          {{- with .Values.deployment.rest.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if .Values.imagePullSecrets }}
           imagePullSecrets:
           {{ toYaml .Values.imagePullSecrets | indent 8 }}
           {{- end }}
+          
           {{- if .Values.nodeSelector }}
           nodeSelector:
           {{ toYaml .Values.nodeSelector | indent 8 }}
@@ -70,16 +95,26 @@ spec:
           affinity:
           {{ toYaml .Values.affinity | indent 8 }}
           {{- end }}
+          
         - name: {{ template "karapace-registry.name" . }}-server
           image: "{{ .Values.image }}:{{ .Values.imageTag }}"
           imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          {{- with .Values.deployment.registry.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          {{- with .Values.deployment.registry.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: karapace-reg
               containerPort: {{ .Values.servicePort }}
               protocol: TCP
           resources:
 {{ toYaml .Values.resources | indent 12 }}
-          env:
+            env:
           - name: KARAPACE_REGISTRY_HOST
             valueFrom:
               fieldRef:
@@ -100,14 +135,32 @@ spec:
             value: "_schemas"
           - name: KARAPACE_REGISTRY_LOG_LEVEL
             value: "WARNING"
+          {{- with .Values.deployment.registry.extraEnvs }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+        volumeMounts:
+        {{- if .Values.configMap.enabled }}
+          - name: karapace-registry-config
+            mountPath: /opt/karapace/configs/registry
+            readOnly: true
+        {{- end }}
+        {{- with .Values.deployment.registry.volumeMounts }}
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
 {{ toYaml .Values.imagePullSecrets | indent 8 }}
       {{- end }}
       volumes:
-      - name: karapace-registry-config
-        configMap:
-          name: {{ template "karapace-registry.fullname" . }}-configmap
+      {{- if .Values.configMap.enabled }}
+        - name: karapace-registry-config
+          configMap:
+            name: {{ template "karapace-registry.fullname" . }}
+        {{- end }}
+      {{- with .Values.deployment.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.nodeSelector | indent 8 }}
