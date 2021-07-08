@@ -1,3 +1,4 @@
+{{- if .Values.configMap.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,5 +7,6 @@ metadata:
   labels:
     {{- include "karapace-registry.labels" . | nindent 4}}
 data:
-  config.yaml: |
-    {{- toYaml .Values.karapace.config | nindent 4}}
+  config.json: |
+    {{- toJson .Values.configMap.spec | nindent 4}}
+{{- end }}
