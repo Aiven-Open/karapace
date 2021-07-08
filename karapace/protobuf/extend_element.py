@@ -1,23 +1,18 @@
 # Ported from square/wire:
-# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ExtendedElement.kt
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ExtendElement.kt
 
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class ExtendElement:
-    location: Location
-    name: str
-    documentation: str
-    fields: list
-
-    def __init__(self, location: Location, name: str, documentation: str, fields: list):
+    def __init__(self, location: Location, name: str, documentation: str = "", fields: list = None):
         self.location = location
         self.name = name
         self.documentation = documentation
-        self.fields = fields
+        self.fields = fields or []
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         result: list = list()
         append_documentation(result, self.documentation)
         result.append(f"extend {self.name} {{")
@@ -27,4 +22,4 @@ class ExtendElement:
             append_indented(result, field.to_schema())
 
         result.append("}\n")
-        return result
+        return "".join(result)

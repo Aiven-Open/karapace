@@ -7,15 +7,11 @@ from karapace.protobuf.utils import append_documentation
 
 
 class ReservedElement:
-    location: Location
-    documentation: str
-    """ A [String] name or [Int] or [IntRange] tag. """
-    values: list
-
-    def __init__(self, location: Location, documentation: str, values: list):
+    def __init__(self, location: Location, documentation: str = "", values: list = None):
         self.location = location
         self.documentation = documentation
-        self.values = values
+        """ A [String] name or [Int] or [IntRange] tag. """
+        self.values = values or []
 
     def to_schema(self) -> str:
         result: list = list()

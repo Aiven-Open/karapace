@@ -6,20 +6,14 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class ServiceElement:
-    location: Location
-    name: str
-    documentation: str
-    rpcs: list
-    options: list
-
-    def __init__(self, location: Location, name: str, documentation: str, rpcs: list, options: list):
+    def __init__(self, location: Location, name: str, documentation: str = "", rpcs: list = None, options: list = None):
         self.location = location
         self.name = name
         self.documentation = documentation
-        self.rpcs = rpcs
-        self.options = options
+        self.rpcs = rpcs or []
+        self.options = options or []
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         result: list = list()
         append_documentation(result, self.documentation)
         result.append(f"service {self.name} {{")
@@ -34,4 +28,4 @@ class ServiceElement:
                 append_indented(result, rpc.to_schema())
 
         result.append("}\n")
-        return result
+        return "".join(result)

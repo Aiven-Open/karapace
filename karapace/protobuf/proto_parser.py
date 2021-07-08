@@ -58,7 +58,7 @@ class Context(Enum):
         return self in [Context.FILE, Context.MESSAGE]
 
     def permits_service(self) -> bool:
-        return self in [Context.FILE, Context.MESSAGE]
+        return self in [Context.FILE]
 
     def permits_enum(self) -> bool:
         return self in [Context.FILE, Context.MESSAGE]
@@ -68,33 +68,19 @@ class Context(Enum):
 
 
 class ProtoParser:
-    location: Location
-    reader: SyntaxReader
-    public_imports: list = []
-    imports: list = []
-    nested_types: list = []
-    services: list = []
-    extends_list: list = []
-    options: list = []
-    declaration_count: int = 0
-    syntax: Syntax = None
-    package_name: str = None
-    prefix: str = ""
-    data: str
-
     def __init__(self, location: Location, data: str):
         self.location = location
-        self.imports = []
-        self.nested_types = []
-        self.services = []
-        self.extends_list = []
-        self.options = []
+        self.imports: list = []
+        self.nested_types: list = []
+        self.services: list = []
+        self.extends_list: list = []
+        self.options: list = []
         self.declaration_count = 0
-        self.syntax = None
-        self.package_name = None
+        self.syntax: Union[Syntax, None] = None
+        self.package_name: Union[str, None] = None
         self.prefix = ""
         self.data = data
-        self.public_imports = []
+        self.public_imports: list = []
         self.reader = SyntaxReader(data, location)
 
     def read_proto_file(self) -> ProtoFileElement:
@@ -140,7 +126,8 @@ class ProtoParser:
         # TODO(benoit) Let's better parse the proto keywords. We are pretty weak when field/constants
         #  are named after any of the label we check here.
 
-        result = None
+        result: Union[None, OptionElement, ReservedElement, RpcElement, MessageElement, EnumElement, EnumConstantElement,
+                      ServiceElement, ExtendElement, ExtensionsElement, OneOfElement, GroupElement, FieldElement] = None
         # pylint no-else-return
         if label == "package" and context.permits_package():
             self.package_name = self.reader.read_name()
@@ -305,7 +292,6 @@ class ProtoParser:
         name = self.reader.read_name()
         constants: list = list()
         options: list = list()
-        declared = None
         self.reader.require("{")
         while True:
             value_documentation = self.reader.read_documentation()
@@ -322,7 +308,7 @@ class ProtoParser:
                 pass
         return EnumElement(location, name, documentation, options, constants)
 
-    def read_field(self, documentation: str, location: Location, word: str):
+    def read_field(self, documentation: str, location: Location, word: str) -> Union[GroupElement, FieldElement]:
         label: Union[None, Field.Label]
         atype: str
         if word == "required":
@@ -333,6 +319,7 @@ class ProtoParser:
             atype = self.reader.read_data_type()
         elif word == "optional":
             label = Field.Label.OPTIONAL
+
             atype = self.reader.read_data_type()
 
         elif word == "repeated":
@@ -381,16 +368,16 @@ class ProtoParser:
             options_to_list(options),
         )
 
-    def strip_default(self, options: list) -> str:
+    def strip_default(self, options: list) -> Union[str, None]:
         """ Defaults aren't options. """
         return self.strip_value("default", options)
 
-    def strip_json_name(self, options: list) -> str:
+    def strip_json_name(self, options: list) -> Union[None, str]:
         """ `json_name` isn't an option. """
         return self.strip_value("json_name", options)
 
     @staticmethod
-    def strip_value(name: str, options: list) -> str:
+    def strip_value(name: str, options: list) -> Union[None, str]:
         """ This finds an option named [name], removes, and returns it.
         Returns None if no [name] option is present.
         """

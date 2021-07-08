@@ -7,22 +7,22 @@ from typing import Union
 
 
 class GroupElement:
-    label: Field.Label
-    location: Location
-    name: str
-    tag: int
-    documentation: str = ""
-    fields: list = list()
-
     def __init__(
-        self, label: Union[None, Field.Label], location: Location, name: str, tag: int, documentation: str, fields: list
+        self,
+        label: Union[None, Field.Label],
+        location: Location,
+        name: str,
+        tag: int,
+        documentation: str = "",
+        fields: list = None
     ):
         self.label = label
         self.location = location
         self.name = name
         self.tag = tag
+
+        self.fields = fields or []
         self.documentation = documentation
-        self.fields = fields
 
     def to_schema(self) -> str:
         result: list = []

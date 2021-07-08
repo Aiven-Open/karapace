@@ -5,11 +5,6 @@
 class Location:
     """ Locates a .proto file, or a self.position within a .proto file, on the file system """
 
-    base: str
-    path: str
-    line: int
-    column: int
-
     def __init__(self, base: str, path: str, line: int = -1, column: int = -1):
         """  str - The base directory of this location;
               path - The path to this location relative to [base]

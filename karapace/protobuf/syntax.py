@@ -12,3 +12,9 @@ class Syntax(Enum):
     @classmethod
     def _missing_(cls, string):
         raise IllegalArgumentException(f"unexpected syntax: {string}")
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value

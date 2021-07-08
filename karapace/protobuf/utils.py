@@ -7,7 +7,7 @@ def protobuf_encode(a: str) -> str:
     return a
 
 
-def append_documentation(data: list, documentation: str):
+def append_documentation(data: list, documentation: str) -> None:
     if not documentation:
         return
 
@@ -17,30 +17,39 @@ def append_documentation(data: list, documentation: str):
         lines.pop()
 
     for line in lines:
-        data.append("# ")
+        data.append("// ")
         data.append(line)
         data.append("\n")
 
 
-def append_options(data: list, options: list):
+def append_options(data: list, options: list) -> None:
     count = len(options)
     if count == 1:
         data.append('[')
-        data.append(options[0].to_schema())
+        data.append(try_to_schema(options[0]))
         data.append(']')
         return
 
     data.append("[\n")
     for i in range(0, count):
-        if i < count:
+        if i < count - 1:
             endl = ","
         else:
             endl = ""
-        append_indented(data, options[i].to_schema() + endl)
+        append_indented(data, try_to_schema(options[i]) + endl)
     data.append(']')
 
 
-def append_indented(data: list, value: str):
+def try_to_schema(obj: object) -> str:
+    try:
+        return obj.to_schema()
+    except AttributeError:
+        if isinstance(obj, str):
+            return obj
+        raise AttributeError
+
+
+def append_indented(data: list, value: str) -> None:
     lines = value.split("\n")
     if len(lines) > 1 and not lines[-1]:
         del lines[-1]

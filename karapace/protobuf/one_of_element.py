@@ -5,24 +5,19 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class OneOfElement:
-    name: str
-    documentation: str = ""
-    fields: list = list()
-    groups: list = list()
-    options: list = list()
-
-    def __init__(self, name: str, documentation: str, fields: list, groups: list, options: list):
+    def __init__(self, name: str, documentation: str = "", fields=None, groups=None, options=None):
         self.name = name
         self.documentation = documentation
-        self.fields = fields
-        self.groups = groups
-        self.options = options
+        self.fields = fields or []
+        self.options = options or []
+        self.groups = groups or []
 
     def to_schema(self) -> str:
         result: list = list()
         append_documentation(result, self.documentation)
         result.append(f"oneof {self.name} {{")
         if self.options:
+            result.append("\n")
             for option in self.options:
                 append_indented(result, option.to_schema_declaration())
 
