@@ -75,6 +75,7 @@ services:
       KARAPACE_REGISTRY_MASTER_ELIGIBITY: "true"
       KARAPACE_REGISTRY_TOPIC_NAME: _schemas
       KARAPACE_REGISTRY_LOG_LEVEL: WARNING
+      KARAPACE_REGISTRY_COMPATIBILITY: FULL
 
   karapace-rest:
     image: aivenoy/karapace:latest
