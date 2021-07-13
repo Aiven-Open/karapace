@@ -38,6 +38,7 @@ DEFAULTS = {
     "ssl_keyfile": None,
     "ssl_check_hostname": True,
     "ssl_crlfile": None,
+    "ssl_password": None,
     "sasl_mechanism": None,
     "sasl_plain_username": None,
     "sasl_plain_password": None,
@@ -117,7 +118,9 @@ def create_ssl_context(config: Config) -> ssl.SSLContext:
         ssl_context.verify_mode = ssl.CERT_REQUIRED
     if config['ssl_certfile'] and config['ssl_keyfile']:
         ssl_context.load_cert_chain(
-            certfile=config['ssl_certfile'], keyfile=config['ssl_keyfile'], password=config.get('ssl_password')
+            certfile=config['ssl_certfile'],
+            keyfile=config['ssl_keyfile'],
+            password=config['ssl_password'],
         )
     if config['ssl_crlfile']:
         if not hasattr(ssl, 'VERIFY_CRL_CHECK_LEAF'):
