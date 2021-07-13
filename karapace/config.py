@@ -37,6 +37,7 @@ DEFAULTS = {
     "ssl_certfile": None,
     "ssl_keyfile": None,
     "ssl_check_hostname": True,
+    "ssl_crlfile": None,
     "sasl_mechanism": None,
     "sasl_plain_username": None,
     "sasl_plain_password": None,
@@ -118,7 +119,7 @@ def create_ssl_context(config: Config) -> ssl.SSLContext:
         ssl_context.load_cert_chain(
             certfile=config['ssl_certfile'], keyfile=config['ssl_keyfile'], password=config.get('ssl_password')
         )
-    if config.get('ssl_crlfile'):
+    if config['ssl_crlfile']:
         if not hasattr(ssl, 'VERIFY_CRL_CHECK_LEAF'):
             raise RuntimeError('This version of Python does not support ssl_crlfile!')
         ssl_context.load_verify_locations(config['ssl_crlfile'])
