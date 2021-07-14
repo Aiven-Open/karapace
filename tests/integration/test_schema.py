@@ -7,7 +7,7 @@ See LICENSE for details
 from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.rapu import is_success
-from karapace.schema_registry_apis import KarapaceSchemaRegistry
+from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
 from karapace.utils import Client
 from tests.utils import (
     create_field_name_factory, create_schema_name_factory, create_subject_name_factory, repeat_until_successful_request
@@ -1742,7 +1742,7 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
     res = await registry_async_client.put(f"config{trail}", json={"compatibility": "nonexistentmode"})
     assert res.status_code == 422
     assert res.json()["error_code"] == 42203
-    assert res.json()["message"] == "Invalid compatibility level. Valid values are none, backward, forward and full"
+    assert res.json()["message"] == SchemaErrorMessages.INVALID_COMPATIBILITY_LEVEL.value
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
 
     # Create a new subject so we can try setting its config
@@ -1757,7 +1757,7 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
     res = await registry_async_client.get(f"config/{subject_1}{trail}")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == "Subject not found."
+    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject_1)
 
     res = await registry_async_client.put(f"config/{subject_1}{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
