@@ -398,6 +398,38 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
 
+Uninstall
+=========
+
+To unistall Karapace from the system you can follow the instructions described below. We would love to hear your reasons for uninstalling though. Please file an issue if you experience any problems or email us_ with feedback
+
+.. _`us`: mailto:opensource@aiven.io
+
+
+Installed via Docker
+--------------------
+
+If you installed Karapace via Docker, you would need to first stop and remove the images like described:
+
+First obtain the container IDs related to Karapace, you should have one for the registry itself and another one for the rest interface::
+
+    docker ps | grep karapace
+
+After this, you can stop each of the containers with::
+
+    docker stop <CONTAINER_ID>
+
+If you don't need or want to have the Karapace images around you can now proceed to delete them using::
+
+    docker rm <CONTAINER_ID>
+
+Installed from Sources
+----------------------
+
+If you installed Karapace from the sources via ``python setup.py install``, it can be uninstalled with the following ``pip`` command::
+
+    pip uninstall karapace
+
 License
 =======
 
