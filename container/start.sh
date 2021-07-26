@@ -1,84 +1,50 @@
 #!/bin/bash
 set -e
 
-# keep in sync with karapace/config.py
-KARAPACE_REGISTRY_PORT_DEFAULT=8081
-KARAPACE_REGISTRY_HOST_DEFAULT=0.0.0.0
-KARAPACE_REGISTRY_CLIENT_ID_DEFAULT=sr-1
-KARAPACE_REGISTRY_GROUP_ID_DEFAULT=schema-registry
-KARAPACE_REGISTRY_MASTER_ELIGIBITY_DEFAULT=true
-KARAPACE_REGISTRY_TOPIC_NAME_DEFAULT=_schemas
-KARAPACE_REGISTRY_LOG_LEVEL_DEFAULT=INFO
-KARAPACE_REGISTRY_COMPATIBILITY_DEFAULT=FULL
-# Variables without defaults:
-# KARAPACE_REGISTRY_ADVERTISED_HOSTNAME
-# KARAPACE_REGISTRY_BOOTSTRAP_URI
+# Configuration is done using environment variables. The environment variable
+# names are the same as the configuration keys, all letters in caps, and always
+# start with `KARAPACE_`.
 
-# keep in sync with karapace/config.py
-KARAPACE_REST_PORT_DEFAULT=8082
-KARAPACE_REST_ADMIN_METADATA_MAX_AGE_DEFAULT=5
-KARAPACE_REST_HOST_DEFAULT=0.0.0.0
-KARAPACE_REST_LOG_LEVEL_DEFAULT=INFO
-# Variables without defaults:
-# KARAPACE_REST_ADVERTISED_HOSTNAME
-# KARAPACE_REST_BOOTSTRAP_URI
-# KARAPACE_REST_REGISTRY_HOST
-# KARAPACE_REST_REGISTRY_PORT
 
-start_karapace_registry(){
-  echo "starting karapace schema registry"
-
-  cat >/opt/karapace/registry.config.json <<- EOF
-{
-    "advertised_hostname": "${KARAPACE_REGISTRY_ADVERTISED_HOSTNAME}",
-    "bootstrap_uri": "${KARAPACE_REGISTRY_BOOTSTRAP_URI}",
-    "host": "${KARAPACE_REGISTRY_HOST:-$KARAPACE_REGISTRY_HOST_DEFAULT}",
-    "port": ${KARAPACE_REGISTRY_PORT:-$KARAPACE_REGISTRY_PORT_DEFAULT},
-    "client_id": "${KARAPACE_REGISTRY_CLIENT_ID:-$KARAPACE_REGISTRY_CLIENT_ID_DEFAULT}",
-    "group_id": "${KARAPACE_REGISTRY_GROUP_ID:-$KARAPACE_REGISTRY_GROUP_ID_DEFAULT}",
-    "master_eligibility": ${KARAPACE_REGISTRY_MASTER_ELIGIBITY:-$KARAPACE_REGISTRY_MASTER_ELIGIBITY_DEFAULT},
-    "topic_name": "${KARAPACE_REGISTRY_TOPIC_NAME:-$KARAPACE_REGISTRY_TOPIC_NAME_DEFAULT}",
-    "compatibility": "${KARAPACE_REGISTRY_COMPATIBILITY:-$KARAPACE_REGISTRY_COMPATIBILITY_DEFAULT}",
-    "log_level": "${KARAPACE_REGISTRY_LOG_LEVEL:-$KARAPACE_REGISTRY_LOG_LEVEL_DEFAULT}",
-    "replication_factor": 1,
-    "security_protocol": "PLAINTEXT",
-    "ssl_cafile": null,
-    "ssl_certfile": null,
-    "ssl_keyfile": null
-}
-EOF
-  exec python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json
-}
-
-start_karapace_rest(){
-  echo "starting karapace rest api"
-
-  # in theory we dont need to advertise the internal hostname since this should always be accessible from the outside
-  cat >/opt/karapace/rest.config.json <<- EOF
-{
-    "advertised_hostname": "${KARAPACE_REST_ADVERTISED_HOSTNAME}",
-    "bootstrap_uri": "${KARAPACE_REST_BOOTSTRAP_URI}",
-    "registry_host": "${KARAPACE_REST_REGISTRY_HOST}",
-    "registry_port": ${KARAPACE_REST_REGISTRY_PORT},
-    "host": "${KARAPACE_REST_HOST:-$KARAPACE_REST_HOST_DEFAULT}",
-    "port": ${KARAPACE_REST_PORT:-$KARAPACE_REST_PORT_DEFAULT},
-    "admin_metadata_max_age": ${KARAPACE_REST_ADMIN_METADATA_MAX_AGE:-$KARAPACE_REST_ADMIN_METADATA_MAX_AGE_DEFAULT},
-    "log_level": "${KARAPACE_REST_LOG_LEVEL:-$KARAPACE_REST_LOG_LEVEL_DEFAULT}",
-    "security_protocol": "PLAINTEXT",
-    "ssl_cafile": null,
-    "ssl_certfile": null,
-    "ssl_keyfile": null
-}
-EOF
-  exec python3 -m karapace.kafka_rest_apis /opt/karapace/rest.config.json
-}
+# In the code below the expression ${var+isset} is used to check if the
+# variable was defined, and ${var-isunset} if not.
+#
+# Ref: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_06_02
 
 case $1 in
   rest)
-    start_karapace_rest &
+    # Reexport variables for compatibility
+    [[ -n "${KARAPACE_REST_ADVERTISED_HOSTNAME+isset}" ]] && export KARAPACE_ADVERTISED_HOSTNAME="${KARAPACE_REST_ADVERTISED_HOSTNAME}"
+    [[ -n "${KARAPACE_REST_BOOTSTRAP_URI+isset}" ]] && export KARAPACE_BOOTSTRAP_URI="${KARAPACE_REST_BOOTSTRAP_URI}"
+    [[ -n "${KARAPACE_REST_REGISTRY_HOST+isset}" ]] && export KARAPACE_REGISTRY_HOST="${KARAPACE_REST_REGISTRY_HOST}"
+    [[ -n "${KARAPACE_REST_REGISTRY_PORT+isset}" ]] && export KARAPACE_REGISTRY_PORT="${KARAPACE_REST_REGISTRY_PORT}"
+    [[ -n "${KARAPACE_REST_HOST+isset}" ]] && export KARAPACE_HOST="${KARAPACE_REST_HOST}"
+    [[ -n "${KARAPACE_REST_PORT+isset}" ]] && export KARAPACE_PORT="${KARAPACE_REST_PORT}"
+    [[ -n "${KARAPACE_REST_ADMIN_METADATA_MAX_AGE+isset}" ]] && export KARAPACE_ADMIN_METADATA_MAX_AGE="${KARAPACE_REST_ADMIN_METADATA_MAX_AGE}"
+    [[ -n "${KARAPACE_REST_LOG_LEVEL+isset}" ]] && export KARAPACE_LOG_LEVEL="${KARAPACE_REST_LOG_LEVEL}"
+    export KARAPACE_REST=1
+    echo "{}" > /opt/karapace/rest.config.json
+
+    echo "Starting Karapace REST API"
+    exec python3 -m karapace.kafka_rest_apis /opt/karapace/rest.config.json
   ;;
   registry)
-    start_karapace_registry &
+    # Reexport variables for compatibility
+    [[ -n "${KARAPACE_REGISTRY_ADVERTISED_HOSTNAME+isset}" ]] && export KARAPACE_ADVERTISED_HOSTNAME="${KARAPACE_REGISTRY_ADVERTISED_HOSTNAME}"
+    [[ -n "${KARAPACE_REGISTRY_BOOTSTRAP_URI+isset}" ]] && export KARAPACE_BOOTSTRAP_URI="${KARAPACE_REGISTRY_BOOTSTRAP_URI}"
+    [[ -n "${KARAPACE_REGISTRY_HOST+isset}" ]] && export KARAPACE_HOST="${KARAPACE_REGISTRY_HOST}"
+    [[ -n "${KARAPACE_REGISTRY_PORT+isset}" ]] && export KARAPACE_PORT="${KARAPACE_REGISTRY_PORT}"
+    [[ -n "${KARAPACE_REGISTRY_CLIENT_ID+isset}" ]] && export KARAPACE_CLIENT_ID="${KARAPACE_REGISTRY_CLIENT_ID}"
+    [[ -n "${KARAPACE_REGISTRY_GROUP_ID+isset}" ]] && export KARAPACE_GROUP_ID="${KARAPACE_REGISTRY_GROUP_ID}"
+    [[ -n "${KARAPACE_REGISTRY_MASTER_ELIGIBITY+isset}" ]] && export KARAPACE_MASTER_ELIGIBILITY="${KARAPACE_REGISTRY_MASTER_ELIGIBITY}"
+    [[ -n "${KARAPACE_REGISTRY_TOPIC_NAME+isset}" ]] && export KARAPACE_TOPIC_NAME="${KARAPACE_REGISTRY_TOPIC_NAME}"
+    [[ -n "${KARAPACE_REGISTRY_COMPATIBILITY+isset}" ]] && export KARAPACE_COMPATIBILITY="${KARAPACE_REGISTRY_COMPATIBILITY}"
+    [[ -n "${KARAPACE_REGISTRY_LOG_LEVEL+isset}" ]] && export KARAPACE_LOG_LEVEL="${KARAPACE_REGISTRY_LOG_LEVEL}"
+    export KARAPACE_REGISTRY=1
+    echo "{}" > /opt/karapace/registry.config.json
+
+    echo "Starting Karapace Schema Registry"
+    exec python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json
   ;;
   *)
     echo "usage: start-karapace.sh <registry|rest>"
