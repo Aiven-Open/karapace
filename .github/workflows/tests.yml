@@ -1,6 +1,11 @@
 name: Test Suite
 
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - master
 
 jobs:
   unit-test:
