@@ -53,18 +53,6 @@ make integrationtest
 If you want to run the tests from within the IDE, first download Kafka using `make fetch-kafka`, and
 use the project root as the working directory.
 
-### Compatibility tests
-
-The integration tests can be configured to use an external REST (`--rest-url`), Registry
-(`--registry-url`) and Kafka (`--kafka-bootstrap-servers`).  These can be used to make sure the
-tests conform to the Kafka REST or Schema Registry APIs, and then that Karapace conform to the
-tests:
-
-```sh
-docker-compose -f ./tests/integration/confluent-docker-compose.yml up -d
-pytest --kafka-bootstrap-servers localhost:9092 --registry-url http://localhost:8081 --rest-url http://localhost:8082/ tests/integration
-```
-
 ## Static checking and Linting
 
 The code is statically checked and formatted using [a few
@@ -74,7 +62,7 @@ Alternatively you can run it manually with `make pre-commit`.
 
 ## Manual testing
 
-To use your development code, you just need to set up a Kafka server and run Karapace from you
+To use your development code, you need to set up a Kafka server and run Karapace from you
 virtual environment:
 
 ```
