@@ -198,7 +198,7 @@ Karapace includes a tool to backing up and restoring data. To back up, run::
 
   karapace_schema_backup get --config karapace.config.json --location schemas.log
 
-You can also back up the data simply by using Kafka's Java console
+You can also back up the data by using Kafka's Java console
 consumer::
 
   ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
