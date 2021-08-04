@@ -7,7 +7,12 @@ An `open-source <https://github.com/aiven/karapace/blob/master/LICENSE>`_ implem
 of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html#features>`_ and
 `Schema Registry <https://docs.confluent.io/platform/current/schema-registry/index.html>`_.
 
-.. image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg
+|Tests| |Contributor Covenant|
+
+.. |Tests| image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg
+
+.. |Contributor Covenant| image:: https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg
+    :target: CODE_OF_CONDUCT.md
 
 Overview
 ========
@@ -462,4 +467,4 @@ to them for pioneering the concept.
 Recent contributors are listed on the GitHub project page,
 https://github.com/aiven/karapace/graphs/contributors
 
-Copyright ⓒ 2019 Aiven Ltd.
+Copyright ⓒ 2021 Aiven Ltd.
