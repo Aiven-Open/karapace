@@ -17,25 +17,23 @@ import logging
 import os
 import time
 
-LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT_JOURNAL)
-
 
 class KarapaceBase(RestApp):
-    def __init__(self, config_file_path: str, config: dict) -> None:
+    def __init__(self, config: dict) -> None:
+        sentry_config = config.get("sentry", {"dsn": None}).copy()
+        super().__init__(app_name="karapace", sentry_config=sentry_config)
+
         self.config = {}
         self.producer = None
         self.kafka_timeout = 10
-        self.config_path = config_file_path
         self.config = config
-        self._sentry_config = self.config.get("sentry", {"dsn": None}).copy()
+        self._sentry_config = sentry_config
         if os.environ.get("SENTRY_DSN"):
             self._sentry_config["dsn"] = os.environ["SENTRY_DSN"]
         if "tags" not in self._sentry_config:
             self._sentry_config["tags"] = {}
         self._sentry_config["tags"]["app"] = "Karapace"
 
-        super().__init__(app_name="karapace", sentry_config=self._sentry_config)
         self.route("/", callback=self.root_get, method="GET")
         self.log = logging.getLogger("Karapace")
         self.app.on_startup.append(self.create_http_client)
@@ -64,7 +62,7 @@ class KarapaceBase(RestApp):
                 self.log.exception("Unable to create producer, retrying")
                 time.sleep(1)
 
-    def close(self) -> None:
+    async def close(self) -> None:
         if not self.producer:
             return
         self.producer.close()
