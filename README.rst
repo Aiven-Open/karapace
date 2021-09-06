@@ -33,6 +33,7 @@ Features
 * Moderate memory consumption
 * Asynchronous architecture based on aiohttp
 * Supports Avro and JSON Schema. Protobuf development is tracked with `Issue 67`_.
+* Leader/Replica architecture for HA and load balancing.
 
 .. _Issue 67: https://github.com/aiven/karapace/issues/67
 
