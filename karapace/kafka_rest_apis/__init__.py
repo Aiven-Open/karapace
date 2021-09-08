@@ -38,12 +38,12 @@ class FormatError(Exception):
 
 class KafkaRest(KarapaceBase):
     # pylint: disable=attribute-defined-outside-init
-    def __init__(self, config_file_path: str, config: dict) -> None:
-        super().__init__(config_file_path=config_file_path, config=config)
-        self._add_routes()
-        self._init(config=config)
+    def __init__(self, config: dict) -> None:
+        super().__init__(config=config)
+        self._add_kafka_rest_routes()
+        self._init_kafka_rest(config=config)
 
-    def _init(self, config: dict) -> None:
+    def _init_kafka_rest(self, config: dict) -> None:
         self.serializer = SchemaRegistrySerializer(config=config)
         self.log = logging.getLogger("KarapaceRest")
         self.loop = asyncio.get_event_loop()
@@ -59,7 +59,7 @@ class KafkaRest(KarapaceBase):
         self.producer_refs = []
         self.producer_queue = asyncio.Queue()
 
-    def _add_routes(self):
+    def _add_kafka_rest_routes(self) -> None:
         # Brokers
         self.route("/brokers", callback=self.list_brokers, method="GET", rest_request=True)
 
@@ -329,8 +329,9 @@ class KafkaRest(KarapaceBase):
         self.producer_queue = None
         return
 
-    def close(self):
-        super().close()
+    async def close(self) -> None:
+        await super().close()
+        await self.close_producers()
         if self.admin_client:
             self.admin_client.close()
             self.admin_client = None

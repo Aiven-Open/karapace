@@ -36,6 +36,9 @@ DEFAULTS = {
     "ssl_cafile": None,
     "ssl_certfile": None,
     "ssl_keyfile": None,
+    "ssl_check_hostname": True,
+    "ssl_crlfile": None,
+    "ssl_password": None,
     "sasl_mechanism": None,
     "sasl_plain_username": None,
     "sasl_plain_password": None,
@@ -51,6 +54,7 @@ DEFAULTS = {
     "karapace_registry": False,
     "master_election_strategy": "lowest"
 }
+DEFAULT_LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 
 
 class InvalidConfiguration(Exception):
@@ -107,16 +111,18 @@ def create_ssl_context(config: Config) -> ssl.SSLContext:
     ssl_context.options |= ssl.OP_NO_TLSv1  # pylint: disable=no-member
     ssl_context.options |= ssl.OP_NO_TLSv1_1  # pylint: disable=no-member
     ssl_context.verify_mode = ssl.CERT_OPTIONAL
-    if config.get('ssl_check_hostname'):
+    if config['ssl_check_hostname']:
         ssl_context.check_hostname = True
     if config['ssl_cafile']:
         ssl_context.load_verify_locations(config['ssl_cafile'])
         ssl_context.verify_mode = ssl.CERT_REQUIRED
     if config['ssl_certfile'] and config['ssl_keyfile']:
         ssl_context.load_cert_chain(
-            certfile=config['ssl_certfile'], keyfile=config['ssl_keyfile'], password=config.get('ssl_password')
+            certfile=config['ssl_certfile'],
+            keyfile=config['ssl_keyfile'],
+            password=config['ssl_password'],
         )
-    if config.get('ssl_crlfile'):
+    if config['ssl_crlfile']:
         if not hasattr(ssl, 'VERIFY_CRL_CHECK_LEAF'):
             raise RuntimeError('This version of Python does not support ssl_crlfile!')
         ssl_context.load_verify_locations(config['ssl_crlfile'])

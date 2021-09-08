@@ -1,9 +1,18 @@
 Karapace
 ========
 
-``karapace`` Your Kafka essentials in one tool
+``karapace``. Your Kafka essentials in one tool.
 
-.. image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg
+An `open-source <https://github.com/aiven/karapace/blob/master/LICENSE>`_ implementation
+of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html#features>`_ and
+`Schema Registry <https://docs.confluent.io/platform/current/schema-registry/index.html>`_.
+
+|Tests| |Contributor Covenant|
+
+.. |Tests| image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg
+
+.. |Contributor Covenant| image:: https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg
+    :target: CODE_OF_CONDUCT.md
 
 Overview
 ========
@@ -16,8 +25,6 @@ Karapace rest provides a RESTful interface to your Kafka cluster, allowing you t
 as producing and consuming messages and perform administrative cluster work, all the while using the
 language of the WEB.
 
-Karapace is compatible with Schema Registry 6.1.1 on API level.
-
 Features
 ========
 
@@ -28,6 +35,13 @@ Features
 * Supports Avro and JSON Schema. Protobuf development is tracked with `Issue 67`_.
 
 .. _Issue 67: https://github.com/aiven/karapace/issues/67
+
+Compatibility details
+---------------------
+
+Karapace is compatible with Schema Registry 6.1.1 on API level. When a new version of SR is released, the goal is
+to support it in a reasonable time. Karapace supports all operations in the API.
+The goal is that even the error messages are the same as in Schema Registry, which cannot be always fully guaranteed.
 
 Setup
 =====
@@ -65,13 +79,19 @@ Alternatively you can do a source install using::
 Quickstart
 ==========
 
-To Register the first version of a schema under the subject "test"::
+To register the first version of a schema under the subject "test" using Avro schema::
 
   $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"schema": "{\"type\": \"record\", \"name\": \"Obj\", \"fields\":[{\"name\": \"age\", \"type\": \"int\"}]}"}' \
+    --data '{"schema": "{\"type\": \"record\", \"name\": \"Obj\", \"fields\":[{\"name\": \"age\", \"type\": \"int\"}]}"}' \
     http://localhost:8081/subjects/test-key/versions
   {"id":1}
 
+To register a version of a schema using JSON Schema, one needs to use `schemaType` property::
+
+  $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+    --data '{"schemaType": "JSON", "schema": "{\"type\": \"object\",\"properties\":{\"age\":{\"type\": \"number\"}},\"additionalProperties\":true}"}' \
+    http://localhost:8081/subjects/test-key-json-schema/versions
+  {"id":2}
 
 To list all subjects (including the one created just above)::
 
@@ -91,47 +111,47 @@ To fetch back the schema whose global id is 1 (i.e. the one registered above)::
 To get the specific version 1 of the schema just registered run::
 
   $ curl -X GET http://localhost:8081/subjects/test-key/versions/1
-    {"subject":"test-key","version":1,"id":1,"schema":"{\"fields\":[{\"name\":\"age\",\"type\":\"int\"}],\"name\":\"Obj\",\"type\":\"record\"}"}
+  {"subject":"test-key","version":1,"id":1,"schema":"{\"fields\":[{\"name\":\"age\",\"type\":\"int\"}],\"name\":\"Obj\",\"type\":\"record\"}"}
 
 To get the latest version of the schema under subject test-key run::
 
   $ curl -X GET http://localhost:8081/subjects/Kafka-value/versions/latest
-    {"subject":"test-key","version":1,"id":1,"schema":"{\"fields\":[{\"name\":\"age\",\"type\":\"int\"}],\"name\":\"Obj\",\"type\":\"record\"}"}
+  {"subject":"test-key","version":1,"id":1,"schema":"{\"fields\":[{\"name\":\"age\",\"type\":\"int\"}],\"name\":\"Obj\",\"type\":\"record\"}"}
 
 In order to delete version 10 of the schema registered under subject "test-key" (if it exists)::
 
   $ curl -X DELETE http://localhost:8081/subjects/test-key/versions/10
-    10
+   10
 
 To Delete all versions of the schema registered under subject "test-key"::
 
   $ curl -X DELETE http://localhost:8081/subjects/test-key
-    [1]
+  [1]
 
 Test the compatibility of a schema with the latest schema under subject "test-key"::
 
   $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-      --data '{"schema": "{\"type\": \"int\"}"}' \
-      http://localhost:8081/compatibility/subjects/test-key/versions/latest
-    {"is_compatible":true}
+    --data '{"schema": "{\"type\": \"int\"}"}' \
+    http://localhost:8081/compatibility/subjects/test-key/versions/latest
+  {"is_compatible":true}
 
 Get current global backwards compatibility setting value::
 
   $ curl -X GET http://localhost:8081/config
-    {"compatibilityLevel":"BACKWARD"}
+  {"compatibilityLevel":"BACKWARD"}
 
 Change compatibility requirements for all subjects where it's not
 specifically defined otherwise::
 
   $ curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
     --data '{"compatibility": "NONE"}' http://localhost:8081/config
-    {"compatibility":"NONE"}
+  {"compatibility":"NONE"}
 
 Change compatibility requirement to FULL for the test-key subject::
 
   $ curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-      --data '{"compatibility": "FULL"}' http://localhost:8081/config/test-key
-    {"compatibility":"FULL"}
+    --data '{"compatibility": "FULL"}' http://localhost:8081/config/test-key
+  {"compatibility":"FULL"}
 
 List topics::
 
@@ -144,8 +164,8 @@ Get info for one particular topic::
 Produce a message backed up by schema registry::
 
   $ curl -H "Content-Type: application/vnd.kafka.avro.v2+json" -X POST -d \
-  '{"value_schema": "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"simple\", \"fields\": \
-  [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8081/topics/my_topic
+    '{"value_schema": "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"simple\", \"fields\": \
+    [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8081/topics/my_topic
 
 Create a consumer::
 
@@ -161,9 +181,9 @@ Subscribe to the topic we previously published to::
 Consume previously published message::
 
   $ curl -X GET -H "Accept: application/vnd.kafka.avro.v2+json" \
-  http://localhost:8081/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
+    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
 
-Commit offsets for a particular topic partition:
+Commit offsets for a particular topic partition::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{}' \
     http://localhost:8081/consumers/avro_consumers/instances/my_consumer/offsets
@@ -171,7 +191,7 @@ Commit offsets for a particular topic partition:
 Delete consumer::
 
   $ curl -X DELETE -H "Accept: application/vnd.kafka.v2+json" \
-  http://localhost:8081/consumers/avro_consumers/instances/my_consumer
+    http://localhost:8081/consumers/avro_consumers/instances/my_consumer
 
 Backing up your Karapace
 ========================
@@ -183,7 +203,7 @@ Karapace includes a tool to backing up and restoring data. To back up, run::
 
   karapace_schema_backup get --config karapace.config.json --location schemas.log
 
-You can also back up the data simply by using Kafka's Java console
+You can also back up the data by using Kafka's Java console
 consumer::
 
   ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
@@ -383,6 +403,38 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
 
+Uninstall
+=========
+
+To unistall Karapace from the system you can follow the instructions described below. We would love to hear your reasons for uninstalling though. Please file an issue if you experience any problems or email us_ with feedback
+
+.. _`us`: mailto:opensource@aiven.io
+
+
+Installed via Docker
+--------------------
+
+If you installed Karapace via Docker, you would need to first stop and remove the images like described:
+
+First obtain the container IDs related to Karapace, you should have one for the registry itself and another one for the rest interface::
+
+    docker ps | grep karapace
+
+After this, you can stop each of the containers with::
+
+    docker stop <CONTAINER_ID>
+
+If you don't need or want to have the Karapace images around you can now proceed to delete them using::
+
+    docker rm <CONTAINER_ID>
+
+Installed from Sources
+----------------------
+
+If you installed Karapace from the sources via ``python setup.py install``, it can be uninstalled with the following ``pip`` command::
+
+    pip uninstall karapace
+
 License
 =======
 
@@ -415,4 +467,4 @@ to them for pioneering the concept.
 Recent contributors are listed on the GitHub project page,
 https://github.com/aiven/karapace/graphs/contributors
 
-Copyright ⓒ 2019 Aiven Ltd.
+Copyright ⓒ 2021 Aiven Ltd.

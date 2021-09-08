@@ -66,15 +66,16 @@ services:
     ports:
       - "8081:8081"
     environment:
-      KARAPACE_REGISTRY_ADVERTISED_HOSTNAME: karapace-registry
-      KARAPACE_REGISTRY_BOOTSTRAP_URI: kafka:29092
-      KARAPACE_REGISTRY_PORT: 8081
-      KARAPACE_REGISTRY_HOST: 0.0.0.0
-      KARAPACE_REGISTRY_CLIENT_ID: karapace
-      KARAPACE_REGISTRY_GROUP_ID: karapace-registry
-      KARAPACE_REGISTRY_MASTER_ELIGIBITY: "true"
-      KARAPACE_REGISTRY_TOPIC_NAME: _schemas
-      KARAPACE_REGISTRY_LOG_LEVEL: WARNING
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-registry
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8081
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace
+      KARAPACE_GROUP_ID: karapace-registry
+      KARAPACE_MASTER_ELIGIBITY: "true"
+      KARAPACE_TOPIC_NAME: _schemas
+      KARAPACE_LOG_LEVEL: WARNING
+      KARAPACE_COMPATIBILITY: FULL
 
   karapace-rest:
     image: aivenoy/karapace:latest
@@ -88,13 +89,11 @@ services:
     ports:
       - "8082:8082"
     environment:
-      KARAPACE_REST_PORT: 8082
-      KARAPACE_REST_HOST: 0.0.0.0
-      KARAPACE_REST_ADVERTISED_HOSTNAME: karapace-rest
-      KARAPACE_REST_BOOTSTRAP_URI: kafka:29092
-      KARAPACE_REST_REGISTRY_HOST: karapace-registry
-      KARAPACE_REST_REGISTRY_PORT: 8081
-      # Keep in sync with tests/integration/conftest.py::fixture_rest_async,
-      # new entries may need to be added to containers/start.sh
-      KARAPACE_REST_ADMIN_METADATA_MAX_AGE: 0
-      KARAPACE_REST_LOG_LEVEL: WARNING
+      KARAPACE_PORT: 8082
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_HOST: karapace-registry
+      KARAPACE_REGISTRY_PORT: 8081
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: WARNING

@@ -4,7 +4,7 @@ from http import HTTPStatus
 from karapace import version as karapace_version
 from karapace.avro_compatibility import is_incompatible
 from karapace.compatibility import check_compatibility, CompatibilityModes
-from karapace.config import read_config
+from karapace.config import DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
@@ -39,18 +39,28 @@ class SchemaErrorCodes(Enum):
     NO_MASTER_ERROR = 50003
 
 
+@unique
+class SchemaErrorMessages(Enum):
+    SUBJECT_NOT_FOUND_FMT = "Subject '{subject}' not found."
+    INVALID_COMPATIBILITY_LEVEL = (
+        "Invalid compatibility level. Valid values are none, backward, "
+        "forward, full, backward_transitive, forward_transitive, and "
+        "full_transitive"
+    )
+
+
 class InvalidSchemaType(Exception):
     pass
 
 
 class KarapaceSchemaRegistry(KarapaceBase):
     # pylint: disable=attribute-defined-outside-init
-    def __init__(self, config_file_path: str, config: dict) -> None:
-        super().__init__(config_file_path=config_file_path, config=config)
-        self._add_routes()
-        self._init(config=config)
+    def __init__(self, config: dict) -> None:
+        super().__init__(config=config)
+        self._add_schema_registry_routes()
+        self._init_schema_registry(config=config)
 
-    def _init(self, config: dict) -> None:  # pylint: disable=unused-argument
+    def _init_schema_registry(self, config: dict) -> None:  # pylint: disable=unused-argument
         self.ksr = None
         self.producer = None
         self.producer = self._create_producer()
@@ -58,7 +68,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self._create_schema_reader()
         self.schema_lock = asyncio.Lock()
 
-    def _add_routes(self):
+    def _add_schema_registry_routes(self) -> None:
         self.route(
             "/compatibility/subjects/<subject:path>/versions/<version:path>",
             callback=self.compatibility_check,
@@ -116,8 +126,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
             json_body=False,
         )
 
-    def close(self):
-        super().close()
+    async def close(self) -> None:
+        await super().close()
         self.log.info("Shutting down all auxiliary threads")
         if self.mc:
             self.mc.close()
@@ -140,7 +150,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                    "message": f"Subject '{subject}' not found.",
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
@@ -151,7 +161,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                    "message": f"Subject '{subject}' not found.",
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
@@ -382,7 +392,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_COMPATIBILITY_LEVEL.value,
-                    "message": "Invalid compatibility level. Valid values are none, backward, forward and full",
+                    "message": SchemaErrorMessages.INVALID_COMPATIBILITY_LEVEL.value,
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -420,7 +430,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(
             body={
                 "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                "message": "Subject not found.",
+                "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
             },
             content_type=content_type,
             status=HTTPStatus.NOT_FOUND,
@@ -868,8 +878,9 @@ def main() -> int:
     with closing(arg.config_file):
         config = read_config(arg.config_file)
 
+    logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
     logging.getLogger().setLevel(config["log_level"])
-    kc = KarapaceSchemaRegistry(config_file_path=arg.config_file.name, config=config)
+    kc = KarapaceSchemaRegistry(config=config)
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])
     except Exception:  # pylint: disable-broad-except
