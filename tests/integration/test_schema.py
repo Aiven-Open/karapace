@@ -1132,9 +1132,10 @@ async def test_schema_types(registry_async_client: Client, trail: str) -> None:
     res = await registry_async_client.get(f"/schemas/types{trail}")
     assert res.status_code == 200
     json = res.json()
-    assert len(json) == 2
+    assert len(json) == 3
     assert "AVRO" in json
     assert "JSON" in json
+    assert "PROTOBUF" in json
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
