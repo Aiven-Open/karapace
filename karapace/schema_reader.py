@@ -110,9 +110,7 @@ class TypedSchema:
             return self.schema.to_json(names=None)
         if isinstance(self.schema, ProtobufSchema):
             raise InvalidSchema("Protobuf do not support to_json serialization")
-        log.warning("STRANGE OBJECT: %s ", self.schema)
-        log.warning("STRANGE OBJECT2: %s ", self.schema.__dict__)
-        return self.schema.to_json()
+        return self.schema
 
     def __str__(self) -> str:
         if isinstance(self.schema, ProtobufSchema):
