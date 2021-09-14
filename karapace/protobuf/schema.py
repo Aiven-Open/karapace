@@ -20,7 +20,7 @@ def static_init(cls):
     return cls
 
 
-def add_slashes(text: str):
+def add_slashes(text: str) -> str:
     escape_dict = {
         r'\a': '\\a',
         r'\b': '\\b',
