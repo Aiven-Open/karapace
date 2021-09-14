@@ -4,10 +4,6 @@ from karapace.serialization import SchemaRegistryClient
 from tests.schemas.protobuf import schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_plain
 from tests.utils import new_random_name
 
-import logging
-
-log = logging.getLogger(__name__)
-
 
 async def test_remote_client_protobuf(registry_async_client):
     schema_protobuf = TypedSchema.parse(SchemaType.PROTOBUF, schema_protobuf_plain)

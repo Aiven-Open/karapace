@@ -22,16 +22,15 @@ def static_init(cls):
 
 def add_slashes(text: str) -> str:
     escape_dict = {
-        r'\a': '\\a',
-        r'\b': '\\b',
-        r'\c': '\\c',
-        r'\f': '\\f',
-        r'\n': '\\n',
-        r'\r': '\\r',
-        r'\t': '\\t',
-        r'\v': '\\v',
+        '\a': '\\a',
+        '\b': '\\b',
+        '\f': '\\f',
+        '\n': '\\n',
+        '\r': '\\r',
+        '\t': '\\t',
+        '\v': '\\v',
         '\'': "\\'",
-        '\"': '\\\"',
+        '\"': '\\"',
         '\\': '\\\\'
     }
     result: str = ""
@@ -113,12 +112,7 @@ def option_element_string(option: OptionElement):
 
 @static_init
 class ProtobufSchema:
-    @classmethod
-    def static_init(cls):
-        # if hasattr(cls, 'DEFAULT_LOCATION') and cls.DEFAULT_LOCATION:
-        #    return
-        # log.warning("STATIC_INIT")
-        cls.DEFAULT_LOCATION = Location.get("")
+    DEFAULT_LOCATION = Location.get("")
 
     def __init__(self, schema: str):
         self.dirty = schema
@@ -131,18 +125,11 @@ class ProtobufSchema:
         log.warning("CACHE_STRING:%s", self.cache_string)
         return self.cache_string
 
-    # def to_json(self) -> str:
-    #    return self.schema.to_schema()
     def to_json(self) -> str:
         return self.to_schema()
 
     def to_schema(self):
         strings: list = []
-        #    [
-        #    "// Proto schema formatted by Wire, do not edit.\n", "// Source: ",
-        #    str(self.location.with_path_only()), "\n"
-        # ]
-
         shm: ProtoFileElement = self.schema
         if shm.syntax:
             strings.append("syntax = \"")
