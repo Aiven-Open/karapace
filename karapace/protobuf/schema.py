@@ -14,12 +14,6 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def static_init(cls):
-    if getattr(cls, "static_init", None):
-        cls.static_init()
-    return cls
-
-
 def add_slashes(text: str) -> str:
     escape_dict = {
         '\a': '\\a',
@@ -110,7 +104,6 @@ def option_element_string(option: OptionElement):
     return f"option {result};\n"
 
 
-@static_init
 class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
