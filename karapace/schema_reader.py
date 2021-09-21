@@ -68,7 +68,7 @@ class TypedSchema:
         try:
             ts = TypedSchema(parse_avro_schema_definition(schema_str), SchemaType.AVRO, schema_str)
             return ts
-        except SchemaParseException as e:
+        except (SchemaParseException, JSONDecodeError, TypeError) as e:
             raise InvalidSchema from e
 
     @staticmethod

@@ -1,6 +1,8 @@
+from avro.schema import SchemaParseException
 from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
+from json import JSONDecodeError
 from karapace import version as karapace_version
 from karapace.avro_compatibility import is_incompatible
 from karapace.compatibility import check_compatibility, CompatibilityModes
@@ -761,12 +763,16 @@ class KarapaceSchemaRegistry(KarapaceBase):
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO))
         try:
             new_schema = TypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
-        except (InvalidSchema, InvalidSchemaType):
+        except (InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
+            if isinstance(e.__cause__, (SchemaParseException, JSONDecodeError)):
+                human_error = f"{e.__cause__.args[0]}"  # pylint: disable=no-member
+            else:
+                human_error = "Provided schema is not valid"
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
-                    "message": f"Invalid {schema_type} schema",
+                    "message": f"Invalid {schema_type} schema. Error: {human_error}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
