@@ -2433,3 +2433,40 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert res.status == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"], "after permanent deleted the same schema registered, the same identifier"
+
+
+async def test_invalid_schema_should_provide_good_error_messages(registry_async_client: Client) -> None:
+    """The user should receive an informative error message when the format is invalid"""
+    subject_name_factory = create_subject_name_factory("test_schema_subject_post_invalid_data")
+    test_subject = subject_name_factory()
+
+    schema_str = jsonlib.dumps({"type": "string"})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str[:-1]},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: Expecting ',' delimiter: line 1 column 18 (char 17)"
+
+    # Unfortunately the AVRO library doesn't provide a good error message, it just raises an TypeError
+    schema_str = jsonlib.dumps({"type": "enum", "name": "error"})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: Provided schema is not valid"
+
+    # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
+    schema_str = jsonlib.dumps({"type": "enum", "name": "error", "symbols": {}})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
+
+    # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
+    schema_str = jsonlib.dumps({"type": "enum", "name": "error", "symbols": ["A", "B"]})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
