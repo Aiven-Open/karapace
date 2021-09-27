@@ -27,11 +27,8 @@ def add_slashes(text: str) -> str:
         '\"': '\\"',
         '\\': '\\\\'
     }
-    result: str = ""
-    for char in text:
-        c = escape_dict.get(char)
-        result += c if c is not None else char
-    return result
+    trans_table = str.maketrans(escape_dict)
+    return text.translate(trans_table)
 
 
 def message_element_string(element: MessageElement) -> str:
