@@ -29,12 +29,9 @@ def add_slashes(text: str) -> str:
     }
     result: str = ""
     for char in text:
-        try:
-            result += escape_dict[char]
-        except KeyError:
-            result += char
+        c = escape_dict.get(char)
+        result += c if c is not None else char
     return result
-
 
 def message_element_string(element: MessageElement) -> str:
     result: list = list()
