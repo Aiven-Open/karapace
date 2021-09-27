@@ -113,9 +113,6 @@ class ProtobufSchema:
         log.warning("CACHE_STRING:%s", self.cache_string)
         return self.cache_string
 
-    def to_json(self) -> str:
-        return self.to_schema()
-
     def to_schema(self):
         strings: list = []
         shm: ProtoFileElement = self.schema
