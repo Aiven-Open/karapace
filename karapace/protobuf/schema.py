@@ -33,6 +33,7 @@ def add_slashes(text: str) -> str:
         result += c if c is not None else char
     return result
 
+
 def message_element_string(element: MessageElement) -> str:
     result: list = list()
     append_documentation(result, element.documentation)
