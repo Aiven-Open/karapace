@@ -287,70 +287,78 @@ class KafkaSchemaReader(Thread):
             }
             self.subjects[value["subject"]]["schemas"] = updated_schemas
 
+    def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
+        if not value:
+            subject, version = key["subject"], key["version"]
+            self.log.info("Deleting subject: %r version: %r completely", subject, version)
+            if subject not in self.subjects:
+                self.log.error("Subject %s did not exist, should have", subject)
+            elif version not in self.subjects[subject]["schemas"]:
+                self.log.error("Version %d for subject %s did not exist, should have", version, subject)
+            else:
+                self.subjects[subject]["schemas"].pop(version, None)
+            return
+        schema_type = value.get("schemaType", "AVRO")
+        schema_str = value["schema"]
+        schema_subject = value["subject"]
+        schema_id = value["id"]
+        schema_version = value["version"]
+        schema_deleted = value.get("deleted", False)
+
+        if schema_type in ["AVRO", "JSON"]:
+            try:
+                ujson.loads(schema_str)  # Validate input json
+            except ValueError:
+                self.log.error("Invalid json: %s", value["schema"])
+                return
+            typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema_str=schema_str)
+        elif schema_type == "PROTOBUF":
+            typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema_str=schema_str)
+        else:
+            self.log.error("Invalid schema type: %s", schema_type)
+
+        self.log.debug("Got typed schema %r", typed_schema)
+        if schema_subject not in self.subjects:
+            self.log.info("Adding first version of subject: %r, value: %r", schema_subject, value)
+            self.subjects[schema_subject] = {
+                "schemas": {
+                    schema_version: {
+                        "schema": typed_schema,
+                        "version": schema_version,
+                        "id": schema_id,
+                        "deleted": schema_deleted,
+                    }
+                }
+            }
+            self.log.info("Setting schema_id: %r with schema: %r", schema_id, typed_schema)
+            self.schemas[schema_id] = typed_schema
+            if schema_id > self.global_schema_id:  # Not an existing schema
+                self.global_schema_id = schema_id
+        elif schema_deleted is True:
+            self.log.info("Deleting subject: %r, version: %r", schema_subject, schema_version)
+            if schema_version not in self.subjects[schema_subject]["schemas"]:
+                self.schemas[schema_id] = typed_schema
+            else:
+                self.subjects[schema_subject]["schemas"][schema_version]["deleted"] = True
+        elif schema_deleted is False:
+            self.log.info("Adding new version of subject: %r, value: %r", schema_subject, value)
+            self.subjects[schema_subject]["schemas"][schema_version] = {
+                "schema": typed_schema,
+                "version": schema_version,
+                "id": schema_id,
+                "deleted": schema_deleted,
+            }
+            self.log.info("Setting schema_id: %r with schema: %r", schema_id, schema_str)
+            with self.id_lock:
+                self.schemas[schema_id] = typed_schema
+            if schema_id > self.global_schema_id:  # Not an existing schema
+                self.global_schema_id = schema_id
+
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
             self._handle_msg_config(key, value)
         elif key["keytype"] == "SCHEMA":
-            if not value:
-                subject, version = key["subject"], key["version"]
-                self.log.info("Deleting subject: %r version: %r completely", subject, version)
-                if subject not in self.subjects:
-                    self.log.error("Subject %s did not exist, should have", subject)
-                elif version not in self.subjects[subject]["schemas"]:
-                    self.log.error("Version %d for subject %s did not exist, should have", version, subject)
-                else:
-                    self.subjects[subject]["schemas"].pop(version, None)
-                return
-            schema_type = value.get("schemaType", "AVRO")
-            schema_str = value["schema"]
-            if schema_type in ["AVRO", "JSON"]:
-                try:
-                    ujson.loads(schema_str)  # Validate input json
-                except ValueError:
-                    self.log.error("Invalid json: %s", value["schema"])
-                    return
-                typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema_str=schema_str)
-            elif schema_type == "PROTOBUF":
-                typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema_str=schema_str)
-            else:
-                self.log.error("Invalid schema type: %s", schema_type)
-            self.log.debug("Got typed schema %r", typed_schema)
-            subject = value["subject"]
-            if subject not in self.subjects:
-                self.log.info("Adding first version of subject: %r, value: %r", subject, value)
-                self.subjects[subject] = {
-                    "schemas": {
-                        value["version"]: {
-                            "schema": typed_schema,
-                            "version": value["version"],
-                            "id": value["id"],
-                            "deleted": value.get("deleted", False),
-                        }
-                    }
-                }
-                self.log.info("Setting schema_id: %r with schema: %r", value["id"], typed_schema)
-                self.schemas[value["id"]] = typed_schema
-                if value["id"] > self.global_schema_id:  # Not an existing schema
-                    self.global_schema_id = value["id"]
-            elif value.get("deleted", False) is True:
-                self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
-                if not value["version"] in self.subjects[subject]["schemas"]:
-                    self.schemas[value["id"]] = typed_schema
-                else:
-                    self.subjects[subject]["schemas"][value["version"]]["deleted"] = True
-            elif value.get("deleted", False) is False:
-                self.log.info("Adding new version of subject: %r, value: %r", subject, value)
-                self.subjects[subject]["schemas"][value["version"]] = {
-                    "schema": typed_schema,
-                    "version": value["version"],
-                    "id": value["id"],
-                    "deleted": value.get("deleted", False),
-                }
-                self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
-                with self.id_lock:
-                    self.schemas[value["id"]] = typed_schema
-                if value["id"] > self.global_schema_id:  # Not an existing schema
-                    self.global_schema_id = value["id"]
+            self._handle_msg_schema(key, value)
         elif key["keytype"] == "DELETE_SUBJECT":
             self._handle_msg_delete_subject(key, value)
         elif key["keytype"] == "NOOP":  # for spec completeness
