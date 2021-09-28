@@ -12,7 +12,7 @@ from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
 from karapace.utils import KarapaceKafkaClient
 from threading import Event, Lock, Thread
-from typing import Dict
+from typing import Dict, Optional
 
 import logging
 import time
@@ -104,7 +104,7 @@ class KafkaSchemaReader(Thread):
         self.offset = OFFSET_EMPTY
         self.ready = False
 
-    def init_consumer(self):
+    def init_consumer(self) -> None:
         # Group not set on purpose, all consumers read the same data
         session_timeout_ms = self.config["session_timeout_ms"]
         request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
@@ -128,7 +128,7 @@ class KafkaSchemaReader(Thread):
             metadata_max_age_ms=self.config["metadata_max_age_ms"],
         )
 
-    def init_admin_client(self):
+    def init_admin_client(self) -> bool:
         try:
             self.admin_client = KafkaAdminClient(
                 api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
@@ -152,7 +152,7 @@ class KafkaSchemaReader(Thread):
         return False
 
     @staticmethod
-    def get_new_schema_topic(config):
+    def get_new_schema_topic(config: dict) -> NewTopic:
         return NewTopic(
             name=config["topic_name"],
             num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
@@ -160,7 +160,7 @@ class KafkaSchemaReader(Thread):
             topic_configs={"cleanup.policy": "compact"},
         )
 
-    def create_schema_topic(self):
+    def create_schema_topic(self) -> bool:
         schema_topic = self.get_new_schema_topic(self.config)
         try:
             self.log.info("Creating topic: %r", schema_topic)
@@ -177,7 +177,7 @@ class KafkaSchemaReader(Thread):
             time.sleep(5)
         return False
 
-    def get_schema_id(self, new_schema):
+    def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
             schemas = self.schemas.items()
         for schema_id, schema in schemas:
@@ -187,11 +187,11 @@ class KafkaSchemaReader(Thread):
             self.global_schema_id += 1
             return self.global_schema_id
 
-    def close(self):
+    def close(self) -> None:
         self.log.info("Closing schema_reader")
         self.running = False
 
-    def run(self):
+    def run(self) -> None:
         while self.running:
             try:
                 if not self.admin_client:
@@ -217,7 +217,7 @@ class KafkaSchemaReader(Thread):
                 self.stats.unexpected_exception(ex=e, where="schema_reader_exit")
             self.log.exception("Unexpected exception closing schema reader")
 
-    def handle_messages(self):
+    def handle_messages(self) -> None:
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False and not raw_msgs:
             self.ready = True
@@ -254,8 +254,8 @@ class KafkaSchemaReader(Thread):
                 if self.ready and add_offsets:
                     self.offset_watcher.offset_seen(self.offset)
 
-    def handle_msg(self, key: dict, value: dict):
-        if key["keytype"] == "CONFIG":
+    def handle_msg(self, key: dict, value: Optional[dict]) -> None:
+        if key["keytype"] == "CONFIG" and value:
             if "subject" in key and key["subject"] is not None:
                 if not value:
                     self.log.info("Deleting compatibility config completely for subject: %r", key["subject"])
@@ -333,7 +333,7 @@ class KafkaSchemaReader(Thread):
                     self.schemas[value["id"]] = typed_schema
                 if value["id"] > self.global_schema_id:  # Not an existing schema
                     self.global_schema_id = value["id"]
-        elif key["keytype"] == "DELETE_SUBJECT":
+        elif key["keytype"] == "DELETE_SUBJECT" and value:
             self.log.info("Deleting subject: %r, value: %r", value["subject"], value)
             if not value["subject"] in self.subjects:
                 self.log.error("Subject: %r did not exist, should have", value["subject"])
