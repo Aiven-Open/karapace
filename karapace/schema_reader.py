@@ -19,6 +19,7 @@ from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
 from threading import Lock, Thread
 from typing import Dict, Optional
+from weakref import WeakValueDictionary
 
 import json
 import logging
@@ -104,7 +105,6 @@ class KafkaSchemaReader(Thread):
         self.timeout_ms = 200
         self.config = config
         self.subjects = {}
-        self.schemas: Dict[int, TypedSchema] = {}
         self.global_schema_id = 0
         self.offset = 0
         self.admin_client = None
@@ -119,6 +119,11 @@ class KafkaSchemaReader(Thread):
         if "tags" not in sentry_config:
             sentry_config["tags"] = {}
         self.stats = StatsClient(sentry_config=sentry_config)
+
+        # A schema has the same `id` even if registered in two different subjects. This container
+        # has a weak reference to every schema in use, used to retrieve its `id`. Weak references
+        # are used to allow for free memory when a schema is cleared from all subjects.
+        self.schemas: Dict[int, TypedSchema] = WeakValueDictionary()
 
     def init_consumer(self) -> None:
         # Group not set on purpose, all consumers read the same data
