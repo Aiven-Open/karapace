@@ -301,17 +301,22 @@ class KafkaSchemaReader(Thread):
             }
             self.subjects[value["subject"]]["schemas"] = updated_schemas
 
+    def _handle_msg_schema_hard_delete(self, key: dict) -> None:
+        subject, version = key["subject"], key["version"]
+
+        if subject not in self.subjects:
+            self.log.error("Hard delete: Subject %s did not exist, should have", subject)
+        elif version not in self.subjects[subject]["schemas"]:
+            self.log.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
+        else:
+            self.log.info("Hard delete: subject: %r version: %r", subject, version)
+            self.subjects[subject]["schemas"].pop(version, None)
+
     def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
         if not value:
-            subject, version = key["subject"], key["version"]
-            self.log.info("Deleting subject: %r version: %r completely", subject, version)
-            if subject not in self.subjects:
-                self.log.error("Subject %s did not exist, should have", subject)
-            elif version not in self.subjects[subject]["schemas"]:
-                self.log.error("Version %d for subject %s did not exist, should have", version, subject)
-            else:
-                self.subjects[subject]["schemas"].pop(version, None)
+            self._handle_msg_schema_hard_delete(key)
             return
+
         schema_type = value.get("schemaType", "AVRO")
         schema_str = value["schema"]
         schema_subject = value["subject"]
@@ -345,7 +350,7 @@ class KafkaSchemaReader(Thread):
                 self.schemas[schema_id] = typed_schema
                 self.global_schema_id = max(self.global_schema_id, schema_id)
         elif schema_deleted is True:
-            self.log.info("Deleting subject: %r, version: %r", schema_subject, schema_version)
+            self.log.info("Soft delete: subject: %r, version: %r", schema_subject, schema_version)
             if schema_version not in self.subjects[schema_subject]["schemas"]:
                 with self.id_lock:
                     self.schemas[schema_id] = typed_schema
