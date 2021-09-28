@@ -332,43 +332,27 @@ class KafkaSchemaReader(Thread):
             except JSONDecodeError:
                 self.log.error("Invalid json: %s", schema_str)
                 return
-        self.log.debug("Got typed schema %r", typed_schema)
+
         if schema_subject not in self.subjects:
-            self.log.info("Adding first version of subject: %r, value: %r", schema_subject, value)
-            self.subjects[schema_subject] = {
-                "schemas": {
-                    schema_version: {
-                        "schema": typed_schema,
-                        "version": schema_version,
-                        "id": schema_id,
-                        "deleted": schema_deleted,
-                    }
-                }
-            }
-            self.log.info("Setting schema_id: %r with schema: %r", schema_id, typed_schema)
-            with self.id_lock:
-                self.schemas[schema_id] = typed_schema
-                self.global_schema_id = max(self.global_schema_id, schema_id)
-        elif schema_deleted is True:
-            self.log.info("Soft delete: subject: %r, version: %r", schema_subject, schema_version)
-            if schema_version not in self.subjects[schema_subject]["schemas"]:
-                with self.id_lock:
-                    self.schemas[schema_id] = typed_schema
-                    self.global_schema_id = max(self.global_schema_id, schema_id)
-            else:
-                self.subjects[schema_subject]["schemas"][schema_version]["deleted"] = True
-        elif schema_deleted is False:
+            self.log.info("Adding first version of subject: %r with no schemas", schema_subject)
+            self.subjects[schema_subject] = {"schemas": {}}
+
+        subjects_schemas = self.subjects[schema_subject]["schemas"]
+
+        if schema_version in subjects_schemas:
+            self.log.info("Updating entry for subject: %r, value: %r", schema_subject, value)
+        else:
             self.log.info("Adding new version of subject: %r, value: %r", schema_subject, value)
-            self.subjects[schema_subject]["schemas"][schema_version] = {
-                "schema": typed_schema,
-                "version": schema_version,
-                "id": schema_id,
-                "deleted": schema_deleted,
-            }
-            self.log.info("Setting schema_id: %r with schema: %r", schema_id, schema_str)
-            with self.id_lock:
-                self.schemas[schema_id] = typed_schema
-                self.global_schema_id = max(self.global_schema_id, schema_id)
+
+        subjects_schemas[schema_version] = {
+            "schema": typed_schema,
+            "version": schema_version,
+            "id": schema_id,
+            "deleted": schema_deleted,
+        }
+        with self.id_lock:
+            self.schemas[schema_id] = typed_schema
+            self.global_schema_id = max(self.global_schema_id, schema_id)
 
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
