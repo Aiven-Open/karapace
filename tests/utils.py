@@ -273,6 +273,10 @@ def create_schema_name_factory(prefix: str) -> Callable[[], str]:
     return create_id_factory(f"schema_{prefix}")
 
 
+def create_group_name_factory(prefix: str) -> Callable[[], str]:
+    return create_id_factory(f"group_{prefix}")
+
+
 def create_id_factory(prefix: str) -> Callable[[], str]:
     """
     Creates unique ids prefixed with prefix..
