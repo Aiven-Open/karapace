@@ -254,24 +254,26 @@ class KafkaSchemaReader(Thread):
                 if self.ready and add_offsets:
                     self.offset_watcher.offset_seen(self.offset)
 
-    def handle_msg(self, key: dict, value: Optional[dict]) -> None:
-        if key["keytype"] == "CONFIG" and value:
-            if "subject" in key and key["subject"] is not None:
-                if not value:
-                    self.log.info("Deleting compatibility config completely for subject: %r", key["subject"])
-                    self.subjects[key["subject"]].pop("compatibility", None)
-                    return
-                self.log.info(
-                    "Setting subject: %r config to: %r, value: %r", key["subject"], value["compatibilityLevel"], value
-                )
-                if not key["subject"] in self.subjects:
-                    self.log.info("Adding first version of subject: %r with no schemas", key["subject"])
-                    self.subjects[key["subject"]] = {"schemas": {}}
-                subject_data = self.subjects.get(key["subject"])
-                subject_data["compatibility"] = value["compatibilityLevel"]
+    def _handle_msg_config(self, key: dict, value: Optional[dict]) -> None:
+        subject = key.get("subject")
+        if subject is not None:
+            if subject not in self.subjects:
+                self.log.info("Adding first version of subject: %r with no schemas", subject)
+                self.subjects[subject] = {"schemas": {}}
+
+            if not value:
+                self.log.info("Deleting compatibility config completely for subject: %r", subject)
+                self.subjects[subject].pop("compatibility", None)
             else:
-                self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
-                self.config["compatibility"] = value["compatibilityLevel"]
+                self.log.info("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
+                self.subjects[subject]["compatibility"] = value["compatibilityLevel"]
+        elif value is not None:
+            self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
+            self.config["compatibility"] = value["compatibilityLevel"]
+
+    def handle_msg(self, key: dict, value: Optional[dict]) -> None:
+        if key["keytype"] == "CONFIG":
+            self._handle_msg_config(key, value)
         elif key["keytype"] == "SCHEMA":
             if not value:
                 subject, version = key["subject"], key["version"]
