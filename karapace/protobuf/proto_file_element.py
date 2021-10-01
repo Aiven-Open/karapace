@@ -1,7 +1,10 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
-
+from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
+from karapace.protobuf.enum_element import EnumElement
+from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
+from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.syntax import Syntax
 
 
@@ -29,6 +32,7 @@ class ProtoFileElement:
         self.types = types or []
         self.public_imports = public_imports or []
         self.imports = imports or []
+        self.incompatible_changes = Modification.get_incompatible()
 
     def to_schema(self):
         strings: list = [
@@ -89,3 +93,75 @@ class ProtoFileElement:
 
     def __repr__(self):
         return self.to_schema()
+
+    def compare(self, other: 'ProtoFileElement', result: CompareResult):
+
+        if self.package_name != other.package_name:
+            result.add_modification(Modification.PACKAGE_ALTER)
+        # TODO: do we need syntax check?
+        if self.syntax != other.syntax:
+            result.add_modification(Modification.SYNTAX_ALTER)
+
+        self_types: dict = dict()
+        other_types: dict = dict()
+        self_indexes: dict = dict()
+        other_indexes: dict = dict()
+        i = 0
+
+        compare_types = CompareTypes()
+        for type_ in self.types:
+            self_types[type_.name] = type_
+            self_indexes[type_.name] = i
+            package_name = self.package_name if self.package_name else ''
+            compare_types.add_self_type(package_name, type_)
+            i += 1
+        i = 0
+        for type_ in other.types:
+            other_types[type_.name] = type_
+            other_indexes[type_.name] = i
+            package_name = other.package_name if other.package_name else ''
+            compare_types.add_other_type(package_name, type_)
+            i += 1
+
+        for name in list(self_types.keys()) + list(set(other_types.keys()) - set(self_types.keys())):
+
+            result.push_path(name)
+
+            if self_types.get(name) is None and other_types.get(name) is not None:
+                if isinstance(other_types[name], MessageElement):
+                    result.add_modification(Modification.MESSAGE_ADD)
+                elif isinstance(other_types[name], EnumElement):
+                    result.add_modification(Modification.ENUM_ADD)
+                else:
+                    # TODO: write message
+                    raise IllegalArgumentException()
+            elif self_types.get(name) is not None and other_types.get(name) is None:
+                if isinstance(self_types[name], MessageElement):
+                    result.add_modification(Modification.MESSAGE_DROP)
+                elif isinstance(self_types[name], EnumElement):
+                    result.add_modification(Modification.ENUM_DROP)
+                else:
+                    # TODO: write message
+                    raise IllegalArgumentException()
+            else:
+                if other_indexes[name] != self_indexes[name]:
+                    if isinstance(self_types[name], MessageElement):
+                        # is it still compatible?
+                        result.add_modification(Modification.MESSAGE_MOVE)
+                    # elif isinstance(self_types[name], EnumElement):
+                    # result.add_modification(Modifications.ENUM_MOVE)
+                    else:
+                        # TODO: write message
+                        raise IllegalArgumentException()
+                else:
+                    if isinstance(self_types[name], MessageElement) \
+                            and isinstance(other_types[name], MessageElement):
+                        self_types[name].compare(other_types[name], result, compare_types)
+                    elif isinstance(self_types[name], EnumElement) \
+                            and isinstance(other_types[name], EnumElement):
+                        self_types[name].compare(other_types[name], result, compare_types)
+                    else:
+                        # incompatible type
+                        result.add_modification(Modification.TYPE_ALTER)
+
+            result.pop_path()

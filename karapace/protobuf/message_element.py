@@ -1,7 +1,10 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/MessageElement.kt
-
+# compatibility routine added
+from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
+from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location
+from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
 
@@ -68,3 +71,55 @@ class MessageElement(TypeElement):
 
         result.append("}\n")
         return "".join(result)
+
+    def compare(self, other: 'MessageElement', result: CompareResult, types: CompareTypes):
+
+        if types.lock_message(self):
+            field: FieldElement
+            subfield: FieldElement
+            one_of: OneOfElement
+            self_tags: dict = dict()
+            other_tags: dict = dict()
+            self_one_ofs: dict = dict()
+            other_one_ofs: dict = dict()
+
+            for field in self.fields:
+                self_tags[field.tag] = field
+
+            for field in other.fields:
+                other_tags[field.tag] = field
+
+            for one_of in self.one_ofs:
+                self_one_ofs[one_of.name] = one_of
+
+            for one_of in other.one_ofs:
+                other_one_ofs[one_of.name] = one_of
+            ''' Compare fields '''
+
+            for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
+                result.push_path(tag)
+
+                if self_tags.get(tag) is None:
+                    result.add_modification(Modification.FIELD_ADD)
+                elif other_tags.get(tag) is None:
+                    result.add_modification(Modification.FIELD_DROP)
+                else:
+                    self_tags[tag].compare(other_tags[tag], result, types)
+
+                result.pop_path()
+            ''' Compare OneOfs  '''
+            for name in list(self_one_ofs.keys()) + list(set(other_one_ofs.keys()) - set(self_one_ofs.keys())):
+                result.push_path(name)
+
+                if self_one_ofs.get(name) is None:
+                    result.add_modification(Modification.ONE_OF_ADD)
+                elif other_one_ofs.get(name) is None:
+                    result.add_modification(Modification.ONE_OF_DROP)
+                else:
+                    self_one_ofs[name].compare(other_one_ofs[name], result, types)
+
+                result.pop_path()
+
+            # TODO Compare NestedTypes must be there.
+
+            types.unlock_message(self)

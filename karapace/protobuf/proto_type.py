@@ -147,7 +147,7 @@ class ProtoType:
         return hash(self.string)
 
     @staticmethod
-    def get(enclosing_type_or_package: str, type_name: str) -> object:
+    def get(enclosing_type_or_package: str, type_name: str) -> 'ProtoType':
         return ProtoType.get2(f"{enclosing_type_or_package}.{type_name}") \
             if enclosing_type_or_package else ProtoType.get2(type_name)
 

@@ -1,6 +1,7 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/FieldElement.kt
-
+from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
+from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.field import Field
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
@@ -64,5 +65,43 @@ class FieldElement:
 
         return options
 
+    # Only non-repeated scalar types and Enums support default values.
 
-# Only non-repeated scalar types and Enums support default values.
+    def compare(self, other: 'FieldElement', result: CompareResult, types: CompareTypes):
+        # TODO: serge
+
+        if self.name != other.name:
+            result.add_modification(Modification.FIELD_NAME_ALTER)
+        if self.label != other.label:
+            result.add_modification(Modification.FIELD_LABEL_ALTER)
+
+        self.compare_type(ProtoType.get(self.element_type), ProtoType.get(other.element_type), result, types)
+
+    def compare_type(self, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
+        self_proto_type: ProtoType = ProtoType.get2(self_type.to_str())
+        other_proto_type: ProtoType = ProtoType.get2(other_type.to_str())
+        if self_proto_type.to_kind() != other_proto_type.to_kind():
+            result.add_modification(Modification.FIELD_KIND_ALTER)
+        else:
+            if self_proto_type.is_map:
+                self.compare_map(self_proto_type, other_proto_type, result, types)
+            else:
+                self.compare_message(self_proto_type, other_proto_type, result, types)
+
+    def compare_map(self, self_map: ProtoType, other_map: ProtoType, result: CompareResult, types: CompareTypes):
+        self.compare_type(self_map.key_type, other_map.key_type, result, types)
+        self.compare_type(self_map.value_type, other_map.value_type, result, types)
+
+    def compare_message(self, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
+        # TODO
+
+        self_type_name = types.self_type_name(self_type)
+        other_type_name = types.other_type_name(other_type)
+
+        if self_type_name is None:
+            raise IllegalArgumentException(f"Cannot determine message type {self_type_name}")
+
+        if other_type_name is None:
+            raise IllegalArgumentException(f"Cannot determine message type {other_type_name}")
+
+        self_type_ = types.self_types.get(self_type_name)
