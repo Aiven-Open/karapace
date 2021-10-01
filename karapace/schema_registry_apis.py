@@ -376,7 +376,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(subject_versions, content_type)
 
     async def schemas_types(self, content_type):
-        self.r(["JSON", "AVRO"], content_type)
+        self.r(["JSON", "AVRO", "PROTOBUF"], content_type)
 
     async def config_get(self, content_type):
         # Note: The format sent by the user differs from the return value, this

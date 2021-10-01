@@ -86,7 +86,8 @@ class TypedSchema:
     @staticmethod
     def parse_protobuf(schema_str: str):
         try:
-            return TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
+            ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
+            return ts
         # TypeError - Raised when the user forgets to encode the schema as a string.
         except Exception as e:  # FIXME: bare exception
             log.exception("Unexpected error:")
@@ -108,7 +109,7 @@ class TypedSchema:
         if isinstance(self.schema, AvroSchema):
             return self.schema.to_json(names=None)
         if isinstance(self.schema, ProtobufSchema):
-            return self.schema.to_json()
+            raise InvalidSchema("Protobuf do not support to_json serialization")
         return self.schema
 
     def __str__(self) -> str:
