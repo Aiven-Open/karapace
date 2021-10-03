@@ -1,6 +1,6 @@
 from enum import auto, Enum
-from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.proto_type import ProtoType
+from karapace.protobuf.type_element import TypeElement
 
 
 class Modification(Enum):
@@ -13,24 +13,32 @@ class Modification(Enum):
     ENUM_CONSTANT_ADD = auto()
     ENUM_CONSTANT_ALTER = auto()
     ENUM_CONSTANT_DROP = auto()
+    ENUM_ADD = auto()
+    ENUM_DROP = auto()
     TYPE_ALTER = auto()
     FIELD_ADD = auto()
     FIELD_DROP = auto()
     FIELD_MOVE = auto()
     FIELD_LABEL_ALTER = auto()
     FIELD_KIND_ALTER = auto()
+    FIELD_TYPE_ALTER = auto()
     ONE_OF_ADD = auto()
     ONE_OF_DROP = auto()
     ONE_OF_MOVE = auto()
     ONE_OF_FIELD_ADD = auto()
     ONE_OF_FIELD_DROP = auto()
     ONE_OF_FIELD_MOVE = auto()
+    FIELD_CONVERTED_TO_ONE_OF = auto()
 
     # protobuf compatibility issues is described in at
     # https://yokota.blog/2021/08/26/understanding-protobuf-compatibility/
-    @classmethod
-    def get_incompatible(cls):
-        return [cls.FIELD_LABEL_ALTER, cls.FIELD_KIND_ALTER, cls.ONE_OF_FIELD_ADD, cls.ONE_OF_FIELD_DROP]
+    def iscompatible(self) -> bool:
+        return self not in [self.FIELD_LABEL_ALTER,
+                            self.FIELD_KIND_ALTER,
+                            self.ONE_OF_FIELD_ADD,
+                            self.ONE_OF_FIELD_DROP,
+                            self.FIELD_CONVERTED_TO_ONE_OF
+                            ]
 
 
 class ModificationRecord:
@@ -58,6 +66,13 @@ class CompareResult:
         record = ModificationRecord(modification, ".".join(self.path))
         self.result.append(record)
 
+    def iscompatible(self):
+        record: ModificationRecord
+        for record in self.result:
+            if not record.modification.iscompatible():
+                return False
+        return True
+
 
 class CompareTypes:
     def __init__(self):
@@ -68,12 +83,31 @@ class CompareTypes:
         self.self_types = dict()
         self.other_types = dict()
         self.locked_messages = []
+        self.environment = []
 
-    def add_other_type(self, name: str, type_: ProtoType):
-        self.other_types[name] = type_
-
-    def add_self_type(self, name: str, type_: ProtoType):
+    def add_self_type(self, name: str, type_: TypeElement):
+        if name:
+            name = name + '.'
+        else:
+            name = type_.name
         self.self_types[name] = type_
+        for t in type_.nested_types:
+            self.add_self_type(name, t)
+
+    def add_other_type(self, name: str, type_: TypeElement):
+        if name:
+            name = name + '.'
+        else:
+            name = type_.name
+        self.other_types[name] = type_
+        for t in type_.nested_types:
+            self.add_other_type(name, t)
+
+    def get_self_type(self, name) -> TypeElement:
+        return self.self_types.get(self.self_type_name(name))
+
+    def get_other_type(self, name) -> TypeElement:
+        return self.other_types.get(self.other_type_name(name))
 
     def self_type_name(self, type_: ProtoType):
         string: str = type_.string
@@ -94,18 +128,6 @@ class CompareTypes:
                 return string
         return None
 
-    def lock_message(self, message: MessageElement) -> bool:
-        if message in self.locked_messages:
-            return False
-        self.locked_messages.append(message)
-        return True
-
-    def unlock_message(self, message: MessageElement) -> bool:
-        if message in self.locked_messages:
-            self.locked_messages.remove(message)
-            return True
-        return False
-
     def other_type_name(self, type_: ProtoType):
         string: str = type_.string
         name: str
@@ -124,3 +146,15 @@ class CompareTypes:
             if self.other_types.get(string) is not None:
                 return string
         return None
+
+    def lock_message(self, message: object) -> bool:
+        if message in self.locked_messages:
+            return False
+        self.locked_messages.append(message)
+        return True
+
+    def unlock_message(self, message: object) -> bool:
+        if message in self.locked_messages:
+            self.locked_messages.remove(message)
+            return True
+        return False

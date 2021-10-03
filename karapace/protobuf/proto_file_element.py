@@ -6,20 +6,21 @@ from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.syntax import Syntax
+from karapace.protobuf.type_element import TypeElement
 
 
 class ProtoFileElement:
     def __init__(
-        self,
-        location: Location,
-        package_name: str = None,
-        syntax: Syntax = None,
-        imports: list = None,
-        public_imports: list = None,
-        types=None,
-        services: list = None,
-        extend_declarations: list = None,
-        options: list = None
+            self,
+            location: Location,
+            package_name: str = None,
+            syntax: Syntax = None,
+            imports: list = None,
+            public_imports: list = None,
+            types=None,
+            services: list = None,
+            extend_declarations: list = None,
+            options: list = None
     ):
         if types is None:
             types = []
@@ -32,7 +33,6 @@ class ProtoFileElement:
         self.types = types or []
         self.public_imports = public_imports or []
         self.imports = imports or []
-        self.incompatible_changes = Modification.get_incompatible()
 
     def to_schema(self):
         strings: list = [
@@ -94,7 +94,7 @@ class ProtoFileElement:
     def __repr__(self):
         return self.to_schema()
 
-    def compare(self, other: 'ProtoFileElement', result: CompareResult):
+    def compare(self, other: 'ProtoFileElement', result: CompareResult) -> CompareResult:
 
         if self.package_name != other.package_name:
             result.add_modification(Modification.PACKAGE_ALTER)
@@ -109,6 +109,7 @@ class ProtoFileElement:
         i = 0
 
         compare_types = CompareTypes()
+        type_: TypeElement
         for type_ in self.types:
             self_types[type_.name] = type_
             self_indexes[type_.name] = i
@@ -165,3 +166,6 @@ class ProtoFileElement:
                         result.add_modification(Modification.TYPE_ALTER)
 
             result.pop_path()
+
+        return result
+

@@ -4,9 +4,11 @@
 Names a protocol buffer message, enumerated type, service, map, or a scalar. This class models a
 fully-qualified name using the protocol buffer package.
 """
-
+from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.kotlin_wrapper import check, require
 from karapace.protobuf.option_element import OptionElement
+from enum import Enum, auto
+from typing import Optional
 
 
 def static_init(cls):
@@ -68,11 +70,13 @@ class ProtoType:
             cls.SCALAR_TYPES[a.string] = a
 
         cls.NUMERIC_SCALAR_TYPES: tuple = (
-            cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32, cls.SFIXED64, cls.SINT32,
+            cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32, cls.SFIXED64,
+            cls.SINT32,
             cls.SINT64, cls.UINT32, cls.UINT64
         )
 
-    def __init__(self, is_scalar: bool, string: str, key_type=None, value_type=None):
+    def __init__(self, is_scalar: bool, string: str, key_type: Optional['ProtoType'] = None,
+                 value_type: Optional['ProtoType'] = None):
         """ Creates a scalar or message type.  """
         if not key_type and not value_type:
             self.is_scalar = is_scalar
@@ -166,5 +170,49 @@ class ProtoType:
         return ProtoType(False, name)
 
     @staticmethod
-    def get3(key_type: object, value_type: object, name: str) -> object:
+    def get3(key_type: 'ProtoType', value_type: 'ProtoType', name: str) -> object:
         return ProtoType(False, name, key_type, value_type)
+
+    """ schmea compatibility check functionality karapace addon """
+    """ Based on table  https://developers.google.com/protocol-buffers/docs/proto3#scalar """
+
+    class CompatibilityKind(Enum):
+        VARIANT = auto()
+        SVARIANT = auto()  # sint has incompatible format with int but compatible with it by size
+        FIXED64 = auto()
+        LENGTH_DELIMITED = auto()
+        FIXED32 = auto()
+        DOUBLE = auto()
+        FLOAT = auto()
+
+    def compatibility_kind(self) -> 'ProtoType.CompatibilityKind':
+
+        result = {
+            "int32": ProtoType.CompatibilityKind.VARIANT,
+            "int64": ProtoType.CompatibilityKind.VARIANT,
+            "uint32": ProtoType.CompatibilityKind.VARIANT,
+            "uint64": ProtoType.CompatibilityKind.VARIANT,
+            "bool": ProtoType.CompatibilityKind.VARIANT,
+
+            "sint32": ProtoType.CompatibilityKind.SVARIANT,
+            "sint64": ProtoType.CompatibilityKind.SVARIANT,
+
+            "double": ProtoType.CompatibilityKind.DOUBLE,  # it is compatible by size with FIXED64
+
+            "fixed64": ProtoType.CompatibilityKind.FIXED64,
+            "sfixed64": ProtoType.CompatibilityKind.FIXED64,
+
+            "float": ProtoType.CompatibilityKind.FLOAT,  # it is compatible by size with FIXED32
+
+            "fixed32": ProtoType.CompatibilityKind.FIXED32,
+            "sfixed32": ProtoType.CompatibilityKind.FIXED32,
+
+            "string": ProtoType.CompatibilityKind.LENGTH_DELIMITED,
+            "bytes": ProtoType.CompatibilityKind.LENGTH_DELIMITED,
+
+        }.get(self.simple_name)
+
+        if result:
+            return result
+        else:
+            raise IllegalArgumentException(f"undefined type: {self.simple_name}")

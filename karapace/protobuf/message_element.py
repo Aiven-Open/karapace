@@ -2,7 +2,6 @@
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/MessageElement.kt
 # compatibility routine added
 from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
-from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.type_element import TypeElement
@@ -75,8 +74,8 @@ class MessageElement(TypeElement):
     def compare(self, other: 'MessageElement', result: CompareResult, types: CompareTypes):
 
         if types.lock_message(self):
-            field: FieldElement
-            subfield: FieldElement
+            field: 'FieldElement'
+            subfield: 'FieldElement'
             one_of: OneOfElement
             self_tags: dict = dict()
             other_tags: dict = dict()
@@ -94,8 +93,17 @@ class MessageElement(TypeElement):
 
             for one_of in other.one_ofs:
                 other_one_ofs[one_of.name] = one_of
-            ''' Compare fields '''
 
+            for field in other.one_ofs:
+                result.push_path(tag)
+                for subfield in field.fields:
+                    tag = subfield.tag
+                    if self_tags.get(tag):
+                        self_tags.pop(tag)
+                        result.add_modification(Modification.FIELD_CONVERTED_TO_ONE_OF)
+                result.pop_path()
+
+            ''' Compare fields '''
             for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
                 result.push_path(tag)
 
