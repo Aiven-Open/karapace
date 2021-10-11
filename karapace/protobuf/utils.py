@@ -60,14 +60,12 @@ def append_indented(data: list, value: str) -> None:
         data.append("\n")
 
 
-
 MIN_TAG_VALUE = 1
 MAX_TAG_VALUE = ((1 << 29) & 0xffffffffffffffff) - 1  # 536,870,911
 
 RESERVED_TAG_VALUE_START = 19000
 RESERVED_TAG_VALUE_END = 19999
 """ True if the supplied value is in the valid tag range and not reserved.  """
-
 
 # class MyInt(int):
 #    def is_valid_tag(self) -> bool:

@@ -12,7 +12,7 @@ def test_compatibility_package():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |    }
         |    string test = 1;
@@ -24,7 +24,7 @@ def test_compatibility_package():
         |syntax = "proto3";
         |package a2;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |    }
         |    string test = 1;
@@ -38,7 +38,7 @@ def test_compatibility_package():
     other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
     result = CompareResult()
     self_parsed.compare(other_parsed, result)
-    assert result.iscompatible()
+    assert result.is_compatible()
 
 
 def test_compatibility_field_add():
@@ -46,7 +46,7 @@ def test_compatibility_field_add():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |    }
         |    string test = 1;
@@ -58,7 +58,7 @@ def test_compatibility_field_add():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |        string str2 = 2;
         |    }
@@ -71,8 +71,9 @@ def test_compatibility_field_add():
     other_schema = trim_margin(other_schema)
     self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
     other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
-    result = self_parsed.compare(other_parsed)
-    assert result.iscompatible()
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()
 
 
 def test_compatibility_field_drop():
@@ -80,7 +81,7 @@ def test_compatibility_field_drop():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |        string str2 = 2;
         |    }
@@ -93,7 +94,7 @@ def test_compatibility_field_drop():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |    }
         |    string test = 1;
@@ -105,8 +106,9 @@ def test_compatibility_field_drop():
     other_schema = trim_margin(other_schema)
     self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
     other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
-    result = self_parsed.compare(other_parsed)
-    assert result.iscompatible()
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()
 
 
 def test_compatibility_field_add_drop():
@@ -114,7 +116,7 @@ def test_compatibility_field_add_drop():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str2 = 1;
         |    }
         |    string test = 1;
@@ -126,7 +128,7 @@ def test_compatibility_field_add_drop():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str = 1;
         |    }
         |    string test = 1;
@@ -138,8 +140,9 @@ def test_compatibility_field_add_drop():
     other_schema = trim_margin(other_schema)
     self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
     other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
-    result = self_parsed.compare(other_parsed)
-    assert result.iscompatible()
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()
 
 
 def test_compatibility_enum_add():
@@ -147,7 +150,7 @@ def test_compatibility_enum_add():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
+        |    message Value {
         |        string str2 = 1;
         |        int32 x = 2;
         |    }
@@ -160,15 +163,15 @@ def test_compatibility_enum_add():
         |syntax = "proto3";
         |package a1;
         |message TestMessage {
-        |    message Value {    
-        |        string str = 1;
-        |        Enu x = 2; 
+        |    message Value {
+        |        string str2 = 1;
+        |        Enu x = 2;
         |    }
         |    string test = 1;
         |    .a1.TestMessage.Value val = 2;
         |    enum Enu {
         |        A = 0;
-        |        B = 1;     
+        |        B = 1;
         |    }
         |}
         |"""
@@ -177,5 +180,7 @@ def test_compatibility_enum_add():
     other_schema = trim_margin(other_schema)
     self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
     other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
-    result = self_parsed.compare(other_parsed)
-    assert result.iscompatible()
+
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()

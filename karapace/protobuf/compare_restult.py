@@ -1,6 +1,4 @@
 from enum import auto, Enum
-from karapace.protobuf.proto_type import ProtoType
-from karapace.protobuf.type_element import TypeElement
 
 
 class Modification(Enum):
@@ -20,6 +18,7 @@ class Modification(Enum):
     FIELD_DROP = auto()
     FIELD_MOVE = auto()
     FIELD_LABEL_ALTER = auto()
+    FIELD_NAME_ALTER = auto()
     FIELD_KIND_ALTER = auto()
     FIELD_TYPE_ALTER = auto()
     ONE_OF_ADD = auto()
@@ -32,23 +31,24 @@ class Modification(Enum):
 
     # protobuf compatibility issues is described in at
     # https://yokota.blog/2021/08/26/understanding-protobuf-compatibility/
-    def iscompatible(self) -> bool:
-        return self not in [self.FIELD_LABEL_ALTER,
-                            self.FIELD_KIND_ALTER,
-                            self.ONE_OF_FIELD_ADD,
-                            self.ONE_OF_FIELD_DROP,
-                            self.FIELD_CONVERTED_TO_ONE_OF
-                            ]
+    def is_compatible(self) -> bool:
+        return self not in [
+            self.FIELD_LABEL_ALTER, self.FIELD_KIND_ALTER, self.ONE_OF_FIELD_ADD, self.ONE_OF_FIELD_DROP,
+            self.FIELD_CONVERTED_TO_ONE_OF
+        ]
 
 
 class ModificationRecord:
     def __init__(self, modification: Modification, path: str):
         self.modification: Modification = modification
         self.path: str = path
+        if modification.is_compatible():
+            self.message: str = f"Compatible modification {self.modification} found"
+        else:
+            self.message: str = f"Incompatible modification {self.modification} found"
 
     def to_str(self):
-        # TODO
-        pass
+        return self.message
 
 
 class CompareResult:
@@ -57,7 +57,7 @@ class CompareResult:
         self.path: list = []
 
     def push_path(self, string: str):
-        self.path.append(string)
+        self.path.append(str(string))
 
     def pop_path(self):
         self.path.pop()
@@ -66,95 +66,9 @@ class CompareResult:
         record = ModificationRecord(modification, ".".join(self.path))
         self.result.append(record)
 
-    def iscompatible(self):
+    def is_compatible(self):
         record: ModificationRecord
         for record in self.result:
-            if not record.modification.iscompatible():
+            if not record.modification.is_compatible():
                 return False
         return True
-
-
-class CompareTypes:
-    def __init__(self):
-        self.self_package_name = ''
-        self.other_package_name = ''
-        self.self_canonical_name: list = []
-        self.other_canonical_name: list = []
-        self.self_types = dict()
-        self.other_types = dict()
-        self.locked_messages = []
-        self.environment = []
-
-    def add_self_type(self, name: str, type_: TypeElement):
-        if name:
-            name = name + '.'
-        else:
-            name = type_.name
-        self.self_types[name] = type_
-        for t in type_.nested_types:
-            self.add_self_type(name, t)
-
-    def add_other_type(self, name: str, type_: TypeElement):
-        if name:
-            name = name + '.'
-        else:
-            name = type_.name
-        self.other_types[name] = type_
-        for t in type_.nested_types:
-            self.add_other_type(name, t)
-
-    def get_self_type(self, name) -> TypeElement:
-        return self.self_types.get(self.self_type_name(name))
-
-    def get_other_type(self, name) -> TypeElement:
-        return self.other_types.get(self.other_type_name(name))
-
-    def self_type_name(self, type_: ProtoType):
-        string: str = type_.string
-        name: str
-        canonical_name: list = list(self.self_canonical_name)
-        if string[0] == '.':
-            name = string[1:]
-            return self.self_types.get(name)
-        else:
-            if self.self_package_name != '':
-                canonical_name.insert(0, self.self_package_name)
-            while canonical_name is not None:
-                pretender: str = ".".join(canonical_name) + '.' + string
-                t = self.self_types.get(pretender)
-                if t is not None:
-                    return pretender
-            if self.self_types.get(string) is not None:
-                return string
-        return None
-
-    def other_type_name(self, type_: ProtoType):
-        string: str = type_.string
-        name: str
-        canonical_name: list = list(self.other_canonical_name)
-        if string[0] == '.':
-            name = string[1:]
-            return self.other_types.get(name)
-        else:
-            if self.other_package_name != '':
-                canonical_name.insert(0, self.other_package_name)
-            while canonical_name is not None:
-                pretender: str = ".".join(canonical_name) + '.' + string
-                t = self.other_types.get(pretender)
-                if t is not None:
-                    return pretender
-            if self.other_types.get(string) is not None:
-                return string
-        return None
-
-    def lock_message(self, message: object) -> bool:
-        if message in self.locked_messages:
-            return False
-        self.locked_messages.append(message)
-        return True
-
-    def unlock_message(self, message: object) -> bool:
-        if message in self.locked_messages:
-            self.locked_messages.remove(message)
-            return True
-        return False

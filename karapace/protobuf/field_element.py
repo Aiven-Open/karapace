@@ -1,17 +1,18 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/FieldElement.kt
-from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
-from karapace.protobuf.exception import IllegalArgumentException
+from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_type_storage import TypeRecordMap
+
 from karapace.protobuf.field import Field
 from karapace.protobuf.location import Location
-from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_type import ProtoType
-from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_options
 
 
 class FieldElement:
+    from karapace.protobuf.compare_type_storage import CompareTypes
+
     def __init__(
             self,
             location: Location,
@@ -70,7 +71,6 @@ class FieldElement:
     # Only non-repeated scalar types and Enums support default values.
 
     def compare(self, other: 'FieldElement', result: CompareResult, types: CompareTypes):
-        # TODO: serge
 
         if self.name != other.name:
             result.add_modification(Modification.FIELD_NAME_ALTER)
@@ -83,37 +83,48 @@ class FieldElement:
         self.compare_type(self_map.key_type, other_map.key_type, result, types)
         self.compare_type(self_map.value_type, other_map.value_type, result, types)
 
-    def compare_message(self, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
-        # TODO ...
-
-        self_type_element: MessageElement = types.get_self_type(self_type.__str__())
-        other_type_element: MessageElement = types.get_other_type(other_type.__str__())
-
-        self_type_name = types.self_type_name(self_type)
-        other_type_name = types.other_type_name(other_type)
-
-        if self_type_name is None:
-            raise IllegalArgumentException(f"Cannot determine message type {self_type}")
-
-        if other_type_name is None:
-            raise IllegalArgumentException(f"Cannot determine message type {other_type}")
-
-        if self_type_name != other_type_name:
-            result.add_modification(Modification.FIELD_TYPE_ALTER)
-
-        self_type_element.compare(other_type_element, result, types)
-
-
     def compare_type(self, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
+        from karapace.protobuf.enum_element import EnumElement
+        self_type_record = types.get_self_type(self_type)
+        other_type_record = types.get_other_type(other_type)
+        self_is_scalar: bool = False
+        other_is_scalar: bool = False
 
-        if self_type.is_scalar == other_type.is_scalar and \
+        if isinstance(self_type_record, TypeRecordMap):
+            self_type = self_type_record.map_type()
+
+        if isinstance(other_type_record, TypeRecordMap):
+            other_type = other_type_record.map_type()
+
+        if self_type.is_scalar or (self_type_record
+                                   and isinstance(self_type_record.type_element, EnumElement)):
+            self_is_scalar = True
+
+        if other_type.is_scalar or (other_type_record
+                                    and isinstance(other_type_record.type_element, EnumElement)):
+            other_is_scalar = True
+
+        if self_is_scalar == other_is_scalar and \
                 self_type.is_map == other_type.is_map:
             if self_type.is_map:
                 self.compare_map(self_type, other_type, result, types)
-            elif self_type.is_scalar:
+            elif self_is_scalar:
                 if self_type.compatibility_kind() != other_type.compatibility_kind():
                     result.add_modification(Modification.FIELD_KIND_ALTER)
             else:
                 self.compare_message(self_type, other_type, result, types)
         else:
             result.add_modification(Modification.FIELD_KIND_ALTER)
+
+    @classmethod
+    def compare_message(cls, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
+        from karapace.protobuf.message_element import MessageElement
+        self_type_record = types.get_self_type(self_type)
+        other_type_record = types.get_other_type(other_type)
+        self_type_element: MessageElement = self_type_record.type_element
+        other_type_element: MessageElement = other_type_record.type_element
+
+        if types.self_type_short_name(self_type) != types.other_type_short_name(other_type):
+            result.add_modification(Modification.FIELD_NAME_ALTER)
+        else:
+            self_type_element.compare(other_type_element, result, types)

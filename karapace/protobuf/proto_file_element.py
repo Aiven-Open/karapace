@@ -1,6 +1,7 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
-from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
+from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
@@ -11,16 +12,16 @@ from karapace.protobuf.type_element import TypeElement
 
 class ProtoFileElement:
     def __init__(
-            self,
-            location: Location,
-            package_name: str = None,
-            syntax: Syntax = None,
-            imports: list = None,
-            public_imports: list = None,
-            types=None,
-            services: list = None,
-            extend_declarations: list = None,
-            options: list = None
+        self,
+        location: Location,
+        package_name: str = None,
+        syntax: Syntax = None,
+        imports: list = None,
+        public_imports: list = None,
+        types=None,
+        services: list = None,
+        extend_declarations: list = None,
+        options: list = None
     ):
         if types is None:
             types = []
@@ -168,4 +169,3 @@ class ProtoFileElement:
             result.pop_path()
 
         return result
-

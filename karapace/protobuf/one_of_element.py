@@ -1,6 +1,7 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OneOfElement.kt
-from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
+from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.utils import append_documentation, append_indented
 
 
@@ -42,7 +43,7 @@ class OneOfElement:
             other_tags[field.tag] = field
 
         for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
-            result.push_path(tag)
+            result.push_path(tag.__str__())
 
             if self_tags.get(tag) is None:
                 result.add_modification(Modification.ONE_OF_FIELD_ADD)

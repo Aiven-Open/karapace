@@ -1,7 +1,9 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/MessageElement.kt
 # compatibility routine added
-from karapace.protobuf.compare_restult import CompareResult, CompareTypes, Modification
+from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_type_storage import CompareTypes
+from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.type_element import TypeElement
@@ -74,8 +76,8 @@ class MessageElement(TypeElement):
     def compare(self, other: 'MessageElement', result: CompareResult, types: CompareTypes):
 
         if types.lock_message(self):
-            field: 'FieldElement'
-            subfield: 'FieldElement'
+            field: FieldElement
+            subfield: FieldElement
             one_of: OneOfElement
             self_tags: dict = dict()
             other_tags: dict = dict()
@@ -95,7 +97,7 @@ class MessageElement(TypeElement):
                 other_one_ofs[one_of.name] = one_of
 
             for field in other.one_ofs:
-                result.push_path(tag)
+                result.push_path(field.tag)
                 for subfield in field.fields:
                     tag = subfield.tag
                     if self_tags.get(tag):
@@ -103,7 +105,7 @@ class MessageElement(TypeElement):
                         result.add_modification(Modification.FIELD_CONVERTED_TO_ONE_OF)
                 result.pop_path()
 
-            ''' Compare fields '''
+            # Compare fields
             for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
                 result.push_path(tag)
 
@@ -115,7 +117,7 @@ class MessageElement(TypeElement):
                     self_tags[tag].compare(other_tags[tag], result, types)
 
                 result.pop_path()
-            ''' Compare OneOfs  '''
+            # Compare OneOfs
             for name in list(self_one_ofs.keys()) + list(set(other_one_ofs.keys()) - set(self_one_ofs.keys())):
                 result.push_path(name)
 

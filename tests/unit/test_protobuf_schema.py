@@ -1,6 +1,6 @@
+from karapace.protobuf.compare_restult import CompareResult
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
-from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.schema_reader import SchemaType, TypedSchema
 from tests.schemas.protobuf import (
     schema_protobuf_compare_one, schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_schema_registry1
@@ -27,17 +27,19 @@ def test_protobuf_schema_sort():
 
 def test_protobuf_schema_compare():
     proto1 = trim_margin(schema_protobuf_order_after)
-    protobuf_schema1: ProtoFileElement = TypedSchema.parse(SchemaType.PROTOBUF, proto1)
+    protobuf_schema1: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1)
     proto2 = trim_margin(schema_protobuf_compare_one)
-    protobuf_schema2: ProtoFileElement = TypedSchema.parse(SchemaType.PROTOBUF, proto2)
-    result = protobuf_schema1.compatible(protobuf_schema2)
-    assert result is True
+    protobuf_schema2: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2)
+    result = CompareResult()
+    protobuf_schema1.schema.schema.compare(protobuf_schema2.schema.schema, result)
+    assert result.is_compatible()
 
 
-def test_protobuf_schema_compare():
+def test_protobuf_schema_compare2():
     proto1 = trim_margin(schema_protobuf_order_after)
-    protobuf_schema1: ProtoFileElement = TypedSchema.parse(SchemaType.PROTOBUF, proto1)
+    protobuf_schema1: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1)
     proto2 = trim_margin(schema_protobuf_compare_one)
-    protobuf_schema2: ProtoFileElement = TypedSchema.parse(SchemaType.PROTOBUF, proto2)
-    result = protobuf_schema2.compatible(protobuf_schema1)
-    assert result is False
+    protobuf_schema2: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2)
+    result = CompareResult()
+    protobuf_schema2.schema.schema.compare(protobuf_schema1.schema.schema, result)
+    assert result.is_compatible()

@@ -4,10 +4,10 @@
 Names a protocol buffer message, enumerated type, service, map, or a scalar. This class models a
 fully-qualified name using the protocol buffer package.
 """
+from enum import auto, Enum
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.kotlin_wrapper import check, require
 from karapace.protobuf.option_element import OptionElement
-from enum import Enum, auto
 from typing import Optional
 
 
@@ -70,13 +70,13 @@ class ProtoType:
             cls.SCALAR_TYPES[a.string] = a
 
         cls.NUMERIC_SCALAR_TYPES: tuple = (
-            cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32, cls.SFIXED64,
-            cls.SINT32,
+            cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32, cls.SFIXED64, cls.SINT32,
             cls.SINT64, cls.UINT32, cls.UINT64
         )
 
-    def __init__(self, is_scalar: bool, string: str, key_type: Optional['ProtoType'] = None,
-                 value_type: Optional['ProtoType'] = None):
+    def __init__(
+        self, is_scalar: bool, string: str, key_type: Optional['ProtoType'] = None, value_type: Optional['ProtoType'] = None
+    ):
         """ Creates a scalar or message type.  """
         if not key_type and not value_type:
             self.is_scalar = is_scalar
@@ -157,7 +157,7 @@ class ProtoType:
 
     @staticmethod
     def get2(name: str) -> 'ProtoType':
-        scalar = ProtoType.SCALAR_TYPES[name]
+        scalar = ProtoType.SCALAR_TYPES.get(name)
         if scalar:
             return scalar
         require(name and len(name) != 0 and name.rfind("#") == -1, f"unexpected name: {name}")
@@ -173,8 +173,8 @@ class ProtoType:
     def get3(key_type: 'ProtoType', value_type: 'ProtoType', name: str) -> object:
         return ProtoType(False, name, key_type, value_type)
 
-    """ schmea compatibility check functionality karapace addon """
-    """ Based on table  https://developers.google.com/protocol-buffers/docs/proto3#scalar """
+    # schema compatibility check functionality karapace addon
+    # Based on table  https://developers.google.com/protocol-buffers/docs/proto3#scalar """
 
     class CompatibilityKind(Enum):
         VARIANT = auto()
@@ -193,26 +193,19 @@ class ProtoType:
             "uint32": ProtoType.CompatibilityKind.VARIANT,
             "uint64": ProtoType.CompatibilityKind.VARIANT,
             "bool": ProtoType.CompatibilityKind.VARIANT,
-
             "sint32": ProtoType.CompatibilityKind.SVARIANT,
             "sint64": ProtoType.CompatibilityKind.SVARIANT,
-
             "double": ProtoType.CompatibilityKind.DOUBLE,  # it is compatible by size with FIXED64
-
             "fixed64": ProtoType.CompatibilityKind.FIXED64,
             "sfixed64": ProtoType.CompatibilityKind.FIXED64,
-
             "float": ProtoType.CompatibilityKind.FLOAT,  # it is compatible by size with FIXED32
-
             "fixed32": ProtoType.CompatibilityKind.FIXED32,
             "sfixed32": ProtoType.CompatibilityKind.FIXED32,
-
             "string": ProtoType.CompatibilityKind.LENGTH_DELIMITED,
             "bytes": ProtoType.CompatibilityKind.LENGTH_DELIMITED,
-
         }.get(self.simple_name)
 
         if result:
             return result
-        else:
-            raise IllegalArgumentException(f"undefined type: {self.simple_name}")
+
+        raise IllegalArgumentException(f"undefined type: {self.simple_name}")
