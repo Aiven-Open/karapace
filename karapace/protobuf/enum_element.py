@@ -1,6 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumElement.kt
-from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.location import Location
@@ -47,7 +47,7 @@ class EnumElement(TypeElement):
             other_tags[constant.tag] = constant
 
         for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
-
+            result.push_path(tag.__str__())
             if self_tags.get(tag) is None:
                 result.add_modification(Modification.ENUM_CONSTANT_ADD)
             elif other_tags.get(tag) is None:
@@ -55,3 +55,4 @@ class EnumElement(TypeElement):
             else:
                 if self_tags.get(tag).name == other_tags.get(tag).name:
                     result.add_modification(Modification.ENUM_CONSTANT_ALTER)
+            result.pop_path()

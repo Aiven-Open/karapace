@@ -1,6 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/FieldElement.kt
-from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import TypeRecordMap
 from karapace.protobuf.field import Field
 from karapace.protobuf.location import Location
@@ -95,10 +95,19 @@ class FieldElement:
         if isinstance(other_type_record, TypeRecordMap):
             other_type = other_type_record.map_type()
 
-        if self_type.is_scalar or (self_type_record and isinstance(self_type_record.type_element, EnumElement)):
+        self_is_enum: bool = False
+        other_is_enum: bool = False
+
+        if self_type_record and isinstance(self_type_record.type_element, EnumElement):
+            self_is_enum = True
+
+        if other_type_record and isinstance(other_type_record.type_element, EnumElement):
+            other_is_enum = True
+
+        if self_type.is_scalar or self_is_enum:
             self_is_scalar = True
 
-        if other_type.is_scalar or (other_type_record and isinstance(other_type_record.type_element, EnumElement)):
+        if other_type.is_scalar or other_is_enum:
             other_is_scalar = True
 
         if self_is_scalar == other_is_scalar and \
@@ -106,7 +115,7 @@ class FieldElement:
             if self_type.is_map:
                 self.compare_map(self_type, other_type, result, types)
             elif self_is_scalar:
-                if self_type.compatibility_kind() != other_type.compatibility_kind():
+                if self_type.compatibility_kind(self_is_enum) != other_type.compatibility_kind(other_is_enum):
                     result.add_modification(Modification.FIELD_KIND_ALTER)
             else:
                 self.compare_message(self_type, other_type, result, types)

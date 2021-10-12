@@ -1,9 +1,9 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
-from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.enum_element import EnumElement
-from karapace.protobuf.exception import IllegalArgumentException
+from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.syntax import Syntax
@@ -107,16 +107,16 @@ class ProtoFileElement:
         other_types: dict = dict()
         self_indexes: dict = dict()
         other_indexes: dict = dict()
-        i = 0
-
-        compare_types = CompareTypes(self.package_name, other.package_name)
+        compare_types = CompareTypes(self.package_name, other.package_name, result)
         type_: TypeElement
+        i = 0
         for type_ in self.types:
             self_types[type_.name] = type_
             self_indexes[type_.name] = i
             package_name = self.package_name if self.package_name else ''
             compare_types.add_self_type(package_name, type_)
             i += 1
+
         i = 0
         for type_ in other.types:
             other_types[type_.name] = type_
@@ -127,7 +127,7 @@ class ProtoFileElement:
 
         for name in list(self_types.keys()) + list(set(other_types.keys()) - set(self_types.keys())):
 
-            result.push_path(name)
+            result.push_path(name, True)
 
             if self_types.get(name) is None and other_types.get(name) is not None:
                 if isinstance(other_types[name], MessageElement):
@@ -135,26 +135,21 @@ class ProtoFileElement:
                 elif isinstance(other_types[name], EnumElement):
                     result.add_modification(Modification.ENUM_ADD)
                 else:
-                    # TODO: write message
-                    raise IllegalArgumentException()
+                    raise IllegalStateException("Instance of element is not applicable")
             elif self_types.get(name) is not None and other_types.get(name) is None:
                 if isinstance(self_types[name], MessageElement):
                     result.add_modification(Modification.MESSAGE_DROP)
                 elif isinstance(self_types[name], EnumElement):
                     result.add_modification(Modification.ENUM_DROP)
                 else:
-                    # TODO: write message
-                    raise IllegalArgumentException()
+                    raise IllegalStateException("Instance of element is not applicable")
             else:
                 if other_indexes[name] != self_indexes[name]:
                     if isinstance(self_types[name], MessageElement):
-                        # is it still compatible?
+                        # incompatible type
                         result.add_modification(Modification.MESSAGE_MOVE)
-                    # elif isinstance(self_types[name], EnumElement):
-                    # result.add_modification(Modifications.ENUM_MOVE)
                     else:
-                        # TODO: write message
-                        raise IllegalArgumentException()
+                        raise IllegalStateException("Instance of element is not applicable")
                 else:
                     if isinstance(self_types[name], MessageElement) \
                             and isinstance(other_types[name], MessageElement):
@@ -165,7 +160,6 @@ class ProtoFileElement:
                     else:
                         # incompatible type
                         result.add_modification(Modification.TYPE_ALTER)
-
-            result.pop_path()
+            result.pop_path(True)
 
         return result

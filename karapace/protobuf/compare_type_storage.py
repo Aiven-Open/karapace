@@ -1,16 +1,15 @@
+from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.type_element import TypeElement
-from karapace.protobuf.compare_restult import CompareResult
 from typing import Optional
+
 
 class CompareTypes:
     def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult):
 
         self.self_package_name = self_package_name
         self.other_package_name = other_package_name
-        self.self_canonical_name: list = []
-        self.other_canonical_name: list = []
         self.self_types: dict = dict()
         self.other_types: dict = dict()
         self.locked_messages: list = []
@@ -70,13 +69,13 @@ class CompareTypes:
     def self_type_name(self, t: ProtoType):
         string: str = t.string
         name: str
-        canonical_name: list = list(self.self_canonical_name)
+        canonical_name: list = list(self.result.path)
         if string[0] == '.':
             name = string[1:]
             if self.self_types.get(name):
                 return name
             return None
-        if self.self_package_name != '':
+        if self.self_package_name:
             canonical_name.insert(0, self.self_package_name)
         while len(canonical_name) > 0:
             pretender: str = ".".join(canonical_name) + '.' + string
@@ -91,13 +90,13 @@ class CompareTypes:
     def other_type_name(self, t: ProtoType):
         string: str = t.string
         name: str
-        canonical_name: list = list(self.other_canonical_name)
+        canonical_name: list = list(self.result.path)
         if string[0] == '.':
             name = string[1:]
             if self.other_types.get(name):
                 return name
             return None
-        if self.other_package_name != '':
+        if self.other_package_name:
             canonical_name.insert(0, self.other_package_name)
         while len(canonical_name) > 0:
             pretender: str = ".".join(canonical_name) + '.' + string

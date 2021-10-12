@@ -185,7 +185,9 @@ class ProtoType:
         DOUBLE = auto()
         FLOAT = auto()
 
-    def compatibility_kind(self) -> 'ProtoType.CompatibilityKind':
+    def compatibility_kind(self, is_enum: bool) -> 'ProtoType.CompatibilityKind':
+        if is_enum:
+            return ProtoType.CompatibilityKind.VARIANT
 
         result = {
             "int32": ProtoType.CompatibilityKind.VARIANT,

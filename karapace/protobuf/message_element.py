@@ -1,7 +1,7 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/MessageElement.kt
 # compatibility routine added
-from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location

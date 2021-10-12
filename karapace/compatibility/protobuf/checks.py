@@ -1,6 +1,6 @@
 # TODO: PROTOBUF* this functionality must be implemented
 from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
-from karapace.protobuf.compare_restult import CompareResult, ModificationRecord
+from karapace.protobuf.compare_result import CompareResult, ModificationRecord
 from karapace.schema_reader import SchemaType, TypedSchema
 
 

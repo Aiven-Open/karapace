@@ -1,4 +1,4 @@
-from karapace.protobuf.compare_restult import CompareResult
+from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.schema_reader import SchemaType, TypedSchema

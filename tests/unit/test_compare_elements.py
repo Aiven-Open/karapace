@@ -1,4 +1,4 @@
-from karapace.protobuf.compare_restult import CompareResult, Modification
+from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.field import Field
 from karapace.protobuf.field_element import FieldElement
@@ -27,8 +27,8 @@ def test_compare_oneof():
         ],
     )
 
-    types = CompareTypes('', '')
     result = CompareResult()
+    types = CompareTypes('', '', result)
     self_one_of.compare(other_one_of, result, types)
     assert not result.is_compatible()
     assert len(result.result) == 1
@@ -63,8 +63,8 @@ def test_compare_field():
         ]
     )
 
-    types = CompareTypes('', '')
     result = CompareResult()
+    types = CompareTypes('', '', result)
     self_field.compare(other_field, result, types)
 
     assert result.is_compatible()

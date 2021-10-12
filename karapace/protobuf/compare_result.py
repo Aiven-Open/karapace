@@ -55,11 +55,16 @@ class CompareResult:
     def __init__(self):
         self.result: list = []
         self.path: list = []
+        self.canonical_name: list = []
 
-    def push_path(self, string: str):
+    def push_path(self, string: str, canonical: bool = False):
+        if canonical:
+            self.canonical_name.append(str(string))
         self.path.append(str(string))
 
-    def pop_path(self):
+    def pop_path(self, canonical: bool = False):
+        if canonical:
+            self.canonical_name.pop()
         self.path.pop()
 
     def add_modification(self, modification: Modification):
