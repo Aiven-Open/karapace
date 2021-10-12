@@ -2,7 +2,6 @@
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/FieldElement.kt
 from karapace.protobuf.compare_restult import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import TypeRecordMap
-
 from karapace.protobuf.field import Field
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
@@ -14,16 +13,16 @@ class FieldElement:
     from karapace.protobuf.compare_type_storage import CompareTypes
 
     def __init__(
-            self,
-            location: Location,
-            label: Field.Label = None,
-            element_type: str = "",
-            name: str = None,
-            default_value: str = None,
-            json_name: str = None,
-            tag: int = None,
-            documentation: str = "",
-            options: list = None
+        self,
+        location: Location,
+        label: Field.Label = None,
+        element_type: str = "",
+        name: str = None,
+        default_value: str = None,
+        json_name: str = None,
+        tag: int = None,
+        documentation: str = "",
+        options: list = None
     ):
         self.location = location
         self.label = label
@@ -96,12 +95,10 @@ class FieldElement:
         if isinstance(other_type_record, TypeRecordMap):
             other_type = other_type_record.map_type()
 
-        if self_type.is_scalar or (self_type_record
-                                   and isinstance(self_type_record.type_element, EnumElement)):
+        if self_type.is_scalar or (self_type_record and isinstance(self_type_record.type_element, EnumElement)):
             self_is_scalar = True
 
-        if other_type.is_scalar or (other_type_record
-                                    and isinstance(other_type_record.type_element, EnumElement)):
+        if other_type.is_scalar or (other_type_record and isinstance(other_type_record.type_element, EnumElement)):
             other_is_scalar = True
 
         if self_is_scalar == other_is_scalar and \

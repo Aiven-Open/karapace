@@ -109,7 +109,7 @@ class ProtoFileElement:
         other_indexes: dict = dict()
         i = 0
 
-        compare_types = CompareTypes()
+        compare_types = CompareTypes(self.package_name, other.package_name)
         type_: TypeElement
         for type_ in self.types:
             self_types[type_.name] = type_

@@ -1,20 +1,21 @@
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.type_element import TypeElement
+from karapace.protobuf.compare_restult import CompareResult
 from typing import Optional
 
-
 class CompareTypes:
-    def __init__(self):
+    def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult):
 
-        self.self_package_name = ''
-        self.other_package_name = ''
+        self.self_package_name = self_package_name
+        self.other_package_name = other_package_name
         self.self_canonical_name: list = []
         self.other_canonical_name: list = []
-        self.self_types = dict()
-        self.other_types = dict()
-        self.locked_messages = []
-        self.environment = []
+        self.self_types: dict = dict()
+        self.other_types: dict = dict()
+        self.locked_messages: list = []
+        self.environment: list = []
+        self.result = result
 
     def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict):
         name: str
@@ -82,6 +83,7 @@ class CompareTypes:
             t = self.self_types.get(pretender)
             if t is not None:
                 return pretender
+            canonical_name.pop()
         if self.self_types.get(string) is not None:
             return string
         return None
@@ -102,6 +104,7 @@ class CompareTypes:
             t = self.other_types.get(pretender)
             if t is not None:
                 return pretender
+            canonical_name.pop()
         if self.other_types.get(string) is not None:
             return string
         return None

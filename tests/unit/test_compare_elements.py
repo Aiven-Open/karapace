@@ -27,7 +27,7 @@ def test_compare_oneof():
         ],
     )
 
-    types = CompareTypes()
+    types = CompareTypes('', '')
     result = CompareResult()
     self_one_of.compare(other_one_of, result, types)
     assert not result.is_compatible()
@@ -63,7 +63,7 @@ def test_compare_field():
         ]
     )
 
-    types = CompareTypes()
+    types = CompareTypes('', '')
     result = CompareResult()
     self_field.compare(other_field, result, types)
 
