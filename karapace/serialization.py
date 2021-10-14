@@ -3,13 +3,15 @@ from json import load
 from jsonschema import ValidationError
 from karapace.schema_reader import InvalidSchema, SchemaType, TypedSchema
 from karapace.utils import Client, json_encode
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import quote
 
 import aiohttp
 import asyncio
 import avro
+import avro.schema
 import io
+import json
 import logging
 import struct
 
@@ -173,10 +175,85 @@ class SchemaRegistrySerializerDeserializer:
         return schema_typed
 
 
+def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
+    """Recursively flattens unions to convert Avro JSON payloads to internal dictionaries
+
+    Data encoded to Avro JSON has a special case for union types, values of these type are encoded as tagged union.
+    The additional tag is not expected to be in the internal data format and has to be removed before further processing.
+    This means the JSON document must be further processed to remove the tag, this function does just that,
+    recursing over the JSON document and handling the tagged unions. To avoid dropping invalid fields here we
+    also do schema validation in this step.
+
+    See also https://avro.apache.org/docs/current/spec.html#json_encoding
+    """
+
+    # this exception is raised when we run into invalid schemas during recursion.
+    validation_exception = InvalidMessageSchema(f"{json.dumps(value)} is no instance of {schema.to_json()}")
+
+    def _flatten_unions(ss: avro.schema.Schema, vv: Any) -> Any:
+        if isinstance(ss, avro.schema.RecordSchema):
+            # expect value to look like {'f.name': val_that_matches_f, ..}
+            if not (isinstance(vv, dict) and {f.name for f in ss.fields}.issuperset(vv.keys())):
+                raise validation_exception
+            return {f.name: _flatten_unions(f.type, vv.get(f.name)) for f in ss.fields}
+        if isinstance(ss, avro.schema.UnionSchema):
+            # expect value to look like {'union_type': union_val} or None
+            if vv is None:
+                if "null" not in (s.name for s in ss.schemas):
+                    raise validation_exception
+                return vv
+            if isinstance(vv, dict):
+                f = next((s for s in ss.schemas if s.name in vv), None)
+                if not f:
+                    raise validation_exception
+                return _flatten_unions(f, vv[f.name])
+            raise validation_exception
+        if isinstance(ss, avro.schema.ArraySchema):
+            # expect value to look like [ val_that_matches_schema, .... ]
+            if not isinstance(vv, list):
+                raise validation_exception
+            return [_flatten_unions(ss.items, v) for v in vv]
+        if isinstance(ss, avro.schema.MapSchema):
+            # expect value to look like { k: val_that_matches_schema, .... }
+            if not (isinstance(vv, dict) and all(isinstance(k, str) for k in vv)):
+                raise validation_exception
+            return {k: _flatten_unions(ss.values, v) for (k, v) in vv.items()}
+        # schema is not recursive, validate it directly
+        if not avro.io.Validate(ss, vv):
+            raise validation_exception
+        return vv
+
+    return _flatten_unions(schema, value)
+
+
+def unflatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
+    """Reverse 'flatten_unions' to convert internal dictionaries into Avro JSON payloads.
+
+    This method performs the reverse operation of 'flatten_unions' and adds the name of the first matching schema
+    in a union as a dictionary key to make it a tagged union again. The data we receive in this step is already
+    validated becaues we have already parsed it from bytes to the internal dictionary. No further validation is
+    needed here.
+
+    See also https://avro.apache.org/docs/current/spec.html#json_encoding
+    """
+    if isinstance(schema, avro.schema.RecordSchema):
+        return {f.name: unflatten_unions(f.type, value.get(f.name)) for f in schema.fields}
+    if isinstance(schema, avro.schema.UnionSchema):
+        if value is None:
+            return value
+        f = next(s for s in schema.schemas if avro.io.Validate(s, value))
+        return {f.name: unflatten_unions(f, value)}
+    if isinstance(schema, avro.schema.ArraySchema):
+        return [unflatten_unions(schema.items, v) for v in value]
+    if isinstance(schema, avro.schema.MapSchema):
+        return {k: unflatten_unions(schema.values, v) for (k, v) in value.items()}
+    return value
+
+
 def read_value(schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(schema.schema)
-        return reader.read(BinaryDecoder(bio))
+        return unflatten_unions(schema.schema, reader.read(BinaryDecoder(bio)))
     if schema.schema_type is SchemaType.JSONSCHEMA:
         value = load(bio)
         try:
@@ -190,7 +267,7 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
 def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict):
     if schema.schema_type is SchemaType.AVRO:
         writer = DatumWriter(schema.schema)
-        writer.write(value, BinaryEncoder(bio))
+        writer.write(flatten_unions(schema.schema, value), BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
             schema.schema.validate(value)
