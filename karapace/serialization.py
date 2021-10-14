@@ -5,11 +5,12 @@ from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_reader import InvalidSchema, SchemaType, TypedSchema
 from karapace.utils import Client, json_encode
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
 import asyncio
 import avro
+import avro.schema
 import io
 import logging
 import struct
@@ -183,6 +184,60 @@ class SchemaRegistrySerializerDeserializer:
         return schema_typed
 
 
+def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
+    """Recursively flattens unions to convert Avro JSON payloads to internal dictionaries
+
+    Data encoded to Avro JSON has a special case for union types, values of these type are encoded
+    as tagged union. The additional tag is not expected to be in the internal data format and has to
+    be removed before further processing. This means the JSON document must be further processed to
+    remove the tag, this function does just that, recursing over the JSON document and handling the
+    tagged unions.
+
+    Given this schema:
+
+        {"name": "Test", "type": "record", "fields": [{"name": "attr", "type": ["null", "string"]}]}
+
+    The record JSON encoded as:
+
+        {"attr":{"string":"sample data"}}
+
+    The python representation is:
+
+        {"attr":"sample data"}
+
+    This function:
+
+    - Translates the first to the second when necessary, this adds compatibility for libraries that
+      perform the _correct_ encoding.
+    - Does nothing if the provided data is already in the second format. The data is improperly
+      encoded, but this maintains backwards compatibility.
+
+    See also https://avro.apache.org/docs/current/spec.html#json_encoding
+    """
+
+    if isinstance(schema, avro.schema.RecordSchema) and isinstance(value, dict):
+        result = dict(value)
+        for field in schema.fields:
+            if field.name in value:
+                result[field.name] = flatten_unions(field.type, value[field.name])
+        return result
+
+    if isinstance(schema, avro.schema.UnionSchema) and isinstance(value, dict):
+        f = next((s for s in schema.schemas if s.name in value), None)
+        if f is not None:
+            # Note: This is intentionally skipping the dictionary, here the JSON representation
+            # is flattened to the Python representation
+            return flatten_unions(f, value[f.name])
+
+    if isinstance(schema, avro.schema.ArraySchema) and isinstance(value, list):
+        return [flatten_unions(schema.items, v) for v in value]
+
+    if isinstance(schema, avro.schema.MapSchema) and isinstance(value, dict):
+        return {k: flatten_unions(schema.values, v) for (k, v) in value.items()}
+
+    return value
+
+
 def read_value(schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(schema.schema)
@@ -207,8 +262,15 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
 
 def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
+
+        # Backwards compatibility: Support JSON encoded data without the tags for unions.
+        if avro.io.Validate(schema.schema, value):
+            data = value
+        else:
+            data = flatten_unions(schema.schema, value)
+
         writer = DatumWriter(schema.schema)
-        writer.write(value, BinaryEncoder(bio))
+        writer.write(data, BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
             schema.schema.validate(value)

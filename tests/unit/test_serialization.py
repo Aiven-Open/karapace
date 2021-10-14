@@ -1,5 +1,7 @@
 from karapace.config import read_config
+from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.serialization import (
+    flatten_unions,
     HEADER_FORMAT,
     InvalidMessageHeader,
     InvalidMessageSchema,
@@ -7,6 +9,7 @@ from karapace.serialization import (
     SchemaRegistryDeserializer,
     SchemaRegistrySerializer,
     START_BYTE,
+    write_value,
 )
 from karapace.utils import deepcopy
 from tests.utils import test_objects_avro
@@ -43,6 +46,193 @@ async def test_happy_flow(default_config_path, mock_registry_client):
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 1
         assert 1 in o.ids_to_schemas
+
+
+def test_flatten_unions_record() -> None:
+    typed_schema = TypedSchema.parse(
+        SchemaType.AVRO,
+        ujson.dumps(
+            {
+                "namespace": "io.aiven.data",
+                "name": "Test",
+                "type": "record",
+                "fields": [
+                    {
+                        "name": "attr1",
+                        "type": ["null", "string"],
+                    },
+                    {
+                        "name": "attr2",
+                        "type": ["null", "string"],
+                    },
+                ],
+            }
+        ),
+    )
+    record = {"attr1": {"string": "sample data"}, "attr2": None}
+    flatten_record = {"attr1": "sample data", "attr2": None}
+    assert flatten_unions(typed_schema.schema, record) == flatten_record
+
+    record = {"attr1": None, "attr2": None}
+    assert flatten_unions(typed_schema.schema, record) == record
+
+
+def test_flatten_unions_array() -> None:
+    typed_schema = TypedSchema.parse(
+        SchemaType.AVRO,
+        ujson.dumps(
+            {
+                "type": "array",
+                "items": {
+                    "namespace": "io.aiven.data",
+                    "name": "Test",
+                    "type": "record",
+                    "fields": [
+                        {
+                            "name": "attr",
+                            "type": ["null", "string"],
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    record = [{"attr": {"string": "sample data"}}]
+    flatten_record = [{"attr": "sample data"}]
+    assert flatten_unions(typed_schema.schema, record) == flatten_record
+
+    record = [{"attr": None}]
+    assert flatten_unions(typed_schema.schema, record) == record
+
+
+def test_flatten_unions_map() -> None:
+    typed_schema = TypedSchema.parse(
+        SchemaType.AVRO,
+        ujson.dumps(
+            {
+                "type": "map",
+                "values": {
+                    "namespace": "io.aiven.data",
+                    "name": "Test",
+                    "type": "record",
+                    "fields": [
+                        {
+                            "name": "attr1",
+                            "type": ["null", "string"],
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    record = {"foo": {"attr1": {"string": "sample data"}}}
+    flatten_record = {"foo": {"attr1": "sample data"}}
+    assert flatten_unions(typed_schema.schema, record) == flatten_record
+
+    typed_schema = TypedSchema.parse(
+        SchemaType.AVRO,
+        ujson.dumps({"type": "array", "items": ["null", "string", "int"]}),
+    )
+    record = [{"string": "foo"}, None, {"int": 1}]
+    flatten_record = ["foo", None, 1]
+    assert flatten_unions(typed_schema.schema, record) == flatten_record
+
+
+def test_avro_json_write_invalid() -> None:
+    schema = {
+        "namespace": "io.aiven.data",
+        "name": "Test",
+        "type": "record",
+        "fields": [
+            {
+                "name": "attr",
+                "type": ["null", "string"],
+            }
+        ],
+    }
+    records = [
+        {"attr": {"string": 5}},
+        {"attr": {"foo": "bar"}},
+        {"foo": "bar"},
+    ]
+
+    typed_schema = TypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
+    bio = io.BytesIO()
+
+    for record in records:
+        with pytest.raises(avro.io.AvroTypeException):
+            write_value(typed_schema, bio, record)
+
+
+def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> None:
+    """Backwards compatibility test for Avro data using JSON encoding.
+
+    The initial behavior of the API was incorrect, and it accept data with
+    invalid encoding for union types.
+
+    Given this schema:
+
+        {
+          "namespace": "io.aiven.data",
+          "name": "Test",
+          "type": "record",
+          "fields": [
+            {"name": "attr", "type": ["null", "string"]}
+          ]
+        }
+
+    The correct JSON encoding for the `attr` field is:
+
+        {"attr":{"string":"sample data"}}
+
+    However, because of the lack of a parser for Avro data JSON-encoded, the
+    following was accepted by the server (note the missing tag):
+
+        {"attr":"sample data"}
+
+    This tests the broken behavior is still supported for backwards
+    compatibility.
+    """
+
+    # Regression test: The same value must be used as the record name and one
+    # of the record fields. An initial iteration of write_value would always
+    # call flatten_unions, which broker backwards compatibility by corrupting
+    # the old format (i.e. the missing_tag_encoding_a value below should be
+    # kept unadulterated).
+    duplicated_name = "somename"
+
+    schema = {
+        "namespace": "io.aiven.data",
+        "name": "Test",
+        "type": "record",
+        "fields": [
+            {
+                "name": "outter",
+                "type": [
+                    {"type": "record", "name": duplicated_name, "fields": [{"name": duplicated_name, "type": "string"}]},
+                    "int",
+                ],
+            }
+        ],
+    }
+    typed_schema = TypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
+
+    properly_tagged_encoding_a = {"outter": {duplicated_name: {duplicated_name: "data"}}}
+    properly_tagged_encoding_b = {"outter": {"int": 1}}
+    missing_tag_encoding_a = {"outter": {duplicated_name: "data"}}
+    missing_tag_encoding_b = {"outter": 1}
+
+    buffer_a = io.BytesIO()
+    buffer_b = io.BytesIO()
+    write_value(typed_schema, buffer_a, properly_tagged_encoding_a)
+    write_value(typed_schema, buffer_b, missing_tag_encoding_a)
+    assert buffer_a.getbuffer() == buffer_b.getbuffer()
+
+    buffer_a = io.BytesIO()
+    buffer_b = io.BytesIO()
+    write_value(typed_schema, buffer_a, properly_tagged_encoding_b)
+    write_value(typed_schema, buffer_b, missing_tag_encoding_b)
+    assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
 
 async def test_serialization_fails(default_config_path, mock_registry_client):
