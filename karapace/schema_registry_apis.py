@@ -884,7 +884,7 @@ def main() -> int:
         config = read_config(arg.config_file)
 
     logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
-    logging.getLogger().setLevel(config["log_level"])
+    logging.getLogger("karapace").setLevel(config["log_level"])
     kc = KarapaceSchemaRegistry(config=config)
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])

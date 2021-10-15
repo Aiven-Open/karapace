@@ -17,6 +17,8 @@ import logging
 import os
 import time
 
+log = logging.getLogger(__name__)
+
 
 class KarapaceBase(RestApp):
     def __init__(self, config: dict) -> None:
@@ -35,10 +37,9 @@ class KarapaceBase(RestApp):
         self._sentry_config["tags"]["app"] = "Karapace"
 
         self.route("/", callback=self.root_get, method="GET")
-        self.log = logging.getLogger("Karapace")
         self.app.on_startup.append(self.create_http_client)
         self.master_lock = asyncio.Lock()
-        self.log.info("Karapace initialized")
+        log.info("Karapace initialized")
 
     def _create_producer(self) -> KafkaProducer:
         while True:
@@ -59,7 +60,7 @@ class KarapaceBase(RestApp):
                     kafka_client=KarapaceKafkaClient,
                 )
             except:  # pylint: disable=bare-except
-                self.log.exception("Unable to create producer, retrying")
+                log.exception("Unable to create producer, retrying")
                 time.sleep(1)
 
     async def close(self) -> None:

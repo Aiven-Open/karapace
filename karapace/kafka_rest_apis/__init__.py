@@ -22,6 +22,8 @@ import json
 import logging
 import time
 
+log = logging.getLogger(__name__)
+
 RECORD_KEYS = ["key", "value", "partition"]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
 RECORD_CODES = [42201, 42202]
@@ -44,7 +46,6 @@ class KafkaRest(KarapaceBase):
 
     def _init_kafka_rest(self, config: dict) -> None:
         self.serializer = SchemaRegistrySerializer(config=config)
-        self.log = logging.getLogger("KarapaceRest")
         self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
         self._metadata_birth = None
@@ -167,7 +168,7 @@ class KafkaRest(KarapaceBase):
     async def get_producer(self) -> AIOKafkaProducer:
         if self.producer_queue.empty():
             for _ in range(self.config["producer_count"]):
-                self.log.info("Creating async producers")
+                log.info("Creating async producers")
                 p = await self._create_async_producer()
                 await self.producer_queue.put(p)
                 self.producer_refs.append(p)
@@ -192,7 +193,7 @@ class KafkaRest(KarapaceBase):
                 await p.start()
                 return p
             except:  # pylint: disable=bare-except
-                self.log.exception("Unable to start async producer, retrying")
+                log.exception("Unable to start async producer, retrying")
                 await asyncio.sleep(1)
 
     # CONSUMERS
@@ -285,7 +286,7 @@ class KafkaRest(KarapaceBase):
                 try:
                     self._cluster_metadata = self.admin_client.cluster_metadata(topics)
                 except NodeNotReadyError:
-                    self.log.exception("Could not refresh cluster metadata")
+                    log.exception("Could not refresh cluster metadata")
                     self.r(
                         body={
                             "message": "Kafka node not ready",
@@ -315,14 +316,14 @@ class KafkaRest(KarapaceBase):
                 )
                 break
             except:  # pylint: disable=bare-except
-                self.log.exception("Unable to start admin client, retrying")
+                log.exception("Unable to start admin client, retrying")
                 time.sleep(1)
 
     async def close_producers(self):
         if not self.producer_refs:
             return
         for prod in self.producer_refs:
-            self.log.info("Disposing of async producers")
+            log.info("Disposing of async producers")
             await prod.stop()
         self.producer_refs = None
         self.producer_queue = None
@@ -394,11 +395,11 @@ class KafkaRest(KarapaceBase):
         self.r(body=response, content_type=content_type, status=status)
 
     async def partition_publish(self, topic, partition_id, content_type, *, request):
-        self.log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
+        log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
         await self.publish(topic, partition_id, content_type, request.content_type, request.json)
 
     async def topic_publish(self, topic: str, content_type: str, *, request):
-        self.log.debug("Executing topic publish on topic %s", topic)
+        log.debug("Executing topic publish on topic %s", topic)
         await self.publish(topic, None, content_type, request.content_type, request.json)
 
     @staticmethod
@@ -425,14 +426,12 @@ class KafkaRest(KarapaceBase):
         return isinstance(schema, str)
 
     async def get_schema_id(self, data: dict, topic: str, prefix: str, schema_type: SchemaType) -> int:
-        self.log.debug("Retrieving schema id for %r", data)
+        log.debug("Retrieving schema id for %r", data)
         if f"{prefix}_schema_id" in data and data[f"{prefix}_schema_id"] is not None:
-            self.log.debug(
-                "Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic
-            )
+            log.debug("Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic)
             return int(data[f"{prefix}_schema_id"])
         schema_str = data[f"{prefix}_schema"]
-        self.log.debug("Registering / Retrieving ID for schema %s", schema_str)
+        log.debug("Registering / Retrieving ID for schema %s", schema_str)
         if schema_str not in self.schemas_cache:
             subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix, schema_type)
             schema_id = await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name, schema_type)
@@ -456,7 +455,7 @@ class KafkaRest(KarapaceBase):
         try:
             data[f"{prefix}_schema_id"] = await self.get_schema_id(data, topic, prefix, schema_type)
         except InvalidPayload:
-            self.log.exception("Unable to retrieve schema id")
+            log.exception("Unable to retrieve schema id")
             self.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
@@ -601,14 +600,14 @@ class KafkaRest(KarapaceBase):
                 "partition": result.topic_partition.partition if result else 0
             }
         except AssertionError as e:
-            self.log.exception("Invalid data")
+            log.exception("Invalid data")
             return {"error_code": 1, "error": str(e)}
         except (KafkaTimeoutError, asyncio.TimeoutError):
-            self.log.exception("Timed out waiting for publisher")
+            log.exception("Timed out waiting for publisher")
             # timeouts are retriable
             return {"error_code": 1, "error": "timed out waiting to publish message"}
         except BrokerResponseError as e:
-            self.log.exception(e)
+            log.exception(e)
             resp = {"error_code": 1, "error": e.description}
             if hasattr(e, "retriable") and e.retriable:
                 resp["error_code"] = 2
@@ -623,7 +622,7 @@ class KafkaRest(KarapaceBase):
         self.r(topics, content_type)
 
     def topic_details(self, content_type: str, *, topic: str):
-        self.log.info("Retrieving topic details for %s", topic)
+        log.info("Retrieving topic details for %s", topic)
         try:
             metadata = self.cluster_metadata([topic])
             config = self.get_topic_config(topic)
@@ -645,7 +644,7 @@ class KafkaRest(KarapaceBase):
             )
 
     def list_partitions(self, content_type: str, *, topic: Optional[str]):
-        self.log.info("Retrieving partition details for topic %s", topic)
+        log.info("Retrieving partition details for topic %s", topic)
         try:
             topic_details = self.cluster_metadata([topic])["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
@@ -657,12 +656,12 @@ class KafkaRest(KarapaceBase):
             )
 
     def partition_details(self, content_type: str, *, topic: str, partition_id: str):
-        self.log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
+        log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
         p = self.get_partition_info(topic, partition_id, content_type)
         self.r(p, content_type)
 
     def partition_offsets(self, content_type: str, *, topic: str, partition_id: str):
-        self.log.info("Retrieving partition offsets for topic %s and partition %s", topic, partition_id)
+        log.info("Retrieving partition offsets for topic %s and partition %s", topic, partition_id)
         partition_id = self.validate_partition_id(partition_id, content_type)
         try:
             self.r(self.get_offsets(topic, partition_id), content_type)

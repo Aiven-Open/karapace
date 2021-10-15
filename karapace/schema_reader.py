@@ -101,7 +101,6 @@ class KafkaSchemaReader(Thread):
     def __init__(self, config, master_coordinator=None):
         Thread.__init__(self)
         self.master_coordinator = master_coordinator
-        self.log = logging.getLogger("KafkaSchemaReader")
         self.timeout_ms = 200
         self.config = config
         self.subjects = {}
@@ -165,10 +164,10 @@ class KafkaSchemaReader(Thread):
             )
             return True
         except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-            self.log.warning("No Brokers available yet, retrying init_admin_client()")
+            log.warning("No Brokers available yet, retrying init_admin_client()")
             time.sleep(2.0)
         except:  # pylint: disable=bare-except
-            self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
+            log.exception("Failed to initialize admin client, retrying init_admin_client()")
             time.sleep(2.0)
         return False
 
@@ -184,17 +183,17 @@ class KafkaSchemaReader(Thread):
     def create_schema_topic(self) -> bool:
         schema_topic = self.get_new_schema_topic(self.config)
         try:
-            self.log.info("Creating topic: %r", schema_topic)
+            log.info("Creating topic: %r", schema_topic)
             self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-            self.log.info("Topic: %r created successfully", self.config["topic_name"])
+            log.info("Topic: %r created successfully", self.config["topic_name"])
             self.schema_topic = schema_topic
             return True
         except TopicAlreadyExistsError:
-            self.log.warning("Topic: %r already exists", self.config["topic_name"])
+            log.warning("Topic: %r already exists", self.config["topic_name"])
             self.schema_topic = schema_topic
             return True
         except:  # pylint: disable=bare-except
-            self.log.exception("Failed to create topic: %r, retrying create_schema_topic()", self.config["topic_name"])
+            log.exception("Failed to create topic: %r, retrying create_schema_topic()", self.config["topic_name"])
             time.sleep(5)
         return False
 
@@ -207,7 +206,7 @@ class KafkaSchemaReader(Thread):
             return self.global_schema_id
 
     def close(self) -> None:
-        self.log.info("Closing schema_reader")
+        log.info("Closing schema_reader")
         self.running = False
 
     def run(self) -> None:
@@ -225,7 +224,7 @@ class KafkaSchemaReader(Thread):
             except Exception as e:  # pylint: disable=broad-except
                 if self.stats:
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
-                self.log.exception("Unexpected exception in schema reader loop")
+                log.exception("Unexpected exception in schema reader loop")
         try:
             if self.admin_client:
                 self.admin_client.close()
@@ -234,7 +233,7 @@ class KafkaSchemaReader(Thread):
         except Exception as e:  # pylint: disable=broad-except
             if self.stats:
                 self.stats.unexpected_exception(ex=e, where="schema_reader_exit")
-            self.log.exception("Unexpected exception closing schema reader")
+            log.exception("Unexpected exception closing schema reader")
 
     def handle_messages(self) -> None:
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
@@ -255,7 +254,7 @@ class KafkaSchemaReader(Thread):
                 try:
                     key = json.loads(msg.key.decode("utf8"))
                 except json.JSONDecodeError:
-                    self.log.exception("Invalid JSON in msg.key: %r, value: %r", msg.key, msg.value)
+                    log.exception("Invalid JSON in msg.key: %r, value: %r", msg.key, msg.value)
                     continue
 
                 value = None
@@ -263,13 +262,13 @@ class KafkaSchemaReader(Thread):
                     try:
                         value = json.loads(msg.value.decode("utf8"))
                     except json.JSONDecodeError:
-                        self.log.exception("Invalid JSON in msg.value: %r, key: %r", msg.value, msg.key)
+                        log.exception("Invalid JSON in msg.value: %r, key: %r", msg.value, msg.key)
                         continue
 
-                self.log.info("Read new record: key: %r, value: %r, offset: %r", key, value, msg.offset)
+                log.info("Read new record: key: %r, value: %r, offset: %r", key, value, msg.offset)
                 self.handle_msg(key, value)
                 self.offset = msg.offset
-                self.log.info("Handled message, current offset: %r", self.offset)
+                log.info("Handled message, current offset: %r", self.offset)
                 if self.ready and add_offsets:
                     self.queue.put(self.offset)
 
@@ -277,29 +276,29 @@ class KafkaSchemaReader(Thread):
         subject = key.get("subject")
         if subject is not None:
             if subject not in self.subjects:
-                self.log.info("Adding first version of subject: %r with no schemas", subject)
+                log.info("Adding first version of subject: %r with no schemas", subject)
                 self.subjects[subject] = {"schemas": {}}
 
             if not value:
-                self.log.info("Deleting compatibility config completely for subject: %r", subject)
+                log.info("Deleting compatibility config completely for subject: %r", subject)
                 self.subjects[subject].pop("compatibility", None)
             else:
-                self.log.info("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
+                log.info("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
                 self.subjects[subject]["compatibility"] = value["compatibilityLevel"]
         elif value is not None:
-            self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
+            log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
             self.config["compatibility"] = value["compatibilityLevel"]
 
     def _handle_msg_delete_subject(self, key: dict, value: Optional[dict]) -> None:  # pylint: disable=unused-argument
         if value is None:
-            self.log.error("DELETE_SUBJECT record doesnt have a value, should have")
+            log.error("DELETE_SUBJECT record doesnt have a value, should have")
             return
 
         subject = value["subject"]
         if subject not in self.subjects:
-            self.log.error("Subject: %r did not exist, should have", subject)
+            log.error("Subject: %r did not exist, should have", subject)
         else:
-            self.log.info("Deleting subject: %r, value: %r", subject, value)
+            log.info("Deleting subject: %r, value: %r", subject, value)
             version = value["version"]
             for schema in self.subjects[subject]["schemas"].values():
                 if schema["version"] <= version:
@@ -309,11 +308,11 @@ class KafkaSchemaReader(Thread):
         subject, version = key["subject"], key["version"]
 
         if subject not in self.subjects:
-            self.log.error("Hard delete: Subject %s did not exist, should have", subject)
+            log.error("Hard delete: Subject %s did not exist, should have", subject)
         elif version not in self.subjects[subject]["schemas"]:
-            self.log.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
+            log.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
         else:
-            self.log.info("Hard delete: subject: %r version: %r", subject, version)
+            log.info("Hard delete: subject: %r version: %r", subject, version)
             self.subjects[subject]["schemas"].pop(version, None)
 
     def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
@@ -344,19 +343,19 @@ class KafkaSchemaReader(Thread):
                         schema_str=schema_str,
                     )
                 except JSONDecodeError:
-                    self.log.exception("Invalid schema: %s", schema_str)
+                    log.exception("Invalid schema: %s", schema_str)
                     return
 
         if schema_subject not in self.subjects:
-            self.log.info("Adding first version of subject: %r with no schemas", schema_subject)
+            log.info("Adding first version of subject: %r with no schemas", schema_subject)
             self.subjects[schema_subject] = {"schemas": {}}
 
         subjects_schemas = self.subjects[schema_subject]["schemas"]
 
         if schema_version in subjects_schemas:
-            self.log.info("Updating entry for subject: %r, value: %r", schema_subject, value)
+            log.info("Updating entry for subject: %r, value: %r", schema_subject, value)
         else:
-            self.log.info("Adding new version of subject: %r, value: %r", schema_subject, value)
+            log.info("Adding new version of subject: %r, value: %r", schema_subject, value)
 
         subjects_schemas[schema_version] = {
             "schema": typed_schema,

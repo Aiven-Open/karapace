@@ -162,7 +162,7 @@ class RestApp:
         self.app.on_cleanup.append(self.cleanup_http_client)
         self.http_client_v = None
         self.http_client_no_v = None
-        self.log = logging.getLogger(self.app_name)
+        self.log = logging.getLogger(__name__)
         self.stats = StatsClient(sentry_config=sentry_config)
         self.raven_client = self.stats.raven_client
         self.app.on_cleanup.append(self.cleanup_stats_client)

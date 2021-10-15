@@ -14,7 +14,6 @@ class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
     # pylint: disable=super-init-not-called
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
-        self.log = logging.getLogger("KarapaceAll")
         self.app.on_shutdown.append(self.close_by_app)
 
     async def close_by_app(self, app):
@@ -32,7 +31,7 @@ def main() -> int:
         config = read_config(arg.config_file)
 
     logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
-    logging.getLogger().setLevel(config["log_level"])
+    logging.getLogger("karapace").setLevel(config["log_level"])
 
     kc: RestApp
     if config["karapace_rest"] and config["karapace_registry"]:

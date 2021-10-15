@@ -37,7 +37,7 @@ class SchemaCoordinator(BaseCoordinator):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.log = logging.getLogger("SchemaCoordinator")
+        self.log = logging.getLogger("karapace.schemacoordinator")
 
     def protocol_type(self):
         return "sr"
@@ -135,7 +135,7 @@ class MasterCoordinator(Thread):
         self._metrics = Metrics(metric_config, reporters=[])
         self.lock = Lock()
         self.lock.acquire()
-        self.log = logging.getLogger("MasterCoordinator")
+        self.log = logging.getLogger("karapace.mastercoordinator")
 
     def init_kafka_client(self):
         try:

@@ -18,7 +18,7 @@ import requests
 import time
 import types
 
-log = logging.getLogger("KarapaceUtils")
+log = logging.getLogger(__name__)
 NS_BLACKOUT_DURATION_SECONDS = 120
 
 
