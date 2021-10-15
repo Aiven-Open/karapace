@@ -1,0 +1,112 @@
+"""
+karapace - schema tests
+
+Copyright (c) 2019 Aiven Ltd
+See LICENSE for details
+"""
+from http import HTTPStatus
+from kafka import KafkaProducer
+from karapace import config
+from karapace.protobuf.kotlin_wrapper import trim_margin
+from karapace.rapu import is_success
+from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
+from karapace.utils import Client
+from tests.utils import (
+    create_field_name_factory, create_schema_name_factory, create_subject_name_factory, KafkaServers,
+    repeat_until_successful_request
+)
+from typing import List, Tuple
+
+import json as jsonlib
+import os
+import pytest
+import requests
+
+baseurl = "http://localhost:8081"
+
+
+def add_slashes(text: str) -> str:
+    escape_dict = {
+        '\a': '\\a',
+        '\b': '\\b',
+        '\f': '\\f',
+        '\n': '\\n',
+        '\r': '\\r',
+        '\t': '\\t',
+        '\v': '\\v',
+        '\'': "\\'",
+        '\"': '\\"',
+        '\\': '\\\\'
+    }
+    trans_table = str.maketrans(escape_dict)
+    return text.translate(trans_table)
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_protobuf_schema_compatibility(registry_async_client: Client, trail: str) -> None:
+    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+
+    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+
+    original_schema = """
+            |syntax = "proto3";
+            |package a1;
+            |message TestMessage {
+            |    message Value {
+            |        string str2 = 1;
+            |        int32 x = 2;
+            |    }
+            |    string test = 1;
+            |    .a1.TestMessage.Value val = 2;
+            |}
+            |"""
+
+    original_schema = trim_margin(original_schema)
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+
+
+    evolved_schema = """
+            |syntax = "proto3";
+            |package a1;
+            |message TestMessage {
+            |    message Value {
+            |        string str2 = 1;
+            |        Enu x = 2;
+            |    }
+            |    string test = 1;
+            |    .a1.TestMessage.Value val = 2;
+            |    enum Enu {
+            |        A = 0;
+            |        B = 1;
+            |    }
+            |}
+            |"""
+    evolved_schema = trim_margin(evolved_schema)
+
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        json={"schemaType": "PROTOBUF", "schema": evolved_schema},
+    )
+    assert res.status == 200
+    res = await registry_async_client.post(
+          f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+
+#    res = await registry_async_client.post(
+#        f"compatibility/subjects/{subject}/versions/latest{trail}",
+#        json={"schemaType": "PROTOBUF", "schema": jsonlib.dumps(original_schema)},
+#    )
+#    assert res.status == 200
+#    res = await registry_async_client.post(
+#        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+#    )
+#    assert res.status == 200
+#    assert "id" in res.json()

@@ -1,14 +1,14 @@
 # TODO: PROTOBUF* this functionality must be implemented
 from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from karapace.protobuf.compare_result import CompareResult, ModificationRecord
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_reader import SchemaType, TypedSchema
 
 
-def check_protobuf_schema_compatibility(reader: str, writer: str) -> SchemaCompatibilityResult:
-    reader_proto_file_element: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, reader).schema
-    writer_proto_file_element: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, writer).schema
+def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: ProtobufSchema) -> SchemaCompatibilityResult:
+
     result: CompareResult = CompareResult()
-    writer_proto_file_element.schema.schema.compare(reader_proto_file_element.schema.schema, result)
+    reader.compare(writer,result)
     if result.is_compatible():
         return SchemaCompatibilityResult.compatible()
     # TODO: maybe move incompatibility level raising to ProtoFileElement.compatible() ??

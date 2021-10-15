@@ -1,7 +1,9 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Schema.kt
 # Ported partially for required functionality.
+from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.enum_element import EnumElement
+from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.option_element import OptionElement
@@ -108,9 +110,11 @@ class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
     def __init__(self, schema: str):
+        if type(schema).__name__ != 'str':
+            raise IllegalArgumentException("Non str type of schema string")
         self.dirty = schema
         self.cache_string = ""
-        self.schema = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
+        self.proto_file_element = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
 
     def __str__(self) -> str:
         if not self.cache_string:
@@ -123,7 +127,7 @@ class ProtobufSchema:
 
     def to_schema(self):
         strings: list = []
-        shm: ProtoFileElement = self.schema
+        shm: ProtoFileElement = self.proto_file_element
         if shm.syntax:
             strings.append("syntax = \"")
             strings.append(str(shm.syntax))
@@ -166,3 +170,6 @@ class ProtobufSchema:
             for service in shm.services:
                 strings.append(str(service.to_schema()))
         return "".join(strings)
+
+    def compare(self, other: 'ProtobufSchema', result: CompareResult):
+        self.proto_file_element.compare(other.proto_file_element, result)
