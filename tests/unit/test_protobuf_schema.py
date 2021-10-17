@@ -286,5 +286,3 @@ def test_protobuf_field_compatible_alter_to_oneof():
     protobuf_schema1.compare(protobuf_schema2, result)
 
     assert result.is_compatible()
-
-
