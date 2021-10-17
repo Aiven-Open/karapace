@@ -25,13 +25,8 @@ def add_slashes(text: str) -> str:
         '\"': '\\"',
         '\\': '\\\\'
     }
-    result: str = ""
-    for char in text:
-        try:
-            result += escape_dict[char]
-        except KeyError:
-            result += char
-    return result
+    trans_table = str.maketrans(escape_dict)
+    return text.translate(trans_table)
 
 
 def message_element_string(element: MessageElement) -> str:
@@ -116,9 +111,6 @@ class ProtobufSchema:
         if not self.cache_string:
             self.cache_string = self.to_schema()
         return self.cache_string
-
-    def to_json(self) -> str:
-        return self.to_schema()
 
     def to_schema(self):
         strings: list = []
