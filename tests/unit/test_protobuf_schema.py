@@ -288,35 +288,3 @@ def test_protobuf_field_compatible_alter_to_oneof():
     assert result.is_compatible()
 
 
-def test_protobuf_add_compatible_field_to_oneof():
-    proto1 = """
-           |syntax = "proto3";
-           |message TestMessage {
-           |   oneof new_oneof {
-           |        string test_string = 1;
-           |        string test_string2 = 2;
-           |   }
-           |}
-           |"""
-
-    proto1 = trim_margin(proto1)
-    proto2 = """
-           |syntax = "proto3";
-           |message TestMessage {
-           |  oneof new_oneof {
-           |    string test_string = 1;
-           |    string test_string2 = 2;
-           |    int32 other_id = 3;
-           |  }
-           |}
-           |"""
-
-    proto2 = trim_margin(proto2)
-
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
-    result = CompareResult()
-
-    protobuf_schema1.compare(protobuf_schema2, result)
-
-    assert result.is_compatible()
