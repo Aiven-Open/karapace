@@ -1,9 +1,11 @@
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_reader import SchemaType, TypedSchema
 from tests.schemas.protobuf import (
-    schema_protobuf_compare_one, schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_schema_registry1
+    schema_protobuf_compare_one, schema_protobuf_order_after, schema_protobuf_order_before,
+    schema_protobuf_schema_registry1
 )
 
 location: Location = Location.get("file.proto")
@@ -43,3 +45,50 @@ def test_protobuf_schema_compare2():
     result = CompareResult()
     protobuf_schema2.schema.schema.compare(protobuf_schema1.schema.schema, result)
     assert result.is_compatible()
+
+
+def test_protobuf_schema_compare3():
+    proto1 = """
+            |syntax = "proto3";
+            |package a1;
+            |message TestMessage {
+            |    message Value {
+            |        string str2 = 1;
+            |        int32 x = 2;
+            |    }
+            |    string test = 1;
+            |    .a1.TestMessage.Value val = 2;
+            |}
+            |"""
+
+    proto1 = trim_margin(proto1)
+
+    proto2 = """
+                |syntax = "proto3";
+                |package a1;
+                |
+                |message TestMessage {
+                |  string test = 1;
+                |  .a1.TestMessage.Value val = 2;
+                |
+                |  message Value {
+                |    string str2 = 1;
+                |    Enu x = 2;
+                |  }
+                |  enum Enu {
+                |    A = 0;
+                |    B = 1;
+                |  }
+                |}
+                |"""
+
+    proto2 = trim_margin(proto2)
+    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    result = CompareResult()
+
+    protobuf_schema1.compare(protobuf_schema2, result)
+
+    assert result.is_compatible()
+
+

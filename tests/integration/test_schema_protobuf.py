@@ -4,25 +4,19 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from http import HTTPStatus
-from kafka import KafkaProducer
-from karapace import config
 from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.rapu import is_success
-from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
 from karapace.utils import Client
-from tests.utils import (
-    create_field_name_factory, create_schema_name_factory, create_subject_name_factory, KafkaServers,
-    repeat_until_successful_request
-)
-from typing import List, Tuple
+from tests.utils import create_subject_name_factory
 
-import json as jsonlib
-import os
+import json
+import logging
 import pytest
 import requests
 
 baseurl = "http://localhost:8081"
+
+compatibility_test_url = "https://raw.githubusercontent.com/confluentinc/schema-registry/master/protobuf-provider/" + \
+                         "src/test/resources/diff-schema-examples.json"
 
 
 def add_slashes(text: str) -> str:
@@ -40,6 +34,9 @@ def add_slashes(text: str) -> str:
     }
     trans_table = str.maketrans(escape_dict)
     return text.translate(trans_table)
+
+
+log = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -65,11 +62,13 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     original_schema = trim_margin(original_schema)
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+        f"subjects/{subject}/versions{trail}", json={
+            "schemaType": "PROTOBUF",
+            "schema": original_schema
+        }
     )
     assert res.status == 200
     assert "id" in res.json()
-
 
     evolved_schema = """
             |syntax = "proto3";
@@ -91,22 +90,99 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
 
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
-        json={"schemaType": "PROTOBUF", "schema": evolved_schema},
+        json={
+            "schemaType": "PROTOBUF",
+            "schema": evolved_schema
+        },
     )
     assert res.status == 200
+    assert res.json() == {"is_compatible": True}
+
     res = await registry_async_client.post(
-          f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
+        f"subjects/{subject}/versions{trail}", json={
+            "schemaType": "PROTOBUF",
+            "schema": evolved_schema
+        }
     )
     assert res.status == 200
     assert "id" in res.json()
 
-#    res = await registry_async_client.post(
-#        f"compatibility/subjects/{subject}/versions/latest{trail}",
-#        json={"schemaType": "PROTOBUF", "schema": jsonlib.dumps(original_schema)},
-#    )
-#    assert res.status == 200
-#    res = await registry_async_client.post(
-#        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
-#    )
-#    assert res.status == 200
-#    assert "id" in res.json()
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        json={
+            "schemaType": "PROTOBUF",
+            "schema": original_schema
+        },
+    )
+    assert res.json() == {"is_compatible": True}
+    assert res.status == 200
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}", json={
+            "schemaType": "PROTOBUF",
+            "schema": original_schema
+        }
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+
+
+class Schemas:
+    url = requests.get(compatibility_test_url)
+    sch = json.loads(url.text)
+    schemas = dict()
+    descriptions = []
+    max_count = 120
+    count = 0
+    for a in sch:
+        descriptions.append(a["description"])
+        schemas[a["description"]] = dict(a)
+        count +=1
+        if a["description"] == 'Detect incompatible message index change':
+            break
+        if count == max_count:
+            break
+
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+@pytest.mark.parametrize("desc", Schemas.descriptions)
+async def test_schema_registry_examples(registry_async_client: Client, trail: str, desc) -> None:
+    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+
+    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+
+    description = desc
+
+    schema = Schemas.schemas[description]
+    original_schema = schema["original_schema"]
+    evolved_schema = schema["update_schema"]
+    compatible = schema["compatible"]
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}", json={
+            "schemaType": "PROTOBUF",
+            "schema": original_schema
+        }
+    )
+    assert res.status == 200
+    assert "id" in res.json()
+
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        json={
+            "schemaType": "PROTOBUF",
+            "schema": evolved_schema
+        },
+    )
+    assert res.status == 200
+    assert res.json() == {"is_compatible": compatible}
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}", json={
+            "schemaType": "PROTOBUF",
+            "schema": evolved_schema
+        }
+    )
+    assert res.status == 200
+    assert "id" in res.json()

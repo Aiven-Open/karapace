@@ -2,13 +2,12 @@
 from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from karapace.protobuf.compare_result import CompareResult, ModificationRecord
 from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_reader import SchemaType, TypedSchema
 
 
 def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: ProtobufSchema) -> SchemaCompatibilityResult:
 
     result: CompareResult = CompareResult()
-    reader.compare(writer,result)
+    reader.compare(writer, result)
     if result.is_compatible():
         return SchemaCompatibilityResult.compatible()
     # TODO: maybe move incompatibility level raising to ProtoFileElement.compatible() ??
