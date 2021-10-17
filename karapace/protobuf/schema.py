@@ -11,10 +11,6 @@ from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.utils import append_documentation, append_indented
 
-import logging
-
-log = logging.getLogger(__name__)
-
 
 def add_slashes(text: str) -> str:
     escape_dict = {
@@ -119,7 +115,6 @@ class ProtobufSchema:
     def __str__(self) -> str:
         if not self.cache_string:
             self.cache_string = self.to_schema()
-        log.warning("CACHE_STRING:%s", self.cache_string)
         return self.cache_string
 
     def to_json(self) -> str:

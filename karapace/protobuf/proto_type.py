@@ -87,7 +87,7 @@ class ProtoType:
             """ The type of the map's values. Only present when [is_map] is True.  """
             self.value_type = None
         else:
-            if key_type.is_scalar() and key_type != self.BYTES and key_type != self.DOUBLE and key_type != self.FLOAT:
+            if key_type.is_scalar and key_type != self.BYTES and key_type != self.DOUBLE and key_type != self.FLOAT:
                 self.is_scalar = False
                 self.string = string
                 self.is_map = True
@@ -165,7 +165,7 @@ class ProtoType:
             comma = name.rfind(",")
             require(comma != -1, f"expected ',' in map type: {name}")
             key = ProtoType.get2(name[4:comma].strip())
-            value = ProtoType.get2(name[comma + 1:len(name)].strip())
+            value = ProtoType.get2(name[comma + 1:len(name) - 1].strip())
             return ProtoType(False, name, key, value)
         return ProtoType(False, name)
 

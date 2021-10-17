@@ -134,14 +134,14 @@ class Schemas:
     max_count = 120
     count = 0
     for a in sch:
+        # if a["description"] == "Detect compatible add field to oneof":
         descriptions.append(a["description"])
         schemas[a["description"]] = dict(a)
-        count +=1
+        count += 1
         if a["description"] == 'Detect incompatible message index change':
             break
         if count == max_count:
             break
-
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -184,5 +184,9 @@ async def test_schema_registry_examples(registry_async_client: Client, trail: st
             "schema": evolved_schema
         }
     )
-    assert res.status == 200
-    assert "id" in res.json()
+
+    if compatible:
+        assert res.status == 200
+        assert "id" in res.json()
+    else:
+        assert res.status == 409

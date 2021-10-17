@@ -97,12 +97,15 @@ class MessageElement(TypeElement):
                 other_one_ofs[one_of.name] = one_of
 
             for field in other.one_ofs:
-                result.push_path(field.tag)
+                result.push_path(field.name)
+                convert_count = 0
                 for subfield in field.fields:
                     tag = subfield.tag
                     if self_tags.get(tag):
                         self_tags.pop(tag)
-                        result.add_modification(Modification.FIELD_CONVERTED_TO_ONE_OF)
+                        convert_count += 1
+                if convert_count > 1:
+                    result.add_modification(Modification.FEW_FIELDS_CONVERTED_TO_ONE_OF)
                 result.pop_path()
 
             # Compare fields

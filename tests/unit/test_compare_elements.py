@@ -30,7 +30,7 @@ def test_compare_oneof():
     result = CompareResult()
     types = CompareTypes('', '', result)
     self_one_of.compare(other_one_of, result, types)
-    assert not result.is_compatible()
+    assert result.is_compatible()
     assert len(result.result) == 1
     result2: list = []
     for e in result.result:

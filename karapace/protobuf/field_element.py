@@ -73,16 +73,16 @@ class FieldElement:
 
         if self.name != other.name:
             result.add_modification(Modification.FIELD_NAME_ALTER)
-        if self.label != other.label:
-            result.add_modification(Modification.FIELD_LABEL_ALTER)
 
-        self.compare_type(ProtoType.get2(self.element_type), ProtoType.get2(other.element_type), result, types)
+        self.compare_type(ProtoType.get2(self.element_type), ProtoType.get2(other.element_type), other.label, result, types)
 
     def compare_map(self, self_map: ProtoType, other_map: ProtoType, result: CompareResult, types: CompareTypes):
-        self.compare_type(self_map.key_type, other_map.key_type, result, types)
-        self.compare_type(self_map.value_type, other_map.value_type, result, types)
+        self.compare_type(self_map.key_type, other_map.key_type, "", result, types)
+        self.compare_type(self_map.value_type, other_map.value_type, "", result, types)
 
-    def compare_type(self, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
+    def compare_type(
+        self, self_type: ProtoType, other_type: ProtoType, other_label: str, result: CompareResult, types: CompareTypes
+    ):
         from karapace.protobuf.enum_element import EnumElement
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)
@@ -109,13 +109,25 @@ class FieldElement:
 
         if other_type.is_scalar or other_is_enum:
             other_is_scalar = True
-
         if self_is_scalar == other_is_scalar and \
                 self_type.is_map == other_type.is_map:
             if self_type.is_map:
                 self.compare_map(self_type, other_type, result, types)
             elif self_is_scalar:
-                if self_type.compatibility_kind(self_is_enum) != other_type.compatibility_kind(other_is_enum):
+                self_compatibility_kind = self_type.compatibility_kind(self_is_enum)
+                other_compatibility_kind = other_type.compatibility_kind(other_is_enum)
+                if other_label == '':
+                    other_label = None
+                if self.label != other_label \
+                        and self_compatibility_kind in \
+                        [ProtoType.CompatibilityKind.VARIANT,
+                         ProtoType.CompatibilityKind.DOUBLE,
+                         ProtoType.CompatibilityKind.FLOAT,
+                         ProtoType.CompatibilityKind.FIXED64,
+                         ProtoType.CompatibilityKind.FIXED32,
+                         ProtoType.CompatibilityKind.SVARIANT]:
+                    result.add_modification(Modification.FIELD_LABEL_ALTER)
+                if self_compatibility_kind != other_compatibility_kind:
                     result.add_modification(Modification.FIELD_KIND_ALTER)
             else:
                 self.compare_message(self_type, other_type, result, types)
