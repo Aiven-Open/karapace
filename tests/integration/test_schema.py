@@ -2375,9 +2375,9 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
 
-async def test_schema_hard_delete_and_recreate(registry_async_client: Client) -> None:
-    subject = create_subject_name_factory("test_schema_hard_delete_and_recreate")()
-    schema_name = create_schema_name_factory("test_schema_hard_delete_and_recreate")()
+async def test_schema_soft_delete_and_recreate(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_schema_soft_delete_and_recreate")()
+    schema_name = create_schema_name_factory("test_schema_soft_delete_and_recreate")()
 
     res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
     assert res.status == 200
@@ -2414,10 +2414,35 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert "id" in res.json()
     assert schema_id == res.json()["id"], "after soft delete the same schema registered, the same identifier"
 
-    # Soft delete whole schema
+
+async def test_schema_hard_delete_and_recreate(registry_async_client: Client) -> None:
+    subject_factory = create_subject_name_factory("test_schema_hard_delete_and_recreate")
+    subject = subject_factory()
+    schema_name = create_schema_name_factory("test_schema_hard_delete_and_recreate")()
+
+    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    first_schema_id = res.json()["id"]
+
     res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
-    # Hard delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 200
 
@@ -2426,11 +2451,125 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
-    # Recreate with same subject after hard delete
+    # Recreate after hard delete on all subjects frees the schema, and a new id is used
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
-    assert "id" in res.json()
-    assert schema_id == res.json()["id"], "after permanent deleted the same schema registered, the same identifier"
+    msg = "permanent deleted of the schema on all subjects causes a new identifier to be used"
+    second_schema_id = res.json()["id"]
+    assert first_schema_id != second_schema_id, msg
+
+    # Register the same schema in another subject, this time the schema should not be freed
+    subject_keepalive = subject_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_keepalive}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert second_schema_id == res.json()["id"]
+
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 200
+
+    res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
+    assert res.status_code == 200
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    msg = "the identifier does not change when the schema is permanent deleted in only one of the subjects"
+    assert second_schema_id == res.json()["id"], msg
+
+
+async def test_regression_schema_hard_delete_order_must_not_matter(registry_async_client: Client) -> None:
+    """Regression: A hard delete on the last registered subject would free the schema.
+
+    The correct behavior is to only free the schema after a hard delete on *all* subjects.
+    """
+    subject_factory = create_subject_name_factory("test_schema_hard_delete_regression")
+    first_subject = subject_factory()
+    second_subject = subject_factory()
+    schema_name = create_schema_name_factory("test_schema_hard_delete_regression")()
+
+    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status == 200
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{
+            "type": {
+                "type": "enum",
+                "name": "enumtest",
+                "symbols": ["first", "second"],
+            },
+            "name": "faa",
+        }]
+    }
+    res = await registry_async_client.post(
+        f"subjects/{first_subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    schema_id = res.json()["id"]
+
+    res = await registry_async_client.post(
+        f"subjects/{second_subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    assert schema_id == res.json()["id"]
+
+    # Regression: The hard delete is performed on the last subject the schema was registered
+    res = await registry_async_client.delete(f"subjects/{second_subject}")
+    assert res.status_code == 200
+    res = await registry_async_client.delete(f"subjects/{second_subject}?permanent=true")
+    assert res.status_code == 200
+
+    res = await registry_async_client.post(
+        f"subjects/{second_subject}/versions",
+        json={"schema": jsonlib.dumps(schema)},
+    )
+    assert res.status == 200
+    msg = "the identifier does not change when the schema is permanent deleted in only one of the subjects"
+    assert schema_id == res.json()["id"], msg
+
+
+async def test_invalid_schema_should_provide_good_error_messages(registry_async_client: Client) -> None:
+    """The user should receive an informative error message when the format is invalid"""
+    subject_name_factory = create_subject_name_factory("test_schema_subject_post_invalid_data")
+    test_subject = subject_name_factory()
+
+    schema_str = jsonlib.dumps({"type": "string"})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str[:-1]},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: Expecting ',' delimiter: line 1 column 18 (char 17)"
+
+    # Unfortunately the AVRO library doesn't provide a good error message, it just raises an TypeError
+    schema_str = jsonlib.dumps({"type": "enum", "name": "error"})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: Provided schema is not valid"
+
+    # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
+    schema_str = jsonlib.dumps({"type": "enum", "name": "error", "symbols": {}})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
+
+    # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
+    schema_str = jsonlib.dumps({"type": "enum", "name": "error", "symbols": ["A", "B"]})
+    res = await registry_async_client.post(
+        f"subjects/{test_subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
