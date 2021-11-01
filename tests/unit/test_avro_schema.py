@@ -33,13 +33,35 @@ schema8 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
     '"name":"f2","default":"foo"}]},{"type":"string","name":"f3","default":"bar"}]}'
 )
-badDefaultNullString = parse_avro_schema_definition(
-    '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
-    '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
-)
 
 
-def test_schemaregistry_schema_validation():
+def test_schemaregistry_schema_validation() -> None:
+    with pytest.raises(ValidateSchemaDefaultsException):
+        parse_avro_schema_definition(
+            json.dumps({
+                "type": "record",
+                "name": "x",
+                "fields": [{
+                    "name": "y",
+                    "type": ["null", "int"],
+                    "default": 1,
+                }]
+            })
+        )
+
+    with pytest.raises(ValidateSchemaDefaultsException):
+        parse_avro_schema_definition(
+            json.dumps({
+                "type": "record",
+                "name": "x",
+                "fields": [{
+                    "name": "y",
+                    "type": [],
+                    "default": 1,
+                }]
+            })
+        )
+
     with pytest.raises(ValidateSchemaDefaultsException):
         parse_avro_schema_definition(
             json.dumps({
