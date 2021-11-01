@@ -1,3 +1,4 @@
+from avro.io import Validate
 from avro.schema import (
     ARRAY, ArraySchema, BOOLEAN, BYTES, DOUBLE, ENUM, EnumSchema, Field, FIXED, FixedSchema, FLOAT, INT, LONG, MAP,
     MapSchema, NamedSchema, Names, NULL, RECORD, RecordSchema, Schema, SchemaFromJSONData, STRING, UNION, UnionSchema
@@ -26,8 +27,80 @@ def parse_avro_schema_definition(s: str) -> Schema:
 
         json_data = json.loads(s[:e.pos])
 
-    names = Names()
-    return SchemaFromJSONData(json_data, names)
+    schema = SchemaFromJSONData(json_data, Names())
+
+    validate_schema_defaults(schema)
+    return schema
+
+
+class ValidateSchemaDefaultsException(Exception):
+    def __init__(self, schema: Schema, default: Any, path: List[str]) -> None:
+        prefix = ": ".join(path)
+        msg = f"{prefix}: default {default} does not match schema {schema.to_json()}"
+        super().__init__(msg)
+
+
+def validate_schema_defaults(schema: Schema) -> None:
+    """ This function validates that the defaults that are defined in the schema actually
+    match their schema. We try to build a proper error message internally and then throw it
+    to the user as a readable exception message.
+
+    Consider for example the schema: {'type': 'enum', 'symbols': ['A','B'], 'default':'C'}
+    """
+
+    def _validate_field_default(f: Field, acc: List[str]) -> None:
+        """This function validates that the default for a field matches the field type
+
+        From the Avro docs: (Note that when a default value is specified for a record
+        field whose type is a union, the type of the default value must match the first
+        element of the union. Thus, for unions containing "null", the "null" is usually
+        listed first, since the default value of such unions is typically null.)
+        """
+
+        if not f.has_default:
+            return
+
+        if isinstance(f.type, UnionSchema):
+            # select the first schema from the union to validate, if its empty just
+            # raise an exception because no default should match anyway
+            if len(f.type.schemas) == 0:
+                # if the union is empty; no default should match
+                raise ValidateSchemaDefaultsException(f.type, f.default, acc)
+            s = f.type.schemas[0]
+        else:
+            s = f.type
+
+        if not Validate(s, f.default):
+            raise ValidateSchemaDefaultsException(f.type, f.default, acc)
+
+    def _validation_crumb(s: Schema) -> str:
+        if hasattr(s, 'name'):
+            return f"bad {s.type} '{s.name}'"
+        return f"bad {s.type}"
+
+    def _validate_schema_defaults(s: Schema, acc: List[str]) -> None:
+        _acc = [*acc, _validation_crumb(s)]
+
+        if "default" in s.props:
+            default = s.props.get("default")
+            if not Validate(s, default):
+                raise ValidateSchemaDefaultsException(s, default, _acc)
+
+        if isinstance(s, RecordSchema):
+            # fields do need to be unwrapped
+            for f in s.fields:
+                _field_acc = [*_acc, f"bad field: '{f.name}'"]
+                _validate_schema_defaults(f.type, _field_acc)
+                _validate_field_default(f, _field_acc)
+        if isinstance(s, ArraySchema):
+            _validate_schema_defaults(s.items, _acc)
+        if isinstance(s, MapSchema):
+            _validate_schema_defaults(s.values, _acc)
+        if isinstance(s, UnionSchema):
+            for u in s.schemas:
+                _validate_schema_defaults(u, _acc)
+
+    _validate_schema_defaults(schema, [])
 
 
 def is_incompatible(result: "SchemaCompatibilityResult") -> bool:

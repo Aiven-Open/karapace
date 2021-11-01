@@ -2165,7 +2165,7 @@ async def test_full_transitive_failure(registry_async_client: Client, compatibil
                     }]
                 }
             ],
-            "default": "null"
+            "default": None,
         }]
     }
     evolved = {
@@ -2188,7 +2188,7 @@ async def test_full_transitive_failure(registry_async_client: Client, compatibil
                     }]
                 }
             ],
-            "default": "null"
+            "default": None,
         }]
     }
     await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
