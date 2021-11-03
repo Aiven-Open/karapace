@@ -595,9 +595,11 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
         if is_writer_open_model:
             properties = ', '.join(properties_unknown_to_writer)
             message_property_added_to_open_content_model = (
-                f"Restricting properties is an incompatible change because "
-                f"previously valid values may become invalid. Properties with new "
-                f"validation: {properties}."
+                f"Restricting acceptable values of properties is an incompatible "
+                f"change. The following properties {properties} accepted any "
+                f"value because of the lack of validation (the object schema had "
+                f"neither patternProperties nor additionalProperties), now "
+                f"these values are restricted."
             )
             result.add_incompatibility(
                 incompat_type=Incompatibility.property_added_to_open_content_model,
