@@ -4,6 +4,7 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from avro.schema import Schema as AvroSchema
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from karapace.avro_compatibility import (
@@ -47,7 +48,7 @@ class CompatibilityModes(Enum):
         return self.value in TRANSITIVE_MODES
 
 
-def check_avro_compatibility(reader_schema, writer_schema) -> SchemaCompatibilityResult:
+def check_avro_compatibility(reader_schema: AvroSchema, writer_schema: AvroSchema) -> SchemaCompatibilityResult:
     result = AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
     if (
         result.compatibility is SchemaCompatibilityType.incompatible
