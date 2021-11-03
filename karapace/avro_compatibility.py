@@ -215,7 +215,7 @@ class ReaderWriter:
     def __hash__(self) -> int:
         return id(self.reader) ^ id(self.writer)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, ReaderWriter):
             return False
         return self.reader is other.reader and self.writer is other.writer
@@ -224,7 +224,7 @@ class ReaderWriter:
 class ReaderWriterCompatibilityChecker:
     ROOT_REFERENCE_TOKEN = "/"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.memoize_map: Dict[ReaderWriter, SchemaCompatibilityResult] = {}
 
     def get_compatibility(
