@@ -40,14 +40,14 @@ class Modification(Enum):
 
 class ModificationRecord:
     def __init__(self, modification: Modification, path: str):
-        self.modification: Modification = modification
-        self.path: str = path
+        self.modification = modification
+        self.path = path
         if modification.is_compatible():
-            self.message: str = f"Compatible modification {self.modification} found"
+            self.message = f"Compatible modification {self.modification} found"
         else:
-            self.message: str = f"Incompatible modification {self.modification} found"
+            self.message = f"Incompatible modification {self.modification} found"
 
-    def to_str(self):
+    def to_str(self) -> str:
         return self.message
 
 
@@ -57,21 +57,21 @@ class CompareResult:
         self.path: list = []
         self.canonical_name: list = []
 
-    def push_path(self, string: str, canonical: bool = False):
+    def push_path(self, string: str, canonical: bool = False) -> None:
         if canonical:
             self.canonical_name.append(str(string))
         self.path.append(str(string))
 
-    def pop_path(self, canonical: bool = False):
+    def pop_path(self, canonical: bool = False) -> None:
         if canonical:
             self.canonical_name.pop()
         self.path.pop()
 
-    def add_modification(self, modification: Modification):
+    def add_modification(self, modification: Modification) -> None:
         record = ModificationRecord(modification, ".".join(self.path))
         self.result.append(record)
 
-    def is_compatible(self):
+    def is_compatible(self) -> bool:
         record: ModificationRecord
         for record in self.result:
             if not record.modification.is_compatible():

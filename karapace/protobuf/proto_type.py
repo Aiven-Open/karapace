@@ -138,10 +138,10 @@ class ProtoType:
 
         return ProtoType(False, f"{self.string}.{name}")
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return isinstance(other, ProtoType) and self.string == other.string
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not isinstance(other, ProtoType) or self.string != other.string
 
     def __str__(self) -> str:

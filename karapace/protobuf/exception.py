@@ -1,4 +1,4 @@
-def error(message: str):
+def error(message: str) -> None:
     raise Exception(message)
 
 

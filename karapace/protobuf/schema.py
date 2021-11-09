@@ -81,7 +81,7 @@ def enum_element_string(element: EnumElement) -> str:
     return element.to_schema()
 
 
-def option_element_string(option: OptionElement):
+def option_element_string(option: OptionElement) -> str:
     result: str
     if option.kind == OptionElement.Kind.STRING:
         name: str
@@ -112,7 +112,7 @@ class ProtobufSchema:
             self.cache_string = self.to_schema()
         return self.cache_string
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         strings: list = []
         shm: ProtoFileElement = self.proto_file_element
         if shm.syntax:
@@ -158,5 +158,5 @@ class ProtobufSchema:
                 strings.append(str(service.to_schema()))
         return "".join(strings)
 
-    def compare(self, other: 'ProtobufSchema', result: CompareResult):
+    def compare(self, other: 'ProtobufSchema', result: CompareResult) -> CompareResult:
         self.proto_file_element.compare(other.proto_file_element, result)

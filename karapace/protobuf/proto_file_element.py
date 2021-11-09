@@ -1,5 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
+from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.enum_element import EnumElement
@@ -35,7 +36,7 @@ class ProtoFileElement:
         self.public_imports = public_imports or []
         self.imports = imports or []
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         strings: list = [
             "// Proto schema formatted by Wire, do not edit.\n", "// Source: ",
             str(self.location.with_path_only()), "\n"
@@ -82,17 +83,17 @@ class ProtoFileElement:
         return "".join(strings)
 
     @staticmethod
-    def empty(path):
+    def empty(path) -> 'ProtoFileElement':
         return ProtoFileElement(Location.get(path))
 
     # TODO: there maybe be faster comparison workaround
-    def __eq__(self, other: 'ProtoFileElement'):  # type: ignore
+    def __eq__(self, other: 'ProtoFileElement') -> bool:  # type: ignore
         a = self.to_schema()
         b = other.to_schema()
 
         return a == b
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.to_schema()
 
     def compare(self, other: 'ProtoFileElement', result: CompareResult) -> CompareResult:
@@ -125,7 +126,7 @@ class ProtoFileElement:
             compare_types.add_other_type(package_name, type_)
             i += 1
 
-        for name in list(self_types.keys()) + list(set(other_types.keys()) - set(self_types.keys())):
+        for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
 
             result.push_path(name, True)
 

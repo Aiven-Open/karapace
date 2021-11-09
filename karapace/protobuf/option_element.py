@@ -91,7 +91,7 @@ class OptionElement:
     def __repr__(self) -> str:
         return self.to_schema()
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return str(self) == str(other)
 
 

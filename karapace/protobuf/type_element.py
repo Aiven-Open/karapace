@@ -6,12 +6,11 @@ from karapace.protobuf.location import Location
 
 class TypeElement:
     def __init__(self, location: Location, name: str, documentation: str, options: list, nested_types: list):
-
-        self.location: Location = location
-        self.name: str = name
-        self.documentation: str = documentation
-        self.options: list = options
-        self.nested_types: list = nested_types
+        self.location = location
+        self.name = name
+        self.documentation = documentation
+        self.options = options
+        self.nested_types = nested_types
 
     def to_schema(self) -> str:
         pass

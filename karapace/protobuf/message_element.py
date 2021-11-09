@@ -1,13 +1,19 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/MessageElement.kt
 # compatibility routine added
+from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
+from karapace.protobuf.extensions_element import ExtensionsElement
 from karapace.protobuf.field_element import FieldElement
+from karapace.protobuf.group_element import GroupElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.one_of_element import OneOfElement
+from karapace.protobuf.option_element import OptionElement
+from karapace.protobuf.reserved_document import ReservedElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import List
 
 
 class MessageElement(TypeElement):
@@ -16,13 +22,13 @@ class MessageElement(TypeElement):
         location: Location,
         name: str,
         documentation: str = "",
-        nested_types: list = None,
-        options: list = None,
-        reserveds: list = None,
-        fields: list = None,
-        one_ofs: list = None,
-        extensions: list = None,
-        groups: list = None,
+        nested_types: List[str] = None,
+        options: List[OptionElement] = None,
+        reserveds: List[ReservedElement] = None,
+        fields: List[FieldElement] = None,
+        one_ofs: List[OneOfElement] = None,
+        extensions: List[ExtensionsElement] = None,
+        groups: List[GroupElement] = None,
     ):
         super().__init__(location, name, documentation, options or [], nested_types or [])
         self.reserveds = reserveds or []
@@ -73,7 +79,7 @@ class MessageElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: 'MessageElement', result: CompareResult, types: CompareTypes):
+    def compare(self, other: 'MessageElement', result: CompareResult, types: CompareTypes) -> None:
 
         if types.lock_message(self):
             field: FieldElement
@@ -109,7 +115,7 @@ class MessageElement(TypeElement):
                 result.pop_path()
 
             # Compare fields
-            for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
+            for tag in chain(self_tags.keys(), other_tags.keys() - self_tags.keys()):
                 result.push_path(tag)
 
                 if self_tags.get(tag) is None:
@@ -121,7 +127,7 @@ class MessageElement(TypeElement):
 
                 result.pop_path()
             # Compare OneOfs
-            for name in list(self_one_ofs.keys()) + list(set(other_one_ofs.keys()) - set(self_one_ofs.keys())):
+            for name in chain(self_one_ofs.keys(), other_one_ofs.keys() - self_one_ofs.keys()):
                 result.push_path(name)
 
                 if self_one_ofs.get(name) is None:

@@ -33,18 +33,18 @@ class SyntaxReader:
     def exhausted(self) -> bool:
         return self.pos == len(self.data)
 
-    def read_char(self):
+    def read_char(self) -> str:
         """ Reads a non-whitespace character """
 
         char = self.peek_char()
         self.pos += 1
         return char
 
-    def require(self, c: str):
+    def require(self, c: str) -> None:
         """ Reads a non-whitespace character 'c' """
         self.expect(self.read_char() == c, f"expected '{c}'")
 
-    def peek_char(self, ch: str = None):
+    def peek_char(self, ch: str = None) -> Union[bool, str]:
         """ Peeks a non-whitespace character and returns it. The only difference between this and
         [read_char] is that this doesn't consume the char.
         """
@@ -58,7 +58,7 @@ class SyntaxReader:
         self.expect(self.pos < len(self.data), "unexpected end of file")
         return self.data[self.pos]
 
-    def push_back(self, ch: str):
+    def push_back(self, ch: str) -> None:
         """ Push back the most recently read character. """
         if self.data[self.pos - 1] == ch:
             self.pos -= 1
@@ -336,7 +336,7 @@ class SyntaxReader:
             return trailing_documentation
         return f"{documentation}\n{trailing_documentation}"
 
-    def skip_whitespace(self, skip_comments: bool):
+    def skip_whitespace(self, skip_comments: bool) -> None:
         """ Skips whitespace characters and optionally comments. When this returns, either
         self.pos == self.data.length or a non-whitespace character.
         """
@@ -349,9 +349,9 @@ class SyntaxReader:
             elif skip_comments and c == "/":
                 self.read_comment()
             else:
-                return
+                return None
 
-    def newline(self):
+    def newline(self) -> None:
         """ Call this every time a '\n' is encountered. """
         self.line += 1
         self.line_start = self.pos
@@ -359,16 +359,16 @@ class SyntaxReader:
     def location(self) -> Location:
         return self._location.at(self.line + 1, self.pos - self.line_start + 1)
 
-    def expect(self, condition: bool, message: str):
+    def expect(self, condition: bool, message: str) -> None:
         location = self.location()
         if not condition:
             self.unexpected(message, location)
 
-    def expect_with_location(self, condition: bool, location: Location, message: str):
+    def expect_with_location(self, condition: bool, location: Location, message: str) -> None:
         if not condition:
             self.unexpected(message, location)
 
-    def unexpected(self, message: str, location: Location = None):
+    def unexpected(self, message: str, location: Location = None) -> None:
         if not location:
             location = self.location()
         w = f"Syntax error in {str(location)}: {message}"

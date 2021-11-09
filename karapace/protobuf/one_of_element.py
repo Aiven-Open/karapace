@@ -1,5 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OneOfElement.kt
+from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.utils import append_documentation, append_indented
@@ -33,7 +34,7 @@ class OneOfElement:
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: 'OneOfElement', result: CompareResult, types: CompareTypes):
+    def compare(self, other: 'OneOfElement', result: CompareResult, types: CompareTypes) -> None:
         self_tags: dict = dict()
         other_tags: dict = dict()
 
@@ -42,8 +43,8 @@ class OneOfElement:
         for field in other.fields:
             other_tags[field.tag] = field
 
-        for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
-            result.push_path(tag.__str__())
+        for tag in chain(self_tags.keys(), other_tags.keys() - self_tags.keys()):
+            result.push_path(str(tag))
 
             if self_tags.get(tag) is None:
                 result.add_modification(Modification.ONE_OF_FIELD_ADD)
