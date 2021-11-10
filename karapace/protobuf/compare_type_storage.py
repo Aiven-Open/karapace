@@ -5,6 +5,28 @@ from karapace.protobuf.type_element import TypeElement
 from typing import Dict, List, Optional, Union
 
 
+def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
+    string = t.string
+
+    if string.startswith('.'):
+        name = string[1:]
+        if types.get(name):
+            return name
+        return None
+    canonical_name = list(result_path)
+    if package_name:
+        canonical_name.insert(0, package_name)
+    while len(canonical_name) > 0:
+        pretender: str = ".".join(canonical_name) + '.' + string
+        pt = types.get(pretender)
+        if pt is not None:
+            return pretender
+        canonical_name.pop()
+    if types.get(string):
+        return string
+    return None
+
+
 class CompareTypes:
     def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult):
 
@@ -45,61 +67,21 @@ class CompareTypes:
         self.add_a_type(package_name, package_name, type_element, self.other_types)
 
     def get_self_type(self, t: ProtoType) -> Union[None, 'TypeRecord', 'TypeRecordMap']:
-        name = self.self_type_name(t)
+        name = compute_name(t, self.result.path, self.self_package_name, self.self_types)
         if name is not None:
             type_record = self.self_types.get(name)
             return type_record
         return None
 
     def get_other_type(self, t: ProtoType) -> Union[None, 'TypeRecord', 'TypeRecordMap']:
-        name = self.other_type_name(t)
+        name = compute_name(t, self.result.path, self.other_package_name, self.other_types)
         if name is not None:
             type_record = self.other_types.get(name)
             return type_record
         return None
 
-    def self_type_name(self, t: ProtoType) -> Optional[str]:
-        string = t.string
-        canonical_name = list(self.result.path)
-        if string[0] == '.':
-            name = string[1:]
-            if self.self_types.get(name):
-                return name
-            return None
-        if self.self_package_name:
-            canonical_name.insert(0, self.self_package_name)
-        while len(canonical_name) > 0:
-            pretender: str = ".".join(canonical_name) + '.' + string
-            pt = self.self_types.get(pretender)
-            if pt is not None:
-                return pretender
-            canonical_name.pop()
-        if self.self_types.get(string):
-            return string
-        return None
-
-    def other_type_name(self, t: ProtoType) -> Optional[str]:
-        string = t.string
-        canonical_name: list = list(self.result.path)
-        if string[0] == '.':
-            name = string[1:]
-            if self.other_types.get(name):
-                return name
-            return None
-        if self.other_package_name:
-            canonical_name.insert(0, self.other_package_name)
-        while len(canonical_name) > 0:
-            pretender: str = ".".join(canonical_name) + '.' + string
-            pt = self.other_types.get(pretender)
-            if pt is not None:
-                return pretender
-            canonical_name.pop()
-        if self.other_types.get(string):
-            return string
-        return None
-
     def self_type_short_name(self, t: ProtoType) -> Optional[str]:
-        name = self.self_type_name(t)
+        name = compute_name(t, self.result.path, self.self_package_name, self.self_types)
         if name is None:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
         type_record: TypeRecord = self.self_types.get(name)
@@ -108,7 +90,7 @@ class CompareTypes:
         return name
 
     def other_type_short_name(self, t: ProtoType) -> Optional[str]:
-        name = self.other_type_name(t)
+        name = compute_name(t, self.result.path, self.other_package_name, self.other_types)
         if name is None:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
         type_record: TypeRecord = self.other_types.get(name)
