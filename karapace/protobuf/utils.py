@@ -68,10 +68,3 @@ MAX_TAG_VALUE = ((1 << 29) & 0xffffffffffffffff) - 1  # 536,870,911
 RESERVED_TAG_VALUE_START = 19000
 RESERVED_TAG_VALUE_END = 19999
 """ True if the supplied value is in the valid tag range and not reserved.  """
-
-# class MyInt(int):
-#    def is_valid_tag(self) -> bool:
-#        return (MIN_TAG_VALUE <= self <= RESERVED_TAG_VALUE_START) or\
-#               (RESERVED_TAG_VALUE_END + 1 <= self <= MAX_TAG_VALUE + 1)
-
-# builtins.int = MyInt

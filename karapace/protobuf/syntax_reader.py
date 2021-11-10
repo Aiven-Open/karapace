@@ -5,20 +5,6 @@ from karapace.protobuf.location import Location
 from typing import Union
 
 
-def hex_digit(c: str) -> int:
-    if ord(c) in range(ord('0'), ord('9') + 1):
-        return ord(c) - ord('0')
-    if ord(c) in range(ord('a'), ord('f') + 1):
-        return ord(c) - ord('a') + 10
-    if ord(c) in range(ord('A'), ord('F') + 1):
-        return ord(c) - ord('A') + 10
-    return -1
-
-
-def min_of(a: int, b: int) -> int:
-    return a if a < b else b
-
-
 class SyntaxReader:
     def __init__(self, data: str, location: Location):
         """ Next character to be read """
@@ -113,12 +99,18 @@ class SyntaxReader:
                 self.newline()
 
         self.unexpected("unterminated string")
+        return ""
 
     def read_numeric_escape(self, radix: int, length: int) -> str:
         value = -1
-        end_pos = min_of(self.pos + length, len(self.data))
+        end_pos = min(self.pos + length, len(self.data))
+
         while self.pos < end_pos:
-            digit = hex_digit(self.data[self.pos])
+            try:
+                digit = int(self.data[self.pos], radix)
+            except ValueError:
+                digit = -1
+
             if digit == -1 or digit >= radix:
                 break
 
@@ -187,11 +179,11 @@ class SyntaxReader:
         try:
             radix = 10
             if tag.startswith("0x") or tag.startswith("0X"):
-                tag = tag[len("0x"):]
                 radix = 16
             return int(tag, radix)
-        except OSError as err:
-            print("OS error: {0}".format(err))
+
+        #        except OSError as err:
+        #            print("OS error: {0}".format(err))
         except ValueError:
             self.unexpected(f"expected an integer but was {tag}")
         return -22  # this return never be called but mypy think we need it
