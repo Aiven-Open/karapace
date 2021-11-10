@@ -22,21 +22,13 @@ class CompareTypes:
             name = prefix + '.' + type_element.name
         else:
             name = type_element.name
-
         from karapace.protobuf.message_element import MessageElement
         from karapace.protobuf.field_element import FieldElement
+
         if isinstance(type_element, MessageElement):  # add support of MapEntry messages
             if 'map_entry' in type_element.options:
-                key: Optional[FieldElement] = None
-                value: Optional[FieldElement] = None
-                for f in type_element.fields:
-                    if f.name == 'key':
-                        key = f
-                        break
-                for f in type_element.fields:
-                    if f.name == 'value':
-                        value = f
-                        break
+                key: Optional[FieldElement] = next((f for f in type_element.fields if f.name == 'key'), None)
+                value: Optional[FieldElement] = next((f for f in type_element.fields if f.name == 'value'), None)
                 types[name] = TypeRecordMap(package_name, type_element, key, value)
             else:
                 types[name] = TypeRecord(package_name, type_element)
@@ -67,9 +59,8 @@ class CompareTypes:
         return None
 
     def self_type_name(self, t: ProtoType) -> Optional[str]:
-        string: str = t.string
-        name: str
-        canonical_name: list = list(self.result.path)
+        string = t.string
+        canonical_name = list(self.result.path)
         if string[0] == '.':
             name = string[1:]
             if self.self_types.get(name):
@@ -83,13 +74,12 @@ class CompareTypes:
             if pt is not None:
                 return pretender
             canonical_name.pop()
-        if self.self_types.get(string) is not None:
+        if self.self_types.get(string):
             return string
         return None
 
     def other_type_name(self, t: ProtoType) -> Optional[str]:
-        string: str = t.string
-        name: str
+        string = t.string
         canonical_name: list = list(self.result.path)
         if string[0] == '.':
             name = string[1:]
@@ -104,7 +94,7 @@ class CompareTypes:
             if pt is not None:
                 return pretender
             canonical_name.pop()
-        if self.other_types.get(string) is not None:
+        if self.other_types.get(string):
             return string
         return None
 
@@ -149,7 +139,6 @@ class TypeRecordMap(TypeRecord):
     def __init__(self, package_name: str, type_element: TypeElement, key: object, value: object):
         super().__init__(package_name, type_element)
         try:
-            from karapace.protobuf.field_element import FieldElement
             self.key = key
             self.value = value
         except Exception:

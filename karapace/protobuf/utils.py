@@ -1,13 +1,15 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/Util.kt
 
+from typing import List
+
 
 def protobuf_encode(a: str) -> str:
     # TODO: PROTOBUF
     return a
 
 
-def append_documentation(data: list, documentation: str) -> None:
+def append_documentation(data: List[str], documentation: str) -> None:
     if not documentation:
         return
 
@@ -22,7 +24,7 @@ def append_documentation(data: list, documentation: str) -> None:
         data.append("\n")
 
 
-def append_options(data: list, options: list) -> None:
+def append_options(data: List[str], options: List[object]) -> None:
     count = len(options)
     if count == 1:
         data.append('[')
@@ -49,7 +51,7 @@ def try_to_schema(obj: object) -> str:
         raise AttributeError
 
 
-def append_indented(data: list, value: str) -> None:
+def append_indented(data: List[str], value: str) -> None:
     lines = value.split("\n")
     if len(lines) > 1 and not lines[-1]:
         del lines[-1]
