@@ -69,20 +69,20 @@ class FieldElement:
 
     # Only non-repeated scalar types and Enums support default values.
 
-    def compare(self, other: 'FieldElement', result: CompareResult, types: CompareTypes):
+    def compare(self, other: 'FieldElement', result: CompareResult, types: CompareTypes) -> None:
 
         if self.name != other.name:
             result.add_modification(Modification.FIELD_NAME_ALTER)
 
         self.compare_type(ProtoType.get2(self.element_type), ProtoType.get2(other.element_type), other.label, result, types)
 
-    def compare_map(self, self_map: ProtoType, other_map: ProtoType, result: CompareResult, types: CompareTypes):
+    def compare_map(self, self_map: ProtoType, other_map: ProtoType, result: CompareResult, types: CompareTypes) -> None:
         self.compare_type(self_map.key_type, other_map.key_type, "", result, types)
         self.compare_type(self_map.value_type, other_map.value_type, "", result, types)
 
     def compare_type(
         self, self_type: ProtoType, other_type: ProtoType, other_label: str, result: CompareResult, types: CompareTypes
-    ):
+    ) -> None:
         from karapace.protobuf.enum_element import EnumElement
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)
@@ -135,7 +135,9 @@ class FieldElement:
             result.add_modification(Modification.FIELD_KIND_ALTER)
 
     @classmethod
-    def compare_message(cls, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes):
+    def compare_message(
+        cls, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes
+    ) -> None:
         from karapace.protobuf.message_element import MessageElement
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)

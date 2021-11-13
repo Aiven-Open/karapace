@@ -1,5 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumElement.kt
+from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.enum_constant_element import EnumConstantElement
@@ -33,7 +34,7 @@ class EnumElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: 'EnumElement', result: CompareResult, types: CompareTypes):
+    def compare(self, other: 'EnumElement', result: CompareResult, types: CompareTypes) -> None:
         self_tags: dict = dict()
         other_tags: dict = dict()
         constant: EnumConstantElement
@@ -46,8 +47,8 @@ class EnumElement(TypeElement):
         for constant in other.constants:
             other_tags[constant.tag] = constant
 
-        for tag in list(self_tags.keys()) + list(set(other_tags.keys()) - set(self_tags.keys())):
-            result.push_path(tag.__str__())
+        for tag in chain(self_tags.keys(), other_tags.keys() - self_tags.keys()):
+            result.push_path(str(tag))
             if self_tags.get(tag) is None:
                 result.add_modification(Modification.ENUM_CONSTANT_ADD)
             elif other_tags.get(tag) is None:

@@ -15,8 +15,9 @@ import requests
 
 baseurl = "http://localhost:8081"
 
-compatibility_test_url = "https://raw.githubusercontent.com/confluentinc/schema-registry/master/protobuf-provider/" + \
-                         "src/test/resources/diff-schema-examples.json"
+compatibility_test_url = "https://raw.githubusercontent.com/confluentinc/schema-registry/" + \
+                         "0530b0107749512b997f49cc79fe423f21b43b87/" + \
+                         "protobuf-provider/src/test/resources/diff-schema-examples.json"
 
 
 def add_slashes(text: str) -> str:
