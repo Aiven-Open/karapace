@@ -19,19 +19,29 @@
 # limitations under the License.
 
 from io import BytesIO
-from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException
+from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException, ProtobufTypeException
 from karapace.protobuf.message_element import MessageElement
+from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dict
 from karapace.protobuf.schema import ProtobufSchema
+from karapace.protobuf.type_element import TypeElement
 
+import hashlib
+import importlib
 import importlib.util
 import logging
 import os
 
+ZERO_BYTE = b'\x00'
+
 logger = logging.getLogger(__name__)
 
 
-class ProtobufDatumReader():
-    """Deserialize Avro-encoded data into a Python data structure."""
+def calculate_class_name(name: str) -> str:
+    return "c_" + hashlib.md5(name.encode('utf-8')).hexdigest()
+
+
+class ProtobufDatumReader:
+    """Deserialize Protobuf-encoded data into a Python data structure."""
 
     @staticmethod
     def check_props(schema_one, schema_two, prop_list):
@@ -50,7 +60,7 @@ class ProtobufDatumReader():
 
     def __init__(self, writer_schema=None, reader_schema=None):
         """
-    As defined in the Avro specification, we call the schema encoded
+    As defined in the Protobuf specification, we call the schema encoded
     in the data the "writer's schema", and the schema expected by the
     reader the "reader's schema".
     """
@@ -69,7 +79,7 @@ class ProtobufDatumReader():
     reader_schema = property(lambda self: self._reader_schema, set_reader_schema)
 
     @staticmethod
-    def read_varint(bio: BytesIO):
+    def read_varint(bio: BytesIO) -> int:
         """Read a variable-length integer.
 
         :returns: Integer
@@ -107,13 +117,13 @@ class ProtobufDatumReader():
     def read(self, bio: BytesIO):
         if self.reader_schema is None:
             self.reader_schema = self.writer_schema
-        return self.read_data(self.writer_schema, self.reader_schema, bio)
+        return protobuf_to_dict(self.read_data(self.writer_schema, self.reader_schema, bio))
 
     @staticmethod
     def find_message_name(schema: ProtobufSchema, indexes: list) -> str:
         result: list = []
         dot: bool = False
-        types = schema.schema.types
+        types = schema.proto_file_element.types
         for index in indexes:
             if dot:
                 result.append(".")
@@ -144,19 +154,95 @@ class ProtobufDatumReader():
 
         indexes = self.read_indexes(bio)
         name = self.find_message_name(writer_schema, indexes)
-
-        with open("tmp.proto", "w") as proto_text:
+        proto_name = calculate_class_name(str(writer_schema))
+        with open(f"{proto_name}.proto", "w") as proto_text:
             proto_text.write(str(writer_schema))
             proto_text.close()
 
-        os.system("protoc --python_out=./ tmp.proto")
+        os.system(f"protoc --python_out=./ {proto_name}.proto")
 
-        spec = importlib.util.spec_from_file_location("tmp_pb2", "./tmp_pb2.py")
+        spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
         tmp_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(tmp_module)
         class_to_call = getattr(tmp_module, name)
         class_instance = class_to_call()
         class_instance.ParseFromString(bio.read())
 
-        #
         return class_instance
+
+
+class ProtobufDatumWriter:
+    """ProtobufDatumWriter for generic python objects."""
+
+    def __init__(self, writer_schema=None):
+        self._writer_schema = writer_schema
+        a: ProtobufSchema = writer_schema
+        el: TypeElement
+        self._message_name = ''
+        for idx, el in enumerate(a.proto_file_element.types):
+            if isinstance(el, MessageElement):
+                self._message_name = el.name
+                self._message_index = idx
+                break
+
+        if self._message_name == '':
+            raise ProtobufTypeException("No message in protobuf schema")
+
+    # read/write properties
+    def set_writer_schema(self, writer_schema):
+        self._writer_schema = writer_schema
+
+    writer_schema = property(lambda self: self._writer_schema, set_writer_schema)
+
+    @staticmethod
+    def write_varint(bio: BytesIO, value):
+
+        if value == 0:
+            bio.write(ZERO_BYTE)
+            return 1
+
+        written_bytes = 0
+        while value > 0:
+            to_write = value & 0x7f
+            value = value >> 7
+
+            if value > 0:
+                to_write |= 0x80
+
+            bio.write(bytearray(to_write)[0])
+            written_bytes += 1
+
+        return written_bytes
+
+    def write_indexes(self, bio: BytesIO, value):
+        self.write_varint(bio, value)
+
+    def write_index(self, writer: BytesIO):
+        self.write_indexes(writer, self._message_index)
+
+    def write(self, datum: dict, writer: BytesIO):
+        # validate datum
+
+        proto_name = calculate_class_name(str(self.writer_schema))
+        with open(f"{proto_name}.proto", "w") as proto_text:
+            proto_text.write(str(self.writer_schema))
+            proto_text.close()
+
+        os.system(f"protoc --python_out=./ {proto_name}.proto")
+        name = self._message_name
+        spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
+        tmp_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tmp_module)
+        class_to_call = getattr(tmp_module, name)
+        class_instance = class_to_call()
+
+        try:
+            dict_to_protobuf(class_instance, datum)
+        except Exception:
+            raise ProtobufTypeException(self.writer_schema, datum)
+
+        writer.write(class_instance.SerializeToString())
+
+
+if __name__ == '__main__':
+    raise Exception('Not a standalone module')

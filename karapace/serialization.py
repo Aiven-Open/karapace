@@ -1,7 +1,8 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from json import load
 from jsonschema import ValidationError
-from karapace.protobuf.io import ProtobufDatumReader
+from karapace.protobuf.exception import ProtobufTypeException
+from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_reader import InvalidSchema, SchemaType, TypedSchema
 from karapace.utils import Client, json_encode
 from typing import Dict, Optional
@@ -184,13 +185,13 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
         reader = DatumReader(schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
-
         value = load(bio)
         try:
             schema.schema.validate(value)
         except ValidationError as e:
             raise InvalidPayload from e
         return value
+
     if schema.schema_type is SchemaType.PROTOBUF:
         reader = ProtobufDatumReader(schema.schema)
         return reader.read(bio)
@@ -207,9 +208,12 @@ def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict):
         except ValidationError as e:
             raise InvalidPayload from e
         bio.write(json_encode(value, binary=True))
+
     elif schema.schema_type is SchemaType.PROTOBUF:
         # TODO: PROTOBUF* we need use protobuf validator there
-        bio.write(value)
+        writer = ProtobufDatumWriter(schema.schema)
+        writer.write_index(bio)
+        writer.write(value, bio)
 
     else:
         raise ValueError("Unknown schema type")
@@ -220,11 +224,18 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer):
         schema_id = self.schemas_to_ids[schema.__str__()]
         with io.BytesIO() as bio:
             bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
-            try:
-                write_value(schema, bio, value)
-                return bio.getvalue()
-            except avro.io.AvroTypeException as e:
-                raise InvalidMessageSchema("Object does not fit to stored schema") from e
+            if schema.schema_type is SchemaType.PROTOBUF:
+                try:
+                    write_value(schema, bio, value)
+                    return bio.getvalue()
+                except ProtobufTypeException as e:
+                    raise InvalidMessageSchema("Object does not fit to stored schema") from e
+            else:
+                try:
+                    write_value(schema, bio, value)
+                    return bio.getvalue()
+                except avro.io.AvroTypeException as e:
+                    raise InvalidMessageSchema("Object does not fit to stored schema") from e
 
 
 class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer):

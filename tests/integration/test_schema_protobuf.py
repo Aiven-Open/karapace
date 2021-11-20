@@ -31,7 +31,7 @@ def add_slashes(text: str) -> str:
         '\v': '\\v',
         '\'': "\\'",
         '\"': '\\"',
-        '\\': '\\\\
+        '\\': '\\\\'
     }
     trans_table = str.maketrans(escape_dict)
     return text.translate(trans_table)

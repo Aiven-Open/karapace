@@ -9,8 +9,11 @@ import avro
 import copy
 import io
 import json
+import logging
 import pytest
 import struct
+
+log = logging.getLogger(__name__)
 
 
 async def make_ser_deser(config_path, mock_client):
