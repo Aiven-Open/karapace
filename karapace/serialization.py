@@ -66,7 +66,7 @@ NAME_STRATEGIES = {
 
 
 class SchemaRegistryClient:
-    def __init__(self, schema_registry_url: str = "http://localhost:8081"):
+    def __init__(self, schema_registry_url: str = "http://localhost:8081") -> None:
         self.client = Client(server_uri=schema_registry_url, client=aiohttp.ClientSession())
         self.base_url = schema_registry_url
 
@@ -177,7 +177,7 @@ class SchemaRegistrySerializerDeserializer:
         return schema_typed
 
 
-def read_value(schema: TypedSchema, bio: io.BytesIO):
+def read_value(schema: TypedSchema, bio: io.BytesIO) -> object:
 
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(schema.schema)
@@ -197,7 +197,7 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
     raise ValueError("Unknown schema type")
 
 
-def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict):
+def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
         writer = DatumWriter(schema.schema)
         writer.write(value, BinaryEncoder(bio))

@@ -23,7 +23,7 @@ class ProtoFileElement:
         services: list = None,
         extend_declarations: list = None,
         options: list = None
-    ):
+    ) -> None:
         if types is None:
             types = []
         self.location = location

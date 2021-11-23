@@ -23,7 +23,7 @@ class FieldElement:
         tag: int = None,
         documentation: str = "",
         options: list = None
-    ):
+    ) -> None:
         self.location = location
         self.label = label
         self.element_type = element_type

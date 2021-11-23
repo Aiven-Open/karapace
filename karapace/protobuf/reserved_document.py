@@ -7,7 +7,7 @@ from karapace.protobuf.utils import append_documentation
 
 
 class ReservedElement:
-    def __init__(self, location: Location, documentation: str = "", values: list = None):
+    def __init__(self, location: Location, documentation: str = "", values: list = None) -> None:
         self.location = location
         self.documentation = documentation
         """ A [String] name or [Int] or [IntRange] tag. """

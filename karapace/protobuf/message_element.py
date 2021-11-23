@@ -29,7 +29,7 @@ class MessageElement(TypeElement):
         one_ofs: List[OneOfElement] = None,
         extensions: List[ExtensionsElement] = None,
         groups: List[GroupElement] = None,
-    ):
+    ) -> None:
         super().__init__(location, name, documentation, options or [], nested_types or [])
         self.reserveds = reserveds or []
         self.fields = fields or []

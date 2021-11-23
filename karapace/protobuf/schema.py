@@ -100,7 +100,7 @@ def option_element_string(option: OptionElement) -> str:
 class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
-    def __init__(self, schema: str):
+    def __init__(self, schema: str) -> None:
         if type(schema).__name__ != 'str':
             raise IllegalArgumentException("Non str type of schema string")
         self.dirty = schema

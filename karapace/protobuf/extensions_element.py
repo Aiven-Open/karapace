@@ -7,7 +7,7 @@ from karapace.protobuf.utils import append_documentation, MAX_TAG_VALUE
 
 
 class ExtensionsElement:
-    def __init__(self, location: Location, documentation: str = "", values: list = None):
+    def __init__(self, location: Location, documentation: str = "", values: list = None) -> None:
         self.location = location
         self.documentation = documentation
         """ An [Int] or [IntRange] tag. """

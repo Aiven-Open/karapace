@@ -6,7 +6,7 @@ from typing import Union
 
 
 class SyntaxReader:
-    def __init__(self, data: str, location: Location):
+    def __init__(self, data: str, location: Location) -> None:
         """ Next character to be read """
         self.pos = 0
         """ The number of newline characters  """

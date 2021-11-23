@@ -21,7 +21,7 @@ class OptionElement:
         LIST = 6
         OPTION = 7
 
-    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None):
+    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None) -> None:
         self.name = name
         self.kind = kind
         self.value = value

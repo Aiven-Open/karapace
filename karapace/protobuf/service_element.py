@@ -15,7 +15,7 @@ class ServiceElement:
         documentation: str = "",
         rpcs: List[RpcElement] = None,
         options: List[OptionElement] = None
-    ):
+    ) -> None:
         self.location = location
         self.name = name
         self.documentation = documentation

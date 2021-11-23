@@ -11,7 +11,7 @@ from karapace.protobuf.option_element import OptionElement
 from typing import Optional
 
 
-def static_init(cls):
+def static_init(cls) -> object:
     if getattr(cls, "static_init", None):
         cls.static_init()
     return cls
@@ -25,7 +25,7 @@ class ProtoType:
         return self.string[dot + 1:]
 
     @classmethod
-    def static_init(cls):
+    def static_init(cls) -> None:
         cls.BOOL = cls(True, "bool")
         cls.BYTES = cls(True, "bytes")
         cls.DOUBLE = cls(True, "double")
@@ -76,7 +76,7 @@ class ProtoType:
 
     def __init__(
         self, is_scalar: bool, string: str, key_type: Optional['ProtoType'] = None, value_type: Optional['ProtoType'] = None
-    ):
+    ) -> None:
         """ Creates a scalar or message type.  """
         if not key_type and not value_type:
             self.is_scalar = is_scalar

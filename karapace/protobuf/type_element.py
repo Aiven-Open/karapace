@@ -6,7 +6,7 @@ from karapace.protobuf.option_element import OptionElement
 from typing import List
 
 
-@dataclass(frozen=True)
+@dataclass
 class TypeElement:
     location: Location
     name: str
