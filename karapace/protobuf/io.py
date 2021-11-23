@@ -117,7 +117,7 @@ class ProtobufDatumReader:
     def read(self, bio: BytesIO):
         if self.reader_schema is None:
             self.reader_schema = self.writer_schema
-        return protobuf_to_dict(self.read_data(self.writer_schema, self.reader_schema, bio))
+        return protobuf_to_dict(self.read_data(self.writer_schema, self.reader_schema, bio), True)
 
     @staticmethod
     def find_message_name(schema: ProtobufSchema, indexes: list) -> str:

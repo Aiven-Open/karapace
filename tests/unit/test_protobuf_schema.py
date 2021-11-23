@@ -288,8 +288,3 @@ def test_protobuf_field_compatible_alter_to_oneof():
 
     assert result.is_compatible()
 
-def test_protobuf_deserializer():
-    raw = b'\x00\x00\x00\x00\x01\x00\x08\x05\x10\x02'
-    reader = ProtobufDatumReader(schema.schema)
-
-    return reader.read(bio)
