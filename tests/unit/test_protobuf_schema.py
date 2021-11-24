@@ -1,5 +1,4 @@
 from karapace.protobuf.compare_result import CompareResult
-from karapace.protobuf.io import ProtobufDatumReader
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.schema import ProtobufSchema

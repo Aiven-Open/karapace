@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 """
 This module provide a small Python library for creating dicts from protocol buffers
 Module based on code :
@@ -6,12 +7,12 @@ LICENSE: https://github.com/wearefair/protobuf-to-dict/blob/master/LICENSE
 """
 
 from dateutil.parser import parse as date_parser
+from frozendict import frozendict
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 
 import datetime
-# -*- coding:utf-8 -*-
 import six
 
 __all__ = ["protobuf_to_dict", "TYPE_CALLABLE_MAP", "dict_to_protobuf", "REVERSE_TYPE_CALLABLE_MAP"]
@@ -32,7 +33,7 @@ def timestamp_to_datetime(ts):
 
 EXTENSION_CONTAINER = '___X'
 
-TYPE_CALLABLE_MAP = {
+TYPE_CALLABLE_MAP = frozendict({
     FieldDescriptor.TYPE_DOUBLE: float,
     FieldDescriptor.TYPE_FLOAT: float,
     FieldDescriptor.TYPE_INT32: int,
@@ -49,20 +50,20 @@ TYPE_CALLABLE_MAP = {
     FieldDescriptor.TYPE_STRING: six.text_type,
     FieldDescriptor.TYPE_BYTES: six.binary_type,
     FieldDescriptor.TYPE_ENUM: int,
-}
+})
 
 
 def repeated(type_callable):
     return lambda value_list: [type_callable(value) for value in value_list]
 
 
-def enum_label_name(field, value, lowercase_enum_lables=False):
+def enum_label_name(field, value, lowercase_enum_lables=False) -> str:
     label = field.enum_type.values_by_number[int(value)].name
     label = label.lower() if lowercase_enum_lables else label
     return label
 
 
-def _is_map_entry(field):
+def _is_map_entry(field) -> bool:
     return (
         field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type.has_options
         and field.message_type.GetOptions().map_entry
@@ -75,7 +76,7 @@ def protobuf_to_dict(
     use_enum_labels=False,
     including_default_value_fields=False,
     lowercase_enum_lables=False
-):
+) -> dict:
     result_dict = {}
     extensions = {}
     for field, value in pb.ListFields():
@@ -107,6 +108,7 @@ def protobuf_to_dict(
             if ((field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE)
                 or field.containing_oneof):
                 continue
+
             if field.name in result_dict:
                 # Skip the field which has been serailized already.
                 continue
@@ -132,7 +134,6 @@ def _get_field_value_adaptor(
     including_default_value_fields=False,
     lowercase_enum_lables=False
 ):
-
     if field.message_type and field.message_type.name == Timestamp_type_name:
         return timestamp_to_datetime
     if field.type == FieldDescriptor.TYPE_MESSAGE:
@@ -154,7 +155,7 @@ def _get_field_value_adaptor(
     raise TypeError("Field %s.%s has unrecognised type id %d" % (pb.__class__.__name__, field.name, field.type))
 
 
-REVERSE_TYPE_CALLABLE_MAP = {}
+REVERSE_TYPE_CALLABLE_MAP = frozendict({})
 
 
 def dict_to_protobuf(
@@ -164,9 +165,10 @@ def dict_to_protobuf(
     strict=True,
     ignore_none=False,
     use_date_parser_for_fields=None
-):
+) -> object:
     """Populates a protobuf model from a dictionary.
 
+    :param ignore_none:
     :param pb_klass_or_instance: a protobuf message class, or an protobuf instance
     :type pb_klass_or_instance: a type or instance of a subclass of google.protobuf.message.Message
     :param dict values: a dictionary of values. Repeated and nested values are
@@ -187,6 +189,7 @@ def dict_to_protobuf(
 
 def _get_field_mapping(pb, dict_value, strict):
     field_mapping = []
+    key: str = ""
     for key, value in dict_value.items():
         if key == EXTENSION_CONTAINER:
             continue
@@ -201,11 +204,15 @@ def _get_field_mapping(pb, dict_value, strict):
             ext_num = int(ext_num)
         except ValueError:
             raise ValueError("Extension keys must be integers.")
+        # pylint: disable=W0212
         if ext_num not in pb._extensions_by_number:
             if strict:
                 raise KeyError("%s does not have a extension with number %s. Perhaps you forgot to import it?" % (pb, key))
             continue
+        # pylint: disable=W0212
+
         ext_field = pb._extensions_by_number[ext_num]
+        # noinspection PyUnusedLocal
         pb_val = None
         pb_val = pb.Extensions[ext_field]
         field_mapping.append((ext_field, ext_val, pb_val))
@@ -219,6 +226,7 @@ def _dict_to_protobuf(pb, value, type_callable_map, strict, ignore_none, use_dat
     for field, input_value, pb_value in fields:
         if ignore_none and input_value is None:
             continue
+
         if field.label == FieldDescriptor.LABEL_REPEATED:
             if field.message_type and field.message_type.has_options and field.message_type.GetOptions().map_entry:
                 key_field = field.message_type.fields_by_name['key']
@@ -250,6 +258,7 @@ def _dict_to_protobuf(pb, value, type_callable_map, strict, ignore_none, use_dat
                 else:
                     pb_value.append(item)
             continue
+
         if isinstance(input_value, datetime.datetime):
             input_value = datetime_to_timestamp(input_value)
             # Instead of setattr we need to use CopyFrom for composite fields
@@ -289,8 +298,7 @@ def _string_to_enum(field, input_value, strict=False):
     except KeyError:
         if strict:
             raise KeyError("`%s` is not a valid value for field `%s`" % (input_value, field.name))
-        else:
-            return _string_to_enum(field, input_value.upper(), strict=True)
+        return _string_to_enum(field, input_value.upper(), strict=True)
     return input_value
 
 
