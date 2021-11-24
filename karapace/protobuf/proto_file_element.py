@@ -113,7 +113,7 @@ class ProtoFileElement:
         for i, type_ in enumerate(self.types):
             self_types[type_.name] = type_
             self_indexes[type_.name] = i
-            package_name = self.package_name if self.package_name else ''
+            package_name = self.package_name or ''
             compare_types.add_self_type(package_name, type_)
 
         i = 0
