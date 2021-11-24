@@ -6,7 +6,6 @@ from karapace.utils import Client, json_encode
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
-import aiohttp
 import asyncio
 import avro
 import avro.schema
@@ -69,7 +68,7 @@ NAME_STRATEGIES = {
 
 class SchemaRegistryClient:
     def __init__(self, schema_registry_url: str = "http://localhost:8081"):
-        self.client = Client(server_uri=schema_registry_url, client=aiohttp.ClientSession())
+        self.client = Client(server_uri=schema_registry_url)
         self.base_url = schema_registry_url
 
     async def post_new_schema(self, subject: str, schema: TypedSchema) -> int:
