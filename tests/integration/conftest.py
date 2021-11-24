@@ -224,7 +224,7 @@ async def fixture_rest_async_client(
         client_factory = await aiohttp_client(rest_async.app)
         client = Client(client=client_factory)
 
-    with closing(client):
+    try:
         # wait until the server is listening, otherwise the tests may fail
         await repeat_until_successful_request(
             client.get,
@@ -236,6 +236,8 @@ async def fixture_rest_async_client(
             sleep=0.3,
         )
         yield client
+    finally:
+        await client.close()
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
@@ -331,7 +333,7 @@ async def fixture_registry_async_client(
         client_factory = await aiohttp_client(registry_async.app)
         client = Client(client=client_factory)
 
-    with closing(client):
+    try:
         # wait until the server is listening, otherwise the tests may fail
         await repeat_until_successful_request(
             client.get,
@@ -343,6 +345,8 @@ async def fixture_registry_async_client(
             sleep=0.3,
         )
         yield client
+    finally:
+        await client.close()
 
 
 def zk_java_args(cfg_path: Path) -> List[str]:
