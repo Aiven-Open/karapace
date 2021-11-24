@@ -110,13 +110,11 @@ class ProtoFileElement:
         other_indexes: dict = dict()
         compare_types = CompareTypes(self.package_name, other.package_name, result)
         type_: TypeElement
-        i = 0
-        for type_ in self.types:
+        for i, type_ in enumerate(self.types):
             self_types[type_.name] = type_
             self_indexes[type_.name] = i
             package_name = self.package_name if self.package_name else ''
             compare_types.add_self_type(package_name, type_)
-            i += 1
 
         i = 0
         for type_ in other.types:
