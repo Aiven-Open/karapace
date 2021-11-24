@@ -28,7 +28,7 @@ def compute_name(t: ProtoType, result_path: List[str], package_name: str, types:
 
 
 class CompareTypes:
-    def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult):
+    def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult) -> None:
 
         self.self_package_name = self_package_name
         self.other_package_name = other_package_name
@@ -112,13 +112,13 @@ class CompareTypes:
 
 
 class TypeRecord:
-    def __init__(self, package_name: str, type_element: TypeElement):
+    def __init__(self, package_name: str, type_element: TypeElement) -> None:
         self.package_name = package_name
         self.type_element = type_element
 
 
 class TypeRecordMap(TypeRecord):
-    def __init__(self, package_name: str, type_element: TypeElement, key: object, value: object):
+    def __init__(self, package_name: str, type_element: TypeElement, key: object, value: object) -> None:
         super().__init__(package_name, type_element)
         try:
             self.key = key

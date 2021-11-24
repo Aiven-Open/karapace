@@ -68,7 +68,7 @@ class Context(Enum):
 
 
 class ProtoParser:
-    def __init__(self, location: Location, data: str):
+    def __init__(self, location: Location, data: str) -> None:
         self.location = location
         self.imports: List[str] = []
         self.nested_types: List[str] = []

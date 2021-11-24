@@ -10,7 +10,9 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class EnumElement(TypeElement):
-    def __init__(self, location: Location, name: str, documentation: str = "", options: list = None, constants: list = None):
+    def __init__(
+        self, location: Location, name: str, documentation: str = "", options: list = None, constants: list = None
+    ) -> None:
         # Enums do not allow nested type declarations.
         super().__init__(location, name, documentation, options or [], [])
         self.constants = constants or []

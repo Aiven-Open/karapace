@@ -7,7 +7,7 @@ from typing import Union
 
 
 class KindAndValue:
-    def __init__(self, kind: OptionElement.Kind, value: object):
+    def __init__(self, kind: OptionElement.Kind, value: object) -> None:
         self.kind = kind
         self.value = value
 
@@ -15,7 +15,7 @@ class KindAndValue:
 class OptionReader:
     reader: SyntaxReader
 
-    def __init__(self, reader: SyntaxReader):
+    def __init__(self, reader: SyntaxReader) -> None:
         self.reader = reader
 
     def read_options(self) -> list:

@@ -39,7 +39,7 @@ class Modification(Enum):
 
 
 class ModificationRecord:
-    def __init__(self, modification: Modification, path: str):
+    def __init__(self, modification: Modification, path: str) -> None:
         self.modification = modification
         self.path = path
         if modification.is_compatible():
@@ -52,7 +52,7 @@ class ModificationRecord:
 
 
 class CompareResult:
-    def __init__(self):
+    def __init__(self) -> None:
         self.result: list = []
         self.path: list = []
         self.canonical_name: list = []

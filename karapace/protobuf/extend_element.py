@@ -6,7 +6,7 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class ExtendElement:
-    def __init__(self, location: Location, name: str, documentation: str = "", fields: list = None):
+    def __init__(self, location: Location, name: str, documentation: str = "", fields: list = None) -> None:
         self.location = location
         self.name = name
         self.documentation = documentation

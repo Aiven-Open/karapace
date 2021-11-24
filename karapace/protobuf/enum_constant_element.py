@@ -12,7 +12,7 @@ class EnumConstantElement:
         tag: int,
         documentation: str = "",
         options: list = None,
-    ):
+    ) -> None:
         self.location = location
         self.name = name
 

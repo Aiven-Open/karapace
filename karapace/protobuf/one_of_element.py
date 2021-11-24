@@ -7,7 +7,7 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class OneOfElement:
-    def __init__(self, name: str, documentation: str = "", fields=None, groups=None, options=None):
+    def __init__(self, name: str, documentation: str = "", fields=None, groups=None, options=None) -> None:
         self.name = name
         self.documentation = documentation
         self.fields = fields or []

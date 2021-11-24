@@ -6,7 +6,7 @@ from typing import Optional
 class Location:
     """ Locates a .proto file, or a self.position within a .proto file, on the file system """
 
-    def __init__(self, base: str, path: str, line: int = -1, column: int = -1):
+    def __init__(self, base: str, path: str, line: int = -1, column: int = -1) -> None:
         """  str - The base directory of this location;
               path - The path to this location relative to [base]
               line - The line number of this location, or -1 for no specific line number
