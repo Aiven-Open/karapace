@@ -120,7 +120,7 @@ class ProtoFileElement:
         for type_ in other.types:
             other_types[type_.name] = type_
             other_indexes[type_.name] = i
-            package_name = other.package_name if other.package_name else ''
+            package_name = other.package_name or ''
             compare_types.add_other_type(package_name, type_)
             i += 1
 
