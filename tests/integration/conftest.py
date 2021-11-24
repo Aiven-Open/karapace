@@ -221,8 +221,11 @@ async def fixture_rest_async_client(
     if rest_url:
         client = Client(server_uri=rest_url)
     else:
-        client_factory = await aiohttp_client(rest_async.app)
-        client = Client(client=client_factory)
+
+        async def get_client():
+            return await aiohttp_client(rest_async.app)
+
+        client = Client(client_factory=get_client)
 
     try:
         # wait until the server is listening, otherwise the tests may fail
@@ -330,8 +333,11 @@ async def fixture_registry_async_client(
     if registry_url:
         client = Client(server_uri=registry_url)
     else:
-        client_factory = await aiohttp_client(registry_async.app)
-        client = Client(client=client_factory)
+
+        async def get_client():
+            return await aiohttp_client(registry_async.app)
+
+        client = Client(client_factory=get_client)
 
     try:
         # wait until the server is listening, otherwise the tests may fail
