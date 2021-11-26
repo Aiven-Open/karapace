@@ -1,6 +1,7 @@
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
+from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Client
 from typing import Callable, List
 from urllib.parse import quote
@@ -64,9 +65,42 @@ test_objects_avro = [
     },
 ]
 
+# protobuf schemas in tests must be filtered by  trim_margin() from kotlin_wrapper module
+
+schema_protobuf = """
+|syntax = "proto3";
+|
+|option java_package = "com.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message Message {
+|  int32 query = 1;
+|  Enum speed = 2;
+|}
+|enum Enum {
+|  HIGH = 0;
+|  MIDDLE = 1;
+|  LOW = 2;
+|}
+|
+"""
+schema_protobuf = trim_margin(schema_protobuf)
+
+test_objects_protobuf = [
+    {
+        'query': 5,
+        'speed': 'LOW'
+    },
+    {
+        'query': 10,
+        'speed': 'MIDDLE'
+    },
+]
+
 schema_data = {
     "avro": (schema_avro_json, test_objects_avro),
-    "jsonschema": (schema_jsonschema_json, test_objects_jsonschema)
+    "jsonschema": (schema_jsonschema_json, test_objects_jsonschema),
+    "protobuf": (schema_protobuf, test_objects_protobuf)
 }
 
 second_schema_json = json.dumps({
@@ -98,6 +132,10 @@ REST_HEADERS = {
         "Content-Type": "application/vnd.kafka.avro.v2+json",
         "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
+    "protobuf": {
+        "Content-Type": "application/vnd.kafka.protobuf.v2+json",
+        "Accept": "application/vnd.kafka.protobuf.v2+json, application/vnd.kafka.v2+json, application/json, */*"
+    }
 }
 
 
