@@ -19,9 +19,13 @@ __all__ = ["protobuf_to_dict", "TYPE_CALLABLE_MAP", "dict_to_protobuf", "REVERSE
 
 Timestamp_type_name = 'Timestamp'
 
+# pylint: disable=E1101
+
 
 def datetime_to_timestamp(dt):
+
     ts = Timestamp()
+
     ts.FromDatetime(dt)
     return ts
 
@@ -70,13 +74,8 @@ def _is_map_entry(field) -> bool:
     )
 
 
-def protobuf_to_dict(
-    pb,
-    type_callable_map=TYPE_CALLABLE_MAP,
-    use_enum_labels=False,
-    including_default_value_fields=False,
-    lowercase_enum_lables=False
-) -> dict:
+def protobuf_to_dict(pb, use_enum_labels=True, including_default_value_fields=True, lowercase_enum_lables=False) -> dict:
+    type_callable_map = TYPE_CALLABLE_MAP
     result_dict = {}
     extensions = {}
     for field, value in pb.ListFields():
@@ -105,10 +104,10 @@ def protobuf_to_dict(
     if including_default_value_fields:
         for field in pb.DESCRIPTOR.fields:
             # Singular message fields and oneof fields will not be affected.
-            if ((field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE)
-                or field.containing_oneof):
+            if (field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE):
                 continue
-
+            if field.containing_oneof:
+                continue
             if field.name in result_dict:
                 # Skip the field which has been serailized already.
                 continue
@@ -134,13 +133,13 @@ def _get_field_value_adaptor(
     including_default_value_fields=False,
     lowercase_enum_lables=False
 ):
+
     if field.message_type and field.message_type.name == Timestamp_type_name:
         return timestamp_to_datetime
     if field.type == FieldDescriptor.TYPE_MESSAGE:
         # recursively encode protobuf sub-message
         return lambda pb: protobuf_to_dict(
             pb,
-            type_callable_map=type_callable_map,
             use_enum_labels=use_enum_labels,
             including_default_value_fields=including_default_value_fields,
             lowercase_enum_lables=lowercase_enum_lables,
@@ -220,9 +219,9 @@ def _get_field_mapping(pb, dict_value, strict):
     return field_mapping
 
 
-def _dict_to_protobuf(pb, value, type_callable_map, strict, ignore_none, use_date_parser_for_fields):
-    fields = _get_field_mapping(pb, value, strict)
-
+def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_date_parser_for_fields):
+    fields = _get_field_mapping(pb, value_, strict)
+    value = value_
     for field, input_value, pb_value in fields:
         if ignore_none and input_value is None:
             continue
@@ -266,11 +265,13 @@ def _dict_to_protobuf(pb, value, type_callable_map, strict, ignore_none, use_dat
             #   Assignment not allowed to composite field “field name” in protocol message object
             getattr(pb, field.name).CopyFrom(input_value)
             continue
-        elif use_date_parser_for_fields and field.name in use_date_parser_for_fields:
+
+        if use_date_parser_for_fields and field.name in use_date_parser_for_fields:
             input_value = datetime_to_timestamp(date_parser(input_value))
             getattr(pb, field.name).CopyFrom(input_value)
             continue
-        elif field.type == FieldDescriptor.TYPE_MESSAGE:
+
+        if field.type == FieldDescriptor.TYPE_MESSAGE:
             _dict_to_protobuf(pb_value, input_value, type_callable_map, strict, ignore_none, use_date_parser_for_fields)
             continue
 
