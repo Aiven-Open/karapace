@@ -1,8 +1,14 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
-
+from itertools import chain
+from karapace.protobuf.compare_result import CompareResult, Modification
+from karapace.protobuf.compare_type_storage import CompareTypes
+from karapace.protobuf.enum_element import EnumElement
+from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
+from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.syntax import Syntax
+from karapace.protobuf.type_element import TypeElement
 
 
 class ProtoFileElement:
@@ -17,7 +23,7 @@ class ProtoFileElement:
         services: list = None,
         extend_declarations: list = None,
         options: list = None
-    ):
+    ) -> None:
         if types is None:
             types = []
         self.location = location
@@ -30,7 +36,7 @@ class ProtoFileElement:
         self.public_imports = public_imports or []
         self.imports = imports or []
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         strings: list = [
             "// Proto schema formatted by Wire, do not edit.\n", "// Source: ",
             str(self.location.with_path_only()), "\n"
@@ -77,15 +83,80 @@ class ProtoFileElement:
         return "".join(strings)
 
     @staticmethod
-    def empty(path):
+    def empty(path) -> 'ProtoFileElement':
         return ProtoFileElement(Location.get(path))
 
     # TODO: there maybe be faster comparison workaround
-    def __eq__(self, other: 'ProtoFileElement'):  # type: ignore
+    def __eq__(self, other: 'ProtoFileElement') -> bool:  # type: ignore
         a = self.to_schema()
         b = other.to_schema()
 
         return a == b
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.to_schema()
+
+    def compare(self, other: 'ProtoFileElement', result: CompareResult) -> CompareResult:
+
+        if self.package_name != other.package_name:
+            result.add_modification(Modification.PACKAGE_ALTER)
+        # TODO: do we need syntax check?
+        if self.syntax != other.syntax:
+            result.add_modification(Modification.SYNTAX_ALTER)
+
+        self_types: dict = dict()
+        other_types: dict = dict()
+        self_indexes: dict = dict()
+        other_indexes: dict = dict()
+        compare_types = CompareTypes(self.package_name, other.package_name, result)
+        type_: TypeElement
+        for i, type_ in enumerate(self.types):
+            self_types[type_.name] = type_
+            self_indexes[type_.name] = i
+            package_name = self.package_name or ''
+            compare_types.add_self_type(package_name, type_)
+
+        for i, type_ in enumerate(other.types):
+            other_types[type_.name] = type_
+            other_indexes[type_.name] = i
+            package_name = other.package_name or ''
+            compare_types.add_other_type(package_name, type_)
+
+        for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
+
+            result.push_path(name, True)
+
+            if self_types.get(name) is None and other_types.get(name) is not None:
+                if isinstance(other_types[name], MessageElement):
+                    result.add_modification(Modification.MESSAGE_ADD)
+                elif isinstance(other_types[name], EnumElement):
+                    result.add_modification(Modification.ENUM_ADD)
+                else:
+                    raise IllegalStateException("Instance of element is not applicable")
+            elif self_types.get(name) is not None and other_types.get(name) is None:
+                if isinstance(self_types[name], MessageElement):
+                    result.add_modification(Modification.MESSAGE_DROP)
+                elif isinstance(self_types[name], EnumElement):
+                    result.add_modification(Modification.ENUM_DROP)
+                else:
+                    raise IllegalStateException("Instance of element is not applicable")
+            else:
+                if other_indexes[name] != self_indexes[name]:
+                    if isinstance(self_types[name], MessageElement):
+                        # incompatible type
+                        result.add_modification(Modification.MESSAGE_MOVE)
+                    else:
+                        raise IllegalStateException("Instance of element is not applicable")
+                else:
+                    if isinstance(self_types[name], MessageElement) \
+                            and isinstance(other_types[name], MessageElement):
+                        self_types[name].compare(other_types[name], result, compare_types)
+                    elif isinstance(self_types[name], EnumElement) \
+                            and isinstance(other_types[name], EnumElement):
+                        self_types[name].compare(other_types[name], result, compare_types)
+                    else:
+                        # incompatible type
+                        result.add_modification(Modification.TYPE_ALTER)
+            result.pop_path(True)
+
+        return result

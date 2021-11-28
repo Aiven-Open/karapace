@@ -10,11 +10,11 @@ class Syntax(Enum):
     PROTO_3 = "proto3"
 
     @classmethod
-    def _missing_(cls, string):
+    def _missing_(cls, string) -> None:
         raise IllegalArgumentException(f"unexpected syntax: {string}")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value

@@ -1,17 +1,15 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Schema.kt
 # Ported partially for required functionality.
+from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.enum_element import EnumElement
+from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.utils import append_documentation, append_indented
-
-import logging
-
-log = logging.getLogger(__name__)
 
 
 def add_slashes(text: str) -> str:
@@ -83,7 +81,7 @@ def enum_element_string(element: EnumElement) -> str:
     return element.to_schema()
 
 
-def option_element_string(option: OptionElement):
+def option_element_string(option: OptionElement) -> str:
     result: str
     if option.kind == OptionElement.Kind.STRING:
         name: str
@@ -102,20 +100,21 @@ def option_element_string(option: OptionElement):
 class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
-    def __init__(self, schema: str):
+    def __init__(self, schema: str) -> None:
+        if type(schema).__name__ != 'str':
+            raise IllegalArgumentException("Non str type of schema string")
         self.dirty = schema
         self.cache_string = ""
-        self.schema = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
+        self.proto_file_element = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
 
     def __str__(self) -> str:
         if not self.cache_string:
             self.cache_string = self.to_schema()
-        log.warning("CACHE_STRING:%s", self.cache_string)
         return self.cache_string
 
-    def to_schema(self):
+    def to_schema(self) -> str:
         strings: list = []
-        shm: ProtoFileElement = self.schema
+        shm: ProtoFileElement = self.proto_file_element
         if shm.syntax:
             strings.append("syntax = \"")
             strings.append(str(shm.syntax))
@@ -158,3 +157,6 @@ class ProtobufSchema:
             for service in shm.services:
                 strings.append(str(service.to_schema()))
         return "".join(strings)
+
+    def compare(self, other: 'ProtobufSchema', result: CompareResult) -> CompareResult:
+        self.proto_file_element.compare(other.proto_file_element, result)

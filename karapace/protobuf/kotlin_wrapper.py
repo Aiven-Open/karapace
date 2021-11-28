@@ -3,7 +3,7 @@ from karapace.protobuf.exception import IllegalArgumentException, IllegalStateEx
 import textwrap
 
 
-def check(q: bool, message: str):
+def check(q: bool, message: str) -> None:
     if not q:
         raise IllegalStateException(message)
 
@@ -51,7 +51,7 @@ class OptionsList(list):
 
 
 class KotlinRange:
-    def __init__(self, minimum, maximum):
+    def __init__(self, minimum, maximum) -> None:
         self.minimum = minimum
         self.maximum = maximum
 

@@ -16,7 +16,7 @@ class RpcElement:
         request_streaming: bool = False,
         response_streaming: bool = False,
         options: list = None
-    ):
+    ) -> None:
         self.location = location
         self.name = name
         self.documentation = documentation

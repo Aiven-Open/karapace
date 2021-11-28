@@ -1,17 +1,18 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
-
+from dataclasses import dataclass
 from karapace.protobuf.location import Location
+from karapace.protobuf.option_element import OptionElement
+from typing import List
 
 
+@dataclass
 class TypeElement:
-    def __init__(self, location: Location, name: str, documentation: str, options: list, nested_types: list):
-
-        self.location: Location = location
-        self.name: str = name
-        self.documentation: str = documentation
-        self.options: list = options
-        self.nested_types: list = nested_types
+    location: Location
+    name: str
+    documentation: str
+    options: List[OptionElement]
+    nested_types: List[object]
 
     def to_schema(self) -> str:
         pass

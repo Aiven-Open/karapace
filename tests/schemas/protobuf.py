@@ -53,3 +53,21 @@ schema_protobuf_order_after = """
 |}
 |
 """
+
+schema_protobuf_compare_one = """
+|syntax = "proto3";
+|
+|option java_package = "com.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message Message {
+|  int32 query = 1;
+|  string content = 2;
+|}
+|enum Enum {
+|  HIGH = 0;
+|  MIDDLE = 1;
+|  LOW = 2;
+|}
+|
+"""

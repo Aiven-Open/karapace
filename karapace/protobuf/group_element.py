@@ -15,7 +15,7 @@ class GroupElement:
         tag: int,
         documentation: str = "",
         fields: list = None
-    ):
+    ) -> None:
         self.label = label
         self.location = location
         self.name = name

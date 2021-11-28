@@ -91,7 +91,8 @@ class TypedSchema:
             return ts
         # TypeError - Raised when the user forgets to encode the schema as a string.
         except Exception as e:  # FIXME: bare exception
-            log.exception("Unexpected error:")
+            log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
+
             raise InvalidSchema from e
 
     @staticmethod

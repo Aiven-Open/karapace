@@ -25,7 +25,7 @@ from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.syntax_reader import SyntaxReader
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import MAX_TAG_VALUE
-from typing import Union
+from typing import List, Union
 
 
 class Context(Enum):
@@ -68,19 +68,19 @@ class Context(Enum):
 
 
 class ProtoParser:
-    def __init__(self, location: Location, data: str):
+    def __init__(self, location: Location, data: str) -> None:
         self.location = location
-        self.imports: list = []
-        self.nested_types: list = []
-        self.services: list = []
-        self.extends_list: list = []
-        self.options: list = []
+        self.imports: List[str] = []
+        self.nested_types: List[str] = []
+        self.services: List[str] = []
+        self.extends_list: List[str] = []
+        self.options: List[str] = []
         self.declaration_count = 0
         self.syntax: Union[Syntax, None] = None
         self.package_name: Union[str, None] = None
         self.prefix = ""
         self.data = data
-        self.public_imports: list = []
+        self.public_imports: List[str] = []
         self.reader = SyntaxReader(data, location)
 
     def read_proto_file(self) -> ProtoFileElement:
@@ -111,8 +111,10 @@ class ProtoParser:
             elif isinstance(declaration, ExtendElement):
                 self.extends_list.append(declaration)
 
-    def read_declaration(self, documentation: str, context: Context):
-
+    def read_declaration(
+        self, documentation: str, context: Context
+    ) -> Union[None, OptionElement, ReservedElement, RpcElement, MessageElement, EnumElement, EnumConstantElement,
+               ServiceElement, ExtendElement, ExtensionsElement, OneOfElement, GroupElement, FieldElement]:
         index = self.declaration_count
         self.declaration_count += 1
 
@@ -185,13 +187,13 @@ class ProtoParser:
     def read_message(self, location: Location, documentation: str) -> MessageElement:
         """ Reads a message declaration. """
         name: str = self.reader.read_name()
-        fields: list = []
-        one_ofs: list = []
-        nested_types: list = []
-        extensions: list = []
-        options: list = []
-        reserveds: list = []
-        groups: list = []
+        fields: List[FieldElement] = []
+        one_ofs: List[OneOfElement] = []
+        nested_types: List[TypeElement] = []
+        extensions: List[ExtensionsElement] = []
+        options: List[OptionElement] = []
+        reserveds: List[ReservedElement] = []
+        groups: List[GroupElement] = []
 
         previous_prefix = self.prefix
         self.prefix = f"{self.prefix}{name}."

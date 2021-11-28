@@ -21,7 +21,7 @@ class OptionElement:
         LIST = 6
         OPTION = 7
 
-    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None):
+    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None) -> None:
         self.name = name
         self.kind = kind
         self.value = value
@@ -91,7 +91,7 @@ class OptionElement:
     def __repr__(self) -> str:
         return self.to_schema()
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return str(self) == str(other)
 
 

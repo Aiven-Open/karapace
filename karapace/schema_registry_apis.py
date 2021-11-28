@@ -846,10 +846,17 @@ class KarapaceSchemaRegistry(KarapaceBase):
             # We didn't find an existing schema and the schema is compatible so go and create one
             schema_id = self.ksr.get_schema_id(new_schema)
             version = max(self.ksr.subjects[subject]["schemas"]) + 1
-            self.log.info(
-                "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id, version,
-                new_schema.to_json(), schema_id
-            )
+            if new_schema.schema_type is SchemaType.PROTOBUF:
+                self.log.info(
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
+                    version, new_schema.__str__(), schema_id
+                )
+            else:
+                self.log.info(
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
+                    version, new_schema.to_json(), schema_id
+                )
+
         self.send_schema_message(
             subject=subject,
             schema=new_schema,
