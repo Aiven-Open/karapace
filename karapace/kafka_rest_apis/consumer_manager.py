@@ -20,7 +20,7 @@ import logging
 import time
 import uuid
 
-KNOWN_FORMATS = {"json", "avro", "binary", "jsonschema"}
+KNOWN_FORMATS = {"json", "avro", "binary", "jsonschema", "protobuf"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])

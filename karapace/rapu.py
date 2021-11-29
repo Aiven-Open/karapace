@@ -43,7 +43,7 @@ SCHEMA_ACCEPT_VALUES = [
 
 # TODO -> accept more general values as well
 REST_CONTENT_TYPE_RE = re.compile(
-    r"application/((vnd\.kafka(\.(?P<embedded_format>avro|json|binary|jsonschema))?(\.(?P<api_version>v[12]))?"
+    r"application/((vnd\.kafka(\.(?P<embedded_format>avro|json|protobuf|binary|jsonschema))?(\.(?P<api_version>v[12]))?"
     r"\+(?P<serialization_format>json))|(?P<general_format>json|octet-stream))"
 )
 REST_ACCEPT_RE = re.compile(
