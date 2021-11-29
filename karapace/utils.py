@@ -9,6 +9,7 @@ from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
 from urllib.parse import urljoin
 
+import aiohttp
 import datetime
 import decimal
 import json as jsonlib
@@ -81,15 +82,21 @@ class Result:
         return 200 <= self.status_code < 300
 
 
+async def get_aiohttp_client() -> aiohttp.ClientSession:
+    return aiohttp.ClientSession()
+
+
 class Client:
-    def __init__(self, server_uri=None, client=None):
+    def __init__(self, server_uri=None, client_factory=get_aiohttp_client):
         self.server_uri = server_uri or ""
         self.path_for = partial(urljoin, self.server_uri)
         self.session = requests.Session()
-        self.client = client
-        if self.client is None:
-            import aiohttp
-            self.client = aiohttp.ClientSession()
+        # aiohttp requires to be in the same async loop when creating its client and when using it.
+        # Since karapace Client object is initialized before creating the async context, (in
+        # kafka_rest_api main, when KafkaRest is created), we can't create the aiohttp here.
+        # Instead we wait for the first query in async context and lazy-initialize aiohttp client.
+        self.client_factory = client_factory
+        self._client = None
 
     async def close(self):
         try:
@@ -97,16 +104,23 @@ class Client:
         except:  # pylint: disable=bare-except
             log.info("Could not close session")
         try:
-            await self.client.close()
+            if self._client is not None:
+                await self._client.close()
         except:  # pylint: disable=bare-except
             log.info("Could not close client")
+
+    async def get_client(self):
+        if self._client is None:
+            self._client = await self.client_factory()
+        return self._client
 
     async def get(self, path, json=None, headers=None):
         path = self.path_for(path)
         if not headers:
             headers = {}
-        if self.client:
-            async with self.client.get(
+        client = await self.get_client()
+        if client:
+            async with client.get(
                 path,
                 json=json,
                 headers=headers,
@@ -122,8 +136,9 @@ class Client:
         path = self.path_for(path)
         if not headers:
             headers = {}
-        if self.client:
-            async with self.client.delete(
+        client = await self.get_client()
+        if client:
+            async with client.delete(
                 path,
                 headers=headers,
             ) as res:
@@ -139,8 +154,9 @@ class Client:
         if not headers:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
-        if self.client:
-            async with self.client.post(
+        client = await self.get_client()
+        if client:
+            async with client.post(
                 path,
                 headers=headers,
                 json=json,
@@ -157,8 +173,9 @@ class Client:
         if not headers:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
-        if self.client:
-            async with self.client.put(
+        client = await self.get_client()
+        if client:
+            async with client.put(
                 path,
                 headers=headers,
                 json=json,
@@ -171,8 +188,9 @@ class Client:
 
     async def put_with_data(self, path, data, headers):
         path = self.path_for(path)
-        if self.client:
-            async with self.client.put(
+        client = await self.get_client()
+        if client:
+            async with client.put(
                 path,
                 headers=headers,
                 data=data,
