@@ -14,6 +14,10 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.avro_compatibility import parse_avro_schema_definition
+from karapace.protobuf.exception import (
+    Error as ProtobufError, IllegalArgumentException, IllegalStateException, ProtobufException,
+    ProtobufParserRuntimeException, SchemaParseException as ProtobufSchemaParseException
+)
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
@@ -89,11 +93,11 @@ class TypedSchema:
         try:
             ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
             return ts
-        # TypeError - Raised when the user forgets to encode the schema as a string.
-        except Exception as e:  # FIXME: bare exception
+        except (
+            TypeError, SchemaError, AssertionError, ProtobufParserRuntimeException, IllegalStateException,
+            IllegalArgumentException, ProtobufError, ProtobufException, ProtobufSchemaParseException
+        ) as e:
             log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
-
-            raise InvalidSchema from e
 
     @staticmethod
     def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
