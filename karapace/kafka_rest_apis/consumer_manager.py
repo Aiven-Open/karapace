@@ -481,7 +481,7 @@ class ConsumerManager:
     async def deserialize(self, bytes_: bytes, fmt: str):
         if not bytes_:
             return None
-        if fmt in {"avro", "jsonschema"}:
+        if fmt in {"avro", "jsonschema", "protobuf"}:
             return await self.deserializer.deserialize(bytes_)
         if fmt == "json":
             return json.loads(bytes_.decode('utf-8'))
