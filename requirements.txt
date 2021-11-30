@@ -8,8 +8,8 @@ requests==2.23.0
 networkx==2.5
 six~=1.15.0
 python-dateutil==2.8.2
-
-
+frozendict~=2.1.0
+filelock~=3.0.12
 
 
 # Patched dependencies
@@ -23,23 +23,3 @@ python-dateutil==2.8.2
 git+https://github.com/aiven/avro.git@513b153bac5040af6bba5847aef202adb680b67b#subdirectory=lang/py3/
 git+git://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
 
-pip~=21.0.1
-argparse~=1.4.0
-toml~=0.10.1
-zlib~=1.2.11
-wheel~=0.36.2
-py~=1.10.0
-attrs~=20.3.0
-avro-python3~=1.11.0+snapshot
-idna~=2.10
-pytest~=6.2.2
-certifi~=2021.10.8
-chardet~=3.0.4
-urllib3~=1.25.11
-decorator~=4.4.2
-pyrsistent~=0.17.3
-setuptools~=50.3.0
-zipp~=3.4.0
-filelock~=3.0.12
-frozendict~=2.1.0
-protobuf~=3.14.0
