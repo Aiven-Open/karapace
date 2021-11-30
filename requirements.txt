@@ -10,7 +10,7 @@ six~=1.15.0
 python-dateutil==2.8.2
 frozendict~=2.1.0
 filelock~=3.0.12
-
+protobuf~=3.14.0
 
 # Patched dependencies
 #
