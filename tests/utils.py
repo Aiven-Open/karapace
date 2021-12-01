@@ -89,7 +89,7 @@ schema_protobuf = trim_margin(schema_protobuf)
 test_objects_protobuf = [
     {
         'query': 5,
-        'speed': 'LOW'
+        'speed': 'HIGH'
     },
     {
         'query': 10,

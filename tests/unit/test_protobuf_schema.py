@@ -1,5 +1,4 @@
 from karapace.protobuf.compare_result import CompareResult
-from karapace.protobuf.io import ProtobufDatumReader
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.schema import ProtobufSchema
@@ -287,9 +286,3 @@ def test_protobuf_field_compatible_alter_to_oneof():
     protobuf_schema1.compare(protobuf_schema2, result)
 
     assert result.is_compatible()
-
-def test_protobuf_deserializer():
-    raw = b'\x00\x00\x00\x00\x01\x00\x08\x05\x10\x02'
-    reader = ProtobufDatumReader(schema.schema)
-
-    return reader.read(bio)

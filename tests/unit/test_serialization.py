@@ -1,7 +1,8 @@
 from karapace.config import read_config
+from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.serialization import (
-    HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer,
-    SchemaRegistrySerializer, START_BYTE
+    HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, read_value, SchemaRegistryDeserializer,
+    SchemaRegistrySerializer, START_BYTE, write_value
 )
 from tests.utils import test_objects_avro
 
@@ -38,6 +39,119 @@ async def test_happy_flow(default_config_path, mock_registry_client):
     for o in serializer, deserializer:
         assert len(o.ids_to_schemas) == 1
         assert 1 in o.ids_to_schemas
+
+
+def assert_avro_json_round_trip(schema, record):
+    typed_schema = TypedSchema.parse(SchemaType.AVRO, json.dumps(schema))
+    bio = io.BytesIO()
+
+    write_value(typed_schema, bio, record)
+    assert record == read_value(typed_schema, io.BytesIO(bio.getvalue()))
+
+
+def test_avro_json_round_trip():
+    schema = {
+        "namespace": "io.aiven.data",
+        "name": "Test",
+        "type": "record",
+        "fields": [{
+            "name": "attr1",
+            "type": ["null", "string"],
+        }, {
+            "name": "attr2",
+            "type": ["null", "string"],
+        }]
+    }
+    record = {"attr1": {"string": "sample data"}, "attr2": None}
+    assert_avro_json_round_trip(schema, record)
+
+    record = {"attr1": None, "attr2": None}
+    assert_avro_json_round_trip(schema, record)
+
+    schema = {
+        "type": "array",
+        "items": {
+            "namespace": "io.aiven.data",
+            "name": "Test",
+            "type": "record",
+            "fields": [{
+                "name": "attr",
+                "type": ["null", "string"],
+            }]
+        }
+    }
+    record = [{"attr": {"string": "sample data"}}]
+    assert_avro_json_round_trip(schema, record)
+    record = [{"attr": None}]
+    assert_avro_json_round_trip(schema, record)
+
+    schema = {
+        "type": "map",
+        "values": {
+            "namespace": "io.aiven.data",
+            "name": "Test",
+            "type": "record",
+            "fields": [{
+                "name": "attr1",
+                "type": ["null", "string"],
+            }]
+        }
+    }
+    record = {"foo": {"attr1": {"string": "sample data"}}}
+    assert_avro_json_round_trip(schema, record)
+
+    schema = {"type": "array", "items": ["null", "string", "int"]}
+    record = [{"string": "foo"}, None, {"int": 1}]
+    assert_avro_json_round_trip(schema, record)
+
+
+def assert_avro_json_write_invalid(schema, records):
+    typed_schema = TypedSchema.parse(SchemaType.AVRO, json.dumps(schema))
+    bio = io.BytesIO()
+
+    for record in records:
+        with pytest.raises(InvalidMessageSchema):
+            write_value(typed_schema, bio, record)
+
+
+def test_avro_json_write_invalid():
+    schema = {
+        "namespace": "io.aiven.data",
+        "name": "Test",
+        "type": "record",
+        "fields": [{
+            "name": "attr",
+            "type": ["null", "string"],
+        }]
+    }
+    records = [
+        {
+            "attr": {
+                "string": 5
+            }
+        },
+        {
+            "attr": {
+                "foo": "bar"
+            }
+        },
+        {
+            "foo": "bar"
+        },
+    ]
+    assert_avro_json_write_invalid(schema, records)
+
+    schema = {"type": "array", "items": ["string", "int"]}
+    records = [
+        [{
+            "string": 1
+        }],
+        [1, 2],
+        [{
+            "string": 1
+        }, 1, "foo"],
+    ]
+    assert_avro_json_write_invalid(schema, records)
 
 
 async def test_serialization_fails(default_config_path, mock_registry_client):
