@@ -28,7 +28,7 @@ location: Location = Location.get("file.proto")
 
 
 def test_type_parsing():
-    proto: str = """
+    proto = """
         |message Types {
         |  required any f1 = 1;
         |  required bool f2 = 2;
@@ -52,7 +52,7 @@ def test_type_parsing():
         |  required nested.nested f20 = 20;
         |}
         """
-    proto: str = trim_margin(proto)
+    proto = trim_margin(proto)
 
     expected = ProtoFileElement(
         location=location,
