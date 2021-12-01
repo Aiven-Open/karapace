@@ -47,4 +47,4 @@ def test_protoc():
     except Exception as e:  # pylint: disable=broad-except
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
 
-    assert True
+    assert False
