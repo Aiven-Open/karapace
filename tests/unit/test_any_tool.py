@@ -49,10 +49,13 @@ def test_protoc():
         proc.kill()
         assert False, "Timeout expired"
 
-    try:
-        spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
-        tmp_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(tmp_module)
-    except Exception as e:  # pylint: disable=broad-except
-        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
-        assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
+    spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
+    tmp_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tmp_module)
+
+
+#    try:
+
+#    except Exception as e:  # pylint: disable=broad-except
+#        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
+#        assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
