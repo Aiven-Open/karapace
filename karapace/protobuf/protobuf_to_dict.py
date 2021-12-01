@@ -80,7 +80,7 @@ def protobuf_to_dict(pb, use_enum_labels=True, including_default_value_fields=Tr
     extensions = {}
     for field, value in pb.ListFields():
         if field.message_type and field.message_type.has_options and field.message_type.GetOptions().map_entry:
-            result_dict[field.name] = dict()
+            result_dict[field.name] = {}
             value_field = field.message_type.fields_by_name['value']
             type_callable = _get_field_value_adaptor(
                 pb, value_field, type_callable_map, use_enum_labels, including_default_value_fields, lowercase_enum_lables

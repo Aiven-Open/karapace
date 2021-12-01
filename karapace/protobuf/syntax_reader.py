@@ -217,7 +217,7 @@ class SyntaxReader:
             self.pos += 1
         result: str = ""
         if tval == ord('*'):
-            buffer: list = list()
+            buffer: list = []
             start_of_line = True
             while self.pos + 1 < len(self.data):
                 # pylint: disable=no-else-break

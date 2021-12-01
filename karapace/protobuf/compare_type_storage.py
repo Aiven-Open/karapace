@@ -32,8 +32,8 @@ class CompareTypes:
 
         self.self_package_name = self_package_name
         self.other_package_name = other_package_name
-        self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = dict()
-        self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = dict()
+        self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
+        self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.locked_messages: List[object] = []
         self.environment: List[object] = []
         self.result = result

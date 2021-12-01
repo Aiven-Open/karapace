@@ -265,8 +265,8 @@ class ProtoParser:
     def read_service(self, location: Location, documentation: str) -> ServiceElement:
         """ Reads a service declaration and returns it. """
         name = self.reader.read_name()
-        rpcs = list()
-        options: list = list()
+        rpcs = []
+        options: list = []
         self.reader.require('{')
         while True:
             rpc_documentation = self.reader.read_documentation()
@@ -292,8 +292,8 @@ class ProtoParser:
     def read_enum_element(self, location: Location, documentation: str) -> EnumElement:
         """ Reads an enumerated atype declaration and returns it. """
         name = self.reader.read_name()
-        constants: list = list()
-        options: list = list()
+        constants: list = []
+        options: list = []
         self.reader.require("{")
         while True:
             value_documentation = self.reader.read_documentation()
@@ -392,9 +392,9 @@ class ProtoParser:
 
     def read_one_of(self, documentation: str) -> OneOfElement:
         name: str = self.reader.read_name()
-        fields: list = list()
-        groups: list = list()
-        options: list = list()
+        fields: list = []
+        groups: list = []
+        options: list = []
 
         self.reader.require("{")
         while True:
@@ -429,7 +429,7 @@ class ProtoParser:
         name = self.reader.read_word()
         self.reader.require("=")
         tag = self.reader.read_int()
-        fields: list = list()
+        fields: list = []
         self.reader.require("{")
 
         while True:
@@ -449,7 +449,7 @@ class ProtoParser:
 
     def read_reserved(self, location: Location, documentation: str) -> ReservedElement:
         """ Reads a reserved tags and names list like "reserved 10, 12 to 14, 'foo';". """
-        values: list = list()
+        values: list = []
         while True:
             ch = self.reader.peek_char()
             if ch in ["\"", "'"]:
@@ -483,7 +483,7 @@ class ProtoParser:
 
     def read_extensions(self, location: Location, documentation: str) -> ExtensionsElement:
         """ Reads extensions like "extensions 101;" or "extensions 101 to max;". """
-        values: list = list()
+        values: list = []
         while True:
             start: int = self.reader.read_int()
             ch = self.reader.peek_char()
@@ -558,7 +558,7 @@ class ProtoParser:
 
         self.reader.require(')')
 
-        options: list = list()
+        options: list = []
         if self.reader.peek_char('{'):
             while True:
                 rpc_documentation = self.reader.read_documentation()

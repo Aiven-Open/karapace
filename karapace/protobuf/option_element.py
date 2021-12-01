@@ -58,7 +58,7 @@ class OptionElement:
     def format_option_map(self, value: dict) -> str:
         keys = list(value.keys())
         last_index = len(keys) - 1
-        result: list = list()
+        result: list = []
         for index, key in enumerate(keys):
             endl = "," if (index != last_index) else ""
             append_indented(result, f"{key}: {self.format_option_map_value(value[key])}{endl}")

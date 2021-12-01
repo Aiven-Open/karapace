@@ -10,7 +10,7 @@ def check(q: bool, message: str) -> None:
 
 def trim_margin(s: str) -> str:
     lines = s.split("\n")
-    new_lines = list()
+    new_lines = []
 
     if not textwrap.dedent(lines[0]):
         del lines[0]

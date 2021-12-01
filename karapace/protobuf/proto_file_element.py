@@ -104,10 +104,10 @@ class ProtoFileElement:
         if self.syntax != other.syntax:
             result.add_modification(Modification.SYNTAX_ALTER)
 
-        self_types: dict = dict()
-        other_types: dict = dict()
-        self_indexes: dict = dict()
-        other_indexes: dict = dict()
+        self_types: dict = {}
+        other_types: dict = {}
+        self_indexes: dict = {}
+        other_indexes: dict = {}
         compare_types = CompareTypes(self.package_name, other.package_name, result)
         type_: TypeElement
         for i, type_ in enumerate(self.types):

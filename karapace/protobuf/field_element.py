@@ -35,7 +35,7 @@ class FieldElement:
         self.options = options or []
 
     def to_schema(self) -> str:
-        result: list = list()
+        result: list = []
         append_documentation(result, self.documentation)
 
         if self.label:

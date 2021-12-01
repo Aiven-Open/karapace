@@ -15,7 +15,7 @@ class OneOfElement:
         self.groups = groups or []
 
     def to_schema(self) -> str:
-        result: list = list()
+        result: list = []
         append_documentation(result, self.documentation)
         result.append(f"oneof {self.name} {{")
         if self.options:
@@ -35,8 +35,8 @@ class OneOfElement:
         return "".join(result)
 
     def compare(self, other: 'OneOfElement', result: CompareResult, types: CompareTypes) -> None:
-        self_tags: dict = dict()
-        other_tags: dict = dict()
+        self_tags: dict = {}
+        other_tags: dict = {}
 
         for field in self.fields:
             self_tags[field.tag] = field

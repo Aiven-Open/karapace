@@ -21,7 +21,7 @@ class EnumConstantElement:
         self.documentation = documentation or ""
 
     def to_schema(self) -> str:
-        result: list = list()
+        result: list = []
         append_documentation(result, self.documentation)
         result.append(f"{self.name} = {self.tag}")
         if self.options:
