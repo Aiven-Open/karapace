@@ -1,11 +1,10 @@
-import importlib
-import logging
-import importlib.util
-
-from subprocess import Popen, PIPE, TimeoutExpired
-
 from karapace.protobuf.io import calculate_class_name
 from karapace.protobuf.kotlin_wrapper import trim_margin
+from subprocess import PIPE, Popen, TimeoutExpired
+
+import importlib
+import importlib.util
+import logging
 
 log = logging.getLogger("KarapaceTests")
 
