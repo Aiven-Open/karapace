@@ -24,27 +24,35 @@ def test_protoc():
     proto = trim_margin(proto)
 
     proto_name = calculate_class_name(str(proto))
+    log.info(proto_name)
     try:
         with open(f"{proto_name}.proto", "w") as proto_text:
             proto_text.write(str(proto))
             proto_text.close()
     except Exception as e:  # pylint: disable=broad-except
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
+        assert False, f"Cannot write Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
 
-    proc = Popen(["protoc", "--python_out=./", f"{proto_name}.proto"], stdout=PIPE, stderr=PIPE, shell=True)
+    args = ["protoc", "--python_out=./", f"{proto_name}.proto"]
+    try:
+        proc = Popen(args, stdout=PIPE, stderr=PIPE, shell=False)
+    except FileNotFoundError as e:
+        assert False, f"Protoc not found. {e}"
+    except Exception as e:  # pylint: disable=broad-except
+        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
+        assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
     try:
         out, err = proc.communicate(timeout=10)
-        log.info(out)
-        log.error(err)
+        assert out == b''
+        assert err == b''
     except TimeoutExpired:
         proc.kill()
+        assert False, "Timeout expired"
 
     try:
         spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
         tmp_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(tmp_module)
-
     except Exception as e:  # pylint: disable=broad-except
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
-
-    assert False
+        assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
