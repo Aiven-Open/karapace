@@ -1,8 +1,13 @@
 from karapace.config import read_config
-from karapace.serialization import SchemaRegistryDeserializer, SchemaRegistrySerializer
-from tests.utils import test_objects_protobuf
+from karapace.serialization import (
+    InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer, SchemaRegistrySerializer,
+    START_BYTE
+)
+from tests.utils import test_fail_objects_protobuf, test_objects_protobuf
 
 import logging
+import pytest
+import struct
 
 log = logging.getLogger(__name__)
 
@@ -33,36 +38,35 @@ async def test_happy_flow(default_config_path, mock_protobuf_registry_client):
         assert 1 in o.ids_to_schemas
 
 
-# async def test_serialization_fails(default_config_path, mock_protobuf_registry_client):
-#    serializer, _ = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
-#    with pytest.raises(InvalidMessageSchema):
-#        schema = await serializer.get_schema_for_subject("topic")
-#        await serializer.serialize(schema, {"foo": "bar"})
-#
-#
-# async def test_deserialization_fails(default_config_path, mock_protobuf_registry_client):
-#    _, deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
-#    invalid_header_payload = struct.pack(">bII", 1, 500, 500)
-#    with pytest.raises(InvalidMessageHeader):
-#        await deserializer.deserialize(invalid_header_payload)
-#
-#    # for now we ignore the packed in schema id
-#    invalid_data_payload = struct.pack(">bII", START_BYTE, 1, 500)
-#    with pytest.raises(InvalidPayload):
-#        await deserializer.deserialize(invalid_data_payload)
-#
-#    # but we can pass in a perfectly fine doc belonging to a diff schema
-#    schema = await mock_protobuf_registry_client.get_schema_for_id(1)
-#    schema = copy.deepcopy(schema.to_json())
-#    schema["name"] = "BadUser"
-#    schema["fields"][0]["type"] = "int"
-#    obj = {"name": 100, "favorite_number": 2, "favorite_color": "bar"}
-#    writer = avro.io.DatumWriter(avro.io.schema.parse(json.dumps(schema)))
-#    with io.BytesIO() as bio:
-#        enc = avro.io.BinaryEncoder(bio)
-#        bio.write(struct.pack(HEADER_FORMAT, START_BYTE, 1))
-#        writer.write(obj, enc)
-#        enc_bytes = bio.getvalue()
-#    with pytest.raises(InvalidPayload):
-#        await deserializer.deserialize(enc_bytes)
-#
+async def test_serialization_fails(default_config_path, mock_protobuf_registry_client):
+    serializer, _ = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    with pytest.raises(InvalidMessageSchema):
+        schema = await serializer.get_schema_for_subject("top")
+        await serializer.serialize(schema, test_fail_objects_protobuf[0])
+
+    with pytest.raises(InvalidMessageSchema):
+        schema = await serializer.get_schema_for_subject("top")
+        await serializer.serialize(schema, test_fail_objects_protobuf[1])
+
+
+async def test_deserialization_fails(default_config_path, mock_protobuf_registry_client):
+    _, deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    invalid_header_payload = struct.pack(">bII", 1, 500, 500)
+    with pytest.raises(InvalidMessageHeader):
+        await deserializer.deserialize(invalid_header_payload)
+
+    # wrong schema id (500)
+    invalid_data_payload = struct.pack(">bII", START_BYTE, 500, 500)
+    with pytest.raises(InvalidPayload):
+        await deserializer.deserialize(invalid_data_payload)
+
+
+async def test_deserialization_fails2(default_config_path, mock_protobuf_registry_client):
+    _, deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    invalid_header_payload = struct.pack(">bII", 1, 500, 500)
+    with pytest.raises(InvalidMessageHeader):
+        await deserializer.deserialize(invalid_header_payload)
+
+    enc_bytes = b'\x00\x00\x00\x00\x01\x00\x02\x05\0x12'  # wrong schema data (2)
+    with pytest.raises(InvalidPayload):
+        await deserializer.deserialize(enc_bytes)

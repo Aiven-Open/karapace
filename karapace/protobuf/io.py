@@ -54,9 +54,7 @@ class ProtobufDatumReader:
     def match_schemas(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) -> bool:
         # TODO (serge): schema comparison by fields required
 
-        if str(writer_schema) == str(reader_schema):
-            return True
-        return False
+        return str(writer_schema) == str(reader_schema)
 
     def __init__(self, writer_schema=None, reader_schema=None):
         """
@@ -92,8 +90,7 @@ class ProtobufDatumReader:
             if len(char) == 0:
                 if read_bytes == 0:
                     return 0
-                # raise EOFError('EOF while reading varint, value is %i so far' %
-                #               varint)
+                raise 'EOF while reading varint, value is %i so far' % varint
 
             byte = ord(char)
             varint += (byte & 0x7F) << (7 * read_bytes)
@@ -104,7 +101,11 @@ class ProtobufDatumReader:
                 return varint
 
     def read_indexes(self, bio: BytesIO):
-        size: int = self.read_varint(bio)
+        try:
+            size: int = self.read_varint(bio)
+        except EOFError:
+            # TODO: change exception
+            raise IllegalArgumentException("problem with reading binary data")
         result = []
         if size == 0:
             result.append(0)
@@ -113,6 +114,7 @@ class ProtobufDatumReader:
         while i < size:
             result.append(self.read_varint(bio))
             i += 1
+        return result
 
     def read(self, bio: BytesIO):
         if self.reader_schema is None:
@@ -122,14 +124,8 @@ class ProtobufDatumReader:
     @staticmethod
     def find_message_name(schema: ProtobufSchema, indexes: list) -> str:
         result: list = []
-        dot: bool = False
         types = schema.proto_file_element.types
         for index in indexes:
-            if dot:
-                result.append(".")
-            else:
-                dot = True
-
             try:
                 message = types[index]
             except Exception:
@@ -140,10 +136,11 @@ class ProtobufDatumReader:
                 types = message.nested_types
             else:
                 raise IllegalArgumentException(f"Invalid message indexes: {indexes}")
-
+            result.append(".")
         # for java we also need package name. But in case we will use protoc
         # for compiling to python we can ignore it at all
-
+        if len(result) > 0:
+            result.pop()
         return "".join(result)
 
     def read_data(self, writer_schema, reader_schema, bio: BytesIO):
