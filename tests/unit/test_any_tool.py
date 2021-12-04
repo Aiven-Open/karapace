@@ -29,6 +29,7 @@ def test_protoc():
         with open(f"{proto_name}.proto", "w") as proto_text:
             proto_text.write(str(proto))
             proto_text.close()
+
     except Exception as e:  # pylint: disable=broad-except
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
         assert False, f"Cannot write Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
@@ -48,6 +49,16 @@ def test_protoc():
     except TimeoutExpired:
         proc.kill()
         assert False, "Timeout expired"
+    module_content = ""
+    try:
+        with open(f"{proto_name}.proto", "r") as proto_text:
+            module_content = proto_text.read()
+            proto_text.close()
+        print(module_content)
+
+    except Exception as e:  # pylint: disable=broad-except
+        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
+        assert False, f"Cannot read Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
 
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
     tmp_module = importlib.util.module_from_spec(spec)
