@@ -1,4 +1,5 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
+from google.protobuf.message import DecodeError
 from json import load
 from jsonschema import ValidationError
 from karapace.protobuf.exception import ProtobufTypeException
@@ -269,8 +270,12 @@ def read_value(schema: TypedSchema, bio: io.BytesIO) -> object:
         return value
 
     if schema.schema_type is SchemaType.PROTOBUF:
-        reader = ProtobufDatumReader(schema.schema)
-        return reader.read(bio)
+        try:
+            reader = ProtobufDatumReader(schema.schema)
+            return reader.read(bio)
+        except DecodeError as e:
+            raise InvalidPayload from e
+
     raise ValueError("Unknown schema type")
 
 
@@ -300,18 +305,13 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer):
         schema_id = self.schemas_to_ids[schema.__str__()]
         with io.BytesIO() as bio:
             bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
-            if schema.schema_type is SchemaType.PROTOBUF:
-                try:
-                    write_value(schema, bio, value)
-                    return bio.getvalue()
-                except ProtobufTypeException as e:
-                    raise InvalidMessageSchema("Object does not fit to stored schema") from e
-            else:
-                try:
-                    write_value(schema, bio, value)
-                    return bio.getvalue()
-                except avro.io.AvroTypeException as e:
-                    raise InvalidMessageSchema("Object does not fit to stored schema") from e
+            try:
+                write_value(schema, bio, value)
+                return bio.getvalue()
+            except ProtobufTypeException as e:
+                raise InvalidMessageSchema("Object does not fit to stored schema") from e
+            except avro.io.AvroTypeException as e:
+                raise InvalidMessageSchema("Object does not fit to stored schema") from e
 
 
 class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer):
@@ -324,9 +324,11 @@ class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer):
                 raise InvalidMessageHeader("Start byte is %x and should be %x" % (start_byte, START_BYTE))
             try:
                 schema = await self.get_schema_for_id(schema_id)
+                if schema is None:
+                    raise InvalidPayload("No schema with ID from payload")
                 ret_val = read_value(schema, bio)
                 return ret_val
             except AssertionError as e:
-                raise InvalidPayload(f"Data does not contain a valid {schema.schema_type} message") from e
+                raise InvalidPayload("Data does not contain a valid message") from e
             except avro.io.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
