@@ -20,6 +20,14 @@ def check_successful_publish_response(success_response, objects, partition_id=No
                 assert partition_id == o["partition"]
 
 
+async def test_request_body_too_large(rest_async_client, admin_client):
+    tn = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    pl = {"records": [{"value": 1_048_576 * "a"}]}
+    res = await rest_async_client.post(f'/topics/{tn}', pl, headers={"Content-Type": "application/json"})
+    assert res.status_code == 413
+
+
 async def test_content_types(rest_async_client, admin_client):
     tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
