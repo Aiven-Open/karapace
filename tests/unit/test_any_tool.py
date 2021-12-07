@@ -10,6 +10,7 @@ log = logging.getLogger("KarapaceTests")
 
 
 def test_protoc():
+
     proto: str = """
                  |syntax = "proto3";
                  |package com.instaclustr.protobuf;
@@ -55,21 +56,11 @@ def test_protoc():
             module_content = proto_text.read()
             proto_text.close()
         print(module_content)
-
     except Exception as e:  # pylint: disable=broad-except
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
         assert False, f"Cannot read Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
-
-    print(module_content)
-    assert False
 
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
     tmp_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tmp_module)
 
-
-#    try:
-
-#    except Exception as e:  # pylint: disable=broad-except
-#        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
-#        assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
