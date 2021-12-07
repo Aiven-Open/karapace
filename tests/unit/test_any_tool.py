@@ -63,4 +63,3 @@ def test_protoc():
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
     tmp_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tmp_module)
-
