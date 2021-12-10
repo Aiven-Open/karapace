@@ -30,7 +30,7 @@ jobs:
 
     - name: Install Protoc
       uses: arduino/setup-protoc@v1
-      with: 
+      with:
          version: '3.13.0'
 
 
