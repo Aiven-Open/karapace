@@ -30,6 +30,9 @@ jobs:
 
     - name: Install Protoc
       uses: arduino/setup-protoc@v1
+      with: 
+         version: '3.13.0'
+
 
     - name: Execute unit-tests
       run: make unittest
