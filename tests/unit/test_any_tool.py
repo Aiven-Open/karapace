@@ -40,7 +40,7 @@ def test_protoc():
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
         assert False, f"Cannot write Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
 
-    args = ["protoc", f"--python_out={directory}", f"{proto_name}.proto"]
+    args = ["protoc", "--python_out=./", proto_path]
     try:
         proc = Popen(args, stdout=PIPE, stderr=PIPE, shell=False)
     except FileNotFoundError as e:
@@ -57,7 +57,7 @@ def test_protoc():
         assert False, "Timeout expired"
     module_content = ""
     try:
-        with open(f"./{proto_name}_pb2.py", "r") as proto_text:
+        with open(class_path, "r") as proto_text:
             module_content = proto_text.read()
             proto_text.close()
         print(module_content)

@@ -5,12 +5,11 @@ Module based on code :
 https://github.com/wearefair/protobuf-to-dict
 LICENSE: https://github.com/wearefair/protobuf-to-dict/blob/master/LICENSE
 """
-
 from dateutil.parser import parse as date_parser
-from frozendict import frozendict
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
+from types import MappingProxyType
 
 import datetime
 
@@ -37,7 +36,7 @@ def timestamp_to_datetime(ts):
 
 EXTENSION_CONTAINER = '___X'
 
-TYPE_CALLABLE_MAP = frozendict({
+TYPE_CALLABLE_MAP = MappingProxyType({
     FieldDescriptor.TYPE_DOUBLE: float,
     FieldDescriptor.TYPE_FLOAT: float,
     FieldDescriptor.TYPE_INT32: int,
@@ -153,7 +152,7 @@ def _get_field_value_adaptor(
     raise TypeError("Field %s.%s has unrecognised type id %d" % (pb.__class__.__name__, field.name, field.type))
 
 
-REVERSE_TYPE_CALLABLE_MAP = frozendict({})
+REVERSE_TYPE_CALLABLE_MAP = MappingProxyType({})
 
 
 def dict_to_protobuf(

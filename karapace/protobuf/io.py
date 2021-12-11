@@ -123,8 +123,8 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str) -> Any:
     if not os.path.isfile(class_path):
         complete = subprocess.run([
             "protoc",
-            f"--python_out={directory}",
-            f"{proto_name}.proto",
+            "--python_out=./",
+            proto_path,
         ], check=True)
         if complete.returncode != 0:
             raise OSError(f"A protoc error code: {complete.returncode}")
