@@ -95,15 +95,12 @@ class ProtobufDatumReader:
         except EOFError:
             # TODO: change exception
             raise IllegalArgumentException("problem with reading binary data")
-        result = []
         if size == 0:
-            result.append(0)
-            return result
-        i = 0
-        while i < size:
-            result.append(self.read_varint(bio))
-            i += 1
-        return result
+            return [0]
+        return [
+            self.read_varint(bio)
+            for _ in range(size)
+        ]
 
     def read(self, bio: BytesIO):
         if self._reader_schema is None:
@@ -111,7 +108,7 @@ class ProtobufDatumReader:
         return protobuf_to_dict(self.read_data(self._writer_schema, self._reader_schema, bio), True)
 
     @staticmethod
-    def find_message_name(schema: ProtobufSchema, indexes: list) -> str:
+    def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
         result: list = []
         types = schema.proto_file_element.types
         for index in indexes:
