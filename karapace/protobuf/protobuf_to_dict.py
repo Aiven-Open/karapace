@@ -282,7 +282,7 @@ def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_da
             pb.Extensions[field] = input_value
             continue
 
-        if field.type == FieldDescriptor.TYPE_ENUM and isinstance(input_value, six.string_types):
+        if field.type == FieldDescriptor.TYPE_ENUM and isinstance(input_value, str):
             input_value = _string_to_enum(field, input_value, strict)
 
         try:
