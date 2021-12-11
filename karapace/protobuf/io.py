@@ -109,15 +109,12 @@ class ProtobufDatumReader:
         except EOFError:
             # TODO: change exception
             raise IllegalArgumentException("problem with reading binary data")
-        result = []
         if size == 0:
-            result.append(0)
-            return result
-        i = 0
-        while i < size:
-            result.append(self.read_varint(bio))
-            i += 1
-        return result
+            return [0]
+        return [
+            self.read_varint(bio)
+            for _ in range(size)
+        ]
 
     def read(self, bio: BytesIO):
         if self.reader_schema is None:
