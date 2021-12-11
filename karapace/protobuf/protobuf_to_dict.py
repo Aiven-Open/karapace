@@ -208,7 +208,7 @@ def _get_field_mapping(pb, dict_value, strict):
             if strict:
                 raise KeyError("%s does not have a extension with number %s. Perhaps you forgot to import it?" % (pb, key))
             continue
-        # pylint: disable=W0212
+        # pylint: disable=protected-access
 
         ext_field = pb._extensions_by_number[ext_num]
         # noinspection PyUnusedLocal
