@@ -19,11 +19,10 @@ __all__ = ["protobuf_to_dict", "TYPE_CALLABLE_MAP", "dict_to_protobuf", "REVERSE
 
 Timestamp_type_name = 'Timestamp'
 
-# pylint: disable=E1101
+# pylint: disable=no-member
 
 
 def datetime_to_timestamp(dt):
-
     ts = Timestamp()
 
     ts.FromDatetime(dt)
@@ -34,6 +33,8 @@ def timestamp_to_datetime(ts):
     dt = ts.ToDatetime()
     return dt
 
+
+# pylint: enable=no-member
 
 EXTENSION_CONTAINER = '___X'
 
@@ -133,7 +134,6 @@ def _get_field_value_adaptor(
     including_default_value_fields=False,
     lowercase_enum_lables=False
 ):
-
     if field.message_type and field.message_type.name == Timestamp_type_name:
         return timestamp_to_datetime
     if field.type == FieldDescriptor.TYPE_MESSAGE:

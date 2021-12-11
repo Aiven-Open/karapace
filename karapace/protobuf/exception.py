@@ -1,10 +1,6 @@
 import json
 
 
-def error(message: str) -> None:
-    raise Exception(message)
-
-
 class ProtobufParserRuntimeException(Exception):
     pass
 

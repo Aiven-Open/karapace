@@ -5,7 +5,7 @@ from builtins import str
 from enum import Enum
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
-from karapace.protobuf.exception import error, IllegalArgumentException
+from karapace.protobuf.exception import IllegalArgumentException, SchemaParseException
 from karapace.protobuf.extend_element import ExtendElement
 from karapace.protobuf.extensions_element import ExtensionsElement
 from karapace.protobuf.field import Field
@@ -96,13 +96,17 @@ class ProtoParser:
                 # TODO: add check for exception?
                 duplicate = next((x for x in iter(self.nested_types) if x.name == declaration.name), None)
                 if duplicate:
-                    error(f"{declaration.name} ({declaration.location}) is already defined at {duplicate.location}")
+                    raise SchemaParseException(
+                        f"{declaration.name} ({declaration.location}) is already defined at {duplicate.location}"
+                    )
                 self.nested_types.append(declaration)
 
             elif isinstance(declaration, ServiceElement):
                 duplicate = next((x for x in iter(self.services) if x.name == declaration.name), None)
                 if duplicate:
-                    error(f"{declaration.name} ({declaration.location}) is already defined at {duplicate.location}")
+                    raise SchemaParseException(
+                        f"{declaration.name} ({declaration.location}) is already defined at {duplicate.location}"
+                    )
                 self.services.append(declaration)
 
             elif isinstance(declaration, OptionElement):
