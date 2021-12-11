@@ -19,7 +19,8 @@
 # limitations under the License.
 
 from io import BytesIO
-from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException, ProtobufTypeException
+from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException, \
+    ProtobufTypeException
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dict
 from karapace.protobuf.schema import ProtobufSchema
@@ -46,10 +47,7 @@ class ProtobufDatumReader:
     @staticmethod
     def check_props(schema_one, schema_two, prop_list):
         try:
-            return all(
-                getattr(schema_one, prop) == getattr(schema_two, prop)
-                for prop in prop_list
-            )
+            return all(getattr(schema_one, prop) == getattr(schema_two, prop) for prop in prop_list)
         except AttributeError:
             return False
 
@@ -60,24 +58,12 @@ class ProtobufDatumReader:
         return str(writer_schema) == str(reader_schema)
 
     def __init__(self, writer_schema=None, reader_schema=None):
+        """ As defined in the Protobuf specification, we call the schema encoded
+        in the data the "writer's schema", and the schema expected by the
+        reader the "reader's schema".
         """
-    As defined in the Protobuf specification, we call the schema encoded
-    in the data the "writer's schema", and the schema expected by the
-    reader the "reader's schema".
-    """
         self._writer_schema = writer_schema
         self._reader_schema = reader_schema
-
-    # read/write properties
-    def set_writer_schema(self, writer_schema):
-        self._writer_schema = writer_schema
-
-    writer_schema = property(lambda self: self._writer_schema, set_writer_schema)
-
-    def set_reader_schema(self, reader_schema):
-        self._reader_schema = reader_schema
-
-    reader_schema = property(lambda self: self._reader_schema, set_reader_schema)
 
     @staticmethod
     def read_varint(bio: BytesIO) -> int:
@@ -93,7 +79,7 @@ class ProtobufDatumReader:
             if len(char) == 0:
                 if read_bytes == 0:
                     return 0
-                raise 'EOF while reading varint, value is %i so far' % varint
+                raise EOFError(f"EOF while reading varint, value is {varint} so far")
 
             byte = ord(char)
             varint += (byte & 0x7F) << (7 * read_bytes)
@@ -120,9 +106,9 @@ class ProtobufDatumReader:
         return result
 
     def read(self, bio: BytesIO):
-        if self.reader_schema is None:
-            self.reader_schema = self.writer_schema
-        return protobuf_to_dict(self.read_data(self.writer_schema, self.reader_schema, bio), True)
+        if self._reader_schema is None:
+            self._reader_schema = self._writer_schema
+        return protobuf_to_dict(self.read_data(self._writer_schema, self._reader_schema, bio), True)
 
     @staticmethod
     def find_message_name(schema: ProtobufSchema, indexes: list) -> str:
@@ -131,7 +117,7 @@ class ProtobufDatumReader:
         for index in indexes:
             try:
                 message = types[index]
-            except Exception:
+            except IndexError:
                 raise IllegalArgumentException(f"Invalid message indexes: {indexes}")
 
             if message and isinstance(message, MessageElement):
@@ -139,12 +125,10 @@ class ProtobufDatumReader:
                 types = message.nested_types
             else:
                 raise IllegalArgumentException(f"Invalid message indexes: {indexes}")
-            result.append(".")
+
         # for java we also need package name. But in case we will use protoc
         # for compiling to python we can ignore it at all
-        if len(result) > 0:
-            result.pop()
-        return "".join(result)
+        return ".".join(result)
 
     def read_data(self, writer_schema, reader_schema, bio: BytesIO):
         # TODO (serge): check and polish it
@@ -223,9 +207,9 @@ class ProtobufDatumWriter:
     def write(self, datum: dict, writer: BytesIO):
         # validate datum
 
-        proto_name = calculate_class_name(str(self.writer_schema))
+        proto_name = calculate_class_name(str(self._writer_schema))
         with open(f"{proto_name}.proto", "w") as proto_text:
-            proto_text.write(str(self.writer_schema))
+            proto_text.write(str(self._writer_schema))
             proto_text.close()
 
         os.system(f"protoc --python_out=./ {proto_name}.proto")
@@ -239,7 +223,7 @@ class ProtobufDatumWriter:
         try:
             dict_to_protobuf(class_instance, datum)
         except Exception:
-            raise ProtobufTypeException(self.writer_schema, datum)
+            raise ProtobufTypeException(self._writer_schema, datum)
 
         writer.write(class_instance.SerializeToString())
 
