@@ -45,4 +45,4 @@ class ProtobufSchemaResolutionException(ProtobufException):
             fail_msg += "\nWriter's Schema: %s" % writer_dump
         if reader_schema:
             fail_msg += "\nReader's Schema: %s" % reader_dump
-        ProtobufException.__init__(self, fail_msg)
+        super().__init__(self, fail_msg)
