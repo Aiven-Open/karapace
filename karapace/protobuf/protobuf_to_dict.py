@@ -104,7 +104,7 @@ def protobuf_to_dict(pb, use_enum_labels=True, including_default_value_fields=Tr
     if including_default_value_fields:
         for field in pb.DESCRIPTOR.fields:
             # Singular message fields and oneof fields will not be affected.
-            if (field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE):
+            if field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE:
                 continue
             if field.containing_oneof:
                 continue
