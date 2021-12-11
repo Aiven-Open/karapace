@@ -154,7 +154,7 @@ def _get_field_value_adaptor(
     raise TypeError("Field %s.%s has unrecognised type id %d" % (pb.__class__.__name__, field.name, field.type))
 
 
-REVERSE_TYPE_CALLABLE_MAP = frozendict({})
+REVERSE_TYPE_CALLABLE_MAP = MappingProxyType({})
 
 
 def dict_to_protobuf(
