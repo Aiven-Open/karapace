@@ -104,7 +104,7 @@ def protobuf_to_dict(pb, use_enum_labels=True, including_default_value_fields=Tr
     if including_default_value_fields:
         for field in pb.DESCRIPTOR.fields:
             # Singular message fields and oneof fields will not be affected.
-            if (field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE):
+            if field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE:
                 continue
             if field.containing_oneof:
                 continue
@@ -202,12 +202,12 @@ def _get_field_mapping(pb, dict_value, strict):
             ext_num = int(ext_num)
         except ValueError:
             raise ValueError("Extension keys must be integers.")
-        # pylint: disable=W0212
+        # pylint: disable=protected-access
         if ext_num not in pb._extensions_by_number:
             if strict:
                 raise KeyError("%s does not have a extension with number %s. Perhaps you forgot to import it?" % (pb, key))
             continue
-        # pylint: disable=W0212
+        # pylint: disable=protected-access
 
         ext_field = pb._extensions_by_number[ext_num]
         # noinspection PyUnusedLocal
