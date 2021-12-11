@@ -1,3 +1,4 @@
+from karapace import config
 from karapace.protobuf.io import calculate_class_name
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from subprocess import PIPE, Popen, TimeoutExpired
@@ -24,10 +25,14 @@ def test_protoc():
                  """
     proto = trim_margin(proto)
 
+    directory = config.DEFAULTS["protobuf_runtime_directory"]
     proto_name = calculate_class_name(str(proto))
+    proto_path = f"{directory}/{proto_name}.proto"
+    class_path = f"{directory}/{proto_name}_pb2.py"
+
     log.info(proto_name)
     try:
-        with open(f"{proto_name}.proto", "w") as proto_text:
+        with open(proto_path, "w") as proto_text:
             proto_text.write(str(proto))
             proto_text.close()
 
@@ -35,7 +40,7 @@ def test_protoc():
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
         assert False, f"Cannot write Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
 
-    args = ["protoc", "--python_out=./", f"{proto_name}.proto"]
+    args = ["protoc", f"--python_out={directory}", f"{proto_name}.proto"]
     try:
         proc = Popen(args, stdout=PIPE, stderr=PIPE, shell=False)
     except FileNotFoundError as e:
@@ -60,6 +65,6 @@ def test_protoc():
         log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
         assert False, f"Cannot read Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
 
-    spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", f"./{proto_name}_pb2.py")
+    spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
     tmp_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tmp_module)
