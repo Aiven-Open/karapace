@@ -51,7 +51,7 @@ TYPE_CALLABLE_MAP = frozendict({
     FieldDescriptor.TYPE_SFIXED32: int,
     FieldDescriptor.TYPE_SFIXED64: int,
     FieldDescriptor.TYPE_BOOL: bool,
-    FieldDescriptor.TYPE_STRING: six.text_type,
+    FieldDescriptor.TYPE_STRING: str,
     FieldDescriptor.TYPE_BYTES: six.binary_type,
     FieldDescriptor.TYPE_ENUM: int,
 })
