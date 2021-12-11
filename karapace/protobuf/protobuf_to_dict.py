@@ -252,7 +252,7 @@ def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_da
                 if field.type == FieldDescriptor.TYPE_MESSAGE:
                     m = pb_value.add()
                     _dict_to_protobuf(m, item, type_callable_map, strict, ignore_none, use_date_parser_for_fields)
-                elif field.type == FieldDescriptor.TYPE_ENUM and isinstance(item, six.string_types):
+                elif field.type == FieldDescriptor.TYPE_ENUM and isinstance(item, str):
                     pb_value.append(_string_to_enum(field, item, strict))
                 else:
                     pb_value.append(item)
