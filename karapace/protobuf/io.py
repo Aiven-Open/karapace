@@ -45,10 +45,13 @@ class ProtobufDatumReader:
 
     @staticmethod
     def check_props(schema_one, schema_two, prop_list):
-        for prop in prop_list:
-            if getattr(schema_one, prop) != getattr(schema_two, prop):
-                return False
-        return True
+        try:
+            return all(
+                getattr(schema_one, prop) == getattr(schema_two, prop)
+                for prop in prop_list
+            )
+        except AttributeError:
+            return False
 
     @staticmethod
     def match_schemas(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) -> bool:
