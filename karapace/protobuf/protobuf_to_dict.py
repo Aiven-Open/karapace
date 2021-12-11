@@ -13,7 +13,6 @@ from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 
 import datetime
-import six
 
 __all__ = ["protobuf_to_dict", "TYPE_CALLABLE_MAP", "dict_to_protobuf", "REVERSE_TYPE_CALLABLE_MAP"]
 
@@ -52,8 +51,8 @@ TYPE_CALLABLE_MAP = frozendict({
     FieldDescriptor.TYPE_SFIXED32: int,
     FieldDescriptor.TYPE_SFIXED64: int,
     FieldDescriptor.TYPE_BOOL: bool,
-    FieldDescriptor.TYPE_STRING: six.text_type,
-    FieldDescriptor.TYPE_BYTES: six.binary_type,
+    FieldDescriptor.TYPE_STRING: str,
+    FieldDescriptor.TYPE_BYTES: bytes,
     FieldDescriptor.TYPE_ENUM: int,
 })
 
@@ -252,7 +251,7 @@ def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_da
                 if field.type == FieldDescriptor.TYPE_MESSAGE:
                     m = pb_value.add()
                     _dict_to_protobuf(m, item, type_callable_map, strict, ignore_none, use_date_parser_for_fields)
-                elif field.type == FieldDescriptor.TYPE_ENUM and isinstance(item, six.string_types):
+                elif field.type == FieldDescriptor.TYPE_ENUM and isinstance(item, str):
                     pb_value.append(_string_to_enum(field, item, strict))
                 else:
                     pb_value.append(item)
@@ -282,7 +281,7 @@ def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_da
             pb.Extensions[field] = input_value
             continue
 
-        if field.type == FieldDescriptor.TYPE_ENUM and isinstance(input_value, six.string_types):
+        if field.type == FieldDescriptor.TYPE_ENUM and isinstance(input_value, str):
             input_value = _string_to_enum(field, input_value, strict)
 
         try:
