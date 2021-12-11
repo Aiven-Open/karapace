@@ -203,7 +203,7 @@ def _get_field_mapping(pb, dict_value, strict):
             ext_num = int(ext_num)
         except ValueError:
             raise ValueError("Extension keys must be integers.")
-        # pylint: disable=W0212
+        # pylint: disable=protected-access
         if ext_num not in pb._extensions_by_number:
             if strict:
                 raise KeyError("%s does not have a extension with number %s. Perhaps you forgot to import it?" % (pb, key))
