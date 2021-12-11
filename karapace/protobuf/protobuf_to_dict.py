@@ -37,7 +37,7 @@ def timestamp_to_datetime(ts):
 
 EXTENSION_CONTAINER = '___X'
 
-TYPE_CALLABLE_MAP = frozendict({
+TYPE_CALLABLE_MAP = MappingProxyType({
     FieldDescriptor.TYPE_DOUBLE: float,
     FieldDescriptor.TYPE_FLOAT: float,
     FieldDescriptor.TYPE_INT32: int,
