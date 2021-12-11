@@ -122,7 +122,7 @@ class ProtobufDatumReader:
         return protobuf_to_dict(self.read_data(self.writer_schema, self.reader_schema, bio), True)
 
     @staticmethod
-    def find_message_name(schema: ProtobufSchema, indexes: list) -> str:
+    def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
         result: list = []
         types = schema.proto_file_element.types
         for index in indexes:
