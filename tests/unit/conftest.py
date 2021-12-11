@@ -21,7 +21,7 @@ class MockClient:
 
 
 class MockProtobufClient:
-    # pylint: disable=W0613
+    # pylint: disable=unused-argument
     def __init__(self, *args, **kwargs):
         pass
 
