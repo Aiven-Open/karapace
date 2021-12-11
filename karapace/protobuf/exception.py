@@ -38,7 +38,7 @@ class SchemaParseException(ProtobufException):
 
 
 class ProtobufSchemaResolutionException(ProtobufException):
-    def __init__(self, fail_msg, writer_schema=None, reader_schema=None):
+    def __init__(self, fail_msg: str, writer_schema=None, reader_schema=None) -> None:
         writer_dump = json.dumps(json.loads(str(writer_schema)), indent=2)
         reader_dump = json.dumps(json.loads(str(reader_schema)), indent=2)
         if writer_schema:
