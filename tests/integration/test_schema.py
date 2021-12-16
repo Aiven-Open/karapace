@@ -2374,9 +2374,9 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
 
-async def test_schema_soft_delete_and_recreate(registry_async_client: Client) -> None:
-    subject = create_subject_name_factory("test_schema_soft_delete_and_recreate")()
-    schema_name = create_schema_name_factory("test_schema_soft_delete_and_recreate")()
+async def test_schema_hard_delete_and_recreate(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_schema_hard_delete_and_recreate")()
+    schema_name = create_schema_name_factory("test_schema_hard_delete_and_recreate")()
 
     res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
     assert res.status == 200
@@ -2413,35 +2413,10 @@ async def test_schema_soft_delete_and_recreate(registry_async_client: Client) ->
     assert "id" in res.json()
     assert schema_id == res.json()["id"], "after soft delete the same schema registered, the same identifier"
 
-
-async def test_schema_hard_delete_and_recreate(registry_async_client: Client) -> None:
-    subject_factory = create_subject_name_factory("test_schema_hard_delete_and_recreate")
-    subject = subject_factory()
-    schema_name = create_schema_name_factory("test_schema_hard_delete_and_recreate")()
-
-    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
-    assert res.status == 200
-    schema = {
-        "type": "record",
-        "name": schema_name,
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second"],
-            },
-            "name": "faa",
-        }]
-    }
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions",
-        json={"schema": jsonlib.dumps(schema)},
-    )
-    assert res.status == 200
-    first_schema_id = res.json()["id"]
-
+    # Soft delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
+    # Hard delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 200
 
@@ -2450,38 +2425,14 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
-    # Recreate after hard delete on all subjects frees the schema, and a new id is used
+    # Recreate with same subject after hard delete
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
         json={"schema": jsonlib.dumps(schema)},
     )
     assert res.status == 200
-    msg = "permanent deleted of the schema on all subjects causes a new identifier to be used"
-    second_schema_id = res.json()["id"]
-    assert first_schema_id != second_schema_id, msg
-
-    # Register the same schema in another subject, this time the schema should not be freed
-    subject_keepalive = subject_factory()
-    res = await registry_async_client.post(
-        f"subjects/{subject_keepalive}/versions",
-        json={"schema": jsonlib.dumps(schema)},
-    )
-    assert res.status == 200
-    assert second_schema_id == res.json()["id"]
-
-    res = await registry_async_client.delete(f"subjects/{subject}")
-    assert res.status_code == 200
-
-    res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
-    assert res.status_code == 200
-
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions",
-        json={"schema": jsonlib.dumps(schema)},
-    )
-    assert res.status == 200
-    msg = "the identifier does not change when the schema is permanent deleted in only one of the subjects"
-    assert second_schema_id == res.json()["id"], msg
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"], "after permanent deleted the same schema registered, the same identifier"
 
 
 async def test_invalid_schema_should_provide_good_error_messages(registry_async_client: Client) -> None:
