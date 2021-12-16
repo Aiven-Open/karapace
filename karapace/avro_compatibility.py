@@ -1,5 +1,5 @@
-from avro.io import Validate  # type: ignore
-from avro.schema import (  # type: ignore
+from avro.io import Validate
+from avro.schema import (
     ARRAY, ArraySchema, BOOLEAN, BYTES, DOUBLE, ENUM, EnumSchema, Field, FIXED, FixedSchema, FLOAT, INT, LONG, MAP,
     MapSchema, NamedSchema, Names, NULL, RECORD, RecordSchema, Schema, SchemaFromJSONData, STRING, UNION, UnionSchema
 )
