@@ -300,10 +300,11 @@ class KafkaSchemaReader(Thread):
             self.log.error("Subject: %r did not exist, should have", subject)
         else:
             self.log.info("Deleting subject: %r, value: %r", subject, value)
-            version = value["version"]
-            for schema in self.subjects[subject]["schemas"].values():
-                if schema["version"] <= version:
-                    schema["deleted"] = True
+            updated_schemas = {
+                key: self._delete_schema_below_version(schema, value["version"])
+                for key, schema in self.subjects[subject]["schemas"].items()
+            }
+            self.subjects[value["subject"]]["schemas"] = updated_schemas
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
         subject, version = key["subject"], key["version"]
@@ -367,6 +368,12 @@ class KafkaSchemaReader(Thread):
             self._handle_msg_delete_subject(key, value)
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
+
+    @staticmethod
+    def _delete_schema_below_version(schema, version):
+        if schema["version"] <= version:
+            schema["deleted"] = True
+        return schema
 
     def get_schemas(self, subject, *, include_deleted=False):
         if include_deleted:
