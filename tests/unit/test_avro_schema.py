@@ -4,8 +4,7 @@
 """
 from avro.schema import ArraySchema, Field, MapSchema, RecordSchema, Schema, UnionSchema
 from karapace.avro_compatibility import (
-    parse_avro_schema_definition, ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType,
-    ValidateSchemaDefaultsException
+    parse_avro_schema_definition, ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 )
 
 import json
@@ -37,135 +36,6 @@ badDefaultNullString = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
     '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
 )
-
-
-def test_schemaregistry_schema_validation():
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(
-            json.dumps({
-                "type": "record",
-                "name": "x",
-                "fields": [{
-                    "name": "y",
-                    "type": {
-                        "name": "z",
-                        "type": "enum",
-                        "symbols": ["A"],
-                        "default": "B"
-                    }
-                }]
-            })
-        )
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(
-            json.dumps({
-                "type": "record",
-                "name": "x",
-                "fields": [{
-                    "name": "y",
-                    "type": {
-                        "name": "z",
-                        "type": "enum",
-                        "symbols": ["A"]
-                    },
-                    "default": "B"
-                }]
-            })
-        )
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(
-            json.dumps({
-                "type": "record",
-                "name": "x",
-                "fields": [{
-                    "name": "y",
-                    "type": {
-                        "name": "z",
-                        "type": "enum",
-                        "symbols": ["A"],
-                        "default": "A"
-                    },
-                    "default": "B"
-                }]
-            })
-        )
-
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(
-            json.dumps({
-                "type": "record",
-                "name": "x",
-                "fields": [{
-                    "name": "y",
-                    "type": "string",
-                    "default": 1
-                }]
-            })
-        )
-
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(
-            json.dumps({
-                "type": "record",
-                "name": "x",
-                "fields": [{
-                    "name": "y",
-                    "type": "int",
-                    "default": "z"
-                }]
-            })
-        )
-
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(json.dumps({"type": "enum", "name": "x", "symbols": ["A", "B"], "default": "C"}))
-
-    parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "x",
-            "fields": [{
-                "name": "y",
-                "type": "string",
-                "default": "z"
-            }]
-        })
-    )
-
-    with pytest.raises(ValidateSchemaDefaultsException):
-        parse_avro_schema_definition(
-            json.dumps({
-                "type": "record",
-                "name": "x",
-                "fields": [{
-                    "name": "y",
-                    "type": ["int", "string", "boolean"],
-                    "default": None,
-                }]
-            })
-        )
-
-    parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "order",
-            "namespace": "example",
-            "fields": [{
-                "name": "someField",
-                "type": [
-                    "string", {
-                        "type": "record",
-                        "name": "someEmbeddedRecord",
-                        "namespace": "example",
-                        "fields": [{
-                            "name": "name",
-                            "type": "string"
-                        }]
-                    }
-                ],
-                "default": "none",
-            }]
-        })
-    )
 
 
 def test_schemaregistry_basic_backwards_compatibility():
