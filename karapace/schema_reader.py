@@ -327,25 +327,15 @@ class KafkaSchemaReader(Thread):
         schema_id = value["id"]
         schema_version = value["version"]
         schema_deleted = value.get("deleted", False)
-
-        # The TypedSchema object must be re-used, otherwise the refcount will be incorrect and the
-        # schema will be freed prematurely
-        typed_schema = self.schemas.get(schema_id)
-
-        if typed_schema is None:
+        try:
+            typed_schema = TypedSchema.parse(schema_type=SchemaType(schema_type), schema_str=schema_str)
+        except InvalidSchema:
             try:
-                typed_schema = TypedSchema.parse(schema_type=SchemaType(schema_type), schema_str=schema_str)
-            except InvalidSchema:
-                try:
-                    schema_json = json.loads(schema_str)
-                    typed_schema = TypedSchema(
-                        schema_type=SchemaType(schema_type),
-                        schema=schema_json,
-                        schema_str=schema_str,
-                    )
-                except JSONDecodeError:
-                    self.log.exception("Invalid schema: %s", schema_str)
-                    return
+                schema_json = json.loads(schema_str)
+                typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema=schema_json, schema_str=schema_str)
+            except JSONDecodeError:
+                self.log.error("Invalid json: %s", schema_str)
+                return
 
         if schema_subject not in self.subjects:
             self.log.info("Adding first version of subject: %r with no schemas", schema_subject)

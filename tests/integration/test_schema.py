@@ -2484,59 +2484,6 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert second_schema_id == res.json()["id"], msg
 
 
-async def test_regression_schema_hard_delete_order_must_not_matter(registry_async_client: Client) -> None:
-    """Regression: A hard delete on the last registered subject would free the schema.
-
-    The correct behavior is to only free the schema after a hard delete on *all* subjects.
-    """
-    subject_factory = create_subject_name_factory("test_schema_hard_delete_regression")
-    first_subject = subject_factory()
-    second_subject = subject_factory()
-    schema_name = create_schema_name_factory("test_schema_hard_delete_regression")()
-
-    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
-    assert res.status == 200
-    schema = {
-        "type": "record",
-        "name": schema_name,
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second"],
-            },
-            "name": "faa",
-        }]
-    }
-    res = await registry_async_client.post(
-        f"subjects/{first_subject}/versions",
-        json={"schema": jsonlib.dumps(schema)},
-    )
-    assert res.status == 200
-    schema_id = res.json()["id"]
-
-    res = await registry_async_client.post(
-        f"subjects/{second_subject}/versions",
-        json={"schema": jsonlib.dumps(schema)},
-    )
-    assert res.status == 200
-    assert schema_id == res.json()["id"]
-
-    # Regression: The hard delete is performed on the last subject the schema was registered
-    res = await registry_async_client.delete(f"subjects/{second_subject}")
-    assert res.status_code == 200
-    res = await registry_async_client.delete(f"subjects/{second_subject}?permanent=true")
-    assert res.status_code == 200
-
-    res = await registry_async_client.post(
-        f"subjects/{second_subject}/versions",
-        json={"schema": jsonlib.dumps(schema)},
-    )
-    assert res.status == 200
-    msg = "the identifier does not change when the schema is permanent deleted in only one of the subjects"
-    assert schema_id == res.json()["id"], msg
-
-
 async def test_invalid_schema_should_provide_good_error_messages(registry_async_client: Client) -> None:
     """The user should receive an informative error message when the format is invalid"""
     subject_name_factory = create_subject_name_factory("test_schema_subject_post_invalid_data")
