@@ -34,13 +34,17 @@ def parse_avro_schema_definition(s: str) -> Schema:
 
 
 class ValidateSchemaDefaultsException(Exception):
-    def __init__(self, schema: Schema, default: Any, path: List[str]) -> None:
-        prefix = ": ".join(path)
-        msg = f"{prefix}: default {default} does not match schema {schema.to_json()}"
-        super().__init__(msg)
+    def __init__(self, schema: Schema, default: Any, path: List[str]):
+        super().__init__(
+            f"{self._build_message_from_validation_path(path)}: default {default} does not match schema {schema.to_json()}"
+        )
+
+    @staticmethod
+    def _build_message_from_validation_path(path: List[str]) -> str:
+        return ": ".join(path)
 
 
-def validate_schema_defaults(schema: Schema) -> None:
+def validate_schema_defaults(schema: Schema):
     """ This function validates that the defaults that are defined in the schema actually
     match their schema. We try to build a proper error message internally and then throw it
     to the user as a readable exception message.
@@ -48,32 +52,11 @@ def validate_schema_defaults(schema: Schema) -> None:
     Consider for example the schema: {'type': 'enum', 'symbols': ['A','B'], 'default':'C'}
     """
 
-    def _validate_field_default(f: Field, acc: List[str]) -> None:
-        """This function validates that the default for a field matches the field type
-
-        From the Avro docs: (Note that when a default value is specified for a record
-        field whose type is a union, the type of the default value must match the first
-        element of the union. Thus, for unions containing "null", the "null" is usually
-        listed first, since the default value of such unions is typically null.)
-        """
-
-        if not f.has_default:
-            return
-
-        if isinstance(f.type, UnionSchema):
-            # select the first schema from the union to validate, if its empty just
-            # raise an exception because no default should match anyway
-            if len(f.type.schemas) == 0:
-                # if the union is empty; no default should match
-                raise ValidateSchemaDefaultsException(f.type, f.default, acc)
-            s = f.type.schemas[0]
-        else:
-            s = f.type
-
-        if not Validate(s, f.default):
+    def _validate_field_default(f: Field, acc: List[str]):
+        if f.has_default and not Validate(f.type, f.default):
             raise ValidateSchemaDefaultsException(f.type, f.default, acc)
 
-    def _validation_crumb(s: Schema) -> str:
+    def _validation_crumb(s: Schema):
         if hasattr(s, 'name'):
             return f"bad {s.type} '{s.name}'"
         return f"bad {s.type}"
