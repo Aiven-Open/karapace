@@ -195,9 +195,11 @@ class KafkaSchemaReader(Thread):
 
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
-            for schema_id, schema in self.schemas.items():
-                if schema == new_schema:
-                    return schema_id
+            schemas = self.schemas.items()
+        for schema_id, schema in schemas:
+            if schema == new_schema:
+                return schema_id
+        with self.id_lock:
             self.global_schema_id += 1
             return self.global_schema_id
 
@@ -341,15 +343,13 @@ class KafkaSchemaReader(Thread):
                 }
             }
             self.log.info("Setting schema_id: %r with schema: %r", schema_id, typed_schema)
-            with self.id_lock:
-                self.schemas[schema_id] = typed_schema
-                self.global_schema_id = max(self.global_schema_id, schema_id)
+            self.schemas[schema_id] = typed_schema
+            if schema_id > self.global_schema_id:  # Not an existing schema
+                self.global_schema_id = schema_id
         elif schema_deleted is True:
             self.log.info("Deleting subject: %r, version: %r", schema_subject, schema_version)
             if schema_version not in self.subjects[schema_subject]["schemas"]:
-                with self.id_lock:
-                    self.schemas[schema_id] = typed_schema
-                    self.global_schema_id = max(self.global_schema_id, schema_id)
+                self.schemas[schema_id] = typed_schema
             else:
                 self.subjects[schema_subject]["schemas"][schema_version]["deleted"] = True
         elif schema_deleted is False:
@@ -363,7 +363,8 @@ class KafkaSchemaReader(Thread):
             self.log.info("Setting schema_id: %r with schema: %r", schema_id, schema_str)
             with self.id_lock:
                 self.schemas[schema_id] = typed_schema
-                self.global_schema_id = max(self.global_schema_id, schema_id)
+            if schema_id > self.global_schema_id:  # Not an existing schema
+                self.global_schema_id = schema_id
 
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
