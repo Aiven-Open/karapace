@@ -61,7 +61,7 @@ def validate_schema_defaults(schema: Schema):
             return f"bad {s.type} '{s.name}'"
         return f"bad {s.type}"
 
-    def _validate_schema_defaults(s: Schema, acc: List[str]) -> None:
+    def _validate_schema_defaults(s: Schema, acc: List[str]):
         _acc = [*acc, _validation_crumb(s)]
 
         if "default" in s.props:
