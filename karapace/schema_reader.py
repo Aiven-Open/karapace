@@ -287,22 +287,6 @@ class KafkaSchemaReader(Thread):
             self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
             self.config["compatibility"] = value["compatibilityLevel"]
 
-    def _handle_msg_delete_subject(self, key: dict, value: Optional[dict]) -> None:  # pylint: disable=unused-argument
-        if value is None:
-            self.log.error("DELETE_SUBJECT record doesnt have a value, should have")
-            return
-
-        subject = value["subject"]
-        if subject not in self.subjects:
-            self.log.error("Subject: %r did not exist, should have", subject)
-        else:
-            self.log.info("Deleting subject: %r, value: %r", subject, value)
-            updated_schemas = {
-                key: self._delete_schema_below_version(schema, value["version"])
-                for key, schema in self.subjects[subject]["schemas"].items()
-            }
-            self.subjects[value["subject"]]["schemas"] = updated_schemas
-
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
             self._handle_msg_config(key, value)
@@ -367,8 +351,16 @@ class KafkaSchemaReader(Thread):
                     self.schemas[value["id"]] = typed_schema
                 if value["id"] > self.global_schema_id:  # Not an existing schema
                     self.global_schema_id = value["id"]
-        elif key["keytype"] == "DELETE_SUBJECT":
-            self._handle_msg_delete_subject(key, value)
+        elif key["keytype"] == "DELETE_SUBJECT" and value:
+            self.log.info("Deleting subject: %r, value: %r", value["subject"], value)
+            if not value["subject"] in self.subjects:
+                self.log.error("Subject: %r did not exist, should have", value["subject"])
+            else:
+                updated_schemas = {
+                    key: self._delete_schema_below_version(schema, value["version"])
+                    for key, schema in self.subjects[value["subject"]]["schemas"].items()
+                }
+                self.subjects[value["subject"]]["schemas"] = updated_schemas
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
 
