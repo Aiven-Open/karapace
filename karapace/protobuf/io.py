@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- mode: python -*-
-# -*- coding: utf-8 -*-
-
 from io import BytesIO
 from karapace import config
 from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException, ProtobufTypeException
@@ -9,28 +5,13 @@ from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dict
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.type_element import TypeElement
-from typing import Any, List
+from typing import Any, Dict, List
 
 import hashlib
 import importlib
 import importlib.util
 import logging
 import os
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 import subprocess
 
 ZERO_BYTE = b'\x00'
@@ -110,24 +91,21 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
     return ".".join(result)
 
 
-def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str) -> Any:
-    directory = config.DEFAULTS["protobuf_runtime_directory"]
+def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Dict) -> Any:
+    directory = cfg["protobuf_runtime_directory"]
     proto_name = calculate_class_name(str(schema))
     proto_path = f"{directory}/{proto_name}.proto"
     class_path = f"{directory}/{proto_name}_pb2.py"
     if not os.path.isfile(proto_path):
         with open(f"{directory}/{proto_name}.proto", "w") as proto_text:
             proto_text.write(str(schema))
-            proto_text.close()
 
     if not os.path.isfile(class_path):
-        complete = subprocess.run([
+        subprocess.run([
             "protoc",
             "--python_out=./",
             proto_path,
         ], check=True)
-        if complete.returncode != 0:
-            raise OSError(f"A protoc error code: {complete.returncode}")
 
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
     tmp_module = importlib.util.module_from_spec(spec)
@@ -144,7 +122,8 @@ def read_data(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio:
 
     indexes = read_indexes(bio)
     name = find_message_name(writer_schema, indexes)
-    class_instance = get_protobuf_class_instance(writer_schema, name)
+
+    class_instance = get_protobuf_class_instance(writer_schema, name, config.DEFAULTS)
     class_instance.ParseFromString(bio.read())
 
     return class_instance
@@ -168,7 +147,6 @@ class ProtobufDatumReader:
 
 
 def write_varint(bio: BytesIO, value: int) -> int:
-
     if value < 0:
         raise ValueError(f"value must not be negative, got {value}")
 
@@ -218,7 +196,7 @@ class ProtobufDatumWriter:
     def write(self, datum: dict, writer: BytesIO):
         # validate datum
 
-        class_instance = get_protobuf_class_instance(self._writer_schema, self._message_name)
+        class_instance = get_protobuf_class_instance(self._writer_schema, self._message_name, config.DEFAULTS)
 
         try:
             dict_to_protobuf(class_instance, datum)

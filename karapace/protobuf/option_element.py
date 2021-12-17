@@ -51,14 +51,14 @@ class OptionElement:
 
     @staticmethod
     def append_options(options: list) -> str:
-        data: list = []
+        data = []
         append_options(data, options)
         return "".join(data)
 
     def format_option_map(self, value: dict) -> str:
         keys = list(value.keys())
         last_index = len(keys) - 1
-        result: list = []
+        result = []
         for index, key in enumerate(keys):
             endl = "," if (index != last_index) else ""
             append_indented(result, f"{key}: {self.format_option_map_value(value[key])}{endl}")
@@ -82,7 +82,7 @@ class OptionElement:
     def format_list_map_value(self, value) -> str:
 
         last_index = len(value) - 1
-        result: list = []
+        result = []
         for index, elm in enumerate(value):
             endl = "," if (index != last_index) else ""
             append_indented(result, f"{self.format_option_map_value(elm)}{endl}")
