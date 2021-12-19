@@ -140,14 +140,14 @@ schema_protobuf_second = """
 |
 |message SensorInfo {
 |  int32 q = 1;
-|  Enum sensor_type = 2;
+|  Enu sensor_type = 2;
 |  repeated int32 nums = 3;
 |  Order order = 4;
 |     message Order {
 |        string item = 1;
 |     }
 |}
-|enum Enum {
+|enum Enu {
 |  HIGH = 0;
 |  MIDDLE = 1;
 |  LOW = 2;
