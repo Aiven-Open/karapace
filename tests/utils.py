@@ -132,6 +132,179 @@ schema_data = {
     "protobuf": (schema_protobuf, test_objects_protobuf)
 }
 
+schema_protobuf_second = """
+|syntax = "proto3";
+|
+|option java_package = "com.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message SensorInfo {
+|  int32 q = 1;
+|  Enum sensor_type = 2;
+|  repeated int32 nums = 3;
+|  Order order = 4;
+|     message Order {
+|        string item = 1;
+|     }
+|}
+|enum Enum {
+|  HIGH = 0;
+|  MIDDLE = 1;
+|  LOW = 2;
+|}
+|
+"""
+schema_protobuf_second = trim_margin(schema_protobuf_second)
+
+test_objects_protobuf_second = [
+    {
+        'q': 1,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 2,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 3,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 4,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 5,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 6,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 7,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 8,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 9,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 10,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 11,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 12,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 13,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 14,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 15,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 16,
+        'sensor_type': 'MIDDLE',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 17,
+        'sensor_type': 'HIGH',
+        'nums': [3, 4, 6],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 18,
+        'sensor_type': 'MIDDLE',
+        'nums': [2, 4, 5, 6, 7, 8, 9],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+]
+
+schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
+
 second_schema_json = json.dumps({
     "namespace": "example.avro.other",
     "type": "record",
