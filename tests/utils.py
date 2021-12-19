@@ -148,9 +148,9 @@ schema_protobuf_second = """
 |     }
 |}
 |enum Enu {
-|  HIGH = 0;
-|  MIDDLE = 1;
-|  LOW = 2;
+|  H1 = 0;
+|  M1 = 1;
+|  L1 = 2;
 |}
 |
 """
@@ -159,7 +159,7 @@ schema_protobuf_second = trim_margin(schema_protobuf_second)
 test_objects_protobuf_second = [
     {
         'q': 1,
-        'sensor_type': 'HIGH',
+        'sensor_type': 'H1',
         'nums': [3, 4],
         'order': {
             'item': 'ABC01223'
@@ -167,7 +167,7 @@ test_objects_protobuf_second = [
     },
     {
         'q': 2,
-        'sensor_type': 'MIDDLE',
+        'sensor_type': 'M1',
         'nums': [2],
         'order': {
             'item': 'ABC01233'
@@ -175,7 +175,7 @@ test_objects_protobuf_second = [
     },
     {
         'q': 3,
-        'sensor_type': 'HIGH',
+        'sensor_type': 'L1',
         'nums': [3, 4],
         'order': {
             'item': 'ABC01223'
