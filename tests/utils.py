@@ -245,62 +245,6 @@ test_objects_protobuf_second = [
             'item': 'ABC01223'
         }
     },
-    {
-        'q': 12,
-        'sensor_type': 'MIDDLE',
-        'nums': [2],
-        'order': {
-            'item': 'ABC01233'
-        }
-    },
-    {
-        'q': 13,
-        'sensor_type': 'HIGH',
-        'nums': [3, 4],
-        'order': {
-            'item': 'ABC01223'
-        }
-    },
-    {
-        'q': 14,
-        'sensor_type': 'MIDDLE',
-        'nums': [2],
-        'order': {
-            'item': 'ABC01233'
-        }
-    },
-    {
-        'q': 15,
-        'sensor_type': 'HIGH',
-        'nums': [3, 4],
-        'order': {
-            'item': 'ABC01223'
-        }
-    },
-    {
-        'q': 16,
-        'sensor_type': 'MIDDLE',
-        'nums': [2],
-        'order': {
-            'item': 'ABC01233'
-        }
-    },
-    {
-        'q': 17,
-        'sensor_type': 'HIGH',
-        'nums': [3, 4, 6],
-        'order': {
-            'item': 'ABC01223'
-        }
-    },
-    {
-        'q': 18,
-        'sensor_type': 'MIDDLE',
-        'nums': [2, 4, 5, 6, 7, 8, 9],
-        'order': {
-            'item': 'ABC01233'
-        }
-    },
 ]
 
 schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
