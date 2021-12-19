@@ -181,7 +181,6 @@ test_objects_protobuf_second = [
             'item': 'ABC01223'
         }
     },
-
 ]
 
 schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
