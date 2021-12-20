@@ -15,11 +15,6 @@ class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
         self.log = logging.getLogger("KarapaceAll")
-        self.app.on_shutdown.append(self.close_by_app)
-
-    async def close_by_app(self, app):
-        # pylint: disable=unused-argument
-        await self.close()
 
 
 def main() -> int:
@@ -48,7 +43,8 @@ def main() -> int:
         print("Both rest and registry options are disabled, exiting")
         return 1
 
-    print("=" * 100 + f"\nStarting {info_str}\n" + "=" * 100)
+    info_str_separator = "=" * 100
+    logging.log(logging.INFO, "\n%s\nStarting %s\n%s", info_str_separator, info_str, info_str_separator)
 
     try:
         kc.run(host=kc.config["host"], port=kc.config["port"])
