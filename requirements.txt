@@ -7,7 +7,6 @@ lz4==3.0.2
 requests==2.23.0
 networkx==2.5
 python-dateutil==2.8.2
-filelock~=3.0.12
 protobuf~=3.14.0
 
 # Patched dependencies
