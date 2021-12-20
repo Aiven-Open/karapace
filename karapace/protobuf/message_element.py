@@ -38,7 +38,7 @@ class MessageElement(TypeElement):
         self.groups = groups or []
 
     def to_schema(self) -> str:
-        result: list = list()
+        result: list = []
         append_documentation(result, self.documentation)
         result.append(f"message {self.name} {{")
         if self.reserveds:
@@ -85,10 +85,10 @@ class MessageElement(TypeElement):
             field: FieldElement
             subfield: FieldElement
             one_of: OneOfElement
-            self_tags: dict = dict()
-            other_tags: dict = dict()
-            self_one_ofs: dict = dict()
-            other_one_ofs: dict = dict()
+            self_tags: dict = {}
+            other_tags: dict = {}
+            self_one_ofs: dict = {}
+            other_one_ofs: dict = {}
 
             for field in self.fields:
                 self_tags[field.tag] = field

@@ -130,7 +130,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
 class Schemas:
     url = requests.get(compatibility_test_url)
     sch = json.loads(url.text)
-    schemas = dict()
+    schemas = {}
     descriptions = []
     max_count = 120
     count = 0

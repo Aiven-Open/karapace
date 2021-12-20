@@ -30,7 +30,7 @@ def add_slashes(text: str) -> str:
 
 
 def message_element_string(element: MessageElement) -> str:
-    result: list = list()
+    result: list = []
     append_documentation(result, element.documentation)
     result.append(f"message {element.name} {{")
     if element.reserveds:

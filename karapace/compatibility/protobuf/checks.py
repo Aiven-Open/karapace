@@ -18,7 +18,7 @@ def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: Protobuf
         return SchemaCompatibilityResult.compatible()
     # TODO: maybe move incompatibility level raising to ProtoFileElement.compatible() ??
 
-    incompatibilities = list()
+    incompatibilities = []
     record: ModificationRecord
     locations: set = set()
     messages: set = set()

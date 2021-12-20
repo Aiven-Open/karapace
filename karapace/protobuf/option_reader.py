@@ -23,8 +23,8 @@ class OptionReader:
             list if no options are present.
         """
         if not self.reader.peek_char('['):
-            return list()
-        result: list = list()
+            return []
+        result: list = []
         while True:
             result.append(self.read_option('='))
 
@@ -95,7 +95,7 @@ class OptionReader:
         """
         if self.reader.read_char() != open_brace:
             raise AssertionError()
-        result: dict = dict()
+        result: dict = {}
         while True:
             if self.reader.peek_char(close_brace):
                 # If we see the close brace, finish immediately. This handles :}/[] and ,}/,] cases.
@@ -107,7 +107,7 @@ class OptionReader:
             if isinstance(value, OptionElement):
                 nested = result.get(name)
                 if not nested:
-                    nested = dict()
+                    nested = {}
                     result[name] = nested
                 nested[value.name] = value.value
             else:
@@ -118,7 +118,7 @@ class OptionReader:
                 elif isinstance(previous, list):  # Add to previous List
                     self.add_to_list(previous, value)
                 else:
-                    new_list: list = list()
+                    new_list: list = []
                     new_list.append(previous)
                     self.add_to_list(new_list, value)
                     result[name] = new_list
@@ -140,7 +140,7 @@ class OptionReader:
         separating values.
         """
         self.reader.require('[')
-        result: list = list()
+        result: list = []
         while True:
             # If we see the close brace, finish immediately. This handles [] and ,] cases.
             if self.reader.peek_char(']'):

@@ -64,7 +64,7 @@ class ProtoType:
             cls.SFIXED64, cls.SINT32, cls.SINT64, cls.STRING, cls.UINT32, cls.UINT64
         ]
 
-        cls.SCALAR_TYPES: dict = dict()
+        cls.SCALAR_TYPES: dict = {}
 
         for a in cls.SCALAR_TYPES_:
             cls.SCALAR_TYPES[a.string] = a
