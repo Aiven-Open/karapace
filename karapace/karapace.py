@@ -39,6 +39,11 @@ class KarapaceBase(RestApp):
         self.app.on_startup.append(self.create_http_client)
         self.master_lock = asyncio.Lock()
         self.log.info("Karapace initialized")
+        self.app.on_shutdown.append(self.close_by_app)
+
+    async def close_by_app(self, app):
+        # pylint: disable=unused-argument
+        await self.close()
 
     def _create_producer(self) -> KafkaProducer:
         while True:

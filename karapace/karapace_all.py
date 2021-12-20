@@ -15,11 +15,6 @@ class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
         self.log = logging.getLogger("KarapaceAll")
-        self.app.on_shutdown.append(self.close_by_app)
-
-    async def close_by_app(self, app):
-        # pylint: disable=unused-argument
-        await self.close()
 
 
 def main() -> int:
