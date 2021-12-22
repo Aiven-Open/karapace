@@ -46,7 +46,6 @@ class KafkaRest(KarapaceBase):
     def _init_kafka_rest(self, config: dict) -> None:
         self.serializer = SchemaRegistrySerializer(config=config)
         self.log = logging.getLogger("KarapaceRest")
-        self.loop = asyncio.get_event_loop()
         self._cluster_metadata = None
         self._metadata_birth = None
         self.metadata_max_age = self.config["admin_metadata_max_age"]
@@ -184,7 +183,6 @@ class KafkaRest(KarapaceBase):
                     security_protocol=self.config["security_protocol"],
                     ssl_context=None if self.config["security_protocol"] == "PLAINTEXT" else create_ssl_context(self.config),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    loop=self.loop,
                     acks=acks,
                     compression_type=self.config["producer_compression_type"],
                     linger_ms=self.config["producer_linger_ms"],
@@ -593,9 +591,7 @@ class KafkaRest(KarapaceBase):
         try:
             prod = await self.get_producer()
             result = await asyncio.wait_for(
-                fut=prod.send_and_wait(topic, key=key, value=value, partition=partition),
-                loop=self.loop,
-                timeout=self.kafka_timeout
+                fut=prod.send_and_wait(topic, key=key, value=value, partition=partition), timeout=self.kafka_timeout
             )
             return {
                 "offset": result.offset if result else -1,

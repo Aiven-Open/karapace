@@ -15,6 +15,7 @@ from typing import Dict, NoReturn, Optional, overload, Union
 
 import aiohttp
 import aiohttp.web
+import aiohttp.web_exceptions
 import aiohttp_socks
 import async_timeout
 import asyncio
@@ -356,6 +357,16 @@ class RestApp:
                 resp = aiohttp.web.Response(text=ex.body, status=ex.status.value, headers=ex.headers)
             else:
                 resp = aiohttp.web.Response(body=ex.body, status=ex.status.value, headers=ex.headers)
+        except aiohttp.web_exceptions.HTTPRequestEntityTooLarge:
+            # This exception is not our usual http response, so to keep a consistent error interface
+            # we construct http response manually here
+            status = HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+            body = json_encode({
+                "error_code": status,
+                "message": "HTTP Request Entity Too Large",
+            }, binary=True)
+            headers = {"Content-Type": "application/json"}
+            resp = aiohttp.web.Response(body=body, status=status.value, headers=headers)
         except asyncio.CancelledError:
             self.log.debug("Client closed connection")
             raise

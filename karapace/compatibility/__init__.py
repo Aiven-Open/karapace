@@ -4,9 +4,9 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from avro.schema import Schema as AvroSchema  # type: ignore
+from avro.schema import Schema as AvroSchema
 from enum import Enum, unique
-from jsonschema import Draft7Validator  # type: ignore
+from jsonschema import Draft7Validator
 from karapace.avro_compatibility import (
     ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityResult, SchemaCompatibilityType,
     SchemaIncompatibilityType
