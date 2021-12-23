@@ -50,7 +50,7 @@ Setup
 Using Docker
 ------------
 
-To get you up and running with the latest release of Karapace, a docker setup is available::
+To get you up and running with the latest build of Karapace, a docker setup is available::
 
     docker-compose -f ./container/docker-compose.yml up -d
 
