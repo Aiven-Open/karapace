@@ -56,7 +56,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
 
   karapace-registry:
-    image: aivenoy/karapace:latest
+    image: ghcr.io/aiven/karapace:develop
     entrypoint:
       - /bin/bash
       - /opt/karapace/start.sh
@@ -78,7 +78,7 @@ services:
       KARAPACE_COMPATIBILITY: FULL
 
   karapace-rest:
-    image: aivenoy/karapace:latest
+    image: ghcr.io/aiven/karapace:develop
     entrypoint:
       - /bin/bash
       - /opt/karapace/start.sh
