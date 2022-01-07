@@ -1,0 +1,57 @@
+name: Create and publish a container image
+
+on:
+  push:
+    # Publish main branch as `develop` image
+    branches:
+      - main
+      - master
+
+    # Publish tags as versioned release and `latest` image
+    tags:
+      - '*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Log in to registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push container image
+        run: |
+          # Image name may contain only lowercase letters
+          IMAGE_ID=$(echo ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} | tr '[A-Z]' '[a-z]')
+
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # If not tag, then use `develop` as image tag
+          [ "$VERSION" == main -o "$VERSION" == master ] && VERSION=develop
+
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+
+          docker build . --file container/Dockerfile \
+              --build-arg "CREATED=$(date --rfc-3339=seconds)" \
+              --build-arg "VERSION=$(git describe --always)" \
+              --build-arg "COMMIT=$(git rev-parse -q --verify HEAD^{commit})" \
+              --tag $IMAGE_ID:$VERSION
+
+          docker push $IMAGE_ID:$VERSION
+
+          if [[ "${{ github.ref }}" == "refs/tags/"* ]];
+          then
+            docker tag $IMAGE_ID:$VERSION $IMAGE_ID:latest
+            docker push $IMAGE_ID:latest
+          fi
