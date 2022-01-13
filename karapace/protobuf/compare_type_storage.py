@@ -98,7 +98,7 @@ class CompareTypes:
             return name[(len(type_record.package_name) + 1):]
         return name
 
-    def lock_message(self, message: object) -> bool:
+    def lock_message(self, message: MessageElement) -> bool:
         if message in self.locked_messages:
             return False
         self.locked_messages.append(message)
