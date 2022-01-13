@@ -1,4 +1,3 @@
-# TODO: PROTOBUF* this functionality must be implemented
 from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from karapace.protobuf.compare_result import CompareResult, ModificationRecord
 from karapace.protobuf.schema import ProtobufSchema
