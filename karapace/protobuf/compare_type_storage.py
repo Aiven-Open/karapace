@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
     string = t.string
 
-    if string.startswith('.'):
+    if string.startswith("."):
         name = string[1:]
         if types.get(name):
             return name
