@@ -76,7 +76,4 @@ class CompareResult:
         self.result.append(record)
 
     def is_compatible(self) -> bool:
-        return all(
-            record.modification.is_compatible()
-            for record in self.result
-        )
+        return all(record.modification.is_compatible() for record in self.result)
