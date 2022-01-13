@@ -41,7 +41,7 @@ class CompareTypes:
     def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict) -> None:
         name: str
         if prefix:
-            name = prefix + '.' + type_element.name
+            name = prefix + "." + type_element.name
         else:
             name = type_element.name
         from karapace.protobuf.message_element import MessageElement
