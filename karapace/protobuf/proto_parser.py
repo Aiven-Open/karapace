@@ -245,7 +245,7 @@ class ProtoParser:
     def read_extend(self, location: Location, documentation: str) -> ExtendElement:
         """ Reads an extend declaration. """
         name = self.reader.read_name()
-        fields: list = []
+        fields = []
         self.reader.require("{")
         while True:
             nested_documentation = self.reader.read_documentation()
@@ -270,7 +270,7 @@ class ProtoParser:
         """ Reads a service declaration and returns it. """
         name = self.reader.read_name()
         rpcs = []
-        options: list = []
+        options = []
         self.reader.require('{')
         while True:
             rpc_documentation = self.reader.read_documentation()
@@ -296,8 +296,8 @@ class ProtoParser:
     def read_enum_element(self, location: Location, documentation: str) -> EnumElement:
         """ Reads an enumerated atype declaration and returns it. """
         name = self.reader.read_name()
-        constants: list = []
-        options: list = []
+        constants = []
+        options = []
         self.reader.require("{")
         while True:
             value_documentation = self.reader.read_documentation()
@@ -354,7 +354,7 @@ class ProtoParser:
         tag = self.reader.read_int()
 
         # Mutable copy to extract the default value, and add packed if necessary.
-        options: list = OptionReader(self.reader).read_options()
+        options = OptionReader(self.reader).read_options()
 
         default_value = self.strip_default(options)
         json_name = self.strip_json_name(options)
@@ -396,9 +396,9 @@ class ProtoParser:
 
     def read_one_of(self, documentation: str) -> OneOfElement:
         name: str = self.reader.read_name()
-        fields: list = []
-        groups: list = []
-        options: list = []
+        fields = []
+        groups = []
+        options = []
 
         self.reader.require("{")
         while True:
@@ -433,7 +433,7 @@ class ProtoParser:
         name = self.reader.read_word()
         self.reader.require("=")
         tag = self.reader.read_int()
-        fields: list = []
+        fields = []
         self.reader.require("{")
 
         while True:
@@ -453,7 +453,7 @@ class ProtoParser:
 
     def read_reserved(self, location: Location, documentation: str) -> ReservedElement:
         """ Reads a reserved tags and names list like "reserved 10, 12 to 14, 'foo';". """
-        values: list = []
+        values = []
         while True:
             ch = self.reader.peek_char()
             if ch in ["\"", "'"]:
@@ -487,7 +487,7 @@ class ProtoParser:
 
     def read_extensions(self, location: Location, documentation: str) -> ExtensionsElement:
         """ Reads extensions like "extensions 101;" or "extensions 101 to max;". """
-        values: list = []
+        values = []
         while True:
             start: int = self.reader.read_int()
             ch = self.reader.peek_char()
@@ -562,7 +562,7 @@ class ProtoParser:
 
         self.reader.require(')')
 
-        options: list = []
+        options = []
         if self.reader.peek_char('{'):
             while True:
                 rpc_documentation = self.reader.read_documentation()

@@ -14,7 +14,7 @@ class ReservedElement:
         self.values = values or []
 
     def to_schema(self) -> str:
-        result: list = []
+        result = []
         append_documentation(result, self.documentation)
         result.append("reserved ")
 

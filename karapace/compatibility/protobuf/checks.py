@@ -1,5 +1,5 @@
 from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
-from karapace.protobuf.compare_result import CompareResult, ModificationRecord
+from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.schema import ProtobufSchema
 
 import logging
@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: ProtobufSchema) -> SchemaCompatibilityResult:
-    result: CompareResult = CompareResult()
+    result = CompareResult()
     log.debug("READER: %s", reader.to_schema())
     log.debug("WRITER: %s", writer.to_schema())
     writer.compare(reader, result)
@@ -18,9 +18,8 @@ def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: Protobuf
     # TODO: maybe move incompatibility level raising to ProtoFileElement.compatible() ??
 
     incompatibilities = []
-    record: ModificationRecord
-    locations: set = set()
-    messages: set = set()
+    locations = set()
+    messages = set()
     for record in result.result:
         if not record.modification.is_compatible():
             incompatibilities.append(record.modification.__str__())

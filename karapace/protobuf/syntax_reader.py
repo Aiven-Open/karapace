@@ -61,7 +61,7 @@ class SyntaxReader:
         if start_quote not in ('"', "'"):
             raise IllegalStateException(" quote expected")
 
-        result: list = []
+        result = []
 
         while self.pos < len(self.data):
             c = self.data[self.pos]
@@ -217,7 +217,7 @@ class SyntaxReader:
             self.pos += 1
         result: str = ""
         if tval == ord('*'):
-            buffer: list = []
+            buffer = []
             start_of_line = True
             while self.pos + 1 < len(self.data):
                 # pylint: disable=no-else-break

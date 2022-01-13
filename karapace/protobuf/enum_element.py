@@ -18,7 +18,7 @@ class EnumElement(TypeElement):
         self.constants = constants or []
 
     def to_schema(self) -> str:
-        result: list = []
+        result = []
         append_documentation(result, self.documentation)
         result.append(f"enum {self.name} {{")
 
@@ -37,8 +37,8 @@ class EnumElement(TypeElement):
         return "".join(result)
 
     def compare(self, other: 'EnumElement', result: CompareResult, types: CompareTypes) -> None:
-        self_tags: dict = {}
-        other_tags: dict = {}
+        self_tags = {}
+        other_tags = {}
         constant: EnumConstantElement
         if types:
             pass

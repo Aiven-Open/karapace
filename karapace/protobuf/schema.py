@@ -30,7 +30,7 @@ def add_slashes(text: str) -> str:
 
 
 def message_element_string(element: MessageElement) -> str:
-    result: list = []
+    result = []
     append_documentation(result, element.documentation)
     result.append(f"message {element.name} {{")
     if element.reserveds:
@@ -113,7 +113,7 @@ class ProtobufSchema:
         return self.cache_string
 
     def to_schema(self) -> str:
-        strings: list = []
+        strings = []
         shm: ProtoFileElement = self.proto_file_element
         if shm.syntax:
             strings.append("syntax = \"")

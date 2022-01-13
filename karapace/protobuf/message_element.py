@@ -38,7 +38,7 @@ class MessageElement(TypeElement):
         self.groups = groups or []
 
     def to_schema(self) -> str:
-        result: list = []
+        result = []
         append_documentation(result, self.documentation)
         result.append(f"message {self.name} {{")
         if self.reserveds:
@@ -85,10 +85,10 @@ class MessageElement(TypeElement):
             field: FieldElement
             subfield: FieldElement
             one_of: OneOfElement
-            self_tags: dict = {}
-            other_tags: dict = {}
-            self_one_ofs: dict = {}
-            other_one_ofs: dict = {}
+            self_tags = {}
+            other_tags = {}
+            self_one_ofs = {}
+            other_one_ofs = {}
 
             for field in self.fields:
                 self_tags[field.tag] = field
@@ -103,7 +103,7 @@ class MessageElement(TypeElement):
                 other_one_ofs[one_of.name] = one_of
 
             for field in other.one_ofs:
-                result.push_path(field.name)
+                result.push_path(str(field.name))
                 convert_count = 0
                 for subfield in field.fields:
                     tag = subfield.tag
@@ -116,7 +116,7 @@ class MessageElement(TypeElement):
 
             # Compare fields
             for tag in chain(self_tags.keys(), other_tags.keys() - self_tags.keys()):
-                result.push_path(tag)
+                result.push_path(str(tag))
 
                 if self_tags.get(tag) is None:
                     result.add_modification(Modification.FIELD_ADD)
@@ -128,7 +128,7 @@ class MessageElement(TypeElement):
                 result.pop_path()
             # Compare OneOfs
             for name in chain(self_one_ofs.keys(), other_one_ofs.keys() - self_one_ofs.keys()):
-                result.push_path(name)
+                result.push_path(str(name))
 
                 if self_one_ofs.get(name) is None:
                     result.add_modification(Modification.ONE_OF_ADD)

@@ -13,7 +13,7 @@ class ExtendElement:
         self.fields = fields or []
 
     def to_schema(self) -> str:
-        result: list = []
+        result = []
         append_documentation(result, self.documentation)
         result.append(f"extend {self.name} {{")
         if self.fields:

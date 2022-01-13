@@ -27,7 +27,7 @@ class RpcElement:
         self.options = options or []
 
     def to_schema(self) -> str:
-        result: list = []
+        result = []
         append_documentation(result, self.documentation)
         result.append(f"rpc {self.name} (")
 

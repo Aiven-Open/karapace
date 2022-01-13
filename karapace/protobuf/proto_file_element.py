@@ -104,10 +104,10 @@ class ProtoFileElement:
         if self.syntax != other.syntax:
             result.add_modification(Modification.SYNTAX_ALTER)
 
-        self_types: dict = {}
-        other_types: dict = {}
-        self_indexes: dict = {}
-        other_indexes: dict = {}
+        self_types = {}
+        other_types = {}
+        self_indexes = {}
+        other_indexes = {}
         compare_types = CompareTypes(self.package_name, other.package_name, result)
         type_: TypeElement
         for i, type_ in enumerate(self.types):
@@ -124,7 +124,7 @@ class ProtoFileElement:
 
         for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
 
-            result.push_path(name, True)
+            result.push_path(str(name), True)
 
             if self_types.get(name) is None and other_types.get(name) is not None:
                 if isinstance(other_types[name], MessageElement):

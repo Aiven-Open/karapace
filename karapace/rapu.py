@@ -197,7 +197,7 @@ class RestApp:
         method = request.method
         default_content = "application/vnd.kafka.json.v2+json"
         default_accept = "*/*"
-        result: dict = {"content_type": default_content}
+        result = {"content_type": default_content}
         content_matcher = REST_CONTENT_TYPE_RE.search(
             cgi.parse_header(request.get_header("Content-Type", default_content))[0]
         )

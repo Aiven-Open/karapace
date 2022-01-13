@@ -25,7 +25,7 @@ class GroupElement:
         self.documentation = documentation
 
     def to_schema(self) -> str:
-        result: list = []
+        result = []
         append_documentation(result, self.documentation)
 
         # TODO: compare lower() to lowercase() and toLowerCase(Locale.US) Kotlin

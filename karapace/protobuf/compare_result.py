@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from enum import auto, Enum
 
 
@@ -38,11 +39,14 @@ class Modification(Enum):
         ]
 
 
+@dataclass
 class ModificationRecord:
-    def __init__(self, modification: Modification, path: str) -> None:
-        self.modification = modification
-        self.path = path
-        if modification.is_compatible():
+    modification: Modification
+    path: str
+    message: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if self.modification.is_compatible():
             self.message = f"Compatible modification {self.modification} found"
         else:
             self.message = f"Incompatible modification {self.modification} found"
@@ -53,14 +57,14 @@ class ModificationRecord:
 
 class CompareResult:
     def __init__(self) -> None:
-        self.result: list = []
-        self.path: list = []
-        self.canonical_name: list = []
+        self.result = []
+        self.path = []
+        self.canonical_name = []
 
-    def push_path(self, string: str, canonical: bool = False) -> None:
+    def push_path(self, name_element: str, canonical: bool = False) -> None:
         if canonical:
-            self.canonical_name.append(str(string))
-        self.path.append(str(string))
+            self.canonical_name.append(name_element)
+        self.path.append(name_element)
 
     def pop_path(self, canonical: bool = False) -> None:
         if canonical:

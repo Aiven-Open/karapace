@@ -24,7 +24,7 @@ class OptionReader:
         """
         if not self.reader.peek_char('['):
             return []
-        result: list = []
+        result = []
         while True:
             result.append(self.read_option('='))
 
@@ -45,7 +45,7 @@ class OptionReader:
         if is_extension:
             name = f"[{name}]"
 
-        sub_names: list = []
+        sub_names = []
         c = self.reader.read_char()
         if c == '.':
             # Read nested field name. For example "baz" in "(foo.bar).baz = 12".
@@ -95,7 +95,7 @@ class OptionReader:
         """
         if self.reader.read_char() != open_brace:
             raise AssertionError()
-        result: dict = {}
+        result = {}
         while True:
             if self.reader.peek_char(close_brace):
                 # If we see the close brace, finish immediately. This handles :}/[] and ,}/,] cases.
@@ -118,7 +118,7 @@ class OptionReader:
                 elif isinstance(previous, list):  # Add to previous List
                     self.add_to_list(previous, value)
                 else:
-                    new_list: list = []
+                    new_list = []
                     new_list.append(previous)
                     self.add_to_list(new_list, value)
                     result[name] = new_list
@@ -140,7 +140,7 @@ class OptionReader:
         separating values.
         """
         self.reader.require('[')
-        result: list = []
+        result = []
         while True:
             # If we see the close brace, finish immediately. This handles [] and ,] cases.
             if self.reader.peek_char(']'):
