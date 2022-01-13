@@ -27,7 +27,6 @@ PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key
 RECORD_CODES = [42201, 42202]
 KNOWN_FORMATS = {"json", "avro", "protobuf", "binary"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
-# TODO: PROTOBUF* check schema mapping
 SCHEMA_MAPPINGS = {"avro": SchemaType.AVRO, "jsonschema": SchemaType.JSONSCHEMA, "protobuf": SchemaType.PROTOBUF}
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
 
