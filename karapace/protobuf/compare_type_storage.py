@@ -17,7 +17,7 @@ def compute_name(t: ProtoType, result_path: List[str], package_name: str, types:
     if package_name:
         canonical_name.insert(0, package_name)
     while len(canonical_name) > 0:
-        pretender: str = ".".join(canonical_name) + '.' + string
+        pretender: str = ".".join(canonical_name) + "." + string
         pt = types.get(pretender)
         if pt is not None:
             return pretender
