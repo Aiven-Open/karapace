@@ -11,7 +11,7 @@ class EnumConstantElement:
         name: str,
         tag: int,
         documentation: str = "",
-        options: list = None,
+        options: Optional[list] = None,
     ) -> None:
         self.location = location
         self.name = name

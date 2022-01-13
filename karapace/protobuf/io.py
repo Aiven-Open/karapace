@@ -60,7 +60,7 @@ def read_varint(bio: BytesIO) -> int:
             return varint
 
 
-def read_indexes(bio: BytesIO):
+def read_indexes(bio: BytesIO) -> List[int]:
     try:
         size: int = read_varint(bio)
     except EOFError:
@@ -72,7 +72,7 @@ def read_indexes(bio: BytesIO):
 
 
 def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
-    result: list = []
+    result: List[str] = []
     types = schema.proto_file_element.types
     for index in indexes:
         try:
@@ -114,7 +114,7 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
     return class_to_call()
 
 
-def read_data(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO):
+def read_data(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO) -> Any:
     # TODO (serge): check and polish it
     if not match_schemas(writer_schema, reader_schema):
         fail_msg = 'Schemas do not match.'

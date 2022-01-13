@@ -36,7 +36,7 @@ class EnumElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: 'EnumElement', result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: "EnumElement", result: CompareResult, types: CompareTypes) -> None:
         self_tags = {}
         other_tags = {}
         constant: EnumConstantElement

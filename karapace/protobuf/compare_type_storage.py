@@ -49,8 +49,8 @@ class CompareTypes:
 
         if isinstance(type_element, MessageElement):  # add support of MapEntry messages
             if "map_entry" in type_element.options:
-                key: Optional[FieldElement] = next((f for f in type_element.fields if f.name == 'key'), None)
-                value: Optional[FieldElement] = next((f for f in type_element.fields if f.name == 'value'), None)
+                key: Optional[FieldElement] = next((f for f in type_element.fields if f.name == "key"), None)
+                value: Optional[FieldElement] = next((f for f in type_element.fields if f.name == "value"), None)
                 types[name] = TypeRecordMap(package_name, type_element, key, value)
             else:
                 types[name] = TypeRecord(package_name, type_element)
