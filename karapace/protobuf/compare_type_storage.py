@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
     string = t.string
 
-    if string.startswith('.'):
+    if string.startswith("."):
         name = string[1:]
         if types.get(name):
             return name
@@ -41,7 +41,7 @@ class CompareTypes:
     def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict) -> None:
         name: str
         if prefix:
-            name = prefix + '.' + type_element.name
+            name = prefix + "." + type_element.name
         else:
             name = type_element.name
         from karapace.protobuf.message_element import MessageElement
