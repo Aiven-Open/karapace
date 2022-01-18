@@ -2,7 +2,7 @@
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumConstantElement.kt
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_options
-from typing import Optional
+from typing import List, Optional
 
 
 class EnumConstantElement:
@@ -12,7 +12,7 @@ class EnumConstantElement:
         name: str,
         tag: int,
         documentation: str = "",
-        options: Optional[list] = None,
+        options: Optional[List[str]] = None,
     ) -> None:
         self.location = location
         self.name = name

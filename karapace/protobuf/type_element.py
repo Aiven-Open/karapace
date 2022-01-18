@@ -2,8 +2,10 @@
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
-from karapace.protobuf.option_element import OptionElement
-from typing import List
+from typing import List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from karapace.protobuf.option_element import OptionElement
 
 
 @dataclass
@@ -11,8 +13,8 @@ class TypeElement:
     location: Location
     name: str
     documentation: str
-    options: List[OptionElement]
-    nested_types: List[object]
+    options: List['OptionElement']
+    nested_types: List['TypeElement']
 
     def to_schema(self) -> str:
         pass

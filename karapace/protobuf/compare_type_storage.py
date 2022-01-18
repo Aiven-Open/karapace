@@ -2,7 +2,11 @@ from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from karapace.protobuf.message_element import MessageElement
+    from karapace.protobuf.field_element import FieldElement
 
 
 def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
@@ -34,8 +38,8 @@ class CompareTypes:
         self.other_package_name = other_package_name
         self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
-        self.locked_messages: List[object] = []
-        self.environment: List[object] = []
+        self.locked_messages: List['MessageElement'] = []
+        self.environment: List['MessageElement'] = []
         self.result = result
 
     def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict) -> None:
@@ -98,13 +102,13 @@ class CompareTypes:
             return name[(len(type_record.package_name) + 1):]
         return name
 
-    def lock_message(self, message: object) -> bool:
+    def lock_message(self, message: 'MessageElement') -> bool:
         if message in self.locked_messages:
             return False
         self.locked_messages.append(message)
         return True
 
-    def unlock_message(self, message: object) -> bool:
+    def unlock_message(self, message: 'MessageElement') -> bool:
         if message in self.locked_messages:
             self.locked_messages.remove(message)
             return True
@@ -118,7 +122,9 @@ class TypeRecord:
 
 
 class TypeRecordMap(TypeRecord):
-    def __init__(self, package_name: str, type_element: TypeElement, key: object, value: object) -> None:
+    def __init__(
+        self, package_name: str, type_element: TypeElement, key: Optional['FieldElement'], value: Optional['FieldElement']
+    ) -> None:
         super().__init__(package_name, type_element)
         try:
             self.key = key

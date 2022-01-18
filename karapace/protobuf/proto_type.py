@@ -130,7 +130,7 @@ class ProtoType:
         """
         return None if self.is_scalar or self.is_map else f"type.googleapis.com/{self.string}"
 
-    def nested_type(self, name: str) -> object:  # ProtoType
+    def nested_type(self, name: str) -> 'ProtoType':
 
         check(not self.is_scalar, "scalar cannot have a nested type")
         check(not self.is_map, "map cannot have a nested type")
@@ -170,7 +170,7 @@ class ProtoType:
         return ProtoType(False, name)
 
     @staticmethod
-    def get3(key_type: 'ProtoType', value_type: 'ProtoType', name: str) -> object:
+    def get3(key_type: 'ProtoType', value_type: 'ProtoType', name: str) -> 'ProtoType':
         return ProtoType(False, name, key_type, value_type)
 
     # schema compatibility check functionality karapace addon

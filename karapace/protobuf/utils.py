@@ -1,6 +1,7 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/Util.kt
 
+from karapace.protobuf.type_element import TypeElement
 from typing import List
 
 
@@ -24,7 +25,7 @@ def append_documentation(data: List[str], documentation: str) -> None:
         data.append("\n")
 
 
-def append_options(data: List[str], options: List[object]) -> None:
+def append_options(data: List[str], options: List[TypeElement]) -> None:
     count = len(options)
     if count == 1:
         data.append('[')
@@ -42,7 +43,7 @@ def append_options(data: List[str], options: List[object]) -> None:
     data.append(']')
 
 
-def try_to_schema(obj: object) -> str:
+def try_to_schema(obj: TypeElement) -> str:
     try:
         return obj.to_schema()
     except AttributeError:
