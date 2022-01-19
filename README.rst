@@ -1,7 +1,7 @@
 Karapace
 ========
 
-``karapace``. Your Kafka essentials in one tool.
+``karapace``. Your Apache Kafka® essentials in one tool.
 
 An `open-source <https://github.com/aiven/karapace/blob/master/LICENSE>`_ implementation
 of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html#features>`_ and
@@ -21,7 +21,7 @@ Karapace supports the storing of schemas in a central repository, which clients 
 serialize and deserialize messages. The schemas also maintain their own version histories and can be
 checked for compatibility between their different respective versions.
 
-Karapace rest provides a RESTful interface to your Kafka cluster, allowing you to perform tasks such
+Karapace rest provides a RESTful interface to your Apache Kafka cluster, allowing you to perform tasks such
 as producing and consuming messages and perform administrative cluster work, all the while using the
 language of the WEB.
 
@@ -460,6 +460,10 @@ Bug reports and patches are very welcome, please post them as GitHub issues
 and pull requests at https://github.com/aiven/karapace .  Any possible
 vulnerabilities or other serious issues should be reported directly to the
 maintainers <opensource@aiven.io>.
+
+Trademark
+=========
+Apache Kafka is either a registered trademark or trademark of the Apache Software Foundation in the United States and/or other countries. Kafka Rest and Schema Registry are trademarks and property of their respective owners. All product and service names used in this page are for identification purposes only and do not imply endorsement. 
 
 Credits
 =======
