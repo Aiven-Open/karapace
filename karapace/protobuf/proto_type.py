@@ -122,8 +122,10 @@ class ProtoType:
 
     @property
     def type_url(self) -> Optional[str]:
-        """ Returns a string like "type.googleapis.com/packagename.messagename" or null if self type is
-        a scalar or a map. Note that self returns a non-null string for enums because it doesn't know
+        """Returns a string like "type.googleapis.com/packagename.messagename" or None if self type is
+        a scalar or a map.
+        
+        Note:: Returns a string for enums because it doesn't know
         if the named type is a message or an enum.
         """
         return None if self.is_scalar or self.is_map else f"type.googleapis.com/{self.string}"
