@@ -10,7 +10,7 @@ from karapace.protobuf.group_element import GroupElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
-from karapace.protobuf.reserved_document import ReservedElement
+from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import List

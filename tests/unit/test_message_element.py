@@ -10,7 +10,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
-from karapace.protobuf.reserved_document import ReservedElement
+from karapace.protobuf.reserved_element import ReservedElement
 
 location: Location = Location.get("file.proto")
 

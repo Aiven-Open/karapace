@@ -140,7 +140,9 @@ class SchemaRegistrySerializerDeserializer:
             namespace = schema_typed.schema.namespace
         if schema_type is SchemaType.JSONSCHEMA:
             namespace = schema_typed.to_json().get("namespace", "dummy")
-        # TODO: PROTOBUF* Seems protobuf does not use namespaces in terms of AVRO
+        #  Protobuf does not use namespaces in terms of AVRO
+        if schema_type is SchemaType.PROTOBUF:
+            namespace = ""
         return f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}"
 
     async def get_schema_for_subject(self, subject: str) -> TypedSchema:

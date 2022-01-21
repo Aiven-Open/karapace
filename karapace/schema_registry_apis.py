@@ -276,7 +276,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
 
-    # TODO: PROTOBUF add protobuf compatibility_check
+    # protobuf compatibility_check
     async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
         body = request.json

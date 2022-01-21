@@ -16,7 +16,7 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
-from karapace.protobuf.reserved_document import ReservedElement
+from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax

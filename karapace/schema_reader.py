@@ -23,7 +23,7 @@ from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
 from threading import Lock, Thread
-from typing import Dict
+from typing import Dict, Optional
 
 import json
 import logging
@@ -88,7 +88,7 @@ class TypedSchema:
             raise InvalidSchema from e
 
     @staticmethod
-    def parse_protobuf(schema_str: str) -> Optional[TypedSchema]:
+    def parse_protobuf(schema_str: str) -> Optional['TypedSchema']:
         try:
             ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
             return ts
@@ -97,6 +97,7 @@ class TypedSchema:
             IllegalArgumentException, ProtobufError, ProtobufException, ProtobufSchemaParseException
         ) as e:
             log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
+            raise InvalidSchema from e
 
     @staticmethod
     def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
