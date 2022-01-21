@@ -182,7 +182,7 @@ class ProtoType:
         return ProtoType(False, name, key_type, value_type)
 
     # schema compatibility check functionality karapace addon
-    # Based on table  https://developers.google.com/protocol-buffers/docs/proto3#scalar """
+    # Based on table https://developers.google.com/protocol-buffers/docs/proto3#scalar
 
     class CompatibilityKind(Enum):
         VARIANT = auto()
