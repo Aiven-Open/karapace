@@ -11,7 +11,7 @@ from karapace.protobuf.extensions_element import ExtensionsElement
 from karapace.protobuf.field import Field
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.group_element import GroupElement
-from karapace.protobuf.kotlin_wrapper import KotlinRange, options_to_list
+from karapace.protobuf.kotlin_wrapper import KotlinRange
 from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.one_of_element import OneOfElement
@@ -371,7 +371,7 @@ class ProtoParser:
             json_name,
             tag,
             documentation,
-            options_to_list(options),
+            options,
         )
 
     def strip_default(self, options: list) -> Union[str, None]:

@@ -1,11 +1,6 @@
-from karapace.protobuf.exception import IllegalArgumentException, IllegalStateException
+from dataclasses import dataclass
 
 import textwrap
-
-
-def check(q: bool, message: str) -> None:
-    if not q:
-        raise IllegalStateException(message)
 
 
 def trim_margin(s: str) -> str:
@@ -28,32 +23,10 @@ def trim_margin(s: str) -> str:
     return "\n".join(new_lines)
 
 
-def require(q: bool, message: str) -> None:
-    if not q:
-        raise IllegalArgumentException(message)
-
-
-def options_to_list(a: list) -> list:
-    # TODO
-    return a
-
-
-class String(str):
-    pass
-
-
-class Any:
-    pass
-
-
-class OptionsList(list):
-    pass
-
-
+@dataclass
 class KotlinRange:
-    def __init__(self, minimum, maximum) -> None:
-        self.minimum = minimum
-        self.maximum = maximum
+    minimum: int
+    maximum: int
 
     def __str__(self) -> str:
         return f"{self.minimum}..{self.maximum}"

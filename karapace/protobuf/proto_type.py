@@ -5,8 +5,7 @@ Names a protocol buffer message, enumerated type, service, map, or a scalar. Thi
 fully-qualified name using the protocol buffer package.
 """
 from enum import auto, Enum
-from karapace.protobuf.exception import IllegalArgumentException
-from karapace.protobuf.kotlin_wrapper import check, require
+from karapace.protobuf.exception import IllegalArgumentException, IllegalStateException
 from karapace.protobuf.option_element import OptionElement
 from typing import Optional
 
@@ -91,13 +90,12 @@ class ProtoType:
                 self.is_scalar = False
                 self.string = string
                 self.is_map = True
-                self.key_type = key_type  # TODO restrict what's allowed here
+                self.key_type = key_type
                 self.value_type = value_type
             else:
-                # TODO: must be IllegalArgumentException
-                raise Exception(f"map key must be non-byte, non-floating point scalar: {key_type}")
+                raise IllegalArgumentException(f"map key must be non-byte, non-floating point scalar: {key_type}")
 
-    def to_kind(self) -> OptionElement.Kind:
+    def to_kind(self) -> Optional[OptionElement.Kind]:
         return {
             "bool": OptionElement.Kind.BOOLEAN,
             "string": OptionElement.Kind.STRING,
@@ -117,7 +115,7 @@ class ProtoType:
         }.get(self.simple_name, OptionElement.Kind.ENUM)
 
     @property
-    def enclosing_type_or_package(self) -> str:
+    def enclosing_type_or_package(self) -> Optional[str]:
         """ Returns the enclosing type, or null if self type is not nested in another type.  """
         dot = self.string.rfind(".")
         return None if (dot == -1) else self.string[:dot]
@@ -132,9 +130,14 @@ class ProtoType:
 
     def nested_type(self, name: str) -> 'ProtoType':
 
-        check(not self.is_scalar, "scalar cannot have a nested type")
-        check(not self.is_map, "map cannot have a nested type")
-        require(name and name.rfind(".") == -1 and len(name) != 0, f"unexpected name: {name}")
+        if self.is_scalar:
+            raise IllegalStateException("scalar cannot have a nested type")
+
+        if self.is_map:
+            raise IllegalStateException("map cannot have a nested type")
+
+        if not (name and name.rfind(".") == -1 and len(name) != 0):
+            raise IllegalArgumentException(f"unexpected name: {name}")
 
         return ProtoType(False, f"{self.string}.{name}")
 
@@ -160,10 +163,13 @@ class ProtoType:
         scalar = ProtoType.SCALAR_TYPES.get(name)
         if scalar:
             return scalar
-        require(name and len(name) != 0 and name.rfind("#") == -1, f"unexpected name: {name}")
+        if not (name and len(name) != 0 and name.rfind("#") == -1):
+            raise IllegalArgumentException(f"unexpected name: {name}")
+
         if name.startswith("map<") and name.endswith(">"):
             comma = name.rfind(",")
-            require(comma != -1, f"expected ',' in map type: {name}")
+            if not comma != -1:
+                raise IllegalArgumentException(f"expected ',' in map type: {name}")
             key = ProtoType.get2(name[4:comma].strip())
             value = ProtoType.get2(name[comma + 1:len(name) - 1].strip())
             return ProtoType(False, name, key, value)

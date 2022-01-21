@@ -1,5 +1,6 @@
 from io import BytesIO
 from karapace import config
+from karapace.protobuf.encoding_variants import read_indexes, write_indexes
 from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException, ProtobufTypeException
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dict
@@ -14,8 +15,6 @@ import logging
 import os
 import subprocess
 
-ZERO_BYTE = b'\x00'
-
 logger = logging.getLogger(__name__)
 
 
@@ -23,52 +22,10 @@ def calculate_class_name(name: str) -> str:
     return "c_" + hashlib.md5(name.encode('utf-8')).hexdigest()
 
 
-def check_props(schema_one, schema_two, prop_list):
-    try:
-        return all(getattr(schema_one, prop) == getattr(schema_two, prop) for prop in prop_list)
-    except AttributeError:
-        return False
-
-
 def match_schemas(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) -> bool:
     # TODO (serge): schema comparison by fields required
 
     return str(writer_schema) == str(reader_schema)
-
-
-def read_varint(bio: BytesIO) -> int:
-    """Read a variable-length integer.
-
-    :returns: Integer
-    """
-    varint = 0
-    read_bytes = 0
-
-    while True:
-        char = bio.read(1)
-        if len(char) == 0:
-            if read_bytes == 0:
-                return 0
-            raise EOFError(f"EOF while reading varint, value is {varint} so far")
-
-        byte = ord(char)
-        varint += (byte & 0x7F) << (7 * read_bytes)
-
-        read_bytes += 1
-
-        if not byte & 0x80:
-            return varint
-
-
-def read_indexes(bio: BytesIO) -> List[int]:
-    try:
-        size: int = read_varint(bio)
-    except EOFError:
-        # TODO: change exception
-        raise IllegalArgumentException("problem with reading binary data")
-    if size == 0:
-        return [0]
-    return [read_varint(bio) for _ in range(size)]
 
 
 def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
@@ -132,7 +89,7 @@ def read_data(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio:
 class ProtobufDatumReader:
     """Deserialize Protobuf-encoded data into a Python data structure."""
 
-    def __init__(self, writer_schema=None, reader_schema=None):
+    def __init__(self, writer_schema: ProtobufSchema = None, reader_schema: ProtobufSchema = None) -> None:
         """ As defined in the Protobuf specification, we call the schema encoded
         in the data the "writer's schema", and the schema expected by the
         reader the "reader's schema".
@@ -146,55 +103,27 @@ class ProtobufDatumReader:
         return protobuf_to_dict(read_data(self._writer_schema, self._reader_schema, bio), True)
 
 
-def write_varint(bio: BytesIO, value: int) -> int:
-    if value < 0:
-        raise ValueError(f"value must not be negative, got {value}")
-
-    if value == 0:
-        bio.write(ZERO_BYTE)
-        return 1
-
-    written_bytes = 0
-    while value > 0:
-        to_write = value & 0x7f
-        value = value >> 7
-
-        if value > 0:
-            to_write |= 0x80
-
-        bio.write(bytearray(to_write)[0])
-        written_bytes += 1
-
-    return written_bytes
-
-
-def write_indexes(bio: BytesIO, indexes: List[int]) -> None:
-    for i in indexes:
-        write_varint(bio, i)
-
-
 class ProtobufDatumWriter:
     """ProtobufDatumWriter for generic python objects."""
 
-    def __init__(self, writer_schema=None):
+    def __init__(self, writer_schema: ProtobufSchema = None):
         self._writer_schema = writer_schema
         a: ProtobufSchema = writer_schema
         el: TypeElement
-        self._message_name = ''
+        self._message_name = ""
         for idx, el in enumerate(a.proto_file_element.types):
             if isinstance(el, MessageElement):
                 self._message_name = el.name
                 self._message_index = idx
                 break
 
-        if self._message_name == '':
+        if self._message_name == "":
             raise ProtobufTypeException("No message in protobuf schema")
 
-    def write_index(self, writer: BytesIO):
+    def write_index(self, writer: BytesIO) -> None:
         write_indexes(writer, [self._message_index])
 
-    def write(self, datum: dict, writer: BytesIO):
-        # validate datum
+    def write(self, datum: dict, writer: BytesIO) -> None:
 
         class_instance = get_protobuf_class_instance(self._writer_schema, self._message_name, config.DEFAULTS)
 

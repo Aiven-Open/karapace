@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.proto_type import ProtoType
@@ -115,10 +116,10 @@ class CompareTypes:
         return False
 
 
+@dataclass
 class TypeRecord:
-    def __init__(self, package_name: str, type_element: TypeElement) -> None:
-        self.package_name = package_name
-        self.type_element = type_element
+    package_name: str
+    type_element: TypeElement
 
 
 class TypeRecordMap(TypeRecord):
@@ -126,11 +127,8 @@ class TypeRecordMap(TypeRecord):
         self, package_name: str, type_element: TypeElement, key: Optional['FieldElement'], value: Optional['FieldElement']
     ) -> None:
         super().__init__(package_name, type_element)
-        try:
-            self.key = key
-            self.value = value
-        except Exception:
-            raise IllegalArgumentException("TypeRecordMap")
+        self.key = key
+        self.value = value
 
     def map_type(self) -> ProtoType:
         return ProtoType.get2(f"map<{self.key.element_type}, {self.value.element_type}>")

@@ -1,15 +1,15 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OptionReader.kt
-
+from dataclasses import dataclass
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.syntax_reader import SyntaxReader
 from typing import Union
 
 
+@dataclass
 class KindAndValue:
-    def __init__(self, kind: OptionElement.Kind, value: object) -> None:
-        self.kind = kind
-        self.value = value
+    kind: OptionElement.Kind
+    value: object
 
 
 class OptionReader:

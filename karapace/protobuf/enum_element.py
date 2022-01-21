@@ -5,13 +5,20 @@ from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.location import Location
+from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import List
 
 
 class EnumElement(TypeElement):
     def __init__(
-        self, location: Location, name: str, documentation: str = "", options: list = None, constants: list = None
+        self,
+        location: Location,
+        name: str,
+        documentation: str = "",
+        options: List[OptionElement] = None,
+        constants: List[EnumConstantElement] = None
     ) -> None:
         # Enums do not allow nested type declarations.
         super().__init__(location, name, documentation, options or [], [])

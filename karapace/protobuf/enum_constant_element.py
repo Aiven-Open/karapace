@@ -1,25 +1,19 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumConstantElement.kt
+from attr import dataclass
 from karapace.protobuf.location import Location
+from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.utils import append_documentation, append_options
-from typing import List, Optional
+from typing import List
 
 
+@dataclass
 class EnumConstantElement:
-    def __init__(
-        self,
-        location: Location,
-        name: str,
-        tag: int,
-        documentation: str = "",
-        options: Optional[List[str]] = None,
-    ) -> None:
-        self.location = location
-        self.name = name
-
-        self.tag = tag
-        self.options = options or []
-        self.documentation = documentation or ""
+    location: Location
+    name: str
+    tag: int
+    documentation: str = ""
+    options: List[OptionElement] = []
 
     def to_schema(self) -> str:
         result = []

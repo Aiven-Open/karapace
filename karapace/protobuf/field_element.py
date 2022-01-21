@@ -7,6 +7,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.utils import append_documentation, append_options
+from typing import List
 
 
 class FieldElement:
@@ -51,7 +52,7 @@ class FieldElement:
 
         return "".join(result)
 
-    def options_with_special_values(self) -> list:
+    def options_with_special_values(self) -> List[OptionElement]:
         """ Both `default` and `json_name` are defined in the schema like options but they are actually
         not options themselves as they're missing from `google.protobuf.FieldOptions`.
         """

@@ -1,17 +1,17 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ExtensionsElement.kt
-
+from dataclasses import dataclass
 from karapace.protobuf.kotlin_wrapper import KotlinRange
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, MAX_TAG_VALUE
+from typing import List, Union
 
 
+@dataclass
 class ExtensionsElement:
-    def __init__(self, location: Location, documentation: str = "", values: list = None) -> None:
-        self.location = location
-        self.documentation = documentation
-        """ An [Int] or [IntRange] tag. """
-        self.values = values or []
+    location: Location
+    documentation: str = ""
+    values: List[Union[int, KotlinRange]] = None
 
     def to_schema(self) -> str:
         result = []
