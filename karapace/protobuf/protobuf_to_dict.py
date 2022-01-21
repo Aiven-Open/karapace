@@ -1,4 +1,3 @@
-# -*- coding:utf-8 -*-
 """
 This module provide a small Python library for creating dicts from protocol buffers
 Module based on code :
