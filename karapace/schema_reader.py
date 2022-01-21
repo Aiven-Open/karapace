@@ -88,7 +88,7 @@ class TypedSchema:
             raise InvalidSchema from e
 
     @staticmethod
-    def parse_protobuf(schema_str: str):
+    def parse_protobuf(schema_str: str) -> Optional[TypedSchema]:
         try:
             ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
             return ts
