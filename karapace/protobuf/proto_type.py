@@ -116,7 +116,7 @@ class ProtoType:
 
     @property
     def enclosing_type_or_package(self) -> Optional[str]:
-        """ Returns the enclosing type, or null if self type is not nested in another type.  """
+        """Returns the enclosing type, or None if self type is not nested in another type."""
         dot = self.string.rfind(".")
         return None if (dot == -1) else self.string[:dot]
 
