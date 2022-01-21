@@ -2,7 +2,7 @@
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
 from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
-from typing import Union
+from typing import Union, NoReturn
 
 
 class SyntaxReader:
@@ -182,11 +182,8 @@ class SyntaxReader:
                 radix = 16
             return int(tag, radix)
 
-        #        except OSError as err:
-        #            print("OS error: {0}".format(err))
         except ValueError:
             self.unexpected(f"expected an integer but was {tag}")
-        return -22  # this return never be called but mypy think we need it
 
     def read_documentation(self) -> str:
         """ Like skip_whitespace(), but this returns a string containing all comment text. By convention,
@@ -360,7 +357,7 @@ class SyntaxReader:
         if not condition:
             self.unexpected(message, location)
 
-    def unexpected(self, message: str, location: Location = None) -> None:
+    def unexpected(self, message: str, location: Location = None) -> NoReturn:
         if not location:
             location = self.location()
         w = f"Syntax error in {str(location)}: {message}"

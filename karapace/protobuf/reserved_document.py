@@ -1,17 +1,18 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ReservedElement.kt
+from dataclasses import dataclass
 
 from karapace.protobuf.kotlin_wrapper import KotlinRange
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation
 
 
+@dataclass
 class ReservedElement:
-    def __init__(self, location: Location, documentation: str = "", values: list = None) -> None:
-        self.location = location
-        self.documentation = documentation
-        """ A [String] name or [Int] or [IntRange] tag. """
-        self.values = values or []
+    location: Location
+    documentation: str = ""
+    """ A [String] name or [Int] or [IntRange] tag. """
+    values: list = None
 
     def to_schema(self) -> str:
         result = []
