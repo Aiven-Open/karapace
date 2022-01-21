@@ -360,7 +360,7 @@ class SyntaxReader:
         if not condition:
             self.unexpected(message, location)
 
-    def unexpected(self, message: str, location: Location = None) -> None:
+    def unexpected(self, message: str, location: Location = None) -> NoReturn:
         if not location:
             location = self.location()
         w = f"Syntax error in {str(location)}: {message}"
