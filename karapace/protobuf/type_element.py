@@ -18,7 +18,7 @@ class TypeElement:
 
     def to_schema(self) -> str:
         """Convert the object to valid protobuf syntax.
-        
+
         This must be implemented by subclasses.
         """
         raise NotImplementedError()

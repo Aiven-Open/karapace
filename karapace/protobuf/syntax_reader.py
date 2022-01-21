@@ -2,7 +2,7 @@
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
 from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
-from typing import Union, NoReturn
+from typing import NoReturn, Union
 
 
 class SyntaxReader:
