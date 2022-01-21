@@ -17,7 +17,11 @@ class TypeElement:
     nested_types: List['TypeElement']
 
     def to_schema(self) -> str:
-        pass
+        """Convert the object to valid protobuf syntax.
+        
+        This must be implemented by subclasses.
+        """
+        raise NotImplementedError()
 
     def __repr__(self) -> str:
         mytype = type(self)
