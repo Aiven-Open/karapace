@@ -3,7 +3,6 @@ from enum import auto, Enum
 
 
 class Modification(Enum):
-    # TODO
     PACKAGE_ALTER = auto()
     SYNTAX_ALTER = auto()
     MESSAGE_ADD = auto()
