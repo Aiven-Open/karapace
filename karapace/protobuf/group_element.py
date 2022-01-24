@@ -21,7 +21,6 @@ class GroupElement:
         result = []
         append_documentation(result, self.documentation)
 
-        # TODO: compare lower() to lowercase() and toLowerCase(Locale.US) Kotlin
         if self.label:
             result.append(f"{str(self.label.name).lower()} ")
         result.append(f"group {self.name} = {self.tag} {{")
