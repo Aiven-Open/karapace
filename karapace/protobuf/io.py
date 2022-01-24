@@ -97,7 +97,7 @@ class ProtobufDatumReader:
         self._writer_schema = writer_schema
         self._reader_schema = reader_schema
 
-    def read(self, bio: BytesIO):
+    def read(self, bio: BytesIO) -> None:
         if self._reader_schema is None:
             self._reader_schema = self._writer_schema
         return protobuf_to_dict(read_data(self._writer_schema, self._reader_schema, bio), True)
