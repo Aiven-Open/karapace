@@ -23,7 +23,7 @@ def calculate_class_name(name: str) -> str:
 
 
 def match_schemas(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) -> bool:
-    # TODO (serge): schema comparison by fields required
+    # TODO (serge): is schema comparison by fields required?
 
     return str(writer_schema) == str(reader_schema)
 
@@ -72,7 +72,6 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
 
 
 def read_data(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO) -> Any:
-    # TODO (serge): check and polish it
     if not match_schemas(writer_schema, reader_schema):
         fail_msg = 'Schemas do not match.'
         raise ProtobufSchemaResolutionException(fail_msg, writer_schema, reader_schema)

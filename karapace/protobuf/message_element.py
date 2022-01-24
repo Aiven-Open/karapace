@@ -139,6 +139,4 @@ class MessageElement(TypeElement):
 
                 result.pop_path()
 
-            # TODO Compare NestedTypes must be there.
-
             types.unlock_message(self)

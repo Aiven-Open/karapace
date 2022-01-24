@@ -15,7 +15,7 @@ def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: Protobuf
     log.debug("IS_COMPATIBLE %s", result.is_compatible())
     if result.is_compatible():
         return SchemaCompatibilityResult.compatible()
-  
+
     incompatibilities = []
     locations = set()
     messages = set()
