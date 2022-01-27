@@ -68,8 +68,8 @@ NAME_STRATEGIES = {
 
 
 class SchemaRegistryClient:
-    def __init__(self, schema_registry_url: str = "http://localhost:8081"):
-        self.client = Client(server_uri=schema_registry_url)
+    def __init__(self, schema_registry_url: str = "http://localhost:8081", server_ca: Optional[str] = None):
+        self.client = Client(server_uri=schema_registry_url, server_ca=server_ca)
         self.base_url = schema_registry_url
 
     async def post_new_schema(self, subject: str, schema: TypedSchema) -> int:
@@ -121,8 +121,12 @@ class SchemaRegistrySerializerDeserializer:
     ) -> None:
         self.config = config
         self.state_lock = asyncio.Lock()
-        registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
-        registry_client = SchemaRegistryClient(registry_url)
+        if self.config.get("registry_ca"):
+            registry_url = f"https://{self.config['registry_host']}:{self.config['registry_port']}"
+            registry_client = SchemaRegistryClient(registry_url, server_ca=self.config["registry_ca"])
+        else:
+            registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
+            registry_client = SchemaRegistryClient(registry_url)
         self.subject_name_strategy = NAME_STRATEGIES[name_strategy]
         self.registry_client: Optional[SchemaRegistryClient] = registry_client
         self.ids_to_schemas: Dict[int, TypedSchema] = {}
