@@ -64,4 +64,3 @@ MAX_TAG_VALUE = ((1 << 29) & 0xffffffffffffffff) - 1  # 536,870,911
 
 RESERVED_TAG_VALUE_START = 19000
 RESERVED_TAG_VALUE_END = 19999
-""" True if the supplied value is in the valid tag range and not reserved.  """
