@@ -88,10 +88,6 @@ test: lint copyright unittest
 isort:
 	pre-commit run isort --all-files
 
-.PHONY: yapf
-yapf:
-	pre-commit run yapf --all-files
-
 .PHONY: reformat
 reformat: isort black
 
