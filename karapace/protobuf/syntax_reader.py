@@ -173,7 +173,7 @@ class SyntaxReader:
         self.expect(start < self.pos, "expected a word")
         return self.data[start:self.pos]
 
-    def read_int(self) -> int:
+    def read_int(self) -> int:  # pylint: disable=inconsistent-return-statements
         """ Reads an integer and returns it. """
         tag: str = self.read_word()
         try:

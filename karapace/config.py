@@ -101,7 +101,7 @@ def read_config(config_handler: IO) -> Config:
         config = set_config_defaults(config)
         return config
     except Exception as ex:
-        raise InvalidConfiguration(ex)
+        raise InvalidConfiguration(ex)  # pylint: disable=raise-missing-from
 
 
 def create_ssl_context(config: Config) -> ssl.SSLContext:
@@ -127,7 +127,6 @@ def create_ssl_context(config: Config) -> ssl.SSLContext:
         if not hasattr(ssl, 'VERIFY_CRL_CHECK_LEAF'):
             raise RuntimeError('This version of Python does not support ssl_crlfile!')
         ssl_context.load_verify_locations(config['ssl_crlfile'])
-        # pylint: disable=no-member
         ssl_context.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
     if config.get('ssl_ciphers'):
         ssl_context.set_ciphers(config['ssl_ciphers'])

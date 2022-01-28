@@ -83,11 +83,11 @@ class HTTPRequest:
         self.json = None
 
     @overload
-    def get_header(self, header: str) -> Optional[str]:  # pylint: disable=no-self-use
+    def get_header(self, header: str) -> Optional[str]:
         ...
 
     @overload
-    def get_header(self, header: str, default_value: str) -> str:  # pylint: disable=no-self-use
+    def get_header(self, header: str, default_value: str) -> str:
         ...
 
     def get_header(self, header, default_value=None):
@@ -286,11 +286,11 @@ class RestApp:
                     body_string = body.decode(charset)
                     rapu_request.json = jsonlib.loads(body_string)
                 except jsonlib.decoder.JSONDecodeError:
-                    raise HTTPResponse(body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST)
+                    raise HTTPResponse(body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST)  # pylint: disable=raise-missing-from
                 except UnicodeDecodeError:
-                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST)
+                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST)  # pylint: disable=raise-missing-from
                 except LookupError:
-                    raise HTTPResponse(body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST)
+                    raise HTTPResponse(body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST)  # pylint: disable=raise-missing-from
             else:
                 if body not in {b"", b"{}"}:
                     raise HTTPResponse(body="No request body allowed for this operation", status=HTTPStatus.BAD_REQUEST)
