@@ -1,6 +1,7 @@
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
+from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Client
 from typing import Callable, List
 from urllib.parse import quote
@@ -64,10 +65,125 @@ test_objects_avro = [
     },
 ]
 
+# protobuf schemas in tests must be filtered by  trim_margin() from kotlin_wrapper module
+
+schema_protobuf = """
+|syntax = "proto3";
+|
+|option java_package = "com.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message Message {
+|  int32 query = 1;
+|  Enum speed = 2;
+|}
+|enum Enum {
+|  HIGH = 0;
+|  MIDDLE = 1;
+|  LOW = 2;
+|}
+|
+"""
+schema_protobuf = trim_margin(schema_protobuf)
+
+schema_protobuf2 = """
+|syntax = "proto3";
+|
+|option java_package = "com.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message Message {
+|  int32 query = 1;
+|}
+|enum Enum {
+|  HIGH = 0;
+|  MIDDLE = 1;
+|  LOW = 2;
+|}
+|
+"""
+schema_protobuf2 = trim_margin(schema_protobuf2)
+
+test_objects_protobuf = [
+    {
+        'query': 5,
+        'speed': 'HIGH'
+    },
+    {
+        'query': 10,
+        'speed': 'MIDDLE'
+    },
+]
+
+test_fail_objects_protobuf = [
+    {
+        'query': 'STR',
+        'speed': 99
+    },
+    {
+        'xx': 10,
+        'bb': 'MIDDLE'
+    },
+]
+
 schema_data = {
     "avro": (schema_avro_json, test_objects_avro),
-    "jsonschema": (schema_jsonschema_json, test_objects_jsonschema)
+    "jsonschema": (schema_jsonschema_json, test_objects_jsonschema),
+    "protobuf": (schema_protobuf, test_objects_protobuf)
 }
+
+schema_protobuf_second = """
+|syntax = "proto3";
+|
+|option java_package = "com.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message SensorInfo {
+|  int32 q = 1;
+|  Enu sensor_type = 2;
+|  repeated int32 nums = 3;
+|  Order order = 4;
+|     message Order {
+|        string item = 1;
+|     }
+|}
+|enum Enu {
+|  H1 = 0;
+|  M1 = 1;
+|  L1 = 2;
+|}
+|
+"""
+schema_protobuf_second = trim_margin(schema_protobuf_second)
+
+test_objects_protobuf_second = [
+    {
+        'q': 1,
+        'sensor_type': 'H1',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+    {
+        'q': 2,
+        'sensor_type': 'M1',
+        'nums': [2],
+        'order': {
+            'item': 'ABC01233'
+        }
+    },
+    {
+        'q': 3,
+        'sensor_type': 'L1',
+        'nums': [3, 4],
+        'order': {
+            'item': 'ABC01223'
+        }
+    },
+]
+
+schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
 
 second_schema_json = json.dumps({
     "namespace": "example.avro.other",
@@ -98,6 +214,10 @@ REST_HEADERS = {
         "Content-Type": "application/vnd.kafka.avro.v2+json",
         "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*"
     },
+    "protobuf": {
+        "Content-Type": "application/vnd.kafka.protobuf.v2+json",
+        "Accept": "application/vnd.kafka.protobuf.v2+json, application/vnd.kafka.v2+json, application/json, */*"
+    }
 }
 
 

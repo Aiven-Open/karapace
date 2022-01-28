@@ -14,11 +14,16 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.avro_compatibility import parse_avro_schema_definition
+from karapace.protobuf.exception import (
+    Error as ProtobufError, IllegalArgumentException, IllegalStateException, ProtobufException,
+    ProtobufParserRuntimeException, SchemaParseException as ProtobufSchemaParseException
+)
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode, KarapaceKafkaClient
 from queue import Queue
 from threading import Lock, Thread
-from typing import Dict
+from typing import Dict, Optional
 
 import json
 import logging
@@ -36,6 +41,17 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     schema = json.loads(schema_definition)
     Draft7Validator.check_schema(schema)
     return Draft7Validator(schema)
+
+
+def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
+    """ Parses and validates `schema_definition`.
+
+    Raises:
+        Nothing yet.
+
+    """
+
+    return ProtobufSchema(schema_definition)
 
 
 class InvalidSchema(Exception):
@@ -72,11 +88,25 @@ class TypedSchema:
             raise InvalidSchema from e
 
     @staticmethod
+    def parse_protobuf(schema_str: str) -> Optional['TypedSchema']:
+        try:
+            ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
+            return ts
+        except (
+            TypeError, SchemaError, AssertionError, ProtobufParserRuntimeException, IllegalStateException,
+            IllegalArgumentException, ProtobufError, ProtobufException, ProtobufSchemaParseException
+        ) as e:
+            log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
+            raise InvalidSchema from e
+
+    @staticmethod
     def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
         if schema_type is SchemaType.AVRO:
             return TypedSchema.parse_avro(schema_str)
         if schema_type is SchemaType.JSONSCHEMA:
             return TypedSchema.parse_json(schema_str)
+        if schema_type is SchemaType.PROTOBUF:
+            return TypedSchema.parse_protobuf(schema_str)
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
     def to_json(self):
@@ -84,12 +114,18 @@ class TypedSchema:
             return self.schema.schema
         if isinstance(self.schema, AvroSchema):
             return self.schema.to_json(names=None)
+        if isinstance(self.schema, ProtobufSchema):
+            raise InvalidSchema("Protobuf do not support to_json serialization")
         return self.schema
 
     def __str__(self) -> str:
+        if isinstance(self.schema, ProtobufSchema):
+            return str(self.schema)
         return json_encode(self.to_json(), compact=True)
 
     def __repr__(self):
+        if isinstance(self.schema, ProtobufSchema):
+            return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
         return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
 
     def __eq__(self, other):

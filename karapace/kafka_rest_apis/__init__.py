@@ -25,9 +25,9 @@ import time
 RECORD_KEYS = ["key", "value", "partition"]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
 RECORD_CODES = [42201, 42202]
-KNOWN_FORMATS = {"json", "avro", "binary"}
+KNOWN_FORMATS = {"json", "avro", "protobuf", "binary"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
-SCHEMA_MAPPINGS = {"avro": SchemaType.AVRO, "jsonschema": SchemaType.JSONSCHEMA}
+SCHEMA_MAPPINGS = {"avro": SchemaType.AVRO, "jsonschema": SchemaType.JSONSCHEMA, "protobuf": SchemaType.PROTOBUF}
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
 
 
@@ -536,7 +536,7 @@ class KafkaRest(KarapaceBase):
             return json.dumps(obj).encode("utf8")
         if ser_format == "binary":
             return base64.b64decode(obj)
-        if ser_format in {"avro", "jsonschema"}:
+        if ser_format in {"avro", "jsonschema", "protobuf"}:
             return await self.schema_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
 
@@ -565,7 +565,7 @@ class KafkaRest(KarapaceBase):
                     sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                 )
         # disallow missing id and schema for any key/value list that has at least one populated element
-        if formats["embedded_format"] in {"avro", "jsonschema"}:
+        if formats["embedded_format"] in {"avro", "jsonschema", "protobuf"}:
             for prefix, code in zip(RECORD_KEYS, RECORD_CODES):
                 if self.all_empty(data, prefix):
                     continue

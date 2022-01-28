@@ -52,7 +52,8 @@ DEFAULTS = {
     "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
-    "master_election_strategy": "lowest"
+    "master_election_strategy": "lowest",
+    "protobuf_runtime_directory": "runtime",
 }
 DEFAULT_LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 
