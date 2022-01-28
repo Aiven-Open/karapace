@@ -10,9 +10,7 @@ class IllegalStateException(Exception):
 
 
 class IllegalArgumentException(Exception):
-    def __init__(self, message="IllegalArgumentException") -> None:
-        self.message = message
-        super().__init__(self.message)
+    pass
 
 
 class Error(Exception):
