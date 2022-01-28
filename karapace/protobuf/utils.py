@@ -45,7 +45,7 @@ def try_to_schema(obj: 'OptionElement') -> str:
     except AttributeError:
         if isinstance(obj, str):
             return obj
-        raise AttributeError
+        raise
 
 
 def append_indented(data: List[str], value: str) -> None:

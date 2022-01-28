@@ -80,7 +80,7 @@ class TypedSchema:
             raise InvalidSchema from e
 
     @staticmethod
-    def parse_avro(schema_str: str):  # pylint: disable=inconsistent-return-statements
+    def parse_avro(schema_str: str):
         try:
             ts = TypedSchema(parse_avro_schema_definition(schema_str), SchemaType.AVRO, schema_str)
             return ts

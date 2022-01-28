@@ -4,6 +4,7 @@ max-line-length = 125
 # Style issues are handled by yapf formatting
 ignore =
   E126,  # continuation line over-indented for hanging indent
+  E501,  # line length handled by yapf
   W503,  # line break before binary operator
   E251,  # unexpected spaces around keyword / parameter equals
   E722,  # do not use bare 'except' (pylint handles this)

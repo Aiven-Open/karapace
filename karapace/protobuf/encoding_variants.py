@@ -35,6 +35,7 @@ def read_indexes(bio: BytesIO) -> List[int]:
         size: int = read_varint(bio)
     except EOFError:
         # TODO: change exception
+        # pylint: disable=raise-missing-from
         raise IllegalArgumentException("problem with reading binary data")
     if size == 0:
         return [0]

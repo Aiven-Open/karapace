@@ -113,10 +113,12 @@ class SchemaCoordinator(BaseCoordinator):
         else:
             self.master_url = master_url
             self.are_we_master = False
+        # pylint: disable=super-with-arguments
         return super(SchemaCoordinator, self)._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
     def _on_join_follower(self):
         self.log.info("We are a follower, not a master")
+        # pylint: disable=super-with-arguments
         return super(SchemaCoordinator, self)._on_join_follower()
 
 
