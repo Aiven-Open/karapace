@@ -1,10 +1,10 @@
 [flake8]
 max-line-length = 125
 
-# Style issues are handled by yapf formatting
+# E203,W503: incompatibilities with black
+# E722: also signaled by pylint (disabling here globally and on case-by-case basis with pylint)
 ignore =
-  E126,  # continuation line over-indented for hanging indent
-  E501,  # line length handled by yapf
+  E501,  # line length
+  E203,  # whitespace before ':'
   W503,  # line break before binary operator
-  E251,  # unexpected spaces around keyword / parameter equals
-  E722,  # do not use bare 'except' (pylint handles this)
+  E722,  # do not use bare 'except'
