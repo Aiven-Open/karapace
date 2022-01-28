@@ -12,6 +12,7 @@ from karapace.avro_compatibility import (
     SchemaIncompatibilityType
 )
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
+from karapace.compatibility.protobuf.checks import check_protobuf_schema_compatibility
 from karapace.schema_reader import SchemaType, TypedSchema
 
 import logging
@@ -61,6 +62,10 @@ def check_avro_compatibility(reader_schema: AvroSchema, writer_schema: AvroSchem
 
 def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
     return jsonschema_compatibility(reader, writer)
+
+
+def check_protobuf_compatibility(reader, writer) -> SchemaCompatibilityResult:
+    return check_protobuf_schema_compatibility(reader, writer)
 
 
 def check_compatibility(
@@ -127,6 +132,28 @@ def check_compatibility(
                     writer=new_schema.schema,
                 )
             )
+
+    elif old_schema.schema_type is SchemaType.PROTOBUF:
+        if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
+            result = check_protobuf_compatibility(
+                reader=new_schema.schema,
+                writer=old_schema.schema,
+            )
+        elif compatibility_mode in {CompatibilityModes.FORWARD, CompatibilityModes.FORWARD_TRANSITIVE}:
+            result = check_protobuf_compatibility(
+                reader=old_schema.schema,
+                writer=new_schema.schema,
+            )
+
+        elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
+            result = check_protobuf_compatibility(
+                reader=new_schema.schema,
+                writer=old_schema.schema,
+            )
+            result = result.merged_with(check_protobuf_compatibility(
+                reader=old_schema.schema,
+                writer=new_schema.schema,
+            ))
 
     else:
         result = SchemaCompatibilityResult.incompatible(

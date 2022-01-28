@@ -276,6 +276,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
 
+    # protobuf compatibility_check
     async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
         body = request.json
@@ -377,7 +378,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(subject_versions, content_type)
 
     async def schemas_types(self, content_type):
-        self.r(["JSON", "AVRO"], content_type)
+        self.r(["JSON", "AVRO", "PROTOBUF"], content_type)
 
     async def config_get(self, content_type):
         # Note: The format sent by the user differs from the return value, this
@@ -669,7 +670,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     def _validate_schema_type(self, content_type, body) -> None:
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
-        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO}:
+        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO, SchemaType.PROTOBUF}:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
@@ -845,10 +846,17 @@ class KarapaceSchemaRegistry(KarapaceBase):
             # We didn't find an existing schema and the schema is compatible so go and create one
             schema_id = self.ksr.get_schema_id(new_schema)
             version = max(self.ksr.subjects[subject]["schemas"]) + 1
-            self.log.info(
-                "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id, version,
-                new_schema.to_json(), schema_id
-            )
+            if new_schema.schema_type is SchemaType.PROTOBUF:
+                self.log.info(
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
+                    version, new_schema.__str__(), schema_id
+                )
+            else:
+                self.log.info(
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
+                    version, new_schema.to_json(), schema_id
+                )
+
         self.send_schema_message(
             subject=subject,
             schema=new_schema,

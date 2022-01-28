@@ -6,6 +6,8 @@ jsonschema==3.2.0
 lz4==3.0.2
 requests==2.23.0
 networkx==2.5
+python-dateutil==2.8.2
+protobuf~=3.14.0
 
 # Patched dependencies
 #
@@ -16,4 +18,4 @@ networkx==2.5
 #   images and forces a new image generation.
 #
 git+https://github.com/aiven/avro.git@513b153bac5040af6bba5847aef202adb680b67b#subdirectory=lang/py3/
-git+git://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
+git+https://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
