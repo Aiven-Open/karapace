@@ -452,11 +452,6 @@ def test_invalid_trailing_comment():
         |}
         """
     proto = trim_margin(proto)
-    # try :
-    #   ProtoParser.parse(location, proto)
-    # except IllegalStateException as e :
-    #    if e.message != "Syntax error in file.proto:2:12: expected '//' or '/*'" :
-    #        pytest.fail("")
 
     with pytest.raises(IllegalStateException) as re:
         # TODO: this test in Kotlin source contains "2:13:" Need compile square.wire and check how it can be?
