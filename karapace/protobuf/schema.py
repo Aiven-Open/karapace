@@ -135,7 +135,6 @@ class ProtobufSchema:
         if shm.options:
             strings.append("\n")
             for option in shm.options:
-                # strings.append(str(option.to_schema_declaration()))
                 strings.append(option_element_string(option))
 
         if shm.types:
