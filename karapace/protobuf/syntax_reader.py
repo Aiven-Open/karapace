@@ -59,7 +59,7 @@ class SyntaxReader:
     def read_quoted_string(self) -> str:
         start_quote = self.read_char()
         if start_quote not in ('"', "'"):
-            raise IllegalStateException(" quote expected")
+            raise IllegalStateException("quote expected")
 
         result = []
 
@@ -205,7 +205,7 @@ class SyntaxReader:
     def read_comment(self) -> str:
         """ Reads a comment and returns its body. """
         if self.pos == len(self.data) or self.data[self.pos] != '/':
-            raise IllegalStateException()
+            raise IllegalStateException("comment expected")
 
         self.pos += 1
         tval = -1
@@ -360,5 +360,4 @@ class SyntaxReader:
     def unexpected(self, message: str, location: Location = None) -> NoReturn:
         if not location:
             location = self.location()
-        w = f"Syntax error in {str(location)}: {message}"
-        raise IllegalStateException(w)
+        raise IllegalStateException(f"Syntax error in {str(location)}: {message}")
