@@ -4,6 +4,7 @@ jobs=4
 [MESSAGES CONTROL]
 disable=
   bad-continuation,
+  duplicate-code,
   fixme,
   import-outside-toplevel,
   invalid-name,

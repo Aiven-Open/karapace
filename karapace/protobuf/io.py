@@ -35,6 +35,7 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
         try:
             message = types[index]
         except IndexError:
+            # pylint: disable=raise-missing-from
             raise IllegalArgumentException(f"Invalid message indexes: {indexes}")
 
         if message and isinstance(message, MessageElement):
@@ -129,6 +130,7 @@ class ProtobufDatumWriter:
         try:
             dict_to_protobuf(class_instance, datum)
         except Exception:
+            # pylint: disable=raise-missing-from
             raise ProtobufTypeException(self._writer_schema, datum)
 
         writer.write(class_instance.SerializeToString())

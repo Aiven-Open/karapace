@@ -199,6 +199,7 @@ def _get_field_mapping(pb, dict_value, strict):
         try:
             ext_num = int(ext_num)
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise ValueError("Extension keys must be integers.")
         # pylint: disable=protected-access
         if ext_num not in pb._extensions_by_number:
@@ -295,6 +296,7 @@ def _string_to_enum(field, input_value, strict=False):
         input_value = field.enum_type.values_by_name[input_value].number
     except KeyError:
         if strict:
+            # pylint: disable=raise-missing-from
             raise KeyError("`%s` is not a valid value for field `%s`" % (input_value, field.name))
         return _string_to_enum(field, input_value.upper(), strict=True)
     return input_value
@@ -328,7 +330,7 @@ def validate_dict_for_required_pb_fields(pb, dic):
     Take a look at the tests for an example.
     """
     missing_fields = []
-    for field, field_name, field_options in get_field_names_and_options(pb):
+    for _field, field_name, field_options in get_field_names_and_options(pb):
         if not field_options.get('is_optional', False) and field_name not in dic:
             missing_fields.append(field_name)
     if missing_fields:
