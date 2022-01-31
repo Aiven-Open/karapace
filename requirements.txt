@@ -35,5 +35,5 @@ multidict==6.0.2
 pyrsistent==0.18.1
 python-socks==2.0.3
 six==1.16.0
-urllib3==1.25.11
+urllib3==1.26.5
 yarl==1.7.2
