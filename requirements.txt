@@ -1,7 +1,7 @@
 # PyPI dependencies
 accept-types==0.4.1
 aiohttp-socks==0.5.5
-aiokafka==0.6.0
+aiokafka==0.7.2
 jsonschema==3.2.0
 lz4==3.0.2
 requests==2.23.0
@@ -19,3 +19,21 @@ protobuf~=3.14.0
 #
 git+https://github.com/aiven/avro.git@513b153bac5040af6bba5847aef202adb680b67b#subdirectory=lang/py3/
 git+https://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
+
+# Indirect dependencies
+aiohttp==3.8.1
+aiosignal==1.2.0
+async-timeout==4.0.2
+attrs==21.4.0
+certifi==2021.10.8
+chardet==3.0.4
+charset-normalizer==2.0.10
+decorator==5.1.1
+frozenlist==1.3.0
+idna==2.10
+multidict==6.0.2
+pyrsistent==0.18.1
+python-socks==2.0.3
+six==1.16.0
+urllib3==1.25.11
+yarl==1.7.2

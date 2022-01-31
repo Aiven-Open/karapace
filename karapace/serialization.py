@@ -6,7 +6,7 @@ from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_reader import InvalidSchema, SchemaType, TypedSchema
 from karapace.utils import Client, json_encode
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from urllib.parse import quote
 
 import asyncio
@@ -82,7 +82,7 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(result.json())
         return result.json()["id"]
 
-    async def get_latest_schema(self, subject: str) -> (int, TypedSchema):
+    async def get_latest_schema(self, subject: str) -> Tuple[int, TypedSchema]:
         result = await self.client.get(f"subjects/{quote(subject)}/versions/latest")
         if not result.ok:
             raise SchemaRetrievalError(result.json())

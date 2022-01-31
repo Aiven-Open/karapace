@@ -23,7 +23,6 @@ class KarapaceBase(RestApp):
         sentry_config = config.get("sentry", {"dsn": None}).copy()
         super().__init__(app_name="karapace", sentry_config=sentry_config)
 
-        self.config = {}
         self.producer = None
         self.kafka_timeout = 10
         self.config = config

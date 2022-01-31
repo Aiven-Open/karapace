@@ -400,7 +400,7 @@ class KafkaRest(KarapaceBase):
         await self.publish(topic, None, content_type, request.content_type, request.json)
 
     @staticmethod
-    def validate_partition_id(partition_id: str, content_type: str) -> int:
+    def validate_partition_id(partition_id: str, content_type: str) -> int:  # pylint: disable=inconsistent-return-statements
         try:
             return int(partition_id)
         except ValueError:
