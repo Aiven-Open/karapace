@@ -6,15 +6,11 @@ class ProtobufParserRuntimeException(Exception):
 
 
 class IllegalStateException(Exception):
-    def __init__(self, message="IllegalStateException") -> None:
-        self.message = message
-        super().__init__(self.message)
+    pass
 
 
 class IllegalArgumentException(Exception):
-    def __init__(self, message="IllegalArgumentException") -> None:
-        self.message = message
-        super().__init__(self.message)
+    pass
 
 
 class Error(Exception):

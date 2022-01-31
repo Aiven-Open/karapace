@@ -458,7 +458,7 @@ def test_invalid_trailing_comment():
 
         ProtoParser.parse(location, proto)
         pytest.fail("")
-    assert re.value.message == "Syntax error in file.proto:2:12: expected '//' or '/*'"
+    assert re.value.args[0] == "Syntax error in file.proto:2:12: expected '//' or '/*'"
 
 
 def test_enum_value_leading_and_trailing_comments_are_combined():
@@ -1463,7 +1463,7 @@ def test_invalid_hex_string_escape():
     with pytest.raises(IllegalStateException) as re:
         ProtoParser.parse(location, proto)
         pytest.fail("")
-    assert "expected a digit after \\x or \\X" in re.value.message
+    assert "expected a digit after \\x or \\X" in re.value.args[0]
 
 
 def test_service():
