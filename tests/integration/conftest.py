@@ -280,15 +280,21 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
             "port": slave_port,
         },
     )
-    master_process = Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)])
-    slave_process = Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)])
-    try:
-        wait_for_port(master_port)
-        wait_for_port(slave_port)
-        yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
-    finally:
-        master_process.kill()
-        slave_process.kill()
+
+    master_process = None
+    slave_process = None
+    with ExitStack() as stack:
+        try:
+            master_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)]))
+            slave_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)]))
+            wait_for_port(master_port)
+            wait_for_port(slave_port)
+            yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
+        finally:
+            if master_process:
+                master_process.kill()
+            if slave_process:
+                slave_process.kill()
 
 
 @pytest.fixture(scope="function", name="registry_async")
