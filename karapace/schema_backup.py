@@ -218,7 +218,7 @@ def parse_args():
 
     parser_get = subparsers.add_parser("get", help="Store the schema backup into a file")
     parser_restore = subparsers.add_parser("restore", help="Restore the schema backup from a file")
-    for p in {parser_get, parser_restore}:
+    for p in [parser_get, parser_restore]:
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--location", default="", help="File path for the backup file")
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)

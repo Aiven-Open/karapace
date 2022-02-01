@@ -618,7 +618,7 @@ async def test_map_schema_field_add_compatibility(
 
 async def test_enum_schema(registry_async_client: Client) -> None:
     subject_name_factory = create_subject_name_factory("test_enum_schema")
-    for compatibility in {"BACKWARD", "FORWARD", "FULL"}:
+    for compatibility in ["BACKWARD", "FORWARD", "FULL"]:
         subject = subject_name_factory()
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status == 200
