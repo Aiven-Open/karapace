@@ -1,6 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumConstantElement.kt
-from attr import dataclass
+from dataclasses import dataclass, field
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.utils import append_documentation, append_options
@@ -13,7 +13,7 @@ class EnumConstantElement:
     name: str
     tag: int
     documentation: str = ""
-    options: List[OptionElement] = []
+    options: List[OptionElement] = field(default_factory=list)
 
     def to_schema(self) -> str:
         result = []
