@@ -21,7 +21,7 @@ class ProtoType:
     @property
     def simple_name(self) -> str:
         dot = self.string.rfind(".")
-        return self.string[dot + 1:]
+        return self.string[dot + 1 :]
 
     @classmethod
     def static_init(cls) -> None:
@@ -59,8 +59,21 @@ class ProtoType:
         cls.BYTES_VALUE = cls(False, "google.protobuf.BytesValue")
 
         cls.SCALAR_TYPES_ = [
-            cls.BOOL, cls.BYTES, cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32,
-            cls.SFIXED64, cls.SINT32, cls.SINT64, cls.STRING, cls.UINT32, cls.UINT64
+            cls.BOOL,
+            cls.BYTES,
+            cls.DOUBLE,
+            cls.FLOAT,
+            cls.FIXED32,
+            cls.FIXED64,
+            cls.INT32,
+            cls.INT64,
+            cls.SFIXED32,
+            cls.SFIXED64,
+            cls.SINT32,
+            cls.SINT64,
+            cls.STRING,
+            cls.UINT32,
+            cls.UINT64,
         ]
 
         cls.SCALAR_TYPES = {}
@@ -69,14 +82,24 @@ class ProtoType:
             cls.SCALAR_TYPES[a.string] = a
 
         cls.NUMERIC_SCALAR_TYPES: tuple = (
-            cls.DOUBLE, cls.FLOAT, cls.FIXED32, cls.FIXED64, cls.INT32, cls.INT64, cls.SFIXED32, cls.SFIXED64, cls.SINT32,
-            cls.SINT64, cls.UINT32, cls.UINT64
+            cls.DOUBLE,
+            cls.FLOAT,
+            cls.FIXED32,
+            cls.FIXED64,
+            cls.INT32,
+            cls.INT64,
+            cls.SFIXED32,
+            cls.SFIXED64,
+            cls.SINT32,
+            cls.SINT64,
+            cls.UINT32,
+            cls.UINT64,
         )
 
     def __init__(
-        self, is_scalar: bool, string: str, key_type: Optional['ProtoType'] = None, value_type: Optional['ProtoType'] = None
+        self, is_scalar: bool, string: str, key_type: Optional["ProtoType"] = None, value_type: Optional["ProtoType"] = None
     ) -> None:
-        """ Creates a scalar or message type.  """
+        """Creates a scalar or message type."""
         if not key_type and not value_type:
             self.is_scalar = is_scalar
             self.string = string
@@ -111,7 +134,7 @@ class ProtoType:
             "sint32": OptionElement.Kind.NUMBER,
             "sint64": OptionElement.Kind.NUMBER,
             "uint32": OptionElement.Kind.NUMBER,
-            "uint64": OptionElement.Kind.NUMBER
+            "uint64": OptionElement.Kind.NUMBER,
         }.get(self.simple_name, OptionElement.Kind.ENUM)
 
     @property
@@ -130,7 +153,7 @@ class ProtoType:
         """
         return None if self.is_scalar or self.is_map else f"type.googleapis.com/{self.string}"
 
-    def nested_type(self, name: str) -> 'ProtoType':
+    def nested_type(self, name: str) -> "ProtoType":
 
         if self.is_scalar:
             raise IllegalStateException("scalar cannot have a nested type")
@@ -156,12 +179,15 @@ class ProtoType:
         return hash(self.string)
 
     @staticmethod
-    def get(enclosing_type_or_package: str, type_name: str) -> 'ProtoType':
-        return ProtoType.get2(f"{enclosing_type_or_package}.{type_name}") \
-            if enclosing_type_or_package else ProtoType.get2(type_name)
+    def get(enclosing_type_or_package: str, type_name: str) -> "ProtoType":
+        return (
+            ProtoType.get2(f"{enclosing_type_or_package}.{type_name}")
+            if enclosing_type_or_package
+            else ProtoType.get2(type_name)
+        )
 
     @staticmethod
-    def get2(name: str) -> 'ProtoType':
+    def get2(name: str) -> "ProtoType":
         scalar = ProtoType.SCALAR_TYPES.get(name)
         if scalar:
             return scalar
@@ -173,12 +199,12 @@ class ProtoType:
             if not comma != -1:
                 raise IllegalArgumentException(f"expected ',' in map type: {name}")
             key = ProtoType.get2(name[4:comma].strip())
-            value = ProtoType.get2(name[comma + 1:len(name) - 1].strip())
+            value = ProtoType.get2(name[comma + 1 : len(name) - 1].strip())
             return ProtoType(False, name, key, value)
         return ProtoType(False, name)
 
     @staticmethod
-    def get3(key_type: 'ProtoType', value_type: 'ProtoType', name: str) -> 'ProtoType':
+    def get3(key_type: "ProtoType", value_type: "ProtoType", name: str) -> "ProtoType":
         return ProtoType(False, name, key_type, value_type)
 
     # schema compatibility check functionality karapace addon
@@ -193,7 +219,7 @@ class ProtoType:
         DOUBLE = auto()
         FLOAT = auto()
 
-    def compatibility_kind(self, is_enum: bool) -> 'ProtoType.CompatibilityKind':
+    def compatibility_kind(self, is_enum: bool) -> "ProtoType.CompatibilityKind":
         if is_enum:
             return ProtoType.CompatibilityKind.VARIANT
 

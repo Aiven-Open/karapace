@@ -27,7 +27,7 @@ def init_admin(config):
 
 
 def is_master(mc: MasterCoordinator) -> bool:
-    """ True if `mc` is the master.
+    """True if `mc` is the master.
 
     This takes care of a race condition were the flag `master` is set but
     `master_url` is not yet set.
@@ -36,7 +36,7 @@ def is_master(mc: MasterCoordinator) -> bool:
 
 
 def has_master(mc: MasterCoordinator) -> bool:
-    """ True if `mc` has a master. """
+    """True if `mc` has a master."""
     return bool(mc.sc and not mc.sc.are_we_master and mc.sc.master_url)
 
 
@@ -51,22 +51,26 @@ def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> None:
     client_id_bb = new_random_name("master_selection_bb_")
     group_id = new_random_name("group_id")
 
-    config_aa = set_config_defaults({
-        "advertised_hostname": "127.0.0.1",
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "client_id": client_id_aa,
-        "group_id": group_id,
-        "port": port_aa,
-        "master_election_strategy": strategy,
-    })
-    config_bb = set_config_defaults({
-        "advertised_hostname": "127.0.0.1",
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "client_id": client_id_bb,
-        "group_id": group_id,
-        "port": port_bb,
-        "master_election_strategy": strategy,
-    })
+    config_aa = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id_aa,
+            "group_id": group_id,
+            "port": port_aa,
+            "master_election_strategy": strategy,
+        }
+    )
+    config_bb = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id_bb,
+            "group_id": group_id,
+            "port": port_bb,
+            "master_election_strategy": strategy,
+        }
+    )
 
     with closing(init_admin(config_aa)) as mc_aa, closing(init_admin(config_bb)) as mc_bb:
         if strategy == "lowest":
@@ -95,14 +99,16 @@ def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
 
-    config_aa = set_config_defaults({
-        "advertised_hostname": "127.0.0.1",
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "client_id": client_id,
-        "group_id": group_id,
-        "port": get_random_port(port_range=TESTS_PORT_RANGE, blacklist=[]),
-        "master_eligibility": False,
-    })
+    config_aa = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id,
+            "group_id": group_id,
+            "port": get_random_port(port_range=TESTS_PORT_RANGE, blacklist=[]),
+            "master_eligibility": False,
+        }
+    )
 
     with closing(init_admin(config_aa)) as mc:
         # Wait for the election to happen, ie. flag is not None

@@ -19,8 +19,8 @@ def test_field():
         tag=1,
         options=[
             OptionElement("default", OptionElement.Kind.ENUM, "TEST"),
-            OptionElement("deprecated", OptionElement.Kind.BOOLEAN, "true")
-        ]
+            OptionElement("deprecated", OptionElement.Kind.BOOLEAN, "true"),
+        ],
     )
 
     assert len(field.options) == 2
@@ -45,13 +45,14 @@ def test_default_is_set():
         element_type="string",
         name="name",
         tag=1,
-        default_value="defaultValue"
+        default_value="defaultValue",
     )
 
-    assert field.to_schema(
-    ) == trim_margin("""
+    assert field.to_schema() == trim_margin(
+        """
             |required string name = 1 [default = "defaultValue"];
-            |""")
+            |"""
+    )
 
 
 def test_json_name_and_default_value():
@@ -62,7 +63,7 @@ def test_json_name_and_default_value():
         name="name",
         default_value="defaultValue",
         json_name="my_json",
-        tag=1
+        tag=1,
     )
 
     assert field.to_schema() == trim_margin(
@@ -80,7 +81,8 @@ def test_json_name():
         location=location, label=Field.Label.REQUIRED, element_type="string", name="name", json_name="my_json", tag=1
     )
 
-    assert field.to_schema(
-    ) == trim_margin("""
+    assert field.to_schema() == trim_margin(
+        """
             |required string name = 1 [json_name = "my_json"];
-            |""")
+            |"""
+    )

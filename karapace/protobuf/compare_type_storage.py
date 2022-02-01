@@ -39,8 +39,8 @@ class CompareTypes:
         self.other_package_name = other_package_name
         self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
-        self.locked_messages: List['MessageElement'] = []
-        self.environment: List['MessageElement'] = []
+        self.locked_messages: List["MessageElement"] = []
+        self.environment: List["MessageElement"] = []
         self.result = result
 
     def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict) -> None:
@@ -71,14 +71,14 @@ class CompareTypes:
     def add_other_type(self, package_name: str, type_element: TypeElement) -> None:
         self.add_a_type(package_name, package_name, type_element, self.other_types)
 
-    def get_self_type(self, t: ProtoType) -> Union[None, 'TypeRecord', 'TypeRecordMap']:
+    def get_self_type(self, t: ProtoType) -> Union[None, "TypeRecord", "TypeRecordMap"]:
         name = compute_name(t, self.result.path, self.self_package_name, self.self_types)
         if name is not None:
             type_record = self.self_types.get(name)
             return type_record
         return None
 
-    def get_other_type(self, t: ProtoType) -> Union[None, 'TypeRecord', 'TypeRecordMap']:
+    def get_other_type(self, t: ProtoType) -> Union[None, "TypeRecord", "TypeRecordMap"]:
         name = compute_name(t, self.result.path, self.other_package_name, self.other_types)
         if name is not None:
             type_record = self.other_types.get(name)
@@ -91,7 +91,7 @@ class CompareTypes:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
         type_record: TypeRecord = self.self_types.get(name)
         if name.startswith(type_record.package_name):
-            return name[(len(type_record.package_name) + 1):]
+            return name[(len(type_record.package_name) + 1) :]
         return name
 
     def other_type_short_name(self, t: ProtoType) -> Optional[str]:
@@ -100,16 +100,16 @@ class CompareTypes:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
         type_record: TypeRecord = self.other_types.get(name)
         if name.startswith(type_record.package_name):
-            return name[(len(type_record.package_name) + 1):]
+            return name[(len(type_record.package_name) + 1) :]
         return name
 
-    def lock_message(self, message: 'MessageElement') -> bool:
+    def lock_message(self, message: "MessageElement") -> bool:
         if message in self.locked_messages:
             return False
         self.locked_messages.append(message)
         return True
 
-    def unlock_message(self, message: 'MessageElement') -> bool:
+    def unlock_message(self, message: "MessageElement") -> bool:
         if message in self.locked_messages:
             self.locked_messages.remove(message)
             return True
@@ -124,7 +124,7 @@ class TypeRecord:
 
 class TypeRecordMap(TypeRecord):
     def __init__(
-        self, package_name: str, type_element: TypeElement, key: Optional['FieldElement'], value: Optional['FieldElement']
+        self, package_name: str, type_element: TypeElement, key: Optional["FieldElement"], value: Optional["FieldElement"]
     ) -> None:
         super().__init__(package_name, type_element)
         self.key = key

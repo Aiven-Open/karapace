@@ -79,7 +79,7 @@ class MessageElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: 'MessageElement', result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: "MessageElement", result: CompareResult, types: CompareTypes) -> None:
 
         if types.lock_message(self):
             field: FieldElement

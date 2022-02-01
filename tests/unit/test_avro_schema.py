@@ -4,7 +4,10 @@
 """
 from avro.schema import ArraySchema, Field, MapSchema, RecordSchema, Schema, UnionSchema
 from karapace.avro_compatibility import (
-    parse_avro_schema_definition, ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
+    parse_avro_schema_definition,
+    ReaderWriterCompatibilityChecker,
+    SchemaCompatibilityResult,
+    SchemaCompatibilityType,
 )
 
 import json
@@ -256,50 +259,29 @@ def test_basic_full_transitive_compatibility():
 
 def test_simple_schema_promotion():
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "name": "foo",
-            "type": "record",
-            "fields": [{
-                "type": "int",
-                "name": "f1"
-            }]
-        })
+        json.dumps({"name": "foo", "type": "record", "fields": [{"type": "int", "name": "f1"}]})
     )
     field_alias_reader = parse_avro_schema_definition(
-        json.dumps({
-            "name": "foo",
-            "type": "record",
-            "fields": [{
-                "type": "int",
-                "name": "bar",
-                "aliases": ["f1"]
-            }]
-        })
+        json.dumps({"name": "foo", "type": "record", "fields": [{"type": "int", "name": "bar", "aliases": ["f1"]}]})
     )
     record_alias_reader = parse_avro_schema_definition(
-        json.dumps({
-            "name": "other",
-            "type": "record",
-            "fields": [{
-                "type": "int",
-                "name": "f1"
-            }],
-            "aliases": ["foo"]
-        })
+        json.dumps({"name": "other", "type": "record", "fields": [{"type": "int", "name": "f1"}], "aliases": ["foo"]})
     )
 
     writer = parse_avro_schema_definition(
-        json.dumps({
-            "name": "foo",
-            "type": "record",
-            "fields": [{
-                "type": "int",
-                "name": "f1"
-            }, {
-                "type": "string",
-                "name": "f2",
-            }]
-        })
+        json.dumps(
+            {
+                "name": "foo",
+                "type": "record",
+                "fields": [
+                    {"type": "int", "name": "f1"},
+                    {
+                        "type": "string",
+                        "name": "f2",
+                    },
+                ],
+            }
+        )
     )
     # alias testing
     res = ReaderWriterCompatibilityChecker().get_compatibility(field_alias_reader, writer)
@@ -313,126 +295,54 @@ def test_simple_schema_promotion():
     assert res != SchemaCompatibilityResult.compatible(), res
 
     writer = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "CA",
-            "namespace": "ns1",
-            "fields": [{
-                "type": "string",
-                "name": "provider"
-            }, {
-                "type": ["null", "string"],
-                "name": "name",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "phone",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "email",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "reference",
-                "default": None
-            }, {
-                "type": ["null", "double"],
-                "name": "price",
-                "default": None
-            }]
-        })
+        json.dumps(
+            {
+                "type": "record",
+                "name": "CA",
+                "namespace": "ns1",
+                "fields": [
+                    {"type": "string", "name": "provider"},
+                    {"type": ["null", "string"], "name": "name", "default": None},
+                    {"type": ["null", "string"], "name": "phone", "default": None},
+                    {"type": ["null", "string"], "name": "email", "default": None},
+                    {"type": ["null", "string"], "name": "reference", "default": None},
+                    {"type": ["null", "double"], "name": "price", "default": None},
+                ],
+            }
+        )
     )
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "CA",
-            "namespace": "ns1",
-            "fields": [{
-                "type": "string",
-                "name": "provider"
-            }, {
-                "type": ["null", "string"],
-                "name": "name",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "phone",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "email",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "reference",
-                "default": None
-            }, {
-                "type": ["null", "double"],
-                "name": "price",
-                "default": None
-            }, {
-                "type": ["null", "string"],
-                "name": "status_date",
-                "default": None
-            }]
-        })
+        json.dumps(
+            {
+                "type": "record",
+                "name": "CA",
+                "namespace": "ns1",
+                "fields": [
+                    {"type": "string", "name": "provider"},
+                    {"type": ["null", "string"], "name": "name", "default": None},
+                    {"type": ["null", "string"], "name": "phone", "default": None},
+                    {"type": ["null", "string"], "name": "email", "default": None},
+                    {"type": ["null", "string"], "name": "reference", "default": None},
+                    {"type": ["null", "double"], "name": "price", "default": None},
+                    {"type": ["null", "string"], "name": "status_date", "default": None},
+                ],
+            }
+        )
     )
     res = ReaderWriterCompatibilityChecker().get_compatibility(writer=writer, reader=reader)
     assert res == SchemaCompatibilityResult.compatible(), res
 
 
 @pytest.mark.parametrize(
-    "field", [
-        {
-            "type": {
-                "type": "array",
-                "items": "string",
-                "name": "fn"
-            },
-            "name": "fn"
-        },
-        {
-            "type": {
-                "type": "record",
-                "name": "fn",
-                "fields": [{
-                    "type": "string",
-                    "name": "inner_rec"
-                }]
-            },
-            "name": "fn"
-        },
-        {
-            "type": {
-                "type": "enum",
-                "name": "fn",
-                "symbols": ["foo", "bar", "baz"]
-            },
-            "name": "fn"
-        },
-        {
-            "type": {
-                "type": "fixed",
-                "size": 16,
-                "name": "fn",
-                "aliases": ["testalias"]
-            },
-            "name": "fn"
-        },
-        {
-            "type": "string",
-            "name": "fn"
-        },
-        {
-            "type": {
-                "type": "map",
-                "values": "int",
-                "name": "fn"
-            },
-            "name": "fn"
-        },
-    ]
+    "field",
+    [
+        {"type": {"type": "array", "items": "string", "name": "fn"}, "name": "fn"},
+        {"type": {"type": "record", "name": "fn", "fields": [{"type": "string", "name": "inner_rec"}]}, "name": "fn"},
+        {"type": {"type": "enum", "name": "fn", "symbols": ["foo", "bar", "baz"]}, "name": "fn"},
+        {"type": {"type": "fixed", "size": 16, "name": "fn", "aliases": ["testalias"]}, "name": "fn"},
+        {"type": "string", "name": "fn"},
+        {"type": {"type": "map", "values": "int", "name": "fn"}, "name": "fn"},
+    ],
 )
 def test_union_to_simple_comparison(field):
     writer = {"type": "record", "name": "name", "namespace": "namespace", "fields": [field]}
@@ -440,10 +350,12 @@ def test_union_to_simple_comparison(field):
         "type": "record",
         "name": "name",
         "namespace": "namespace",
-        "fields": [{
-            "type": ["null", field["type"]],
-            "name": "fn",
-        }]
+        "fields": [
+            {
+                "type": ["null", field["type"]],
+                "name": "fn",
+            }
+        ],
     }
     reader = parse_avro_schema_definition(json.dumps(reader))
     writer = parse_avro_schema_definition(json.dumps(writer))
@@ -474,82 +386,60 @@ ENUM1_ABC_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "nam
 ENUM1_BC_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "name": "Enum1", "symbols": ["B", "C"]}))
 ENUM2_AB_SCHEMA = parse_avro_schema_definition(json.dumps({"type": "enum", "name": "Enum2", "symbols": ["A", "B"]}))
 ENUM_ABC_ENUM_DEFAULT_A_SCHEMA = parse_avro_schema_definition(
-    json.dumps({
-        "type": "enum",
-        "name": "Enum",
-        "symbols": ["A", "B", "C"],
-        "default": "A"
-    })
+    json.dumps({"type": "enum", "name": "Enum", "symbols": ["A", "B", "C"], "default": "A"})
 )
 ENUM_AB_ENUM_DEFAULT_A_SCHEMA = parse_avro_schema_definition(
-    json.dumps({
-        "type": "enum",
-        "name": "Enum",
-        "symbols": ["A", "B"],
-        "default": "A"
-    })
+    json.dumps({"type": "enum", "name": "Enum", "symbols": ["A", "B"], "default": "A"})
 )
 ENUM_ABC_ENUM_DEFAULT_A_RECORD = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record",
-        "fields": [{
-            "name": "Field",
-            "type": {
-                "type": "enum",
-                "name": "Enum",
-                "symbols": ["A", "B", "C"],
-                "default": "A"
-            }
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record",
+            "fields": [
+                {"name": "Field", "type": {"type": "enum", "name": "Enum", "symbols": ["A", "B", "C"], "default": "A"}}
+            ],
+        }
+    )
 )
 ENUM_AB_ENUM_DEFAULT_A_RECORD = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record",
-        "fields": [{
-            "name": "Field",
-            "type": {
-                "type": "enum",
-                "name": "Enum",
-                "symbols": ["A", "B"],
-                "default": "A"
-            }
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record",
+            "fields": [{"name": "Field", "type": {"type": "enum", "name": "Enum", "symbols": ["A", "B"], "default": "A"}}],
+        }
+    )
 )
 ENUM_ABC_FIELD_DEFAULT_B_ENUM_DEFAULT_A_RECORD = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record",
-        "fields": [{
-            "name": "Field",
-            "type": {
-                "type": "enum",
-                "name": "Enum",
-                "symbols": ["A", "B", "C"],
-                "default": "A"
-            },
-            "default": "B"
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record",
+            "fields": [
+                {
+                    "name": "Field",
+                    "type": {"type": "enum", "name": "Enum", "symbols": ["A", "B", "C"], "default": "A"},
+                    "default": "B",
+                }
+            ],
+        }
+    )
 )
 ENUM_AB_FIELD_DEFAULT_A_ENUM_DEFAULT_B_RECORD = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record",
-        "fields": [{
-            "name": "Field",
-            "type": {
-                "type": "enum",
-                "name": "Enum",
-                "symbols": ["A", "B"],
-                "default": "B"
-            },
-            "default": "A"
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record",
+            "fields": [
+                {
+                    "name": "Field",
+                    "type": {"type": "enum", "name": "Enum", "symbols": ["A", "B"], "default": "B"},
+                    "default": "A",
+                }
+            ],
+        }
+    )
 )
 EMPTY_UNION_SCHEMA = UnionSchema([])
 NULL_UNION_SCHEMA = UnionSchema([NULL_SCHEMA])
@@ -569,247 +459,158 @@ NULL_INT_MAP_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_MAP_SCHEMA])
 EMPTY_RECORD1 = parse_avro_schema_definition(json.dumps({"type": "record", "name": "Record1", "fields": []}))
 EMPTY_RECORD2 = parse_avro_schema_definition(json.dumps({"type": "record", "name": "Record2", "fields": []}))
 A_INT_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int"
-        }]
-    })
+    json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "a", "type": "int"}]})
 )
 A_LONG_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "long"
-        }]
-    })
+    json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "a", "type": "long"}]})
 )
 A_INT_B_INT_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int"
-        }, {
-            "name": "b",
-            "type": "int"
-        }]
-    })
+    json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "a", "type": "int"}, {"name": "b", "type": "int"}]})
 )
 A_DINT_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }]
-    })
+    json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "a", "type": "int", "default": 0}]})
 )
 A_INT_B_DINT_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int"
-        }, {
-            "name": "b",
-            "type": "int",
-            "default": 0
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [{"name": "a", "type": "int"}, {"name": "b", "type": "int", "default": 0}],
+        }
+    )
 )
 A_DINT_B_DINT_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": "int",
-            "default": 0
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [{"name": "a", "type": "int", "default": 0}, {"name": "b", "type": "int", "default": 0}],
+        }
+    )
 )
 A_DINT_B_DFIXED_4_BYTES_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": {
-                "type": "fixed",
-                "name": "Fixed",
-                "size": 4
-            }
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [
+                {"name": "a", "type": "int", "default": 0},
+                {"name": "b", "type": {"type": "fixed", "name": "Fixed", "size": 4}},
+            ],
+        }
+    )
 )
 A_DINT_B_DFIXED_8_BYTES_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": {
-                "type": "fixed",
-                "name": "Fixed",
-                "size": 8
-            }
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [
+                {"name": "a", "type": "int", "default": 0},
+                {"name": "b", "type": {"type": "fixed", "name": "Fixed", "size": 8}},
+            ],
+        }
+    )
 )
 A_DINT_B_DINT_STRING_UNION_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": ["int", "string"],
-            "default": 0
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [{"name": "a", "type": "int", "default": 0}, {"name": "b", "type": ["int", "string"], "default": 0}],
+        }
+    )
 )
 A_DINT_B_DINT_UNION_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": ["int"],
-            "default": 0
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [{"name": "a", "type": "int", "default": 0}, {"name": "b", "type": ["int"], "default": 0}],
+        }
+    )
 )
 A_DINT_B_DENUM_1_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": {
-                "type": "enum",
-                "name": "Enum1",
-                "symbols": ["A", "B"]
-            }
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [
+                {"name": "a", "type": "int", "default": 0},
+                {"name": "b", "type": {"type": "enum", "name": "Enum1", "symbols": ["A", "B"]}},
+            ],
+        }
+    )
 )
 A_DINT_B_DENUM_2_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "a",
-            "type": "int",
-            "default": 0
-        }, {
-            "name": "b",
-            "type": {
-                "type": "enum",
-                "name": "Enum2",
-                "symbols": ["A", "B"]
-            }
-        }]
-    })
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [
+                {"name": "a", "type": "int", "default": 0},
+                {"name": "b", "type": {"type": "enum", "name": "Enum2", "symbols": ["A", "B"]}},
+            ],
+        }
+    )
 )
 FIXED_4_BYTES = parse_avro_schema_definition(json.dumps({"type": "fixed", "name": "Fixed", "size": 4}))
 FIXED_8_BYTES = parse_avro_schema_definition(json.dumps({"type": "fixed", "name": "Fixed", "size": 8}))
 NS_RECORD1 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "f1",
-            "type": [
-                "null", {
-                    "type": "array",
-                    "items": {
-                        "type": "record",
-                        "name": "InnerRecord1",
-                        "namespace": "ns1",
-                        "fields": [{
-                            "name": "a",
-                            "type": "int"
-                        }]
-                    }
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [
+                {
+                    "name": "f1",
+                    "type": [
+                        "null",
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "record",
+                                "name": "InnerRecord1",
+                                "namespace": "ns1",
+                                "fields": [{"name": "a", "type": "int"}],
+                            },
+                        },
+                    ],
                 }
-            ]
-        }]
-    })
+            ],
+        }
+    )
 )
 NS_RECORD2 = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "f1",
-            "type": [
-                "null", {
-                    "type": "array",
-                    "items": {
-                        "type": "record",
-                        "name": "InnerRecord1",
-                        "namespace": "ns2",
-                        "fields": [{
-                            "name": "a",
-                            "type": "int"
-                        }]
-                    }
+    json.dumps(
+        {
+            "type": "record",
+            "name": "Record1",
+            "fields": [
+                {
+                    "name": "f1",
+                    "type": [
+                        "null",
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "record",
+                                "name": "InnerRecord1",
+                                "namespace": "ns2",
+                                "fields": [{"name": "a", "type": "int"}],
+                            },
+                        },
+                    ],
                 }
-            ]
-        }]
-    })
+            ],
+        }
+    )
 )
 INT_LIST_RECORD = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "List",
-        "fields": [{
-            "name": "head",
-            "type": "int"
-        }]
-    })
+    json.dumps({"type": "record", "name": "List", "fields": [{"name": "head", "type": "int"}]})
 )
 LONG_LIST_RECORD = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "List",
-        "fields": [{
-            "name": "head",
-            "type": "long"
-        }]
-    })
+    json.dumps({"type": "record", "name": "List", "fields": [{"name": "head", "type": "long"}]})
 )
 int_reader_field = Field(name="tail", type=INT_LIST_RECORD, index=1, has_default=False)
 long_reader_field = Field(name="tail", type=LONG_LIST_RECORD, index=1, has_default=False)
@@ -824,24 +625,10 @@ INT_LIST_RECORD._props["fields"] = INT_LIST_RECORD._fields
 LONG_LIST_RECORD._props["fields"] = LONG_LIST_RECORD._fields
 # pylint: enable=protected-access
 RECORD1_WITH_INT = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "field1",
-            "type": "int"
-        }]
-    })
+    json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "field1", "type": "int"}]})
 )
 RECORD2_WITH_INT = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record2",
-        "fields": [{
-            "name": "field1",
-            "type": "int"
-        }]
-    })
+    json.dumps({"type": "record", "name": "Record2", "fields": [{"name": "field1", "type": "int"}]})
 )
 UNION_INT_RECORD1 = UnionSchema([INT_SCHEMA, RECORD1_WITH_INT])
 UNION_INT_RECORD2 = UnionSchema([INT_SCHEMA, RECORD2_WITH_INT])
@@ -853,109 +640,68 @@ UNION_INT_MAP_INT = UnionSchema([INT_SCHEMA, INT_MAP_SCHEMA])
 UNION_INT_NULL = UnionSchema([INT_SCHEMA, NULL_SCHEMA])
 FIXED_4_ANOTHER_NAME = parse_avro_schema_definition(json.dumps({"type": "fixed", "name": "AnotherName", "size": 4}))
 RECORD1_WITH_ENUM_AB = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "field1",
-            "type": dict(ENUM1_AB_SCHEMA.to_json())
-        }]
-    })
+    json.dumps(
+        {"type": "record", "name": "Record1", "fields": [{"name": "field1", "type": dict(ENUM1_AB_SCHEMA.to_json())}]}
+    )
 )
 RECORD1_WITH_ENUM_ABC = parse_avro_schema_definition(
-    json.dumps({
-        "type": "record",
-        "name": "Record1",
-        "fields": [{
-            "name": "field1",
-            "type": dict(ENUM1_ABC_SCHEMA.to_json())
-        }]
-    })
+    json.dumps(
+        {"type": "record", "name": "Record1", "fields": [{"name": "field1", "type": dict(ENUM1_ABC_SCHEMA.to_json())}]}
+    )
 )
 
 
 def test_schema_compatibility():
     # testValidateSchemaPairMissingField
     writer = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "Record",
-            "fields": [{
-                "name": "oldField1",
-                "type": "int"
-            }, {
-                "name": "oldField2",
-                "type": "string"
-            }]
-        })
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Record",
+                "fields": [{"name": "oldField1", "type": "int"}, {"name": "oldField2", "type": "string"}],
+            }
+        )
     )
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "Record",
-            "fields": [{
-                "name": "oldField1",
-                "type": "int"
-            }]
-        })
+        json.dumps({"type": "record", "name": "Record", "fields": [{"name": "oldField1", "type": "int"}]})
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaPairMissingSecondField
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "Record",
-            "fields": [{
-                "name": "oldField2",
-                "type": "string"
-            }]
-        })
+        json.dumps({"type": "record", "name": "Record", "fields": [{"name": "oldField2", "type": "string"}]})
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaPairAllFields
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "Record",
-            "fields": [{
-                "name": "oldField1",
-                "type": "int"
-            }, {
-                "name": "oldField2",
-                "type": "string"
-            }]
-        })
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Record",
+                "fields": [{"name": "oldField1", "type": "int"}, {"name": "oldField2", "type": "string"}],
+            }
+        )
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaNewFieldWithDefault
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "Record",
-            "fields": [{
-                "name": "oldField1",
-                "type": "int"
-            }, {
-                "name": "newField2",
-                "type": "int",
-                "default": 42
-            }]
-        })
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Record",
+                "fields": [{"name": "oldField1", "type": "int"}, {"name": "newField2", "type": "int", "default": 42}],
+            }
+        )
     )
     assert are_compatible(reader, writer)
     # testValidateSchemaNewField
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "type": "record",
-            "name": "Record",
-            "fields": [{
-                "name": "oldField1",
-                "type": "int"
-            }, {
-                "name": "newField2",
-                "type": "int"
-            }]
-        })
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Record",
+                "fields": [{"name": "oldField1", "type": "int"}, {"name": "newField2", "type": "int"}],
+            }
+        )
     )
     assert not are_compatible(reader, writer)
     # testValidateArrayWriterSchema
@@ -973,24 +719,10 @@ def test_schema_compatibility():
     # testUnionReaderWriterSubsetIncompatibility
     # cannot have a union as a top level data type, so im cheating a bit here
     writer = parse_avro_schema_definition(
-        json.dumps({
-            "name": "Record",
-            "type": "record",
-            "fields": [{
-                "name": "f1",
-                "type": ["int", "string", "long"]
-            }]
-        })
+        json.dumps({"name": "Record", "type": "record", "fields": [{"name": "f1", "type": ["int", "string", "long"]}]})
     )
     reader = parse_avro_schema_definition(
-        json.dumps({
-            "name": "Record",
-            "type": "record",
-            "fields": [{
-                "name": "f1",
-                "type": ["int", "string"]
-            }]
-        })
+        json.dumps({"name": "Record", "type": "record", "fields": [{"name": "f1", "type": ["int", "string"]}]})
     )
     reader = reader.fields[0].type
     writer = writer.fields[0].type
@@ -1128,14 +860,20 @@ def test_schema_compatibility_missing_union_branch():
         (INT_UNION_SCHEMA, UNION_INT_MAP_INT, {"reader union lacking writer type: MAP"}, {"/1"}),
         (INT_UNION_SCHEMA, UNION_INT_NULL, {"reader union lacking writer type: NULL"}, {"/1"}),
         (
-            INT_UNION_SCHEMA, INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA, {
-                "reader union lacking writer type: LONG", "reader union lacking writer type: FLOAT",
-                "reader union lacking writer type: DOUBLE"
-            }, {"/1", "/2", "/3"}
+            INT_UNION_SCHEMA,
+            INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA,
+            {
+                "reader union lacking writer type: LONG",
+                "reader union lacking writer type: FLOAT",
+                "reader union lacking writer type: DOUBLE",
+            },
+            {"/1", "/2", "/3"},
         ),
         (
-            A_DINT_B_DINT_UNION_RECORD1, A_DINT_B_DINT_STRING_UNION_RECORD1, {"reader union lacking writer type: STRING"},
-            {"/fields/1/type/1"}
+            A_DINT_B_DINT_UNION_RECORD1,
+            A_DINT_B_DINT_STRING_UNION_RECORD1,
+            {"reader union lacking writer type: STRING"},
+            {"/fields/1/type/1"},
         ),
     ]
 
@@ -1147,10 +885,12 @@ def test_schema_compatibility_missing_union_branch():
 
 
 def test_schema_compatibility_name_mismatch():
-    incompatible_pairs = [(ENUM1_AB_SCHEMA, ENUM2_AB_SCHEMA, "expected: Enum2", "/name"),
-                          (EMPTY_RECORD2, EMPTY_RECORD1, "expected: Record1", "/name"),
-                          (FIXED_4_BYTES, FIXED_4_ANOTHER_NAME, "expected: AnotherName", "/name"),
-                          (A_DINT_B_DENUM_1_RECORD1, A_DINT_B_DENUM_2_RECORD1, "expected: Enum2", "/fields/1/type/name")]
+    incompatible_pairs = [
+        (ENUM1_AB_SCHEMA, ENUM2_AB_SCHEMA, "expected: Enum2", "/name"),
+        (EMPTY_RECORD2, EMPTY_RECORD1, "expected: Record1", "/name"),
+        (FIXED_4_BYTES, FIXED_4_ANOTHER_NAME, "expected: AnotherName", "/name"),
+        (A_DINT_B_DENUM_1_RECORD1, A_DINT_B_DENUM_2_RECORD1, "expected: Enum2", "/fields/1/type/name"),
+    ]
 
     for (reader, writer, message, location) in incompatible_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
@@ -1199,8 +939,10 @@ def test_schema_compatibility_type_mismatch():
         (INT_SCHEMA, ENUM2_AB_SCHEMA, "reader type: INT not compatible with writer type: ENUM", "/"),
         (ENUM2_AB_SCHEMA, INT_SCHEMA, "reader type: ENUM not compatible with writer type: INT", "/"),
         (
-            FLOAT_SCHEMA, INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA, "reader type: FLOAT not compatible with writer type: DOUBLE",
-            "/"
+            FLOAT_SCHEMA,
+            INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA,
+            "reader type: FLOAT not compatible with writer type: DOUBLE",
+            "/",
         ),
         (LONG_SCHEMA, INT_FLOAT_UNION_SCHEMA, "reader type: LONG not compatible with writer type: FLOAT", "/"),
         (INT_SCHEMA, INT_FLOAT_UNION_SCHEMA, "reader type: INT not compatible with writer type: FLOAT", "/"),
@@ -1215,5 +957,7 @@ def test_schema_compatibility_type_mismatch():
 
 
 def are_compatible(reader: Schema, writer: Schema) -> bool:
-    return ReaderWriterCompatibilityChecker(
-    ).get_compatibility(reader, writer).compatibility is SchemaCompatibilityType.compatible
+    return (
+        ReaderWriterCompatibilityChecker().get_compatibility(reader, writer).compatibility
+        is SchemaCompatibilityType.compatible
+    )

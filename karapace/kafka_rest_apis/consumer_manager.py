@@ -59,7 +59,7 @@ class ConsumerManager:
         key: str,
         content_type: str,
         code: HTTPStatus = HTTPStatus.INTERNAL_SERVER_ERROR,
-        sub_code: int = RESTErrorCodes.INVALID_VALUE.value
+        sub_code: int = RESTErrorCodes.INVALID_VALUE.value,
     ) -> None:
         ConsumerManager._assert_has_key(container, key, content_type)
         ConsumerManager._assert(
@@ -112,20 +112,20 @@ class ConsumerManager:
             ConsumerManager._assert,
             content_type=content_type,
             code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            sub_code=RESTErrorCodes.INVALID_CONSUMER_PARAMETERS.value
+            sub_code=RESTErrorCodes.INVALID_CONSUMER_PARAMETERS.value,
         )
         request["format"] = request.get("format", "binary")
         consumer_data_valid(request["format"] in KNOWN_FORMATS, message="Invalid format type")
         min_bytes_key = "fetch.min.bytes"
         consumer_data_valid(
             min_bytes_key not in request or isinstance(request[min_bytes_key], int) and request[min_bytes_key] >= -1,
-            message=f"Expected {min_bytes_key} to be >= -1"
+            message=f"Expected {min_bytes_key} to be >= -1",
         )
         auto_reset_key = "auto.offset.reset"
         consumer_data_valid(
             cond=auto_reset_key not in request or request[auto_reset_key].lower() in OFFSET_RESET_STRATEGIES,
             message=f"Invalid value bar for configuration {auto_reset_key}: "
-            f"String must be one of: {OFFSET_RESET_STRATEGIES}"
+            f"String must be one of: {OFFSET_RESET_STRATEGIES}",
         )
 
     @staticmethod
@@ -197,8 +197,9 @@ class ConsumerManager:
             try:
                 session_timeout_ms = self.config["session_timeout_ms"]
                 request_timeout_ms = max(
-                    session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"],
-                    request_data["consumer.request.timeout.ms"]
+                    session_timeout_ms,
+                    KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"],
+                    request_data["consumer.request.timeout.ms"],
                 )
                 c = KafkaConsumer(
                     bootstrap_servers=self.config["bootstrap_uri"],
@@ -275,12 +276,14 @@ class ConsumerManager:
                 commit_info = consumer.committed(tp, metadata=True)
                 if not commit_info:
                     continue
-                response["offsets"].append({
-                    "topic": tp.topic,
-                    "partition": tp.partition,
-                    "metadata": commit_info.metadata,
-                    "offset": commit_info.offset
-                })
+                response["offsets"].append(
+                    {
+                        "topic": tp.topic,
+                        "partition": tp.partition,
+                        "metadata": commit_info.metadata,
+                        "offset": commit_info.offset,
+                    }
+                )
         KarapaceBase.r(body=response, content_type=content_type)
 
     # SUBSCRIPTION
@@ -350,10 +353,7 @@ class ConsumerManager:
             consumer = self.consumers[internal_name].consumer
             KarapaceBase.r(
                 content_type=content_type,
-                body={"partitions": [{
-                    "topic": pd.topic,
-                    "partition": pd.partition
-                } for pd in consumer.assignment()]}
+                body={"partitions": [{"topic": pd.topic, "partition": pd.partition} for pd in consumer.assignment()]},
             )
 
     # POSITIONS
@@ -416,16 +416,18 @@ class ConsumerManager:
                 code=HTTPStatus.NOT_ACCEPTABLE,
                 sub_code=RESTErrorCodes.UNSUPPORTED_FORMAT.value,
                 content_type=content_type,
-                message=f"Consumer format {serialization_format} does not match the embedded format {request_format}"
+                message=f"Consumer format {serialization_format} does not match the embedded format {request_format}",
             )
             self.log.info("Fetch request for %s with params %r", internal_name, query_params)
             try:
-                timeout = int(query_params["timeout"]) if "timeout" in query_params \
-                    else config["consumer.request.timeout.ms"]
+                timeout = (
+                    int(query_params["timeout"]) if "timeout" in query_params else config["consumer.request.timeout.ms"]
+                )
                 # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
                 # respecting the max fetch request size
-                max_bytes = int(query_params['max_bytes']) if "max_bytes" in query_params \
-                    else consumer.config["fetch_max_bytes"]
+                max_bytes = (
+                    int(query_params["max_bytes"]) if "max_bytes" in query_params else consumer.config["fetch_max_bytes"]
+                )
             except ValueError:
                 KarapaceBase.internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)
             for val in [timeout, max_bytes]:
@@ -436,7 +438,9 @@ class ConsumerManager:
             response = []
             self.log.info(
                 "Will poll multiple times for a single message with a total timeout of %dms, "
-                "until at least %d bytes have been fetched", timeout, max_bytes
+                "until at least %d bytes have been fetched",
+                timeout,
+                max_bytes,
             )
             read_bytes = 0
             start_time = time.monotonic()
@@ -446,18 +450,21 @@ class ConsumerManager:
                 time_left = start_time + timeout / 1000 - time.monotonic()
                 bytes_left = max_bytes - read_bytes
                 self.log.info(
-                    "Polling with %r time left and %d bytes left, gathered %d messages so far", time_left, bytes_left,
-                    message_count
+                    "Polling with %r time left and %d bytes left, gathered %d messages so far",
+                    time_left,
+                    bytes_left,
+                    message_count,
                 )
                 data = consumer.poll(timeout_ms=timeout, max_records=1)
                 self.log.debug("Successfully polled for messages")
                 for topic, records in data.items():
                     for rec in records:
                         message_count += 1
-                        read_bytes += \
-                            max(0, rec.serialized_key_size) + \
-                            max(0, rec.serialized_value_size) + \
-                            max(0, rec.serialized_header_size)
+                        read_bytes += (
+                            max(0, rec.serialized_key_size)
+                            + max(0, rec.serialized_value_size)
+                            + max(0, rec.serialized_header_size)
+                        )
                         poll_data[topic].append(rec)
             self.log.info("Gathered %d total messages", message_count)
             for tp in poll_data:
@@ -484,8 +491,8 @@ class ConsumerManager:
         if fmt in {"avro", "jsonschema", "protobuf"}:
             return await self.deserializer.deserialize(bytes_)
         if fmt == "json":
-            return json.loads(bytes_.decode('utf-8'))
-        return base64.b64encode(bytes_).decode('utf-8')
+            return json.loads(bytes_.decode("utf-8"))
+        return base64.b64encode(bytes_).decode("utf-8")
 
     def close(self):
         for k in list(self.consumers.keys()):

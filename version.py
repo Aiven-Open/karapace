@@ -45,4 +45,5 @@ def get_project_version(version_file: str) -> str:
 
 if __name__ == "__main__":
     import sys
+
     get_project_version(sys.argv[1])

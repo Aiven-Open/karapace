@@ -5,12 +5,11 @@ from io import BytesIO
 from karapace.protobuf.exception import IllegalArgumentException
 from typing import List
 
-ZERO_BYTE = b'\x00'
+ZERO_BYTE = b"\x00"
 
 
 def read_varint(bio: BytesIO) -> int:
-    """Read a variable-length integer.
-    """
+    """Read a variable-length integer."""
     varint = 0
     read_bytes = 0
 
@@ -52,7 +51,7 @@ def write_varint(bio: BytesIO, value: int) -> int:
 
     written_bytes = 0
     while value > 0:
-        to_write = value & 0x7f
+        to_write = value & 0x7F
         value = value >> 7
 
         if value > 0:

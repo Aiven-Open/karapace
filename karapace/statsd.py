@@ -33,19 +33,21 @@ class StatsClient:
             }
         else:
             self.sentry_config = sentry_config.copy()
-        self.update_sentry_config({
-            "ignore_exceptions": [
-                "ClientConnectorError",  # influxdb, aiohttp
-                "ClientPayloadError",  # infludb (aiohttp)
-                "ConnectionLoss",  # kazoo, zkwrap
-                "ConnectionRefusedError",  # mostly kafka (asyncio)
-                "ConnectionResetError",  # paramiko, kafka, requests
-                "IncompleteReadError",  # kafka (asyncio)
-                "ServerDisconnectedError",  # influxdb (aiohttp)
-                "ServerTimeoutError",  # influxdb (aiohttp)
-                "TimeoutError",  # kafka, redis
-            ]
-        })
+        self.update_sentry_config(
+            {
+                "ignore_exceptions": [
+                    "ClientConnectorError",  # influxdb, aiohttp
+                    "ClientPayloadError",  # infludb (aiohttp)
+                    "ConnectionLoss",  # kazoo, zkwrap
+                    "ConnectionRefusedError",  # mostly kafka (asyncio)
+                    "ConnectionResetError",  # paramiko, kafka, requests
+                    "IncompleteReadError",  # kafka (asyncio)
+                    "ServerDisconnectedError",  # influxdb (aiohttp)
+                    "ServerTimeoutError",  # influxdb (aiohttp)
+                    "TimeoutError",  # kafka, redis
+                ]
+            }
+        )
         self._dest_addr = (host, port)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags = self.sentry_config.get("tags", dict())
@@ -67,6 +69,7 @@ class StatsClient:
             try:
                 # Lazy-load raven as this file is loaded by a lot of tools
                 import raven  # pylint: disable=import-outside-toplevel
+
                 self.raven_client = raven.Client(**self.sentry_config)
             except ImportError:
                 self.raven_client = None

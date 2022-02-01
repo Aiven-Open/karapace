@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_class_name(name: str) -> str:
-    return "c_" + hashlib.md5(name.encode('utf-8')).hexdigest()
+    return "c_" + hashlib.md5(name.encode("utf-8")).hexdigest()
 
 
 def match_schemas(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) -> bool:
@@ -59,11 +59,14 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
             proto_text.write(str(schema))
 
     if not os.path.isfile(class_path):
-        subprocess.run([
-            "protoc",
-            "--python_out=./",
-            proto_path,
-        ], check=True)
+        subprocess.run(
+            [
+                "protoc",
+                "--python_out=./",
+                proto_path,
+            ],
+            check=True,
+        )
 
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
     tmp_module = importlib.util.module_from_spec(spec)
@@ -74,7 +77,7 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
 
 def read_data(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO) -> Any:
     if not match_schemas(writer_schema, reader_schema):
-        fail_msg = 'Schemas do not match.'
+        fail_msg = "Schemas do not match."
         raise ProtobufSchemaResolutionException(fail_msg, writer_schema, reader_schema)
 
     indexes = read_indexes(bio)
@@ -90,7 +93,7 @@ class ProtobufDatumReader:
     """Deserialize Protobuf-encoded data into a Python data structure."""
 
     def __init__(self, writer_schema: ProtobufSchema = None, reader_schema: ProtobufSchema = None) -> None:
-        """ As defined in the Protobuf specification, we call the schema encoded
+        """As defined in the Protobuf specification, we call the schema encoded
         in the data the "writer's schema", and the schema expected by the
         reader the "reader's schema".
         """

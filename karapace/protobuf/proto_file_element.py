@@ -22,7 +22,7 @@ class ProtoFileElement:
         types=None,
         services: list = None,
         extend_declarations: list = None,
-        options: list = None
+        options: list = None,
     ) -> None:
         if types is None:
             types = []
@@ -38,14 +38,16 @@ class ProtoFileElement:
 
     def to_schema(self) -> str:
         strings: list = [
-            "// Proto schema formatted by Wire, do not edit.\n", "// Source: ",
-            str(self.location.with_path_only()), "\n"
+            "// Proto schema formatted by Wire, do not edit.\n",
+            "// Source: ",
+            str(self.location.with_path_only()),
+            "\n",
         ]
         if self.syntax:
             strings.append("\n")
-            strings.append("syntax = \"")
+            strings.append('syntax = "')
             strings.append(str(self.syntax))
-            strings.append("\";\n")
+            strings.append('";\n')
 
         if self.package_name:
             strings.append("\n")
@@ -55,10 +57,10 @@ class ProtoFileElement:
             strings.append("\n")
 
             for file in self.imports:
-                strings.append("import \"" + str(file) + "\";\n")
+                strings.append('import "' + str(file) + '";\n')
 
             for file in self.public_imports:
-                strings.append("import public \"" + str(file) + "\";\n")
+                strings.append('import public "' + str(file) + '";\n')
 
         if self.options:
             strings.append("\n")
@@ -83,11 +85,11 @@ class ProtoFileElement:
         return "".join(strings)
 
     @staticmethod
-    def empty(path) -> 'ProtoFileElement':
+    def empty(path) -> "ProtoFileElement":
         return ProtoFileElement(Location.get(path))
 
     # TODO: there maybe be faster comparison workaround
-    def __eq__(self, other: 'ProtoFileElement') -> bool:  # type: ignore
+    def __eq__(self, other: "ProtoFileElement") -> bool:  # type: ignore
         a = self.to_schema()
         b = other.to_schema()
 
@@ -96,7 +98,7 @@ class ProtoFileElement:
     def __repr__(self) -> str:
         return self.to_schema()
 
-    def compare(self, other: 'ProtoFileElement', result: CompareResult) -> CompareResult:
+    def compare(self, other: "ProtoFileElement", result: CompareResult) -> CompareResult:
 
         if self.package_name != other.package_name:
             result.add_modification(Modification.PACKAGE_ALTER)
@@ -113,13 +115,13 @@ class ProtoFileElement:
         for i, type_ in enumerate(self.types):
             self_types[type_.name] = type_
             self_indexes[type_.name] = i
-            package_name = self.package_name or ''
+            package_name = self.package_name or ""
             compare_types.add_self_type(package_name, type_)
 
         for i, type_ in enumerate(other.types):
             other_types[type_.name] = type_
             other_indexes[type_.name] = i
-            package_name = other.package_name or ''
+            package_name = other.package_name or ""
             compare_types.add_other_type(package_name, type_)
 
         for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
@@ -148,11 +150,9 @@ class ProtoFileElement:
                     else:
                         raise IllegalStateException("Instance of element is not applicable")
                 else:
-                    if isinstance(self_types[name], MessageElement) \
-                            and isinstance(other_types[name], MessageElement):
+                    if isinstance(self_types[name], MessageElement) and isinstance(other_types[name], MessageElement):
                         self_types[name].compare(other_types[name], result, compare_types)
-                    elif isinstance(self_types[name], EnumElement) \
-                            and isinstance(other_types[name], EnumElement):
+                    elif isinstance(self_types[name], EnumElement) and isinstance(other_types[name], EnumElement):
                         self_types[name].compare(other_types[name], result, compare_types)
                     else:
                         # incompatible type

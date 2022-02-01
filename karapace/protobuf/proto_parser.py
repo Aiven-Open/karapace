@@ -88,8 +88,15 @@ class ProtoParser:
             documentation = self.reader.read_documentation()
             if self.reader.exhausted():
                 return ProtoFileElement(
-                    self.location, self.package_name, self.syntax, self.imports, self.public_imports, self.nested_types,
-                    self.services, self.extends_list, self.options
+                    self.location,
+                    self.package_name,
+                    self.syntax,
+                    self.imports,
+                    self.public_imports,
+                    self.nested_types,
+                    self.services,
+                    self.extends_list,
+                    self.options,
                 )
             declaration = self.read_declaration(documentation, Context.FILE)
             if isinstance(declaration, TypeElement):
@@ -117,13 +124,26 @@ class ProtoParser:
 
     def read_declaration(
         self, documentation: str, context: Context
-    ) -> Union[None, OptionElement, ReservedElement, RpcElement, MessageElement, EnumElement, EnumConstantElement,
-               ServiceElement, ExtendElement, ExtensionsElement, OneOfElement, GroupElement, FieldElement]:
+    ) -> Union[
+        None,
+        OptionElement,
+        ReservedElement,
+        RpcElement,
+        MessageElement,
+        EnumElement,
+        EnumConstantElement,
+        ServiceElement,
+        ExtendElement,
+        ExtensionsElement,
+        OneOfElement,
+        GroupElement,
+        FieldElement,
+    ]:
         index = self.declaration_count
         self.declaration_count += 1
 
         # Skip unnecessary semicolons, occasionally used after a nested message declaration.
-        if self.reader.peek_char(';'):
+        if self.reader.peek_char(";"):
             return None
 
         location = self.reader.location()
@@ -132,13 +152,26 @@ class ProtoParser:
         # TODO(benoit) Let's better parse the proto keywords. We are pretty weak when field/constants
         #  are named after any of the label we check here.
 
-        result: Union[None, OptionElement, ReservedElement, RpcElement, MessageElement, EnumElement, EnumConstantElement,
-                      ServiceElement, ExtendElement, ExtensionsElement, OneOfElement, GroupElement, FieldElement] = None
+        result: Union[
+            None,
+            OptionElement,
+            ReservedElement,
+            RpcElement,
+            MessageElement,
+            EnumElement,
+            EnumConstantElement,
+            ServiceElement,
+            ExtendElement,
+            ExtensionsElement,
+            OneOfElement,
+            GroupElement,
+            FieldElement,
+        ] = None
         # pylint no-else-return
         if label == "package" and context.permits_package():
             self.package_name = self.reader.read_name()
             self.prefix = f"{self.package_name}."
-            self.reader.require(';')
+            self.reader.require(";")
         elif label == "import" and context.permits_import():
             import_string = self.reader.read_string()
             if import_string == "public":
@@ -146,7 +179,7 @@ class ProtoParser:
 
             else:
                 self.imports.append(import_string)
-            self.reader.require(';')
+            self.reader.require(";")
         elif label == "syntax" and context.permits_syntax():
             self.reader.expect_with_location(not self.syntax, location, "too many syntax definitions")
             self.reader.require("=")
@@ -189,7 +222,7 @@ class ProtoParser:
         return result
 
     def read_message(self, location: Location, documentation: str) -> MessageElement:
-        """ Reads a message declaration. """
+        """Reads a message declaration."""
         name: str = self.reader.read_name()
         fields: List[FieldElement] = []
         one_ofs: List[OneOfElement] = []
@@ -243,7 +276,7 @@ class ProtoParser:
         )
 
     def read_extend(self, location: Location, documentation: str) -> ExtendElement:
-        """ Reads an extend declaration. """
+        """Reads an extend declaration."""
         name = self.reader.read_name()
         fields = []
         self.reader.require("{")
@@ -267,11 +300,11 @@ class ProtoParser:
         )
 
     def read_service(self, location: Location, documentation: str) -> ServiceElement:
-        """ Reads a service declaration and returns it. """
+        """Reads a service declaration and returns it."""
         name = self.reader.read_name()
         rpcs = []
         options = []
-        self.reader.require('{')
+        self.reader.require("{")
         while True:
             rpc_documentation = self.reader.read_documentation()
             if self.reader.peek_char("}"):
@@ -294,7 +327,7 @@ class ProtoParser:
         )
 
     def read_enum_element(self, location: Location, documentation: str) -> EnumElement:
-        """ Reads an enumerated atype declaration and returns it. """
+        """Reads an enumerated atype declaration and returns it."""
         name = self.reader.read_name()
         constants = []
         options = []
@@ -333,8 +366,9 @@ class ProtoParser:
             atype = self.reader.read_data_type()
         else:
             self.reader.expect_with_location(
-                self.syntax == Syntax.PROTO_3 or (word == "map" and self.reader.peek_char() == "<"), location,
-                f"unexpected label: {word}"
+                self.syntax == Syntax.PROTO_3 or (word == "map" and self.reader.peek_char() == "<"),
+                location,
+                f"unexpected label: {word}",
             )
 
             label = None
@@ -348,9 +382,9 @@ class ProtoParser:
     def read_field_with_label(
         self, location: Location, documentation: str, label: Union[None, Field.Label], atype: str
     ) -> FieldElement:
-        """ Reads an field declaration and returns it. """
+        """Reads an field declaration and returns it."""
         name = self.reader.read_name()
-        self.reader.require('=')
+        self.reader.require("=")
         tag = self.reader.read_int()
 
         # Mutable copy to extract the default value, and add packed if necessary.
@@ -358,7 +392,7 @@ class ProtoParser:
 
         default_value = self.strip_default(options)
         json_name = self.strip_json_name(options)
-        self.reader.require(';')
+        self.reader.require(";")
 
         documentation = self.reader.try_append_trailing_documentation(documentation)
 
@@ -375,16 +409,16 @@ class ProtoParser:
         )
 
     def strip_default(self, options: list) -> Union[str, None]:
-        """ Defaults aren't options. """
+        """Defaults aren't options."""
         return self.strip_value("default", options)
 
     def strip_json_name(self, options: list) -> Union[None, str]:
-        """ `json_name` isn't an option. """
+        """`json_name` isn't an option."""
         return self.strip_value("json_name", options)
 
     @staticmethod
     def strip_value(name: str, options: list) -> Union[None, str]:
-        """ This finds an option named [name], removes, and returns it.
+        """This finds an option named [name], removes, and returns it.
         Returns None if no [name] option is present.
         """
         result: Union[None, str] = None
@@ -452,11 +486,11 @@ class ProtoParser:
         return GroupElement(label, location, name, tag, documentation, fields)
 
     def read_reserved(self, location: Location, documentation: str) -> ReservedElement:
-        """ Reads a reserved tags and names list like "reserved 10, 12 to 14, 'foo';". """
+        """Reads a reserved tags and names list like "reserved 10, 12 to 14, 'foo';"."""
         values = []
         while True:
             ch = self.reader.peek_char()
-            if ch in ["\"", "'"]:
+            if ch in ['"', "'"]:
                 values.append(self.reader.read_quoted_string())
             else:
                 tag_start = self.reader.read_int()
@@ -486,7 +520,7 @@ class ProtoParser:
         return ReservedElement(location, my_documentation, values)
 
     def read_extensions(self, location: Location, documentation: str) -> ExtensionsElement:
-        """ Reads extensions like "extensions 101;" or "extensions 101 to max;". """
+        """Reads extensions like "extensions 101;" or "extensions 101 to max;"."""
         values = []
         while True:
             start: int = self.reader.read_int()
@@ -515,12 +549,12 @@ class ProtoParser:
         return ExtensionsElement(location, documentation, values)
 
     def read_enum_constant(self, documentation: str, location: Location, label: str) -> EnumConstantElement:
-        """ Reads an enum constant like "ROCK = 0;". The label is the constant name. """
-        self.reader.require('=')
+        """Reads an enum constant like "ROCK = 0;". The label is the constant name."""
+        self.reader.require("=")
         tag = self.reader.read_int()
 
         options: list = OptionReader(self.reader).read_options()
-        self.reader.require(';')
+        self.reader.require(";")
 
         documentation = self.reader.try_append_trailing_documentation(documentation)
 
@@ -533,10 +567,10 @@ class ProtoParser:
         )
 
     def read_rpc(self, location: Location, documentation: str) -> RpcElement:
-        """ Reads an rpc and returns it. """
+        """Reads an rpc and returns it."""
         name = self.reader.read_name()
 
-        self.reader.require('(')
+        self.reader.require("(")
         request_streaming = False
 
         word = self.reader.read_word()
@@ -546,11 +580,11 @@ class ProtoParser:
         else:
             request_type = self.reader.read_data_type_by_name(word)
 
-        self.reader.require(')')
+        self.reader.require(")")
 
         self.reader.expect_with_location(self.reader.read_word() == "returns", location, "expected 'returns'")
 
-        self.reader.require('(')
+        self.reader.require("(")
         response_streaming = False
 
         word = self.reader.read_word()
@@ -560,13 +594,13 @@ class ProtoParser:
         else:
             response_type = self.reader.read_data_type_by_name(word)
 
-        self.reader.require(')')
+        self.reader.require(")")
 
         options = []
-        if self.reader.peek_char('{'):
+        if self.reader.peek_char("{"):
             while True:
                 rpc_documentation = self.reader.read_documentation()
-                if self.reader.peek_char('}'):
+                if self.reader.peek_char("}"):
                     break
                 declared = self.read_declaration(rpc_documentation, Context.RPC)
                 if isinstance(declared, OptionElement):
@@ -576,7 +610,7 @@ class ProtoParser:
                     pass
 
         else:
-            self.reader.require(';')
+            self.reader.require(";")
 
         return RpcElement(
             location, name, documentation, request_type, response_type, request_streaming, response_streaming, options
@@ -584,6 +618,6 @@ class ProtoParser:
 
     @staticmethod
     def parse(location: Location, data: str) -> ProtoFileElement:
-        """ Parse a named `.proto` schema. """
+        """Parse a named `.proto` schema."""
         proto_parser = ProtoParser(location, data)
         return proto_parser.read_proto_file()

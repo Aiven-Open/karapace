@@ -1,6 +1,29 @@
 from avro.schema import (
-    ARRAY, ArraySchema, BOOLEAN, BYTES, DOUBLE, ENUM, EnumSchema, Field, FIXED, FixedSchema, FLOAT, INT, LONG, MAP,
-    MapSchema, NamedSchema, Names, NULL, RECORD, RecordSchema, Schema, SchemaFromJSONData, STRING, UNION, UnionSchema
+    ARRAY,
+    ArraySchema,
+    BOOLEAN,
+    BYTES,
+    DOUBLE,
+    ENUM,
+    EnumSchema,
+    Field,
+    FIXED,
+    FixedSchema,
+    FLOAT,
+    INT,
+    LONG,
+    MAP,
+    MapSchema,
+    NamedSchema,
+    Names,
+    NULL,
+    RECORD,
+    RecordSchema,
+    Schema,
+    SchemaFromJSONData,
+    STRING,
+    UNION,
+    UnionSchema,
 )
 from enum import Enum, unique
 from typing import Any, cast, Dict, Generic, List, Optional, Set, TypeVar
@@ -11,7 +34,7 @@ E = TypeVar("E", bound=Enum)
 
 
 def parse_avro_schema_definition(s: str) -> Schema:
-    """ Compatibility function with Avro which ignores trailing data in JSON
+    """Compatibility function with Avro which ignores trailing data in JSON
     strings.
 
     The Python stdlib `json` module doesn't allow to ignore trailing data. If
@@ -21,10 +44,10 @@ def parse_avro_schema_definition(s: str) -> Schema:
     try:
         json_data = json.loads(s)
     except json.JSONDecodeError as e:
-        if e.msg != 'Extra data':
+        if e.msg != "Extra data":
             raise
 
-        json_data = json.loads(s[:e.pos])
+        json_data = json.loads(s[: e.pos])
 
     names = Names()
     return SchemaFromJSONData(json_data, names)
@@ -75,7 +98,7 @@ class SchemaCompatibilityResult(Generic[E]):
         self.locations = locations or set("/")  # Note: The empty set is replaced too
 
     def merged_with(self, that: "SchemaCompatibilityResult") -> "SchemaCompatibilityResult":
-        """ Returns a new instance with the results of `self` and `that` merged.
+        """Returns a new instance with the results of `self` and `that` merged.
 
         This will not modified any object in-place. It will instantiate a new
         SchemaCompatibilityResult and return that.
@@ -127,8 +150,10 @@ class SchemaCompatibilityResult(Generic[E]):
             return False
 
         return (
-            self.locations == other.locations and self.messages == other.messages
-            and self.compatibility == other.compatibility and self.incompatibilities == other.incompatibilities
+            self.locations == other.locations
+            and self.messages == other.messages
+            and self.compatibility == other.compatibility
+            and self.incompatibilities == other.incompatibilities
         )
 
     def __str__(self) -> str:
@@ -159,7 +184,7 @@ class ReaderWriterCompatibilityChecker:
         reader: Schema,
         writer: Schema,
         reference_token: str = ROOT_REFERENCE_TOKEN,
-        location: Optional[List[str]] = None
+        location: Optional[List[str]] = None,
     ) -> SchemaCompatibilityResult:
         if location is None:
             location = []
@@ -216,7 +241,8 @@ class ReaderWriterCompatibilityChecker:
                         result = result.merged_with(
                             SchemaCompatibilityResult.incompatible(
                                 SchemaIncompatibilityType.missing_union_branch,
-                                f"reader union lacking writer type: {writer_branch.type.upper()}", location
+                                f"reader union lacking writer type: {writer_branch.type.upper()}",
+                                location,
                             )
                         )
                     location.pop()
@@ -348,7 +374,9 @@ class ReaderWriterCompatibilityChecker:
                             )
                         )
             else:
-                result = result.merged_with(self.get_compatibility(reader_field.type, writer_field.type, "type", location), )
+                result = result.merged_with(
+                    self.get_compatibility(reader_field.type, writer_field.type, "type", location),
+                )
             location.pop()
         location.pop()
         return result

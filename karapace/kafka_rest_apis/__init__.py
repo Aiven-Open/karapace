@@ -66,62 +66,62 @@ class KafkaRest(KarapaceBase):
             "/consumers/<group_name:path>/instances/<instance:path>/offsets",
             callback=self.commit_consumer_offsets,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/offsets",
             callback=self.get_consumer_offsets,
             method="GET",
             rest_request=True,
-            with_request=True
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
             callback=self.update_consumer_subscription,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
             callback=self.get_consumer_subscription,
             method="GET",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
             callback=self.delete_consumer_subscription,
             method="DELETE",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/assignments",
             callback=self.update_consumer_assignment,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/assignments",
             callback=self.get_consumer_assignment,
             method="GET",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/beginning",
             callback=self.seek_beginning_consumer_offsets,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/end",
             callback=self.seek_end_consumer_offsets,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions",
             callback=self.update_consumer_offsets,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/records",
@@ -129,33 +129,33 @@ class KafkaRest(KarapaceBase):
             method="GET",
             rest_request=True,
             with_request=True,
-            json_body=False
+            json_body=False,
         )
         self.route("/consumers/<group_name:path>", callback=self.create_consumer, method="POST", rest_request=True)
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>",
             callback=self.delete_consumer,
             method="DELETE",
-            rest_request=True
+            rest_request=True,
         )
         # Partitions
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>/offsets",
             callback=self.partition_offsets,
             method="GET",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
             callback=self.partition_details,
             method="GET",
-            rest_request=True
+            rest_request=True,
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
             callback=self.partition_publish,
             method="POST",
-            rest_request=True
+            rest_request=True,
         )
         self.route("/topics/<topic:path>/partitions", callback=self.list_partitions, method="GET", rest_request=True)
         # Topics
@@ -262,7 +262,7 @@ class KafkaRest(KarapaceBase):
             internal_name=ConsumerManager.create_internal_name(group_name, instance),
             content_type=content_type,
             query_params=request.query,
-            formats=request.accepts
+            formats=request.accepts,
         )
 
     # OFFSETS
@@ -353,7 +353,7 @@ class KafkaRest(KarapaceBase):
                 ser_format=ser_format,
                 key_schema_id=data.get("key_schema_id"),
                 value_schema_id=data.get("value_schema_id"),
-                default_partition=partition_id
+                default_partition=partition_id,
             )
         except (FormatError, B64DecodeError):
             self.unprocessable_entity(
@@ -363,26 +363,20 @@ class KafkaRest(KarapaceBase):
             )
         except InvalidMessageSchema as e:
             self.r(
-                body={
-                    "error_code": RESTErrorCodes.INVALID_DATA.value,
-                    "message": str(e)
-                },
+                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": str(e)},
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         except SchemaRetrievalError as e:
             self.r(
-                body={
-                    "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
-                    "message": str(e)
-                },
+                body={"error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value, "message": str(e)},
                 content_type=content_type,
                 status=HTTPStatus.REQUEST_TIMEOUT,
             )
         response = {
             "key_schema_id": data.get("key_schema_id"),
             "value_schema_id": data.get("value_schema_id"),
-            "offsets": []
+            "offsets": [],
         }
         for key, value, partition in prepared_records:
             publish_result = await self.produce_message(topic=topic, key=key, value=value, partition=partition)
@@ -470,7 +464,7 @@ class KafkaRest(KarapaceBase):
         ser_format: str,
         key_schema_id: Optional[int],
         value_schema_id: Optional[int],
-        default_partition: Optional[int] = None
+        default_partition: Optional[int] = None,
     ) -> List[Tuple]:
         prepared_records = []
         for record in data["records"]:
@@ -529,7 +523,7 @@ class KafkaRest(KarapaceBase):
         schema_id: Optional[int] = None,
     ) -> bytes:
         if not obj:
-            return b''
+            return b""
         # not pretty
         if ser_format == "json":
             # TODO -> get encoding from headers
@@ -574,7 +568,7 @@ class KafkaRest(KarapaceBase):
                         message=f"Request includes {prefix}s and uses a format that requires schemas "
                         f"but does not include the {prefix}_schema or {prefix}_schema_id fields",
                         content_type=content_type,
-                        sub_code=code
+                        sub_code=code,
                     )
                 try:
                     await self.validate_schema_info(data, prefix, content_type, topic, formats["embedded_format"])
@@ -594,7 +588,7 @@ class KafkaRest(KarapaceBase):
             )
             return {
                 "offset": result.offset if result else -1,
-                "partition": result.topic_partition.partition if result else 0
+                "partition": result.topic_partition.partition if result else 0,
             }
         except AssertionError as e:
             self.log.exception("Invalid data")
