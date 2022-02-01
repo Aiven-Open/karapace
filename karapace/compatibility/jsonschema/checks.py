@@ -129,7 +129,11 @@ MIN_ITEMS_CHECK = AssertionCheck(
 )
 
 
-def type_mismatch(reader_type, writer_type, location: List[str]) -> SchemaCompatibilityResult:
+def type_mismatch(
+    reader_type: JSONSCHEMA_TYPES,
+    writer_type: JSONSCHEMA_TYPES,
+    location: List[str],
+) -> SchemaCompatibilityResult:
     return SchemaCompatibilityResult.incompatible(
         incompat_type=Incompatibility.type_changed,
         message=f"type {reader_type} is not compatible with type {writer_type}",
@@ -189,7 +193,11 @@ def compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCom
 
 
 def check_simple_subschema(
-    simplified_reader_schema, simplified_writer_schema, original_reader_type, original_writer_type, location
+    simplified_reader_schema: Any,
+    simplified_writer_schema: Any,
+    original_reader_type: JSONSCHEMA_TYPES,
+    original_writer_type: JSONSCHEMA_TYPES,
+    location: List[str],
 ) -> SchemaCompatibilityResult:
     rec_result = compatibility_rec(simplified_reader_schema, simplified_writer_schema, location)
     if is_compatible(rec_result):
@@ -307,7 +315,7 @@ def check_assertion_compatibility(
         )
 
     # The type error below is due to a mypy bug for version 0.820 (issue #10131)
-    if assertion_check.comparison(reader_value, writer_value):  # type: ignore
+    if assertion_check.comparison(reader_value, writer_value):  # type: ignore[call-arg]
         result.add_incompatibility(
             incompat_type=assertion_check.error_when_restricting,
             message=assertion_check.error_msg_when_restricting.format(
@@ -816,7 +824,7 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
             qty_of_required_compatible_subschemas = len_writer_subschemas
 
         compatible_schemas_count = count_uniquely_compatible_schemas(
-            reader_type,
+            reader_type,  # type: ignore
             reader_subschemas,
             writer_subschemas,
             subschema_location,

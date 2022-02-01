@@ -14,7 +14,7 @@ def normalize_schema(validator: Draft7Validator) -> Any:
     return normalize_schema_rec(validator, original_schema)
 
 
-def normalize_schema_rec(validator, original_schema) -> Any:
+def normalize_schema_rec(validator: Draft7Validator, original_schema: Any) -> Any:
     if isinstance(original_schema, (bool, str, float, int)) or original_schema is None:
         return original_schema
 
