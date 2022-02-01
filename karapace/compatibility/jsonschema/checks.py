@@ -156,7 +156,7 @@ def count_uniquely_compatible_schemas(reader_type: Instance, reader_schema, writ
     reader_node_schema = [(Node("reader", reader_pos), schema) for reader_pos, schema in enumerate(reader_schema)]
     writer_node_schema = [(Node("writer", writer_pos), schema) for writer_pos, schema in enumerate(writer_schema)]
 
-    compatible_edges = list()
+    compatible_edges = []
     top_nodes = set()
     for (reader_node, reader_subschema), (writer_node, writer_subschema) in product(reader_node_schema, writer_node_schema):
         rec_result = compatibility_rec(
@@ -646,8 +646,12 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                         )
 
                 new_property_is_required_without_default = unknown_property_to_writer in reader_schema.get(
-                    Keyword.REQUIRED.value, list()
-                ) and Keyword.DEFAULT.value not in reader_properties.get(Keyword.REQUIRED.value, list())
+                    Keyword.REQUIRED.value,
+                    [],
+                ) and Keyword.DEFAULT.value not in reader_properties.get(
+                    Keyword.REQUIRED.value,
+                    [],
+                )
                 if new_property_is_required_without_default:
                     result.add_incompatibility(
                         incompat_type=Incompatibility.required_property_added_to_unopen_content_model,
