@@ -75,11 +75,9 @@ class KafkaRestAdminClient(KafkaAdminClient):
                 isr_nodes = set(isr_nodes)
                 topic_response = {"partition": partition_index, "leader": leader_id, "replicas": []}
                 for node in replica_nodes:
-                    topic_response["replicas"].append({
-                        "broker": node,
-                        "leader": node == leader_id,
-                        "in_sync": node in isr_nodes
-                    })
+                    topic_response["replicas"].append(
+                        {"broker": node, "leader": node == leader_id, "in_sync": node in isr_nodes}
+                    )
                 topic_data.append(topic_response)
             resp["topics"][topic] = {"partitions": topic_data}
         return resp

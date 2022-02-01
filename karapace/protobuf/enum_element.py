@@ -18,7 +18,7 @@ class EnumElement(TypeElement):
         name: str,
         documentation: str = "",
         options: List[OptionElement] = None,
-        constants: List[EnumConstantElement] = None
+        constants: List[EnumConstantElement] = None,
     ) -> None:
         # Enums do not allow nested type declarations.
         super().__init__(location, name, documentation, options or [], [])

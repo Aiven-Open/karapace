@@ -60,11 +60,14 @@ class SchemaCoordinator(BaseCoordinator):
         for member_id, member_data in members:
             member_identity = json.loads(member_data.decode("utf8"))
             if member_identity["master_eligibility"] is True:
-                urls[get_identity_url(member_identity["scheme"], member_identity["host"],
-                                      member_identity["port"])] = (member_id, member_data)
+                urls[get_identity_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
+                    member_id,
+                    member_data,
+                )
             else:
-                fallback_urls[get_identity_url(member_identity["scheme"], member_identity["host"],
-                                               member_identity["port"])] = (member_id, member_data)
+                fallback_urls[
+                    get_identity_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
+                ] = (member_id, member_data)
         if len(urls) > 0:
             chosen_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
             schema_master_id, member_data = urls[chosen_url]
@@ -92,8 +95,11 @@ class SchemaCoordinator(BaseCoordinator):
 
     def _on_join_complete(self, generation, member_id, protocol, member_assignment_bytes):
         self.log.info(
-            "Join complete, generation %r, member_id: %r, protocol: %r, member_assignment_bytes: %r", generation, member_id,
-            protocol, member_assignment_bytes
+            "Join complete, generation %r, member_id: %r, protocol: %r, member_assignment_bytes: %r",
+            generation,
+            member_id,
+            protocol,
+            member_assignment_bytes,
         )
         member_assignment = json.loads(member_assignment_bytes.decode("utf8"))
         member_identity = member_assignment["master_identity"]

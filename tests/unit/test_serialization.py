@@ -1,7 +1,12 @@
 from karapace.config import read_config
 from karapace.serialization import (
-    HEADER_FORMAT, InvalidMessageHeader, InvalidMessageSchema, InvalidPayload, SchemaRegistryDeserializer,
-    SchemaRegistrySerializer, START_BYTE
+    HEADER_FORMAT,
+    InvalidMessageHeader,
+    InvalidMessageSchema,
+    InvalidPayload,
+    SchemaRegistryDeserializer,
+    SchemaRegistrySerializer,
+    START_BYTE,
 )
 from tests.utils import test_objects_avro
 

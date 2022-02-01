@@ -14,16 +14,16 @@ from karapace.protobuf.utils import append_documentation, append_indented
 
 def add_slashes(text: str) -> str:
     escape_dict = {
-        '\a': '\\a',
-        '\b': '\\b',
-        '\f': '\\f',
-        '\n': '\\n',
-        '\r': '\\r',
-        '\t': '\\t',
-        '\v': '\\v',
-        '\'': "\\'",
-        '\"': '\\"',
-        '\\': '\\\\'
+        "\a": "\\a",
+        "\b": "\\b",
+        "\f": "\\f",
+        "\n": "\\n",
+        "\r": "\\r",
+        "\t": "\\t",
+        "\v": "\\v",
+        "'": "\\'",
+        '"': '\\"',
+        "\\": "\\\\",
     }
     trans_table = str.maketrans(escape_dict)
     return text.translate(trans_table)
@@ -90,7 +90,7 @@ def option_element_string(option: OptionElement) -> str:
         else:
             name = option.name
         value = add_slashes(str(option.value))
-        result = f"{name} = \"{value}\""
+        result = f'{name} = "{value}"'
     else:
         result = option.to_schema()
 
@@ -101,7 +101,7 @@ class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
     def __init__(self, schema: str) -> None:
-        if type(schema).__name__ != 'str':
+        if type(schema).__name__ != "str":
             raise IllegalArgumentException("Non str type of schema string")
         self.dirty = schema
         self.cache_string = ""
@@ -116,9 +116,9 @@ class ProtobufSchema:
         strings = []
         shm: ProtoFileElement = self.proto_file_element
         if shm.syntax:
-            strings.append("syntax = \"")
+            strings.append('syntax = "')
             strings.append(str(shm.syntax))
-            strings.append("\";\n")
+            strings.append('";\n')
 
         if shm.package_name:
             strings.append("package " + str(shm.package_name) + ";\n")
@@ -127,10 +127,10 @@ class ProtobufSchema:
             strings.append("\n")
 
             for file in shm.imports:
-                strings.append("import \"" + str(file) + "\";\n")
+                strings.append('import "' + str(file) + '";\n')
 
             for file in shm.public_imports:
-                strings.append("import public \"" + str(file) + "\";\n")
+                strings.append('import public "' + str(file) + '";\n')
 
         if shm.options:
             strings.append("\n")
@@ -157,5 +157,5 @@ class ProtobufSchema:
                 strings.append(str(service.to_schema()))
         return "".join(strings)
 
-    def compare(self, other: 'ProtobufSchema', result: CompareResult) -> CompareResult:
+    def compare(self, other: "ProtobufSchema", result: CompareResult) -> CompareResult:
         self.proto_file_element.compare(other.proto_file_element, result)

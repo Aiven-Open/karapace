@@ -25,7 +25,7 @@ class ServiceElement:
             for option in self.options:
                 append_indented(result, option.to_schema_declaration())
         if self.rpcs:
-            result.append('\n')
+            result.append("\n")
             for rpc in self.rpcs:
                 append_indented(result, rpc.to_schema())
 

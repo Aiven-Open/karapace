@@ -25,7 +25,7 @@ def test_simple_to_schema():
     element = MessageElement(
         location=location,
         name="Message",
-        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)]
+        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
     )
     expected = """
         |message Message {
@@ -48,7 +48,7 @@ def test_simple_with_documentation_to_schema():
         location=location,
         name="Message",
         documentation="Hello",
-        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)]
+        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
     )
     expected = """
         |// Hello
@@ -94,9 +94,9 @@ def test_simple_with_nested_elements_to_schema():
                 name="Nested",
                 fields=[
                     FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)
-                ]
+                ],
             )
-        ]
+        ],
     )
     expected = """
         |message Message {
@@ -118,7 +118,7 @@ def test_add_multiple_types():
         location=location,
         name="Message",
         fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
-        nested_types=[nested1, nested2]
+        nested_types=[nested1, nested2],
     )
     assert len(element.nested_types) == 2
 
@@ -128,7 +128,7 @@ def test_simple_with_extensions_to_schema():
         location=location,
         name="Message",
         fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
-        extensions=[ExtensionsElement(location=location, values=[KotlinRange(500, 501)])]
+        extensions=[ExtensionsElement(location=location, values=[KotlinRange(500, 501)])],
     )
     expected = """
         |message Message {
@@ -148,7 +148,7 @@ def test_add_multiple_extensions():
         location=location,
         name="Message",
         fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
-        extensions=[fives, sixes]
+        extensions=[fives, sixes],
     )
     assert len(element.extensions) == 2
 
@@ -159,7 +159,7 @@ def test_one_of_to_schema():
         name="Message",
         one_ofs=[
             OneOfElement(name="hi", fields=[FieldElement(location=location, element_type="string", name="name", tag=1)])
-        ]
+        ],
     )
     expected = """
         |message Message {
@@ -192,28 +192,29 @@ def test_one_of_with_group_to_schema():
                                 label=Field.Label.OPTIONAL,
                                 element_type="int32",
                                 name="result_per_page",
-                                tag=4
+                                tag=4,
                             ),
                             FieldElement(
                                 location=location.at(7, 7),
                                 label=Field.Label.OPTIONAL,
                                 element_type="int32",
                                 name="page_count",
-                                tag=5
-                            )
-                        ]
+                                tag=5,
+                            ),
+                        ],
                     )
-                ]
+                ],
             )
-        ]
+        ],
     )
 
-    expected = """
+    expected = (
+        """
         |message Message {
         |  oneof hi {
         |    string name = 1;
-        |  """ + \
-        """
+        |  """
+        + """
         |    group Stuff = 3 {
         |      optional int32 result_per_page = 4;
         |      optional int32 page_count = 5;
@@ -221,6 +222,7 @@ def test_one_of_with_group_to_schema():
         |  }
         |}
         |"""
+    )
     expected = trim_margin(expected)
     assert element.to_schema() == expected
 
@@ -240,8 +242,8 @@ def test_reserved_to_schema():
             ReservedElement(location=location, values=[10, KotlinRange(12, 14), "foo"]),
             ReservedElement(location=location, values=[10]),
             ReservedElement(location=location, values=[KotlinRange(12, 14)]),
-            ReservedElement(location=location, values=["foo"])
-        ]
+            ReservedElement(location=location, values=["foo"]),
+        ],
     )
     expected = """
         |message Message {
@@ -273,15 +275,11 @@ def test_group_to_schema():
                         location=location.at(4, 5), label=Field.Label.OPTIONAL, element_type="string", name="title", tag=3
                     ),
                     FieldElement(
-                        location=location.at(5, 5),
-                        label=Field.Label.REPEATED,
-                        element_type="string",
-                        name="snippets",
-                        tag=4
-                    )
-                ]
+                        location=location.at(5, 5), label=Field.Label.REPEATED, element_type="string", name="snippets", tag=4
+                    ),
+                ],
             )
-        ]
+        ],
     )
     expected = """
         |message SearchResponse {
@@ -314,7 +312,7 @@ def test_multiple_everything_to_schema():
         one_ofs=[one_of_1, one_of_2],
         nested_types=[nested],
         extensions=[extensions1, extensions2],
-        options=[option]
+        options=[option],
     )
     expected = """
         |message Message {
@@ -354,7 +352,7 @@ def test_field_with_default_string_to_schema_in_proto2():
     field = FieldElement(
         location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1, default_value="benoît"
     )
-    expected = "required string name = 1 [default = \"benoît\"];\n"
+    expected = 'required string name = 1 [default = "benoît"];\n'
     assert field.to_schema() == expected
 
 
@@ -398,7 +396,7 @@ def test_field_with_one_option_to_schema():
         element_type="string",
         name="name",
         tag=1,
-        options=[OptionElement("kit", OptionElement.Kind.STRING, "kat")]
+        options=[OptionElement("kit", OptionElement.Kind.STRING, "kat")],
     )
     expected = """required string name = 1 [kit = "kat"];
         |"""
@@ -415,8 +413,8 @@ def test_field_with_more_than_one_option_to_schema():
         tag=1,
         options=[
             OptionElement("kit", OptionElement.Kind.STRING, "kat"),
-            OptionElement("dup", OptionElement.Kind.STRING, "lo")
-        ]
+            OptionElement("dup", OptionElement.Kind.STRING, "lo"),
+        ],
     )
     expected = """required string name = 1 [
         |  kit = "kat",
@@ -441,8 +439,8 @@ def test_one_of_with_options():
         name="page_info",
         fields=[
             FieldElement(location=location.at(4, 5), element_type="int32", name="page_number", tag=2),
-            FieldElement(location=location.at(5, 5), element_type="int32", name="result_per_page", tag=3)
+            FieldElement(location=location.at(5, 5), element_type="int32", name="result_per_page", tag=3),
         ],
-        options=[OptionElement("my_option", OptionElement.Kind.BOOLEAN, "true", True)]
+        options=[OptionElement("my_option", OptionElement.Kind.BOOLEAN, "true", True)],
     )
     assert one_of.to_schema() == expected

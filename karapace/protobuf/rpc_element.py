@@ -15,7 +15,7 @@ class RpcElement:
         response_type: str = "",
         request_streaming: bool = False,
         response_streaming: bool = False,
-        options: list = None
+        options: list = None,
     ) -> None:
         self.location = location
         self.name = name

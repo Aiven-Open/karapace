@@ -23,8 +23,8 @@ def test_simple_to_schema():
         constants=[
             EnumConstantElement(location=location, name="ONE", tag=1),
             EnumConstantElement(location=location, name="TWO", tag=2),
-            EnumConstantElement(location=location, name="SIX", tag=6)
-        ]
+            EnumConstantElement(location=location, name="SIX", tag=6),
+        ],
     )
     expected = """
         |enum Enum {
@@ -53,8 +53,8 @@ def test_simple_with_options_to_schema():
         constants=[
             EnumConstantElement(location=location, name="ONE", tag=1),
             EnumConstantElement(location=location, name="TWO", tag=2),
-            EnumConstantElement(location=location, name="SIX", tag=6)
-        ]
+            EnumConstantElement(location=location, name="SIX", tag=6),
+        ],
     )
     expected = """
         |enum Enum {
@@ -75,7 +75,7 @@ def test_add_multiple_options():
         location=location,
         name="Enum",
         options=[kit_kat, foo_bar],
-        constants=[EnumConstantElement(location=location, name="ONE", tag=1)]
+        constants=[EnumConstantElement(location=location, name="ONE", tag=1)],
     )
     assert len(element.options) == 2
 
@@ -88,8 +88,8 @@ def test_simple_with_documentation_to_schema():
         constants=[
             EnumConstantElement(location=location, name="ONE", tag=1),
             EnumConstantElement(location=location, name="TWO", tag=2),
-            EnumConstantElement(location=location, name="SIX", tag=6)
-        ]
+            EnumConstantElement(location=location, name="SIX", tag=6),
+        ],
     )
     expected = """
         |// Hello
@@ -126,8 +126,8 @@ def test_field_with_options_to_schema():
         tag=1,
         options=[
             OptionElement("kit", OptionElement.Kind.STRING, "kat", True),
-            OptionElement("tit", OptionElement.Kind.STRING, "tat")
-        ]
+            OptionElement("tit", OptionElement.Kind.STRING, "tat"),
+        ],
     )
     expected = """
         |NAME = 1 [

@@ -13,7 +13,7 @@ def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
         lines = ["Comparing SchemaCompatibilityResult instances:"]
 
         def pad(depth: int, *msg: str) -> str:
-            return "  " * depth + ' '.join(msg)
+            return "  " * depth + " ".join(msg)
 
         def list_details(header: str, depth: int, items: List[str]) -> None:
             qty = len(items)
@@ -31,10 +31,10 @@ def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
 
             depth += 1
 
-            lines.append(pad(depth, 'compatibility', str(obj.compatibility)))
-            list_details('locations:', depth, list(obj.locations))
-            list_details('messages:', depth, list(obj.messages))
-            list_details('incompatibilities:', depth, [str(i) for i in obj.incompatibilities])
+            lines.append(pad(depth, "compatibility", str(obj.compatibility)))
+            list_details("locations:", depth, list(obj.locations))
+            list_details("messages:", depth, list(obj.messages))
+            list_details("incompatibilities:", depth, [str(i) for i in obj.incompatibilities])
 
         depth = 1
         compatibility_details("Left:", depth, left)
@@ -45,13 +45,13 @@ def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
 
 
 def split_by_comma(arg: str) -> List[str]:
-    return arg.split(',')
+    return arg.split(",")
 
 
 def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
-    parser.addoption('--kafka-bootstrap-servers', type=split_by_comma)
-    parser.addoption('--registry-url')
-    parser.addoption('--rest-url')
+    parser.addoption("--kafka-bootstrap-servers", type=split_by_comma)
+    parser.addoption("--registry-url")
+    parser.addoption("--rest-url")
 
 
 @pytest.fixture(autouse=True, scope="session")

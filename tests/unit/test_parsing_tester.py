@@ -18,7 +18,7 @@ def test_multi_files():
     failed = 0
 
     for root, dirnames, filenames in os.walk(src):  # pylint: disable=W0612
-        for filename in fnmatch.filter(filenames, '*.proto'):
+        for filename in fnmatch.filter(filenames, "*.proto"):
             fn = os.path.join(root, filename)
             print(f"Parsing {fn}")
             total += 1

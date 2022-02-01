@@ -57,6 +57,10 @@ stop-kafka:
 .PHONY: kafka
 kafka: start-kafka
 
+.PHONY: black
+black: $(GENERATED)
+	pre-commit run black --all-files
+
 .PHONY: pylint
 pylint: $(GENERATED)
 	pre-commit run pylint --all-files
@@ -84,12 +88,8 @@ test: lint copyright unittest
 isort:
 	pre-commit run isort --all-files
 
-.PHONY: yapf
-yapf:
-	pre-commit run yapf --all-files
-
 .PHONY: reformat
-reformat: isort yapf
+reformat: isort black
 
 .PHONY: pre-commit
 pre-commit: $(GENERATED)

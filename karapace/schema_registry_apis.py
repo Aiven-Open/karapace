@@ -75,7 +75,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             "/compatibility/subjects/<subject:path>/versions/<version:path>",
             callback=self.compatibility_check,
             method="POST",
-            schema_request=True
+            schema_request=True,
         )
         self.route(
             "/config/<subject:path>",
@@ -103,7 +103,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             "/subjects/<subject:path>/versions/<version>",
             callback=self.subject_version_get,
             method="GET",
-            schema_request=True
+            schema_request=True,
         )
         self.route(
             "/subjects/<subject:path>/versions/<version:path>",  # needs
@@ -117,7 +117,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             "/subjects/<subject:path>/versions/<version>/schema",
             callback=self.subject_version_schema_get,
             method="GET",
-            schema_request=True
+            schema_request=True,
         )
         self.route(
             "/subjects/<subject:path>",
@@ -186,7 +186,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 "error_code": SchemaErrorCodes.INVALID_VERSION_ID.value,
                 "message": (
                     f"The specified version '{version}' is not a valid version id. "
-                    "Allowed values are between [1, 2^31-1] and the string \"latest\""
+                    'Allowed values are between [1, 2^31-1] and the string "latest"'
                 ),
             },
             content_type=content_type,
@@ -218,8 +218,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
             offset = self.ksr.queue.get()
             if offset == sent_offset:
                 self.log.info(
-                    "We've consumed back produced offset: %r message back, everything is in sync, took: %.4f", offset,
-                    time.monotonic() - start_time
+                    "We've consumed back produced offset: %r message back, everything is in sync, took: %.4f",
+                    offset,
+                    time.monotonic() - start_time,
                 )
                 break
             self.log.warning("Put the offset: %r back to queue, someone else is waiting for this?", offset)
@@ -254,7 +255,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 "version": version,
                 "id": schema_id,
                 "schema": schema.schema_str,
-                "deleted": deleted
+                "deleted": deleted,
             }
             if schema.schema_type is not SchemaType.AVRO:
                 valuedict["schemaType"] = schema.schema_type
@@ -582,8 +583,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 body={
                     "error_code": SchemaErrorCodes.SCHEMAVERSION_NOT_SOFT_DELETED.value,
                     "message": (
-                        f"Subject '{subject}' Version {version} was not deleted "
-                        "first before being permanently deleted"
+                        f"Subject '{subject}' Version {version} was not deleted " "first before being permanently deleted"
                     ),
                 },
                 content_type=content_type,
@@ -782,8 +782,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_id = self.ksr.get_schema_id(new_schema)
             version = 1
             self.log.info(
-                "Registering new subject: %r with version: %r to schema %r, schema_id: %r", subject, version,
-                new_schema.schema_str, schema_id
+                "Registering new subject: %r with version: %r to schema %r, schema_id: %r",
+                subject,
+                version,
+                new_schema.schema_str,
+                schema_id,
             )
         else:
             # First check if any of the existing schemas for the subject match
@@ -793,8 +796,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 version = max(self.ksr.subjects[subject]["schemas"]) + 1
                 schema_id = self.ksr.get_schema_id(new_schema)
                 self.log.info(
-                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
-                    version, new_schema.schema_str, schema_id
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
+                    subject,
+                    schema_id,
+                    version,
+                    new_schema.schema_str,
+                    schema_id,
                 )
                 self.send_schema_message(
                     subject=subject,
@@ -848,13 +855,21 @@ class KarapaceSchemaRegistry(KarapaceBase):
             version = max(self.ksr.subjects[subject]["schemas"]) + 1
             if new_schema.schema_type is SchemaType.PROTOBUF:
                 self.log.info(
-                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
-                    version, new_schema.__str__(), schema_id
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
+                    subject,
+                    schema_id,
+                    version,
+                    new_schema.__str__(),
+                    schema_id,
                 )
             else:
                 self.log.info(
-                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r", subject, schema_id,
-                    version, new_schema.to_json(), schema_id
+                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
+                    subject,
+                    schema_id,
+                    version,
+                    new_schema.to_json(),
+                    schema_id,
                 )
 
         self.send_schema_message(

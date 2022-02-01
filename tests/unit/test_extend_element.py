@@ -20,7 +20,7 @@ def test_simple_to_schema():
     extend = ExtendElement(
         location=location,
         name="Name",
-        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)]
+        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
     )
     expected = """
         |extend Name {
@@ -43,7 +43,7 @@ def test_simple_with_documentation_to_schema():
         location=location,
         name="Name",
         documentation="Hello",
-        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)]
+        fields=[FieldElement(location=location, label=Field.Label.REQUIRED, element_type="string", name="name", tag=1)],
     )
     expected = """
         |// Hello
@@ -61,14 +61,9 @@ def test_json_name_to_schema():
         name="Name",
         fields=[
             FieldElement(
-                location=location,
-                label=Field.Label.REQUIRED,
-                element_type="string",
-                name="name",
-                json_name="my_json",
-                tag=1
+                location=location, label=Field.Label.REQUIRED, element_type="string", name="name", json_name="my_json", tag=1
             )
-        ]
+        ],
     )
     expected = """
         |extend Name {
@@ -91,9 +86,9 @@ def test_default_is_set_in_proto2_file():
                 element_type="string",
                 name="name",
                 tag=1,
-                default_value="defaultValue"
+                default_value="defaultValue",
             )
-        ]
+        ],
     )
     expected = """
         |// Hello

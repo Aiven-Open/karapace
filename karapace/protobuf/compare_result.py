@@ -33,8 +33,13 @@ class Modification(Enum):
     # https://yokota.blog/2021/08/26/understanding-protobuf-compatibility/
     def is_compatible(self) -> bool:
         return self not in [
-            self.MESSAGE_MOVE, self.MESSAGE_DROP, self.FIELD_LABEL_ALTER, self.FIELD_KIND_ALTER, self.FIELD_TYPE_ALTER,
-            self.ONE_OF_FIELD_DROP, self.FEW_FIELDS_CONVERTED_TO_ONE_OF
+            self.MESSAGE_MOVE,
+            self.MESSAGE_DROP,
+            self.FIELD_LABEL_ALTER,
+            self.FIELD_KIND_ALTER,
+            self.FIELD_TYPE_ALTER,
+            self.ONE_OF_FIELD_DROP,
+            self.FEW_FIELDS_CONVERTED_TO_ONE_OF,
         ]
 
 

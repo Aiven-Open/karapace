@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Callable, Generic, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @unique
@@ -111,9 +111,7 @@ class Incompatibility(Enum):
     )
     property_removed_from_closed_content_model = "property_removed_from_closed_content_model"
     property_added_to_open_content_model = "property_added_to_open_content_model"
-    property_added_not_covered_by_partially_open_content_model = (
-        "property_added_not_covered_by_partially_open_content_model"
-    )
+    property_added_not_covered_by_partially_open_content_model = "property_added_not_covered_by_partially_open_content_model"
     required_property_added_to_unopen_content_model = "required_property_added_to_unopen_content_model"
     required_attribute_added = "required_attribute_added"
     max_items_added = "max_items_added"
@@ -135,6 +133,7 @@ class Incompatibility(Enum):
 @dataclass
 class AssertionCheck(Generic[T]):
     """Datatype to declare regular compatibility checks."""
+
     keyword: Keyword
     error_when_introducing: "Incompatibility"
     error_when_restricting: "Incompatibility"

@@ -1,6 +1,11 @@
 from tests.utils import (
-    consumer_valid_payload, new_consumer, new_random_name, new_topic, repeat_until_successful_request, REST_HEADERS,
-    schema_data
+    consumer_valid_payload,
+    new_consumer,
+    new_random_name,
+    new_topic,
+    repeat_until_successful_request,
+    REST_HEADERS,
+    schema_data,
 )
 
 import base64
@@ -24,8 +29,9 @@ async def test_create_and_delete(rest_async_client, trail):
     with_name["name"] = instance_id
     resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=with_name, headers=header)
     assert not resp.ok
-    assert resp.status == 409, f"Expected conflict for instance {instance_id} and group {group_name} " \
-                               f"but got a different error: {resp.body}"
+    assert resp.status == 409, (
+        f"Expected conflict for instance {instance_id} and group {group_name} " f"but got a different error: {resp.body}"
+    )
     invalid_fetch = copy.copy(consumer_valid_payload)
     # add with faulty params fails
     invalid_fetch["fetch.min.bytes"] = -10
@@ -79,16 +85,16 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     res = await rest_async_client.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
-    assert "topics" in data and len(data["topics"]) == 0, \
-        f"Expecting no subscription on freshly created consumer: {data}"
+    assert "topics" in data and len(data["topics"]) == 0, f"Expecting no subscription on freshly created consumer: {data}"
     # simple sub
     res = await rest_async_client.post(sub_path, json={"topics": [topic_name]}, headers=header)
     assert res.ok
     res = await rest_async_client.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
-    assert "topics" in data and len(data["topics"]) == 1 and data["topics"][0] == topic_name, \
-        f"expecting {topic_name} in {data}"
+    assert (
+        "topics" in data and len(data["topics"]) == 1 and data["topics"][0] == topic_name
+    ), f"expecting {topic_name} in {data}"
     for _ in range(3):
         producer.send(topic_name, b"foo").get()
     resp = await rest_async_client.get(consume_path, headers=header)
@@ -132,10 +138,7 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
 
     # topic name sub along with pattern will fail
     res = await rest_async_client.post(
-        sub_path, json={
-            "topics": [topic_name],
-            "topic_pattern": "baz"
-        }, headers=REST_HEADERS["json"]
+        sub_path, json={"topics": [topic_name], "topic_pattern": "baz"}, headers=REST_HEADERS["json"]
     )
     assert res.status == 409, f"Invalid state error expected: {res.status}"
     data = res.json()
@@ -182,21 +185,22 @@ async def test_offsets(rest_async_client, admin_client, trail):
     offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets{trail}"
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.post(
-        assign_path, json={"partitions": [{
-            "topic": topic_name,
-            "partition": 0
-        }]}, headers=header
+        assign_path, json={"partitions": [{"topic": topic_name, "partition": 0}]}, headers=header
     )
     assert res.ok, f"Unexpected response status for assignment {res}"
 
     await repeat_until_successful_request(
         rest_async_client.post,
         offsets_path,
-        json_data={"offsets": [{
-            "topic": topic_name,
-            "partition": 0,
-            "offset": 0,
-        }]},
+        json_data={
+            "offsets": [
+                {
+                    "topic": topic_name,
+                    "partition": 0,
+                    "offset": 0,
+                }
+            ]
+        },
         headers=header,
         error_msg="Unexpected response status for offset commit",
         timeout=20,
@@ -204,10 +208,7 @@ async def test_offsets(rest_async_client, admin_client, trail):
     )
 
     res = await rest_async_client.get(
-        offsets_path, headers=header, json={"partitions": [{
-            "topic": topic_name,
-            "partition": 0
-        }]}
+        offsets_path, headers=header, json={"partitions": [{"topic": topic_name, "partition": 0}]}
     )
     assert res.ok, f"Unexpected response status for {res}"
     data = res.json()
@@ -217,19 +218,12 @@ async def test_offsets(rest_async_client, admin_client, trail):
     assert "offset" in data and data["offset"] == 1, f"Unexpected offset {data}"
     assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
     res = await rest_async_client.post(
-        offsets_path, json={"offsets": [{
-            "topic": topic_name,
-            "partition": 0,
-            "offset": 1
-        }]}, headers=header
+        offsets_path, json={"offsets": [{"topic": topic_name, "partition": 0, "offset": 1}]}, headers=header
     )
     assert res.ok, f"Unexpected response status for offset commit {res}"
 
     res = await rest_async_client.get(
-        offsets_path, headers=header, json={"partitions": [{
-            "topic": topic_name,
-            "partition": 0
-        }]}
+        offsets_path, headers=header, json={"partitions": [{"topic": topic_name, "partition": 0}]}
     )
     assert res.ok, f"Unexpected response status for {res}"
     data = res.json()
@@ -244,10 +238,8 @@ async def test_offsets(rest_async_client, admin_client, trail):
 async def test_consume(rest_async_client, admin_client, producer, trail):
     # avro to be handled in a separate testcase ??
     values = {
-        "json": [json.dumps({
-            "foo": f"bar{i}"
-        }).encode("utf-8") for i in range(3)],
-        "binary": [f"val{i}".encode('utf-8') for i in range(3)]
+        "json": [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
+        "binary": [f"val{i}".encode("utf-8") for i in range(3)],
     }
     deserializers = {"binary": base64.b64decode, "json": lambda x: json.dumps(x).encode("utf-8")}
     group_name = "consume_group"
@@ -272,9 +264,9 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
         data = resp.json()
         assert len(data) == len(values[fmt]), f"Expected {len(values[fmt])} element in response: {resp}"
         for i in range(len(values[fmt])):
-            assert deserializers[fmt](data[i]["value"]) == values[fmt][i], \
-                f"Extracted data {deserializers[fmt](data[i]['value'])}" \
-                f" does not match {values[fmt][i]} for format {fmt}"
+            assert deserializers[fmt](data[i]["value"]) == values[fmt][i], (
+                f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {values[fmt][i]} for format {fmt}"
+            )
 
 
 @pytest.mark.parametrize("schema_type", ["avro"])
@@ -293,12 +285,7 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
     await repeat_until_successful_request(
         rest_async_client.post,
         f"topics/{tn}{trail}",
-        json_data={
-            "value_schema": schema_data[schema_type][0],
-            "records": [{
-                "value": o
-            } for o in publish_payload]
-        },
+        json_data={"value_schema": schema_data[schema_type][0], "records": [{"value": o} for o in publish_payload]},
         headers=header,
         error_msg="Unexpected response status for offset commit",
         timeout=10,
