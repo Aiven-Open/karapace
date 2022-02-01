@@ -168,7 +168,7 @@ class SchemaBackup:
 
         ser = json.dumps(values)
         if self.backup_location:
-            with open(self.backup_location, "w") as fp:
+            with open(self.backup_location, mode="w", encoding="utf8") as fp:
                 fp.write(ser)
                 self.log.info("Schema backup written to %r", self.backup_location)
         else:
@@ -187,7 +187,7 @@ class SchemaBackup:
         self.log.info("Starting backup restore for topic: %r", self.topic_name)
 
         values = None
-        with open(self.backup_location, "r") as fp:
+        with open(self.backup_location, mode="r", encoding="utf8") as fp:
             raw_msg = fp.read()
             values = json.loads(raw_msg)
 
@@ -229,7 +229,7 @@ def parse_args():
 def main() -> int:
     args = parse_args()
 
-    with open(args.config) as handler:
+    with open(args.config, encoding="utf8") as handler:
         config = read_config(handler)
 
     sb = SchemaBackup(config, args.location, args.topic)

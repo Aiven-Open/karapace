@@ -55,7 +55,7 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
     proto_path = f"{directory}/{proto_name}.proto"
     class_path = f"{directory}/{proto_name}_pb2.py"
     if not os.path.isfile(proto_path):
-        with open(f"{directory}/{proto_name}.proto", "w") as proto_text:
+        with open(f"{directory}/{proto_name}.proto", mode="w", encoding="utf8") as proto_text:
             proto_text.write(str(schema))
 
     if not os.path.isfile(class_path):
