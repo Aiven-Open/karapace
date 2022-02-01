@@ -493,7 +493,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
             kafka_config_path=str(config_path),
         ),
     )
-    env: Dict[bytes, bytes] = dict()
+    env: Dict[bytes, bytes] = {}
     proc = Popen(kafka_cmd, env=env)
     return config, proc
 
