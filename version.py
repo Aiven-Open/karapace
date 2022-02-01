@@ -14,7 +14,7 @@ def save_version(new_ver, old_ver, version_file):
         return False
     version_file = os.path.join(os.path.dirname(__file__), version_file)
     if not old_ver or new_ver != old_ver:
-        with open(version_file, "w") as fp:
+        with open(version_file, mode="w", encoding="utf8") as fp:
             fp.write('"""{}"""\n__version__ = "{}"\n'.format(__doc__, new_ver))
     return True
 

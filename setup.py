@@ -10,7 +10,7 @@ import os
 import version
 
 readme_path = os.path.join(os.path.dirname(__file__), "README.rst")
-with open(readme_path, "r") as fp:
+with open(readme_path, mode="r", encoding="utf8") as fp:
     readme_text = fp.read()
 
 version_for_setup_py = version.get_project_version("karapace/version.py")

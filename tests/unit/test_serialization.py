@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 async def make_ser_deser(config_path, mock_client):
-    with open(config_path) as handler:
+    with open(config_path, encoding="utf8") as handler:
         config = read_config(handler)
     serializer = SchemaRegistrySerializer(config_path=config_path, config=config)
     deserializer = SchemaRegistryDeserializer(config_path=config_path, config=config)
