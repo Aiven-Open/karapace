@@ -145,7 +145,7 @@ def is_object_content_model_open(schema: Any) -> bool:
     if not isinstance(schema, dict):
         return False
 
-    does_not_restrict_properties_by_pattern = len(schema.get(Keyword.PATTERN_PROPERTIES.value, list())) == 0
+    does_not_restrict_properties_by_pattern = len(schema.get(Keyword.PATTERN_PROPERTIES.value, [])) == 0
     does_not_restrict_additional_properties = is_true_schema(schema.get(Keyword.ADDITIONAL_PROPERTIES.value, True))
 
     return does_not_restrict_properties_by_pattern and does_not_restrict_additional_properties
