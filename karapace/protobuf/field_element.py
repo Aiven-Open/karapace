@@ -23,7 +23,7 @@ class FieldElement:
         json_name: str = None,
         tag: int = None,
         documentation: str = "",
-        options: list = None
+        options: list = None,
     ) -> None:
         self.location = location
         self.label = label
@@ -46,14 +46,14 @@ class FieldElement:
 
         options_with_default = self.options_with_special_values()
         if options_with_default:
-            result.append(' ')
+            result.append(" ")
             append_options(result, options_with_default)
         result.append(";\n")
 
         return "".join(result)
 
     def options_with_special_values(self) -> List[OptionElement]:
-        """ Both `default` and `json_name` are defined in the schema like options but they are actually
+        """Both `default` and `json_name` are defined in the schema like options but they are actually
         not options themselves as they're missing from `google.protobuf.FieldOptions`.
         """
 
@@ -85,6 +85,7 @@ class FieldElement:
         self, self_type: ProtoType, other_type: ProtoType, other_label: str, result: CompareResult, types: CompareTypes
     ) -> None:
         from karapace.protobuf.enum_element import EnumElement
+
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)
         self_is_scalar: bool = False
@@ -110,23 +111,22 @@ class FieldElement:
 
         if other_type.is_scalar or other_is_enum:
             other_is_scalar = True
-        if self_is_scalar == other_is_scalar and \
-                self_type.is_map == other_type.is_map:
+        if self_is_scalar == other_is_scalar and self_type.is_map == other_type.is_map:
             if self_type.is_map:
                 self.compare_map(self_type, other_type, result, types)
             elif self_is_scalar:
                 self_compatibility_kind = self_type.compatibility_kind(self_is_enum)
                 other_compatibility_kind = other_type.compatibility_kind(other_is_enum)
-                if other_label == '':
+                if other_label == "":
                     other_label = None
-                if self.label != other_label \
-                        and self_compatibility_kind in \
-                        [ProtoType.CompatibilityKind.VARIANT,
-                         ProtoType.CompatibilityKind.DOUBLE,
-                         ProtoType.CompatibilityKind.FLOAT,
-                         ProtoType.CompatibilityKind.FIXED64,
-                         ProtoType.CompatibilityKind.FIXED32,
-                         ProtoType.CompatibilityKind.SVARIANT]:
+                if self.label != other_label and self_compatibility_kind in [
+                    ProtoType.CompatibilityKind.VARIANT,
+                    ProtoType.CompatibilityKind.DOUBLE,
+                    ProtoType.CompatibilityKind.FLOAT,
+                    ProtoType.CompatibilityKind.FIXED64,
+                    ProtoType.CompatibilityKind.FIXED32,
+                    ProtoType.CompatibilityKind.SVARIANT,
+                ]:
                     result.add_modification(Modification.FIELD_LABEL_ALTER)
                 if self_compatibility_kind != other_compatibility_kind:
                     result.add_modification(Modification.FIELD_KIND_ALTER)
@@ -140,6 +140,7 @@ class FieldElement:
         cls, self_type: ProtoType, other_type: ProtoType, result: CompareResult, types: CompareTypes
     ) -> None:
         from karapace.protobuf.message_element import MessageElement
+
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)
         self_type_element: MessageElement = self_type_record.type_element

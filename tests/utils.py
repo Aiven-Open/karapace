@@ -18,51 +18,36 @@ consumer_valid_payload = {
     "auto.offset.reset": "earliest",
     "consumer.request.timeout.ms": 11000,
     "fetch.min.bytes": 100000,
-    "auto.commit.enable": "true"
+    "auto.commit.enable": "true",
 }
-schema_jsonschema_json = json.dumps({
-    "type": "object",
-    "properties": {
-        "foo": {
-            "type": "integer"
+schema_jsonschema_json = json.dumps(
+    {
+        "type": "object",
+        "properties": {
+            "foo": {"type": "integer"},
         },
-    },
-})
+    }
+)
 
-schema_avro_json = json.dumps({
-    "namespace": "example.avro",
-    "type": "record",
-    "name": "example.avro.User",
-    "fields": [{
-        "name": "name",
-        "type": "string"
-    }, {
-        "name": "favorite_number",
-        "type": "int"
-    }, {
-        "name": "favorite_color",
-        "type": "string"
-    }]
-})
+schema_avro_json = json.dumps(
+    {
+        "namespace": "example.avro",
+        "type": "record",
+        "name": "example.avro.User",
+        "fields": [
+            {"name": "name", "type": "string"},
+            {"name": "favorite_number", "type": "int"},
+            {"name": "favorite_color", "type": "string"},
+        ],
+    }
+)
 
 test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
 
 test_objects_avro = [
-    {
-        "name": "First Foo",
-        "favorite_number": 2,
-        "favorite_color": "bar"
-    },
-    {
-        "name": "Second Foo",
-        "favorite_number": 3,
-        "favorite_color": "baz"
-    },
-    {
-        "name": "Third Foo",
-        "favorite_number": 5,
-        "favorite_color": "quux"
-    },
+    {"name": "First Foo", "favorite_number": 2, "favorite_color": "bar"},
+    {"name": "Second Foo", "favorite_number": 3, "favorite_color": "baz"},
+    {"name": "Third Foo", "favorite_number": 5, "favorite_color": "quux"},
 ]
 
 # protobuf schemas in tests must be filtered by  trim_margin() from kotlin_wrapper module
@@ -105,31 +90,19 @@ schema_protobuf2 = """
 schema_protobuf2 = trim_margin(schema_protobuf2)
 
 test_objects_protobuf = [
-    {
-        'query': 5,
-        'speed': 'HIGH'
-    },
-    {
-        'query': 10,
-        'speed': 'MIDDLE'
-    },
+    {"query": 5, "speed": "HIGH"},
+    {"query": 10, "speed": "MIDDLE"},
 ]
 
 test_fail_objects_protobuf = [
-    {
-        'query': 'STR',
-        'speed': 99
-    },
-    {
-        'xx': 10,
-        'bb': 'MIDDLE'
-    },
+    {"query": "STR", "speed": 99},
+    {"xx": 10, "bb": "MIDDLE"},
 ]
 
 schema_data = {
     "avro": (schema_avro_json, test_objects_avro),
     "jsonschema": (schema_jsonschema_json, test_objects_jsonschema),
-    "protobuf": (schema_protobuf, test_objects_protobuf)
+    "protobuf": (schema_protobuf, test_objects_protobuf),
 }
 
 schema_protobuf_second = """
@@ -157,43 +130,16 @@ schema_protobuf_second = """
 schema_protobuf_second = trim_margin(schema_protobuf_second)
 
 test_objects_protobuf_second = [
-    {
-        'q': 1,
-        'sensor_type': 'H1',
-        'nums': [3, 4],
-        'order': {
-            'item': 'ABC01223'
-        }
-    },
-    {
-        'q': 2,
-        'sensor_type': 'M1',
-        'nums': [2],
-        'order': {
-            'item': 'ABC01233'
-        }
-    },
-    {
-        'q': 3,
-        'sensor_type': 'L1',
-        'nums': [3, 4],
-        'order': {
-            'item': 'ABC01223'
-        }
-    },
+    {"q": 1, "sensor_type": "H1", "nums": [3, 4], "order": {"item": "ABC01223"}},
+    {"q": 2, "sensor_type": "M1", "nums": [2], "order": {"item": "ABC01233"}},
+    {"q": 3, "sensor_type": "L1", "nums": [3, 4], "order": {"item": "ABC01223"}},
 ]
 
 schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
 
-second_schema_json = json.dumps({
-    "namespace": "example.avro.other",
-    "type": "record",
-    "name": "Dude",
-    "fields": [{
-        "name": "name",
-        "type": "string"
-    }]
-})
+second_schema_json = json.dumps(
+    {"namespace": "example.avro.other", "type": "record", "name": "Dude", "fields": [{"name": "name", "type": "string"}]}
+)
 
 second_obj = [{"name": "doe"}, {"name": "john"}]
 
@@ -204,20 +150,20 @@ REST_HEADERS = {
     },
     "jsonschema": {
         "Content-Type": "application/vnd.kafka.jsonschema.v2+json",
-        "Accept": "application/vnd.kafka.jsonschema.v2+json, application/vnd.kafka.v2+json, application/json, */*"
+        "Accept": "application/vnd.kafka.jsonschema.v2+json, application/vnd.kafka.v2+json, application/json, */*",
     },
     "binary": {
         "Content-Type": "application/vnd.kafka.binary.v2+json",
-        "Accept": "application/vnd.kafka.binary.v2+json, application/vnd.kafka.v2+json, application/json, */*"
+        "Accept": "application/vnd.kafka.binary.v2+json, application/vnd.kafka.v2+json, application/json, */*",
     },
     "avro": {
         "Content-Type": "application/vnd.kafka.avro.v2+json",
-        "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*"
+        "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*",
     },
     "protobuf": {
         "Content-Type": "application/vnd.kafka.protobuf.v2+json",
-        "Accept": "application/vnd.kafka.protobuf.v2+json, application/vnd.kafka.v2+json, application/json, */*"
-    }
+        "Accept": "application/vnd.kafka.protobuf.v2+json, application/vnd.kafka.v2+json, application/json, */*",
+    },
 }
 
 
@@ -248,7 +194,8 @@ class KafkaServers:
 
     def __post_init__(self):
         is_bootstrap_uris_valid = (
-            isinstance(self.bootstrap_servers, list) and len(self.bootstrap_servers) > 0
+            isinstance(self.bootstrap_servers, list)
+            and len(self.bootstrap_servers) > 0
             and all(isinstance(url, str) for url in self.bootstrap_servers)
         )
         if not is_bootstrap_uris_valid:
@@ -302,7 +249,7 @@ TESTS_PORT_RANGE = REGISTRY_PORT_RANGE.next_range(100)
 
 
 def get_random_port(*, port_range: PortRangeInclusive, blacklist: List[int]) -> int:
-    """ Find a random port in the range `PortRangeInclusive`.
+    """Find a random port in the range `PortRangeInclusive`.
 
     Note:
         This function is *not* aware of the ports currently open in the system,

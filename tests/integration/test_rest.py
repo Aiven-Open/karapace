@@ -1,7 +1,13 @@
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
 from tests.utils import (
-    new_topic, REST_HEADERS, schema_avro_json, second_obj, second_schema_json, test_objects_avro, wait_for_topics
+    new_topic,
+    REST_HEADERS,
+    schema_avro_json,
+    second_obj,
+    second_schema_json,
+    test_objects_avro,
+    wait_for_topics,
 )
 
 NEW_TOPIC_TIMEOUT = 10
@@ -24,7 +30,7 @@ async def test_request_body_too_large(rest_async_client, admin_client):
     tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     pl = {"records": [{"value": 1_048_576 * "a"}]}
-    res = await rest_async_client.post(f'/topics/{tn}', pl, headers={"Content-Type": "application/json"})
+    res = await rest_async_client.post(f"/topics/{tn}", pl, headers={"Content-Type": "application/json"})
     assert res.status_code == 413
 
 
@@ -136,8 +142,10 @@ async def test_admin_client(admin_client, producer):
     topic_names = [new_topic(admin_client) for i in range(10, 13)]
     topic_info = admin_client.cluster_metadata()
     retrieved_names = list(topic_info["topics"].keys())
-    assert set(topic_names).difference(set(retrieved_names)) == set(), \
-        "Returned value %r differs from written one %r" % (retrieved_names, topic_names)
+    assert set(topic_names).difference(set(retrieved_names)) == set(), "Returned value %r differs from written one %r" % (
+        retrieved_names,
+        topic_names,
+    )
     assert len(topic_info["brokers"]) == 1, "Only one broker during tests"
     for t in topic_names:
         v = topic_info["topics"][t]

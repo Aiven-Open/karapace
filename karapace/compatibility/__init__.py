@@ -8,8 +8,10 @@ from avro.schema import Schema as AvroSchema
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from karapace.avro_compatibility import (
-    ReaderWriterCompatibilityChecker as AvroChecker, SchemaCompatibilityResult, SchemaCompatibilityType,
-    SchemaIncompatibilityType
+    ReaderWriterCompatibilityChecker as AvroChecker,
+    SchemaCompatibilityResult,
+    SchemaCompatibilityType,
+    SchemaIncompatibilityType,
 )
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
 from karapace.compatibility.protobuf.checks import check_protobuf_schema_compatibility
@@ -22,7 +24,7 @@ LOG = logging.getLogger(__name__)
 
 @unique
 class CompatibilityModes(Enum):
-    """ Supported compatibility modes.
+    """Supported compatibility modes.
 
     - none: no compatibility checks done.
     - backward compatibility: new schema can *read* data produced by the olders
@@ -32,6 +34,7 @@ class CompatibilityModes(Enum):
     - transitive compatibility: new schema can read data produced by *all*
       previous schemas, otherwise only the previous schema is checked.
     """
+
     BACKWARD = "BACKWARD"
     BACKWARD_TRANSITIVE = "BACKWARD_TRANSITIVE"
     FORWARD = "FORWARD"
@@ -71,7 +74,7 @@ def check_protobuf_compatibility(reader, writer) -> SchemaCompatibilityResult:
 def check_compatibility(
     old_schema: TypedSchema, new_schema: TypedSchema, compatibility_mode: CompatibilityModes
 ) -> SchemaCompatibilityResult:
-    """ Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`. """
+    """Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`."""
     if old_schema.schema_type is not new_schema.schema_type:
         return SchemaCompatibilityResult.incompatible(
             incompat_type=SchemaIncompatibilityType.type_mismatch,
@@ -150,10 +153,12 @@ def check_compatibility(
                 reader=new_schema.schema,
                 writer=old_schema.schema,
             )
-            result = result.merged_with(check_protobuf_compatibility(
-                reader=old_schema.schema,
-                writer=new_schema.schema,
-            ))
+            result = result.merged_with(
+                check_protobuf_compatibility(
+                    reader=old_schema.schema,
+                    writer=new_schema.schema,
+                )
+            )
 
     else:
         result = SchemaCompatibilityResult.incompatible(

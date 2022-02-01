@@ -21,10 +21,13 @@ def test_nested_to_schema():
 
 def test_list_to_schema():
     option = OptionElement(
-        "foo", OptionElement.Kind.LIST, [
+        "foo",
+        OptionElement.Kind.LIST,
+        [
             OptionElement("ping", OptionElement.Kind.STRING, "pong", True),
-            OptionElement("kit", OptionElement.Kind.STRING, "kat")
-        ], True
+            OptionElement("kit", OptionElement.Kind.STRING, "kat"),
+        ],
+        True,
     )
     expected = """
         |(foo) = [

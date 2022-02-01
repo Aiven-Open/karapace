@@ -21,12 +21,12 @@ def append_documentation(data: List[str], documentation: str) -> None:
         data.append("\n")
 
 
-def append_options(data: List[str], options: List['OptionElement']) -> None:
+def append_options(data: List[str], options: List["OptionElement"]) -> None:
     count = len(options)
     if count == 1:
-        data.append('[')
+        data.append("[")
         data.append(try_to_schema(options[0]))
-        data.append(']')
+        data.append("]")
         return
 
     data.append("[\n")
@@ -36,10 +36,10 @@ def append_options(data: List[str], options: List['OptionElement']) -> None:
         else:
             endl = ""
         append_indented(data, try_to_schema(options[i]) + endl)
-    data.append(']')
+    data.append("]")
 
 
-def try_to_schema(obj: 'OptionElement') -> str:
+def try_to_schema(obj: "OptionElement") -> str:
     try:
         return obj.to_schema()
     except AttributeError:
@@ -60,7 +60,7 @@ def append_indented(data: List[str], value: str) -> None:
 
 
 MIN_TAG_VALUE = 1
-MAX_TAG_VALUE = ((1 << 29) & 0xffffffffffffffff) - 1  # 536,870,911
+MAX_TAG_VALUE = ((1 << 29) & 0xFFFFFFFFFFFFFFFF) - 1  # 536,870,911
 
 RESERVED_TAG_VALUE_START = 19000
 RESERVED_TAG_VALUE_END = 19999

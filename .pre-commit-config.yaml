@@ -1,4 +1,13 @@
+minimum_pre_commit_version: 2.9.2
 repos:
+  - repo: https://github.com/psf/black
+    rev: 21.12b0
+    hooks:
+      - id: black
+        files: \.py$
+        args:
+          - --line-length=125
+
   - repo: https://gitlab.com/pycqa/flake8
     rev: 3.8.4
     hooks:
@@ -7,25 +16,12 @@ repos:
         args:
           - --config=.flake8
 
-  - repo: https://github.com/pre-commit/mirrors-yapf
-    rev: v0.27.0
-    hooks:
-      - id: yapf
-        files: \.py$
-        exclude: ^vendor/
-        args:
-          - --parallel
-          - --recursive
-          - --in-place
-
-  - repo: https://github.com/timothycrosley/isort
-    rev: 4.3.21
+  - repo: https://github.com/PyCQA/isort
+    rev: 4.3.21-2
     hooks:
       - id: isort
+        name: isort (python)
         files: \.py$
-        exclude: ^vendor/
-        args:
-          - --recursive
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.5.0

@@ -20,7 +20,7 @@ def test_single_to_schema():
     service = ServiceElement(
         location=location,
         name="Service",
-        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")],
     )
     expected = """
         |service Service {
@@ -43,7 +43,7 @@ def test_single_with_options_to_schema():
         location=location,
         name="Service",
         options=[OptionElement("foo", OptionElement.Kind.STRING, "bar")],
-        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")],
     )
     expected = """
         |service Service {
@@ -63,7 +63,7 @@ def test_add_multiple_options():
         location=location,
         name="Service",
         options=[kit_kat, foo_bar],
-        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")],
     )
     assert len(service.options) == 2
 
@@ -73,7 +73,7 @@ def test_single_with_documentation_to_schema():
         location=location,
         name="Service",
         documentation="Hello",
-        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")]
+        rpcs=[RpcElement(location=location, name="Name", request_type="RequestType", response_type="ResponseType")],
     )
     expected = """
         |// Hello
@@ -123,7 +123,7 @@ def test_rpc_with_options_to_schema():
         name="Name",
         request_type="RequestType",
         response_type="ResponseType",
-        options=[OptionElement("foo", OptionElement.Kind.STRING, "bar")]
+        options=[OptionElement("foo", OptionElement.Kind.STRING, "bar")],
     )
 
     expected = """

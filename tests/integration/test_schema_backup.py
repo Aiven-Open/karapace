@@ -51,21 +51,23 @@ async def test_backup_restore(
 
     with restore_location.open("w") as fp:
         jsonlib.dump(
-            [[
-                {
-                    "subject": subject,
-                    "version": 1,
-                    "magic": 1,
-                    "keytype": "SCHEMA",
-                },
-                {
-                    "deleted": False,
-                    "id": 1,
-                    "schema": "\"string\"",
-                    "subject": subject,
-                    "version": 1,
-                },
-            ]],
+            [
+                [
+                    {
+                        "subject": subject,
+                        "version": 1,
+                        "magic": 1,
+                        "keytype": "SCHEMA",
+                    },
+                    {
+                        "deleted": False,
+                        "id": 1,
+                        "schema": '"string"',
+                        "subject": subject,
+                        "version": 1,
+                    },
+                ]
+            ],
             fp=fp,
         )
 
@@ -102,7 +104,9 @@ async def test_backup_restore(
         null
     ]
 ]
-        """.format(subject_value=subject)
+        """.format(
+                subject_value=subject
+            )
         )
     res = await registry_async_client.get(f"config/{subject}")
     assert res.status == 200
@@ -133,7 +137,9 @@ async def test_backup_restore(
         null
     ]
 ]
-        """.format(subject_value=subject)
+        """.format(
+                subject_value=subject
+            )
         )
     sb.restore_backup()
     time.sleep(1.0)
@@ -158,7 +164,9 @@ async def test_backup_restore(
         null
     ]
 ]
-        """.format(subject_value=subject)
+        """.format(
+                subject_value=subject
+            )
         )
     sb.restore_backup()
     time.sleep(1.0)

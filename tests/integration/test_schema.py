@@ -11,8 +11,11 @@ from karapace.rapu import is_success
 from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
 from karapace.utils import Client
 from tests.utils import (
-    create_field_name_factory, create_schema_name_factory, create_subject_name_factory, KafkaServers,
-    repeat_until_successful_request
+    create_field_name_factory,
+    create_schema_name_factory,
+    create_subject_name_factory,
+    KafkaServers,
+    repeat_until_successful_request,
 )
 from typing import List, Tuple
 
@@ -36,19 +39,16 @@ async def test_union_to_union(registry_async_client: Client, trail: str) -> None
     evolved_compatible = {
         "name": "init",
         "type": "record",
-        "fields": [{
-            "name": "inner",
-            "type": [
-                "int", "string", {
-                    "type": "record",
-                    "name": "foobar_fields",
-                    "fields": [{
-                        "name": "foo",
-                        "type": "string"
-                    }]
-                }
-            ]
-        }]
+        "fields": [
+            {
+                "name": "inner",
+                "type": [
+                    "int",
+                    "string",
+                    {"type": "record", "name": "foobar_fields", "fields": [{"name": "foo", "type": "string"}]},
+                ],
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject_1}/versions{trail}", json={"schema": jsonlib.dumps(init_schema)}
@@ -106,21 +106,18 @@ async def test_record_union_schema_compatibility(registry_async_client: Client, 
         "name": "bar",
         "namespace": "foo",
         "type": "record",
-        "fields": [{
-            "name": "foobar",
-            "type": [{
-                "type": "array",
-                "name": "foobar_items",
-                "items": {
-                    "type": "record",
-                    "name": "foobar_fields",
-                    "fields": [{
-                        "name": "foo",
-                        "type": "string"
-                    }]
-                }
-            }]
-        }]
+        "fields": [
+            {
+                "name": "foobar",
+                "type": [
+                    {
+                        "type": "array",
+                        "name": "foobar_items",
+                        "items": {"type": "record", "name": "foobar_fields", "fields": [{"name": "foo", "type": "string"}]},
+                    }
+                ],
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(original_schema)}
@@ -132,25 +129,25 @@ async def test_record_union_schema_compatibility(registry_async_client: Client, 
         "name": "bar",
         "namespace": "foo",
         "type": "record",
-        "fields": [{
-            "name": "foobar",
-            "type": [{
-                "type": "array",
-                "name": "foobar_items",
-                "items": {
-                    "type": "record",
-                    "name": "foobar_fields",
-                    "fields": [{
-                        "name": "foo",
-                        "type": "string"
-                    }, {
-                        "name": "bar",
-                        "type": ["null", "string"],
-                        "default": None
-                    }]
-                }
-            }]
-        }]
+        "fields": [
+            {
+                "name": "foobar",
+                "type": [
+                    {
+                        "type": "array",
+                        "name": "foobar_items",
+                        "items": {
+                            "type": "record",
+                            "name": "foobar_fields",
+                            "fields": [
+                                {"name": "foo", "type": "string"},
+                                {"name": "bar", "type": ["null", "string"], "default": None},
+                            ],
+                        },
+                    }
+                ],
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
@@ -201,9 +198,9 @@ async def test_record_nested_schema_compatibility(registry_async_client: Client,
                             "type": "string",
                         },
                     ],
-                }
+                },
             },
-        ]
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -240,7 +237,7 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
                 "name": "age",
                 "type": "int",
             },
-        ]
+        ],
     }
 
     res = await registry_async_client.post(
@@ -335,7 +332,7 @@ async def test_type_compatibility(registry_async_client: Client, trail: str) -> 
                     "name": "field",
                     "type": source_type,
                 },
-            ]
+            ],
         }
         res = await registry_async_client.post(
             f"subjects/{subject}/versions{trail}",
@@ -366,7 +363,7 @@ async def test_record_schema_compatibility_forward(registry_async_client: Client
                 "name": "first_name",
                 "type": "string",
             },
-        ]
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -383,19 +380,10 @@ async def test_record_schema_compatibility_forward(registry_async_client: Client
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "first_name",
-                "type": "string"
-            },
-            {
-                "name": "last_name",
-                "type": "string"
-            },
-            {
-                "name": "age",
-                "type": "int"
-            },
-        ]
+            {"name": "first_name", "type": "string"},
+            {"name": "last_name", "type": "string"},
+            {"name": "age", "type": "int"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -410,20 +398,10 @@ async def test_record_schema_compatibility_forward(registry_async_client: Client
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "last_name",
-                "type": "string"
-            },
-            {
-                "name": "third_name",
-                "type": "string",
-                "default": "foodefaultvalue"
-            },
-            {
-                "name": "age",
-                "type": "int"
-            },
-        ]
+            {"name": "last_name", "type": "string"},
+            {"name": "third_name", "type": "string", "default": "foodefaultvalue"},
+            {"name": "age", "type": "int"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -438,19 +416,10 @@ async def test_record_schema_compatibility_forward(registry_async_client: Client
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "first_name",
-                "type": "string"
-            },
-            {
-                "name": "last_name",
-                "type": "string"
-            },
-            {
-                "name": "age",
-                "type": "long"
-            },
-        ]
+            {"name": "first_name", "type": "string"},
+            {"name": "last_name", "type": "string"},
+            {"name": "age", "type": "long"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -465,24 +434,11 @@ async def test_record_schema_compatibility_forward(registry_async_client: Client
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "first_name",
-                "type": "string"
-            },
-            {
-                "name": "last_name",
-                "type": "string"
-            },
-            {
-                "name": "third_name",
-                "type": "string",
-                "default": "foodefaultvalue"
-            },
-            {
-                "name": "age",
-                "type": "int"
-            },
-        ]
+            {"name": "first_name", "type": "string"},
+            {"name": "last_name", "type": "string"},
+            {"name": "third_name", "type": "string", "default": "foodefaultvalue"},
+            {"name": "age", "type": "int"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}",
@@ -501,24 +457,11 @@ async def test_record_schema_compatibility_backward(registry_async_client: Clien
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "first_name",
-                "type": "string"
-            },
-            {
-                "name": "last_name",
-                "type": "string"
-            },
-            {
-                "name": "third_name",
-                "type": "string",
-                "default": "foodefaultvalue"
-            },
-            {
-                "name": "age",
-                "type": "int"
-            },
-        ]
+            {"name": "first_name", "type": "string"},
+            {"name": "last_name", "type": "string"},
+            {"name": "third_name", "type": "string", "default": "foodefaultvalue"},
+            {"name": "age", "type": "int"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject_1}/versions{trail}",
@@ -534,28 +477,12 @@ async def test_record_schema_compatibility_backward(registry_async_client: Clien
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "first_name",
-                "type": "string"
-            },
-            {
-                "name": "last_name",
-                "type": "string"
-            },
-            {
-                "name": "third_name",
-                "type": "string",
-                "default": "foodefaultvalue"
-            },
-            {
-                "name": "fourth_name",
-                "type": "string"
-            },
-            {
-                "name": "age",
-                "type": "int"
-            },
-        ]
+            {"name": "first_name", "type": "string"},
+            {"name": "last_name", "type": "string"},
+            {"name": "third_name", "type": "string", "default": "foodefaultvalue"},
+            {"name": "fourth_name", "type": "string"},
+            {"name": "age", "type": "int"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject_1}/versions{trail}",
@@ -637,14 +564,7 @@ async def test_array_nested_record_compatibility(registry_async_client: Client, 
         assert res.status == 200
         schema = {
             "type": "array",
-            "items": {
-                "type": "record",
-                "name": "object",
-                "fields": [{
-                    "name": "first_name",
-                    "type": "string"
-                }]
-            }
+            "items": {"type": "record", "name": "object", "fields": [{"name": "first_name", "type": "string"}]},
         }
         res = await registry_async_client.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 200
@@ -666,13 +586,7 @@ async def test_record_nested_array_compatibility(registry_async_client: Client, 
         schema = {
             "type": "record",
             "name": "object",
-            "fields": [{
-                "name": "simplearray",
-                "type": {
-                    "type": "array",
-                    "items": "int"
-                }
-            }]
+            "fields": [{"name": "simplearray", "type": {"type": "array", "items": "int"}}],
         }
         res = await registry_async_client.post(f"subjects/{subject}/versions{trail}", json={"schema": jsonlib.dumps(schema)})
         assert res.status == 200
@@ -684,7 +598,7 @@ async def test_record_nested_array_compatibility(registry_async_client: Client, 
 
 
 async def test_map_schema_field_add_compatibility(
-    registry_async_client: Client
+    registry_async_client: Client,
 ) -> None:  # TODO: Rename to pålain check map schema and add additional steps
     subject_name_factory = create_subject_name_factory("test_map_schema_field_add_compatibility")
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
@@ -731,14 +645,7 @@ async def test_enum_schema(registry_async_client: Client) -> None:
         schema = {
             "type": "record",
             "name": "object",
-            "fields": [{
-                "name": "enumkey",
-                "type": {
-                    "type": "enum",
-                    "name": "testenum",
-                    "symbols": ["first"]
-                }
-            }]
+            "fields": [{"name": "enumkey", "type": {"type": "enum", "name": "testenum", "symbols": ["first"]}}],
         }
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
 
@@ -790,15 +697,7 @@ async def test_fixed_schema(registry_async_client: Client, compatibility: str) -
     schema = {
         "type": "record",
         "name": "object",
-        "fields": [{
-            "name": "fixedkey",
-            "type": {
-                "type": "fixed",
-                "size": 16,
-                "name": "md5",
-                "aliases": ["testalias"]
-            }
-        }]
+        "fields": [{"name": "fixedkey", "type": {"type": "fixed", "size": 16, "name": "md5", "aliases": ["testalias"]}}],
     }
     res = await registry_async_client.post(f"subjects/{subject_2}/versions", json={"schema": jsonlib.dumps(schema)})
 
@@ -905,11 +804,8 @@ async def test_transitive_compatibility(registry_async_client: Client) -> None:
         "type": "record",
         "name": "Objct",
         "fields": [
-            {
-                "name": "age",
-                "type": "int"
-            },
-        ]
+            {"name": "age", "type": "int"},
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -921,16 +817,13 @@ async def test_transitive_compatibility(registry_async_client: Client) -> None:
         "type": "record",
         "name": "Objct",
         "fields": [
-            {
-                "name": "age",
-                "type": "int"
-            },
+            {"name": "age", "type": "int"},
             {
                 "name": "first_name",
                 "type": "string",
                 "default": "John",
             },
-        ]
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -942,10 +835,7 @@ async def test_transitive_compatibility(registry_async_client: Client) -> None:
         "type": "record",
         "name": "Objct",
         "fields": [
-            {
-                "name": "age",
-                "type": "int"
-            },
+            {"name": "age", "type": "int"},
             {
                 "name": "first_name",
                 "type": "string",
@@ -955,7 +845,7 @@ async def test_transitive_compatibility(registry_async_client: Client) -> None:
                 "type": "string",
                 "default": "Doe",
             },
-        ]
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -1019,22 +909,27 @@ async def test_schema_versions_multiple_subjects_same_schema(registry_async_clie
     schema_1 = {
         "type": "record",
         "name": schema_name_factory(),
-        "fields": [{
-            "name": "f1",
-            "type": "string",
-        }, {
-            "name": "f2",
-            "type": "string",
-        }]
+        "fields": [
+            {
+                "name": "f1",
+                "type": "string",
+            },
+            {
+                "name": "f2",
+                "type": "string",
+            },
+        ],
     }
     schema_str_1 = jsonlib.dumps(schema_1)
     schema_2 = {
         "type": "record",
         "name": schema_name_factory(),
-        "fields": [{
-            "name": "f1",
-            "type": "string",
-        }]
+        "fields": [
+            {
+                "name": "f1",
+                "type": "string",
+            }
+        ],
     }
     schema_str_2 = jsonlib.dumps(schema_2)
 
@@ -1075,24 +970,15 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     schema_1 = {
         "type": "record",
         "name": schema_name,
-        "fields": [{
-            "name": "field_1",
-            "type": "string"
-        }, {
-            "name": "field_2",
-            "type": "string"
-        }]
+        "fields": [{"name": "field_1", "type": "string"}, {"name": "field_2", "type": "string"}],
     }
     schema_str_1 = jsonlib.dumps(schema_1)
     schema_2 = {
         "type": "record",
         "name": schema_name,
         "fields": [
-            {
-                "name": "field_1",
-                "type": "string"
-            },
-        ]
+            {"name": "field_1", "type": "string"},
+        ],
     }
     schema_str_2 = jsonlib.dumps(schema_2)
 
@@ -1140,7 +1026,7 @@ async def test_schema_types(registry_async_client: Client, trail: str) -> None:
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
-    """"
+    """ "
     Repost same schema again to see that a new id is not generated but an old one is given back
     """
     subject = create_subject_name_factory(f"test_schema_repost-{trail}")()
@@ -1211,7 +1097,7 @@ async def test_schema_subject_invalid_id(registry_async_client: Client, trail: s
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
-        json={"schema": "{\"type\": \"string\", \"foo\": \"string\", \"%s\": \"string\"}" % unique_field_factory()}
+        json={"schema": '{"type": "string", "foo": "string", "%s": "string"}' % unique_field_factory()},
     )
     assert res.status_code == 200
 
@@ -1219,9 +1105,11 @@ async def test_schema_subject_invalid_id(registry_async_client: Client, trail: s
     res = await registry_async_client.get(f"subjects/{subject}/versions/0")
     assert res.status_code == 422
     assert res.json()["error_code"] == 42202
-    assert res.json()["message"] == \
-        'The specified version \'0\' is not a valid version id. '\
-           + 'Allowed values are between [1, 2^31-1] and the string "latest"'
+    assert (
+        res.json()["message"]
+        == "The specified version '0' is not a valid version id. "
+        + 'Allowed values are between [1, 2^31-1] and the string "latest"'
+    )
 
     # Find an invalid version (too large)
     res = await registry_async_client.get(f"subjects/{subject}/versions/15")
@@ -1297,11 +1185,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     unique_1 = unique_field_factory()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
-        json={"schema": jsonlib.dumps({
-            "type": "string",
-            "foo": "string",
-            unique_1: "string"
-        })}
+        json={"schema": jsonlib.dumps({"type": "string", "foo": "string", unique_1: "string"})},
     )
     assert res.status_code == 200
     schema_id_1 = res.json()["id"]
@@ -1309,11 +1193,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     unique_2 = unique_field_factory()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
-        json={"schema": jsonlib.dumps({
-            "type": "string",
-            "foo": "string",
-            unique_2: "string"
-        })}
+        json={"schema": jsonlib.dumps({"type": "string", "foo": "string", unique_2: "string"})},
     )
     schema_id_2 = res.json()["id"]
     assert res.status_code == 200
@@ -1403,11 +1283,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
     unique_3 = unique_field_factory()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
-        json={"schema": jsonlib.dumps({
-            "type": "string",
-            "foo": "string",
-            unique_3: "string"
-        })}
+        json={"schema": jsonlib.dumps({"type": "string", "foo": "string", unique_3: "string"})},
     )
     assert res.status == 200
     res = await registry_async_client.get(f"subjects/{subject}/versions")
@@ -1427,10 +1303,12 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
     schema = {
         "type": "record",
         "name": unique,
-        "fields": [{
-            "name": "first_name",
-            "type": "string",
-        }],
+        "fields": [
+            {
+                "name": "first_name",
+                "type": "string",
+            }
+        ],
     }
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
     assert res.status == 200
@@ -1451,7 +1329,7 @@ async def test_schema_version_numbering(registry_async_client: Client, trail: st
                 "name": "last_name",
                 "type": "string",
             },
-        ]
+        ],
     }
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema2)})
     assert res.status == 200
@@ -1487,7 +1365,7 @@ async def test_schema_version_numbering_complex(registry_async_client: Client, t
                 "type": "string",
             },
         ],
-        "unique": unique_field_factory()
+        "unique": unique_field_factory(),
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -1505,7 +1383,7 @@ async def test_schema_version_numbering_complex(registry_async_client: Client, t
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_three_subjects_sharing_schema(registry_async_client: Client, trail: str) -> None:
-    """"
+    """ "
     Submits two subjects with the same schema.
     Submits a third subject initially with different schema. Updates to share the schema.
     Asserts all three subjects have the same schema.
@@ -1574,10 +1452,12 @@ async def test_schema_subject_version_schema(registry_async_client: Client, trai
     schema = {
         "type": "record",
         "name": schema_name,
-        "fields": [{
-            "name": "just_a_value",
-            "type": "string",
-        }],
+        "fields": [
+            {
+                "name": "just_a_value",
+                "type": "string",
+            }
+        ],
     }
     schema_str = jsonlib.dumps(schema)
 
@@ -1614,14 +1494,18 @@ async def test_schema_same_subject(registry_async_client: Client, trail: str) ->
     subject_name_factory = create_subject_name_factory(f"test_schema_same_subject_{trail}")
     schema_name = create_schema_name_factory(f"test_schema_same_subject_{trail}")()
 
-    schema_str = jsonlib.dumps({
-        "type": "record",
-        "name": schema_name,
-        "fields": [{
-            "name": "f",
-            "type": "string",
-        }]
-    })
+    schema_str = jsonlib.dumps(
+        {
+            "type": "record",
+            "name": schema_name,
+            "fields": [
+                {
+                    "name": "f",
+                    "type": "string",
+                }
+            ],
+        }
+    )
     subject = subject_name_factory()
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -1832,7 +1716,7 @@ async def test_http_headers(registry_async_client: Client) -> None:
     # Weight works
     res = await registry_async_client.get(
         "subjects",
-        headers={"Accept": "application/vnd.schemaregistry.v2+json; q=0.1, application/vnd.schemaregistry+json; q=0.9"}
+        headers={"Accept": "application/vnd.schemaregistry.v2+json; q=0.1, application/vnd.schemaregistry+json; q=0.9"},
     )
     assert res.status == 200
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry+json"
@@ -1871,7 +1755,7 @@ async def test_http_headers(registry_async_client: Client) -> None:
     res = await registry_async_client.put(
         "config",
         json={"compatibility": "NONE"},
-        headers={"Content-Type": "application/vnd.schemaregistry.v1+json; charset=utf-8"}
+        headers={"Content-Type": "application/vnd.schemaregistry.v1+json; charset=utf-8"},
     )
     assert res.status == 200
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
@@ -1880,8 +1764,8 @@ async def test_http_headers(registry_async_client: Client) -> None:
     # Works with other than the default charset
     res = await registry_async_client.put_with_data(
         "config",
-        data="{\"compatibility\": \"NONE\"}".encode("utf-16"),
-        headers={"Content-Type": "application/vnd.schemaregistry.v1+json; charset=utf-16"}
+        data='{"compatibility": "NONE"}'.encode("utf-16"),
+        headers={"Content-Type": "application/vnd.schemaregistry.v1+json; charset=utf-16"},
     )
     assert res.status == 200
     assert res.headers["Content-Type"] == "application/vnd.schemaregistry.v1+json"
@@ -1889,18 +1773,10 @@ async def test_http_headers(registry_async_client: Client) -> None:
     if "SERVER_URI" in os.environ:
         for content_header in [
             {},
-            {
-                "Content-Type": "application/json"
-            },
-            {
-                "content-type": "application/json"
-            },
-            {
-                "CONTENT-Type": "application/json"
-            },
-            {
-                "coNTEnt-tYPe": "application/json"
-            },
+            {"Content-Type": "application/json"},
+            {"content-type": "application/json"},
+            {"CONTENT-Type": "application/json"},
+            {"coNTEnt-tYPe": "application/json"},
         ]:
             path = os.path.join(os.getenv("SERVER_URI"), "subjects/unknown_subject")
             res = requests.request("POST", path, data=b"{}", headers=content_header)
@@ -1918,10 +1794,7 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
         assert res.json()["message"] == "Unrecognized field: invalid_field"
         # Additional field
         res = await registry_async_client.post(
-            endpoint, json={
-                "schema": '{"type": "string"}',
-                "invalid_field": "invalid_value"
-            }
+            endpoint, json={"schema": '{"type": "string"}', "invalid_field": "invalid_value"}
         )
         assert res.status == 422
         assert res.json()["error_code"] == 422
@@ -1963,10 +1836,10 @@ async def test_version_number_validation(registry_async_client: Client) -> None:
         res = await registry_async_client.get(endpoint.replace("$VERSION", str(invalid_schema_version)))
         assert res.status == 422
         assert res.json()["error_code"] == 42202
-        assert res.json()[
-            "message"
-        ] == f"The specified version '{invalid_schema_version}' is not a valid version id. " \
-            "Allowed values are between [1, 2^31-1] and the string \"latest\""
+        assert (
+            res.json()["message"] == f"The specified version '{invalid_schema_version}' is not a valid version id. "
+            'Allowed values are between [1, 2^31-1] and the string "latest"'
+        )
         # Valid latest string
         res = await registry_async_client.get(endpoint.replace("$VERSION", "latest"))
         assert res.status == 200
@@ -1974,10 +1847,10 @@ async def test_version_number_validation(registry_async_client: Client) -> None:
         res = await registry_async_client.get(endpoint.replace("$VERSION", "invalid"))
         assert res.status == 422
         assert res.json()["error_code"] == 42202
-        assert res.json()[
-            "message"
-        ] == "The specified version 'invalid' is not a valid version id. " \
-            "Allowed values are between [1, 2^31-1] and the string \"latest\""
+        assert (
+            res.json()["message"] == "The specified version 'invalid' is not a valid version id. "
+            'Allowed values are between [1, 2^31-1] and the string "latest"'
+        )
 
 
 async def test_common_endpoints(registry_async_client: Client) -> None:
@@ -2003,10 +1876,7 @@ async def test_schema_remains_constant(registry_async_client: Client) -> None:
         "type": "record",
         "name": schema_name,
         "namespace": "foo-bar-baz",
-        "fields": [{
-            "type": "string",
-            "name": "bla"
-        }]
+        "fields": [{"type": "string", "name": "bla"}],
     }
     schema_str = jsonlib.dumps(schema)
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": schema_str})
@@ -2027,6 +1897,7 @@ async def test_malformed_kafka_message(
     producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
     message_key = {"subject": "foo", "version": 1, "magic": 1, "keytype": "SCHEMA"}
     import random
+
     schema_id = random.randint(20000, 30000)
     payload = {"schema": jsonlib.dumps({"foo": "bar"}, indent=None, separators=(",", ":"))}
     message_value = {"deleted": False, "id": schema_id, "subject": "foo", "version": 1}
@@ -2054,36 +1925,27 @@ async def test_inner_type_compat_failure(registry_async_client: Client) -> None:
         "type": "record",
         "name": "record_line_movement_multiple_deleted",
         "namespace": "sya",
-        "fields": [{
-            "name": "meta",
-            "type": {
-                "type": "record",
+        "fields": [
+            {
                 "name": "meta",
-                "fields": [{
-                    "name": "date",
-                    "type": "long"
-                }]
-            },
-        }]
+                "type": {"type": "record", "name": "meta", "fields": [{"name": "date", "type": "long"}]},
+            }
+        ],
     }
     ev = {
         "type": "record",
         "name": "record_line_movement_multiple_deleted",
         "namespace": "sya",
-        "fields": [{
-            "name": "meta",
-            "type": {
-                "type": "record",
+        "fields": [
+            {
                 "name": "meta",
-                "fields": [{
-                    "name": "date",
-                    "type": {
-                        "type": "long",
-                        "logicalType": "timestamp-millis"
-                    }
-                }]
-            },
-        }]
+                "type": {
+                    "type": "record",
+                    "name": "meta",
+                    "fields": [{"name": "date", "type": {"type": "long", "logicalType": "timestamp-millis"}}],
+                },
+            }
+        ],
     }
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(sc)})
     assert res.ok
@@ -2102,17 +1964,20 @@ async def test_anon_type_union_failure(registry_async_client: Client) -> None:
             {
                 "name": "dependencies",
                 "type": [
-                    "null", {
+                    "null",
+                    {
                         "type": "record",
                         "name": "record_line_movement_updated_dependencies",
-                        "fields": [{
-                            "name": "coefficient",
-                            "type": ["null", "double"],
-                        }]
-                    }
+                        "fields": [
+                            {
+                                "name": "coefficient",
+                                "type": ["null", "double"],
+                            }
+                        ],
+                    },
                 ],
             },
-        ]
+        ],
     }
     evolved = {
         "type": "record",
@@ -2125,16 +1990,18 @@ async def test_anon_type_union_failure(registry_async_client: Client) -> None:
                     {
                         "type": "record",
                         "name": "record_line_movement_updated_dependencies",
-                        "fields": [{
-                            "name": "coefficient",
-                            "type": ["null", "double"],
-                            # This is literally the only diff...
-                            "doc": "Coeff of unit product",
-                        }]
-                    }
+                        "fields": [
+                            {
+                                "name": "coefficient",
+                                "type": ["null", "double"],
+                                # This is literally the only diff...
+                                "doc": "Coeff of unit product",
+                            }
+                        ],
+                    },
                 ],
             },
-        ]
+        ],
     }
 
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(schema)})
@@ -2153,44 +2020,41 @@ async def test_full_transitive_failure(registry_async_client: Client, compatibil
         "type": "record",
         "name": "order",
         "namespace": "example",
-        "fields": [{
-            "name": "someField",
-            "type": [
-                "null", {
-                    "type": "record",
-                    "name": "someEmbeddedRecord",
-                    "namespace": "example",
-                    "fields": [{
-                        "name": "name",
-                        "type": "string"
-                    }]
-                }
-            ],
-            "default": "null"
-        }]
+        "fields": [
+            {
+                "name": "someField",
+                "type": [
+                    "null",
+                    {
+                        "type": "record",
+                        "name": "someEmbeddedRecord",
+                        "namespace": "example",
+                        "fields": [{"name": "name", "type": "string"}],
+                    },
+                ],
+                "default": "null",
+            }
+        ],
     }
     evolved = {
         "type": "record",
         "name": "order",
         "namespace": "example",
-        "fields": [{
-            "name": "someField",
-            "type": [
-                "null", {
-                    "type": "record",
-                    "name": "someEmbeddedRecord",
-                    "namespace": "example",
-                    "fields": [{
-                        "name": "name",
-                        "type": "string"
-                    }, {
-                        "name": "price",
-                        "type": "int"
-                    }]
-                }
-            ],
-            "default": "null"
-        }]
+        "fields": [
+            {
+                "name": "someField",
+                "type": [
+                    "null",
+                    {
+                        "type": "record",
+                        "name": "someEmbeddedRecord",
+                        "namespace": "example",
+                        "fields": [{"name": "name", "type": "string"}, {"name": "price", "type": "int"}],
+                    },
+                ],
+                "default": "null",
+            }
+        ],
     }
     await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": jsonlib.dumps(init)})
@@ -2206,14 +2070,7 @@ async def test_invalid_schemas(registry_async_client: Client) -> None:
     repated_field = {
         "type": "record",
         "name": "myrecord",
-        "fields": [{
-            "type": "string",
-            "name": "name"
-        }, {
-            "type": "string",
-            "name": "name",
-            "default": "test"
-        }]
+        "fields": [{"type": "string", "name": "name"}, {"type": "string", "name": "name", "default": "test"}],
     }
 
     res = await registry_async_client.post(
@@ -2231,14 +2088,16 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     schemav1 = {
         "type": "record",
         "name": "myenumtest",
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second"],
-            },
-            "name": "faa",
-        }]
+        "fields": [
+            {
+                "type": {
+                    "type": "enum",
+                    "name": "enumtest",
+                    "symbols": ["first", "second"],
+                },
+                "name": "faa",
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -2251,14 +2110,16 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     schemav2 = {
         "type": "record",
         "name": "myenumtest",
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second", "third"],
-            },
-            "name": "faa",
-        }]
+        "fields": [
+            {
+                "type": {
+                    "type": "enum",
+                    "name": "enumtest",
+                    "symbols": ["first", "second", "third"],
+                },
+                "name": "faa",
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -2284,8 +2145,9 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40406
-    assert res.json(
-    )["message"] == f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently"
+    assert (
+        res.json()["message"] == f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently"
+    )
 
     res = await registry_async_client.get(f"subjects/{subject}/versions/1")
     assert res.status_code == 404
@@ -2310,14 +2172,16 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     schemav1 = {
         "type": "record",
         "name": "myenumtest",
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second"],
-            },
-            "name": "faa",
-        }]
+        "fields": [
+            {
+                "type": {
+                    "type": "enum",
+                    "name": "enumtest",
+                    "symbols": ["first", "second"],
+                },
+                "name": "faa",
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -2330,14 +2194,16 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     schemav2 = {
         "type": "record",
         "name": "myenumtest",
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second", "third"],
-            },
-            "name": "faa",
-        }]
+        "fields": [
+            {
+                "type": {
+                    "type": "enum",
+                    "name": "enumtest",
+                    "symbols": ["first", "second", "third"],
+                },
+                "name": "faa",
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
@@ -2384,14 +2250,16 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     schema = {
         "type": "record",
         "name": schema_name,
-        "fields": [{
-            "type": {
-                "type": "enum",
-                "name": "enumtest",
-                "symbols": ["first", "second"],
-            },
-            "name": "faa",
-        }]
+        "fields": [
+            {
+                "type": {
+                    "type": "enum",
+                    "name": "enumtest",
+                    "symbols": ["first", "second"],
+                },
+                "name": "faa",
+            }
+        ],
     }
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",

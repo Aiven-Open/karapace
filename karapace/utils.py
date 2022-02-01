@@ -58,7 +58,7 @@ def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
         sort_keys=sort_keys if sort_keys is not None else not compact,
         indent=None if compact else 4,
         separators=(",", ":") if compact else None,
-        default=default_json_serialization
+        default=default_json_serialization,
     )
     return res.encode("utf-8") if binary else res
 
@@ -209,6 +209,7 @@ def convert_to_int(object_: dict, key: str, content_type: str):
         object_[key] = int(object_[key])
     except ValueError:
         from karapace.rapu import http_error
+
         http_error(
             message=f"{key} is not a valid int: {object_[key]}",
             content_type=content_type,
@@ -244,11 +245,11 @@ class KarapaceKafkaClient(KafkaClient):
 
     def _maybe_refresh_metadata(self, wakeup=False):
         """
-            Lifted from the parent class with the caveat that the node id will always belong to the bootstrap node,
-            thus ensuring we do not end up in a stale metadata loop
+        Lifted from the parent class with the caveat that the node id will always belong to the bootstrap node,
+        thus ensuring we do not end up in a stale metadata loop
         """
         ttl = self.cluster.ttl()
-        wait_for_in_progress_ms = self.config['request_timeout_ms'] if self._metadata_refresh_in_progress else 0
+        wait_for_in_progress_ms = self.config["request_timeout_ms"] if self._metadata_refresh_in_progress else 0
         metadata_timeout = max(ttl, wait_for_in_progress_ms)
 
         if metadata_timeout > 0:
@@ -262,16 +263,16 @@ class KarapaceKafkaClient(KafkaClient):
             node_id = bootstrap_nodes[0].nodeId
         if node_id is None:
             log.debug("Give up sending metadata request since no node is available")
-            return self.config['reconnect_backoff_ms']
+            return self.config["reconnect_backoff_ms"]
 
         if self._can_send_request(node_id):
             topics = list(self._topics)
             if not topics and self.cluster.is_bootstrap(node_id):
-                topics = list(self.config['bootstrap_topics_filter'])
+                topics = list(self.config["bootstrap_topics_filter"])
 
             if self.cluster.need_all_topic_metadata or not topics:
-                topics = [] if self.config['api_version'] < (0, 10) else None
-            api_version = 0 if self.config['api_version'] < (0, 10) else 1
+                topics = [] if self.config["api_version"] < (0, 10) else None
+            api_version = 0 if self.config["api_version"] < (0, 10) else 1
             request = MetadataRequest[api_version](topics)
             log.debug("Sending metadata request %s to node %s", request, node_id)
             future = self.send(node_id, request, wakeup=wakeup)
@@ -288,14 +289,14 @@ class KarapaceKafkaClient(KafkaClient):
 
             future.add_callback(refresh_done)
             future.add_errback(refresh_done)
-            return self.config['request_timeout_ms']
+            return self.config["request_timeout_ms"]
         if self._connecting:
-            return self.config['reconnect_backoff_ms']
+            return self.config["reconnect_backoff_ms"]
 
         if self.maybe_connect(node_id, wakeup=wakeup):
             log.debug("Initializing connection to node %s for metadata request", node_id)
-            return self.config['reconnect_backoff_ms']
-        return float('inf')
+            return self.config["reconnect_backoff_ms"]
+        return float("inf")
 
 
 class KarapaceBrokerConnection(BrokerConnection):

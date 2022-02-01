@@ -14,7 +14,7 @@ def test_compare_oneof():
         name="page_info",
         fields=[
             FieldElement(location=location.at(4, 5), element_type="int32", name="page_number", tag=2),
-            FieldElement(location=location.at(5, 5), element_type="int32", name="result_per_page", tag=3)
+            FieldElement(location=location.at(5, 5), element_type="int32", name="result_per_page", tag=3),
         ],
     )
 
@@ -23,12 +23,12 @@ def test_compare_oneof():
         fields=[
             FieldElement(location=location.at(4, 5), element_type="int32", name="page_number", tag=2),
             FieldElement(location=location.at(5, 5), element_type="int32", name="result_per_page", tag=3),
-            FieldElement(location=location.at(6, 5), element_type="int32", name="view", tag=4)
+            FieldElement(location=location.at(6, 5), element_type="int32", name="view", tag=4),
         ],
     )
 
     result = CompareResult()
-    types = CompareTypes('', '', result)
+    types = CompareTypes("", "", result)
     self_one_of.compare(other_one_of, result, types)
     assert result.is_compatible()
     assert len(result.result) == 1
@@ -47,8 +47,8 @@ def test_compare_field():
         tag=3,
         options=[
             OptionElement("old_default", OptionElement.Kind.BOOLEAN, "true"),
-            OptionElement("delay", OptionElement.Kind.NUMBER, "200", True)
-        ]
+            OptionElement("delay", OptionElement.Kind.NUMBER, "200", True),
+        ],
     )
 
     other_field = FieldElement(
@@ -59,12 +59,12 @@ def test_compare_field():
         tag=3,
         options=[
             OptionElement("old_default", OptionElement.Kind.BOOLEAN, "true"),
-            OptionElement("delay", OptionElement.Kind.NUMBER, "200", True)
-        ]
+            OptionElement("delay", OptionElement.Kind.NUMBER, "200", True),
+        ],
     )
 
     result = CompareResult()
-    types = CompareTypes('', '', result)
+    types = CompareTypes("", "", result)
     self_field.compare(other_field, result, types)
 
     assert result.is_compatible()

@@ -50,8 +50,8 @@ def test_protoc():
         assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
     try:
         out, err = proc.communicate(timeout=10)
-        assert out == b''
-        assert err == b''
+        assert out == b""
+        assert err == b""
     except TimeoutExpired:
         proc.kill()
         assert False, "Timeout expired"

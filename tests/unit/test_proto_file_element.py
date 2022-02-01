@@ -162,7 +162,7 @@ def test_simple_with_extends_to_schema():
     file = ProtoFileElement(
         location=location,
         extend_declarations=[ExtendElement(location=location.at(5, 1), name="Extend")],
-        types=[MessageElement(location=location, name="Message")]
+        types=[MessageElement(location=location, name="Message")],
     )
     expected = """
         |// Proto schema formatted by Wire, do not edit.
@@ -200,7 +200,7 @@ def test_multiple_everything_to_schema():
         types=[element1, element2],
         services=[service1, service2],
         extend_declarations=[extend1, extend2],
-        options=[option1, option2]
+        options=[option1, option2],
     )
     expected = """
         |// Proto schema formatted by Wire, do not edit.
@@ -256,7 +256,7 @@ def test_default_is_set_in_proto2():
         element_type="string",
         name="name",
         tag=1,
-        default_value="defaultValue"
+        default_value="defaultValue",
     )
     message = MessageElement(location=location.at(11, 1), name="Message", fields=[field])
     file = ProtoFileElement(
@@ -265,7 +265,7 @@ def test_default_is_set_in_proto2():
         package_name="example.simple",
         imports=["example.thing"],
         public_imports=["example.other"],
-        types=[message]
+        types=[message],
     )
     expected = """
         |// Proto schema formatted by Wire, do not edit.
@@ -296,7 +296,7 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
         label=Field.Label.REPEATED,
         element_type="int32",
         name="numeric_without_packed_option",
-        tag=1
+        tag=1,
     )
     field_numeric_packed_true = FieldElement(
         location=location.at(11, 3),
@@ -304,7 +304,7 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
         element_type="int32",
         name="numeric_packed_true",
         tag=2,
-        options=[PACKED_OPTION_ELEMENT]
+        options=[PACKED_OPTION_ELEMENT],
     )
     el = copy.copy(PACKED_OPTION_ELEMENT)
     el.value = "false"
@@ -314,14 +314,14 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
         element_type="int32",
         name="numeric_packed_false",
         tag=3,
-        options=[el]
+        options=[el],
     )
     field_string = FieldElement(
         location=location.at(15, 3),
         label=Field.Label.REPEATED,
         element_type="string",
         name="string_without_packed_option",
-        tag=4
+        tag=4,
     )
     field_string_packed_true = FieldElement(
         location=location.at(17, 3),
@@ -329,7 +329,7 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
         element_type="string",
         name="string_packed_true",
         tag=5,
-        options=[PACKED_OPTION_ELEMENT]
+        options=[PACKED_OPTION_ELEMENT],
     )
     field_string_packed_false = FieldElement(
         location=location.at(19, 3),
@@ -337,16 +337,20 @@ def test_convert_packed_option_from_wire_schema_in_proto2():
         element_type="string",
         name="string_packed_false",
         tag=6,
-        options=[el]
+        options=[el],
     )
 
     message = MessageElement(
         location=location.at(8, 1),
         name="Message",
         fields=[
-            field_numeric, field_numeric_packed_true, field_numeric_packed_false, field_string, field_string_packed_true,
-            field_string_packed_false
-        ]
+            field_numeric,
+            field_numeric_packed_true,
+            field_numeric_packed_false,
+            field_string,
+            field_string_packed_true,
+            field_string_packed_false,
+        ],
     )
     file = ProtoFileElement(syntax=Syntax.PROTO_2, location=location, package_name="example.simple", types=[message])
     expected = """
@@ -385,7 +389,7 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
         label=Field.Label.REPEATED,
         element_type="int32",
         name="numeric_without_packed_option",
-        tag=1
+        tag=1,
     )
     field_numeric_packed_true = FieldElement(
         location=location.at(11, 3),
@@ -393,7 +397,7 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
         element_type="int32",
         name="numeric_packed_true",
         tag=2,
-        options=[PACKED_OPTION_ELEMENT]
+        options=[PACKED_OPTION_ELEMENT],
     )
     el = copy.copy(PACKED_OPTION_ELEMENT)
     el.value = "false"
@@ -403,14 +407,14 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
         element_type="int32",
         name="numeric_packed_false",
         tag=3,
-        options=[el]
+        options=[el],
     )
     field_string = FieldElement(
         location=location.at(15, 3),
         label=Field.Label.REPEATED,
         element_type="string",
         name="string_without_packed_option",
-        tag=4
+        tag=4,
     )
     field_string_packed_true = FieldElement(
         location=location.at(17, 3),
@@ -418,7 +422,7 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
         element_type="string",
         name="string_packed_true",
         tag=5,
-        options=[PACKED_OPTION_ELEMENT]
+        options=[PACKED_OPTION_ELEMENT],
     )
 
     field_string_packed_false = FieldElement(
@@ -427,16 +431,20 @@ def test_convert_packed_option_from_wire_schema_in_proto3():
         element_type="string",
         name="string_packed_false",
         tag=6,
-        options=[el]
+        options=[el],
     )
 
     message = MessageElement(
         location=location.at(8, 1),
         name="Message",
         fields=[
-            field_numeric, field_numeric_packed_true, field_numeric_packed_false, field_string, field_string_packed_true,
-            field_string_packed_false
-        ]
+            field_numeric,
+            field_numeric_packed_true,
+            field_numeric_packed_false,
+            field_string,
+            field_string_packed_true,
+            field_string_packed_false,
+        ],
     )
     file = ProtoFileElement(syntax=Syntax.PROTO_3, location=location, package_name="example.simple", types=[message])
     expected = """

@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
 
 import re
 
-T = TypeVar('T')
+T = TypeVar("T")
 JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, Type[BooleanSchema]]
 
 
@@ -34,8 +34,9 @@ def normalize_schema_rec(validator, original_schema) -> Any:
             normalized.update(normalize_schema_rec(validator, resolved_schema))
             resolver.pop_scope()
         else:
-            normalized.update((keyword, normalize_schema_rec(validator, original_schema[keyword]))
-                              for keyword in original_schema)
+            normalized.update(
+                (keyword, normalize_schema_rec(validator, original_schema[keyword])) for keyword in original_schema
+            )
 
         if scope:
             resolver.pop_scope()
@@ -125,7 +126,7 @@ def is_string_and_constrained(schema: Any) -> bool:
     if schema.get(Keyword.TYPE.value) != Instance.STRING.value:
         return False
 
-    has_max_length = schema.get(Keyword.MAX_LENGTH.value, float('inf')) != float('inf')
+    has_max_length = schema.get(Keyword.MAX_LENGTH.value, float("inf")) != float("inf")
     has_min_length = schema.get(Keyword.MIN_LENGTH.value, 0) != 0
     has_pattern = schema.get(Keyword.PATTERN.value) is not None
 

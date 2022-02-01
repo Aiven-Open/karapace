@@ -26,7 +26,7 @@ class OptionElement:
     def to_schema(self) -> str:
         aline = None
         if self.kind == self.Kind.STRING:
-            aline = f"{self.formattedName} = \"{self.value}\""
+            aline = f'{self.formattedName} = "{self.value}"'
         elif self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]:
             aline = f"{self.formattedName} = {self.value}"
         elif self.kind == self.Kind.OPTION:
@@ -61,7 +61,7 @@ class OptionElement:
     def format_option_map_value(self, value) -> str:
         aline = value
         if isinstance(value, str):
-            aline = f"\"{value}\""
+            aline = f'"{value}"'
         elif isinstance(value, dict):
             aline = ["{\n", self.format_option_map(value), "}"]
         elif isinstance(value, list):

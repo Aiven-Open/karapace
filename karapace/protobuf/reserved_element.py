@@ -24,7 +24,7 @@ class ReservedElement:
                 result.append(", ")
 
             if isinstance(value, str):
-                result.append(f"\"{value}\"")
+                result.append(f'"{value}"')
             elif isinstance(value, int):
                 result.append(f"{value}")
             elif isinstance(value, KotlinRange):
