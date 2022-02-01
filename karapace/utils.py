@@ -7,7 +7,7 @@ See LICENSE for details
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
-from typing import Optional
+from typing import NoReturn, Optional
 from urllib.parse import urljoin
 
 import aiohttp
@@ -63,6 +63,10 @@ def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
         default=default_json_serialization,
     )
     return res.encode("utf-8") if binary else res
+
+
+def assert_never(value: NoReturn) -> NoReturn:
+    raise RuntimeError(f"This code should never be reached, got: {value}")
 
 
 class Result:
