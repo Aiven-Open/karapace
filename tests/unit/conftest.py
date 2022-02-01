@@ -6,37 +6,35 @@ import pytest
 
 
 class MockClient:
-    # pylint: disable=W0613
     def __init__(self, *args, **kwargs):
         pass
 
-    async def get_schema_for_id(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def get_schema_for_id(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         return TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
 
-    async def get_latest_schema(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def get_latest_schema(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         return 1, TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
 
-    async def post_new_schema(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def post_new_schema(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         return 1
 
 
 class MockProtobufClient:
-    # pylint: disable=unused-argument
     def __init__(self, *args, **kwargs):
         pass
 
-    async def get_schema_for_id2(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def get_schema_for_id2(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         return TypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf2))
 
-    async def get_schema_for_id(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def get_schema_for_id(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         if args[0] != 1:
             return None
         return TypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf))
 
-    async def get_latest_schema(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def get_latest_schema(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         return 1, TypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf))
 
-    async def post_new_schema(self, *args, **kwargs):  # pylint: disable=no-self-use
+    async def post_new_schema(self, *args, **kwargs):  # pylint: disable=unused-argument,no-self-use
         return 1
 
 

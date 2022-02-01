@@ -107,7 +107,6 @@ async def test_content_types(rest_async_client, admin_client):
 
 
 async def test_avro_publish(rest_async_client, registry_async_client, admin_client):
-    # pylint: disable=W0612
     tn = new_topic(admin_client)
     other_tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn, other_tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
