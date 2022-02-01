@@ -144,10 +144,12 @@ class ConsumerManager:
         # which would return 0 results, since the subscription we just created will mean
         # a rejoin is needed, which skips the actual fetching. Nevertheless, an actual call to poll is to be avoided
         # and a better solution to this is desired (extend the consumer??)
-        # pylint: disable=W0212
+
+        # pylint: disable=protected-access
         consumer._coordinator.poll()
         if not consumer._subscription.has_all_fetch_positions():
             consumer._update_fetch_positions(consumer._subscription.missing_fetch_positions())
+        # pylint: enable=protected-access
 
     # external api below
     # CONSUMER
