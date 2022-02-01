@@ -4,6 +4,7 @@ karapace - configuration validation
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from enum import Enum, unique
 from pathlib import Path
 from typing import Dict, IO, List, Union
 
@@ -14,8 +15,10 @@ import ssl
 
 Config = Dict[str, Union[str, int, bool, List[str]]]
 
+HOSTNAME = socket.gethostname()  # pylint bug (#4302) pylint: disable=no-member
+
 DEFAULTS = {
-    "advertised_hostname": socket.gethostname(),
+    "advertised_hostname": HOSTNAME,
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
     "compatibility": "BACKWARD",
@@ -62,6 +65,12 @@ class InvalidConfiguration(Exception):
     pass
 
 
+@unique
+class ElectionStrategy(Enum):
+    highest = "highest"
+    lowest = "lowest"
+
+
 def parse_env_value(value: str) -> Union[str, int, bool]:
     # we only have ints, strings and bools in the config
     try:
@@ -86,8 +95,16 @@ def set_config_defaults(config: Config) -> Config:
             print(f"Populating config value {k} from env var {env_name} with {val} instead of config file")
             config[k] = parse_env_value(os.environ[env_name])
         config.setdefault(k, v)
-    strat = config["master_election_strategy"]
-    assert strat.lower() in {"highest", "lowest"}, f"Invalid master election strategy: {strat}"
+
+    master_election_strategy = config["master_election_strategy"]
+    try:
+        ElectionStrategy(master_election_strategy.lower())
+    except ValueError:
+        valid_strategies = [strategy.value for strategy in ElectionStrategy]
+        raise InvalidConfiguration(
+            f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
+        ) from None
+
     return config
 
 
@@ -98,10 +115,10 @@ def write_config(config_path: Path, custom_values: Config) -> None:
 def read_config(config_handler: IO) -> Config:
     try:
         config = json.load(config_handler)
-        config = set_config_defaults(config)
-        return config
-    except Exception as ex:
-        raise InvalidConfiguration(ex)  # pylint: disable=raise-missing-from
+    except json.JSONDecodeError as ex:
+        raise InvalidConfiguration("Configuration is not a valid JSON") from ex
+
+    return set_config_defaults(config)
 
 
 def create_ssl_context(config: Config) -> ssl.SSLContext:
