@@ -18,22 +18,16 @@ class ExtensionsElement:
         append_documentation(result, self.documentation)
         result.append("extensions ")
 
-        for index in range(0, len(self.values)):
-            value = self.values[index]
-            if index > 0:
-                result.append(", ")
+        formatted_values = []
+        for value in self.values:
             if isinstance(value, int):
-                result.append(str(value))
-            # TODO: maybe replace Kotlin IntRange by list?
+                formatted_values.append(str(value))
             elif isinstance(value, KotlinRange):
-                result.append(f"{value.minimum} to ")
-                last_value = value.maximum
-                if last_value < MAX_TAG_VALUE:
-                    result.append(str(last_value))
-                else:
-                    result.append("max")
+                max_value = str(value.maximum) if value.maximum < MAX_TAG_VALUE else "max"
+                formatted_values.append(f"{value.minimum} to {max_value}")
             else:
-                raise AssertionError()
+                raise ValueError(f"values should be a list of integers or KotlinRange, got {value!r}")
 
+        result.append(", ".join(formatted_values))
         result.append(";\n")
         return "".join(result)
