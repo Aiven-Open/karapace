@@ -15,8 +15,12 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExis
 from karapace import constants
 from karapace.avro_compatibility import parse_avro_schema_definition
 from karapace.protobuf.exception import (
-    Error as ProtobufError, IllegalArgumentException, IllegalStateException, ProtobufException,
-    ProtobufParserRuntimeException, SchemaParseException as ProtobufSchemaParseException
+    Error as ProtobufError,
+    IllegalArgumentException,
+    IllegalStateException,
+    ProtobufException,
+    ProtobufParserRuntimeException,
+    SchemaParseException as ProtobufSchemaParseException,
 )
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.statsd import StatsClient
@@ -33,7 +37,7 @@ log = logging.getLogger(__name__)
 
 
 def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
-    """ Parses and validates `schema_definition`.
+    """Parses and validates `schema_definition`.
 
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
@@ -44,7 +48,7 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
 
 
 def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
-    """ Parses and validates `schema_definition`.
+    """Parses and validates `schema_definition`.
 
     Raises:
         Nothing yet.
@@ -88,13 +92,20 @@ class TypedSchema:
             raise InvalidSchema from e
 
     @staticmethod
-    def parse_protobuf(schema_str: str) -> Optional['TypedSchema']:
+    def parse_protobuf(schema_str: str) -> Optional["TypedSchema"]:
         try:
             ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
             return ts
         except (
-            TypeError, SchemaError, AssertionError, ProtobufParserRuntimeException, IllegalStateException,
-            IllegalArgumentException, ProtobufError, ProtobufException, ProtobufSchemaParseException
+            TypeError,
+            SchemaError,
+            AssertionError,
+            ProtobufParserRuntimeException,
+            IllegalStateException,
+            IllegalArgumentException,
+            ProtobufError,
+            ProtobufException,
+            ProtobufSchemaParseException,
         ) as e:
             log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
             raise InvalidSchema from e
@@ -209,7 +220,7 @@ class KafkaSchemaReader(Thread):
             name=config["topic_name"],
             num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
             replication_factor=config["replication_factor"],
-            topic_configs={"cleanup.policy": "compact"}
+            topic_configs={"cleanup.policy": "compact"},
         )
 
     def create_schema_topic(self):
@@ -408,8 +419,6 @@ class KafkaSchemaReader(Thread):
         if include_deleted:
             return self.subjects[subject]["schemas"]
         non_deleted_schemas = {
-            key: val
-            for key, val in self.subjects[subject]["schemas"].items()
-            if val.get("deleted", False) is False
+            key: val for key, val in self.subjects[subject]["schemas"].items() if val.get("deleted", False) is False
         }
         return non_deleted_schemas

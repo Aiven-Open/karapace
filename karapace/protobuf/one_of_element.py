@@ -34,7 +34,7 @@ class OneOfElement:
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: 'OneOfElement', result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: "OneOfElement", result: CompareResult, types: CompareTypes) -> None:
         self_tags = {}
         other_tags = {}
 

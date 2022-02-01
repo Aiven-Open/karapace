@@ -14,7 +14,7 @@ import datetime
 
 __all__ = ["protobuf_to_dict", "TYPE_CALLABLE_MAP", "dict_to_protobuf", "REVERSE_TYPE_CALLABLE_MAP"]
 
-Timestamp_type_name = 'Timestamp'
+Timestamp_type_name = "Timestamp"
 
 # pylint: disable=no-member
 
@@ -33,26 +33,28 @@ def timestamp_to_datetime(ts):
 
 # pylint: enable=no-member
 
-EXTENSION_CONTAINER = '___X'
+EXTENSION_CONTAINER = "___X"
 
-TYPE_CALLABLE_MAP = MappingProxyType({
-    FieldDescriptor.TYPE_DOUBLE: float,
-    FieldDescriptor.TYPE_FLOAT: float,
-    FieldDescriptor.TYPE_INT32: int,
-    FieldDescriptor.TYPE_INT64: int,
-    FieldDescriptor.TYPE_UINT32: int,
-    FieldDescriptor.TYPE_UINT64: int,
-    FieldDescriptor.TYPE_SINT32: int,
-    FieldDescriptor.TYPE_SINT64: int,
-    FieldDescriptor.TYPE_FIXED32: int,
-    FieldDescriptor.TYPE_FIXED64: int,
-    FieldDescriptor.TYPE_SFIXED32: int,
-    FieldDescriptor.TYPE_SFIXED64: int,
-    FieldDescriptor.TYPE_BOOL: bool,
-    FieldDescriptor.TYPE_STRING: str,
-    FieldDescriptor.TYPE_BYTES: bytes,
-    FieldDescriptor.TYPE_ENUM: int,
-})
+TYPE_CALLABLE_MAP = MappingProxyType(
+    {
+        FieldDescriptor.TYPE_DOUBLE: float,
+        FieldDescriptor.TYPE_FLOAT: float,
+        FieldDescriptor.TYPE_INT32: int,
+        FieldDescriptor.TYPE_INT64: int,
+        FieldDescriptor.TYPE_UINT32: int,
+        FieldDescriptor.TYPE_UINT64: int,
+        FieldDescriptor.TYPE_SINT32: int,
+        FieldDescriptor.TYPE_SINT64: int,
+        FieldDescriptor.TYPE_FIXED32: int,
+        FieldDescriptor.TYPE_FIXED64: int,
+        FieldDescriptor.TYPE_SFIXED32: int,
+        FieldDescriptor.TYPE_SFIXED64: int,
+        FieldDescriptor.TYPE_BOOL: bool,
+        FieldDescriptor.TYPE_STRING: str,
+        FieldDescriptor.TYPE_BYTES: bytes,
+        FieldDescriptor.TYPE_ENUM: int,
+    }
+)
 
 
 def repeated(type_callable):
@@ -67,7 +69,8 @@ def enum_label_name(field, value, lowercase_enum_lables=False) -> str:
 
 def _is_map_entry(field) -> bool:
     return (
-        field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type.has_options
+        field.type == FieldDescriptor.TYPE_MESSAGE
+        and field.message_type.has_options
         and field.message_type.GetOptions().map_entry
     )
 
@@ -79,7 +82,7 @@ def protobuf_to_dict(pb, use_enum_labels=True, including_default_value_fields=Tr
     for field, value in pb.ListFields():
         if field.message_type and field.message_type.has_options and field.message_type.GetOptions().map_entry:
             result_dict[field.name] = {}
-            value_field = field.message_type.fields_by_name['value']
+            value_field = field.message_type.fields_by_name["value"]
             type_callable = _get_field_value_adaptor(
                 pb, value_field, type_callable_map, use_enum_labels, including_default_value_fields, lowercase_enum_lables
             )
@@ -129,7 +132,7 @@ def _get_field_value_adaptor(
     type_callable_map=TYPE_CALLABLE_MAP,
     use_enum_labels=False,
     including_default_value_fields=False,
-    lowercase_enum_lables=False
+    lowercase_enum_lables=False,
 ):
     if field.message_type and field.message_type.name == Timestamp_type_name:
         return timestamp_to_datetime
@@ -160,7 +163,7 @@ def dict_to_protobuf(
     type_callable_map=REVERSE_TYPE_CALLABLE_MAP,
     strict=True,
     ignore_none=False,
-    use_date_parser_for_fields=None
+    use_date_parser_for_fields=None,
 ) -> object:
     """Populates a protobuf model from a dictionary.
 
@@ -226,13 +229,17 @@ def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_da
 
         if field.label == FieldDescriptor.LABEL_REPEATED:
             if field.message_type and field.message_type.has_options and field.message_type.GetOptions().map_entry:
-                key_field = field.message_type.fields_by_name['key']
-                value_field = field.message_type.fields_by_name['value']
+                key_field = field.message_type.fields_by_name["key"]
+                value_field = field.message_type.fields_by_name["value"]
                 for key, value in input_value.items():
                     if value_field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE:
                         _dict_to_protobuf(
-                            getattr(pb, field.name)[key], value, type_callable_map, strict, ignore_none,
-                            use_date_parser_for_fields
+                            getattr(pb, field.name)[key],
+                            value,
+                            type_callable_map,
+                            strict,
+                            ignore_none,
+                            use_date_parser_for_fields,
                         )
                     else:
                         if ignore_none and value is None:
@@ -331,7 +338,7 @@ def validate_dict_for_required_pb_fields(pb, dic):
     """
     missing_fields = []
     for _field, field_name, field_options in get_field_names_and_options(pb):
-        if not field_options.get('is_optional', False) and field_name not in dic:
+        if not field_options.get("is_optional", False) and field_name not in dic:
             missing_fields.append(field_name)
     if missing_fields:
-        raise FieldsMissing('Missing fields: {}'.format(', '.join(missing_fields)))
+        raise FieldsMissing("Missing fields: {}".format(", ".join(missing_fields)))

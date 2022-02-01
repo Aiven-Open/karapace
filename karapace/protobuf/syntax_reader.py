@@ -7,7 +7,7 @@ from typing import NoReturn, Union
 
 class SyntaxReader:
     def __init__(self, data: str, location: Location) -> None:
-        """ Next character to be read """
+        """Next character to be read"""
         self.pos = 0
         """ The number of newline characters  """
         self.line = 0
@@ -20,18 +20,18 @@ class SyntaxReader:
         return self.pos == len(self.data)
 
     def read_char(self) -> str:
-        """ Reads a non-whitespace character """
+        """Reads a non-whitespace character"""
 
         char = self.peek_char()
         self.pos += 1
         return char
 
     def require(self, c: str) -> None:
-        """ Reads a non-whitespace character 'c' """
+        """Reads a non-whitespace character 'c'"""
         self.expect(self.read_char() == c, f"expected '{c}'")
 
     def peek_char(self, ch: str = None) -> Union[bool, str]:
-        """ Peeks a non-whitespace character and returns it. The only difference between this and
+        """Peeks a non-whitespace character and returns it. The only difference between this and
         [read_char] is that this doesn't consume the char.
         """
 
@@ -45,12 +45,12 @@ class SyntaxReader:
         return self.data[self.pos]
 
     def push_back(self, ch: str) -> None:
-        """ Push back the most recently read character. """
+        """Push back the most recently read character."""
         if self.data[self.pos - 1] == ch:
             self.pos -= 1
 
     def read_string(self) -> str:
-        """ Reads a quoted or unquoted string and returns it. """
+        """Reads a quoted or unquoted string and returns it."""
         self.skip_whitespace(True)
         if self.peek_char() in ['"', "'"]:
             return self.read_quoted_string()
@@ -77,20 +77,20 @@ class SyntaxReader:
                 c = self.data[self.pos]
                 self.pos += 1
                 d: Union[str, None] = {
-                    'a': "\u0007",  # Alert.
-                    'b': "\b",  # Backspace.
-                    'f': "\u000c",  # Form feed.
-                    'n': "\n",  # Newline.
-                    'r': "\r",  # Carriage return.
-                    't': "\t",  # Horizontal tab.
-                    'v': "\u000b",  # Vertical tab.
+                    "a": "\u0007",  # Alert.
+                    "b": "\b",  # Backspace.
+                    "f": "\u000c",  # Form feed.
+                    "n": "\n",  # Newline.
+                    "r": "\r",  # Carriage return.
+                    "t": "\t",  # Horizontal tab.
+                    "v": "\u000b",  # Vertical tab.
                 }.get(c)
                 if d:
                     c = d
                 else:
-                    if c in ['x', 'X']:
+                    if c in ["x", "X"]:
                         c = self.read_numeric_escape(16, 2)
-                    elif ord(c) in range(ord('0'), ord('7') + 1):
+                    elif ord(c) in range(ord("0"), ord("7") + 1):
                         self.pos -= 1
                         c = self.read_numeric_escape(8, 3)
 
@@ -124,57 +124,60 @@ class SyntaxReader:
         return chr(value)
 
     def read_name(self) -> str:
-        """ Reads a (paren-wrapped), [square-wrapped] or naked symbol name. """
+        """Reads a (paren-wrapped), [square-wrapped] or naked symbol name."""
 
         c = self.peek_char()
-        if c == '(':
+        if c == "(":
             self.pos += 1
             result = self.read_word()
-            self.expect(self.read_char() == ')', "expected ')'")
+            self.expect(self.read_char() == ")", "expected ')'")
             return result
-        if c == '[':
+        if c == "[":
             self.pos += 1
             result = self.read_word()
-            self.expect(self.read_char() == ']', "expected ']'")
+            self.expect(self.read_char() == "]", "expected ']'")
             return result
         return self.read_word()
 
     def read_data_type(self) -> str:
-        """ Reads a scalar, map, or type name. """
+        """Reads a scalar, map, or type name."""
 
         name = self.read_word()
         return self.read_data_type_by_name(name)
 
     def read_data_type_by_name(self, name: str) -> str:
-        """ Reads a scalar, map, or type name with `name` as a prefix word. """
+        """Reads a scalar, map, or type name with `name` as a prefix word."""
         if name == "map":
-            self.expect(self.read_char() == '<', "expected '<'")
+            self.expect(self.read_char() == "<", "expected '<'")
             key_type = self.read_data_type()
 
-            self.expect(self.read_char() == ',', "expected ','")
+            self.expect(self.read_char() == ",", "expected ','")
             value_type = self.read_data_type()
 
-            self.expect(self.read_char() == '>', "expected '>'")
+            self.expect(self.read_char() == ">", "expected '>'")
             return f"map<{key_type}, {value_type}>"
         return name
 
     def read_word(self) -> str:
-        """ Reads a non-empty word and returns it. """
+        """Reads a non-empty word and returns it."""
         self.skip_whitespace(True)
         start = self.pos
         while self.pos < len(self.data):
             c = self.data[self.pos]
-            if ord(c) in range(ord('a'), ord('z') + 1) \
-                    or ord(c) in range(ord('A'), ord('Z') + 1) \
-                    or ord(c) in range(ord('0'), ord('9') + 1) or c in ['_', '-', '.']:
+            if (
+                ord(c) in range(ord("a"), ord("z") + 1)
+                or ord(c) in range(ord("A"), ord("Z") + 1)
+                or ord(c) in range(ord("0"), ord("9") + 1)
+                or c in ["_", "-", "."]
+            ):
                 self.pos += 1
             else:
                 break
         self.expect(start < self.pos, "expected a word")
-        return self.data[start:self.pos]
+        return self.data[start : self.pos]
 
     def read_int(self) -> int:  # pylint: disable=inconsistent-return-statements
-        """ Reads an integer and returns it. """
+        """Reads an integer and returns it."""
         tag: str = self.read_word()
         try:
             radix = 10
@@ -186,13 +189,13 @@ class SyntaxReader:
             self.unexpected(f"expected an integer but was {tag}")
 
     def read_documentation(self) -> str:
-        """ Like skip_whitespace(), but this returns a string containing all comment text. By convention,
-        comments before a declaration document that declaration. """
+        """Like skip_whitespace(), but this returns a string containing all comment text. By convention,
+        comments before a declaration document that declaration."""
 
         result = None
         while True:
             self.skip_whitespace(False)
-            if self.pos == len(self.data) or self.data[self.pos] != '/':
+            if self.pos == len(self.data) or self.data[self.pos] != "/":
                 if result:
                     return result
                 return ""
@@ -203,8 +206,8 @@ class SyntaxReader:
                 result = f"{comment}"
 
     def read_comment(self) -> str:
-        """ Reads a comment and returns its body. """
-        if self.pos == len(self.data) or self.data[self.pos] != '/':
+        """Reads a comment and returns its body."""
+        if self.pos == len(self.data) or self.data[self.pos] != "/":
             raise IllegalStateException("comment expected")
 
         self.pos += 1
@@ -213,13 +216,13 @@ class SyntaxReader:
             tval = ord(self.data[self.pos])
             self.pos += 1
         result: str = ""
-        if tval == ord('*'):
+        if tval == ord("*"):
             buffer = []
             start_of_line = True
             while self.pos + 1 < len(self.data):
                 # pylint: disable=no-else-break
                 c: str = self.data[self.pos]
-                if c == '*' and self.data[self.pos + 1] == '/':
+                if c == "*" and self.data[self.pos + 1] == "/":
                     self.pos += 2
                     result = "".join(buffer).strip()
                     break
@@ -230,7 +233,7 @@ class SyntaxReader:
                 elif not start_of_line:
                     buffer.append(c)
                 elif c == "*":
-                    if self.data[self.pos + 1] == ' ':
+                    if self.data[self.pos + 1] == " ":
                         self.pos += 1  # Skip a single leading space, if present.
                         start_of_line = False
                 elif not c.isspace():
@@ -239,8 +242,8 @@ class SyntaxReader:
                 self.pos += 1
             if not result:
                 self.unexpected("unterminated comment")
-        elif tval == ord('/'):
-            if self.pos < len(self.data) and self.data[self.pos] == ' ':
+        elif tval == ord("/"):
+            if self.pos < len(self.data) and self.data[self.pos] == " ":
                 self.pos += 1  # Skip a single leading space, if present.
             start = self.pos
             while self.pos < len(self.data):
@@ -249,33 +252,33 @@ class SyntaxReader:
                 if c == "\n":
                     self.newline()
                     break
-            result = self.data[start:self.pos - 1]
+            result = self.data[start : self.pos - 1]
         if not result:
             self.unexpected("unexpected '/'")
         return result
 
     def try_append_trailing_documentation(self, documentation: str) -> str:
-        """ Search for a '/' character ignoring spaces and tabs."""
+        """Search for a '/' character ignoring spaces and tabs."""
         while self.pos < len(self.data):
-            if self.data[self.pos] in [' ', "\t"]:
+            if self.data[self.pos] in [" ", "\t"]:
                 self.pos += 1
-            elif self.data[self.pos] == '/':
+            elif self.data[self.pos] == "/":
                 self.pos += 1
                 break
             else:
                 # Not a whitespace or comment-starting character. Return original documentation.
                 return documentation
-        bval = (self.pos < len(self.data) and (self.data[self.pos] == '/' or self.data[self.pos] == '*'))
+        bval = self.pos < len(self.data) and (self.data[self.pos] == "/" or self.data[self.pos] == "*")
         if not bval:
             # Backtrack to start of comment.
             self.pos -= 1
         self.expect(bval, "expected '//' or '/*'")
-        is_star = self.data[self.pos] == '*'
+        is_star = self.data[self.pos] == "*"
 
         self.pos += 1
 
         # Skip a single leading space, if present.
-        if self.pos < len(self.data) and self.data[self.pos] == ' ':
+        if self.pos < len(self.data) and self.data[self.pos] == " ":
             self.pos += 1
 
         start = self.pos
@@ -285,7 +288,7 @@ class SyntaxReader:
             # Consume star comment until it closes on the same line.
             while True:
                 self.expect(self.pos < len(self.data), "trailing comment must be closed")
-                if self.data[self.pos] == '*' and self.pos + 1 < len(self.data) and self.data[self.pos + 1] == '/':
+                if self.data[self.pos] == "*" and self.pos + 1 < len(self.data) and self.data[self.pos + 1] == "/":
                     end = self.pos - 1  # The character before '*'.
                     self.pos += 2  # Skip to the character after '/'.
                     break
@@ -320,13 +323,13 @@ class SyntaxReader:
         if end == start:
             return documentation
 
-        trailing_documentation = self.data[start:end + 1]
+        trailing_documentation = self.data[start : end + 1]
         if not documentation.strip():
             return trailing_documentation
         return f"{documentation}\n{trailing_documentation}"
 
     def skip_whitespace(self, skip_comments: bool) -> None:
-        """ Skips whitespace characters and optionally comments. When this returns, either
+        """Skips whitespace characters and optionally comments. When this returns, either
         self.pos == self.data.length or a non-whitespace character.
         """
         while self.pos < len(self.data):
@@ -341,7 +344,7 @@ class SyntaxReader:
                 return None
 
     def newline(self) -> None:
-        """ Call this every time a '\n' is encountered. """
+        """Call this every time a '\n' is encountered."""
         self.line += 1
         self.line_start = self.pos
 

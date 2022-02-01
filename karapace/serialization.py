@@ -63,7 +63,7 @@ def topic_record_name_strategy(topic_name: str, record_name: str) -> str:
 NAME_STRATEGIES = {
     "topic_name": topic_name_strategy,
     "record_name": record_name_strategy,
-    "topic_record_name": topic_record_name_strategy
+    "topic_record_name": topic_record_name_strategy,
 }
 
 

@@ -4,7 +4,10 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_reader import SchemaType, TypedSchema
 from tests.schemas.protobuf import (
-    schema_protobuf_compare_one, schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_schema_registry1
+    schema_protobuf_compare_one,
+    schema_protobuf_order_after,
+    schema_protobuf_order_before,
+    schema_protobuf_schema_registry1,
 )
 
 location: Location = Location.get("file.proto")

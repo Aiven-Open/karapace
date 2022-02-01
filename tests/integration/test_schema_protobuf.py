@@ -15,23 +15,25 @@ import requests
 
 baseurl = "http://localhost:8081"
 
-compatibility_test_url = "https://raw.githubusercontent.com/confluentinc/schema-registry/" + \
-                         "0530b0107749512b997f49cc79fe423f21b43b87/" + \
-                         "protobuf-provider/src/test/resources/diff-schema-examples.json"
+compatibility_test_url = (
+    "https://raw.githubusercontent.com/confluentinc/schema-registry/"
+    + "0530b0107749512b997f49cc79fe423f21b43b87/"
+    + "protobuf-provider/src/test/resources/diff-schema-examples.json"
+)
 
 
 def add_slashes(text: str) -> str:
     escape_dict = {
-        '\a': '\\a',
-        '\b': '\\b',
-        '\f': '\\f',
-        '\n': '\\n',
-        '\r': '\\r',
-        '\t': '\\t',
-        '\v': '\\v',
-        '\'': "\\'",
-        '\"': '\\"',
-        '\\': '\\\\'
+        "\a": "\\a",
+        "\b": "\\b",
+        "\f": "\\f",
+        "\n": "\\n",
+        "\r": "\\r",
+        "\t": "\\t",
+        "\v": "\\v",
+        "'": "\\'",
+        '"': '\\"',
+        "\\": "\\\\",
     }
     trans_table = str.maketrans(escape_dict)
     return text.translate(trans_table)
@@ -63,10 +65,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     original_schema = trim_margin(original_schema)
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": original_schema
-        }
+        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status == 200
     assert "id" in res.json()
@@ -91,37 +90,25 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
 
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
-        json={
-            "schemaType": "PROTOBUF",
-            "schema": evolved_schema
-        },
+        json={"schemaType": "PROTOBUF", "schema": evolved_schema},
     )
     assert res.status == 200
     assert res.json() == {"is_compatible": True}
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": evolved_schema
-        }
+        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
     )
     assert res.status == 200
     assert "id" in res.json()
 
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
-        json={
-            "schemaType": "PROTOBUF",
-            "schema": original_schema
-        },
+        json={"schemaType": "PROTOBUF", "schema": original_schema},
     )
     assert res.json() == {"is_compatible": True}
     assert res.status == 200
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": original_schema
-        }
+        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status == 200
     assert "id" in res.json()
@@ -139,7 +126,7 @@ class Schemas:
         descriptions.append(a["description"])
         schemas[a["description"]] = dict(a)
         count += 1
-        if a["description"] == 'Detect incompatible message index change':
+        if a["description"] == "Detect incompatible message index change":
             break
         if count == max_count:
             break
@@ -161,29 +148,20 @@ async def test_schema_registry_examples(registry_async_client: Client, trail: st
     compatible = schema["compatible"]
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": original_schema
-        }
+        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status == 200
     assert "id" in res.json()
 
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
-        json={
-            "schemaType": "PROTOBUF",
-            "schema": evolved_schema
-        },
+        json={"schemaType": "PROTOBUF", "schema": evolved_schema},
     )
     assert res.status == 200
     assert res.json() == {"is_compatible": compatible}
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": evolved_schema
-        }
+        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
     )
 
     if compatible:

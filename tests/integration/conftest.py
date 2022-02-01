@@ -16,8 +16,15 @@ from karapace.utils import Client
 from pathlib import Path
 from subprocess import Popen
 from tests.utils import (
-    Expiration, get_random_port, KAFKA_PORT_RANGE, KafkaConfig, KafkaServers, new_random_name, REGISTRY_PORT_RANGE,
-    repeat_until_successful_request, ZK_PORT_RANGE
+    Expiration,
+    get_random_port,
+    KAFKA_PORT_RANGE,
+    KafkaConfig,
+    KafkaServers,
+    new_random_name,
+    REGISTRY_PORT_RANGE,
+    repeat_until_successful_request,
+    ZK_PORT_RANGE,
 )
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
@@ -45,9 +52,9 @@ class ZKConfig:
     @staticmethod
     def from_dict(data: dict) -> "ZKConfig":
         return ZKConfig(
-            data['client_port'],
-            data['admin_port'],
-            data['path'],
+            data["client_port"],
+            data["admin_port"],
+            data["path"],
         )
 
 
@@ -109,10 +116,10 @@ def wait_for_port(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 
 
 
 def lock_path_for(path: Path) -> Path:
-    """ Append .lock to path """
+    """Append .lock to path"""
     suffixes = path.suffixes
-    suffixes.append('.lock')
-    return path.with_suffix(''.join(suffixes))
+    suffixes.append(".lock")
+    return path.with_suffix("".join(suffixes))
 
 
 @pytest.fixture(scope="session", name="kafka_servers")
@@ -137,8 +144,8 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
         with FileLock(str(lock_path_for(transfer_file))):  # pylint: disable=E0110
             if transfer_file.exists():
                 config_data = json.loads(transfer_file.read_text())
-                zk_config = ZKConfig.from_dict(config_data['zookeeper'])
-                kafka_config = KafkaConfig.from_dict(config_data['kafka'])
+                zk_config = ZKConfig.from_dict(config_data["zookeeper"])
+                kafka_config = KafkaConfig.from_dict(config_data["kafka"])
             else:
                 zk_config, zk_proc = configure_and_start_zk(zk_dir)
                 stack.callback(stop_process, zk_proc)
@@ -150,8 +157,8 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
                 stack.callback(stop_process, kafka_proc)
 
                 config_data = {
-                    'zookeeper': asdict(zk_config),
-                    'kafka': asdict(kafka_config),
+                    "zookeeper": asdict(zk_config),
+                    "kafka": asdict(kafka_config),
                 }
                 transfer_file.write_text(json.dumps(config_data))
 
@@ -252,24 +259,26 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
     topic_name = new_random_name("schema_pairs")
     group_id = new_random_name("schema_pairs")
     write_config(
-        master_config_path, {
+        master_config_path,
+        {
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": topic_name,
             "group_id": group_id,
             "advertised_hostname": "127.0.0.1",
             "karapace_registry": True,
             "port": master_port,
-        }
+        },
     )
     write_config(
-        slave_config_path, {
+        slave_config_path,
+        {
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": topic_name,
             "group_id": group_id,
             "advertised_hostname": "127.0.0.1",
             "karapace_registry": True,
             "port": slave_port,
-        }
+        },
     )
     master_process = Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)])
     slave_process = Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)])
@@ -300,16 +309,17 @@ async def fixture_registry_async(
 
     config_path = tmp_path / "karapace_config.json"
 
-    config = set_config_defaults({
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-
-        # Using the default settings instead of random values, otherwise it
-        # would not be possible to run the tests with external services.
-        # Because of this every test must be written in such a way that it can
-        # be executed twice with the same servers.
-        # "topic_name": new_random_name("topic"),
-        # "group_id": new_random_name("schema_registry")
-    })
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            # Using the default settings instead of random values, otherwise it
+            # would not be possible to run the tests with external services.
+            # Because of this every test must be written in such a way that it can
+            # be executed twice with the same servers.
+            # "topic_name": new_random_name("topic"),
+            # "group_id": new_random_name("schema_registry")
+        }
+    )
     write_config(config_path, config)
     registry = KarapaceSchemaRegistry(config=config)
     await registry.get_master()
@@ -426,12 +436,16 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         zookeeper_port=zk.client_port,
     )
 
-    advertised_listeners = ",".join([
-        "PLAINTEXT://127.0.0.1:{}".format(plaintext_port),
-    ])
-    listeners = ",".join([
-        "PLAINTEXT://:{}".format(plaintext_port),
-    ])
+    advertised_listeners = ",".join(
+        [
+            "PLAINTEXT://127.0.0.1:{}".format(plaintext_port),
+        ]
+    )
+    listeners = ",".join(
+        [
+            "PLAINTEXT://:{}".format(plaintext_port),
+        ]
+    )
 
     # Keep in sync with containers/docker-compose.yml
     kafka_config = {

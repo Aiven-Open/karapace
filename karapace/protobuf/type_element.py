@@ -13,8 +13,8 @@ class TypeElement:
     location: Location
     name: str
     documentation: str
-    options: List['OptionElement']
-    nested_types: List['TypeElement']
+    options: List["OptionElement"]
+    nested_types: List["TypeElement"]
 
     def to_schema(self) -> str:
         """Convert the object to valid protobuf syntax.
