@@ -50,7 +50,7 @@ class StatsClient:
         )
         self._dest_addr = (host, port)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags = self.sentry_config.get("tags", dict())
+        self._tags = self.sentry_config.get("tags", {})
 
     @contextmanager
     def timing_manager(self, metric: str, tags: Optional[Dict] = None) -> Iterator[None]:

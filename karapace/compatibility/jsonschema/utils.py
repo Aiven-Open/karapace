@@ -27,7 +27,7 @@ def normalize_schema_rec(validator, original_schema) -> Any:
         if scope:
             resolver.push_scope(scope)
 
-        normalized = dict()
+        normalized = {}
         if ref is not None:
             resolved_scope, resolved_schema = resolver.resolve(ref)
             resolver.push_scope(resolved_scope)
@@ -303,7 +303,7 @@ def schema_from_partially_open_content_model(schema: dict, target_property_name:
     """Returns the schema from patternProperties or additionalProperties that
     validates `target_property_name`, if any.
     """
-    for pattern, pattern_schema in schema.get(Keyword.PATTERN_PROPERTIES.value, dict()).items():
+    for pattern, pattern_schema in schema.get(Keyword.PATTERN_PROPERTIES.value, {}).items():
         if re.match(pattern, target_property_name):
             return pattern_schema
 

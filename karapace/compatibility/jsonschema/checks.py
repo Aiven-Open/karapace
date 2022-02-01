@@ -655,8 +655,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                         location=properties_location,
                     )
 
-    reader_attribute_dependencies_schema = reader_schema.get(Keyword.DEPENDENCIES.value, dict())
-    writer_attribute_dependencies_schema = writer_schema.get(Keyword.DEPENDENCIES.value, dict())
+    reader_attribute_dependencies_schema = reader_schema.get(Keyword.DEPENDENCIES.value, {})
+    writer_attribute_dependencies_schema = writer_schema.get(Keyword.DEPENDENCIES.value, {})
 
     for writer_attribute_dependency_name, writer_attribute_dependencies in writer_attribute_dependencies_schema.items():
         reader_attribute_dependencies = reader_attribute_dependencies_schema.get(writer_attribute_dependency_name)
@@ -676,8 +676,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                 location=location,
             )
 
-    reader_dependent_schemas = reader_schema.get(Keyword.DEPENDENT_SCHEMAS.value, dict())
-    writer_dependent_schemas = writer_schema.get(Keyword.DEPENDENT_SCHEMAS.value, dict())
+    reader_dependent_schemas = reader_schema.get(Keyword.DEPENDENT_SCHEMAS.value, {})
+    writer_dependent_schemas = writer_schema.get(Keyword.DEPENDENT_SCHEMAS.value, {})
 
     for writer_dependent_schema_name, writer_dependent_schema in writer_dependent_schemas.items():
         reader_dependent_schema = reader_dependent_schemas.get(writer_dependent_schema_name)
