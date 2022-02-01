@@ -282,7 +282,7 @@ class KafkaSchemaReader(Thread):
 
     def handle_messages(self):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
-        if self.ready is False and raw_msgs == {}:
+        if self.ready is False and not raw_msgs:
             self.ready = True
         add_offsets = False
         if self.master_coordinator is not None:
