@@ -1,17 +1,16 @@
 from karapace import config
 from karapace.protobuf.io import calculate_class_name
 from karapace.protobuf.kotlin_wrapper import trim_margin
-from subprocess import PIPE, Popen, TimeoutExpired
 
 import importlib
 import importlib.util
 import logging
+import subprocess
 
-log = logging.getLogger("KarapaceTests")
+log = logging.getLogger(__name__)
 
 
-def test_protoc():
-
+def test_protoc() -> None:
     proto: str = """
                  |syntax = "proto3";
                  |package com.instaclustr.protobuf;
@@ -31,40 +30,17 @@ def test_protoc():
     class_path = f"{directory}/{proto_name}_pb2.py"
 
     log.info(proto_name)
-    try:
-        with open(proto_path, "w") as proto_text:
-            proto_text.write(str(proto))
-            proto_text.close()
+    with open(proto_path, "w") as proto_text:
+        proto_text.write(str(proto))
 
-    except Exception as e:  # pylint: disable=broad-except
-        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
-        assert False, f"Cannot write Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
-
-    args = ["protoc", "--python_out=./", proto_path]
-    try:
-        proc = Popen(args, stdout=PIPE, stderr=PIPE, shell=False)
-    except FileNotFoundError as e:
-        assert False, f"Protoc not found. {e}"
-    except Exception as e:  # pylint: disable=broad-except
-        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
-        assert False, f"Cannot execute protoc. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
-    try:
-        out, err = proc.communicate(timeout=10)
-        assert out == b""
-        assert err == b""
-    except TimeoutExpired:
-        proc.kill()
-        assert False, "Timeout expired"
-    module_content = ""
-    try:
-        with open(class_path, "r") as proto_text:
-            module_content = proto_text.read()
-            proto_text.close()
-        print(module_content)
-    except Exception as e:  # pylint: disable=broad-except
-        log.error("Unexpected exception in statsd send: %s: %s", e.__class__.__name__, e)
-        assert False, f"Cannot read Proto File. Unexpected exception in statsd send: {e.__class__.__name__} + {e}"
+    completed_process = subprocess.run(
+        args=["protoc", "--python_out=./", proto_path],
+        capture_output=True,
+        check=True,
+    )
+    assert completed_process.stdout == b""
+    assert completed_process.stderr == b""
 
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
     tmp_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tmp_module)
+    spec.loader.exec_module(tmp_module)  # type: ignore[union-attr]
