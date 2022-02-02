@@ -10,7 +10,7 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.utils import KarapaceKafkaClient
-from threading import Lock, Thread
+from threading import Event, Thread
 from typing import Optional, Tuple
 
 import json
@@ -141,8 +141,7 @@ class MasterCoordinator(Thread):
         metrics_tags = {"client-id": self.config["client_id"]}
         metric_config = MetricConfig(samples=2, time_window_ms=30000, tags=metrics_tags)
         self._metrics = Metrics(metric_config, reporters=[])
-        self.lock = Lock()
-        self.lock.acquire()
+        self.schema_coordinator_ready = Event()
         self.log = logging.getLogger("MasterCoordinator")
 
     def init_kafka_client(self):
@@ -180,12 +179,12 @@ class MasterCoordinator(Thread):
         self.sc.port = self.config["port"]
         self.sc.scheme = "http"
         self.sc.master_eligibility = self.config["master_eligibility"]
-        self.lock.release()  # self.sc now exists, we get to release the lock
+        self.schema_coordinator_ready.set()
 
     def get_master_info(self) -> Tuple[bool, Optional[str]]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
-        with self.lock:
-            return self.sc.are_we_master, self.sc.master_url
+        self.schema_coordinator_ready.wait()
+        return self.sc.are_we_master, self.sc.master_url
 
     def close(self):
         self.log.info("Closing master_coordinator")
