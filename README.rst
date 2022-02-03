@@ -270,7 +270,7 @@ Json     6.86        5.32
 Also, it appears there is quite a bit of variation on subsequent runs, especially for the lower numbers, so once
 more exact measurements are required, it's advised we increase the total req count to something like 500K
 
-We'll focus on avro serialization only after this round, as it's the more expensive one, plus it tests the entire stack
+We'll focus on Avro serialization only after this round, as it's the more expensive one, plus it tests the entire stack
 
 Consuming RAM
 -------------
@@ -379,18 +379,29 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - The replication factor to be used with the schema topic.
    * - ``host``
      - ``127.0.0.1``
-     - Address to bind the Karapace HTTP server to.  Set to an empty string to
-       listen to all available addresses.
-   * - ``registry_host``
-     - ``127.0.0.1``
-     - Kafka Registry host, used by Kafka Rest for avro related requests.
-       If running both in the same process, it should be left to its default value
+     - Listening host for the Karapace server.  Use an empty string to
+       listen to all available networks.
    * - ``port``
      - ``8081``
-     - HTTP webserver port to bind the Karapace to.
+     - Listening port for the Karapace server.
+   * - ``server_tls_certfile``
+     - ``/path/to/certfile``
+     - Filename to a certificate chain for the Karapace server in HTTPS mode.
+   * - ``server_tls_keyfile``
+     - ``/path/to/keyfile``
+     - Filename to a private key for the Karapace server in HTTPS mode.
+   * - ``registry_host``
+     - ``127.0.0.1``
+     - Kafka Registry host, used by Kafka Rest for Avro related requests.
+       If running both in the same process, it should be left to its default value
    * - ``registry_port``
      - ``8081``
-     - Kafka Registry port, used by Kafka Rest for avro related requests.
+     - Kafka Registry port, used by Kafka Rest for Avro related requests.
+       If running both in the same process, it should be left to its default value
+   * - ``registry_ca``
+     - ``/path/to/cafile``
+     - Kafka Registry CA certificate, used by Kafka Rest for Avro related requests.
+       If this is set, Kafka Rest will use HTTPS to connect to the registry.
        If running both in the same process, it should be left to its default value
    * - ``metadata_max_age_ms``
      - ``60000``

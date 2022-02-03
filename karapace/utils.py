@@ -7,6 +7,7 @@ See LICENSE for details
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
+from typing import Optional
 from urllib.parse import urljoin
 
 import aiohttp
@@ -16,6 +17,7 @@ import json as jsonlib
 import kafka.client_async
 import logging
 import requests
+import ssl
 import time
 import types
 
@@ -87,15 +89,21 @@ async def get_aiohttp_client() -> aiohttp.ClientSession:
 
 
 class Client:
-    def __init__(self, server_uri=None, client_factory=get_aiohttp_client):
+    def __init__(self, server_uri=None, client_factory=get_aiohttp_client, server_ca: Optional[str] = None):
         self.server_uri = server_uri or ""
         self.path_for = partial(urljoin, self.server_uri)
         self.session = requests.Session()
+        self.session.verify = server_ca
         # aiohttp requires to be in the same async loop when creating its client and when using it.
         # Since karapace Client object is initialized before creating the async context, (in
         # kafka_rest_api main, when KafkaRest is created), we can't create the aiohttp here.
         # Instead we wait for the first query in async context and lazy-initialize aiohttp client.
         self.client_factory = client_factory
+        if server_ca is None:
+            self.ssl_mode = False
+        else:
+            self.ssl_mode = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            self.ssl_mode.load_verify_locations(cafile=server_ca)
         self._client = None
 
     async def close(self):
@@ -124,6 +132,7 @@ class Client:
                 path,
                 json=json,
                 headers=headers,
+                ssl=self.ssl_mode,
             ) as res:
                 # required for forcing the response body conversion to json despite missing valid Accept headers
                 json_result = await res.json(content_type=None)
@@ -141,6 +150,7 @@ class Client:
             async with client.delete(
                 path,
                 headers=headers,
+                ssl=self.ssl_mode,
             ) as res:
                 json_result = {} if res.status == 204 else await res.json()
                 return Result(res.status, json_result, headers=res.headers)
@@ -160,6 +170,7 @@ class Client:
                 path,
                 headers=headers,
                 json=json,
+                ssl=self.ssl_mode,
             ) as res:
                 json_result = {} if res.status == 204 else await res.json()
                 return Result(res.status, json_result, headers=res.headers)
@@ -179,6 +190,7 @@ class Client:
                 path,
                 headers=headers,
                 json=json,
+                ssl=self.ssl_mode,
             ) as res:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)
@@ -194,6 +206,7 @@ class Client:
                 path,
                 headers=headers,
                 data=data,
+                ssl=self.ssl_mode,
             ) as res:
                 json_result = await res.json()
                 return Result(res.status, json_result, headers=res.headers)

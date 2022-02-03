@@ -95,14 +95,24 @@ def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
             # - if the address/port does not point to a running server
             # LeaderNotAvailableError:
             # - if there is no leader yet
-            except (NoBrokersAvailable, LeaderNotAvailableError, ValueError) as e:  # pylint: disable=broad-except
+            except (
+                NoBrokersAvailable,
+                LeaderNotAvailableError,
+                ValueError,
+            ) as e:
                 print(f"Error checking kafka cluster: {e}")
                 time.sleep(2.0)
             else:
                 list_topics_successful = True
 
 
-def wait_for_port(port: int, *, hostname: str = "127.0.0.1", wait_time: float = 20.0, ipv6: bool = False) -> None:
+def wait_for_port(
+    port: int,
+    *,
+    hostname: str = "127.0.0.1",
+    wait_time: float = 20.0,
+    ipv6: bool = False,
+) -> None:
     start_time = time.monotonic()
     expiration = Expiration(deadline=start_time + wait_time)
     msg = f"Timeout waiting for `{hostname}:{port}`"
@@ -302,8 +312,8 @@ async def fixture_registry_async(
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
     # won't work and will cause test failures.
-    rest_url = request.config.getoption("registry_url")
-    if rest_url:
+    registry_url = request.config.getoption("registry_url")
+    if registry_url:
         yield None
         return
 
@@ -341,13 +351,114 @@ async def fixture_registry_async_client(
 
     # client and server_uri are incompatible settings.
     if registry_url:
-        client = Client(server_uri=registry_url)
+        client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
     else:
 
         async def get_client():
             return await aiohttp_client(registry_async.app)
 
         client = Client(client_factory=get_client)
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "subjects",
+            json_data=None,
+            headers=None,
+            error_msg="REST API is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="credentials_folder")
+def fixture_credentials_folder():
+    integration_test_folder = os.path.dirname(__file__)
+    credentials_folder = os.path.join(integration_test_folder, "credentials")
+    return credentials_folder
+
+
+@pytest.fixture(scope="function", name="server_ca")
+def fixture_server_ca(credentials_folder):
+    return os.path.join(credentials_folder, "cacert.pem")
+
+
+@pytest.fixture(scope="function", name="server_cert")
+def fixture_server_cert(credentials_folder):
+    return os.path.join(credentials_folder, "servercert.pem")
+
+
+@pytest.fixture(scope="function", name="server_key")
+def fixture_server_key(credentials_folder):
+    return os.path.join(credentials_folder, "serverkey.pem")
+
+
+@pytest.fixture(scope="function", name="registry_async_tls")
+async def fixture_registry_async_tls(
+    request,
+    loop,  # pylint: disable=unused-argument
+    tmp_path: Path,
+    kafka_servers: KafkaServers,
+    server_cert: str,
+    server_key: str,
+) -> AsyncIterator[Optional[KarapaceSchemaRegistry]]:
+    # Do not start a registry when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    registry_url = request.config.getoption("registry_url")
+    if registry_url:
+        yield None
+        return
+
+    config_path = tmp_path / "karapace_config.json"
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "server_tls_certfile": server_cert,
+            "server_tls_keyfile": server_key,
+            "port": 8444,
+            # Using the default settings instead of random values, otherwise it
+            # would not be possible to run the tests with external services.
+            # Because of this every test must be written in such a way that it can
+            # be executed twice with the same servers.
+            # "topic_name": new_random_name("topic"),
+            # "group_id": new_random_name("schema_registry")
+        }
+    )
+    write_config(config_path, config)
+    registry = KarapaceSchemaRegistry(config=config)
+    await registry.get_master()
+    try:
+        yield registry
+    finally:
+        await registry.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_tls")
+async def fixture_registry_async_client_tls(
+    request,
+    loop,  # pylint: disable=unused-argument
+    registry_async_tls: KarapaceSchemaRegistry,
+    aiohttp_client,
+    server_ca: str,
+) -> AsyncIterator[Client]:
+
+    registry_url = request.config.getoption("registry_url")
+
+    if registry_url:
+        client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
+    else:
+
+        async def get_client():
+            return await aiohttp_client(registry_async_tls.app)
+
+        client = Client(client_factory=get_client, server_ca=server_ca)
 
     try:
         # wait until the server is listening, otherwise the tests may fail
