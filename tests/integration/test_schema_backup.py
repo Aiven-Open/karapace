@@ -91,7 +91,7 @@ async def test_backup_restore(
     assert res.json()["compatibility"] == "NONE"
 
     # Restore a compatibility config remove message
-    with open(restore_location, "w") as fp:
+    with open(restore_location, mode="w", encoding="utf8") as fp:
         fp.write(
             """
 [
@@ -123,7 +123,7 @@ async def test_backup_restore(
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status == 200
     assert res.json() == [1, 2]
-    with open(restore_location, "w") as fp:
+    with open(restore_location, mode="w", encoding="utf8") as fp:
         fp.write(
             """
 [
@@ -150,7 +150,7 @@ async def test_backup_restore(
     # Schema delete for a nonexistent subject version is ignored
     subject = new_random_name("subject")
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
-    with open(restore_location, "w") as fp:
+    with open(restore_location, mode="w", encoding="utf8") as fp:
         fp.write(
             """
 [

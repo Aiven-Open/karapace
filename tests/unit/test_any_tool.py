@@ -30,7 +30,7 @@ def test_protoc() -> None:
     class_path = f"{directory}/{proto_name}_pb2.py"
 
     log.info(proto_name)
-    with open(proto_path, "w") as proto_text:
+    with open(proto_path, mode="w", encoding="utf8") as proto_text:
         proto_text.write(str(proto))
 
     completed_process = subprocess.run(
