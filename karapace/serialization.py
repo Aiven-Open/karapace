@@ -46,13 +46,11 @@ class SchemaUpdateError(SchemaError):
     pass
 
 
-def topic_name_strategy(topic_name: str, record_name: str) -> str:
-    # pylint: disable=W0613
+def topic_name_strategy(topic_name: str, record_name: str) -> str:  # pylint: disable=unused-argument
     return topic_name
 
 
-def record_name_strategy(topic_name: str, record_name: str) -> str:
-    # pylint: disable=W0613
+def record_name_strategy(topic_name: str, record_name: str) -> str:  # pylint: disable=unused-argument
     return record_name
 
 
