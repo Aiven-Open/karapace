@@ -15,7 +15,9 @@ from karapace.avro_compatibility import (
 )
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
 from karapace.compatibility.protobuf.checks import check_protobuf_schema_compatibility
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_reader import SchemaType, TypedSchema
+from karapace.utils import assert_never
 
 import logging
 
@@ -67,7 +69,7 @@ def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Valida
     return jsonschema_compatibility(reader, writer)
 
 
-def check_protobuf_compatibility(reader, writer) -> SchemaCompatibilityResult:
+def check_protobuf_compatibility(reader: ProtobufSchema, writer: ProtobufSchema) -> SchemaCompatibilityResult:
     return check_protobuf_schema_compatibility(reader, writer)
 
 
@@ -161,10 +163,6 @@ def check_compatibility(
             )
 
     else:
-        result = SchemaCompatibilityResult.incompatible(
-            incompat_type=SchemaIncompatibilityType.type_mismatch,
-            message=f"Unknow schema_type {old_schema.schema_type}",
-            location=[],
-        )
+        assert_never(f"Unknown schema_type {old_schema.schema_type}")
 
     return result
