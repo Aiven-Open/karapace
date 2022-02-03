@@ -3,7 +3,7 @@ from binascii import Error as B64DecodeError
 from collections import namedtuple
 from http import HTTPStatus
 from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
-from karapace.config import create_ssl_context
+from karapace.config import create_client_ssl_context
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
@@ -180,7 +180,7 @@ class KafkaRest(KarapaceBase):
                 p = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
-                    ssl_context=None if self.config["security_protocol"] == "PLAINTEXT" else create_ssl_context(self.config),
+                    ssl_context=create_client_ssl_context(self.config),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     acks=acks,
                     compression_type=self.config["producer_compression_type"],

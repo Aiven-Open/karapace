@@ -493,11 +493,12 @@ class RestApp:
 
         return result
 
-    def run(self, *, host, port):
+    def run(self, *, host: str, port: int, ssl_context: Optional[ssl.SSLContext] = None) -> None:
         aiohttp.web.run_app(
             app=self.app,
             host=host,
             port=port,
+            ssl_context=ssl_context,
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )
 
