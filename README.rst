@@ -316,9 +316,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
        coordination among the Karapace instances.
    * - ``client_id``
      - ``sr-1``
-     - The ``client_id`` name by which the Karapace will use when coordinating with
-       other Karapaces who is master. The one with the name that sorts as the
-       first alphabetically is chosen as master from among the services with
+     - The ``client_id`` Karapace will use when coordinating with
+       other Karapace instances. The instance with the ID that sorts
+       first alphabetically is chosen as master from the services with
        master_eligibility set to true.
    * - ``consumer_enable_autocommit``
      - ``True``
@@ -337,10 +337,10 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - The Kafka group name used for selecting a master service to coordinate the storing of Schemas.
    * - ``master_eligibility``
      - ``true``
-     - Should the service instance be considered for promotion to be the master
-       service. Reason to turn this off would be to have an instances of Karapace
+     - Should the service instance be considered for promotion to the master
+       service. One reason to turn this off would be to have an instance of Karapace
        running somewhere else for HA purposes but which you wouldn't want to
-       automatically promote to master if the primary instances were to become
+       automatically promote to master if the primary instances become
        unavailable.
    * - ``producer_compression_type``
      - ``None``
