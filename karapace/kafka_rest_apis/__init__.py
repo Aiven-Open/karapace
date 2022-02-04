@@ -36,13 +36,9 @@ class FormatError(Exception):
 
 
 class KafkaRest(KarapaceBase):
-    # pylint: disable=attribute-defined-outside-init
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
         self._add_kafka_rest_routes()
-        self._init_kafka_rest(config=config)
-
-    def _init_kafka_rest(self, config: dict) -> None:
         self.serializer = SchemaRegistrySerializer(config=config)
         self.log = logging.getLogger("KarapaceRest")
         self._cluster_metadata = None
@@ -54,8 +50,15 @@ class KafkaRest(KarapaceBase):
         self.schemas_cache = {}
         self.consumer_manager = ConsumerManager(config=config)
         self.init_admin_client()
-        self.producer_refs = []
-        self.producer_queue = asyncio.Queue()
+
+        # Lazilly initialized producer queue. The lock is not used to protected the internals of
+        # Queue, but to prevent races on attribute self._producer_queue, so every use of that
+        # attribute must be inside a critical zone of the lock.
+        self._producer_queue_lock = asyncio.Lock()
+        self._producer_queue: Optional[asyncio.Queue] = None
+
+        # The test fixtures may close the server multiple times, should be idempotent
+        self._closed = False
 
     def _add_kafka_rest_routes(self) -> None:
         # Brokers
@@ -163,16 +166,61 @@ class KafkaRest(KarapaceBase):
         self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", rest_request=True)
         self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
 
-    async def get_producer(self) -> AIOKafkaProducer:
-        if self.producer_queue.empty():
-            for _ in range(self.config["producer_count"]):
-                self.log.info("Creating async producers")
-                p = await self._create_async_producer()
-                await self.producer_queue.put(p)
-                self.producer_refs.append(p)
-        return await self.producer_queue.get()
+    async def maybe_initilize_producer_queue(self) -> asyncio.Queue:
+        """Lazily initialize Producers."""
+        assert not self._closed, "Quee cant be initialized on a closed server"
+
+        async with self._producer_queue_lock:
+            if self._producer_queue is None:
+                producer_queue = asyncio.Queue()
+                for _ in range(self.config["producer_count"]):
+                    try:
+                        producer = await self._create_async_producer()
+                    except:
+                        self.log.exception("Unable to initialize producers")
+
+                        # Try to behave nicely on error, this is on a best-effort basis
+                        while not producer_queue.empty():
+                            other = await producer_queue.get_nowait()
+                            await other.close()
+
+                        # Bail on error to initialize a producer, otherwise close_producers would
+                        # block forever
+                        raise
+
+                    await producer_queue.put(producer)
+
+                # Only expose the queue if all producers were sucessfully created
+                self._producer_queue = producer_queue
+
+            return self._producer_queue
+
+    async def close_producers(self) -> None:
+        """Close all producers.
+
+        Note:
+            This method blocks until every producer can be closed
+        """
+        if self._closed:
+            return
+
+        self._closed = True
+
+        # Avoid initializing the producers on shutdown
+        async with self._producer_queue_lock:
+            if self._producer_queue is None:
+                self._producer_queue = asyncio.Queue()
+                return
+
+            producer_queue = self._producer_queue
+
+        self.log.info("Disposing of async producers")
+        for _ in range(self.config["producer_count"]):
+            producer = await producer_queue.get()
+            await producer.stop()
 
     async def _create_async_producer(self) -> AIOKafkaProducer:
+        self.log.info("Creating async producer")
         while True:
             try:
                 acks = self.config["producer_acks"]
@@ -315,16 +363,6 @@ class KafkaRest(KarapaceBase):
             except:  # pylint: disable=bare-except
                 self.log.exception("Unable to start admin client, retrying")
                 time.sleep(1)
-
-    async def close_producers(self):
-        if not self.producer_refs:
-            return
-        for prod in self.producer_refs:
-            self.log.info("Disposing of async producers")
-            await prod.stop()
-        self.producer_refs = None
-        self.producer_queue = None
-        return
 
     async def close(self) -> None:
         await super().close()
@@ -580,16 +618,15 @@ class KafkaRest(KarapaceBase):
                     )
 
     async def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
-        prod = None
         try:
-            prod = await self.get_producer()
-            result = await asyncio.wait_for(
-                fut=prod.send_and_wait(topic, key=key, value=value, partition=partition), timeout=self.kafka_timeout
-            )
-            return {
-                "offset": result.offset if result else -1,
-                "partition": result.topic_partition.partition if result else 0,
-            }
+            producer_queue = await self.maybe_initilize_producer_queue()
+            producer = await producer_queue.get()
+
+            try:
+                future = producer.send_and_wait(topic, key=key, value=value, partition=partition)
+                result = await asyncio.wait_for(fut=future, timeout=self.kafka_timeout)
+            finally:
+                await producer_queue.put(producer)
         except AssertionError as e:
             self.log.exception("Invalid data")
             return {"error_code": 1, "error": str(e)}
@@ -603,9 +640,11 @@ class KafkaRest(KarapaceBase):
             if hasattr(e, "retriable") and e.retriable:
                 resp["error_code"] = 2
             return resp
-        finally:
-            if prod:
-                await self.producer_queue.put(prod)
+
+        return {
+            "offset": result.offset if result else -1,
+            "partition": result.topic_partition.partition if result else 0,
+        }
 
     def list_topics(self, content_type: str):
         metadata = self.cluster_metadata()
