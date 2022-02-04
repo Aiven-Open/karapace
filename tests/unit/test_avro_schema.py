@@ -961,3 +961,37 @@ def are_compatible(reader: Schema, writer: Schema) -> bool:
         ReaderWriterCompatibilityChecker().get_compatibility(reader, writer).compatibility
         is SchemaCompatibilityType.compatible
     )
+
+
+def test_invalid_record_name_in_avro_schema_patching() -> None:
+    record_as_name_in_schema = parse_avro_schema_definition(
+        '{"type":"record","name":"record","fields":[{"name":"a1","type":"long"}]}}'
+    )
+    assert record_as_name_in_schema.to_json() == {
+        "type": "record",
+        "name": "record",
+        "namespace": "patched.name",
+        "fields": [{"name": "a1", "type": "long"}],
+        "doc": "Namespace was added to patch `record` to `patched.name.record`.",
+    }
+
+    record_as_name_in_schema_with_doc = parse_avro_schema_definition(
+        '{"type":"record","doc":"Documentation","name":"record","fields":[{"name":"a1","type":"long"}]}}'
+    )
+    assert record_as_name_in_schema_with_doc.to_json() == {
+        "type": "record",
+        "name": "record",
+        "namespace": "patched.name",
+        "fields": [{"name": "a1", "type": "long"}],
+        "doc": "Documentation\n\nNamespace was added to patch `record` to `patched.name.record`.",
+    }
+
+    record_as_name_in_schema_with_existing_namespace = parse_avro_schema_definition(
+        '{"type":"record","namespace":"karapace.io","name":"record","fields":[{"name":"a1","type":"long"}]}}'
+    )
+    assert record_as_name_in_schema_with_existing_namespace.to_json() == {
+        "type": "record",
+        "name": "record",
+        "namespace": "karapace.io",
+        "fields": [{"name": "a1", "type": "long"}],
+    }

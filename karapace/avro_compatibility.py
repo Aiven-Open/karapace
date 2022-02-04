@@ -33,6 +33,33 @@ import json
 E = TypeVar("E", bound=Enum)
 
 
+def _patch_invalid_record_name_in_avro_schema(schema_json: Dict[str, str]) -> None:
+    """Patch by adding namespace to root level if Avro complex type name `record` is used as name.
+
+    Certain generated Avro schemas can contain complex Avro type names on root level as name.
+    In this case it is mandatory to patch a namespace to remove the conflict. Python Avro
+    parser does not allow to have the type name as a name.
+
+    For example Flink, at least versions from (1.13.x) with Confluent Avro value format generates
+    following schema from table SQL of "`a1` LONG NOT NULL".
+    {
+      "type":"record",
+      "name":"record",
+      "fields":
+        [{"name":"a1","type":"long"}]}
+    }
+    """
+    name: Optional[str] = schema_json.get("name", None)
+    if name == RECORD and not schema_json.get("namespace", None):
+        patch_namespace = "patched.name"
+        schema_json["namespace"] = patch_namespace
+        docstring_with_name_patch_note = f"Namespace was added to patch `{name}` to `{patch_namespace}.{name}`."
+        docstring = schema_json.get("doc")
+        if docstring:  # Keep original docstring if present, add the note.
+            docstring_with_name_patch_note = "\n\n".join([docstring, docstring_with_name_patch_note])
+        schema_json["doc"] = docstring_with_name_patch_note
+
+
 def parse_avro_schema_definition(s: str) -> Schema:
     """Compatibility function with Avro which ignores trailing data in JSON
     strings.
@@ -49,6 +76,8 @@ def parse_avro_schema_definition(s: str) -> Schema:
 
         json_data = json.loads(s[: e.pos])
 
+    if isinstance(json_data, dict):
+        _patch_invalid_record_name_in_avro_schema(json_data)
     names = Names()
     return SchemaFromJSONData(json_data, names)
 
