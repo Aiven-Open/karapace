@@ -57,13 +57,9 @@ class InvalidSchemaType(Exception):
 
 
 class KarapaceSchemaRegistry(KarapaceBase):
-    # pylint: disable=attribute-defined-outside-init
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
         self._add_schema_registry_routes()
-        self._init_schema_registry(config=config)
-
-    def _init_schema_registry(self, config: dict) -> None:  # pylint: disable=unused-argument
         self.ksr = None
         self.producer = self._create_producer()
         self._create_master_coordinator()
