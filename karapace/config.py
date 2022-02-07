@@ -8,10 +8,10 @@ from enum import Enum, unique
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
 
-import json
 import os
 import socket
 import ssl
+import ujson
 
 Config = Dict[str, Union[None, str, int, bool, List[str]]]
 
@@ -112,13 +112,13 @@ def set_config_defaults(config: Config) -> Config:
 
 
 def write_config(config_path: Path, custom_values: Config) -> None:
-    config_path.write_text(json.dumps(custom_values))
+    config_path.write_text(ujson.dumps(custom_values))
 
 
 def read_config(config_handler: IO) -> Config:
     try:
-        config = json.load(config_handler)
-    except json.JSONDecodeError as ex:
+        config = ujson.load(config_handler)
+    except ValueError as ex:
         raise InvalidConfiguration("Configuration is not a valid JSON") from ex
 
     return set_config_defaults(config)

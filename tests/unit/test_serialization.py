@@ -13,10 +13,10 @@ from tests.utils import test_objects_avro
 import avro
 import copy
 import io
-import json
 import logging
 import pytest
 import struct
+import ujson
 
 log = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ async def test_deserialization_fails(default_config_path, mock_registry_client):
     schema["name"] = "BadUser"
     schema["fields"][0]["type"] = "int"
     obj = {"name": 100, "favorite_number": 2, "favorite_color": "bar"}
-    writer = avro.io.DatumWriter(avro.io.schema.parse(json.dumps(schema)))
+    writer = avro.io.DatumWriter(avro.io.schema.parse(ujson.dumps(schema)))
     with io.BytesIO() as bio:
         enc = avro.io.BinaryEncoder(bio)
         bio.write(struct.pack(HEADER_FORMAT, START_BYTE, 1))

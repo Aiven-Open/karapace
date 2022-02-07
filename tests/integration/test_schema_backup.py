@@ -10,9 +10,9 @@ from karapace.utils import Client
 from pathlib import Path
 from tests.utils import Expiration, KafkaServers, new_random_name
 
-import json as jsonlib
 import os
 import time
+import ujson
 
 baseurl = "http://localhost:8081"
 
@@ -50,7 +50,7 @@ async def test_backup_restore(
     restore_location = tmp_path / "restore.log"
 
     with restore_location.open("w") as fp:
-        jsonlib.dump(
+        ujson.dump(
             [
                 [
                     {
@@ -68,7 +68,7 @@ async def test_backup_restore(
                     },
                 ]
             ],
-            fp=fp,
+            fp,
         )
 
     config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
