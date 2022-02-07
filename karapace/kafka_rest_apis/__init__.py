@@ -586,11 +586,13 @@ class KafkaRest(KarapaceBase):
 
             # Cancelling the returned future **will not** stop event from being sent, but cancelling
             # the ``send`` coroutine itself **will**.
-            coroutine = prod.send_and_wait(topic, key=key, value=value, partition=partition)
+            coroutine = prod.send(topic, key=key, value=value, partition=partition)
 
             # Schedule the co-routine, it will be cancelled if the it is not complete in
             # `self.kafka_timeout` seconds.
-            result = await asyncio.wait_for(fut=coroutine, timeout=self.kafka_timeout)
+            future = await asyncio.wait_for(fut=coroutine, timeout=self.kafka_timeout)
+
+            result = await future
             return {
                 "offset": result.offset if result else -1,
                 "partition": result.topic_partition.partition if result else 0,
