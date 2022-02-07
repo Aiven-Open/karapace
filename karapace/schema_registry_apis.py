@@ -152,9 +152,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.log.info("Shutting down all auxiliary threads")
         self.mc.close()
         self.ksr.close()
-        if self.producer:
-            self.producer.close()
-            self.producer = None
+        self.producer.close()
 
     def _subject_get(self, subject, content_type, include_deleted=False) -> Dict[str, Any]:
         subject_data = self.ksr.subjects.get(subject)
