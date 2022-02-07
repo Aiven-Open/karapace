@@ -60,11 +60,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
         self._add_schema_registry_routes()
-        self.ksr = None
         self.producer = self._create_producer()
         self.mc = MasterCoordinator(config=self.config)
         self.mc.start()
-        self._create_schema_reader()
+        self.ksr = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)
+        self.ksr.start()
         self.schema_lock = asyncio.Lock()
 
     def _create_producer(self) -> KafkaProducer:
@@ -151,15 +151,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
         await super().close()
         self.log.info("Shutting down all auxiliary threads")
         self.mc.close()
-        if self.ksr:
-            self.ksr.close()
+        self.ksr.close()
         if self.producer:
             self.producer.close()
             self.producer = None
-
-    def _create_schema_reader(self):
-        self.ksr = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)
-        self.ksr.start()
 
     def _subject_get(self, subject, content_type, include_deleted=False) -> Dict[str, Any]:
         subject_data = self.ksr.subjects.get(subject)
