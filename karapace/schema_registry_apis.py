@@ -3,6 +3,7 @@ from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
 from json import JSONDecodeError
+from kafka import KafkaProducer
 from karapace import version as karapace_version
 from karapace.avro_compatibility import is_incompatible
 from karapace.compatibility import check_compatibility, CompatibilityModes
@@ -11,7 +12,7 @@ from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
-from karapace.utils import json_encode
+from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Any, Dict, Optional, Tuple
 
 import argparse
@@ -64,11 +65,32 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     def _init_schema_registry(self, config: dict) -> None:  # pylint: disable=unused-argument
         self.ksr = None
-        self.producer = None
         self.producer = self._create_producer()
         self._create_master_coordinator()
         self._create_schema_reader()
         self.schema_lock = asyncio.Lock()
+
+    def _create_producer(self) -> KafkaProducer:
+        while True:
+            try:
+                return KafkaProducer(
+                    bootstrap_servers=self.config["bootstrap_uri"],
+                    security_protocol=self.config["security_protocol"],
+                    ssl_cafile=self.config["ssl_cafile"],
+                    ssl_certfile=self.config["ssl_certfile"],
+                    ssl_keyfile=self.config["ssl_keyfile"],
+                    sasl_mechanism=self.config["sasl_mechanism"],
+                    sasl_plain_username=self.config["sasl_plain_username"],
+                    sasl_plain_password=self.config["sasl_plain_password"],
+                    api_version=(1, 0, 0),
+                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
+                    max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
+                    connections_max_idle_ms=self.config["connections_max_idle_ms"],  # helps through cluster upgrades ??
+                    kafka_client=KarapaceKafkaClient,
+                )
+            except:  # pylint: disable=bare-except
+                self.log.exception("Unable to create producer, retrying")
+                time.sleep(1)
 
     def _add_schema_registry_routes(self) -> None:
         self.route(
@@ -137,6 +159,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.ksr.close()
         if self.producer:
             self.producer.close()
+            self.producer = None
 
     def _create_schema_reader(self):
         self.ksr = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)

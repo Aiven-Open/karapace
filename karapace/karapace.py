@@ -7,15 +7,12 @@ See LICENSE for details
 
 from functools import partial
 from http import HTTPStatus
-from kafka import KafkaProducer
 from karapace.rapu import HTTPResponse, RestApp
-from karapace.utils import KarapaceKafkaClient
 from typing import NoReturn, Union
 
 import asyncio
 import logging
 import os
-import time
 
 
 class KarapaceBase(RestApp):
@@ -23,7 +20,6 @@ class KarapaceBase(RestApp):
         sentry_config = config.get("sentry", {"dsn": None}).copy()
         super().__init__(app_name="karapace", sentry_config=sentry_config)
 
-        self.producer = None
         self.kafka_timeout = 10
         self.config = config
         self._sentry_config = sentry_config
@@ -44,33 +40,8 @@ class KarapaceBase(RestApp):
         # pylint: disable=unused-argument
         await self.close()
 
-    def _create_producer(self) -> KafkaProducer:
-        while True:
-            try:
-                return KafkaProducer(
-                    bootstrap_servers=self.config["bootstrap_uri"],
-                    security_protocol=self.config["security_protocol"],
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
-                    api_version=(1, 0, 0),
-                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],  # helps through cluster upgrades ??
-                    kafka_client=KarapaceKafkaClient,
-                )
-            except:  # pylint: disable=bare-except
-                self.log.exception("Unable to create producer, retrying")
-                time.sleep(1)
-
     async def close(self) -> None:
-        if not self.producer:
-            return
-        self.producer.close()
-        self.producer = None
+        pass
 
     @staticmethod
     def r(body: Union[dict, list], content_type: str, status: HTTPStatus = HTTPStatus.OK) -> NoReturn:
