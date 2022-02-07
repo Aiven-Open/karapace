@@ -149,9 +149,14 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def close(self) -> None:
         await super().close()
-        self.log.info("Shutting down all auxiliary threads")
+
+        self.log.info("Closing master coordinator")
         self.mc.close()
+
+        self.log.info("Closing schema reader")
         self.ksr.close()
+
+        self.log.info("Closing producer")
         self.producer.close()
 
     def _subject_get(self, subject, content_type, include_deleted=False) -> Dict[str, Any]:
