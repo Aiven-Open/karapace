@@ -12,12 +12,11 @@ from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
-from karapace.utils import convert_to_int, KarapaceKafkaClient
+from karapace.utils import convert_to_int, deepcopy, KarapaceKafkaClient
 from typing import List, Optional, Tuple
 
 import asyncio
 import base64
-import copy
 import logging
 import time
 import ujson
@@ -286,7 +285,7 @@ class KafkaRest(KarapaceBase):
                 self._cluster_metadata = None
 
             if self._cluster_metadata and topics is None:
-                return copy.deepcopy(self._cluster_metadata)
+                return deepcopy(self._cluster_metadata)
 
             try:
                 metadata_birth = time.monotonic()
@@ -305,7 +304,7 @@ class KafkaRest(KarapaceBase):
                     content_type="application/json",
                     status=HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
-            return copy.deepcopy(metadata)
+            return deepcopy(metadata)
 
     def init_admin_client(self):
         while True:
