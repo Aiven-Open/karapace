@@ -2,8 +2,8 @@ from karapace.avro_compatibility import SchemaCompatibilityResult
 from pathlib import Path
 from typing import List, Optional
 
-import json
 import pytest
+import ujson
 
 pytest_plugins = "aiohttp.pytest_plugin"
 
@@ -82,5 +82,5 @@ def fixture_session_tmppath(tmp_path_factory) -> Path:
 @pytest.fixture(scope="session", name="default_config_path")
 def fixture_default_config(session_tmppath: Path) -> str:
     path = session_tmppath / "karapace_config.json"
-    path.write_text(json.dumps({"registry_host": "localhost", "registry_port": 8081}))
+    path.write_text(ujson.dumps({"registry_host": "localhost", "registry_port": 8081}))
     return str(path)

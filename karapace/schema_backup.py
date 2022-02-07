@@ -14,11 +14,11 @@ from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Optional
 
 import argparse
-import json
 import logging
 import os
 import sys
 import time
+import ujson
 
 
 class BackupError(Exception):
@@ -154,19 +154,19 @@ class SchemaBackup:
                 for message in messages:
                     key = message.key.decode("utf8")
                     try:
-                        key = json.loads(key)
-                    except json.JSONDecodeError:
+                        key = ujson.loads(key)
+                    except ValueError:
                         self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
                     value = None
                     if message.value:
                         value = message.value.decode("utf8")
                         try:
-                            value = json.loads(value)
-                        except json.JSONDecodeError:
+                            value = ujson.loads(value)
+                        except ValueError:
                             self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                     values.append((key, value))
 
-        ser = json.dumps(values)
+        ser = ujson.dumps(values)
         if self.backup_location:
             with open(self.backup_location, mode="w", encoding="utf8") as fp:
                 fp.write(ser)
@@ -189,7 +189,7 @@ class SchemaBackup:
         values = None
         with open(self.backup_location, mode="r", encoding="utf8") as fp:
             raw_msg = fp.read()
-            values = json.loads(raw_msg)
+            values = ujson.loads(raw_msg)
 
         if not values:
             return

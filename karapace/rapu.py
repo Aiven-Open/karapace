@@ -21,11 +21,11 @@ import async_timeout
 import asyncio
 import cgi
 import hashlib
-import json as jsonlib
 import logging
 import re
 import ssl
 import time
+import ujson
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 JSON_CONTENT_TYPE = "application/json"
@@ -288,11 +288,7 @@ class RestApp:
                     _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
-                    rapu_request.json = jsonlib.loads(body_string)
-                except jsonlib.decoder.JSONDecodeError:
-                    raise HTTPResponse(  # pylint: disable=raise-missing-from
-                        body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
-                    )
+                    rapu_request.json = ujson.loads(body_string)
                 except UnicodeDecodeError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST
@@ -300,6 +296,10 @@ class RestApp:
                 except LookupError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST
+                    )
+                except ValueError:
+                    raise HTTPResponse(  # pylint: disable=raise-missing-from
+                        body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
                     )
             else:
                 if body not in {b"", b"{}"}:

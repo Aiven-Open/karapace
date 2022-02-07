@@ -1,5 +1,6 @@
 [MASTER]
 jobs=4
+extension-pkg-allow-list=ujson
 
 [MESSAGES CONTROL]
 disable=
