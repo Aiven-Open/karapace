@@ -1,4 +1,5 @@
 from aiokafka import AIOKafkaProducer
+from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
 from http import HTTPStatus
@@ -36,13 +37,9 @@ class FormatError(Exception):
 
 
 class KafkaRest(KarapaceBase):
-    # pylint: disable=attribute-defined-outside-init
     def __init__(self, config: dict) -> None:
         super().__init__(config=config)
         self._add_kafka_rest_routes()
-        self._init_kafka_rest(config=config)
-
-    def _init_kafka_rest(self, config: dict) -> None:
         self.serializer = SchemaRegistrySerializer(config=config)
         self.log = logging.getLogger("KarapaceRest")
         self._cluster_metadata = None
@@ -54,8 +51,9 @@ class KafkaRest(KarapaceBase):
         self.schemas_cache = {}
         self.consumer_manager = ConsumerManager(config=config)
         self.init_admin_client()
-        self.producer_refs = []
-        self.producer_queue = asyncio.Queue()
+
+        self._async_producer: Optional[AIOKafkaProducer] = None
+        self._async_producer_lock = asyncio.Lock()
 
     def _add_kafka_rest_routes(self) -> None:
         # Brokers
@@ -163,35 +161,41 @@ class KafkaRest(KarapaceBase):
         self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", rest_request=True)
         self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
 
-    async def get_producer(self) -> AIOKafkaProducer:
-        if self.producer_queue.empty():
-            for _ in range(self.config["producer_count"]):
-                self.log.info("Creating async producers")
-                p = await self._create_async_producer()
-                await self.producer_queue.put(p)
-                self.producer_refs.append(p)
-        return await self.producer_queue.get()
+    async def _maybe_create_async_producer(self) -> AIOKafkaProducer:
+        if self.config["producer_acks"] == "all":
+            acks = "all"
+        else:
+            acks = int(self.config["producer_acks"])
 
-    async def _create_async_producer(self) -> AIOKafkaProducer:
-        while True:
-            try:
-                acks = self.config["producer_acks"]
-                acks = acks if acks == "all" else int(acks)
-                p = AIOKafkaProducer(
+        async with self._async_producer_lock:
+            while self._async_producer is None:
+                self.log.info("Creating async producer")
+
+                # Don't retry if creating the SSL context fails, likely a configuration issue with
+                # ciphers or certificate chains
+                ssl_context = create_client_ssl_context(self.config)
+
+                # Don't retry if instantiating the producer fails, likely a configuration error.
+                producer = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
-                    ssl_context=create_client_ssl_context(self.config),
+                    ssl_context=ssl_context,
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     acks=acks,
                     compression_type=self.config["producer_compression_type"],
                     linger_ms=self.config["producer_linger_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
                 )
-                await p.start()
-                return p
-            except:  # pylint: disable=bare-except
-                self.log.exception("Unable to start async producer, retrying")
-                await asyncio.sleep(1)
+
+                try:
+                    await producer.start()
+                except KafkaConnectionError:
+                    self.log.exception("Unable to connect to the bootstrap servers, retrying")
+                    await asyncio.sleep(1)
+                else:
+                    self._async_producer = producer
+
+            return self._async_producer
 
     # CONSUMERS
     async def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest):
@@ -316,19 +320,14 @@ class KafkaRest(KarapaceBase):
                 self.log.exception("Unable to start admin client, retrying")
                 time.sleep(1)
 
-    async def close_producers(self):
-        if not self.producer_refs:
-            return
-        for prod in self.producer_refs:
-            self.log.info("Disposing of async producers")
-            await prod.stop()
-        self.producer_refs = None
-        self.producer_queue = None
-        return
-
     async def close(self) -> None:
         await super().close()
-        await self.close_producers()
+
+        async with self._async_producer_lock:
+            if self._async_producer is not None:
+                self.log.info("Disposing async producer")
+                await self._async_producer.stop()
+
         if self.admin_client:
             self.admin_client.close()
             self.admin_client = None
@@ -580,13 +579,12 @@ class KafkaRest(KarapaceBase):
                     )
 
     async def produce_message(self, *, topic: str, key: bytes, value: bytes, partition: int = None) -> dict:
-        prod = None
         try:
-            prod = await self.get_producer()
+            producer = await self._maybe_create_async_producer()
 
             # Cancelling the returned future **will not** stop event from being sent, but cancelling
             # the ``send`` coroutine itself **will**.
-            coroutine = prod.send(topic, key=key, value=value, partition=partition)
+            coroutine = producer.send(topic, key=key, value=value, partition=partition)
 
             # Schedule the co-routine, it will be cancelled if the it is not complete in
             # `self.kafka_timeout` seconds.
@@ -610,9 +608,6 @@ class KafkaRest(KarapaceBase):
             if hasattr(e, "retriable") and e.retriable:
                 resp["error_code"] = 2
             return resp
-        finally:
-            if prod:
-                await self.producer_queue.put(prod)
 
     def list_topics(self, content_type: str):
         metadata = self.cluster_metadata()
