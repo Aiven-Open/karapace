@@ -416,8 +416,8 @@ def test_schema_compatibility() -> None:
     reader = parse_avro_schema_definition(json.dumps({"type": "map", "values": {"type": "string"}}))
     assert not are_compatible(reader, writer)
     # testValidatePrimitiveWriterSchema
-    writer = parse_avro_schema_definition(json.dumps({"type": "string"}))
-    reader = parse_avro_schema_definition(json.dumps({"type": "string"}))
+    writer = STRING_SCHEMA
+    reader = STRING_SCHEMA
     assert are_compatible(reader, writer)
     reader = parse_avro_schema_definition(json.dumps({"type": "int"}))
     assert not are_compatible(reader, writer)
