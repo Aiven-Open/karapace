@@ -223,11 +223,17 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
         return result
 
     if isinstance(schema, avro.schema.UnionSchema) and isinstance(value, dict):
-        f = next((s for s in schema.schemas if s.name in value), None)
+        def get_name(obj) -> str:
+            if isinstance(obj, avro.schema.PrimitiveSchema):
+                return obj.fullname
+            else:
+                return obj.name
+        f = next((s for s in schema.schemas if get_name(s) in value), None)
         if f is not None:
             # Note: This is intentionally skipping the dictionary, here the JSON representation
             # is flattened to the Python representation
-            return flatten_unions(f, value[f.name])
+            vv = value[get_name(f)]
+            return flatten_unions(f, value[get_name(f)])
 
     if isinstance(schema, avro.schema.ArraySchema) and isinstance(value, list):
         return [flatten_unions(schema.items, v) for v in value]
@@ -240,7 +246,7 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
 
 def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
-        reader = DatumReader(schema.schema)
+        reader = DatumReader(writers_schema=schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
         value = ujson.load(bio)
@@ -264,12 +270,12 @@ def write_value(config: dict, schema: TypedSchema, bio: io.BytesIO, value: dict)
     if schema.schema_type is SchemaType.AVRO:
 
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
-        if avro.io.Validate(schema.schema, value):
+        if avro.io.validate(schema.schema, value):
             data = value
         else:
             data = flatten_unions(schema.schema, value)
 
-        writer = DatumWriter(schema.schema)
+        writer = DatumWriter(writers_schema=schema.schema)
         writer.write(data, BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
@@ -298,7 +304,7 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer):
                 return bio.getvalue()
             except ProtobufTypeException as e:
                 raise InvalidMessageSchema("Object does not fit to stored schema") from e
-            except avro.io.AvroTypeException as e:
+            except avro.errors.AvroTypeException as e:
                 raise InvalidMessageSchema("Object does not fit to stored schema") from e
 
 
@@ -316,7 +322,7 @@ class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer):
                     raise InvalidPayload("No schema with ID from payload")
                 ret_val = read_value(self.config, schema, bio)
                 return ret_val
-            except AssertionError as e:
+            except (UnicodeDecodeError, TypeError) as e:
                 raise InvalidPayload("Data does not contain a valid message") from e
-            except avro.io.SchemaResolutionException as e:
+            except avro.errors.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
