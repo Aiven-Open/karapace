@@ -419,8 +419,7 @@ def test_schema_compatibility() -> None:
     writer = STRING_SCHEMA
     reader = STRING_SCHEMA
     assert are_compatible(reader, writer)
-    reader = parse_avro_schema_definition(json.dumps({"type": "int"}))
-    assert not are_compatible(reader, writer)
+    assert not are_compatible(INT_SCHEMA, writer)
     # testUnionReaderWriterSubsetIncompatibility
     # cannot have a union as a top level data type, so im cheating a bit here
     writer = parse_avro_schema_definition(
