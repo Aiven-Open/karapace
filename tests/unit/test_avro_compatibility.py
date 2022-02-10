@@ -68,6 +68,7 @@ from tests.schemas.avro import (
     schema6,
     schema7,
     schema8,
+    STRING_ARRAY_SCHEMA,
     STRING_INT_UNION_SCHEMA,
     STRING_SCHEMA,
     STRING_UNION_SCHEMA,
@@ -410,9 +411,8 @@ def test_schema_compatibility() -> None:
     )
     assert not are_compatible(reader, writer)
     # testValidateArrayWriterSchema
-    writer = parse_avro_schema_definition(json.dumps({"type": "array", "items": {"type": "string"}}))
-    reader = parse_avro_schema_definition(json.dumps({"type": "array", "items": {"type": "string"}}))
-    assert are_compatible(reader, writer)
+    writer = STRING_ARRAY_SCHEMA
+    assert are_compatible(STRING_ARRAY_SCHEMA, writer)
     reader = parse_avro_schema_definition(json.dumps({"type": "map", "values": {"type": "string"}}))
     assert not are_compatible(reader, writer)
     # testValidatePrimitiveWriterSchema
