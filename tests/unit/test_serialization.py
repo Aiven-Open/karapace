@@ -160,7 +160,7 @@ def test_avro_json_write_invalid() -> None:
     bio = io.BytesIO()
 
     for record in records:
-        with pytest.raises(avro.io.AvroTypeException):
+        with pytest.raises(avro.errors.AvroTypeException):
             write_value(DEFAULTS, typed_schema, bio, record)
 
 
@@ -259,11 +259,21 @@ async def test_deserialization_fails(default_config_path, mock_registry_client):
     schema["name"] = "BadUser"
     schema["fields"][0]["type"] = "int"
     obj = {"name": 100, "favorite_number": 2, "favorite_color": "bar"}
-    writer = avro.io.DatumWriter(avro.io.schema.parse(ujson.dumps(schema)))
+    writer = avro.io.DatumWriter(avro.schema.make_avsc_object(schema))
     with io.BytesIO() as bio:
         enc = avro.io.BinaryEncoder(bio)
         bio.write(struct.pack(HEADER_FORMAT, START_BYTE, 1))
         writer.write(obj, enc)
         enc_bytes = bio.getvalue()
+    # Avro 1.11.0 does not assert anymore if the bytes io read function
+    # gives back the number of bytes expected. The invalid Avro record
+    # read on following manner:
+    #  * expected field is name and read as bytes
+    #  * read long to indicate how many bytes are in the string = 100
+    #  * 100 bytes is read from bytes io, returns 4 (b'\x04\x06bar')
+    #  * bytes io position is at the end of the byte buffer
+    #  * expected field is favorite number and is read as single int/long
+    #  * bytes buffer is at the end and returns zero data
+    #  * Avro calls `ord` with zero data and TypeError is raised.
     with pytest.raises(InvalidPayload):
         await deserializer.deserialize(enc_bytes)

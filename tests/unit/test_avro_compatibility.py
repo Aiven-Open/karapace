@@ -2,7 +2,8 @@
     These are duplicates of other test_schema.py tests, but do not make use of the registry client fixture
     and are here for debugging and speed, and as an initial sanity check
 """
-from avro.schema import ArraySchema, Field, MapSchema, RecordSchema, Schema, UnionSchema
+from avro.name import Names
+from avro.schema import ArraySchema, Field, MapSchema, Schema, UnionSchema
 from karapace.avro_compatibility import (
     parse_avro_schema_definition,
     ReaderWriterCompatibilityChecker,
@@ -375,12 +376,12 @@ STRING_SCHEMA = parse_avro_schema_definition(ujson.dumps("string"))
 BYTES_SCHEMA = parse_avro_schema_definition(ujson.dumps("bytes"))
 FLOAT_SCHEMA = parse_avro_schema_definition(ujson.dumps("float"))
 DOUBLE_SCHEMA = parse_avro_schema_definition(ujson.dumps("double"))
-INT_ARRAY_SCHEMA = ArraySchema(INT_SCHEMA)
-LONG_ARRAY_SCHEMA = ArraySchema(LONG_SCHEMA)
-STRING_ARRAY_SCHEMA = ArraySchema(STRING_SCHEMA)
-INT_MAP_SCHEMA = MapSchema(INT_SCHEMA)
-LONG_MAP_SCHEMA = MapSchema(LONG_SCHEMA)
-STRING_MAP_SCHEMA = MapSchema(STRING_SCHEMA)
+INT_ARRAY_SCHEMA = ArraySchema(INT_SCHEMA.to_json(), Names())
+LONG_ARRAY_SCHEMA = ArraySchema(LONG_SCHEMA.to_json(), Names())
+STRING_ARRAY_SCHEMA = ArraySchema(STRING_SCHEMA.to_json(), Names())
+INT_MAP_SCHEMA = MapSchema(INT_SCHEMA.to_json(), Names())
+LONG_MAP_SCHEMA = MapSchema(LONG_SCHEMA.to_json(), Names())
+STRING_MAP_SCHEMA = MapSchema(STRING_SCHEMA.to_json(), Names())
 ENUM1_AB_SCHEMA = parse_avro_schema_definition(ujson.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B"]}))
 ENUM1_ABC_SCHEMA = parse_avro_schema_definition(ujson.dumps({"type": "enum", "name": "Enum1", "symbols": ["A", "B", "C"]}))
 ENUM1_BC_SCHEMA = parse_avro_schema_definition(ujson.dumps({"type": "enum", "name": "Enum1", "symbols": ["B", "C"]}))
@@ -442,20 +443,22 @@ ENUM_AB_FIELD_DEFAULT_A_ENUM_DEFAULT_B_RECORD = parse_avro_schema_definition(
     )
 )
 EMPTY_UNION_SCHEMA = UnionSchema([])
-NULL_UNION_SCHEMA = UnionSchema([NULL_SCHEMA])
-INT_UNION_SCHEMA = UnionSchema([INT_SCHEMA])
-LONG_UNION_SCHEMA = UnionSchema([LONG_SCHEMA])
-FLOAT_UNION_SCHEMA = UnionSchema([FLOAT_SCHEMA])
-DOUBLE_UNION_SCHEMA = UnionSchema([DOUBLE_SCHEMA])
-STRING_UNION_SCHEMA = UnionSchema([STRING_SCHEMA])
-BYTES_UNION_SCHEMA = UnionSchema([BYTES_SCHEMA])
-INT_STRING_UNION_SCHEMA = UnionSchema([INT_SCHEMA, STRING_SCHEMA])
-STRING_INT_UNION_SCHEMA = UnionSchema([STRING_SCHEMA, INT_SCHEMA])
-INT_FLOAT_UNION_SCHEMA = UnionSchema([INT_SCHEMA, FLOAT_SCHEMA])
-INT_LONG_UNION_SCHEMA = UnionSchema([INT_SCHEMA, LONG_SCHEMA])
-INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA = UnionSchema([INT_SCHEMA, LONG_SCHEMA, FLOAT_SCHEMA, DOUBLE_SCHEMA])
-NULL_INT_ARRAY_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_ARRAY_SCHEMA])
-NULL_INT_MAP_UNION_SCHEMA = UnionSchema([NULL_SCHEMA, INT_MAP_SCHEMA])
+NULL_UNION_SCHEMA = UnionSchema([NULL_SCHEMA.to_json()], Names())
+INT_UNION_SCHEMA = UnionSchema([INT_SCHEMA.to_json()], Names())
+LONG_UNION_SCHEMA = UnionSchema([LONG_SCHEMA.to_json()], Names())
+FLOAT_UNION_SCHEMA = UnionSchema([FLOAT_SCHEMA.to_json()], Names())
+DOUBLE_UNION_SCHEMA = UnionSchema([DOUBLE_SCHEMA.to_json()], Names())
+STRING_UNION_SCHEMA = UnionSchema([STRING_SCHEMA.to_json()], Names())
+BYTES_UNION_SCHEMA = UnionSchema([BYTES_SCHEMA.to_json()], Names())
+INT_STRING_UNION_SCHEMA = UnionSchema([INT_SCHEMA.to_json(), STRING_SCHEMA.to_json()], Names())
+STRING_INT_UNION_SCHEMA = UnionSchema([STRING_SCHEMA.to_json(), INT_SCHEMA.to_json()], Names())
+INT_FLOAT_UNION_SCHEMA = UnionSchema([INT_SCHEMA.to_json(), FLOAT_SCHEMA.to_json()], Names())
+INT_LONG_UNION_SCHEMA = UnionSchema([INT_SCHEMA.to_json(), LONG_SCHEMA.to_json()], Names())
+INT_LONG_FLOAT_DOUBLE_UNION_SCHEMA = UnionSchema(
+    [INT_SCHEMA.to_json(), LONG_SCHEMA.to_json(), FLOAT_SCHEMA.to_json(), DOUBLE_SCHEMA.to_json()], Names()
+)
+NULL_INT_ARRAY_UNION_SCHEMA = UnionSchema([NULL_SCHEMA.to_json(), INT_ARRAY_SCHEMA.to_json()], Names())
+NULL_INT_MAP_UNION_SCHEMA = UnionSchema([NULL_SCHEMA.to_json(), INT_MAP_SCHEMA.to_json()], Names())
 EMPTY_RECORD1 = parse_avro_schema_definition(ujson.dumps({"type": "record", "name": "Record1", "fields": []}))
 EMPTY_RECORD2 = parse_avro_schema_definition(ujson.dumps({"type": "record", "name": "Record2", "fields": []}))
 A_INT_RECORD1 = parse_avro_schema_definition(
@@ -614,15 +617,15 @@ INT_LIST_RECORD = parse_avro_schema_definition(
 LONG_LIST_RECORD = parse_avro_schema_definition(
     ujson.dumps({"type": "record", "name": "List", "fields": [{"name": "head", "type": "long"}]})
 )
-int_reader_field = Field(name="tail", type=INT_LIST_RECORD, index=1, has_default=False)
-long_reader_field = Field(name="tail", type=LONG_LIST_RECORD, index=1, has_default=False)
+int_reader_field = Field(name="tail", type_=INT_LIST_RECORD.to_json(), has_default=False)
+long_reader_field = Field(name="tail", type_=LONG_LIST_RECORD.to_json(), has_default=False)
 
 INT_LIST_RECORD._fields = (INT_LIST_RECORD.fields[0], int_reader_field)
 LONG_LIST_RECORD._fields = (LONG_LIST_RECORD.fields[0], long_reader_field)
 
 # pylint: disable=protected-access
-INT_LIST_RECORD._field_map = RecordSchema._MakeFieldMap(INT_LIST_RECORD._fields)
-LONG_LIST_RECORD._field_map = RecordSchema._MakeFieldMap(LONG_LIST_RECORD._fields)
+INT_LIST_RECORD._field_map = INT_LIST_RECORD.fields_dict
+LONG_LIST_RECORD._field_map = LONG_LIST_RECORD.fields_dict
 INT_LIST_RECORD._props["fields"] = INT_LIST_RECORD._fields
 LONG_LIST_RECORD._props["fields"] = LONG_LIST_RECORD._fields
 # pylint: enable=protected-access
@@ -632,14 +635,14 @@ RECORD1_WITH_INT = parse_avro_schema_definition(
 RECORD2_WITH_INT = parse_avro_schema_definition(
     ujson.dumps({"type": "record", "name": "Record2", "fields": [{"name": "field1", "type": "int"}]})
 )
-UNION_INT_RECORD1 = UnionSchema([INT_SCHEMA, RECORD1_WITH_INT])
-UNION_INT_RECORD2 = UnionSchema([INT_SCHEMA, RECORD2_WITH_INT])
-UNION_INT_ENUM1_AB = UnionSchema([INT_SCHEMA, ENUM1_AB_SCHEMA])
-UNION_INT_FIXED_4_BYTES = UnionSchema([INT_SCHEMA, FIXED_4_BYTES])
-UNION_INT_BOOLEAN = UnionSchema([INT_SCHEMA, BOOLEAN_SCHEMA])
-UNION_INT_ARRAY_INT = UnionSchema([INT_SCHEMA, INT_ARRAY_SCHEMA])
-UNION_INT_MAP_INT = UnionSchema([INT_SCHEMA, INT_MAP_SCHEMA])
-UNION_INT_NULL = UnionSchema([INT_SCHEMA, NULL_SCHEMA])
+UNION_INT_RECORD1 = UnionSchema([INT_SCHEMA.to_json(), RECORD1_WITH_INT.to_json()], Names())
+UNION_INT_RECORD2 = UnionSchema([INT_SCHEMA.to_json(), RECORD2_WITH_INT.to_json()], Names())
+UNION_INT_ENUM1_AB = UnionSchema([INT_SCHEMA.to_json(), ENUM1_AB_SCHEMA.to_json()], Names())
+UNION_INT_FIXED_4_BYTES = UnionSchema([INT_SCHEMA.to_json(), FIXED_4_BYTES.to_json()], Names())
+UNION_INT_BOOLEAN = UnionSchema([INT_SCHEMA.to_json(), BOOLEAN_SCHEMA.to_json()], Names())
+UNION_INT_ARRAY_INT = UnionSchema([INT_SCHEMA.to_json(), INT_ARRAY_SCHEMA.to_json()], Names())
+UNION_INT_MAP_INT = UnionSchema([INT_SCHEMA.to_json(), INT_MAP_SCHEMA.to_json()], Names())
+UNION_INT_NULL = UnionSchema([INT_SCHEMA.to_json(), NULL_SCHEMA.to_json()], Names())
 FIXED_4_ANOTHER_NAME = parse_avro_schema_definition(ujson.dumps({"type": "fixed", "name": "AnotherName", "size": 4}))
 RECORD1_WITH_ENUM_AB = parse_avro_schema_definition(
     ujson.dumps(
