@@ -502,10 +502,7 @@ def test_schema_compatibility() -> None:
         (A_DINT_B_DINT_RECORD1, EMPTY_RECORD1),
         (A_DINT_B_DINT_RECORD1, A_INT_RECORD1),
         (A_INT_B_INT_RECORD1, A_DINT_B_DINT_RECORD1),
-        (
-            parse_avro_schema_definition(json.dumps({"type": "null"})),
-            parse_avro_schema_definition(json.dumps({"type": "null"})),
-        ),
+        (NULL_SCHEMA, NULL_SCHEMA),
         (INT_LIST_RECORD, INT_LIST_RECORD),
         (LONG_LIST_RECORD, LONG_LIST_RECORD),
         (LONG_LIST_RECORD, INT_LIST_RECORD),
