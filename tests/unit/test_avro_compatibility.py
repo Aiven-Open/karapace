@@ -86,7 +86,7 @@ import json
 import pytest
 
 
-def test_schemaregistry_basic_backwards_compatibility():
+def test_schemaregistry_basic_backwards_compatibility() -> None:
     """
     Backward compatibility: A new schema is backward compatible if it can be used to read the data
     written in the previous schema.
@@ -120,7 +120,7 @@ def test_schemaregistry_basic_backwards_compatibility():
     assert res != SchemaCompatibilityResult.compatible(), msg
 
 
-def test_schemaregistry_basic_backwards_transitive_compatibility():
+def test_schemaregistry_basic_backwards_transitive_compatibility() -> None:
     """
     Backward transitive compatibility: A new schema is backward compatible if it can be used to read the data
     written in all previous schemas.
@@ -146,7 +146,7 @@ def test_schemaregistry_basic_backwards_transitive_compatibility():
     assert res != SchemaCompatibilityResult.compatible(), msg
 
 
-def test_schemaregistry_basic_forwards_compatibility():
+def test_schemaregistry_basic_forwards_compatibility() -> None:
     """
     Forward compatibility: A new schema is forward compatible if the previous schema can read data written in this
     schema.
@@ -175,7 +175,7 @@ def test_schemaregistry_basic_forwards_compatibility():
     assert res == SchemaCompatibilityResult.compatible(), msg
 
 
-def test_schemaregistry_basic_forwards_transitive_compatibility():
+def test_schemaregistry_basic_forwards_transitive_compatibility() -> None:
     """
     Forward transitive compatibility: A new schema is forward compatible if all previous schemas can read data written
     in this schema.
@@ -201,7 +201,7 @@ def test_schemaregistry_basic_forwards_transitive_compatibility():
     assert res != SchemaCompatibilityResult.compatible(), msg
 
 
-def test_basic_full_compatibility():
+def test_basic_full_compatibility() -> None:
     """Full compatibility: A new schema is fully compatible if it’s both backward and forward compatible."""
     msg = "adding a field with default is a backward and a forward compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema2, schema1)
@@ -232,7 +232,7 @@ def test_basic_full_compatibility():
     assert res == SchemaCompatibilityResult.compatible(), msg
 
 
-def test_basic_full_transitive_compatibility():
+def test_basic_full_transitive_compatibility() -> None:
     """
     Full transitive compatibility: A new schema is fully compatible if it’s both transitively backward
     and transitively forward compatible with the entire schema history.
@@ -302,7 +302,7 @@ def test_basic_full_transitive_compatibility():
     assert res != SchemaCompatibilityResult.compatible(), msg
 
 
-def test_simple_schema_promotion():
+def test_simple_schema_promotion() -> None:
     reader = parse_avro_schema_definition(
         json.dumps({"name": "foo", "type": "record", "fields": [{"type": "int", "name": "f1"}]})
     )
@@ -389,7 +389,7 @@ def test_simple_schema_promotion():
         {"type": {"type": "map", "values": "int", "name": "fn"}, "name": "fn"},
     ],
 )
-def test_union_to_simple_comparison(field):
+def test_union_to_simple_comparison(field: dict) -> None:
     writer = {"type": "record", "name": "name", "namespace": "namespace", "fields": [field]}
     reader = {
         "type": "record",
@@ -407,7 +407,7 @@ def test_union_to_simple_comparison(field):
     assert are_compatible(reader, writer)
 
 
-def test_schema_compatibility():
+def test_schema_compatibility() -> None:
     # testValidateSchemaPairMissingField
     writer = parse_avro_schema_definition(
         json.dumps(
@@ -570,7 +570,7 @@ def test_schema_compatibility():
         assert are_compatible(reader, writer)
 
 
-def test_schema_compatibility_fixed_size_mismatch():
+def test_schema_compatibility_fixed_size_mismatch() -> None:
     incompatible_fixed_pairs = [
         (FIXED_4_BYTES, FIXED_8_BYTES, "expected: 8, found: 4", "/size"),
         (FIXED_8_BYTES, FIXED_4_BYTES, "expected: 4, found: 8", "/size"),
@@ -580,11 +580,11 @@ def test_schema_compatibility_fixed_size_mismatch():
     for (reader, writer, message, location) in incompatible_fixed_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
-        assert location in result.locations, f"expected {location}, found {result.location}"
-        assert message in result.messages, f"expected {message}, found {result.message}"
+        assert location in result.locations, f"expected {location}, found {result.locations}"
+        assert message in result.messages, f"expected {message}, found {result.messages}"
 
 
-def test_schema_compatibility_missing_enum_symbols():
+def test_schema_compatibility_missing_enum_symbols() -> None:
     incompatible_pairs = [
         # str(set) representation
         (ENUM1_AB_SCHEMA, ENUM1_ABC_SCHEMA, "{'C'}", "/symbols"),
@@ -598,7 +598,7 @@ def test_schema_compatibility_missing_enum_symbols():
         assert location in result.locations
 
 
-def test_schema_compatibility_missing_union_branch():
+def test_schema_compatibility_missing_union_branch() -> None:
     incompatible_pairs = [
         (INT_UNION_SCHEMA, INT_STRING_UNION_SCHEMA, {"reader union lacking writer type: STRING"}, {"/1"}),
         (STRING_UNION_SCHEMA, INT_STRING_UNION_SCHEMA, {"reader union lacking writer type: INT"}, {"/0"}),
@@ -640,7 +640,7 @@ def test_schema_compatibility_missing_union_branch():
         assert result.locations == location
 
 
-def test_schema_compatibility_name_mismatch():
+def test_schema_compatibility_name_mismatch() -> None:
     incompatible_pairs = [
         (ENUM1_AB_SCHEMA, ENUM2_AB_SCHEMA, "expected: Enum2", "/name"),
         (EMPTY_RECORD2, EMPTY_RECORD1, "expected: Record1", "/name"),
@@ -655,7 +655,7 @@ def test_schema_compatibility_name_mismatch():
         assert location in result.locations
 
 
-def test_schema_compatibility_reader_field_missing_default_value():
+def test_schema_compatibility_reader_field_missing_default_value() -> None:
     incompatible_pairs = [
         (A_INT_RECORD1, EMPTY_RECORD1, "a", "/fields/0"),
         (A_INT_B_DINT_RECORD1, EMPTY_RECORD1, "a", "/fields/0"),
@@ -668,7 +668,7 @@ def test_schema_compatibility_reader_field_missing_default_value():
         assert location == "".join(result.locations)
 
 
-def test_schema_compatibility_type_mismatch():
+def test_schema_compatibility_type_mismatch() -> None:
     incompatible_pairs = [
         (NULL_SCHEMA, INT_SCHEMA, "reader type: NULL not compatible with writer type: INT", "/"),
         (NULL_SCHEMA, LONG_SCHEMA, "reader type: NULL not compatible with writer type: LONG", "/"),
