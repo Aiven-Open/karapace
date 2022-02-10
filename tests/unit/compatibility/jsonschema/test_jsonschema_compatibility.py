@@ -1,5 +1,5 @@
+from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from jsonschema import Draft7Validator
-from karapace.avro_compatibility import SchemaCompatibilityResult
 from karapace.compatibility.jsonschema.checks import compatibility
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
@@ -98,7 +98,7 @@ from tests.schemas.json_schemas import (
     TYPES_STRING_SCHEMA,
 )
 
-COMPATIBLE = SchemaCompatibilityResult.compatible()
+COMPATIBLE = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
 COMPATIBILIY = "compatibility with schema registry"
 COMPATIBLE_READER_IS_TRUE_SCHEMA = "The reader is a true schema which _accepts_ every value"
@@ -121,7 +121,10 @@ def schemas_are_compatible(
     writer: Draft7Validator,
     msg: str,
 ) -> None:
-    assert compatibility(reader=reader, writer=writer) == COMPATIBLE, msg
+    result = compatibility(reader=reader, writer=writer)
+    assert result.locations == COMPATIBLE.locations, msg
+    assert result.compatibility == COMPATIBLE.compatibility, msg
+    assert result.incompatibilities == COMPATIBLE.incompatibilities, msg
 
 
 def not_schemas_are_compatible(
@@ -129,7 +132,10 @@ def not_schemas_are_compatible(
     writer: Draft7Validator,
     msg: str,
 ) -> None:
-    assert compatibility(reader=reader, writer=writer) != COMPATIBLE, msg
+    result = compatibility(reader=reader, writer=writer)
+    assert result.locations != COMPATIBLE.locations, msg
+    assert result.compatibility != COMPATIBLE.compatibility, msg
+    assert result.incompatibilities != COMPATIBLE.incompatibilities, msg
 
 
 def test_reflexivity() -> None:

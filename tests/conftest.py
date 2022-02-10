@@ -1,4 +1,4 @@
-from karapace.avro_compatibility import SchemaCompatibilityResult
+from avro.compatibility import SchemaCompatibilityResult
 from pathlib import Path
 from typing import List, Optional
 

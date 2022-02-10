@@ -4,8 +4,8 @@ from enum import Enum, unique
 from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace import version as karapace_version
-from karapace.avro_compatibility import is_incompatible
 from karapace.compatibility import check_compatibility, CompatibilityModes
+from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
