@@ -65,18 +65,6 @@ stop-kafka:
 .PHONY: kafka
 kafka: start-kafka
 
-.PHONY: black
-black: $(GENERATED)
-	pre-commit run black --all-files
-
-.PHONY: pylint
-pylint: $(GENERATED)
-	pre-commit run pylint --all-files
-
-.PHONY: flake8
-flake8: $(GENERATED)
-	pre-commit run flake8 --all-files
-
 .PHONY: copyright
 copyright:
 	grep -EL "Copyright \(c\) 20.* Aiven" $(shell git ls-files "*.py" | grep -v __init__.py)
@@ -91,17 +79,3 @@ integrationtest: fetch-kafka $(GENERATED)
 
 .PHONY: test
 test: lint copyright unittest
-
-.PHONY: isort
-isort:
-	pre-commit run isort --all-files
-
-.PHONY: reformat
-reformat: isort black
-
-.PHONY: pre-commit
-pre-commit: $(GENERATED)
-	pre-commit run --all-files
-
-.PHONY: lint
-lint: pre-commit
