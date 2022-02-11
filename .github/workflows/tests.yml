@@ -22,9 +22,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Fetch kafka
-      run: make fetch-kafka
-
     - name: Install dependencies
       run: python -m pip install -r requirements-dev.txt
 
@@ -33,8 +30,25 @@ jobs:
       with:
          version: '3.13.0'
 
+    # needed by both unit and integation tests
+    - name: Generate version.py
+      run: make karapace/version.py
+
     - name: Execute unit-tests
-      run: make unittest
+      run: python3 -m pytest -s -vvv tests/unit/
 
     - name: Execute integration-tests
-      run: make integrationtest
+      run: python3 -m pytest -s -vvv tests/integration/ --log-dir=/tmp/ci-logs --log-file=/tmp/ci-logs/pytest.log
+
+    - name: Archive logs
+      uses: actions/upload-artifact@v2
+      if: ${{ always() }}
+      with:
+          name: logs
+          # This directory is created by the fixture session_tmppath. The path is composed of a
+          # prefix defined by --basepath, followed by a folder name, in this case it is "karapace".
+          #
+          # See:
+          # - https://docs.pytest.org/en/6.2.x/tmpdir.html#base-temporary-directory
+          # - fixture session_tmppath in tests/integration/conftest.py
+          path: /tmp/pytest*
