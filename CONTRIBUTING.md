@@ -97,4 +97,3 @@ override the `bootstrap_uri` config value, one would use the environment variabl
 
 ## Trademarks:
 Fedora and the Infinity design logo are trademarks of Red Hat, Inc.
-
