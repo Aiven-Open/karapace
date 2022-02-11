@@ -29,18 +29,28 @@ from tests.utils import (
 )
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
+import logging
 import os
+import pathlib
 import pytest
+import requests
 import signal
 import socket
+import tarfile
 import time
 import ujson
 
-# Keep these in sync with the Makefile
-KAFKA_CURRENT_VERSION = "2.7"
-BASEDIR = "kafka_2.13-2.7.0"
+KAFKA_VERSION = "2.7.0"
+KAFKA_SCALA_VERSION = "2.13"
+KAFKA_FOLDER = f"kafka_{KAFKA_SCALA_VERSION}-{KAFKA_VERSION}"
+KAFKA_TGZ = f"{KAFKA_FOLDER}.tgz"
+KAFKA_URL = f"https://archive.apache.org/dist/kafka/{KAFKA_VERSION}/{KAFKA_TGZ}"
+KAFKA_PROTOCOL_VERSION = "2.7"
 
-CLASSPATH = os.path.join(BASEDIR, "libs", "*")
+REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent
+RUNTIME_DIR = (REPOSITORY_DIR / "runtime").absolute()
+KAFKA_DIR = RUNTIME_DIR / KAFKA_FOLDER
+
 KAFKA_WAIT_TIMEOUT = 60
 
 
@@ -111,6 +121,7 @@ def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
 
 def wait_for_port(
     port: int,
+    process: Popen,
     *,
     hostname: str = "127.0.0.1",
     wait_time: float = 20.0,
@@ -124,6 +135,7 @@ def wait_for_port(
             hostname=hostname,
             port=port,
         )
+        assert process.poll() is None, f"Process no longer running, exit_code: {process.returncode}"
         time.sleep(2.0)
 
     elapsed = expiration.elapsed
@@ -135,6 +147,16 @@ def lock_path_for(path: Path) -> Path:
     suffixes = path.suffixes
     suffixes.append(".lock")
     return path.with_suffix("".join(suffixes))
+
+
+def maybe_download_kafka() -> None:
+    """If necessary download kafka to run the tests."""
+    if not os.path.exists(KAFKA_DIR):
+        logging.info("Downloading Kafka {url}", url=KAFKA_URL)
+
+        download = requests.get(KAFKA_URL, stream=True)
+        with tarfile.open(mode="r:gz", fileobj=download.raw) as file:
+            file.extractall(str(RUNTIME_DIR))
 
 
 @pytest.fixture(scope="session", name="kafka_servers")
@@ -162,11 +184,13 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
             else:
+                maybe_download_kafka()
+
                 zk_config, zk_proc = configure_and_start_zk(zk_dir)
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
-                wait_for_port(zk_config.client_port, wait_time=20)
+                wait_for_port(zk_config.client_port, zk_proc, wait_time=20)
 
                 kafka_config, kafka_proc = configure_and_start_kafka(kafka_dir, zk_config)
                 stack.callback(stop_process, kafka_proc)
@@ -302,8 +326,8 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
         try:
             master_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)]))
             slave_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)]))
-            wait_for_port(master_port)
-            wait_for_port(slave_port)
+            wait_for_port(master_port, master_process)
+            wait_for_port(slave_port, slave_process)
             yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
         finally:
             if master_process:
@@ -488,15 +512,10 @@ async def fixture_registry_async_client_tls(
 
 
 def zk_java_args(cfg_path: Path) -> List[str]:
-    if not os.path.exists(BASEDIR):
-        raise RuntimeError(
-            f"Couldn't find kafka installation to run integration tests. The "
-            f"expected folder {BASEDIR} does not exist. Run `make fetch-kafka` "
-            f"to download and extract the release."
-        )
+    assert KAFKA_DIR.exists(), f"Couldn't find kafka installation at {KAFKA_DIR} to run integration tests."
     java_args = [
         "-cp",
-        CLASSPATH,
+        str(KAFKA_DIR / "libs" / "*"),
         "org.apache.zookeeper.server.quorum.QuorumPeerMain",
         str(cfg_path),
     ]
@@ -504,19 +523,14 @@ def zk_java_args(cfg_path: Path) -> List[str]:
 
 
 def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
-    if not os.path.exists(BASEDIR):
-        raise RuntimeError(
-            f"Couldn't find kafka installation to run integration tests. The "
-            f"expected folder {BASEDIR} does not exist. Run `make fetch-kafka` "
-            f"to download and extract the release."
-        )
+    assert KAFKA_DIR.exists(), f"Couldn't find kafka installation at {KAFKA_DIR} to run integration tests."
     java_args = [
         "-Xmx{}M".format(heap_mb),
         "-Xms{}M".format(heap_mb),
         "-Dkafka.logs.dir={}/logs".format(logs_dir),
         "-Dlog4j.configuration=file:{}".format(log4j_properties_path),
         "-cp",
-        CLASSPATH,
+        str(KAFKA_DIR / "libs" / "*"),
         "kafka.Kafka",
         kafka_config_path,
     ]
@@ -578,11 +592,11 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         "default.replication.factor": 1,
         "delete.topic.enable": "true",
         "inter.broker.listener.name": "PLAINTEXT",
-        "inter.broker.protocol.version": KAFKA_CURRENT_VERSION,
+        "inter.broker.protocol.version": KAFKA_PROTOCOL_VERSION,
         "listeners": listeners,
         "log.cleaner.enable": "true",
         "log.dirs": config.datadir,
-        "log.message.format.version": KAFKA_CURRENT_VERSION,
+        "log.message.format.version": KAFKA_PROTOCOL_VERSION,
         "log.retention.check.interval.ms": 300000,
         "log.segment.bytes": 200 * 1024 * 1024,  # 200 MiB
         "num.io.threads": 8,
@@ -605,7 +619,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         for key, value in kafka_config.items():
             fp.write("{}={}\n".format(key, value))
 
-    log4j_properties_path = os.path.join(BASEDIR, "config/log4j.properties")
+    log4j_properties_path = str(KAFKA_DIR / "config" / "log4j.properties")
 
     kafka_cmd = get_java_process_configuration(
         java_args=kafka_java_args(

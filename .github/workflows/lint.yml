@@ -21,6 +21,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # required for pylint
+      - name: Generate version.py
+        run: make karapace/version.py
+
       - name: Run all pre-commit hooks
         run: pre-commit run --all-files
 

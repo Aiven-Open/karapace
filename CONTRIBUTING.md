@@ -47,24 +47,20 @@ In Fedora® distributions you can install it using:
 dnf install protobuf-compiler
 ```
 
-To run the tests use `make`. It will download Kafka to be used in the tests for you:
+To run the tests use the binary `pytest` available in the virtualenv. It will download Kafka to be
+used in the tests for you:
 
 ```sh
-make unittest
-make integrationtest
+make karapace/version.py
+pytest tests/unit
+pytest tests/integration
 ```
-
-### PyCharm
-
-If you want to run the tests from within the IDE, first download Kafka using `make fetch-kafka`, and
-use the project root as the working directory.
 
 ## Static checking and Linting
 
 The code is statically checked and formatted using [a few
 tools](https://github.com/aiven/karapace/blob/master/requirements-dev.txt). To run these
 automatically on each commit please enable the [pre-commit](https://pre-commit.com) hooks.
-Alternatively you can run it manually with `make pre-commit`.
 
 ## Manual testing
 
