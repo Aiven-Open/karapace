@@ -44,11 +44,5 @@ jobs:
       uses: actions/upload-artifact@v2
       if: ${{ always() }}
       with:
-          name: logs
-          # This directory is created by the fixture session_tmppath. The path is composed of a
-          # prefix defined by --basepath, followed by a folder name, in this case it is "karapace".
-          #
-          # See:
-          # - https://docs.pytest.org/en/6.2.x/tmpdir.html#base-temporary-directory
-          # - fixture session_tmppath in tests/integration/conftest.py
-          path: /tmp/pytest*
+          name: logs  ${{ matrix.python-version }}
+          path: /tmp/ci-logs
