@@ -12,7 +12,6 @@ __pycache__/
 /dist/
 /karapace.egg-info/
 /karapace-rpm-src.tar
-/rpm/
 /kafka_*.tgz
 /kafka_*/
 venv
