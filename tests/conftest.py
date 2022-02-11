@@ -54,6 +54,7 @@ def split_by_comma(arg: str) -> List[str]:
 def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
     parser.addoption("--kafka-bootstrap-servers", type=split_by_comma)
     parser.addoption("--kafka-version", default=KAFKA_VERSION)
+    parser.addoption("--log-dir")
     parser.addoption("--registry-url")
     parser.addoption("--rest-url")
     parser.addoption("--server-ca")
@@ -83,13 +84,36 @@ def fixture_validate_options(request) -> None:
         raise ValueError(msg)
 
 
-@pytest.fixture(scope="session", name="session_tmppath")
-def fixture_session_tmppath(tmp_path_factory) -> Path:
-    return tmp_path_factory.mktemp("karapace")
+@pytest.fixture(scope="session", name="session_datadir")
+def fixture_session_datadir(tmp_path_factory) -> Path:
+    """Data files generated throught the tests should be stored here.
+
+    These files are NOT persisted.
+    """
+    return tmp_path_factory.mktemp("data")
+
+
+@pytest.fixture(scope="session", name="session_logdir")
+def fixture_session_logdir(request, tmp_path_factory, worker_id) -> Path:
+    """All useful log data for debugging should be stored here.
+
+    These files are persisted by the CI for debugging purposes.
+    """
+    log_dir = request.config.getoption("log_dir")
+
+    if log_dir is None and worker_id == "master":
+        path = tmp_path_factory.mktemp("log")
+    elif log_dir is None:
+        path = tmp_path_factory.getbasetemp().parent / "log"
+        path.mkdir(parents=True, exist_ok=True)
+    else:
+        path = Path(log_dir)
+        path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 @pytest.fixture(scope="session", name="default_config_path")
-def fixture_default_config(session_tmppath: Path) -> str:
-    path = session_tmppath / "karapace_config.json"
+def fixture_default_config(session_logdir: Path) -> str:
+    path = session_logdir / "karapace_config.json"
     path.write_text(ujson.dumps({"registry_host": "localhost", "registry_port": 8081}))
     return str(path)
