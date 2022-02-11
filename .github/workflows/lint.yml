@@ -22,7 +22,7 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run all pre-commit hooks
-        run: make lint
+        run: pre-commit run --all-files
 
   copyright:
       runs-on: ubuntu-latest
