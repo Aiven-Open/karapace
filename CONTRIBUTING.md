@@ -41,6 +41,12 @@ tests should be engineered with this in mind:
 - Don't reuse schema/subject/topic names
 - Expect other clients to be interacting with the servers at the same time.
 
+Before running the tests make sure you have `protoc` installed. `protoc` is part of the protobuf-compiler package.
+In Fedora® distributions you can install it using:
+```
+dnf install protobuf-compiler
+```
+
 To run the tests use `make`. It will download Kafka to be used in the tests for you:
 
 ```sh
@@ -88,3 +94,6 @@ override the `bootstrap_uri` config value, one would use the environment variabl
 - Choose a meaningful title for your pull request.
 - The pull request description should focus on what changed and why.
 - Check that the tests pass (and add test coverage for your changes if appropriate).
+
+## Trademarks:
+Fedora and the Infinity design logo are trademarks of Red Hat, Inc.
