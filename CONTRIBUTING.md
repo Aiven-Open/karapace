@@ -56,6 +56,15 @@ pytest tests/unit
 pytest tests/integration
 ```
 
+The integration tests can be configured with the use of a few parameters:
+
+- `--kafka-version`: allows to change the version of the Kafka server used by the tests. Example
+    versions: `2.7.2`, `2.8.1`, `3.0.0`.
+- `--kafka-bootstrap-servers`: A comma separated list of servers. This option allows to use an
+    external server (the tests won't start a server for you)
+
+Other options can be seen with `pytest test/integration --help`
+
 ## Static checking and Linting
 
 The code is statically checked and formatted using [a few

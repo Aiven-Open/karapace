@@ -39,18 +39,10 @@ import tarfile
 import time
 import ujson
 
-KAFKA_VERSION = "2.7.0"
-KAFKA_SCALA_VERSION = "2.13"
-KAFKA_FOLDER = f"kafka_{KAFKA_SCALA_VERSION}-{KAFKA_VERSION}"
-KAFKA_TGZ = f"{KAFKA_FOLDER}.tgz"
-KAFKA_URL = f"https://archive.apache.org/dist/kafka/{KAFKA_VERSION}/{KAFKA_TGZ}"
-KAFKA_PROTOCOL_VERSION = "2.7"
-
 REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent
 RUNTIME_DIR = (REPOSITORY_DIR / "runtime").absolute()
-KAFKA_DIR = RUNTIME_DIR / KAFKA_FOLDER
-
 KAFKA_WAIT_TIMEOUT = 60
+KAFKA_SCALA_VERSION = "2.13"
 
 
 @dataclass
@@ -66,6 +58,14 @@ class ZKConfig:
             data["admin_port"],
             data["path"],
         )
+
+
+@dataclass(frozen=True)
+class KafkaDescription:
+    version: str
+    install_dir: Path
+    download_url: str
+    protocol_version: str
 
 
 def stop_process(proc: Optional[Popen]) -> None:
@@ -144,18 +144,34 @@ def lock_path_for(path: Path) -> Path:
     return path.with_suffix("".join(suffixes))
 
 
-def maybe_download_kafka() -> None:
+def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
     """If necessary download kafka to run the tests."""
-    if not os.path.exists(KAFKA_DIR):
-        logging.info("Downloading Kafka {url}", url=KAFKA_URL)
+    if not os.path.exists(kafka_description.install_dir):
+        logging.info("Downloading Kafka {url}", url=kafka_description.download_url)
 
-        download = requests.get(KAFKA_URL, stream=True)
+        download = requests.get(kafka_description.download_url, stream=True)
         with tarfile.open(mode="r:gz", fileobj=download.raw) as file:
-            file.extractall(str(RUNTIME_DIR))
+            file.extractall(str(kafka_description.install_dir.parent))
+
+
+@pytest.fixture(scope="session", name="kafka_description")
+def fixture_kafka_description(request) -> KafkaDescription:
+    kafka_version = request.config.getoption("kafka_version")
+    kafka_folder = f"kafka_{KAFKA_SCALA_VERSION}-{kafka_version}"
+    kafka_tgz = f"{kafka_folder}.tgz"
+    kafka_url = f"https://archive.apache.org/dist/kafka/{kafka_version}/{kafka_tgz}"
+    kafka_dir = RUNTIME_DIR / kafka_folder
+
+    return KafkaDescription(
+        version=kafka_version,
+        install_dir=kafka_dir,
+        download_url=kafka_url,
+        protocol_version="2.7",
+    )
 
 
 @pytest.fixture(scope="session", name="kafka_servers")
-def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServers]:
+def fixture_kafka_server(request, session_tmppath: Path, kafka_description: KafkaDescription) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
 
     if bootstrap_servers:
@@ -179,15 +195,22 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
             else:
-                maybe_download_kafka()
+                maybe_download_kafka(kafka_description)
 
-                zk_config, zk_proc = configure_and_start_zk(zk_dir)
+                zk_config, zk_proc = configure_and_start_zk(
+                    zk_dir,
+                    kafka_description,
+                )
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
                 wait_for_port(zk_config.client_port, zk_proc, wait_time=20)
 
-                kafka_config, kafka_proc = configure_and_start_kafka(kafka_dir, zk_config)
+                kafka_config, kafka_proc = configure_and_start_kafka(
+                    kafka_dir,
+                    zk_config,
+                    kafka_description,
+                )
                 stack.callback(stop_process, kafka_proc)
 
                 config_data = {
@@ -506,26 +529,28 @@ async def fixture_registry_async_client_tls(
         await client.close()
 
 
-def zk_java_args(cfg_path: Path) -> List[str]:
-    assert KAFKA_DIR.exists(), f"Couldn't find kafka installation at {KAFKA_DIR} to run integration tests."
+def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[str]:
+    msg = f"Couldn't find kafka installation at {kafka_description.install_dir} to run integration tests."
+    assert kafka_description.install_dir.exists(), msg
     java_args = [
         "-cp",
-        str(KAFKA_DIR / "libs" / "*"),
+        str(kafka_description.install_dir / "libs" / "*"),
         "org.apache.zookeeper.server.quorum.QuorumPeerMain",
         str(cfg_path),
     ]
     return java_args
 
 
-def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
-    assert KAFKA_DIR.exists(), f"Couldn't find kafka installation at {KAFKA_DIR} to run integration tests."
+def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path, kafka_description: KafkaDescription):
+    msg = f"Couldn't find kafka installation at {kafka_description.install_dir} to run integration tests."
+    assert kafka_description.install_dir.exists(), msg
     java_args = [
         "-Xmx{}M".format(heap_mb),
         "-Xms{}M".format(heap_mb),
         "-Dkafka.logs.dir={}/logs".format(logs_dir),
         "-Dlog4j.configuration=file:{}".format(log4j_properties_path),
         "-cp",
-        str(KAFKA_DIR / "libs" / "*"),
+        str(kafka_description.install_dir / "libs" / "*"),
         "kafka.Kafka",
         kafka_config_path,
     ]
@@ -550,7 +575,11 @@ def get_java_process_configuration(java_args: List[str]) -> List[str]:
     return command
 
 
-def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfig, Popen]:
+def configure_and_start_kafka(
+    kafka_dir: Path,
+    zk: ZKConfig,
+    kafka_description: KafkaDescription,
+) -> Tuple[KafkaConfig, Popen]:
     # setup filesystem
     data_dir = kafka_dir / "data"
     config_dir = kafka_dir / "config"
@@ -587,11 +616,11 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         "default.replication.factor": 1,
         "delete.topic.enable": "true",
         "inter.broker.listener.name": "PLAINTEXT",
-        "inter.broker.protocol.version": KAFKA_PROTOCOL_VERSION,
+        "inter.broker.protocol.version": kafka_description.protocol_version,
         "listeners": listeners,
         "log.cleaner.enable": "true",
         "log.dirs": config.datadir,
-        "log.message.format.version": KAFKA_PROTOCOL_VERSION,
+        "log.message.format.version": kafka_description.protocol_version,
         "log.retention.check.interval.ms": 300000,
         "log.segment.bytes": 200 * 1024 * 1024,  # 200 MiB
         "num.io.threads": 8,
@@ -614,7 +643,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
         for key, value in kafka_config.items():
             fp.write("{}={}\n".format(key, value))
 
-    log4j_properties_path = str(KAFKA_DIR / "config" / "log4j.properties")
+    log4j_properties_path = str(kafka_description.install_dir / "config" / "log4j.properties")
 
     kafka_cmd = get_java_process_configuration(
         java_args=kafka_java_args(
@@ -622,6 +651,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
             logs_dir=str(kafka_dir),
             log4j_properties_path=log4j_properties_path,
             kafka_config_path=str(config_path),
+            kafka_description=kafka_description,
         ),
     )
     env: Dict[bytes, bytes] = {}
@@ -629,7 +659,7 @@ def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfi
     return config, proc
 
 
-def configure_and_start_zk(zk_dir: Path) -> Tuple[ZKConfig, Popen]:
+def configure_and_start_zk(zk_dir: Path, kafka_description: KafkaDescription) -> Tuple[ZKConfig, Popen]:
     cfg_path = zk_dir / "zoo.cfg"
     logs_dir = zk_dir / "logs"
     logs_dir.mkdir(parents=True)
@@ -688,6 +718,11 @@ skipACL=yes
         "CLASSPATH": "/usr/share/java/slf4j/slf4j-simple.jar",
         "ZOO_LOG_DIR": str(logs_dir),
     }
-    java_args = get_java_process_configuration(java_args=zk_java_args(cfg_path))
+    java_args = get_java_process_configuration(
+        java_args=zk_java_args(
+            cfg_path,
+            kafka_description,
+        )
+    )
     proc = Popen(java_args, env=env)
     return config, proc
