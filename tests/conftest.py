@@ -3,9 +3,12 @@ from pathlib import Path
 from typing import List, Optional
 
 import pytest
+import re
 import ujson
 
 pytest_plugins = "aiohttp.pytest_plugin"
+VERSION_REGEX = "([0-9]+[.])*[0-9]+"
+KAFKA_VERSION = "2.7.0"
 
 
 def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
@@ -50,6 +53,7 @@ def split_by_comma(arg: str) -> List[str]:
 
 def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
     parser.addoption("--kafka-bootstrap-servers", type=split_by_comma)
+    parser.addoption("--kafka-version", default=KAFKA_VERSION)
     parser.addoption("--registry-url")
     parser.addoption("--rest-url")
     parser.addoption("--server-ca")
@@ -58,7 +62,8 @@ def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-a
 @pytest.fixture(autouse=True, scope="session")
 def fixture_validate_options(request) -> None:
     """This fixture only exists to validate the custom command line flags."""
-    bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
+    kafka_bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
+    kafka_version = request.config.getoption("kafka_version")
     registry_url = request.config.getoption("registry_url")
     rest_url = request.config.getoption("rest_url")
     server_ca = request.config.getoption("server_ca")
@@ -69,8 +74,12 @@ def fixture_validate_options(request) -> None:
         msg = "When using a server CA, an external registry or rest URI must also be provided."
         raise ValueError(msg)
 
-    if has_external_registry_or_rest and not bootstrap_servers:
+    if has_external_registry_or_rest and not kafka_bootstrap_servers:
         msg = "When using an external registry or rest, the kafka bootstrap URIs must also be provided."
+        raise ValueError(msg)
+
+    if not re.match(VERSION_REGEX, kafka_version):
+        msg = "Provided Kafka version has invalid format {kafka_version} should match {VERSION_REGEX}"
         raise ValueError(msg)
 
 
