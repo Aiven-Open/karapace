@@ -41,6 +41,12 @@ tests should be engineered with this in mind:
 - Don't reuse schema/subject/topic names
 - Expect other clients to be interacting with the servers at the same time.
 
+Before running the tests make sure you have `protoc` installed. `protoc` is part of the protobuf-compiler package.
+In Fedora distributions you can install it using:
+```
+dnf install protobuf-compiler
+```
+
 To run the tests use `make`. It will download Kafka to be used in the tests for you:
 
 ```sh
