@@ -20,7 +20,13 @@ KAFKA = 9092
 default: $(GENERATED)
 
 clean:
-	rm -rf $(KAFKA_PATH)*
+	# remove all the versions of kafka
+	rm -rf kafka_*
+	# delete cache files
+	find . -iname '*.pyc' -delete
+	find . -iname '__pycache__' -delete
+	# delete packaging directories
+	rm -rf dist karapace.egg-info
 
 .PHONY: $(KAFKA_IMAGE)
 $(KAFKA_IMAGE):
