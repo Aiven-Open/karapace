@@ -28,9 +28,10 @@ setup(
         "aiokafka",
         "avro-python3",
         "jsonschema",
-        "networkx",
         "kafka-python",
-        "requests",
+        "networkx",
+        "protobuf>=3.16",  # 3.15 vunerability CVE-2021-22570
+        "requests>=2.21",  # 2.20 vunerability CVE-2018-18074
     ],
     extras_require={
         # compression algorithms supported by AioKafka and KafkaConsumer
