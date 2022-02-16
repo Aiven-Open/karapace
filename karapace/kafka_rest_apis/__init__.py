@@ -279,24 +279,31 @@ class KafkaRest(KarapaceBase):
             return self.admin_client.get_topic_config(topic)
 
     def cluster_metadata(self, topics: Optional[List[str]] = None) -> dict:
-        if self._metadata_birth is None or time.time() - self._metadata_birth > self.metadata_max_age:
-            self._cluster_metadata = None
-        if not self._cluster_metadata:
-            self._metadata_birth = time.time()
-            with self.admin_lock:
-                try:
-                    self._cluster_metadata = self.admin_client.cluster_metadata(topics)
-                except NodeNotReadyError:
-                    self.log.exception("Could not refresh cluster metadata")
-                    self.r(
-                        body={
-                            "message": "Kafka node not ready",
-                            "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
-                        },
-                        content_type="application/json",
-                        status=HTTPStatus.INTERNAL_SERVER_ERROR,
-                    )
-        return copy.deepcopy(self._cluster_metadata)
+        with self.admin_lock:
+            if self._metadata_birth is None or time.monotonic() - self._metadata_birth > self.metadata_max_age:
+                self._cluster_metadata = None
+
+            if self._cluster_metadata and topics is None:
+                return copy.deepcopy(self._cluster_metadata)
+
+            try:
+                metadata_birth = time.monotonic()
+                metadata = self.admin_client.cluster_metadata(topics)
+                # Only store cache if fetched full metadata
+                if topics is None:
+                    self._metadata_birth = metadata_birth
+                    self._cluster_metadata = metadata
+            except NodeNotReadyError:
+                self.log.exception("Could not refresh cluster metadata")
+                self.r(
+                    body={
+                        "message": "Kafka node not ready",
+                        "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                    },
+                    content_type="application/json",
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+            return copy.deepcopy(metadata)
 
     def init_admin_client(self):
         while True:
