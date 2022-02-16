@@ -10,6 +10,8 @@ from tests.utils import (
     wait_for_topics,
 )
 
+import asyncio
+
 NEW_TOPIC_TIMEOUT = 10
 
 
@@ -215,6 +217,25 @@ async def test_topics(rest_async_client, admin_client):
     res = await rest_async_client.get(f"/topics/{topic_foo}")
     assert res.status_code == 404, f"Topic {topic_foo} should not exist, status_code={res.status_code}"
     assert res.json()["error_code"] == 40403, "Error code does not match"
+
+
+async def test_list_topics(rest_async_client, admin_client):
+    tn1 = new_topic(admin_client)
+    tn2 = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn1, tn2], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    # Wait until cluster_metadata cache expires
+    await asyncio.sleep(3)
+
+    res = await rest_async_client.get(f"/topics/{tn1}")
+    assert res.ok, "Status code is not 200: %r" % res.status_code
+    data = res.json()
+    assert data["name"] == tn1, f"Topic name should be {tn1} and is {data['name']}"
+
+    topic_list_res = await rest_async_client.get("/topics")
+    assert topic_list_res.ok, "Listing topics succeeded instead of %r" % res.status_code
+    topic_list = topic_list_res.json()
+    assert tn1 in topic_list and tn2 in topic_list, f"Topic list contains all topics tn1={tn1} and tn2={tn2}"
 
 
 async def test_publish(rest_async_client, admin_client):

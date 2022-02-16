@@ -37,7 +37,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
         self.create_topics([NewTopic(name, 1, 1)])
 
     def cluster_metadata(self, topics: List[str] = None, retries: int = 0) -> dict:
-        """List all kafka topics."""
+        """Fetch cluster metadata and topic information for given topics or all topics if not given."""
         metadata_version = self._matching_api_version(MetadataRequest)
         if metadata_version > 6 or metadata_version < 1:
             raise UnrecognizedBrokerVersion(
