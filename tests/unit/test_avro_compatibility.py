@@ -40,6 +40,12 @@ badDefaultNullString = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
     '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
 )
+invalidEnumDefaultValue = parse_avro_schema_definition(
+    '{"type": "enum", "name": "test_default", "symbols": ["A"], "default": "B"}'
+)
+correctEnumDefaultValue = parse_avro_schema_definition(
+    '{"type": "enum", "name": "test_default", "symbols": ["A"], "default": "A"}'
+)
 
 
 def test_schemaregistry_basic_backwards_compatibility():
@@ -74,6 +80,10 @@ def test_schemaregistry_basic_backwards_compatibility():
     msg = "removing a type from a union is NOT a backward compatible change"
     res = ReaderWriterCompatibilityChecker().get_compatibility(schema6, schema7)
     assert res != SchemaCompatibilityResult.compatible(), msg
+
+    msg = "changing a default value in enum is a backward compatible change"
+    res = ReaderWriterCompatibilityChecker().get_compatibility(invalidEnumDefaultValue, correctEnumDefaultValue)
+    assert res == SchemaCompatibilityResult.compatible(), msg
 
 
 def test_schemaregistry_basic_backwards_transitive_compatibility():

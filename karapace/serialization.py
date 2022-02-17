@@ -223,16 +223,16 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
         return result
 
     if isinstance(schema, avro.schema.UnionSchema) and isinstance(value, dict):
+
         def get_name(obj) -> str:
             if isinstance(obj, avro.schema.PrimitiveSchema):
                 return obj.fullname
-            else:
-                return obj.name
+            return obj.name
+
         f = next((s for s in schema.schemas if get_name(s) in value), None)
         if f is not None:
             # Note: This is intentionally skipping the dictionary, here the JSON representation
             # is flattened to the Python representation
-            vv = value[get_name(f)]
             return flatten_unions(f, value[get_name(f)])
 
     if isinstance(schema, avro.schema.ArraySchema) and isinstance(value, list):
