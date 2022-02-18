@@ -211,7 +211,7 @@ async def fixture_rest_async(
 
     config_path = tmp_path / "karapace_config.json"
 
-    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers, "admin_metadata_max_age": 0})
+    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers, "admin_metadata_max_age": 2})
     write_config(config_path, config)
     rest = KafkaRest(config=config)
 
