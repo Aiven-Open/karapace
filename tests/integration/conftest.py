@@ -40,8 +40,9 @@ import tarfile
 import time
 import ujson
 
-REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent
-RUNTIME_DIR = (REPOSITORY_DIR / "runtime").absolute()
+REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
+RUNTIME_DIR = REPOSITORY_DIR / "runtime"
+TEST_INTEGRATION_DIR = REPOSITORY_DIR / "tests" / "integration"
 KAFKA_WAIT_TIMEOUT = 60
 KAFKA_SCALA_VERSION = "2.13"
 
@@ -654,7 +655,8 @@ def configure_and_start_kafka(
         for key, value in kafka_config.items():
             fp.write("{}={}\n".format(key, value))
 
-    log4j_properties_path = str(kafka_description.install_dir / "config" / "log4j.properties")
+    # stdout logger is disabled to keep the pytest report readable
+    log4j_properties_path = str(TEST_INTEGRATION_DIR / "config" / "log4j.properties")
 
     kafka_cmd = get_java_process_configuration(
         java_args=kafka_java_args(
