@@ -1,3 +1,4 @@
+from aiohttp.web_log import AccessLogger
 from avro.schema import SchemaParseException
 from contextlib import closing
 from enum import Enum, unique
@@ -12,7 +13,7 @@ from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
-from karapace.utils import json_encode, KarapaceKafkaClient
+from karapace.utils import DebugAccessLogger, json_encode, KarapaceKafkaClient
 from typing import Any, Dict, Optional, Tuple
 
 import argparse
@@ -104,19 +105,50 @@ class KarapaceSchemaRegistry(KarapaceBase):
             with_request=True,
             json_body=False,
         )
-        self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
+        self.route(
+            "/config/<subject:path>",
+            callback=self.config_subject_set,
+            method="PUT",
+            schema_request=True,
+        )
         self.route("/config", callback=self.config_get, method="GET", schema_request=True)
         self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
         self.route(
-            "/schemas/ids/<schema_id:path>/versions", callback=self.schemas_get_versions, method="GET", schema_request=True
+            "/schemas/ids/<schema_id:path>/versions",
+            callback=self.schemas_get_versions,
+            method="GET",
+            schema_request=True,
         )
-        self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
-        self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True)
-        self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
-        self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
-        self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
         self.route(
-            "/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET", schema_request=True
+            "/schemas/ids/<schema_id:path>",
+            callback=self.schemas_get,
+            method="GET",
+            schema_request=True,
+        )
+        self.route(
+            "/schemas/types",
+            callback=self.schemas_types,
+            method="GET",
+            schema_request=True,
+        )
+        self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
+        self.route(
+            "/subjects/<subject:path>/versions",
+            callback=self.subject_post,
+            method="POST",
+            schema_request=True,
+        )
+        self.route(
+            "/subjects/<subject:path>",
+            callback=self.subjects_schema_post,
+            method="POST",
+            schema_request=True,
+        )
+        self.route(
+            "/subjects/<subject:path>/versions",
+            callback=self.subject_versions_list,
+            method="GET",
+            schema_request=True,
         )
         self.route(
             "/subjects/<subject:path>/versions/<version>",
@@ -236,7 +268,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     time.monotonic() - start_time,
                 )
                 break
-            self.log.warning("Put the offset: %r back to queue, someone else is waiting for this?", offset)
+            self.log.warning(
+                "Put the offset: %r back to queue, someone else is waiting for this?",
+                offset,
+            )
             self.ksr.queue.put(offset)
 
     def send_kafka_message(self, key, value):
@@ -294,8 +329,17 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
         body = request.json
-        self.log.info("Got request to check subject: %r, version_id: %r compatibility", subject, version)
-        old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
+        self.log.info(
+            "Got request to check subject: %r, version_id: %r compatibility",
+            subject,
+            version,
+        )
+        old = await self.subject_version_get(
+            content_type=content_type,
+            subject=subject,
+            version=version,
+            return_dict=True,
+        )
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             schema_type = SchemaType(body.get("schemaType", "AVRO"))
@@ -333,7 +377,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
         )
         if is_incompatible(result):
             self.log.warning(
-                "Invalid schema %s found by compatibility check: old: %s new: %s", result, old_schema, new_schema
+                "Invalid schema %s found by compatibility check: old: %s new: %s",
+                result,
+                old_schema,
+                new_schema,
             )
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
@@ -502,8 +549,19 @@ class KarapaceSchemaRegistry(KarapaceBase):
         if permanent:
             for version, value in list(subject_data["schemas"].items()):
                 schema_id = value.get("id")
-                self.log.info("Permanently deleting subject '%s' version %s (schema id=%s)", subject, version, schema_id)
-                self.send_schema_message(subject=subject, schema=None, schema_id=schema_id, version=version, deleted=True)
+                self.log.info(
+                    "Permanently deleting subject '%s' version %s (schema id=%s)",
+                    subject,
+                    version,
+                    schema_id,
+                )
+                self.send_schema_message(
+                    subject=subject,
+                    schema=None,
+                    schema_id=schema_id,
+                    version=version,
+                    deleted=True,
+                )
         else:
             self.send_delete_subject_message(subject, latest_schema_id)
         self.r(version_list, content_type, status=HTTPStatus.OK)
@@ -606,7 +664,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
         schema_id = subject_schema_data["id"]
         schema = subject_schema_data["schema"]
         self.send_schema_message(
-            subject=subject, schema=None if permanent else schema, schema_id=schema_id, version=version, deleted=True
+            subject=subject,
+            schema=None if permanent else schema,
+            schema_id=schema_id,
+            version=version,
+            deleted=True,
         )
         self.r(str(version), content_type, status=HTTPStatus.OK)
 
@@ -683,7 +745,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     def _validate_schema_type(self, content_type, body) -> None:
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
-        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO, SchemaType.PROTOBUF}:
+        if schema_type not in {
+            SchemaType.JSONSCHEMA,
+            SchemaType.AVRO,
+            SchemaType.PROTOBUF,
+        }:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
@@ -897,7 +963,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def forward_request_remote(self, *, body, url, content_type, method="POST"):
         self.log.info("Writing new schema to remote url: %r since we're not the master", url)
         response = await self.http_request(url=url, method=method, json=body, timeout=60.0)
-        self.r(body=response.body, content_type=content_type, status=HTTPStatus(response.status))
+        self.r(
+            body=response.body,
+            content_type=content_type,
+            status=HTTPStatus(response.status),
+        )
 
     def no_master_error(self, content_type):
         self.r(
@@ -912,7 +982,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
-    parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
+    parser.add_argument(
+        "--version",
+        action="version",
+        help="show program version",
+        version=karapace_version.__version__,
+    )
     parser.add_argument("config_file", help="configuration file path", type=argparse.FileType())
     arg = parser.parse_args()
 
@@ -921,9 +996,14 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
     logging.getLogger().setLevel(config["log_level"])
+    if config.get("access_logs_debug"):
+        access_logger = DebugAccessLogger
+        logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
+    else:
+        access_logger = AccessLogger
     kc = KarapaceSchemaRegistry(config=config)
     try:
-        kc.run(host=kc.config["host"], port=kc.config["port"])
+        kc.run(host=kc.config["host"], port=kc.config["port"], access_logger=access_logger)
     except Exception:  # pylint: disable-broad-except
         if kc.raven_client:
             kc.raven_client.captureException(tags={"where": "karapace"})

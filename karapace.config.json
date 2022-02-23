@@ -1,4 +1,5 @@
 {
+    "access_logs_debug": false,
     "advertised_hostname": "localhost",
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",

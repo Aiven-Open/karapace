@@ -1,9 +1,11 @@
+from aiohttp.web_log import AccessLogger
 from contextlib import closing
 from karapace import version as karapace_version
 from karapace.config import create_server_ssl_context, DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.kafka_rest_apis import KafkaRest
 from karapace.rapu import RestApp
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
+from karapace.utils import DebugAccessLogger
 
 import argparse
 import logging
@@ -19,7 +21,12 @@ class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
-    parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
+    parser.add_argument(
+        "--version",
+        action="version",
+        help="show program version",
+        version=karapace_version.__version__,
+    )
     parser.add_argument("config_file", help="configuration file path", type=argparse.FileType())
     arg = parser.parse_args()
 
@@ -28,6 +35,11 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
     logging.getLogger().setLevel(config["log_level"])
+    if config.get("access_logs_debug"):
+        access_logger = DebugAccessLogger
+        logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
+    else:
+        access_logger = AccessLogger
 
     kc: RestApp
     if config["karapace_rest"] and config["karapace_registry"]:
@@ -46,10 +58,21 @@ def main() -> int:
     ssl_context = create_server_ssl_context(config)
 
     info_str_separator = "=" * 100
-    logging.log(logging.INFO, "\n%s\nStarting %s\n%s", info_str_separator, info_str, info_str_separator)
+    logging.log(
+        logging.INFO,
+        "\n%s\nStarting %s\n%s",
+        info_str_separator,
+        info_str,
+        info_str_separator,
+    )
 
     try:
-        kc.run(host=kc.config["host"], port=kc.config["port"], ssl_context=ssl_context)
+        kc.run(
+            host=kc.config["host"],
+            port=kc.config["port"],
+            ssl_context=ssl_context,
+            access_logger=access_logger,
+        )
     except Exception:  # pylint: disable-broad-except
         if kc.raven_client:
             kc.raven_client.captureException(tags={"where": "karapace"})

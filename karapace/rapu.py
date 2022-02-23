@@ -7,11 +7,12 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from accept_types import get_best_match
+from aiohttp.abc import AbstractAccessLogger
 from http import HTTPStatus
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Dict, NoReturn, Optional, overload, Union
+from typing import Dict, NoReturn, Optional, overload, Type, Union
 
 import aiohttp
 import aiohttp.web
@@ -107,7 +108,12 @@ class HTTPRequest:
         return self._header_cache[upper_cased]
 
     def __repr__(self):
-        return "HTTPRequest(url=%s query=%s method=%s json=%r)" % (self.url, self.query, self.method, self.json)
+        return "HTTPRequest(url=%s query=%s method=%s json=%r)" % (
+            self.url,
+            self.query,
+            self.method,
+            self.json,
+        )
 
 
 class HTTPResponse(Exception):
@@ -295,7 +301,8 @@ class RestApp:
                     )
                 except UnicodeDecodeError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
-                        body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST
+                        body=f"Request body is not valid {charset}",
+                        status=HTTPStatus.BAD_REQUEST,
                     )
                 except LookupError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
@@ -303,7 +310,10 @@ class RestApp:
                     )
             else:
                 if body not in {b"", b"{}"}:
-                    raise HTTPResponse(body="No request body allowed for this operation", status=HTTPStatus.BAD_REQUEST)
+                    raise HTTPResponse(
+                        body="No request body allowed for this operation",
+                        status=HTTPStatus.BAD_REQUEST,
+                    )
 
             callback_kwargs = dict(request.match_info)
             if callback_with_request:
@@ -333,7 +343,10 @@ class RestApp:
                 headers = ex.headers
             except:  # pylint: disable=bare-except
                 self.log.exception("Internal server error")
-                data = {"error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value, "message": "Internal server error"}
+                data = {
+                    "error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                    "message": "Internal server error",
+                }
                 status = HTTPStatus.INTERNAL_SERVER_ERROR
                 headers = {}
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
@@ -385,8 +398,15 @@ class RestApp:
             raise
         except Exception as ex:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=ex, where="rapu_wrapped_callback")
-            self.log.exception("Unexpected error handling user request: %s %s", request.method, request.url)
-            resp = aiohttp.web.Response(text="Internal Server Error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)
+            self.log.exception(
+                "Unexpected error handling user request: %s %s",
+                request.method,
+                request.url,
+            )
+            resp = aiohttp.web.Response(
+                text="Internal Server Error",
+                status=HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            )
         finally:
             self.stats.timing(
                 self.app_request_metric,
@@ -401,7 +421,17 @@ class RestApp:
 
         return resp
 
-    def route(self, path, *, callback, method, schema_request=False, with_request=None, json_body=None, rest_request=False):
+    def route(
+        self,
+        path,
+        *,
+        callback,
+        method,
+        schema_request=False,
+        with_request=None,
+        json_body=None,
+        rest_request=False,
+    ):
         # pretty path for statsd reporting
         path_for_stats = re.sub(r"<[\w:]+>", "x", path)
 
@@ -493,12 +523,20 @@ class RestApp:
 
         return result
 
-    def run(self, *, host: str, port: int, ssl_context: Optional[ssl.SSLContext] = None) -> None:
+    def run(
+        self,
+        *,
+        host: str,
+        port: int,
+        ssl_context: Optional[ssl.SSLContext] = None,
+        access_logger: Type[AbstractAccessLogger],
+    ) -> None:
         aiohttp.web.run_app(
             app=self.app,
             host=host,
             port=port,
             ssl_context=ssl_context,
+            access_log_class=access_logger,
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )
 

@@ -4,6 +4,9 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp.web_log import AccessLogger
+from aiohttp.web_request import BaseRequest
+from aiohttp.web_response import StreamResponse
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
@@ -81,7 +84,10 @@ class Result:
         return self.json_result
 
     def __repr__(self):
-        return "Result(status=%d, json_result=%r)" % (self.status_code, self.json_result)
+        return "Result(status=%d, json_result=%r)" % (
+            self.status_code,
+            self.json_result,
+        )
 
     @property
     def ok(self):
@@ -93,7 +99,12 @@ async def get_aiohttp_client() -> aiohttp.ClientSession:
 
 
 class Client:
-    def __init__(self, server_uri=None, client_factory=get_aiohttp_client, server_ca: Optional[str] = None):
+    def __init__(
+        self,
+        server_uri=None,
+        client_factory=get_aiohttp_client,
+        server_ca: Optional[str] = None,
+    ):
         self.server_uri = server_uri or ""
         self.path_for = partial(urljoin, self.server_uri)
         self.session = requests.Session()
@@ -246,7 +257,8 @@ class KarapaceKafkaClient(KafkaClient):
             for conn in conns:
                 if conn and conn.ns_blackout():
                     log.info(
-                        "Node id %s no longer in cluster metadata, closing connection and requesting update", conn.node_id
+                        "Node id %s no longer in cluster metadata, closing connection and requesting update",
+                        conn.node_id,
                     )
                     self.close(conn.node_id)
                     update_needed = True
@@ -332,3 +344,33 @@ class KarapaceBrokerConnection(BrokerConnection):
 
     def blacked_out(self):
         return self.ns_blackout() or super().blacked_out()
+
+
+class DebugAccessLogger(AccessLogger):
+    """Logs access logs as DEBUG instead of INFO."""
+
+    def log(
+        self,
+        request: BaseRequest,
+        response: StreamResponse,
+        time: float,  # pylint: disable=redefined-outer-name
+    ) -> None:
+        try:
+            fmt_info = self._format_line(request, response, time)
+
+            values = list()
+            extra = dict()
+            for key, value in fmt_info:
+                values.append(value)
+
+                if key.__class__ is str:
+                    extra[key] = value
+                else:
+                    k1, k2 = key
+                    dct = extra.get(k1, {})
+                    dct[k2] = value
+                    extra[k1] = dct
+
+            self.logger.debug(self._log_format % tuple(values), extra=extra)
+        except Exception:  # pylint: disable=broad-except
+            self.logger.exception("Error in logging")
