@@ -6,7 +6,6 @@ See LICENSE for details
 """
 from avro.schema import Schema as AvroSchema, SchemaParseException
 from enum import Enum, unique
-from json import JSONDecodeError
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
 from kafka import KafkaConsumer
@@ -29,9 +28,9 @@ from queue import Queue
 from threading import Lock, Thread
 from typing import Dict, Optional
 
-import json
 import logging
 import time
+import ujson
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
     """
-    schema = json.loads(schema_definition)
+    schema = ujson.loads(schema_definition)
     Draft7Validator.check_schema(schema)
     return Draft7Validator(schema)
 
@@ -80,7 +79,7 @@ class TypedSchema:
         try:
             return TypedSchema(parse_jsonschema_definition(schema_str), SchemaType.JSONSCHEMA, schema_str)
         # TypeError - Raised when the user forgets to encode the schema as a string.
-        except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
+        except (TypeError, ValueError, SchemaError, AssertionError) as e:
             raise InvalidSchema from e
 
     @staticmethod
@@ -88,7 +87,7 @@ class TypedSchema:
         try:
             ts = TypedSchema(parse_avro_schema_definition(schema_str), SchemaType.AVRO, schema_str)
             return ts
-        except (SchemaParseException, JSONDecodeError, TypeError) as e:
+        except (SchemaParseException, ValueError, TypeError) as e:
             raise InvalidSchema from e
 
     @staticmethod
@@ -297,16 +296,16 @@ class KafkaSchemaReader(Thread):
         for _, msgs in raw_msgs.items():
             for msg in msgs:
                 try:
-                    key = json.loads(msg.key.decode("utf8"))
-                except json.JSONDecodeError:
+                    key = ujson.loads(msg.key.decode("utf8"))
+                except ValueError:
                     self.log.exception("Invalid JSON in msg.key: %r, value: %r", msg.key, msg.value)
                     continue
 
                 value = None
                 if msg.value:
                     try:
-                        value = json.loads(msg.value.decode("utf8"))
-                    except json.JSONDecodeError:
+                        value = ujson.loads(msg.value.decode("utf8"))
+                    except ValueError:
                         self.log.exception("Invalid JSON in msg.value: %r, key: %r", msg.value, msg.key)
                         continue
 
@@ -352,11 +351,11 @@ class KafkaSchemaReader(Thread):
                 typed_schema = TypedSchema.parse(schema_type=SchemaType(schema_type), schema_str=schema_str)
             except InvalidSchema:
                 try:
-                    schema_json = json.loads(schema_str)
+                    schema_json = ujson.loads(schema_str)
                     typed_schema = TypedSchema(
                         schema_type=SchemaType(schema_type), schema=schema_json, schema_str=schema_str
                     )
-                except JSONDecodeError:
+                except ValueError:
                     self.log.error("Invalid json: %s", value["schema"])
                     return
             self.log.debug("Got typed schema %r", typed_schema)

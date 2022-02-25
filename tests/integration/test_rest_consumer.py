@@ -1,3 +1,4 @@
+from karapace.utils import deepcopy
 from tests.utils import (
     consumer_valid_payload,
     new_consumer,
@@ -10,9 +11,9 @@ from tests.utils import (
 
 import base64
 import copy
-import json
 import pytest
 import random
+import ujson
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -238,13 +239,13 @@ async def test_offsets(rest_async_client, admin_client, trail):
 async def test_consume(rest_async_client, admin_client, producer, trail):
     # avro to be handled in a separate testcase ??
     values = {
-        "json": [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
+        "json": [ujson.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
         "binary": [f"val{i}".encode("utf-8") for i in range(3)],
     }
-    deserializers = {"binary": base64.b64decode, "json": lambda x: json.dumps(x).encode("utf-8")}
+    deserializers = {"binary": base64.b64decode, "json": lambda x: ujson.dumps(x).encode("utf-8")}
     group_name = "consume_group"
     for fmt in ["binary", "json"]:
-        header = copy.deepcopy(REST_HEADERS[fmt])
+        header = deepcopy(REST_HEADERS[fmt])
         instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
         assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
         seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning{trail}"

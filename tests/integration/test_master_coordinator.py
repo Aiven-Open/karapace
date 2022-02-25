@@ -10,10 +10,10 @@ from karapace.master_coordinator import MasterCoordinator
 from tests.utils import get_random_port, KafkaServers, new_random_name, TESTS_PORT_RANGE
 
 import asyncio
-import json
 import pytest
 import requests
 import time
+import ujson
 
 
 class Timeout(Exception):
@@ -158,7 +158,7 @@ async def test_schema_request_forwarding(registry_async_pair):
 
     # New schema updates, last compatibility is None
     for s in [schema, other_schema]:
-        resp = requests.post(f"{slave_url}/subjects/{subject}/versions", json={"schema": json.dumps(s)})
+        resp = requests.post(f"{slave_url}/subjects/{subject}/versions", json={"schema": ujson.dumps(s)})
     assert resp.ok
     data = resp.json()
     assert "id" in data, data

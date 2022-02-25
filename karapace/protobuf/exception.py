@@ -1,4 +1,4 @@
-import json
+import ujson
 
 
 class ProtobufParserRuntimeException(Exception):
@@ -30,7 +30,7 @@ class SchemaParseException(ProtobufException):
 
 
 def pretty_print_json(obj: str) -> str:
-    return json.dumps(json.loads(obj), indent=2)
+    return ujson.dumps(ujson.loads(obj), indent=2)
 
 
 class ProtobufSchemaResolutionException(ProtobufException):
