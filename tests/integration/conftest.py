@@ -28,12 +28,12 @@ from tests.utils import (
 )
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
-import json
 import os
 import pytest
 import signal
 import socket
 import time
+import ujson
 
 # Keep these in sync with the Makefile
 KAFKA_CURRENT_VERSION = "2.7"
@@ -153,7 +153,7 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
         # there is an issue with pylint here, see https:/github.com/tox-dev/py-filelock/issues/102
         with FileLock(str(lock_path_for(transfer_file))):  # pylint: disable=abstract-class-instantiated
             if transfer_file.exists():
-                config_data = json.loads(transfer_file.read_text())
+                config_data = ujson.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
             else:
@@ -170,7 +170,7 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
                     "zookeeper": asdict(zk_config),
                     "kafka": asdict(kafka_config),
                 }
-                transfer_file.write_text(json.dumps(config_data))
+                transfer_file.write_text(ujson.dumps(config_data))
 
         # Make sure every test worker can communicate with kafka
         kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.kafka_port}"])

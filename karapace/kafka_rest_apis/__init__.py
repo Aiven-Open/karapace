@@ -12,15 +12,14 @@ from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
-from karapace.utils import convert_to_int, KarapaceKafkaClient
+from karapace.utils import convert_to_int, deepcopy, KarapaceKafkaClient
 from typing import List, Optional, Tuple
 
 import asyncio
 import base64
-import copy
-import json
 import logging
 import time
+import ujson
 
 RECORD_KEYS = ["key", "value", "partition"]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
@@ -286,7 +285,7 @@ class KafkaRest(KarapaceBase):
                 self._cluster_metadata = None
 
             if self._cluster_metadata and topics is None:
-                return copy.deepcopy(self._cluster_metadata)
+                return deepcopy(self._cluster_metadata)
 
             try:
                 metadata_birth = time.monotonic()
@@ -305,7 +304,7 @@ class KafkaRest(KarapaceBase):
                     content_type="application/json",
                     status=HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
-            return copy.deepcopy(metadata)
+            return deepcopy(metadata)
 
     def init_admin_client(self):
         while True:
@@ -535,7 +534,7 @@ class KafkaRest(KarapaceBase):
         # not pretty
         if ser_format == "json":
             # TODO -> get encoding from headers
-            return json.dumps(obj).encode("utf8")
+            return ujson.dumps(obj).encode("utf8")
         if ser_format == "binary":
             return base64.b64decode(obj)
         if ser_format in {"avro", "jsonschema", "protobuf"}:

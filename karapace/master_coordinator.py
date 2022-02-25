@@ -13,9 +13,9 @@ from karapace.utils import KarapaceKafkaClient
 from threading import Event, Thread
 from typing import Optional, Tuple
 
-import json
 import logging
 import time
+import ujson
 
 # SR group errors
 NO_ERROR = 0
@@ -45,7 +45,7 @@ class SchemaCoordinator(BaseCoordinator):
     def get_identity(self, *, host, port, scheme, json_encode=True):
         res = {"version": 1, "host": host, "port": port, "scheme": scheme, "master_eligibility": self.master_eligibility}
         if json_encode:
-            return json.dumps(res)
+            return ujson.dumps(res)
         return res
 
     def group_protocols(self):
@@ -58,7 +58,7 @@ class SchemaCoordinator(BaseCoordinator):
         urls = {}
         fallback_urls = {}
         for member_id, member_data in members:
-            member_identity = json.loads(member_data.decode("utf8"))
+            member_identity = ujson.loads(member_data.decode("utf8"))
             if member_identity["master_eligibility"] is True:
                 urls[get_identity_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
                     member_id,
@@ -75,7 +75,7 @@ class SchemaCoordinator(BaseCoordinator):
             # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
             chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
             schema_master_id, member_data = fallback_urls[chosen_url]
-        member_identity = json.loads(member_data.decode("utf8"))
+        member_identity = ujson.loads(member_data.decode("utf8"))
         identity = self.get_identity(
             host=member_identity["host"],
             port=member_identity["port"],
@@ -86,7 +86,7 @@ class SchemaCoordinator(BaseCoordinator):
 
         assignments = {}
         for member_id, member_data in members:
-            assignments[member_id] = json.dumps({"master": schema_master_id, "master_identity": identity, "error": error})
+            assignments[member_id] = ujson.dumps({"master": schema_master_id, "master_identity": identity, "error": error})
         return assignments
 
     def _on_join_prepare(self, generation, member_id):
@@ -101,7 +101,7 @@ class SchemaCoordinator(BaseCoordinator):
             protocol,
             member_assignment_bytes,
         )
-        member_assignment = json.loads(member_assignment_bytes.decode("utf8"))
+        member_assignment = ujson.loads(member_assignment_bytes.decode("utf8"))
         member_identity = member_assignment["master_identity"]
 
         master_url = get_identity_url(

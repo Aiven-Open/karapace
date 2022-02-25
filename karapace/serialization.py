@@ -1,6 +1,5 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from google.protobuf.message import DecodeError
-from json import load
 from jsonschema import ValidationError
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
@@ -14,6 +13,7 @@ import avro
 import io
 import logging
 import struct
+import ujson
 
 log = logging.getLogger(__name__)
 
@@ -188,7 +188,7 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
         reader = DatumReader(schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
-        value = load(bio)
+        value = ujson.load(bio)
         try:
             schema.schema.validate(value)
         except ValidationError as e:

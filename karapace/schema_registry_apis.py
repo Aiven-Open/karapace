@@ -2,7 +2,6 @@ from avro.schema import SchemaParseException
 from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
-from json import JSONDecodeError
 from kafka import KafkaProducer
 from karapace import version as karapace_version
 from karapace.avro_compatibility import is_incompatible
@@ -779,7 +778,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             new_schema = TypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
         except (InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
-            if isinstance(e.__cause__, (SchemaParseException, JSONDecodeError)):
+            if isinstance(e.__cause__, (SchemaParseException, ValueError)):
                 human_error = f"{e.__cause__.args[0]}"  # pylint: disable=no-member
             else:
                 human_error = "Provided schema is not valid"
