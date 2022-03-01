@@ -635,6 +635,7 @@ def configure_and_start_kafka(
         "log.message.format.version": kafka_description.protocol_version,
         "log.retention.check.interval.ms": 300000,
         "log.segment.bytes": 200 * 1024 * 1024,  # 200 MiB
+        "log.preallocate": False,
         "num.io.threads": 8,
         "num.network.threads": 112,
         "num.partitions": 1,
