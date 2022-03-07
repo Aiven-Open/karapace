@@ -1,6 +1,6 @@
 from contextlib import closing
 from karapace import version as karapace_version
-from karapace.config import DEFAULT_LOG_FORMAT_JOURNAL, read_config
+from karapace.config import Config, DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.kafka_rest_apis import KafkaRest
 from karapace.rapu import RestApp
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
@@ -12,7 +12,7 @@ import sys
 
 class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
     # pylint: disable=super-init-not-called
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__(config=config)
         self.log = logging.getLogger("KarapaceAll")
 
