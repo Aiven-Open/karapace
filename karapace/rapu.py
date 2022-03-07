@@ -8,6 +8,7 @@ See LICENSE for details
 """
 from accept_types import get_best_match
 from http import HTTPStatus
+from karapace.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
@@ -161,8 +162,9 @@ def http_error(message, content_type: str, code: HTTPStatus) -> NoReturn:
 
 
 class RestApp:
-    def __init__(self, *, app_name, sentry_config):
+    def __init__(self, *, app_name: str, config: Config) -> None:
         self.app_name = app_name
+        self.config = config
         self.app_request_metric = "{}_request".format(app_name)
         self.app = aiohttp.web.Application()
         self.app.on_startup.append(self.create_http_client)
@@ -170,7 +172,7 @@ class RestApp:
         self.http_client_v = None
         self.http_client_no_v = None
         self.log = logging.getLogger(self.app_name)
-        self.stats = StatsClient(sentry_config=sentry_config)
+        self.stats = StatsClient(sentry_config=config["sentry"])
         self.raven_client = self.stats.raven_client
         self.app.on_cleanup.append(self.cleanup_stats_client)
 
@@ -493,11 +495,13 @@ class RestApp:
 
         return result
 
-    def run(self, *, host: str, port: int, ssl_context: Optional[ssl.SSLContext] = None) -> None:
+    def run(self) -> None:
+        ssl_context = create_server_ssl_context(self.config)
+
         aiohttp.web.run_app(
             app=self.app,
-            host=host,
-            port=port,
+            host=self.config["host"],
+            port=self.config["port"],
             ssl_context=ssl_context,
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )
