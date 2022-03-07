@@ -243,6 +243,12 @@ def get_random_port(*, port_range: PortRangeInclusive, blacklist: List[int]) -> 
         system service in the range. Also note that running two sessions of the
         tests with the same range is not supported and will lead to flakiness.
     """
+    assert port_range.start <= port_range.end, f"{port_range.start} must be less-than-or-equal to {port_range.end}"
+
+    # +1 because randint is inclusive for both ends
+    ports_in_range = (port_range.end - port_range.start) + 1
+    assert len(blacklist) < ports_in_range, f"no free ports available. Range {port_range}, blacklist: {blacklist}"
+
     value = random.randint(port_range.start, port_range.end)
     while value in blacklist:
         value = random.randint(port_range.start, port_range.end)
