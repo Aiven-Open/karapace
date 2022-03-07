@@ -16,8 +16,7 @@ import logging
 
 class KarapaceBase(RestApp):
     def __init__(self, config: dict) -> None:
-        sentry_config = config.get("sentry", {"dsn": None}).copy()
-        super().__init__(app_name="karapace", sentry_config=sentry_config)
+        super().__init__(app_name="karapace", config=config)
 
         self.kafka_timeout = 10
         self.config = config
