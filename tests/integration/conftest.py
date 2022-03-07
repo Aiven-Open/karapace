@@ -4,6 +4,9 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from _pytest.fixtures import SubRequest
+from aiohttp.pytest_plugin import AiohttpClient
+from aiohttp.test_utils import TestClient
 from contextlib import closing, ExitStack
 from dataclasses import asdict, dataclass
 from filelock import FileLock
@@ -28,6 +31,7 @@ from tests.utils import (
 )
 from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
+import asyncio
 import logging
 import os
 import pathlib
@@ -89,7 +93,10 @@ def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
         return False
 
 
-def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
+def wait_for_kafka(
+    kafka_servers: KafkaServers,
+    wait_time: float,
+) -> None:
     for server in kafka_servers.bootstrap_servers:
         expiration = Expiration.from_timeout(timeout=wait_time)
 
@@ -156,7 +163,7 @@ def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
 
 
 @pytest.fixture(scope="session", name="kafka_description")
-def fixture_kafka_description(request) -> KafkaDescription:
+def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
     kafka_version = request.config.getoption("kafka_version")
     kafka_folder = f"kafka_{KAFKA_SCALA_VERSION}-{kafka_version}"
     kafka_tgz = f"{kafka_folder}.tgz"
@@ -173,7 +180,7 @@ def fixture_kafka_description(request) -> KafkaDescription:
 
 @pytest.fixture(scope="session", name="kafka_servers")
 def fixture_kafka_server(
-    request,
+    request: SubRequest,
     session_datadir: Path,
     session_logdir: Path,
     kafka_description: KafkaDescription,
@@ -246,8 +253,8 @@ def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]
 
 @pytest.fixture(scope="function", name="rest_async")
 async def fixture_rest_async(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
@@ -280,10 +287,10 @@ async def fixture_rest_async(
 
 @pytest.fixture(scope="function", name="rest_async_client")
 async def fixture_rest_async_client(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     rest_async: KafkaRest,
-    aiohttp_client,
+    aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
     rest_url = request.config.getoption("rest_url")
 
@@ -292,7 +299,7 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client():
+        async def get_client() -> TestClient:
             return await aiohttp_client(rest_async.app)
 
         client = Client(client_factory=get_client)
@@ -314,7 +321,10 @@ async def fixture_rest_async_client(
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
-def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
+def fixture_registry_async_pair(
+    tmp_path: Path,
+    kafka_servers: KafkaServers,
+) -> Iterator[Tuple[str, str]]:
     master_config_path = tmp_path / "karapace_config_master.json"
     slave_config_path = tmp_path / "karapace_config_slave.json"
     master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
@@ -362,8 +372,8 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
 
 @pytest.fixture(scope="function", name="registry_async")
 async def fixture_registry_async(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[Optional[KarapaceSchemaRegistry]]:
@@ -400,10 +410,10 @@ async def fixture_registry_async(
 
 @pytest.fixture(scope="function", name="registry_async_client")
 async def fixture_registry_async_client(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     registry_async: KarapaceSchemaRegistry,
-    aiohttp_client,
+    aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
 
     registry_url = request.config.getoption("registry_url")
@@ -413,7 +423,7 @@ async def fixture_registry_async_client(
         client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
     else:
 
-        async def get_client():
+        async def get_client() -> TestClient:
             return await aiohttp_client(registry_async.app)
 
         client = Client(client_factory=get_client)
@@ -435,31 +445,31 @@ async def fixture_registry_async_client(
 
 
 @pytest.fixture(scope="function", name="credentials_folder")
-def fixture_credentials_folder():
+def fixture_credentials_folder() -> str:
     integration_test_folder = os.path.dirname(__file__)
     credentials_folder = os.path.join(integration_test_folder, "credentials")
     return credentials_folder
 
 
 @pytest.fixture(scope="function", name="server_ca")
-def fixture_server_ca(credentials_folder):
+def fixture_server_ca(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "cacert.pem")
 
 
 @pytest.fixture(scope="function", name="server_cert")
-def fixture_server_cert(credentials_folder):
+def fixture_server_cert(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "servercert.pem")
 
 
 @pytest.fixture(scope="function", name="server_key")
-def fixture_server_key(credentials_folder):
+def fixture_server_key(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "serverkey.pem")
 
 
 @pytest.fixture(scope="function", name="registry_async_tls")
 async def fixture_registry_async_tls(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
     server_cert: str,
@@ -501,10 +511,10 @@ async def fixture_registry_async_tls(
 
 @pytest.fixture(scope="function", name="registry_async_client_tls")
 async def fixture_registry_async_client_tls(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     registry_async_tls: KarapaceSchemaRegistry,
-    aiohttp_client,
+    aiohttp_client: AiohttpClient,
     server_ca: str,
 ) -> AsyncIterator[Client]:
 
@@ -514,7 +524,7 @@ async def fixture_registry_async_client_tls(
         client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
     else:
 
-        async def get_client():
+        async def get_client() -> TestClient:
             return await aiohttp_client(registry_async_tls.app)
 
         client = Client(client_factory=get_client, server_ca=server_ca)
@@ -547,7 +557,13 @@ def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[st
     return java_args
 
 
-def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path, kafka_description: KafkaDescription):
+def kafka_java_args(
+    heap_mb: int,
+    kafka_config_path: str,
+    logs_dir: str,
+    log4j_properties_path: str,
+    kafka_description: KafkaDescription,
+) -> List[str]:
     msg = f"Couldn't find kafka installation at {kafka_description.install_dir} to run integration tests."
     assert kafka_description.install_dir.exists(), msg
     java_args = [
