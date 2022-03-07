@@ -4,6 +4,7 @@ from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
+from karapace.config import Config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
@@ -50,7 +51,7 @@ class InvalidSchemaType(Exception):
 
 
 class KarapaceSchemaRegistry(KarapaceBase):
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__(config=config)
         self._add_schema_registry_routes()
         self.producer = self._create_producer()
