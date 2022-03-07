@@ -95,15 +95,15 @@ def set_config_defaults(config: Config) -> Config:
             env_name = k.upper()
         else:
             env_name = f"karapace_{k}".upper()
-        if env_name in os.environ:
-            val = os.environ[env_name]
+        env_val = os.environ.get(env_name)
+        if env_val is not None:
             LOG.debug(
                 "Populating config value %r from env var %r with %r instead of config file",
                 k,
                 env_name,
-                val,
+                env_val,
             )
-            config[k] = parse_env_value(os.environ[env_name])
+            config[k] = parse_env_value(env_val)
         config.setdefault(k, v)
 
     master_election_strategy = config["master_election_strategy"]
