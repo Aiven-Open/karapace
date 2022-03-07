@@ -1,12 +1,9 @@
 from avro.errors import SchemaParseException
-from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
 from kafka import KafkaProducer
-from karapace import version as karapace_version
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
-from karapace.config import DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
@@ -14,10 +11,7 @@ from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType,
 from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Any, Dict, Optional, Tuple
 
-import argparse
 import asyncio
-import logging
-import sys
 import time
 
 
@@ -907,29 +901,3 @@ class KarapaceSchemaRegistry(KarapaceBase):
             content_type=content_type,
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
-    parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
-    parser.add_argument("config_file", help="configuration file path", type=argparse.FileType())
-    arg = parser.parse_args()
-
-    with closing(arg.config_file):
-        config = read_config(arg.config_file)
-
-    logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
-    logging.getLogger().setLevel(config["log_level"])
-    kc = KarapaceSchemaRegistry(config=config)
-    try:
-        kc.run(host=kc.config["host"], port=kc.config["port"])
-    except Exception:  # pylint: disable-broad-except
-        if kc.raven_client:
-            kc.raven_client.captureException(tags={"where": "karapace"})
-        raise
-
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
