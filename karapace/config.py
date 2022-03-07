@@ -90,22 +90,31 @@ def parse_env_value(value: str) -> Union[str, int, bool]:
 
 
 def set_config_defaults(config: Config) -> Config:
-    for k, v in DEFAULTS.items():
-        if k.startswith("karapace"):
-            env_name = k.upper()
-        else:
-            env_name = f"karapace_{k}".upper()
+    new_config = DEFAULTS.copy()
+    new_config.update(config)
+
+    set_settings_from_environment(new_config)
+    validate_config(new_config)
+    return new_config
+
+
+def set_settings_from_environment(config: Config) -> None:
+    """The environment variables have precedence and overwrite the configuration settings."""
+    for config_name in DEFAULTS:
+        config_name_with_prefix = config_name if config_name.startswith("karapace") else f"karapace_{config_name}"
+        env_name = config_name_with_prefix.upper()
         env_val = os.environ.get(env_name)
         if env_val is not None:
             LOG.debug(
                 "Populating config value %r from env var %r with %r instead of config file",
-                k,
+                config_name,
                 env_name,
                 env_val,
             )
-            config[k] = parse_env_value(env_val)
-        config.setdefault(k, v)
+            config[config_name] = parse_env_value(env_val)
 
+
+def validate_config(config: Config) -> None:
     master_election_strategy = config["master_election_strategy"]
     try:
         ElectionStrategy(master_election_strategy.lower())
@@ -114,8 +123,6 @@ def set_config_defaults(config: Config) -> Config:
         raise InvalidConfiguration(
             f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
         ) from None
-
-    return config
 
 
 def write_config(config_path: Path, custom_values: Config) -> None:
