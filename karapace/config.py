@@ -94,6 +94,7 @@ def set_config_defaults(config: Config) -> Config:
     new_config.update(config)
 
     set_settings_from_environment(new_config)
+    set_sentry_dsn_from_environment(new_config)
     validate_config(new_config)
     return new_config
 
@@ -112,6 +113,19 @@ def set_settings_from_environment(config: Config) -> None:
                 env_val,
             )
             config[config_name] = parse_env_value(env_val)
+
+
+def set_sentry_dsn_from_environment(config: Config) -> None:
+    sentry_config = config.setdefault("sentry", {"dsn": None})
+
+    # environment variable has precedence
+    sentry_dsn = os.environ.get("SENTRY_DSN")
+    if sentry_dsn is not None:
+        sentry_config["dsn"] = sentry_dsn
+
+    # Tag app should always be karapace
+    sentry_config.setdefault("tags", {})
+    sentry_config["tags"]["app"] = "Karapace"
 
 
 def validate_config(config: Config) -> None:

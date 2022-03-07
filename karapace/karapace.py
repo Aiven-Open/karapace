@@ -12,7 +12,6 @@ from typing import NoReturn, Union
 
 import asyncio
 import logging
-import os
 
 
 class KarapaceBase(RestApp):
@@ -22,12 +21,6 @@ class KarapaceBase(RestApp):
 
         self.kafka_timeout = 10
         self.config = config
-        self._sentry_config = sentry_config
-        if os.environ.get("SENTRY_DSN"):
-            self._sentry_config["dsn"] = os.environ["SENTRY_DSN"]
-        if "tags" not in self._sentry_config:
-            self._sentry_config["tags"] = {}
-        self._sentry_config["tags"]["app"] = "Karapace"
 
         self.route("/", callback=self.root_get, method="GET")
         self.log = logging.getLogger("Karapace")
