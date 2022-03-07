@@ -126,7 +126,7 @@ def wait_for_kafka(
                 list_topics_successful = True
 
 
-def wait_for_port(
+def wait_for_port_subprocess(
     port: int,
     process: Popen,
     *,
@@ -220,7 +220,7 @@ def fixture_kafka_server(
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
-                wait_for_port(zk_config.client_port, zk_proc, wait_time=20)
+                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
 
                 kafka_config, kafka_proc = configure_and_start_kafka(
                     session_datadir,
@@ -364,8 +364,8 @@ def fixture_registry_async_pair(
         try:
             master_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)]))
             slave_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)]))
-            wait_for_port(master_port, master_process)
-            wait_for_port(slave_port, slave_process)
+            wait_for_port_subprocess(master_port, master_process)
+            wait_for_port_subprocess(slave_port, slave_process)
             yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
         finally:
             if master_process:
