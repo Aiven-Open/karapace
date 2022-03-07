@@ -8,12 +8,14 @@ from enum import Enum, unique
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
 
+import logging
 import os
 import socket
 import ssl
 import ujson
 
 Config = Dict[str, Union[None, str, int, bool, List[str]]]
+LOG = logging.getLogger(__name__)
 
 HOSTNAME = socket.gethostname()  # pylint bug (#4302) pylint: disable=no-member
 
@@ -95,7 +97,12 @@ def set_config_defaults(config: Config) -> Config:
             env_name = f"karapace_{k}".upper()
         if env_name in os.environ:
             val = os.environ[env_name]
-            print(f"Populating config value {k} from env var {env_name} with {val} instead of config file")
+            LOG.debug(
+                "Populating config value %r from env var %r with %r instead of config file",
+                k,
+                env_name,
+                val,
+            )
             config[k] = parse_env_value(os.environ[env_name])
         config.setdefault(k, v)
 
