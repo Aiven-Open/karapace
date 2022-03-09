@@ -238,7 +238,7 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
-def read_value(schema: TypedSchema, bio: io.BytesIO):
+def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(schema.schema)
         return reader.read(BinaryDecoder(bio))
@@ -252,7 +252,7 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
 
     if schema.schema_type is SchemaType.PROTOBUF:
         try:
-            reader = ProtobufDatumReader(schema.schema)
+            reader = ProtobufDatumReader(config, schema.schema)
             return reader.read(bio)
         except DecodeError as e:
             raise InvalidPayload from e
@@ -260,7 +260,7 @@ def read_value(schema: TypedSchema, bio: io.BytesIO):
     raise ValueError("Unknown schema type")
 
 
-def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
+def write_value(config: dict, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
 
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
@@ -280,7 +280,7 @@ def write_value(schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
 
     elif schema.schema_type is SchemaType.PROTOBUF:
         # TODO: PROTOBUF* we need use protobuf validator there
-        writer = ProtobufDatumWriter(schema.schema)
+        writer = ProtobufDatumWriter(config, schema.schema)
         writer.write_index(bio)
         writer.write(value, bio)
 
@@ -294,7 +294,7 @@ class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer):
         with io.BytesIO() as bio:
             bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
             try:
-                write_value(schema, bio, value)
+                write_value(self.config, schema, bio, value)
                 return bio.getvalue()
             except ProtobufTypeException as e:
                 raise InvalidMessageSchema("Object does not fit to stored schema") from e
@@ -314,7 +314,7 @@ class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer):
                 schema = await self.get_schema_for_id(schema_id)
                 if schema is None:
                     raise InvalidPayload("No schema with ID from payload")
-                ret_val = read_value(schema, bio)
+                ret_val = read_value(self.config, schema, bio)
                 return ret_val
             except AssertionError as e:
                 raise InvalidPayload("Data does not contain a valid message") from e

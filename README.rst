@@ -414,6 +414,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - If the registry part of the app should be included in the starting process
        At least one of this and ``karapace_rest`` options need to be enabled in order
        for the service to start
+   * - ``protobuf_runtime_directory``
+     - ``runtime``
+     - Runtime directory for the ``protoc`` protobuf schema parser and code generator
    * - ``name_strategy``
      - ``subject_name``
      - Name strategy to use when storing schemas from the kafka rest proxy service
