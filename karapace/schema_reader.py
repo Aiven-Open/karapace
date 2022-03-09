@@ -144,7 +144,7 @@ class TypedSchema:
 
 class KafkaSchemaReader(Thread):
     def __init__(self, config, master_coordinator=None):
-        Thread.__init__(self)
+        Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
         self.log = logging.getLogger("KafkaSchemaReader")
         self.timeout_ms = 200
