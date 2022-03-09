@@ -1,4 +1,4 @@
-from karapace.config import read_config
+from karapace.config import DEFAULTS, read_config
 from karapace.schema_reader import SchemaType, TypedSchema
 from karapace.serialization import (
     flatten_unions,
@@ -161,7 +161,7 @@ def test_avro_json_write_invalid() -> None:
 
     for record in records:
         with pytest.raises(avro.io.AvroTypeException):
-            write_value(typed_schema, bio, record)
+            write_value(DEFAULTS, typed_schema, bio, record)
 
 
 def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> None:
@@ -224,14 +224,14 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
 
     buffer_a = io.BytesIO()
     buffer_b = io.BytesIO()
-    write_value(typed_schema, buffer_a, properly_tagged_encoding_a)
-    write_value(typed_schema, buffer_b, missing_tag_encoding_a)
+    write_value(DEFAULTS, typed_schema, buffer_a, properly_tagged_encoding_a)
+    write_value(DEFAULTS, typed_schema, buffer_b, missing_tag_encoding_a)
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
     buffer_a = io.BytesIO()
     buffer_b = io.BytesIO()
-    write_value(typed_schema, buffer_a, properly_tagged_encoding_b)
-    write_value(typed_schema, buffer_b, missing_tag_encoding_b)
+    write_value(DEFAULTS, typed_schema, buffer_a, properly_tagged_encoding_b)
+    write_value(DEFAULTS, typed_schema, buffer_b, missing_tag_encoding_b)
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
 

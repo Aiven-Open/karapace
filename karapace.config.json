@@ -22,5 +22,6 @@
     "karapace_rest": true,
     "karapace_registry": true,
     "topic_name": "_schemas",
+    "protobuf_runtime_directory": "runtime",
     "session_timeout_ms": 10000
 }
