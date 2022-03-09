@@ -9,7 +9,7 @@ from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest
+from karapace.rapu import HTTPRequest, HTTPResponse
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
 from karapace.utils import convert_to_int, deepcopy, KarapaceKafkaClient
@@ -398,7 +398,11 @@ class KafkaRest(KarapaceBase):
 
     async def topic_publish(self, topic: str, content_type: str, *, request):
         self.log.debug("Executing topic publish on topic %s", topic)
-        await self.publish(topic, None, content_type, request.content_type, request.json)
+        body = request.json
+        if not isinstance(body, dict):
+            raise HTTPResponse(body="Request body is not JSON object", status=HTTPStatus.BAD_REQUEST)
+
+        await self.publish(topic, None, content_type, request.content_type, body)
 
     @staticmethod
     def validate_partition_id(partition_id: str, content_type: str) -> int:  # pylint: disable=inconsistent-return-statements
