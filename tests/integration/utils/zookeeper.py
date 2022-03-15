@@ -6,8 +6,7 @@ from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
-from tests.utils import get_random_port, ZK_PORT_RANGE
-from typing import List, Tuple
+from typing import List
 
 
 def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[str]:
@@ -22,18 +21,12 @@ def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[st
     return java_args
 
 
-def configure_and_start_zk(zk_dir: Path, kafka_description: KafkaDescription) -> Tuple[ZKConfig, Popen]:
+def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription) -> Popen:
+    zk_dir = Path(config.path)
     cfg_path = zk_dir / "zoo.cfg"
     logs_dir = zk_dir / "logs"
     logs_dir.mkdir(parents=True)
 
-    client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
-    admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[client_port])
-    config = ZKConfig(
-        client_port=client_port,
-        admin_port=admin_port,
-        path=str(zk_dir),
-    )
     zoo_cfg = """
 # The number of milliseconds of each tick
 tickTime=2000
@@ -88,4 +81,4 @@ skipACL=yes
         )
     )
     proc = Popen(java_args, env=env)
-    return config, proc
+    return proc
