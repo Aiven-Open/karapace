@@ -8,7 +8,8 @@ from contextlib import closing
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.utils import get_random_port, new_random_name, TESTS_PORT_RANGE
+from tests.integration.utils.network import get_random_port, TESTS_PORT_RANGE
+from tests.utils import new_random_name
 
 import asyncio
 import pytest

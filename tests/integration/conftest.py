@@ -24,10 +24,11 @@ from tests.integration.utils.kafka_server import (
     maybe_download_kafka,
     wait_for_kafka,
 )
+from tests.integration.utils.network import get_random_port, REGISTRY_PORT_RANGE, ZK_PORT_RANGE
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
-from tests.utils import get_random_port, new_random_name, REGISTRY_PORT_RANGE, repeat_until_successful_request, ZK_PORT_RANGE
+from tests.utils import new_random_name, repeat_until_successful_request
 from typing import AsyncIterator, Iterator, Optional, Tuple
 
 import asyncio
