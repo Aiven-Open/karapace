@@ -4,6 +4,7 @@ from kafka.errors import TopicAlreadyExistsError
 from karapace.client import Client
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
+from pathlib import Path
 from typing import Callable, List
 from urllib.parse import quote
 
@@ -357,3 +358,11 @@ async def repeat_until_successful_request(
             ok = res.ok
 
     return res
+
+
+def write_ini(file_path: Path, ini_data: dict) -> None:
+    ini_contents = (f"{key}={value}" for key, value in ini_data.items())
+    file_contents = "\n".join(ini_contents)
+
+    with file_path.open("w") as fp:
+        fp.write(file_contents)

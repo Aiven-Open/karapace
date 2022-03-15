@@ -9,7 +9,7 @@ from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
-from tests.utils import get_random_port, KAFKA_PORT_RANGE, KafkaConfig, KafkaServers
+from tests.utils import get_random_port, KAFKA_PORT_RANGE, KafkaConfig, KafkaServers, write_ini
 from typing import Dict, List, Tuple
 
 import logging
@@ -151,9 +151,7 @@ def configure_and_start_kafka(
         "zookeeper.connect": f"127.0.0.1:{zk.client_port}",
     }
 
-    with config_path.open("w") as fp:
-        for key, value in kafka_config.items():
-            fp.write("{}={}\n".format(key, value))
+    write_ini(config_path, kafka_config)
 
     # stdout logger is disabled to keep the pytest report readable
     log4j_properties_path = str(log4j_config)
