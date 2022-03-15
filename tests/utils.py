@@ -169,23 +169,6 @@ REST_HEADERS = {
 
 
 @dataclass
-class KafkaConfig:
-    datadir: str
-    kafka_keystore_password: str
-    kafka_port: int
-    zookeeper_port: int
-
-    @staticmethod
-    def from_dict(data: dict) -> "KafkaConfig":
-        return KafkaConfig(
-            data["datadir"],
-            data["kafka_keystore_password"],
-            data["kafka_port"],
-            data["zookeeper_port"],
-        )
-
-
-@dataclass
 class KafkaServers:
     bootstrap_servers: List[str]
 
