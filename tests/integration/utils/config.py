@@ -10,7 +10,7 @@ from pathlib import Path
 class ZKConfig:
     client_port: int
     admin_port: int
-    path: str
+    path: str  # can't be a Path instance because it needs to be JSON serializable
 
     @staticmethod
     def from_dict(data: dict) -> "ZKConfig":

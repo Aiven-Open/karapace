@@ -29,6 +29,7 @@ from tests.utils import (
     new_random_name,
     REGISTRY_PORT_RANGE,
     repeat_until_successful_request,
+    ZK_PORT_RANGE,
 )
 from typing import AsyncIterator, Iterator, Optional, Tuple
 
@@ -92,10 +93,15 @@ def fixture_kafka_server(
             else:
                 maybe_download_kafka(kafka_description)
 
-                zk_config, zk_proc = configure_and_start_zk(
-                    zk_dir,
-                    kafka_description,
+                client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
+                admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[client_port])
+                zk_config = ZKConfig(
+                    client_port=client_port,
+                    admin_port=admin_port,
+                    path=str(zk_dir),
                 )
+
+                zk_proc = configure_and_start_zk(zk_config, kafka_description)
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
