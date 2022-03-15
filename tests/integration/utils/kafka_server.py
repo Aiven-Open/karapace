@@ -9,10 +9,9 @@ from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
-from tests.integration.utils.network import get_random_port, KAFKA_PORT_RANGE
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import logging
 import os
@@ -101,41 +100,26 @@ def kafka_java_args(
 
 
 def configure_and_start_kafka(
-    datadir: Path,
-    logdir: Path,
-    log4j_config: Path,
-    zk: ZKConfig,
+    zk_config: ZKConfig,
+    kafka_config: KafkaConfig,
     kafka_description: KafkaDescription,
-) -> Tuple[KafkaConfig, Popen]:
-    # setup filesystem
-    data_dir = datadir / "kafka"
-    log_dir = logdir / "kafka"
-    config_path = log_dir / "server.properties"
-    data_dir.mkdir(parents=True)
-    log_dir.mkdir(parents=True)
-
-    plaintext_port = get_random_port(port_range=KAFKA_PORT_RANGE, blacklist=[])
-
-    config = KafkaConfig(
-        datadir=str(data_dir),
-        kafka_keystore_password="secret",
-        kafka_port=plaintext_port,
-        zookeeper_port=zk.client_port,
-    )
+    log4j_config: str,
+) -> Popen:
+    config_path = Path(kafka_config.logdir) / "server.properties"
 
     advertised_listeners = ",".join(
         [
-            "PLAINTEXT://127.0.0.1:{}".format(plaintext_port),
+            f"PLAINTEXT://127.0.0.1:{kafka_config.plaintext_port}",
         ]
     )
     listeners = ",".join(
         [
-            "PLAINTEXT://:{}".format(plaintext_port),
+            f"PLAINTEXT://:{kafka_config.plaintext_port}",
         ]
     )
 
     # Keep in sync with containers/docker-compose.yml
-    kafka_config = {
+    kafka_ini = {
         "broker.id": 1,
         "broker.rack": "local",
         "advertised.listeners": advertised_listeners,
@@ -146,7 +130,7 @@ def configure_and_start_kafka(
         "inter.broker.protocol.version": kafka_description.protocol_version,
         "listeners": listeners,
         "log.cleaner.enable": "true",
-        "log.dirs": config.datadir,
+        "log.dirs": kafka_config.datadir,
         "log.message.format.version": kafka_description.protocol_version,
         "log.retention.check.interval.ms": 300000,
         "log.segment.bytes": 200 * 1024 * 1024,  # 200 MiB
@@ -164,23 +148,20 @@ def configure_and_start_kafka(
         "transaction.state.log.num.partitions": 16,
         "transaction.state.log.replication.factor": 1,
         "zookeeper.connection.timeout.ms": 6000,
-        "zookeeper.connect": f"127.0.0.1:{zk.client_port}",
+        "zookeeper.connect": f"127.0.0.1:{zk_config.client_port}",
     }
 
-    write_ini(config_path, kafka_config)
-
-    # stdout logger is disabled to keep the pytest report readable
-    log4j_properties_path = str(log4j_config)
+    write_ini(config_path, kafka_ini)
 
     kafka_cmd = get_java_process_configuration(
         java_args=kafka_java_args(
             heap_mb=256,
-            logs_dir=str(log_dir),
-            log4j_properties_path=log4j_properties_path,
+            logs_dir=kafka_config.logdir,
+            log4j_properties_path=log4j_config,
             kafka_config_path=str(config_path),
             kafka_description=kafka_description,
         ),
     )
     env: Dict[bytes, bytes] = {}
     proc = Popen(kafka_cmd, env=env)
-    return config, proc
+    return proc
