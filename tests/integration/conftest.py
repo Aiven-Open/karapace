@@ -24,7 +24,7 @@ from tests.integration.utils.kafka_server import (
     maybe_download_kafka,
     wait_for_kafka,
 )
-from tests.integration.utils.network import get_random_port, REGISTRY_PORT_RANGE, ZK_PORT_RANGE
+from tests.integration.utils.network import get_random_port, KAFKA_PORT_RANGE, REGISTRY_PORT_RANGE, ZK_PORT_RANGE
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
@@ -42,6 +42,8 @@ RUNTIME_DIR = REPOSITORY_DIR / "runtime"
 TEST_INTEGRATION_DIR = REPOSITORY_DIR / "tests" / "integration"
 KAFKA_WAIT_TIMEOUT = 60
 KAFKA_SCALA_VERSION = "2.13"
+# stdout logger is disabled to keep the pytest report readable
+KAFKA_LOG4J = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
 
 
 @pytest.fixture(scope="session", name="kafka_description")
@@ -91,11 +93,11 @@ def fixture_kafka_server(
             else:
                 maybe_download_kafka(kafka_description)
 
-                client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
-                admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[client_port])
+                zk_client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
+                zk_admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[zk_client_port])
                 zk_config = ZKConfig(
-                    client_port=client_port,
-                    admin_port=admin_port,
+                    client_port=zk_client_port,
+                    admin_port=zk_admin_port,
                     path=str(zk_dir),
                 )
 
@@ -105,13 +107,21 @@ def fixture_kafka_server(
                 # Make sure zookeeper is running before trying to start Kafka
                 wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
 
-                log4j_config = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
-                kafka_config, kafka_proc = configure_and_start_kafka(
-                    datadir=session_datadir,
-                    logdir=session_logdir,
-                    log4j_config=log4j_config,
-                    zk=zk_config,
+                kafka_plaintext_port = get_random_port(port_range=KAFKA_PORT_RANGE, blacklist=[])
+                data_dir = session_datadir / "kafka"
+                log_dir = session_logdir / "kafka"
+                data_dir.mkdir(parents=True)
+                log_dir.mkdir(parents=True)
+                kafka_config = KafkaConfig(
+                    datadir=str(data_dir),
+                    logdir=str(log_dir),
+                    plaintext_port=kafka_plaintext_port,
+                )
+                kafka_proc = configure_and_start_kafka(
+                    zk_config=zk_config,
+                    kafka_config=kafka_config,
                     kafka_description=kafka_description,
+                    log4j_config=KAFKA_LOG4J,
                 )
                 stack.callback(stop_process, kafka_proc)
 
@@ -122,7 +132,7 @@ def fixture_kafka_server(
                 transfer_file.write_text(ujson.dumps(config_data))
 
         # Make sure every test worker can communicate with kafka
-        kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.kafka_port}"])
+        kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"])
         wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
         yield kafka_servers
         return
