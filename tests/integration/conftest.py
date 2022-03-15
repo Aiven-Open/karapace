@@ -17,14 +17,13 @@ from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from pathlib import Path
 from subprocess import Popen
-from tests.integration.utils.config import KafkaDescription, ZKConfig
+from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.kafka_server import configure_and_start_kafka, maybe_download_kafka, wait_for_kafka
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import (
     get_random_port,
-    KafkaConfig,
     KafkaServers,
     new_random_name,
     REGISTRY_PORT_RANGE,
