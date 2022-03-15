@@ -172,20 +172,6 @@ class Timeout(Exception):
     pass
 
 
-@dataclass
-class KafkaServers:
-    bootstrap_servers: List[str]
-
-    def __post_init__(self):
-        is_bootstrap_uris_valid = (
-            isinstance(self.bootstrap_servers, list)
-            and len(self.bootstrap_servers) > 0
-            and all(isinstance(url, str) for url in self.bootstrap_servers)
-        )
-        if not is_bootstrap_uris_valid:
-            raise ValueError("bootstrap_servers must be a non-empty list of urls")
-
-
 @dataclass(frozen=True)
 class Expiration:
     deadline: float

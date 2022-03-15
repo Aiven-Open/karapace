@@ -8,7 +8,8 @@ from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
 from karapace.utils import Client
 from pathlib import Path
-from tests.utils import Expiration, KafkaServers, new_random_name
+from tests.integration.utils.kafka_server import KafkaServers
+from tests.utils import Expiration, new_random_name
 
 import os
 import time

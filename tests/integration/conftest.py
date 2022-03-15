@@ -18,18 +18,16 @@ from karapace.utils import Client
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
-from tests.integration.utils.kafka_server import configure_and_start_kafka, maybe_download_kafka, wait_for_kafka
+from tests.integration.utils.kafka_server import (
+    configure_and_start_kafka,
+    KafkaServers,
+    maybe_download_kafka,
+    wait_for_kafka,
+)
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
-from tests.utils import (
-    get_random_port,
-    KafkaServers,
-    new_random_name,
-    REGISTRY_PORT_RANGE,
-    repeat_until_successful_request,
-    ZK_PORT_RANGE,
-)
+from tests.utils import get_random_port, new_random_name, REGISTRY_PORT_RANGE, repeat_until_successful_request, ZK_PORT_RANGE
 from typing import AsyncIterator, Iterator, Optional, Tuple
 
 import asyncio

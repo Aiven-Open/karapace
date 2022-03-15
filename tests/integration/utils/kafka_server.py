@@ -2,13 +2,14 @@
 Copyright (c) 2022 Aiven Ltd
 See LICENSE for details
 """
+from dataclasses import dataclass
 from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.kafka_rest_apis import KafkaRestAdminClient
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
-from tests.utils import Expiration, get_random_port, KAFKA_PORT_RANGE, KafkaServers, write_ini
+from tests.utils import Expiration, get_random_port, KAFKA_PORT_RANGE, write_ini
 from typing import Dict, List, Tuple
 
 import logging
@@ -16,6 +17,20 @@ import os
 import requests
 import tarfile
 import time
+
+
+@dataclass
+class KafkaServers:
+    bootstrap_servers: List[str]
+
+    def __post_init__(self) -> None:
+        is_bootstrap_uris_valid = (
+            isinstance(self.bootstrap_servers, list)
+            and len(self.bootstrap_servers) > 0
+            and all(isinstance(url, str) for url in self.bootstrap_servers)
+        )
+        if not is_bootstrap_uris_valid:
+            raise ValueError("bootstrap_servers must be a non-empty list of urls")
 
 
 def wait_for_kafka(

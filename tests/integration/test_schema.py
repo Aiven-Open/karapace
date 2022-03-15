@@ -10,11 +10,11 @@ from karapace import config
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
 from karapace.utils import Client
+from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import (
     create_field_name_factory,
     create_schema_name_factory,
     create_subject_name_factory,
-    KafkaServers,
     repeat_until_successful_request,
 )
 from typing import List, Tuple
