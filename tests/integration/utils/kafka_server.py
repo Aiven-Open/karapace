@@ -9,8 +9,9 @@ from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
+from tests.integration.utils.network import get_random_port, KAFKA_PORT_RANGE
 from tests.integration.utils.process import get_java_process_configuration
-from tests.utils import get_random_port, KAFKA_PORT_RANGE, write_ini
+from tests.utils import write_ini
 from typing import Dict, List, Tuple
 
 import logging
