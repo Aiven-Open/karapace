@@ -333,9 +333,9 @@ class RestApp:
                 headers = ex.headers
             except:  # pylint: disable=bare-except
                 self.log.exception("Internal server error")
+                headers = {"Content-Type": "application/json"}
                 data = {"error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value, "message": "Internal server error"}
                 status = HTTPStatus.INTERNAL_SERVER_ERROR
-                headers = {}
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
 
             if isinstance(data, (dict, list)):
