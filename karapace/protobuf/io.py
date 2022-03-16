@@ -51,7 +51,7 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
 def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Dict) -> Any:
     directory = cfg["protobuf_runtime_directory"]
     proto_name = calculate_class_name(str(schema))
-    proto_path = f"{directory}/{proto_name}.proto"
+    proto_path = f"{proto_name}.proto"
     class_path = f"{directory}/{proto_name}_pb2.py"
     if not os.path.isfile(proto_path):
         with open(f"{directory}/{proto_name}.proto", mode="w", encoding="utf8") as proto_text:
@@ -65,6 +65,7 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
                 proto_path,
             ],
             check=True,
+            cwd=directory,
         )
 
     spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
