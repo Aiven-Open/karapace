@@ -1864,7 +1864,14 @@ async def test_invalid_namespace(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_invalid_namespace")()
     schema = {"type": "record", "name": "foo", "namespace": "foo-bar-baz", "fields": []}
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": ujson.dumps(schema)})
-    assert res.ok, res.json()
+    assert res.status == 422, res.json()
+    json_res = res.json()
+    assert json_res["error_code"] == 44201, json_res
+    expected_message = (
+        "Invalid AVRO schema. Error: foo-bar-baz is not a valid Avro name because it does not match the pattern "
+        "(?:^|\\.)[A-Za-z_][A-Za-z0-9_]*$"
+    )
+    assert json_res["message"] == expected_message, json_res
 
 
 async def test_schema_remains_constant(registry_async_client: Client) -> None:
@@ -1876,7 +1883,7 @@ async def test_schema_remains_constant(registry_async_client: Client) -> None:
     schema = {
         "type": "record",
         "name": schema_name,
-        "namespace": "foo-bar-baz",
+        "namespace": "foo_bar_baz",
         "fields": [{"type": "string", "name": "bla"}],
     }
     schema_str = ujson.dumps(schema)
@@ -2323,7 +2330,10 @@ async def test_invalid_schema_should_provide_good_error_messages(registry_async_
         f"subjects/{test_subject}/versions",
         json={"schema": schema_str},
     )
-    assert res.json()["message"] == "Invalid AVRO schema. Error: Provided schema is not valid"
+    assert (
+        res.json()["message"]
+        == "Invalid AVRO schema. Error: Enum symbols must be a sequence of strings, but it is <class 'NoneType'>"
+    )
 
     # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
     schema_str = ujson.dumps({"type": "enum", "name": "error", "symbols": {}})
@@ -2331,7 +2341,10 @@ async def test_invalid_schema_should_provide_good_error_messages(registry_async_
         f"subjects/{test_subject}/versions",
         json={"schema": schema_str},
     )
-    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
+    assert (
+        res.json()["message"]
+        == "Invalid AVRO schema. Error: Enum symbols must be a sequence of strings, but it is <class 'dict'>"
+    )
 
     # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
     schema_str = ujson.dumps({"type": "enum", "name": "error", "symbols": ["A", "B"]})

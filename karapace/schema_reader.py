@@ -4,7 +4,8 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from avro.schema import Schema as AvroSchema, SchemaParseException
+from avro.errors import SchemaParseException
+from avro.schema import Schema as AvroSchema
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError

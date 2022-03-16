@@ -1,4 +1,4 @@
-from avro.schema import SchemaParseException
+from avro.errors import SchemaParseException
 from contextlib import closing
 from enum import Enum, unique
 from http import HTTPStatus
