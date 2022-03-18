@@ -1,4 +1,4 @@
-from karapace.avro_compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
+from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.schema import ProtobufSchema
 
@@ -14,7 +14,7 @@ def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: Protobuf
     writer.compare(reader, result)
     log.debug("IS_COMPATIBLE %s", result.is_compatible())
     if result.is_compatible():
-        return SchemaCompatibilityResult.compatible()
+        return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     incompatibilities = []
     locations = set()
