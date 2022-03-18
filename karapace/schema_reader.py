@@ -5,7 +5,7 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from avro.errors import SchemaParseException
-from avro.schema import Schema as AvroSchema
+from avro.schema import parse as avro_parse, Schema as AvroSchema
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
@@ -13,7 +13,6 @@ from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
-from karapace.avro_compatibility import parse_avro_schema_definition
 from karapace.protobuf.exception import (
     Error as ProtobufError,
     IllegalArgumentException,
@@ -29,11 +28,31 @@ from queue import Queue
 from threading import Lock, Thread
 from typing import Dict, Optional
 
+import json
 import logging
 import time
 import ujson
 
 log = logging.getLogger(__name__)
+
+
+def parse_avro_schema_definition(s: str) -> AvroSchema:
+    """Compatibility function with Avro which ignores trailing data in JSON
+    strings.
+
+    The Python stdlib `json` module doesn't allow to ignore trailing data. If
+    parsing fails because of it, the extra data can be removed and parsed
+    again.
+    """
+    try:
+        json_data = json.loads(s)
+    except json.JSONDecodeError as e:
+        if e.msg != "Extra data":
+            raise
+
+        json_data = json.loads(s[: e.pos])
+
+    return avro_parse(json.dumps(json_data))
 
 
 def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:

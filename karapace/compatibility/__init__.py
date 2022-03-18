@@ -4,16 +4,17 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from avro.schema import Schema as AvroSchema
-from enum import Enum, unique
-from jsonschema import Draft7Validator
-from karapace.avro_compatibility import (
+from avro.compatibility import (
+    merge,
     ReaderWriterCompatibilityChecker as AvroChecker,
     SchemaCompatibilityResult,
     SchemaCompatibilityType,
     SchemaIncompatibilityType,
 )
-from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility
+from avro.schema import Schema as AvroSchema
+from enum import Enum, unique
+from jsonschema import Draft7Validator
+from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility, incompatible_schema
 from karapace.compatibility.protobuf.checks import check_protobuf_schema_compatibility
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_reader import SchemaType, TypedSchema
@@ -62,7 +63,7 @@ def check_avro_compatibility(reader_schema: AvroSchema, writer_schema: AvroSchem
     ):
         return result
 
-    return SchemaCompatibilityResult.compatible()
+    return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
 
 def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
@@ -78,7 +79,7 @@ def check_compatibility(
 ) -> SchemaCompatibilityResult:
     """Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`."""
     if old_schema.schema_type is not new_schema.schema_type:
-        return SchemaCompatibilityResult.incompatible(
+        return incompatible_schema(
             incompat_type=SchemaIncompatibilityType.type_mismatch,
             message=f"Comparing different schema types: {old_schema.schema_type} with {new_schema.schema_type}",
             location=[],
@@ -86,7 +87,7 @@ def check_compatibility(
 
     if compatibility_mode is CompatibilityModes.NONE:
         LOG.info("Compatibility level set to NONE, no schema compatibility checks performed")
-        return SchemaCompatibilityResult.compatible()
+        return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     if old_schema.schema_type is SchemaType.AVRO:
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
@@ -106,11 +107,12 @@ def check_compatibility(
                 reader_schema=new_schema.schema,
                 writer_schema=old_schema.schema,
             )
-            result = result.merged_with(
+            result = merge(
+                result,
                 check_avro_compatibility(
                     reader_schema=old_schema.schema,
                     writer_schema=new_schema.schema,
-                )
+                ),
             )
 
     elif old_schema.schema_type is SchemaType.JSONSCHEMA:
@@ -131,11 +133,12 @@ def check_compatibility(
                 reader=new_schema.schema,
                 writer=old_schema.schema,
             )
-            result = result.merged_with(
+            result = merge(
+                result,
                 check_jsonschema_compatibility(
                     reader=old_schema.schema,
                     writer=new_schema.schema,
-                )
+                ),
             )
 
     elif old_schema.schema_type is SchemaType.PROTOBUF:
@@ -155,11 +158,12 @@ def check_compatibility(
                 reader=new_schema.schema,
                 writer=old_schema.schema,
             )
-            result = result.merged_with(
+            result = merge(
+                result,
                 check_protobuf_compatibility(
                     reader=old_schema.schema,
                     writer=new_schema.schema,
-                )
+                ),
             )
 
     else:
