@@ -333,7 +333,7 @@ async def fixture_registry_async(
             # Because of this every test must be written in such a way that it can
             # be executed twice with the same servers.
             # "topic_name": new_random_name("topic"),
-            # "group_id": new_random_name("schema_registry")
+            "group_id": new_random_name("registry_async"),
         }
     )
     write_config(config_path, config)
@@ -434,7 +434,7 @@ async def fixture_registry_async_tls(
             # Because of this every test must be written in such a way that it can
             # be executed twice with the same servers.
             # "topic_name": new_random_name("topic"),
-            # "group_id": new_random_name("schema_registry")
+            "group_id": new_random_name("registry_async_tls"),
         }
     )
     write_config(config_path, config)
