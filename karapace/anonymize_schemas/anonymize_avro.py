@@ -25,7 +25,7 @@ TYPE = "type"
 PRIMITIVE_TYPES = ["null", "boolean", "int", "long", "float", "double", "bytes", "string"]
 
 
-def anonymize_name(name: str) -> str:
+def anonymize_name(name: Any) -> Any:
     """Anonymize the name.
 
     Name is splitted by dot to logical elements that the whole name consists of.
@@ -36,6 +36,10 @@ def anonymize_name(name: str) -> str:
 
     Returns anonymized name.
     """
+
+    if not isinstance(name, str):
+        return name
+
     anonymized_elements = []
     for element in name.split("."):
         element = hashlib.sha1(element.encode("utf-8")).hexdigest()
