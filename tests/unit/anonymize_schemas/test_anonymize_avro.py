@@ -190,7 +190,8 @@ ALL_ELEMENTS_SCHEMA = {
             "namespace": "io.aiven",
             "doc": "Fixed document shall be removed.",
             "aliases": ["io.aiven.FixedAlias"],
-            "size": "16",
+            "order": "invalidValue",
+            "size": 16,
         },
     ],
 }
@@ -251,7 +252,8 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "aliases": [
                 "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a6e4c69f975b291f655e5eaa65ed9eb97781cb01"  # pylint: disable=line-too-long
             ],
-            "size": "16",
+            "order": "ae5d03fc0f0537f32701e8cab51a448a0f591d97",
+            "size": 16,
         },
     ],
 }
@@ -399,7 +401,3 @@ EMPTY_STR = ""
 def test_anonymize(test_schema: str, expected_schema: Union[str, Dict[str, str]]):
     res = anonymize(test_schema)
     assert res == expected_schema
-
-
-def test_anonymize_invalid_input():
-    assert None is anonymize(100)
