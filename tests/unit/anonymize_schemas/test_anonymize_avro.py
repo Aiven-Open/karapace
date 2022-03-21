@@ -67,6 +67,7 @@ COMPLEX_ENUM_SCHEMA = {
                         {
                             "name": "string-field",
                             "type": "string",
+                            "logicalType": "uuid",
                         },
                     ],
                 },
@@ -90,6 +91,7 @@ EXPECTED_COMPLEX_ENUM_SCHEMA = {
                         {
                             "name": "a477e6d87a95db19d02fb60126f68b35ccf7b694",
                             "type": "string",
+                            "logicalType": "uuid",
                         }
                     ],
                 },
@@ -150,9 +152,28 @@ ALL_ELEMENTS_SCHEMA = {
             "default": [],
             "extra": "Array extra attribute shall be removed.",
         },
-        {"type": "array", "name": "ArrayFieldWithUnionType", "items": ["string", "io.aiven.LongField"], "default": []},
-        {"type": "map", "name": "MapField", "items": "int", "default": {}},
-        {"type": ["null", "io.aiven.test.Name"], "name": "UnionField"},
+        {
+            "type": "array",
+            "name": "ArrayFieldWithUnionType",
+            "items": [
+                "string",
+                "io.aiven.LongField",
+            ],
+            "default": [],
+        },
+        {
+            "type": "map",
+            "name": "MapField",
+            "items": "int",
+            "default": {},
+        },
+        {
+            "type": [
+                "null",
+                "io.aiven.test.Name",
+            ],
+            "name": "UnionField",
+        },
         {
             "type": "fixed",
             "name": "Fixed",
@@ -326,6 +347,15 @@ EXPECTED_ARRAY_SCHEMA = [
 ]
 
 
+LOGICAL_TYPE_SCHEMA = {"type": "bytes", "logicalType": "decimal", "precision": 4, "scale": 2}
+EXPECTED_LOGICAL_TYPE_SCHEMA = LOGICAL_TYPE_SCHEMA
+
+
+EMPTY_DICT = {}
+EMPTY_ARR = {}
+EMPTY_STR = ""
+
+
 @pytest.mark.parametrize(
     ["test_schema", "expected_schema"],
     [
@@ -339,6 +369,10 @@ EXPECTED_ARRAY_SCHEMA = [
         [JSON_TYPE_SCHEMA, EXPECTED_JSON_TYPE_SCHEMA],
         [ARRAY_SCHEMA, EXPECTED_ARRAY_SCHEMA],
         [INVALID_ENUM_SCHEMA, EXPECTED_INVALID_ENUM_SCHEMA],
+        [LOGICAL_TYPE_SCHEMA, EXPECTED_LOGICAL_TYPE_SCHEMA],
+        [EMPTY_ARR, EMPTY_ARR],
+        [EMPTY_DICT, EMPTY_DICT],
+        [EMPTY_STR, EMPTY_STR],
     ],
 )
 def test_anonymize(test_schema: str, expected_schema: Union[str, Dict[str, str]]):

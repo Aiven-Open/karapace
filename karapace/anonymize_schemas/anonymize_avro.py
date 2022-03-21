@@ -15,9 +15,12 @@ DOC = "doc"
 ENUM = "enum"
 FIELDS = "fields"
 ITEMS = "items"
+LOGICAL_TYPE = "logicalType"
 NAME = "name"
 NAMESPACE = "namespace"
 ORDER = "order"
+PRECISION = "precision"
+SCALE = "scale"
 SIZE = "size"
 SYMBOLS = "symbols"
 TYPE = "type"
@@ -94,11 +97,20 @@ def anonymize_complex_type(type_element: Union[str, Dict[str, str]], input_schem
         if key == ITEMS:
             schema[key] = anonymize_type(value)
 
+        if key == LOGICAL_TYPE:
+            schema[key] = value
+
         if key in [NAME, NAMESPACE]:
             anonymized = anonymize_name(value)
             schema[key] = anonymized
 
         if key == ORDER:
+            schema[key] = value
+
+        if key == PRECISION:
+            schema[key] = value
+
+        if key == SCALE:
             schema[key] = value
 
         if key == SIZE:
