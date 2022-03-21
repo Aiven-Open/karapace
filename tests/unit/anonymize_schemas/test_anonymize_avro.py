@@ -13,6 +13,11 @@ import pytest
 PRIMITIVE_TYPE_SCHEMA = json.loads('"int"')
 EXPECTED_PRIMITIVE_TYPE_SCHEMA = "int"
 
+
+SCHEMA_WITH_NAME = json.loads('"io.aiven.myrecord"')
+EXPECTED_SCHEMA_WITH_NAME = "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afe8733e983101f1f4ff50d24152890d0da71418"  # pylint: disable=line-too-long
+
+
 SIMPLE_RECORD_SCHEMA = {
     "type": "record",
     "namespace": "io.aiven",
@@ -21,6 +26,7 @@ SIMPLE_RECORD_SCHEMA = {
         {
             "type": "string",
             "name": "f1",
+            "default": "default_value",
         },
     ],
 }
@@ -32,6 +38,7 @@ EXPECTED_SIMPLE_RECORD_SCHEMA = {
         {
             "type": "string",
             "name": "a09bb890b096f7306f688cc6d1dad34e7e52a223",
+            "default": "a6c8109f13a310f20c45ad334e5f0e159a4fb896",
         },
     ],
 }
@@ -119,7 +126,9 @@ EXPECTED_INVALID_ENUM_SCHEMA = {
 NO_TYPE_SCHEMA = {
     "name": "test_no_type",
 }
-EXPECTED_NO_TYPE_SCHEMA = {}
+EXPECTED_NO_TYPE_SCHEMA = {
+    "name": "a881d8506234c835bbad094140aec6a094c68e0a",
+}
 
 
 ALL_ELEMENTS_SCHEMA = {
@@ -135,6 +144,7 @@ ALL_ELEMENTS_SCHEMA = {
             "namespace": "io.aiven",
             "doc": "Long field document shall be removed.",
             "order": "ascending",
+            "default": 1,
         },
         {
             "type": "enum",
@@ -148,7 +158,7 @@ ALL_ELEMENTS_SCHEMA = {
         {
             "type": "array",
             "name": "ArrayField",
-            "items": "string",
+            "items": "io.aiven.test.Name",
             "default": [],
             "extra": "Array extra attribute shall be removed.",
         },
@@ -198,6 +208,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "name": "ac8fb489b3e9ff687f990ffb2b2f1ec08b0052ca",
             "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
             "order": "ascending",
+            "default": 1,
         },
         {
             "type": "enum",
@@ -212,8 +223,9 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
         {
             "type": "array",
             "name": "af227bcd25744bf96408ccc655a37521935c7ab1",
-            "items": "string",
+            "items": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",  # pylint: disable=line-too-long
             "default": [],
+            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26.aa39a3ee5e6b4b0d3255bfef95601890afd80709",  # pylint: disable=line-too-long
         },
         {
             "type": "array",
@@ -317,7 +329,6 @@ EXPECTED_NESTED_RECORD_SCHEMA = {
 }
 
 
-# If a schema of JSON type is given the expected result is partial.
 JSON_TYPE_SCHEMA = {
     "type": "object",
     "title": "JSON-schema",
@@ -325,7 +336,16 @@ JSON_TYPE_SCHEMA = {
     "properties": {"test": {"type": "integer", "title": "my test number", "default": 5}},
 }
 EXPECTED_JSON_TYPE_SCHEMA = {
-    "type": "object",
+    "type": "a615307cc4523f183e777df67f168c86908e8007",
+    "ac6de1b7dd91465d437ef415f94f36afc1fbc8a8": "aa6778ddeb92053ff2f1bdefc1ad93e85cf2e67f",
+    "ab329146a0dd0d566b0628744d67936558741ffa": "a3499c2729730a7f807efb8676a92dcb6f8a3f8f",
+    "a0449e86077449843777d1958aff83cf086dbcba": {
+        "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3": {
+            "type": "a178cafbd64bbbfa77f5ac0a9d5032ed88162781",
+            "ac6de1b7dd91465d437ef415f94f36afc1fbc8a8": "ad2285a805023b2a4fc65e55cfa28ca26111c438",
+            "default": 5,
+        },
+    },
 }
 
 
@@ -360,6 +380,7 @@ EMPTY_STR = ""
     ["test_schema", "expected_schema"],
     [
         [PRIMITIVE_TYPE_SCHEMA, EXPECTED_PRIMITIVE_TYPE_SCHEMA],
+        [SCHEMA_WITH_NAME, EXPECTED_SCHEMA_WITH_NAME],
         [SIMPLE_RECORD_SCHEMA, EXPECTED_SIMPLE_RECORD_SCHEMA],
         [SIMPLE_ENUM_SCHEMA, EXPECTED_SIMPLE_ENUM_SCHEMA],
         [COMPLEX_ENUM_SCHEMA, EXPECTED_COMPLEX_ENUM_SCHEMA],
@@ -378,3 +399,7 @@ EMPTY_STR = ""
 def test_anonymize(test_schema: str, expected_schema: Union[str, Dict[str, str]]):
     res = anonymize(test_schema)
     assert res == expected_schema
+
+
+def test_anonymize_invalid_input():
+    assert None is anonymize(100)

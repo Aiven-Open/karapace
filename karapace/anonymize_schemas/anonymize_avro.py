@@ -4,10 +4,9 @@ karapace - anonymize avro
 Copyright (c) 2022 Aiven Ltd
 See LICENSE for details
 """
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import hashlib
-import logging
 
 ALIASES = "aliases"
 DEFAULT = "default"
@@ -26,6 +25,7 @@ SYMBOLS = "symbols"
 TYPE = "type"
 
 PRIMITIVE_TYPES = ["null", "boolean", "int", "long", "float", "double", "bytes", "string"]
+ALL_TYPES = PRIMITIVE_TYPES + ["array", ENUM, "fixed", "map", "record"]
 
 
 def anonymize_name(name: Any) -> Any:
@@ -39,10 +39,6 @@ def anonymize_name(name: Any) -> Any:
 
     Returns anonymized name.
     """
-
-    if not isinstance(name, str):
-        return name
-
     anonymized_elements = []
     for element in name.split("."):
         element = hashlib.sha1(element.encode("utf-8")).hexdigest()
@@ -55,107 +51,106 @@ def anonymize_name(name: Any) -> Any:
     return ".".join(anonymized_elements)
 
 
-def anonymize_type(maybe_type_list_or_str: Union[str, List[Any]]) -> Union[str, List[Any]]:
-    if isinstance(maybe_type_list_or_str, list):
-        union_types = []
-        for union_type in maybe_type_list_or_str:
-            if union_type in PRIMITIVE_TYPES:
-                union_types.append(union_type)
-            elif isinstance(union_type, str):
-                union_types.append(anonymize_name(union_type))
-            else:
-                union_types.append(anonymize(union_type))
-        return union_types
-    return maybe_type_list_or_str
+def anonymize_union_type(schema: List[Any]) -> List[Any]:
+    union_types = []
+    for union_type in schema:
+        if union_type in PRIMITIVE_TYPES:
+            union_types.append(union_type)
+        elif isinstance(union_type, str):
+            union_types.append(anonymize_name(union_type))
+        else:
+            union_types.append(anonymize(union_type))
+    return union_types
 
 
-def anonymize_complex_type(type_element: Union[str, Dict[str, str]], input_schema: Dict[str, Any]) -> Dict[str, Any]:
+def anonymize_complex_type(input_schema: Dict[str, Any]) -> Dict[str, Any]:
     schema: Dict[str, Any] = {}
     for key, value in input_schema.items():
-        anonymized: Union[str, List]
         if key == ALIASES:
-            anonymized = []
+            anonymized_aliases = []
             for alias in value:
-                anonymized.append(anonymize_name(alias))
-            schema[key] = anonymized
+                anonymized_aliases.append(anonymize_name(alias))
+            schema[key] = anonymized_aliases
 
-        if key == DEFAULT:
-            if type_element == ENUM:
-                schema[key] = anonymize_name(value)
-            else:
+        elif key == DEFAULT:
+            # If the value field for default is not a string do not alter it
+            if not isinstance(value, str):
                 schema[key] = value
+            else:
+                schema[key] = anonymize_name(value)
 
-        if key == DOC:
+        elif key == DOC:
             continue  # Doc attribute may contain non-public and sensitive data
 
-        if key == FIELDS:
+        elif key == FIELDS:
             fields = []
             for field in value:
                 fields.append(anonymize(field))
             schema[key] = fields
 
-        if key == ITEMS:
-            schema[key] = anonymize_type(value)
+        elif key == ITEMS:
+            if isinstance(value, List):
+                schema[key] = anonymize_union_type(value)
+            elif isinstance(value, str) and value not in PRIMITIVE_TYPES:
+                schema[key] = anonymize_name(value)
+            else:
+                schema[key] = value
 
-        if key == LOGICAL_TYPE:
+        elif key == LOGICAL_TYPE:
             schema[key] = value
 
-        if key in [NAME, NAMESPACE]:
-            anonymized = anonymize_name(value)
-            schema[key] = anonymized
+        elif key in [NAME, NAMESPACE]:
+            schema[key] = anonymize_name(value)
 
-        if key == ORDER:
+        elif key == ORDER:
             schema[key] = value
 
-        if key == PRECISION:
+        elif key == PRECISION:
             schema[key] = value
 
-        if key == SCALE:
+        elif key == SCALE:
             schema[key] = value
 
-        if key == SIZE:
+        elif key == SIZE:
             schema[key] = value
 
-        if key == SYMBOLS:
+        elif key == SYMBOLS:
             anonymized_symbols = []
             for symbol in value:
                 anonymized_symbols.append(anonymize_name(symbol))
             schema[key] = anonymized_symbols
 
-        if key == TYPE:
+        elif key == TYPE:
             if isinstance(value, list):
                 # Union type
-                schema[key] = anonymize_type(value)
+                schema[key] = anonymize_union_type(value)
             else:
-                # Nested type
-                schema[key] = anonymize(value)
+                if value in ALL_TYPES:
+                    schema[key] = value
+                else:
+                    # Nested type
+                    schema[key] = anonymize(value)
+
+        else:
+            # Handle unknown keys
+            if isinstance(key, str):
+                # Anonymize the key as it is custom and can contain non-public and sensitive data
+                key = anonymize_name(key)
+            schema[key] = anonymize(value)
 
     return schema
 
 
-def anonymize(input_schema: Union[str, Dict[str, Any], List]) -> Union[str, Dict[str, Any], List]:
-    if not input_schema:
+def anonymize(input_schema: Union[str, Dict[str, Any], List]) -> Optional[Union[str, Dict[str, Any], List]]:
+    if not input_schema:  # pylint: disable=no-else-return
         return input_schema
-
-    if isinstance(input_schema, str):
-        # In this case the schema is of primitive type, e.g. "int"
-        return input_schema
-
-    if isinstance(input_schema, List):
-        schema_list = []
-        for schema_element in input_schema:
-            schema = anonymize(schema_element)
-            schema_list.append(schema)
-        return schema_list
-
-    type_element = input_schema.get("type", None)
-    if not type_element:
-        logging.warning("No type for element.")
-        return {}
-
-    if isinstance(type_element, Dict):
-        input_schema.pop("type")
-        schema = anonymize_complex_type(input_schema, input_schema)
-        schema.update({"type": anonymize_complex_type(type_element, type_element)})
-        return schema
-    return anonymize_complex_type(type_element, input_schema)
+    elif isinstance(input_schema, str):
+        if input_schema in PRIMITIVE_TYPES:
+            return input_schema
+        return anonymize_name(input_schema)
+    elif isinstance(input_schema, List):
+        return [anonymize(value) for value in input_schema]
+    elif isinstance(input_schema, Dict):
+        return anonymize_complex_type(input_schema)
+    else:
+        return None
