@@ -123,7 +123,7 @@ def anonymize_complex_type(type_element: Union[str, Dict[str, str]], input_schem
 
 def anonymize(input_schema: Union[str, Dict[str, Any], List]) -> Union[str, Dict[str, Any], List]:
     if not input_schema:
-        return {}
+        return input_schema
 
     if isinstance(input_schema, str):
         # In this case the schema is of primitive type, e.g. "int"
