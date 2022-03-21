@@ -26,7 +26,7 @@ case $1 in
     echo "{}" > /opt/karapace/rest.config.json
 
     echo "Starting Karapace REST API"
-    exec python3 -m karapace.kafka_rest_apis /opt/karapace/rest.config.json
+    exec python3 -m karapace.karapace_all /opt/karapace/rest.config.json
   ;;
   registry)
     # Reexport variables for compatibility
@@ -46,7 +46,7 @@ case $1 in
     echo "{}" > /opt/karapace/registry.config.json
 
     echo "Starting Karapace Schema Registry"
-    exec python3 -m karapace.schema_registry_apis /opt/karapace/registry.config.json
+    exec python3 -m karapace.karapace_all /opt/karapace/registry.config.json
   ;;
   *)
     echo "usage: start-karapace.sh <registry|rest>"
