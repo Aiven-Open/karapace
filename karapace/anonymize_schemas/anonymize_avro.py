@@ -66,7 +66,7 @@ def anonymize_type(maybe_type_list_or_str: Union[str, List[Any]]) -> Union[str, 
     return maybe_type_list_or_str
 
 
-def anonymize_schema(type_element: Union[str, Dict[str, str]], input_schema: Dict[str, Any]) -> Dict[str, Any]:
+def anonymize_complex_type(type_element: Union[str, Dict[str, str]], input_schema: Dict[str, Any]) -> Dict[str, Any]:
     schema: Dict[str, Any] = {}
     for key, value in input_schema.items():
         anonymized: Union[str, List]
@@ -143,7 +143,7 @@ def anonymize(input_schema: Union[str, Dict[str, Any], List]) -> Union[str, Dict
 
     if isinstance(type_element, Dict):
         input_schema.pop("type")
-        schema = anonymize_schema(input_schema, input_schema)
-        schema.update({"type": anonymize_schema(type_element, type_element)})
+        schema = anonymize_complex_type(input_schema, input_schema)
+        schema.update({"type": anonymize_complex_type(type_element, type_element)})
         return schema
-    return anonymize_schema(type_element, input_schema)
+    return anonymize_complex_type(type_element, input_schema)
