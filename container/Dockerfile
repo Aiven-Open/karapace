@@ -49,11 +49,11 @@ LABEL org.opencontainers.image.authors=opensource@aiven.io \
 
 RUN groupadd --system karapace && \
     useradd --system --gid karapace karapace && \
-    mkdir /opt/karapace /var/log/karapace && \
+    mkdir /opt/karapace /opt/karapace/runtime /var/log/karapace && \
     chown --recursive karapace:karapace /opt/karapace /var/log/karapace
 
 RUN apt-get update && \
-    apt-get -y install --no-install-recommends python3-pip && \
+    apt-get -y install --no-install-recommends python3-pip protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/dependencies-wheels/*.whl /build/dependencies-wheels/
