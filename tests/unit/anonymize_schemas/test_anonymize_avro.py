@@ -36,6 +36,7 @@ EXPECTED_SIMPLE_RECORD_SCHEMA = {
     ],
 }
 
+
 SIMPLE_ENUM_SCHEMA = {
     "type": "enum",
     "name": "test_enum",
@@ -48,6 +49,7 @@ EXPECTED_SIMPLE_ENUM_SCHEMA = {
     "symbols": ["adcd4ce23d88e2ee9568ba546c007c63d9131c1b"],
     "default": "ae4f281df5a5d0ff3cad6371f76d5c29b6d953ec",
 }
+
 
 COMPLEX_ENUM_SCHEMA = {
     "name": "complex_enum_schema",
@@ -97,10 +99,26 @@ EXPECTED_COMPLEX_ENUM_SCHEMA = {
 }
 
 
+INVALID_ENUM_SCHEMA = {
+    "type": "enum",
+    "name": "test_enum",
+    "symbols": ["1", "2"],
+    "default": 1,
+}
+
+EXPECTED_INVALID_ENUM_SCHEMA = {
+    "type": "enum",
+    "name": "a6e1e571a3d054d3cd0b116384a282d9d3fd7cba",
+    "symbols": ["a56a192b7913b04c54574d18c28d46e6395428ab", "aa4b9237bacccdf19c0760cab7aec4a8359010b0"],
+    "default": 1,
+}
+
+
 NO_TYPE_SCHEMA = {
     "name": "test_no_type",
 }
 EXPECTED_NO_TYPE_SCHEMA = {}
+
 
 ALL_ELEMENTS_SCHEMA = {
     "type": "record",
@@ -320,6 +338,7 @@ EXPECTED_ARRAY_SCHEMA = [
         [NESTED_RECORD_SCHEMA, EXPECTED_NESTED_RECORD_SCHEMA],
         [JSON_TYPE_SCHEMA, EXPECTED_JSON_TYPE_SCHEMA],
         [ARRAY_SCHEMA, EXPECTED_ARRAY_SCHEMA],
+        [INVALID_ENUM_SCHEMA, EXPECTED_INVALID_ENUM_SCHEMA],
     ],
 )
 def test_anonymize(test_schema: str, expected_schema: Union[str, Dict[str, str]]):
