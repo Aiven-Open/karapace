@@ -214,21 +214,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
             )
         return compatibility_mode
 
-    def get_offset_from_queue(self, sent_offset):
-        start_time = time.monotonic()
-        while True:
-            self.log.info("Starting to wait for offset: %r from ksr queue", sent_offset)
-            offset = self.ksr.queue.get()
-            if offset == sent_offset:
-                self.log.info(
-                    "We've consumed back produced offset: %r message back, everything is in sync, took: %.4f",
-                    offset,
-                    time.monotonic() - start_time,
-                )
-                break
-            self.log.warning("Put the offset: %r back to queue, someone else is waiting for this?", offset)
-            self.ksr.queue.put(offset)
-
     def send_kafka_message(self, key, value):
         if isinstance(key, str):
             key = key.encode("utf8")
@@ -238,8 +223,27 @@ class KarapaceSchemaRegistry(KarapaceBase):
         future = self.producer.send(self.config["topic_name"], key=key, value=value)
         self.producer.flush(timeout=self.kafka_timeout)
         msg = future.get(self.kafka_timeout)
-        self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
-        self.get_offset_from_queue(msg.offset)
+        sent_offset = msg.offset
+
+        self.log.info(
+            "Waiting for schema reader to caught up. key: %r, value: %r, offset: %r",
+            key,
+            value,
+            sent_offset,
+        )
+
+        if self.ksr.offset_watcher.wait_for_offset(sent_offset, timeout=60) is True:
+            self.log.info(
+                "Schema reader has found key. key: %r, value: %r, offset: %r",
+                key,
+                value,
+                sent_offset,
+            )
+        else:
+            raise RuntimeError(
+                f"Schema reader timed out while looking for key. key: {key}, value: {value}, offset: {sent_offset}"
+            )
+
         return future
 
     def send_schema_message(
