@@ -186,7 +186,7 @@ ALL_ELEMENTS_SCHEMA = {
         {
             "type": "map",
             "name": "MapField",
-            "items": "int",
+            "values": "int",
             "default": {},
         },
         {
@@ -256,7 +256,12 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             ],
             "default": [],
         },
-        {"type": "map", "name": "a7a54c046df923a9827eec4b7f8e631840df1784", "items": "int", "default": {}},
+        {
+            "type": "map",
+            "name": "a7a54c046df923a9827eec4b7f8e631840df1784",
+            "values": "int",
+            "default": {},
+        },
         {
             "type": [
                 "null",
@@ -311,7 +316,7 @@ ALL_ELEMENTS_INVALID_DATA_SCHEMA = {
         {
             "type": "map",
             "name": 11,
-            "items": 11,
+            "values": 11,
             "default": 11,
         },
         {
@@ -361,7 +366,7 @@ EXPECTED_ALL_ELEMENTS_INVALID_DATA_SCHEMA = {
         {
             "type": "map",
             "name": 11,
-            "items": 11,
+            "values": 11,
             "default": 11,
         },
         {
@@ -454,6 +459,30 @@ EXPECTED_NESTED_RECORD_SCHEMA = {
 }
 
 
+ARRAY_WITH_SCHEMA_IN_ITEMS = {
+    "type": "array",
+    "items": SIMPLE_RECORD_SCHEMA,
+    "default": [],
+}
+EXPECTED_ARRAY_WITH_SCHEMA_IN_ITEMS = {
+    "type": "array",
+    "items": EXPECTED_SIMPLE_RECORD_SCHEMA,
+    "default": [],
+}
+
+
+MAP_WITH_SCHEMA_IN_ITEMS = {
+    "type": "map",
+    "values": SIMPLE_RECORD_SCHEMA,
+    "default": [],
+}
+EXPECTED_MAP_WITH_SCHEMA_IN_ITEMS = {
+    "type": "map",
+    "values": EXPECTED_SIMPLE_RECORD_SCHEMA,
+    "default": [],
+}
+
+
 JSON_TYPE_SCHEMA = {
     "type": "object",
     "title": "JSON-schema",
@@ -514,6 +543,7 @@ EMPTY_STR = ""
         [ALL_ELEMENTS_SCHEMA, EXPECTED_ALL_ELEMENTS_SCHEMA],
         [ALL_ELEMENTS_INVALID_DATA_SCHEMA, EXPECTED_ALL_ELEMENTS_INVALID_DATA_SCHEMA],
         [NESTED_RECORD_SCHEMA, EXPECTED_NESTED_RECORD_SCHEMA],
+        [ARRAY_WITH_SCHEMA_IN_ITEMS, EXPECTED_ARRAY_WITH_SCHEMA_IN_ITEMS],
         [JSON_TYPE_SCHEMA, EXPECTED_JSON_TYPE_SCHEMA],
         [ARRAY_SCHEMA, EXPECTED_ARRAY_SCHEMA],
         [INVALID_ENUM_SCHEMA, EXPECTED_INVALID_ENUM_SCHEMA],

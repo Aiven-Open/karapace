@@ -23,10 +23,26 @@ SCALE = "scale"
 SIZE = "size"
 SYMBOLS = "symbols"
 TYPE = "type"
+VALUES = "values"
 
 
 # Doc and order field are special case and not included
-KEYWORDS = [ALIASES, DEFAULT, ENUM, FIELDS, ITEMS, LOGICAL_TYPE, NAME, NAMESPACE, PRECISION, SCALE, SIZE, SYMBOLS, TYPE]
+KEYWORDS = [
+    ALIASES,
+    DEFAULT,
+    ENUM,
+    FIELDS,
+    ITEMS,
+    LOGICAL_TYPE,
+    NAME,
+    NAMESPACE,
+    PRECISION,
+    SCALE,
+    SIZE,
+    SYMBOLS,
+    TYPE,
+    VALUES,
+]
 PRIMITIVE_TYPES = ["null", "boolean", "int", "long", "float", "double", "bytes", "string"]
 LOGICAL_TYPES = [
     "date",
