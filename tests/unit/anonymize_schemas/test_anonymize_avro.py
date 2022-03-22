@@ -147,6 +147,14 @@ ALL_ELEMENTS_SCHEMA = {
             "default": 1,
         },
         {
+            "type": "float",
+            "name": "FloatField",
+            "namespace": "io.aiven",
+            "doc": "Float field document shall be removed.",
+            "order": "ascending",
+            "default": 1.12345,
+        },
+        {
             "type": "enum",
             "name": "Enumeration",
             "namespace": "io.aiven",
@@ -210,6 +218,13 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
             "order": "ascending",
             "default": 1,
+        },
+        {
+            "type": "float",
+            "name": "acdc1208676b23ea32d59df3dcc23e4161aa6a26",
+            "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
+            "order": "ascending",
+            "default": 1.12345,
         },
         {
             "type": "enum",
