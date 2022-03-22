@@ -258,6 +258,110 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
     ],
 }
 
+ALL_ELEMENTS_INVALID_DATA_SCHEMA = {
+    "type": 1,
+    "namespace": 1,
+    "name": 1,
+    "doc": 1,
+    "aliases": [2, 3],
+    "fields": [
+        {
+            "type": "long",
+            "name": 4,
+            "namespace": 4,
+            "doc": ["documentation in an array"],
+            "order": 4,
+            "default": "invalid",
+        },
+        {
+            "type": "enum",
+            "name": 5,
+            "namespace": 5,
+            "doc": {"doc": "documentation in a dict"},
+            "aliases": [6],
+            "symbols": [7, 8],
+            "default": 9,
+        },
+        {
+            "type": "array",
+            "name": 10,
+            "items": 10,
+            "default": 10,
+            10: "invalid key",
+        },
+        {
+            "type": "map",
+            "name": 11,
+            "items": 11,
+            "default": 11,
+        },
+        {
+            "type": [
+                12,
+                13,
+            ],
+            "name": 12,
+        },
+        {
+            "type": "fixed",
+            "name": 14,
+            "namespace": 14,
+            "order": 14,
+            "size": "14",
+        },
+    ],
+}
+EXPECTED_ALL_ELEMENTS_INVALID_DATA_SCHEMA = {
+    "type": 1,
+    "namespace": 1,
+    "name": 1,
+    "aliases": [2, 3],
+    "fields": [
+        {
+            "type": "long",
+            "name": 4,
+            "namespace": 4,
+            "order": 4,
+            "default": "a1f344a7686a80b4c5293e8fdc0b0160c82c06a8",
+        },
+        {
+            "type": "enum",
+            "name": 5,
+            "namespace": 5,
+            "aliases": [6],
+            "symbols": [7, 8],
+            "default": 9,
+        },
+        {
+            "type": "array",
+            "name": 10,
+            "items": 10,
+            "default": 10,
+            10: "a0b769b8796e493b9e82cb872cc9871921d67af8",
+        },
+        {
+            "type": "map",
+            "name": 11,
+            "items": 11,
+            "default": 11,
+        },
+        {
+            "type": [
+                12,
+                13,
+            ],
+            "name": 12,
+        },
+        {
+            "type": "fixed",
+            "name": 14,
+            "namespace": 14,
+            "order": 14,
+            "size": "aa35e192121eabf3dabf9f5ea6abdbcbc107ac3b",
+        },
+    ],
+}
+
 
 NESTED_RECORD_SCHEMA = {
     "type": "record",
@@ -388,6 +492,7 @@ EMPTY_STR = ""
         [COMPLEX_ENUM_SCHEMA, EXPECTED_COMPLEX_ENUM_SCHEMA],
         [NO_TYPE_SCHEMA, EXPECTED_NO_TYPE_SCHEMA],
         [ALL_ELEMENTS_SCHEMA, EXPECTED_ALL_ELEMENTS_SCHEMA],
+        [ALL_ELEMENTS_INVALID_DATA_SCHEMA, EXPECTED_ALL_ELEMENTS_INVALID_DATA_SCHEMA],
         [NESTED_RECORD_SCHEMA, EXPECTED_NESTED_RECORD_SCHEMA],
         [JSON_TYPE_SCHEMA, EXPECTED_JSON_TYPE_SCHEMA],
         [ARRAY_SCHEMA, EXPECTED_ARRAY_SCHEMA],

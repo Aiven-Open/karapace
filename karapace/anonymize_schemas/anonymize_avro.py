@@ -93,7 +93,9 @@ def anonymize(input_schema: Schema) -> Schema:
                 else:
                     output_schema[key] = anonymize(value)
             else:
-                output_schema[anonymize_name(key)] = anonymize(value)
+                if isinstance(key, str):
+                    key = anonymize_name(key)
+                output_schema[key] = anonymize(value)
         return output_schema
     else:
         return input_schema
