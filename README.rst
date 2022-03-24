@@ -122,7 +122,7 @@ To get the specific version 1 of the schema just registered run::
 
 To get the latest version of the schema under subject test-key run::
 
-  $ curl -X GET http://localhost:8081/subjects/Kafka-value/versions/latest
+  $ curl -X GET http://localhost:8081/subjects/test-key/versions/latest
   {"subject":"test-key","version":1,"id":1,"schema":"{\"fields\":[{\"name\":\"age\",\"type\":\"int\"}],\"name\":\"Obj\",\"type\":\"record\"}"}
 
 In order to delete version 10 of the schema registered under subject "test-key" (if it exists)::
