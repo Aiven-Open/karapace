@@ -162,43 +162,43 @@ Change compatibility requirement to FULL for the test-key subject::
 
 List topics::
 
-  $ curl "http://localhost:8081/topics"
+  $ curl "http://localhost:8082/topics"
 
 Get info for one particular topic::
 
-  $ curl "http://localhost:8081/topics/my_topic"
+  $ curl "http://localhost:8082/topics/my_topic"
 
 Produce a message backed up by schema registry::
 
   $ curl -H "Content-Type: application/vnd.kafka.avro.v2+json" -X POST -d \
     '{"value_schema": "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"simple\", \"fields\": \
-    [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8081/topics/my_topic
+    [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8082/topics/my_topic
 
 Create a consumer::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" -H "Accept: application/vnd.kafka.v2+json" \
     --data '{"name": "my_consumer", "format": "avro", "auto.offset.reset": "earliest"}' \
-    http://localhost:8081/consumers/avro_consumers
+    http://localhost:8082/consumers/avro_consumers
 
 Subscribe to the topic we previously published to::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{"topics":["my_topic"]}' \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/subscription
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer/subscription
 
 Consume previously published message::
 
   $ curl -X GET -H "Accept: application/vnd.kafka.avro.v2+json" \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
 
 Commit offsets for a particular topic partition::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{}' \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/offsets
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer/offsets
 
 Delete consumer::
 
   $ curl -X DELETE -H "Accept: application/vnd.kafka.v2+json" \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer
 
 Backing up your Karapace
 ========================
