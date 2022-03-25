@@ -11,6 +11,7 @@ from tests.utils import (
 )
 
 import asyncio
+import json
 
 NEW_TOPIC_TIMEOUT = 10
 
@@ -276,6 +277,51 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         res_json = res.json()
         assert res.status == 422
         assert res_json["error_code"] == 42205
+
+
+async def test_publish_incompatible_schema(rest_async_client, admin_client):
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    url = f"/topics/{topic_name}"
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+    schema_2 = {
+        "type": "record",
+        "name": "Schema2",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Foobar"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status == 200
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema": json.dumps(schema_2), "records": [{"value": {"name2": "Foobar"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status == 408
+    res_json = res.json()
+    assert res_json["error_code"] == 40801
+    assert "message" in res_json
+    assert "Error when registering schema" in res_json["message"]
 
 
 async def test_brokers(rest_async_client):

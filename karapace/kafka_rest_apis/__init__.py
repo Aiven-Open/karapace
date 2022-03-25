@@ -464,6 +464,15 @@ class KafkaRest(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.BAD_REQUEST,
             )
+        except SchemaRetrievalError:
+            self.r(
+                body={
+                    "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
+                    "message": f"Error when registering schema. format = {schema_type}, subject = {topic}-{prefix}",
+                },
+                content_type=content_type,
+                status=HTTPStatus.REQUEST_TIMEOUT,
+            )
 
     async def _prepare_records(
         self,
