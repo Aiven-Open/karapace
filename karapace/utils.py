@@ -7,7 +7,7 @@ See LICENSE for details
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
-from typing import Any, NoReturn, Optional
+from typing import NoReturn, Optional
 from urllib.parse import urljoin
 
 import aiohttp
@@ -20,22 +20,9 @@ import requests
 import ssl
 import time
 import types
-import ujson
 
 log = logging.getLogger("KarapaceUtils")
 NS_BLACKOUT_DURATION_SECONDS = 120
-
-
-def deepcopy(obj: Any) -> Any:
-    """Replacement for the standard library deepcopy.
-
-    The stdlib's copy.deepcopy is notoriously slow. After benchmarking the REST Proxy produce API
-    the deepcopy was identified as a bottleneck. Currently it is faster to encode the objects as
-    json and decode the result instead of using copy.deepcopy.
-    """
-    encoded = ujson.dumps(obj)
-    copy = ujson.loads(encoded)
-    return copy
 
 
 def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):

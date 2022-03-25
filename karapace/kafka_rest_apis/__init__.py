@@ -12,7 +12,7 @@ from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
-from karapace.utils import convert_to_int, deepcopy, KarapaceKafkaClient
+from karapace.utils import convert_to_int, KarapaceKafkaClient
 from typing import List, Optional, Tuple
 
 import asyncio
@@ -285,7 +285,7 @@ class KafkaRest(KarapaceBase):
                 self._cluster_metadata = None
 
             if self._cluster_metadata and topics is None:
-                return deepcopy(self._cluster_metadata)
+                return self._cluster_metadata
 
             try:
                 metadata_birth = time.monotonic()
@@ -304,7 +304,7 @@ class KafkaRest(KarapaceBase):
                     content_type="application/json",
                     status=HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
-            return deepcopy(metadata)
+            return metadata
 
     def init_admin_client(self):
         while True:
@@ -684,5 +684,6 @@ class KafkaRest(KarapaceBase):
 
     async def list_brokers(self, content_type: str):
         metadata = await self.cluster_metadata()
+        metadata = metadata.copy()  # shallow copy as we want to mutate it
         metadata.pop("topics")
         self.r(metadata, content_type)
