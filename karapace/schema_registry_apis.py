@@ -293,6 +293,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         try:
             schema_type = SchemaType(body.get("schemaType", "AVRO"))
             new_schema = TypedSchema.parse(schema_type, body["schema"])
+            new_schema.validate()
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(
@@ -306,6 +307,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         try:
             old_schema_type = SchemaType(old.get("schemaType", "AVRO"))
             old_schema = TypedSchema.parse(old_schema_type, old["schema"])
+            old_schema.validate()
         except InvalidSchema:
             self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(
@@ -715,6 +717,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         schema_type = SchemaType(body.get("schemaType", "AVRO"))
         try:
             new_schema = TypedSchema.parse(schema_type, schema_str)
+            new_schema.validate()
         except InvalidSchema:
             self.log.exception("No proper parser found")
             self.r(
@@ -770,6 +773,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO))
         try:
             new_schema = TypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
+            new_schema.validate()
         except (InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
             if isinstance(e.__cause__, (SchemaParseException, ValueError)):
