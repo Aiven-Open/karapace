@@ -220,8 +220,8 @@ class PortRangeInclusive:
     start: int
     end: int
 
-    PRIVILEGE_END = 2 ** 10
-    MAX_PORTS = 2 ** 16 - 1
+    PRIVILEGE_END = 2**10
+    MAX_PORTS = 2**16 - 1
 
     def __post_init__(self):
         # Make sure the range is valid and that we don't need to be root
