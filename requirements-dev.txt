@@ -1,5 +1,5 @@
 # linters and formatters
-isort==4.3.10
+isort==5.10.1
 pylint==2.7.4
 flake8==4.0.1
 mypy==0.812
