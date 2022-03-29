@@ -4,6 +4,7 @@ pycodestyle==2.6.0
 pylint==2.7.4
 flake8==3.8.4
 mypy==0.812
+black==22.3.0
 
 # testing
 pytest==6.2.5
