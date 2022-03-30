@@ -12,10 +12,10 @@ from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
 from types import MappingProxyType
 from typing import NoReturn, overload, Union
 
-import json as jsonlib
 import kafka.client_async
 import logging
 import time
+import ujson
 
 log = logging.getLogger("KarapaceUtils")
 NS_BLACKOUT_DURATION_SECONDS = 120
@@ -68,11 +68,9 @@ def default_json_serialization(  # pylint: disable=inconsistent-return-statement
 
 
 def json_encode(obj, *, sort_keys: bool = True, binary=False):
-    res = jsonlib.dumps(
+    res = ujson.dumps(
         obj,
         sort_keys=sort_keys,
-        indent=None,
-        separators=(",", ":"),
         default=default_json_serialization,
     )
     return res.encode("utf-8") if binary else res
