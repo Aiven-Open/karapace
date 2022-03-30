@@ -12,11 +12,10 @@ from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from karapace.utils import Client
+from karapace.utils import Client, Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.utils import (
-    Expiration,
     get_random_port,
     KAFKA_PORT_RANGE,
     KafkaConfig,

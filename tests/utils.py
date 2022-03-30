@@ -2,14 +2,13 @@ from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
 from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.utils import Client
+from karapace.utils import Client, Expiration
 from typing import Callable, List
 from urllib.parse import quote
 
 import asyncio
 import copy
 import random
-import time
 import ujson
 import uuid
 
@@ -167,10 +166,6 @@ REST_HEADERS = {
 }
 
 
-class Timeout(Exception):
-    pass
-
-
 @dataclass
 class KafkaConfig:
     datadir: str
@@ -200,19 +195,6 @@ class KafkaServers:
         )
         if not is_bootstrap_uris_valid:
             raise ValueError("bootstrap_servers must be a non-empty list of urls")
-
-
-@dataclass(frozen=True)
-class Expiration:
-    deadline: float
-
-    @classmethod
-    def from_timeout(cls, timeout: float) -> "Expiration":
-        return cls(time.monotonic() + timeout)
-
-    def raise_if_expired(self, msg: str) -> None:
-        if time.monotonic() > self.deadline:
-            raise Timeout(msg)
 
 
 @dataclass(frozen=True)
