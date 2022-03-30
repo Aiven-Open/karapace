@@ -12,11 +12,10 @@ from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from karapace.utils import Client
+from karapace.utils import Client, Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.utils import (
-    Expiration,
     get_random_port,
     KAFKA_PORT_RANGE,
     KafkaConfig,
@@ -83,9 +82,11 @@ def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
         expiration = Expiration.from_timeout(timeout=wait_time)
 
         list_topics_successful = False
-        msg = f"Could not contact kafka cluster on host `{server}`"
         while not list_topics_successful:
-            expiration.raise_if_expired(msg)
+            expiration.raise_timeout_if_expired(
+                msg_format="Could not contact kafka cluster on host `{server}`",
+                server=server,
+            )
             try:
                 KafkaRestAdminClient(bootstrap_servers=server).cluster_metadata()
             # ValueError:
@@ -113,15 +114,17 @@ def wait_for_port(
     wait_time: float = 20.0,
     ipv6: bool = False,
 ) -> None:
-    start_time = time.monotonic()
-    expiration = Expiration(deadline=start_time + wait_time)
-    msg = f"Timeout waiting for `{hostname}:{port}`"
+    expiration = Expiration.from_timeout(wait_time)
 
     while not port_is_listening(hostname, port, ipv6):
-        expiration.raise_if_expired(msg)
+        expiration.raise_timeout_if_expired(
+            msg_format="Timeout waiting for `{hostname}:{port}`",
+            hostname=hostname,
+            port=port,
+        )
         time.sleep(2.0)
 
-    elapsed = time.monotonic() - start_time
+    elapsed = expiration.elapsed
     print(f"Server `{hostname}:{port}` listening after {elapsed} seconds")
 
 
