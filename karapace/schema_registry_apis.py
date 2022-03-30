@@ -7,7 +7,8 @@ from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest
-from karapace.schema_reader import InvalidSchema, KafkaSchemaReader, SchemaType, TypedSchema
+from karapace.schema_models import InvalidSchema, InvalidSchemaType, ValidatedTypedSchema
+from karapace.schema_reader import KafkaSchemaReader, SchemaType, TypedSchema
 from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Any, Dict, Optional, Tuple
 
@@ -43,10 +44,6 @@ class SchemaErrorMessages(Enum):
         "forward, full, backward_transitive, forward_transitive, and "
         "full_transitive"
     )
-
-
-class InvalidSchemaType(Exception):
-    pass
 
 
 class KarapaceSchemaRegistry(KarapaceBase):
@@ -292,7 +289,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             schema_type = SchemaType(body.get("schemaType", "AVRO"))
-            new_schema = TypedSchema.parse(schema_type, body["schema"])
+            new_schema = ValidatedTypedSchema.parse(schema_type, body["schema"])
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", body["schema"])
             self.r(
@@ -305,7 +302,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             )
         try:
             old_schema_type = SchemaType(old.get("schemaType", "AVRO"))
-            old_schema = TypedSchema.parse(old_schema_type, old["schema"])
+            old_schema = ValidatedTypedSchema.parse(old_schema_type, old["schema"])
         except InvalidSchema:
             self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(
@@ -714,7 +711,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         schema_str = body["schema"]
         schema_type = SchemaType(body.get("schemaType", "AVRO"))
         try:
-            new_schema = TypedSchema.parse(schema_type, schema_str)
+            new_schema = ValidatedTypedSchema.parse(schema_type, schema_str)
         except InvalidSchema:
             self.log.exception("No proper parser found")
             self.r(
@@ -769,7 +766,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.log.info("Writing new schema locally since we're the master")
         schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO))
         try:
-            new_schema = TypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
+            new_schema = ValidatedTypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
         except (InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
             if isinstance(e.__cause__, (SchemaParseException, ValueError)):
@@ -839,8 +836,11 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
             for old_version in check_against:
                 old_schema = subject_data["schemas"][old_version]["schema"]
+                validated_old_schema = ValidatedTypedSchema.parse(
+                    schema_type=old_schema.schema_type, schema_str=old_schema.schema_str
+                )
                 result = check_compatibility(
-                    old_schema=old_schema,
+                    old_schema=validated_old_schema,
                     new_schema=new_schema,
                     compatibility_mode=compatibility_mode,
                 )
@@ -874,7 +874,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     subject,
                     schema_id,
                     version,
-                    new_schema.to_json(),
+                    new_schema.to_dict(),
                     schema_id,
                 )
 
