@@ -97,7 +97,7 @@ class TypedSchema:
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
             return self.schema_str
-        return json_encode(self.to_dict(), compact=True)
+        return json_encode(self.to_dict())
 
     def __repr__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:

@@ -339,7 +339,7 @@ class RestApp:
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
 
             if isinstance(data, (dict, list)):
-                resp_bytes = json_encode(data, binary=True, sort_keys=True, compact=True)
+                resp_bytes = json_encode(data, binary=True, sort_keys=True)
             elif isinstance(data, str):
                 if "Content-Type" not in headers:
                     headers["Content-Type"] = "text/plain; charset=utf-8"
