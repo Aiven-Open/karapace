@@ -122,7 +122,7 @@ class Expiration:
             raise Timeout(msg_format.format(*args, **kwargs))
 
 
-def convert_to_int(object_: dict, key: str, content_type: str):
+def convert_to_int(object_: dict, key: str, content_type: str) -> None:
     if object_.get(key) is None:
         return
     try:
