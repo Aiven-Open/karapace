@@ -11,7 +11,6 @@ from karapace import constants
 from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
 from karapace.utils import KarapaceKafkaClient
-from queue import Queue
 from threading import Lock, Thread
 from typing import Dict
 
@@ -20,6 +19,10 @@ import time
 import ujson
 
 log = logging.getLogger(__name__)
+
+# The value `0` is a valid offset and it represents the first message produced
+# to a topic, therefore it can not be used.
+OFFSET_EMPTY = -1
 
 
 class KafkaSchemaReader(Thread):
@@ -32,19 +35,30 @@ class KafkaSchemaReader(Thread):
         self.subjects = {}
         self.schemas: Dict[int, TypedSchema] = {}
         self.global_schema_id = 0
-        self.offset = 0
         self.admin_client = None
         self.schema_topic = None
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer = None
-        self.queue = Queue()
-        self.ready = False
         self.running = True
         self.id_lock = Lock()
         sentry_config = config.get("sentry", {"dsn": None}).copy()
         if "tags" not in sentry_config:
             sentry_config["tags"] = {}
         self.stats = StatsClient(sentry_config=sentry_config)
+
+        # Thread synchronization objects
+        # - offset is used by the REST API to wait until this thread has
+        # consumed the produced messages. This makes the REST APIs more
+        # consistent (e.g. a request to a schema that was just produced will
+        # return the correct data.)
+        # - ready is used by the REST API to wait until this thread has
+        # synchronized with data in the schema topic. This prevents the server
+        # from returning stale data (e.g. a schemas has been soft deleted, but
+        # the topic has not been compacted yet, waiting allows this to consume
+        # the soft delete message and return the correct data instead of the
+        # old stale version that has not been deleted yet.)
+        self.offset = OFFSET_EMPTY
+        self.ready = False
 
     def init_consumer(self):
         # Group not set on purpose, all consumers read the same data
@@ -163,15 +177,6 @@ class KafkaSchemaReader(Thread):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False and not raw_msgs:
             self.ready = True
-        add_offsets = False
-        if self.master_coordinator is not None:
-            are_we_master, _ = self.master_coordinator.get_master_info()
-            # keep old behavior for True. When are_we_master is False, then we are a follower, so we should not accept direct
-            # writes anyway. When are_we_master is None, then this particular node is waiting for a stable value, so any
-            # messages off the topic are writes performed by another node
-            # Also if master_elibility is disabled by configuration, disable writes too
-            if are_we_master is True:
-                add_offsets = True
 
         for _, msgs in raw_msgs.items():
             for msg in msgs:
@@ -193,8 +198,6 @@ class KafkaSchemaReader(Thread):
                 self.handle_msg(key, value)
                 self.offset = msg.offset
                 self.log.info("Handled message, current offset: %r", self.offset)
-                if self.ready and add_offsets:
-                    self.queue.put(self.offset)
 
     def handle_msg(self, key: dict, value: dict):
         if key["keytype"] == "CONFIG":

@@ -214,21 +214,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
             )
         return compatibility_mode
 
-    def get_offset_from_queue(self, sent_offset):
-        start_time = time.monotonic()
-        while True:
-            self.log.info("Starting to wait for offset: %r from ksr queue", sent_offset)
-            offset = self.ksr.queue.get()
-            if offset == sent_offset:
-                self.log.info(
-                    "We've consumed back produced offset: %r message back, everything is in sync, took: %.4f",
-                    offset,
-                    time.monotonic() - start_time,
-                )
-                break
-            self.log.warning("Put the offset: %r back to queue, someone else is waiting for this?", offset)
-            self.ksr.queue.put(offset)
-
     def send_kafka_message(self, key, value):
         if isinstance(key, str):
             key = key.encode("utf8")
@@ -238,8 +223,20 @@ class KarapaceSchemaRegistry(KarapaceBase):
         future = self.producer.send(self.config["topic_name"], key=key, value=value)
         self.producer.flush(timeout=self.kafka_timeout)
         msg = future.get(self.kafka_timeout)
-        self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
-        self.get_offset_from_queue(msg.offset)
+        sent_offset = msg.offset
+
+        self.log.debug("[Reader Synchronization] Waiting for key: %r, value: %r, offset: %r", key, value, sent_offset)
+        start = time.monotonic()
+
+        while sent_offset > self.ksr.offset:
+            time.sleep(0.1)
+
+        elapsed = start - time.monotonic()
+        self.log.info(
+            "[Reader Synchronization] Offset consumed: %r, took: %.4f",
+            sent_offset,
+            elapsed,
+        )
         return future
 
     def send_schema_message(
