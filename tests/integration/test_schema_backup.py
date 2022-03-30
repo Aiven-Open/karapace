@@ -6,9 +6,9 @@ See LICENSE for details
 """
 from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
-from karapace.utils import Client
+from karapace.utils import Client, Expiration
 from pathlib import Path
-from tests.utils import Expiration, KafkaServers, new_random_name
+from tests.utils import KafkaServers, new_random_name
 
 import os
 import time

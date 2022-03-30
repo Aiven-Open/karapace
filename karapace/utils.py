@@ -4,6 +4,7 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from dataclasses import dataclass
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
@@ -67,6 +68,23 @@ def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
 
 def assert_never(value: NoReturn) -> NoReturn:
     raise RuntimeError(f"This code should never be reached, got: {value}")
+
+
+class Timeout(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Expiration:
+    deadline: float
+
+    @classmethod
+    def from_timeout(cls, timeout: float) -> "Expiration":
+        return cls(time.monotonic() + timeout)
+
+    def raise_if_expired(self, msg: str) -> None:
+        if time.monotonic() > self.deadline:
+            raise Timeout(msg)
 
 
 class Result:
