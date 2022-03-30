@@ -85,10 +85,7 @@ class KafkaSchemaReader(Thread):
         self.offset_watcher = OffsetsWatcher()
         self.running = True
         self.id_lock = Lock()
-        sentry_config = config.get("sentry", {"dsn": None}).copy()
-        if "tags" not in sentry_config:
-            sentry_config["tags"] = {}
-        self.stats = StatsClient(sentry_config=sentry_config)
+        self.stats = StatsClient(sentry_config=config["sentry"])
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
