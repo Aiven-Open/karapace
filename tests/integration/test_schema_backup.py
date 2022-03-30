@@ -6,9 +6,9 @@ See LICENSE for details
 """
 from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
-from karapace.utils import Client
+from karapace.utils import Client, Expiration
 from pathlib import Path
-from tests.utils import Expiration, KafkaServers, new_random_name
+from tests.utils import KafkaServers, new_random_name
 
 import os
 import time
@@ -79,7 +79,11 @@ async def test_backup_restore(
     all_subjects = []
     expiration = Expiration.from_timeout(timeout=10)
     while subject not in all_subjects:
-        expiration.raise_if_expired(msg=f"{subject} not in {all_subjects}")
+        expiration.raise_timeout_if_expired(
+            msg_format="{subject} not in {all_subjects}",
+            subject=subject,
+            all_subjects=all_subjects,
+        )
         res = await registry_async_client.get("subjects")
         assert res.status_code == 200
         all_subjects = res.json()

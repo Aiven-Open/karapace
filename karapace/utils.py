@@ -4,6 +4,7 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from dataclasses import dataclass
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
@@ -67,6 +68,48 @@ def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
 
 def assert_never(value: NoReturn) -> NoReturn:
     raise RuntimeError(f"This code should never be reached, got: {value}")
+
+
+class Timeout(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Expiration:
+    start_time: float
+    deadline: float
+
+    @classmethod
+    def from_timeout(cls, timeout: float) -> "Expiration":
+        start_time = time.monotonic()
+        deadline = start_time + timeout
+        return cls(start_time, deadline)
+
+    @property
+    def elapsed(self) -> float:
+        return time.monotonic() - self.start_time
+
+    def is_expired(self) -> bool:
+        return time.monotonic() > self.deadline
+
+    def raise_timeout_if_expired(self, msg_format: str, *args: object, **kwargs: object) -> None:
+        """Raise `Timeout` if this object is expired.
+
+        Note:
+            This method is supposed to be used in a loop, e.g.:
+
+                expiration = Expiration.from_timeout(timeout=60)
+                while is_data_ready(data):
+                    expiration.raise_timeout_if_expired("something about", data)
+                    data = gather_data()
+
+            The exception message should be meaningful, so it may format data
+            into the message itself. However formatting is expensive and should
+            be done only when the deadline is expired, so this uses a similar
+            interface to `logging.<level>()`.
+        """
+        if self.is_expired():
+            raise Timeout(msg_format.format(*args, **kwargs))
 
 
 class Result:
