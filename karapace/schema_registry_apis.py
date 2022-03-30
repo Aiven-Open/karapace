@@ -874,7 +874,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     subject,
                     schema_id,
                     version,
-                    new_schema.to_json(),
+                    new_schema.to_dict(),
                     schema_id,
                 )
 
