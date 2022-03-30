@@ -1,9 +1,9 @@
 # linters and formatters
-isort==4.3.10
-pycodestyle==2.6.0
+isort==5.10.1
 pylint==2.7.4
-flake8==3.8.4
-mypy==0.812
+flake8==4.0.1
+mypy==0.942
+black==22.3.0
 
 # testing
 pytest==6.2.5
