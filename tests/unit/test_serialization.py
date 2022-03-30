@@ -1,5 +1,5 @@
 from karapace.config import DEFAULTS, read_config
-from karapace.schema_reader import SchemaType, TypedSchema
+from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.serialization import (
     flatten_unions,
     HEADER_FORMAT,
@@ -49,7 +49,7 @@ async def test_happy_flow(default_config_path, mock_registry_client):
 
 
 def test_flatten_unions_record() -> None:
-    typed_schema = TypedSchema.parse(
+    typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
         ujson.dumps(
             {
@@ -78,7 +78,7 @@ def test_flatten_unions_record() -> None:
 
 
 def test_flatten_unions_array() -> None:
-    typed_schema = TypedSchema.parse(
+    typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
         ujson.dumps(
             {
@@ -106,7 +106,7 @@ def test_flatten_unions_array() -> None:
 
 
 def test_flatten_unions_map() -> None:
-    typed_schema = TypedSchema.parse(
+    typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
         ujson.dumps(
             {
@@ -129,7 +129,7 @@ def test_flatten_unions_map() -> None:
     flatten_record = {"foo": {"attr1": "sample data"}}
     assert flatten_unions(typed_schema.schema, record) == flatten_record
 
-    typed_schema = TypedSchema.parse(
+    typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
         ujson.dumps({"type": "array", "items": ["null", "string", "int"]}),
     )
@@ -156,7 +156,7 @@ def test_avro_json_write_invalid() -> None:
         {"foo": "bar"},
     ]
 
-    typed_schema = TypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
     bio = io.BytesIO()
 
     for record in records:
@@ -215,7 +215,7 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
             }
         ],
     }
-    typed_schema = TypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
 
     properly_tagged_encoding_a = {"outter": {duplicated_name: {duplicated_name: "data"}}}
     properly_tagged_encoding_b = {"outter": {"int": 1}}
@@ -255,7 +255,7 @@ async def test_deserialization_fails(default_config_path, mock_registry_client):
 
     # but we can pass in a perfectly fine doc belonging to a diff schema
     schema = await mock_registry_client.get_schema_for_id(1)
-    schema = copy.deepcopy(schema.to_json())
+    schema = copy.deepcopy(schema.to_dict())
     schema["name"] = "BadUser"
     schema["fields"][0]["type"] = "int"
     obj = {"name": 100, "favorite_number": 2, "favorite_color": "bar"}

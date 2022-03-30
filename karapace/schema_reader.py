@@ -4,162 +4,22 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from avro.errors import SchemaParseException
-from avro.schema import parse as avro_parse, Schema as AvroSchema
-from enum import Enum, unique
-from jsonschema import Draft7Validator
-from jsonschema.exceptions import SchemaError
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
-from karapace.protobuf.exception import (
-    Error as ProtobufError,
-    IllegalArgumentException,
-    IllegalStateException,
-    ProtobufException,
-    ProtobufParserRuntimeException,
-    SchemaParseException as ProtobufSchemaParseException,
-)
-from karapace.protobuf.schema import ProtobufSchema
+from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
-from karapace.utils import json_encode, KarapaceKafkaClient
+from karapace.utils import KarapaceKafkaClient
 from queue import Queue
 from threading import Lock, Thread
-from typing import Dict, Optional
+from typing import Dict
 
-import json
 import logging
 import time
 import ujson
 
 log = logging.getLogger(__name__)
-
-
-def parse_avro_schema_definition(s: str) -> AvroSchema:
-    """Compatibility function with Avro which ignores trailing data in JSON
-    strings.
-
-    The Python stdlib `json` module doesn't allow to ignore trailing data. If
-    parsing fails because of it, the extra data can be removed and parsed
-    again.
-    """
-    try:
-        json_data = json.loads(s)
-    except json.JSONDecodeError as e:
-        if e.msg != "Extra data":
-            raise
-
-        json_data = json.loads(s[: e.pos])
-
-    return avro_parse(json.dumps(json_data))
-
-
-def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
-    """Parses and validates `schema_definition`.
-
-    Raises:
-        SchemaError: If `schema_definition` is not a valid Draft7 schema.
-    """
-    schema = ujson.loads(schema_definition)
-    Draft7Validator.check_schema(schema)
-    return Draft7Validator(schema)
-
-
-def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
-    """Parses and validates `schema_definition`.
-
-    Raises:
-        Nothing yet.
-
-    """
-
-    return ProtobufSchema(schema_definition)
-
-
-class InvalidSchema(Exception):
-    pass
-
-
-@unique
-class SchemaType(str, Enum):
-    AVRO = "AVRO"
-    JSONSCHEMA = "JSON"
-    PROTOBUF = "PROTOBUF"
-
-
-class TypedSchema:
-    def __init__(self, schema, schema_type: SchemaType, schema_str: str):
-        self.schema_type = schema_type
-        self.schema = schema
-        self.schema_str = schema_str
-
-    @staticmethod
-    def parse_json(schema_str: str):
-        try:
-            return TypedSchema(parse_jsonschema_definition(schema_str), SchemaType.JSONSCHEMA, schema_str)
-        # TypeError - Raised when the user forgets to encode the schema as a string.
-        except (TypeError, ValueError, SchemaError, AssertionError) as e:
-            raise InvalidSchema from e
-
-    @staticmethod
-    def parse_avro(schema_str: str):
-        try:
-            ts = TypedSchema(parse_avro_schema_definition(schema_str), SchemaType.AVRO, schema_str)
-            return ts
-        except (SchemaParseException, ValueError, TypeError) as e:
-            raise InvalidSchema from e
-
-    @staticmethod
-    def parse_protobuf(schema_str: str) -> Optional["TypedSchema"]:
-        try:
-            ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
-            return ts
-        except (
-            TypeError,
-            SchemaError,
-            AssertionError,
-            ProtobufParserRuntimeException,
-            IllegalStateException,
-            IllegalArgumentException,
-            ProtobufError,
-            ProtobufException,
-            ProtobufSchemaParseException,
-        ) as e:
-            log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
-            raise InvalidSchema from e
-
-    @staticmethod
-    def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
-        if schema_type is SchemaType.AVRO:
-            return TypedSchema.parse_avro(schema_str)
-        if schema_type is SchemaType.JSONSCHEMA:
-            return TypedSchema.parse_json(schema_str)
-        if schema_type is SchemaType.PROTOBUF:
-            return TypedSchema.parse_protobuf(schema_str)
-        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
-
-    def to_json(self):
-        if isinstance(self.schema, Draft7Validator):
-            return self.schema.schema
-        if isinstance(self.schema, AvroSchema):
-            return self.schema.to_json(names=None)
-        if isinstance(self.schema, ProtobufSchema):
-            raise InvalidSchema("Protobuf do not support to_json serialization")
-        return self.schema
-
-    def __str__(self) -> str:
-        if isinstance(self.schema, ProtobufSchema):
-            return str(self.schema)
-        return json_encode(self.to_json(), compact=True)
-
-    def __repr__(self):
-        if isinstance(self.schema, ProtobufSchema):
-            return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
-        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
-
-    def __eq__(self, other):
-        return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type
 
 
 class KafkaSchemaReader(Thread):
@@ -367,17 +227,17 @@ class KafkaSchemaReader(Thread):
                 return
             schema_type = value.get("schemaType", "AVRO")
             schema_str = value["schema"]
-            try:
-                typed_schema = TypedSchema.parse(schema_type=SchemaType(schema_type), schema_str=schema_str)
-            except InvalidSchema:
+            if schema_type in ["AVRO", "JSON"]:
                 try:
-                    schema_json = ujson.loads(schema_str)
-                    typed_schema = TypedSchema(
-                        schema_type=SchemaType(schema_type), schema=schema_json, schema_str=schema_str
-                    )
+                    ujson.loads(schema_str)  # Validate input json
                 except ValueError:
                     self.log.error("Invalid json: %s", value["schema"])
                     return
+                typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema_str=schema_str)
+            elif schema_type == "PROTOBUF":
+                typed_schema = TypedSchema(schema_type=SchemaType(schema_type), schema_str=schema_str)
+            else:
+                self.log.error("Invalid schema type: %s", schema_type)
             self.log.debug("Got typed schema %r", typed_schema)
             subject = value["subject"]
             if subject not in self.subjects:

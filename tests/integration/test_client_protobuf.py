@@ -1,12 +1,12 @@
 from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.schema_reader import SchemaType, TypedSchema
+from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.serialization import SchemaRegistryClient
 from tests.schemas.protobuf import schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_plain
 from tests.utils import new_random_name
 
 
 async def test_remote_client_protobuf(registry_async_client):
-    schema_protobuf = TypedSchema.parse(SchemaType.PROTOBUF, schema_protobuf_plain)
+    schema_protobuf = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, schema_protobuf_plain)
     reg_cli = SchemaRegistryClient()
     reg_cli.client = registry_async_client
     subject = new_random_name("subject")
@@ -20,8 +20,8 @@ async def test_remote_client_protobuf(registry_async_client):
 
 
 async def test_remote_client_protobuf2(registry_async_client):
-    schema_protobuf = TypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf_order_before))
-    schema_protobuf_after = TypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf_order_after))
+    schema_protobuf = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf_order_before))
+    schema_protobuf_after = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf_order_after))
     reg_cli = SchemaRegistryClient()
     reg_cli.client = registry_async_client
     subject = new_random_name("subject")
