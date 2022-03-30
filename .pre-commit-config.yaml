@@ -1,7 +1,8 @@
+---
 minimum_pre_commit_version: 2.9.2
 repos:
   - repo: https://github.com/psf/black
-    rev: 21.12b0
+    rev: 22.3.0
     hooks:
       - id: black
         files: \.py$
@@ -9,7 +10,7 @@ repos:
           - --line-length=125
 
   - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.8.4
+    rev: 4.0.1
     hooks:
       - id: flake8
         files: \.py$
@@ -17,14 +18,14 @@ repos:
           - --config=.flake8
 
   - repo: https://github.com/PyCQA/isort
-    rev: 4.3.21-2
+    rev: 5.10.1
     hooks:
       - id: isort
         name: isort (python)
         files: \.py$
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.931
+    rev: v0.942
     hooks:
       - id: mypy
         name: Mypy Karapace
@@ -32,7 +33,7 @@ repos:
         args: ["--ignore-missing-imports", "--package", "karapace"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.5.0
+    rev: v4.1.0
     hooks:
       - id: trailing-whitespace
         exclude: ^vendor/|^tests/.*/fixtures/.*
