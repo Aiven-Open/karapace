@@ -89,20 +89,20 @@ class TypedSchema:
         self.schema_type = schema_type
         self.schema_str = schema_str
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
-            raise InvalidSchema("Protobuf do not support to_json serialization")
+            raise InvalidSchema("Protobuf do not support to_dict serialization")
         return ujson.loads(self.schema_str)
 
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
             return self.schema_str
-        return json_encode(self.to_json(), compact=True)
+        return json_encode(self.to_dict(), compact=True)
 
     def __repr__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
             return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
-        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
+        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_dict())})"
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type

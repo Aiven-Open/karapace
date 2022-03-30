@@ -75,7 +75,7 @@ class SchemaRegistryClient:
         if schema.schema_type is SchemaType.PROTOBUF:
             payload = {"schema": str(schema), "schemaType": schema.schema_type.value}
         else:
-            payload = {"schema": json_encode(schema.to_json()), "schemaType": schema.schema_type.value}
+            payload = {"schema": json_encode(schema.to_dict()), "schemaType": schema.schema_type.value}
         result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)
         if not result.ok:
             raise SchemaRetrievalError(result.json())
@@ -142,7 +142,7 @@ class SchemaRegistrySerializerDeserializer:
         if schema_type is SchemaType.AVRO:
             namespace = schema_typed.schema.namespace
         if schema_type is SchemaType.JSONSCHEMA:
-            namespace = schema_typed.to_json().get("namespace", "dummy")
+            namespace = schema_typed.to_dict().get("namespace", "dummy")
         #  Protobuf does not use namespaces in terms of AVRO
         if schema_type is SchemaType.PROTOBUF:
             namespace = ""

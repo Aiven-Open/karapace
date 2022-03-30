@@ -11,7 +11,7 @@ async def test_remote_client(registry_async_client):
     sc_id = await reg_cli.post_new_schema(subject, schema_avro)
     assert sc_id >= 0
     stored_schema = await reg_cli.get_schema_for_id(sc_id)
-    assert stored_schema == schema_avro, f"stored schema {stored_schema.to_json()} is not {schema_avro.to_json()}"
+    assert stored_schema == schema_avro, f"stored schema {stored_schema.to_dict()} is not {schema_avro.to_dict()}"
     stored_id, stored_schema = await reg_cli.get_latest_schema(subject)
     assert stored_id == sc_id
     assert stored_schema == schema_avro
@@ -25,7 +25,7 @@ async def test_remote_client_tls(registry_async_client_tls):
     sc_id = await reg_cli.post_new_schema(subject, schema_avro)
     assert sc_id >= 0
     stored_schema = await reg_cli.get_schema_for_id(sc_id)
-    assert stored_schema == schema_avro, f"stored schema {stored_schema.to_json()} is not {schema_avro.to_json()}"
+    assert stored_schema == schema_avro, f"stored schema {stored_schema.to_dict()} is not {schema_avro.to_dict()}"
     stored_id, stored_schema = await reg_cli.get_latest_schema(subject)
     assert stored_id == sc_id
     assert stored_schema == schema_avro
