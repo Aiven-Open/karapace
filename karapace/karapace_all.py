@@ -11,7 +11,6 @@ import sys
 
 
 class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
-    # pylint: disable=super-init-not-called
     def __init__(self, config: Config) -> None:
         super().__init__(config=config)
         self.log = logging.getLogger("KarapaceAll")
