@@ -39,7 +39,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
 
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
-    assert res.status == 200
+    assert res.status_code == 200
 
     original_schema = """
             |syntax = "proto3";
@@ -59,7 +59,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
-    assert res.status == 200
+    assert res.status_code == 200
     assert "id" in res.json()
 
     evolved_schema = """
@@ -84,13 +84,13 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
         f"compatibility/subjects/{subject}/versions/latest{trail}",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema},
     )
-    assert res.status == 200
+    assert res.status_code == 200
     assert res.json() == {"is_compatible": True}
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
     )
-    assert res.status == 200
+    assert res.status_code == 200
     assert "id" in res.json()
 
     res = await registry_async_client.post(
@@ -98,9 +98,9 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
         json={"schemaType": "PROTOBUF", "schema": original_schema},
     )
     assert res.json() == {"is_compatible": True}
-    assert res.status == 200
+    assert res.status_code == 200
     res = await registry_async_client.post(
         f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
-    assert res.status == 200
+    assert res.status_code == 200
     assert "id" in res.json()
