@@ -4,7 +4,7 @@ from binascii import Error as B64DecodeError
 from collections import namedtuple
 from http import HTTPStatus
 from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
-from karapace.config import create_client_ssl_context
+from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
@@ -35,7 +35,7 @@ class FormatError(Exception):
 
 
 class KafkaRest(KarapaceBase):
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__(config=config)
         self._add_kafka_rest_routes()
         self.serializer = SchemaRegistrySerializer(config=config)

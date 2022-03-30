@@ -7,28 +7,19 @@ See LICENSE for details
 
 from functools import partial
 from http import HTTPStatus
+from karapace.config import Config
 from karapace.rapu import HTTPResponse, RestApp
 from typing import NoReturn, Union
 
 import asyncio
 import logging
-import os
 
 
 class KarapaceBase(RestApp):
-    def __init__(self, config: dict) -> None:
-        sentry_config = config.get("sentry", {"dsn": None}).copy()
-        super().__init__(app_name="karapace", sentry_config=sentry_config)
+    def __init__(self, config: Config) -> None:
+        super().__init__(app_name="karapace", config=config)
 
         self.kafka_timeout = 10
-        self.config = config
-        self._sentry_config = sentry_config
-        if os.environ.get("SENTRY_DSN"):
-            self._sentry_config["dsn"] = os.environ["SENTRY_DSN"]
-        if "tags" not in self._sentry_config:
-            self._sentry_config["tags"] = {}
-        self._sentry_config["tags"]["app"] = "Karapace"
-
         self.route("/", callback=self.root_get, method="GET")
         self.log = logging.getLogger("Karapace")
         self.app.on_startup.append(self.create_http_client)
