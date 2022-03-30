@@ -7,9 +7,9 @@ See LICENSE for details
 from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace import config
+from karapace.client import Client
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
-from karapace.utils import Client
 from tests.utils import (
     create_field_name_factory,
     create_schema_name_factory,

@@ -1,10 +1,11 @@
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
+from karapace.client import Client
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_models import InvalidSchema, SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.utils import Client, json_encode
+from karapace.utils import json_encode
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 

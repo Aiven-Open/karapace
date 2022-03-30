@@ -4,9 +4,10 @@ karapace - test schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
-from karapace.utils import Client, Expiration
+from karapace.utils import Expiration
 from pathlib import Path
 from tests.utils import KafkaServers, new_random_name
 

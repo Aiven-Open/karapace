@@ -9,10 +9,11 @@ from dataclasses import asdict, dataclass
 from filelock import FileLock
 from kafka import KafkaProducer
 from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
+from karapace.client import Client
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from karapace.utils import Client, Expiration
+from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.utils import (
