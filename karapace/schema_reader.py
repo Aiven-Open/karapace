@@ -8,11 +8,13 @@ from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
+from karapace.config import Config
+from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
 from karapace.utils import KarapaceKafkaClient
 from threading import Event, Lock, Thread
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import logging
 import time
@@ -20,6 +22,11 @@ import ujson
 
 log = logging.getLogger(__name__)
 Offset = int
+Subject = str
+Version = int
+Schema = Dict[str, Any]
+# Container type for a subject, with configuration settings and all the schemas
+SubjectData = Dict[str, Any]
 
 # The value `0` is a valid offset and it represents the first message produced
 # to a topic, therefore it can not be used.
@@ -69,23 +76,29 @@ class OffsetsWatcher:
 
 
 class KafkaSchemaReader(Thread):
-    def __init__(self, config, master_coordinator=None):
+    def __init__(
+        self,
+        config: Config,
+        master_coordinator: Optional[MasterCoordinator] = None,
+    ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
         self.log = logging.getLogger("KafkaSchemaReader")
         self.timeout_ms = 200
         self.config = config
-        self.subjects = {}
+        self.subjects: Dict[Subject, SubjectData] = {}
         self.schemas: Dict[int, TypedSchema] = {}
         self.global_schema_id = 0
-        self.admin_client = None
+        self.admin_client: Optional[KafkaAdminClient] = None
         self.schema_topic = None
         self.topic_replication_factor = self.config["replication_factor"]
-        self.consumer = None
+        self.consumer: Optional[KafkaConsumer] = None
         self.offset_watcher = OffsetsWatcher()
         self.running = True
         self.id_lock = Lock()
-        self.stats = StatsClient(sentry_config=config["sentry"])
+        self.stats = StatsClient(
+            sentry_config=config["sentry"],  # type: ignore[arg-type]
+        )
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
@@ -158,6 +171,8 @@ class KafkaSchemaReader(Thread):
         )
 
     def create_schema_topic(self) -> bool:
+        assert self.admin_client is not None, "Thread must be started"
+
         schema_topic = self.get_new_schema_topic(self.config)
         try:
             self.log.info("Creating topic: %r", schema_topic)
@@ -213,6 +228,8 @@ class KafkaSchemaReader(Thread):
             self.log.exception("Unexpected exception closing schema reader")
 
     def handle_messages(self) -> None:
+        assert self.consumer is not None, "Thread must be started"
+
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False and not raw_msgs:
             self.ready = True
@@ -359,12 +376,17 @@ class KafkaSchemaReader(Thread):
             pass
 
     @staticmethod
-    def _delete_schema_below_version(schema, version):
+    def _delete_schema_below_version(schema: Schema, version: Version) -> Schema:
         if schema["version"] <= version:
             schema["deleted"] = True
         return schema
 
-    def get_schemas(self, subject, *, include_deleted=False):
+    def get_schemas(
+        self,
+        subject: Subject,
+        *,
+        include_deleted: bool = False,
+    ) -> Dict:
         if include_deleted:
             return self.subjects[subject]["schemas"]
         non_deleted_schemas = {
