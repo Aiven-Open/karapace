@@ -29,9 +29,7 @@ class Result:
         json_result: JsonData,
         headers: Optional[Mapping] = None,
     ) -> None:
-        # We create both status and status_code so people can be agnostic on whichever to use
         self.status_code = status
-        self.status = status
         self.json_result = json_result
         self.headers = headers if headers else {}
 
