@@ -26,25 +26,20 @@ log = logging.getLogger("KarapaceUtils")
 NS_BLACKOUT_DURATION_SECONDS = 120
 
 
-def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):
+def _isoformat(datetime_obj: datetime.datetime) -> str:
     """Return datetime to ISO 8601 variant suitable for users.
-    Assume UTC for datetime objects without a timezone, always use
-    the Z timezone designator."""
-    if datetime_obj is None:
-        datetime_obj = datetime.datetime.utcnow()
-    elif datetime_obj.tzinfo:
+
+    Assume UTC for datetime objects without a timezone, always use the Z
+    timezone designator.
+    """
+    if datetime_obj.tzinfo:
         datetime_obj = datetime_obj.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-    isof = datetime_obj.isoformat()
-    if not preserve_subsecond:
-        isof = isof[:19]
-    if compact:
-        isof = isof.replace("-", "").replace(":", "").replace(".", "")
-    return isof + "Z"
+    return datetime_obj.isoformat() + "Z"
 
 
 def default_json_serialization(obj):
     if isinstance(obj, datetime.datetime):
-        return isoformat(obj, preserve_subsecond=True)
+        return _isoformat(obj)
     if isinstance(obj, datetime.timedelta):
         return obj.total_seconds()
     if isinstance(obj, decimal.Decimal):
