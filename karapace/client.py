@@ -16,7 +16,7 @@ import ssl
 log = logging.getLogger(__name__)
 
 
-async def get_aiohttp_client() -> aiohttp.ClientSession:
+async def _get_aiohttp_client() -> aiohttp.ClientSession:
     return aiohttp.ClientSession()
 
 
@@ -40,7 +40,7 @@ class Result:
 
 
 class Client:
-    def __init__(self, server_uri=None, client_factory=get_aiohttp_client, server_ca: Optional[str] = None):
+    def __init__(self, server_uri=None, client_factory=_get_aiohttp_client, server_ca: Optional[str] = None):
         self.server_uri = server_uri or ""
         self.path_for = partial(urljoin, self.server_uri)
         self.session = requests.Session()
