@@ -5,49 +5,71 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from functools import partial
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
-from typing import NoReturn, Optional
+from types import MappingProxyType
+from typing import NoReturn, Optional, overload, Union
 from urllib.parse import urljoin
 
 import aiohttp
-import datetime
-import decimal
 import json as jsonlib
 import kafka.client_async
 import logging
 import requests
 import ssl
 import time
-import types
 
 log = logging.getLogger("KarapaceUtils")
 NS_BLACKOUT_DURATION_SECONDS = 120
 
 
-def _isoformat(datetime_obj: datetime.datetime) -> str:
+def _isoformat(datetime_obj: datetime) -> str:
     """Return datetime to ISO 8601 variant suitable for users.
 
     Assume UTC for datetime objects without a timezone, always use the Z
     timezone designator.
     """
     if datetime_obj.tzinfo:
-        datetime_obj = datetime_obj.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        datetime_obj = datetime_obj.astimezone(timezone.utc).replace(tzinfo=None)
     return datetime_obj.isoformat() + "Z"
 
 
-def default_json_serialization(obj):
-    if isinstance(obj, datetime.datetime):
+@overload
+def default_json_serialization(obj: datetime) -> str:
+    ...
+
+
+@overload
+def default_json_serialization(obj: timedelta) -> float:
+    ...
+
+
+@overload
+def default_json_serialization(obj: Decimal) -> str:
+    ...
+
+
+@overload
+def default_json_serialization(obj: MappingProxyType) -> dict:
+    ...
+
+
+def default_json_serialization(  # pylint: disable=inconsistent-return-statements
+    obj: Union[datetime, timedelta, Decimal, MappingProxyType],
+) -> Union[str, float, dict]:
+    if isinstance(obj, datetime):
         return _isoformat(obj)
-    if isinstance(obj, datetime.timedelta):
+    if isinstance(obj, timedelta):
         return obj.total_seconds()
-    if isinstance(obj, decimal.Decimal):
+    if isinstance(obj, Decimal):
         return str(obj)
-    if isinstance(obj, types.MappingProxyType):
+    if isinstance(obj, MappingProxyType):
         return dict(obj)
 
-    raise TypeError("Object of type {!r} is not JSON serializable".format(obj.__class__.__name__))
+    assert_never("Object of type {!r} is not JSON serializable".format(obj.__class__.__name__))
 
 
 def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
