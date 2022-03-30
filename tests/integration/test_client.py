@@ -1,10 +1,10 @@
-from karapace.schema_reader import SchemaType, TypedSchema
+from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.serialization import SchemaRegistryClient
 from tests.utils import new_random_name, schema_avro_json
 
 
 async def test_remote_client(registry_async_client):
-    schema_avro = TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    schema_avro = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
     reg_cli = SchemaRegistryClient()
     reg_cli.client = registry_async_client
     subject = new_random_name("subject")
@@ -18,7 +18,7 @@ async def test_remote_client(registry_async_client):
 
 
 async def test_remote_client_tls(registry_async_client_tls):
-    schema_avro = TypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    schema_avro = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
     reg_cli = SchemaRegistryClient()
     reg_cli.client = registry_async_client_tls
     subject = new_random_name("subject")

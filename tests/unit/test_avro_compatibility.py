@@ -5,7 +5,7 @@
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 from avro.name import Names
 from avro.schema import ArraySchema, Field, MapSchema, Schema, UnionSchema
-from karapace.schema_reader import parse_avro_schema_definition
+from karapace.schema_models import parse_avro_schema_definition
 
 import pytest
 import ujson

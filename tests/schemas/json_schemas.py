@@ -1,4 +1,4 @@
-from karapace.schema_reader import parse_jsonschema_definition
+from karapace.schema_models import parse_jsonschema_definition
 
 # boolean schemas
 NOT_OF_EMPTY_SCHEMA = parse_jsonschema_definition('{"not":{}}')
