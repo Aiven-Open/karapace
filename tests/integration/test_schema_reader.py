@@ -1,6 +1,7 @@
 from contextlib import closing
 from kafka import KafkaProducer
 from karapace.config import set_config_defaults
+from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
@@ -117,3 +118,45 @@ def test_regression_soft_delete_schemas_should_be_registered(
 
         schemas = schema_reader.get_schemas(subject=subject, include_deleted=True)
         assert len(schemas) == 2, "Deleted schemas must have been registered"
+
+
+def test_regression_config_for_inexisting_object_should_not_throw(
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+) -> None:
+    test_name = "test_regression_config_for_inexisting_object_should_not_throw"
+    subject = create_subject_name_factory(test_name)()
+    group_id = create_group_name_factory(test_name)()
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "admin_metadata_max_age": 2,
+            "group_id": group_id,
+        }
+    )
+    master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.start()
+    schema_reader = KafkaSchemaReader(config=config, master_coordinator=master_coordinator)
+    schema_reader.start()
+
+    with closing(master_coordinator), closing(schema_reader):
+        _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
+
+        # Send an initial schema to initialize the subject in the reader, this is preparing the state
+        key = {
+            "subject": subject,
+            "magic": 0,
+            "keytype": "CONFIG",
+        }
+        value = ""  # Delete the config
+
+        future = producer.send(
+            DEFAULT_SCHEMA_TOPIC,
+            key=json_encode(key, binary=True),
+            value=json_encode(value, binary=True),
+        )
+        msg = future.get()
+
+        assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
+        assert subject in schema_reader.subjects, "The above message should be handled gracefully"
