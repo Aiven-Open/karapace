@@ -16,8 +16,7 @@ import ujson
 
 Config = Dict[str, Union[None, str, int, bool, List[str]]]
 LOG = logging.getLogger(__name__)
-
-HOSTNAME = socket.gethostname()  # pylint bug (#4302) pylint: disable=no-member
+HOSTNAME = socket.gethostname()
 
 DEFAULTS = {
     "advertised_hostname": HOSTNAME,
