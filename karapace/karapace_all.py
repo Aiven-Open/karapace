@@ -1,9 +1,11 @@
+from aiohttp.web_log import AccessLogger
 from contextlib import closing
 from karapace import version as karapace_version
 from karapace.config import Config, DEFAULT_LOG_FORMAT_JOURNAL, read_config
 from karapace.kafka_rest_apis import KafkaRest
 from karapace.rapu import RestApp
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
+from karapace.utils import DebugAccessLogger
 
 import argparse
 import logging
@@ -27,6 +29,11 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format=DEFAULT_LOG_FORMAT_JOURNAL)
     logging.getLogger().setLevel(config["log_level"])
+    if config.get("access_logs_debug") is True:
+        config["access_log_class"] = DebugAccessLogger
+        logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
+    else:
+        config["access_log_class"] = AccessLogger
 
     app: RestApp
     if config["karapace_rest"] and config["karapace_registry"]:

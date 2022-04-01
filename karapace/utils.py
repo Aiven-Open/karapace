@@ -4,6 +4,9 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp.web_log import AccessLogger
+from aiohttp.web_request import BaseRequest
+from aiohttp.web_response import StreamResponse
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -235,3 +238,36 @@ class KarapaceBrokerConnection(BrokerConnection):
 
     def blacked_out(self):
         return self.ns_blackout() or super().blacked_out()
+
+
+class DebugAccessLogger(AccessLogger):
+    """
+    Logs access logs as DEBUG instead of INFO.
+    Source: https://github.com/aio-libs/aiohttp/blob/d01e257da9b37c35c68b3931026a2d918c271446/aiohttp/web_log.py#L191-L210
+    """
+
+    def log(
+        self,
+        request: BaseRequest,
+        response: StreamResponse,
+        time: float,  # pylint: disable=redefined-outer-name
+    ) -> None:
+        try:
+            fmt_info = self._format_line(request, response, time)
+
+            values = list()
+            extra = dict()
+            for key, value in fmt_info:
+                values.append(value)
+
+                if key.__class__ is str:
+                    extra[key] = value
+                else:
+                    k1, k2 = key
+                    dct = extra.get(k1, {})
+                    dct[k2] = value
+                    extra[k1] = dct
+
+            self.logger.debug(self._log_format % tuple(values), extra=extra)
+        except Exception:  # pylint: disable=broad-except
+            self.logger.exception("Error in logging")
