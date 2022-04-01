@@ -132,12 +132,12 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
             # unknown schema id
             unknown_payload = {f"{pl_type}_schema_id": 666, "records": [{pl_type: o} for o in second_obj]}
             res = await rest_async_client.post(url, json=unknown_payload, headers=header)
-            assert res.status == 408
+            assert res.status_code == 408
             # mismatched schema
             # TODO -> maybe this test is useless, since it tests registry behavior
             # mismatch_payload = {f"{pl_type}_schema_id": new_schema_id,"records": [{pl_type: o} for o in test_objects]}
             # res = await rest_client.post(url, json=mismatch_payload, headers=header)
-            # assert res.status == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
+            # assert res.status_code == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
 
 async def test_admin_client(admin_client, producer):
@@ -264,18 +264,18 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         # Malformed schema ++ empty records
         for js in [{"records": []}, {"foo": "bar"}, {"records": [{"valur": {"foo": "bar"}}]}]:
             res = await rest_async_client.post(url, json=js, headers=REST_HEADERS["json"])
-            assert res.status == 422
+            assert res.status_code == 422
         res = await rest_async_client.post(url, json={"records": [{"value": {"foo": "bar"}}]}, headers=REST_HEADERS["avro"])
         res_json = res.json()
-        assert res.status == 422
+        assert res.status_code == 422
         assert res_json["error_code"] == 42202
         res = await rest_async_client.post(url, json={"records": [{"key": {"foo": "bar"}}]}, headers=REST_HEADERS["avro"])
         res_json = res.json()
-        assert res.status == 422
+        assert res.status_code == 422
         assert res_json["error_code"] == 42201
         res = await rest_async_client.post(url, json={"records": [{"value": "not base64"}]}, headers=REST_HEADERS["binary"])
         res_json = res.json()
-        assert res.status == 422
+        assert res.status_code == 422
         assert res_json["error_code"] == 42205
 
 
@@ -310,14 +310,14 @@ async def test_publish_incompatible_schema(rest_async_client, admin_client):
         json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Foobar"}}]},
         headers=REST_HEADERS["avro"],
     )
-    assert res.status == 200
+    assert res.status_code == 200
 
     res = await rest_async_client.post(
         url,
         json={"value_schema": json.dumps(schema_2), "records": [{"value": {"name2": "Foobar"}}]},
         headers=REST_HEADERS["avro"],
     )
-    assert res.status == 408
+    assert res.status_code == 408
     res_json = res.json()
     assert res_json["error_code"] == 40801
     assert "message" in res_json

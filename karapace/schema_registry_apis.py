@@ -267,7 +267,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             }
             if schema.schema_type is not SchemaType.AVRO:
                 valuedict["schemaType"] = schema.schema_type
-            value = json_encode(valuedict, compact=True)
+            value = json_encode(valuedict)
         else:
             value = ""
         return self.send_kafka_message(key, value)

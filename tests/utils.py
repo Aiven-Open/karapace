@@ -1,8 +1,9 @@
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from dataclasses import dataclass
 from kafka.errors import TopicAlreadyExistsError
+from karapace.client import Client
 from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.utils import Client, Expiration
+from karapace.utils import Expiration
 from typing import Callable, List
 from urllib.parse import quote
 
