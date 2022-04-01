@@ -4,6 +4,7 @@ karapace - configuration validation
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp.web_log import AccessLogger
 from enum import Enum, unique
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
@@ -14,11 +15,12 @@ import socket
 import ssl
 import ujson
 
-Config = Dict[str, Union[None, str, int, bool, List[str]]]
+Config = Dict[str, Union[None, str, int, bool, List[str], AccessLogger]]
 LOG = logging.getLogger(__name__)
 HOSTNAME = socket.gethostname()
 
 DEFAULTS = {
+    "access_logs_debug": False,
     "advertised_hostname": HOSTNAME,
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
