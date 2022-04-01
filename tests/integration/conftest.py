@@ -4,15 +4,17 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp import ClientSession
 from contextlib import closing, ExitStack
 from dataclasses import asdict, dataclass
 from filelock import FileLock
 from kafka import KafkaProducer
 from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
+from karapace.client import Client
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from karapace.utils import Client, Expiration
+from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.utils import (
@@ -242,7 +244,7 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client():
+        async def get_client() -> ClientSession:
             return await aiohttp_client(rest_async.app)
 
         client = Client(client_factory=get_client)
@@ -363,7 +365,7 @@ async def fixture_registry_async_client(
         client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
     else:
 
-        async def get_client():
+        async def get_client() -> ClientSession:
             return await aiohttp_client(registry_async.app)
 
         client = Client(client_factory=get_client)
@@ -464,7 +466,7 @@ async def fixture_registry_async_client_tls(
         client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
     else:
 
-        async def get_client():
+        async def get_client() -> ClientSession:
             return await aiohttp_client(registry_async_tls.app)
 
         client = Client(client_factory=get_client, server_ca=server_ca)

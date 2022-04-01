@@ -29,7 +29,7 @@ async def test_create_and_delete(rest_async_client, trail):
     with_name["name"] = instance_id
     resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=with_name, headers=header)
     assert not resp.ok
-    assert resp.status == 409, (
+    assert resp.status_code == 409, (
         f"Expected conflict for instance {instance_id} and group {group_name} " f"but got a different error: {resp.body}"
     )
     invalid_fetch = copy.copy(consumer_valid_payload)
@@ -37,7 +37,7 @@ async def test_create_and_delete(rest_async_client, trail):
     invalid_fetch["fetch.min.bytes"] = -10
     resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=invalid_fetch, headers=header)
     assert not resp.ok
-    assert resp.status == 422, f"Expected invalid fetch request value config for: {resp.body}"
+    assert resp.status_code == 422, f"Expected invalid fetch request value config for: {resp.body}"
     # delete followed by add succeeds
     resp = await rest_async_client.delete(f"/consumers/{group_name}/instances/{instance_id}{trail}", headers=header)
     assert resp.ok, "Could not delete "
@@ -45,7 +45,7 @@ async def test_create_and_delete(rest_async_client, trail):
     assert resp.ok
     # delete unknown entity fails
     resp = await rest_async_client.delete(f"/consumers/{group_name}/instances/random_name{trail}")
-    assert resp.status == 404
+    assert resp.status_code == 404
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -54,7 +54,7 @@ async def test_assignment(rest_async_client, admin_client, trail):
     instance_id = await new_consumer(rest_async_client, "assignment_group", fmt="json", trail=trail)
     assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.get(assign_path, headers=header)
-    assert res.ok, f"Expected status 200 but got {res.status}"
+    assert res.ok, f"Expected status 200 but got {res.status_code}"
     assert "partitions" in res.json() and len(res.json()["partitions"]) == 0, "Assignment list should be empty"
     # assign one topic
     topic_name = new_topic(admin_client)
@@ -63,7 +63,7 @@ async def test_assignment(rest_async_client, admin_client, trail):
     assert res.ok
     assign_path = f"/consumers/assignment_group/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.get(assign_path, headers=header)
-    assert res.ok, f"Expected status 200 but got {res.status}"
+    assert res.ok, f"Expected status 200 but got {res.status_code}"
     data = res.json()
     assert "partitions" in data and len(data["partitions"]) == 1, "Should have one assignment"
     p = data["partitions"][0]
@@ -140,14 +140,14 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     res = await rest_async_client.post(
         sub_path, json={"topics": [topic_name], "topic_pattern": "baz"}, headers=REST_HEADERS["json"]
     )
-    assert res.status == 409, f"Invalid state error expected: {res.status}"
+    assert res.status_code == 409, f"Invalid state error expected: {res.status_code}"
     data = res.json()
     assert data["error_code"] == 40903, f"Invalid state error expected: {data}"
     # assign after subscribe will fail
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
-    assert res.status == 409, "Expecting status code 409 on assign after subscribe on the same consumer instance"
+    assert res.status_code == 409, "Expecting status code 409 on assign after subscribe on the same consumer instance"
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -172,7 +172,7 @@ async def test_seek(rest_async_client, admin_client, trail):
     # unassigned seeks should fail
     invalid_payload = {"offsets": [{"topic": "faulty", "partition": 0, "offset": 10}]}
     res = await rest_async_client.post(seek_path, json=invalid_payload, headers=REST_HEADERS["json"])
-    assert res.status == 409, f"Expecting a failure for unassigned partition seek: {res}"
+    assert res.status_code == 409, f"Expecting a failure for unassigned partition seek: {res}"
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
