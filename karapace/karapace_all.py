@@ -1,7 +1,7 @@
 from aiohttp.web_log import AccessLogger
 from contextlib import closing
 from karapace import version as karapace_version
-from karapace.config import Config, read_config
+from karapace.config import read_config
 from karapace.kafka_rest_apis import KafkaRest
 from karapace.rapu import RestApp
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
@@ -13,9 +13,7 @@ import sys
 
 
 class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
-    def __init__(self, config: Config) -> None:
-        super().__init__(config=config)
-        self.log = logging.getLogger("KarapaceAll")
+    pass
 
 
 def main() -> int:

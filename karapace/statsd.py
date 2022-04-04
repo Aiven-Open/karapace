@@ -19,13 +19,13 @@ import time
 
 STATSD_HOST = "127.0.0.1"
 STATSD_PORT = 8125
+LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
     def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, sentry_config: Dict = None) -> None:
         self.sentry_config: Dict
 
-        self.log = logging.getLogger("StatsClient")
         if sentry_config is None:
             self.sentry_config = {
                 "dsn": os.environ.get("SENTRY_DSN"),
@@ -73,7 +73,7 @@ class StatsClient:
                 self.raven_client = raven.Client(**self.sentry_config)
             except ImportError:
                 self.raven_client = None
-                self.log.warning("Cannot enable Sentry.io sending: importing 'raven' failed")
+                LOG.warning("Cannot enable Sentry.io sending: importing 'raven' failed")
         else:
             self.raven_client = None
 
@@ -125,8 +125,8 @@ class StatsClient:
                 parts.insert(1, ",{}={}".format(tag, tag_value).encode("utf-8"))
 
             self._socket.sendto(b"".join(parts), self._dest_addr)
-        except Exception as ex:  # pylint: disable=broad-except
-            self.log.error("Unexpected exception in statsd send: %s: %s", ex.__class__.__name__, ex)
+        except Exception:  # pylint: disable=broad-except
+            LOG.exception("Unexpected exception in statsd send")
 
     def close(self) -> None:
         self._socket.close()

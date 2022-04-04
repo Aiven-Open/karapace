@@ -24,21 +24,20 @@ KNOWN_FORMATS = {"json", "avro", "binary", "jsonschema", "protobuf"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
+LOG = logging.getLogger(__name__)
+
+
+def new_name() -> str:
+    return str(uuid.uuid4())
 
 
 class ConsumerManager:
     def __init__(self, config: dict) -> None:
         self.config = config
         self.hostname = f"http://{self.config['advertised_hostname']}:{self.config['port']}"
-        self.log = logging.getLogger("RestConsumerManager")
         self.deserializer = SchemaRegistryDeserializer(config=config)
         self.consumers = {}
         self.consumer_locks = defaultdict(Lock)
-
-    def new_name(self) -> str:
-        name = str(uuid.uuid4())
-        self.log.debug("Generated new consumer name: %s", name)
-        return name
 
     @staticmethod
     def _assert(cond: bool, code: HTTPStatus, sub_code: int, message: str, content_type: str) -> None:
@@ -155,12 +154,15 @@ class ConsumerManager:
     # CONSUMER
     async def create_consumer(self, group_name: str, request_data: dict, content_type: str):
         group_name = group_name.strip("/")
-        self.log.info("Create consumer request for group  %s", group_name)
-        consumer_name = request_data.get("name") or self.new_name()
+        consumer_name = request_data.get("name") or new_name()
         internal_name = self.create_internal_name(group_name, consumer_name)
         async with self.consumer_locks[internal_name]:
             if internal_name in self.consumers:
-                self.log.error("Error creating duplicate consumer in group %s with id %s", group_name, consumer_name)
+                LOG.warning(
+                    "Error creating duplicate consumer in group %s with id %s",
+                    group_name,
+                    consumer_name,
+                )
                 KarapaceBase.r(
                     status=HTTPStatus.CONFLICT,
                     content_type=content_type,
@@ -170,11 +172,14 @@ class ConsumerManager:
                     },
                 )
             self._validate_create_consumer(request_data, content_type)
-            self.log.info(
-                "Creating new consumer in group %s with id %s and request_info %r", group_name, consumer_name, request_data
-            )
             for k in ["consumer.request.timeout.ms", "fetch_min_bytes"]:
                 convert_to_int(request_data, k, content_type)
+            LOG.info(
+                "Creating new consumer in group. group name: %s consumer name: %s request_data %r",
+                group_name,
+                consumer_name,
+                request_data,
+            )
             try:
                 enable_commit = request_data.get("auto.commit.enable", self.config["consumer_enable_auto_commit"])
                 if isinstance(enable_commit, str):
@@ -223,11 +228,11 @@ class ConsumerManager:
                 )
                 return c
             except:  # pylint: disable=bare-except
-                self.log.exception("Unable to create consumer, retrying")
+                LOG.exception("Unable to create consumer, retrying")
                 await asyncio.sleep(1)
 
     async def delete_consumer(self, internal_name: Tuple[str, str], content_type: str):
-        self.log.info("Deleting consumer for %s", internal_name)
+        LOG.info("Deleting consumer for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             try:
@@ -235,7 +240,7 @@ class ConsumerManager:
                 c.consumer.close()
                 self.consumer_locks.pop(internal_name)
             except:  # pylint: disable=bare-except
-                self.log.exception("Unable to properly dispose of consumer")
+                LOG.exception("Unable to properly dispose of consumer")
             finally:
                 empty_response()
 
@@ -243,7 +248,7 @@ class ConsumerManager:
     async def commit_offsets(
         self, internal_name: Tuple[str, str], content_type: str, request_data: dict, cluster_metadata: dict
     ):
-        self.log.info("Committing offsets for %s", internal_name)
+        LOG.info("Committing offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         if request_data:
             self._assert_has_key(request_data, "offsets", content_type)
@@ -266,7 +271,7 @@ class ConsumerManager:
         empty_response()
 
     async def get_offsets(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
-        self.log.info("Retrieving offsets for %s", internal_name)
+        LOG.info("Retrieving offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
         response = {"offsets": []}
@@ -290,7 +295,7 @@ class ConsumerManager:
 
     # SUBSCRIPTION
     async def set_subscription(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
-        self.log.info("Updating subscription for %s", internal_name)
+        LOG.info("Updating subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         topics = request_data.get("topics", [])
         topics_pattern = request_data.get("topic_pattern")
@@ -307,10 +312,10 @@ class ConsumerManager:
             except IllegalStateError as e:
                 self._illegal_state_fail(str(e), content_type=content_type)
             finally:
-                self.log.info("Done updating subscription")
+                LOG.info("Done updating subscription")
 
     async def get_subscription(self, internal_name: Tuple[str, str], content_type: str):
-        self.log.info("Retrieving subscription for %s", internal_name)
+        LOG.info("Retrieving subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -321,7 +326,7 @@ class ConsumerManager:
             KarapaceBase.r(content_type=content_type, body={"topics": topics})
 
     async def delete_subscription(self, internal_name: Tuple[str, str], content_type: str):
-        self.log.info("Deleting subscription for %s", internal_name)
+        LOG.info("Deleting subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             self.consumers[internal_name].consumer.unsubscribe()
@@ -329,7 +334,7 @@ class ConsumerManager:
 
     # ASSIGNMENTS
     async def set_assignments(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
-        self.log.info("Updating assignments for %s to %r", internal_name, request_data)
+        LOG.info("Updating assignments for %s to %r", internal_name, request_data)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
         partitions = []
@@ -346,10 +351,10 @@ class ConsumerManager:
             except IllegalStateError as e:
                 self._illegal_state_fail(message=str(e), content_type=content_type)
             finally:
-                self.log.info("Done updating assignment")
+                LOG.info("Done updating assignment")
 
     async def get_assignments(self, internal_name: Tuple[str, str], content_type: str):
-        self.log.info("Retrieving assignment for %s", internal_name)
+        LOG.info("Retrieving assignment for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -360,7 +365,7 @@ class ConsumerManager:
 
     # POSITIONS
     async def seek_to(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
-        self.log.info("Resetting offsets for %s to %r", internal_name, request_data)
+        LOG.info("Resetting offsets for %s to %r", internal_name, request_data)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "offsets", content_type)
         seeks = []
@@ -384,7 +389,7 @@ class ConsumerManager:
         self, internal_name: Tuple[str, str], content_type: str, request_data: dict, beginning: bool = True
     ):
         direction = "beginning" if beginning else "end"
-        self.log.info("Seeking %s offsets", direction)
+        LOG.info("Seeking %s offsets", direction)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
         resets = []
@@ -406,7 +411,7 @@ class ConsumerManager:
                 self._illegal_state_fail(f"Trying to reset unassigned partitions to {direction}", content_type)
 
     async def fetch(self, internal_name: Tuple[str, str], content_type: str, formats: dict, query_params: dict):
-        self.log.info("Running fetch for name %s with parameters %r and formats %r", internal_name, query_params, formats)
+        LOG.info("Running fetch for name %s with parameters %r and formats %r", internal_name, query_params, formats)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -420,7 +425,7 @@ class ConsumerManager:
                 content_type=content_type,
                 message=f"Consumer format {serialization_format} does not match the embedded format {request_format}",
             )
-            self.log.info("Fetch request for %s with params %r", internal_name, query_params)
+            LOG.info("Fetch request for %s with params %r", internal_name, query_params)
             try:
                 timeout = (
                     int(query_params["timeout"]) if "timeout" in query_params else config["consumer.request.timeout.ms"]
@@ -438,7 +443,7 @@ class ConsumerManager:
                 if val <= 0:
                     KarapaceBase.internal_error(message=f"Invalid request parameter {val}", content_type=content_type)
             response = []
-            self.log.info(
+            LOG.info(
                 "Will poll multiple times for a single message with a total timeout of %dms, "
                 "until at least %d bytes have been fetched",
                 timeout,
@@ -451,14 +456,14 @@ class ConsumerManager:
             while read_bytes < max_bytes and start_time + timeout / 1000 > time.monotonic():
                 time_left = start_time + timeout / 1000 - time.monotonic()
                 bytes_left = max_bytes - read_bytes
-                self.log.info(
+                LOG.info(
                     "Polling with %r time left and %d bytes left, gathered %d messages so far",
                     time_left,
                     bytes_left,
                     message_count,
                 )
                 data = consumer.poll(timeout_ms=timeout, max_records=1)
-                self.log.debug("Successfully polled for messages")
+                LOG.debug("Successfully polled for messages")
                 for topic, records in data.items():
                     for rec in records:
                         message_count += 1
@@ -468,7 +473,7 @@ class ConsumerManager:
                             + max(0, rec.serialized_header_size)
                         )
                         poll_data[topic].append(rec)
-            self.log.info("Gathered %d total messages", message_count)
+            LOG.info("Gathered %d total messages", message_count)
             for tp in poll_data:
                 for msg in poll_data[tp]:
                     try:

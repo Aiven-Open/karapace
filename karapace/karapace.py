@@ -11,8 +11,6 @@ from karapace.config import Config
 from karapace.rapu import HTTPResponse, RestApp
 from typing import NoReturn, Union
 
-import logging
-
 
 class KarapaceBase(RestApp):
     def __init__(self, config: Config) -> None:
@@ -20,9 +18,8 @@ class KarapaceBase(RestApp):
 
         self.kafka_timeout = 10
         self.route("/", callback=self.root_get, method="GET")
-        self.log = logging.getLogger("Karapace")
-        self.log.info("Karapace initialized")
         self.app.on_shutdown.append(self.close_by_app)
+        self.log.info("Karapace initialized")
 
     async def close_by_app(self, app):
         # pylint: disable=unused-argument

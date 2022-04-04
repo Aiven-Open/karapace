@@ -16,10 +16,7 @@ from karapace.utils import json_encode
 from typing import Any, Dict, Union
 
 import json
-import logging
 import ujson
-
-log = logging.getLogger(__name__)
 
 
 def parse_avro_schema_definition(s: str) -> AvroSchema:
@@ -146,7 +143,6 @@ class ValidatedTypedSchema(TypedSchema):
                 ProtobufException,
                 ProtobufSchemaParseException,
             ) as e:
-                log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
                 raise InvalidSchema from e
         else:
             raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")

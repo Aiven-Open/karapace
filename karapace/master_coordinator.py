@@ -20,6 +20,7 @@ import ujson
 # SR group errors
 NO_ERROR = 0
 DUPLICATE_URLS = 1
+LOG = logging.getLogger(__name__)
 
 
 def get_identity_url(scheme, host, port):
@@ -35,10 +36,6 @@ class SchemaCoordinator(BaseCoordinator):
     master_url = None
     master_eligibility = True
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.log = logging.getLogger("SchemaCoordinator")
-
     def protocol_type(self):
         return "sr"
 
@@ -52,7 +49,7 @@ class SchemaCoordinator(BaseCoordinator):
         return [("v0", self.get_identity(host=self.hostname, port=self.port, scheme=self.scheme))]
 
     def _perform_assignment(self, leader_id, protocol, members):
-        self.log.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
+        LOG.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
         self.are_we_master = None
         error = NO_ERROR
         urls = {}
@@ -82,7 +79,7 @@ class SchemaCoordinator(BaseCoordinator):
             scheme=member_identity["scheme"],
             json_encode=False,
         )
-        self.log.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
+        LOG.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
 
         assignments = {}
         for member_id, member_data in members:
@@ -94,7 +91,7 @@ class SchemaCoordinator(BaseCoordinator):
         # needs to be implemented in our class for pylint to be satisfied
 
     def _on_join_complete(self, generation, member_id, protocol, member_assignment_bytes):
-        self.log.info(
+        LOG.info(
             "Join complete, generation %r, member_id: %r, protocol: %r, member_assignment_bytes: %r",
             generation,
             member_id,
@@ -119,13 +116,11 @@ class SchemaCoordinator(BaseCoordinator):
         else:
             self.master_url = master_url
             self.are_we_master = False
-        # pylint: disable=super-with-arguments
-        return super(SchemaCoordinator, self)._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
+        return super()._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
-    def _on_join_follower(self):
-        self.log.info("We are a follower, not a master")
-        # pylint: disable=super-with-arguments
-        return super(SchemaCoordinator, self)._on_join_follower()
+    def _on_join_follower(self) -> None:
+        LOG.info("We are a follower, not a master")
+        return super()._on_join_follower()
 
 
 class MasterCoordinator(Thread):
@@ -142,7 +137,6 @@ class MasterCoordinator(Thread):
         metric_config = MetricConfig(samples=2, time_window_ms=30000, tags=metrics_tags)
         self._metrics = Metrics(metric_config, reporters=[])
         self.schema_coordinator_ready = Event()
-        self.log = logging.getLogger("MasterCoordinator")
 
     def init_kafka_client(self):
         try:
@@ -161,7 +155,7 @@ class MasterCoordinator(Thread):
             )
             return True
         except (NodeNotReadyError, NoBrokersAvailable):
-            self.log.warning("No Brokers available yet, retrying init_kafka_client()")
+            LOG.warning("No Brokers available yet, retrying init_kafka_client()")
             time.sleep(2.0)
         return False
 
@@ -187,7 +181,7 @@ class MasterCoordinator(Thread):
         return self.sc.are_we_master, self.sc.master_url
 
     def close(self):
-        self.log.info("Closing master_coordinator")
+        LOG.info("Closing master_coordinator")
         self.running = False
 
     def run(self):
@@ -203,10 +197,10 @@ class MasterCoordinator(Thread):
 
                 self.sc.ensure_active_group()
                 self.sc.poll_heartbeat()
-                self.log.debug("We're master: %r: master_uri: %r", self.sc.are_we_master, self.sc.master_url)
+                LOG.debug("We're master: %r: master_uri: %r", self.sc.are_we_master, self.sc.master_url)
                 time.sleep(min(_hb_interval, self.sc.time_to_next_heartbeat()))
             except:  # pylint: disable=bare-except
-                self.log.exception("Exception in master_coordinator")
+                LOG.exception("Exception in master_coordinator")
                 time.sleep(1.0)
 
         if self.sc:

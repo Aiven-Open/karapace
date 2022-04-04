@@ -2,17 +2,10 @@ from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityTyp
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.schema import ProtobufSchema
 
-import logging
-
-log = logging.getLogger(__name__)
-
 
 def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: ProtobufSchema) -> SchemaCompatibilityResult:
     result = CompareResult()
-    log.debug("READER: %s", reader.to_schema())
-    log.debug("WRITER: %s", writer.to_schema())
     writer.compare(reader, result)
-    log.debug("IS_COMPATIBLE %s", result.is_compatible())
     if result.is_compatible():
         return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
