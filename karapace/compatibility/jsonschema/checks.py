@@ -30,10 +30,7 @@ from karapace.compatibility.jsonschema.utils import (
 )
 from typing import Any, List, Optional
 
-import logging
 import networkx as nx
-
-LOG = logging.getLogger(__name__)
 
 INTRODUCED_INCOMPATIBILITY_MSG_FMT = "Introduced incompatible assertion {assert_name} with value {introduced_value}"
 RESTRICTED_INCOMPATIBILITY_MSG_FMT = "More restrictive assertion {assert_name} from {writer_value} to {reader_value}"
@@ -248,7 +245,6 @@ def compatibility_rec(
     # reader has type `array` to represent a list, and the writer is either a
     # different type or it is also an `array` but now it representes a tuple.
     if reader_schema is None and writer_schema is not None:
-        LOG.debug("Schema removed reader_schema.type='%r'", get_type_of(reader_schema))
         return incompatible_schema(
             incompat_type=Incompatibility.schema_removed,
             message="schema removed",
