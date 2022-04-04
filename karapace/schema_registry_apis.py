@@ -57,6 +57,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.ksr = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)
         self.ksr.start()
         self.schema_lock = asyncio.Lock()
+        self._master_lock = asyncio.Lock()
 
     def _create_producer(self) -> KafkaProducer:
         while True:
@@ -643,7 +644,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(list(subject_data["schemas"]), content_type, status=HTTPStatus.OK)
 
     async def get_master(self) -> Tuple[bool, Optional[str]]:
-        async with self.master_lock:
+        async with self._master_lock:
             while True:
                 are_we_master, master_url = self.mc.get_master_info()
                 if are_we_master is None:
