@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from aiohttp.web_log import AccessLogger
 from enum import Enum, unique
+from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
 
@@ -51,7 +52,7 @@ DEFAULTS = {
     "sasl_mechanism": None,
     "sasl_plain_username": None,
     "sasl_plain_password": None,
-    "topic_name": "_schemas",
+    "topic_name": DEFAULT_SCHEMA_TOPIC,
     "metadata_max_age_ms": 60000,
     "admin_metadata_max_age": 5,
     "producer_acks": 1,
