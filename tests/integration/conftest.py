@@ -4,141 +4,73 @@ karapace - conftest
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from _pytest.fixtures import SubRequest
 from aiohttp import ClientSession
+from aiohttp.pytest_plugin import AiohttpClient
 from contextlib import closing, ExitStack
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from filelock import FileLock
 from kafka import KafkaProducer
-from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.client import Client
 from karapace.config import set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from karapace.schema_registry_apis import KarapaceSchemaRegistry
-from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from tests.utils import (
-    get_random_port,
-    KAFKA_PORT_RANGE,
-    KafkaConfig,
+from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
+from tests.integration.utils.kafka_server import (
+    configure_and_start_kafka,
     KafkaServers,
-    new_random_name,
-    REGISTRY_PORT_RANGE,
-    repeat_until_successful_request,
-    ZK_PORT_RANGE,
+    maybe_download_kafka,
+    wait_for_kafka,
 )
-from typing import AsyncIterator, Dict, Iterator, List, Optional, Tuple
+from tests.integration.utils.network import get_random_port, KAFKA_PORT_RANGE, REGISTRY_PORT_RANGE, ZK_PORT_RANGE
+from tests.integration.utils.process import stop_process, wait_for_port_subprocess
+from tests.integration.utils.synchronization import lock_path_for
+from tests.integration.utils.zookeeper import configure_and_start_zk
+from tests.utils import new_random_name, repeat_until_successful_request
+from typing import AsyncIterator, Iterator, Optional, Tuple
 
+import asyncio
 import os
+import pathlib
 import pytest
-import signal
-import socket
 import time
 import ujson
 
-# Keep these in sync with the Makefile
-KAFKA_CURRENT_VERSION = "2.7"
-BASEDIR = "kafka_2.13-2.7.0"
-
-CLASSPATH = os.path.join(BASEDIR, "libs", "*")
+REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
+RUNTIME_DIR = REPOSITORY_DIR / "runtime"
+TEST_INTEGRATION_DIR = REPOSITORY_DIR / "tests" / "integration"
 KAFKA_WAIT_TIMEOUT = 60
+KAFKA_SCALA_VERSION = "2.13"
+# stdout logger is disabled to keep the pytest report readable
+KAFKA_LOG4J = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
+WORKER_COUNTER_KEY = "worker_counter"
 
 
-@dataclass
-class ZKConfig:
-    client_port: int
-    admin_port: int
-    path: str
+@pytest.fixture(scope="session", name="kafka_description")
+def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
+    kafka_version = request.config.getoption("kafka_version")
+    kafka_folder = f"kafka_{KAFKA_SCALA_VERSION}-{kafka_version}"
+    kafka_tgz = f"{kafka_folder}.tgz"
+    kafka_url = f"https://archive.apache.org/dist/kafka/{kafka_version}/{kafka_tgz}"
+    kafka_dir = RUNTIME_DIR / kafka_folder
 
-    @staticmethod
-    def from_dict(data: dict) -> "ZKConfig":
-        return ZKConfig(
-            data["client_port"],
-            data["admin_port"],
-            data["path"],
-        )
-
-
-def stop_process(proc: Optional[Popen]) -> None:
-    if proc:
-        os.kill(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=10.0)
-
-
-def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
-    if ipv6:
-        s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM, 0)
-    else:
-        s = socket.socket()
-    s.settimeout(0.5)
-    try:
-        s.connect((hostname, port))
-        s.close()
-        return True
-    except socket.error:
-        return False
-
-
-def wait_for_kafka(kafka_servers: KafkaServers, wait_time) -> None:
-    for server in kafka_servers.bootstrap_servers:
-        expiration = Expiration.from_timeout(timeout=wait_time)
-
-        list_topics_successful = False
-        while not list_topics_successful:
-            expiration.raise_timeout_if_expired(
-                msg_format="Could not contact kafka cluster on host `{server}`",
-                server=server,
-            )
-            try:
-                KafkaRestAdminClient(bootstrap_servers=server).cluster_metadata()
-            # ValueError:
-            # - if the port number is invalid (i.e. not a number)
-            # - if the port is not bound yet
-            # NoBrokersAvailable:
-            # - if the address/port does not point to a running server
-            # LeaderNotAvailableError:
-            # - if there is no leader yet
-            except (
-                NoBrokersAvailable,
-                LeaderNotAvailableError,
-                ValueError,
-            ) as e:
-                print(f"Error checking kafka cluster: {e}")
-                time.sleep(2.0)
-            else:
-                list_topics_successful = True
-
-
-def wait_for_port(
-    port: int,
-    *,
-    hostname: str = "127.0.0.1",
-    wait_time: float = 20.0,
-    ipv6: bool = False,
-) -> None:
-    expiration = Expiration.from_timeout(wait_time)
-
-    while not port_is_listening(hostname, port, ipv6):
-        expiration.raise_timeout_if_expired(
-            msg_format="Timeout waiting for `{hostname}:{port}`",
-            hostname=hostname,
-            port=port,
-        )
-        time.sleep(2.0)
-
-    elapsed = expiration.elapsed
-    print(f"Server `{hostname}:{port}` listening after {elapsed} seconds")
-
-
-def lock_path_for(path: Path) -> Path:
-    """Append .lock to path"""
-    suffixes = path.suffixes
-    suffixes.append(".lock")
-    return path.with_suffix("".join(suffixes))
+    return KafkaDescription(
+        version=kafka_version,
+        install_dir=kafka_dir,
+        download_url=kafka_url,
+        protocol_version="2.7",
+    )
 
 
 @pytest.fixture(scope="session", name="kafka_servers")
-def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServers]:
+def fixture_kafka_server(
+    request: SubRequest,
+    session_datadir: Path,
+    session_logdir: Path,
+    kafka_description: KafkaDescription,
+) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
 
     if bootstrap_servers:
@@ -147,40 +79,90 @@ def fixture_kafka_server(request, session_tmppath: Path) -> Iterator[KafkaServer
         yield kafka_servers
         return
 
-    kafka_dir = session_tmppath / "kafka"
-    zk_dir = session_tmppath / "zk"
-    transfer_file = session_tmppath / "zk_kafka_config"
+    zk_dir = session_logdir / "zk"
+
+    # File used to share data among test runners, including the dynamic
+    # configuration for this session (mainly port numbers), and and
+    # synchronization data.
+    transfer_file = session_logdir / "transfer"
+    lock_file = lock_path_for(transfer_file)
 
     with ExitStack() as stack:
-        # Synchronize xdist workers, data generated by the winner is shared through
-        # transfer_file (primarily the server's port number)
-
-        # there is an issue with pylint here, see https:/github.com/tox-dev/py-filelock/issues/102
-        with FileLock(str(lock_path_for(transfer_file))):  # pylint: disable=abstract-class-instantiated
+        # There is an issue with pylint here, see https:/github.com/tox-dev/py-filelock/issues/102
+        with FileLock(str(lock_file)):  # pylint: disable=abstract-class-instantiated
             if transfer_file.exists():
                 config_data = ujson.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
+
+                # Count the new worker
+                config_data[WORKER_COUNTER_KEY] += 1
+                transfer_file.write_text(ujson.dumps(config_data))
             else:
-                zk_config, zk_proc = configure_and_start_zk(zk_dir)
+                maybe_download_kafka(kafka_description)
+
+                zk_client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
+                zk_admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[zk_client_port])
+                zk_config = ZKConfig(
+                    client_port=zk_client_port,
+                    admin_port=zk_admin_port,
+                    path=str(zk_dir),
+                )
+
+                zk_proc = configure_and_start_zk(zk_config, kafka_description)
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
-                wait_for_port(zk_config.client_port, wait_time=20)
+                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
 
-                kafka_config, kafka_proc = configure_and_start_kafka(kafka_dir, zk_config)
+                kafka_plaintext_port = get_random_port(port_range=KAFKA_PORT_RANGE, blacklist=[])
+                data_dir = session_datadir / "kafka"
+                log_dir = session_logdir / "kafka"
+                data_dir.mkdir(parents=True)
+                log_dir.mkdir(parents=True)
+                kafka_config = KafkaConfig(
+                    datadir=str(data_dir),
+                    logdir=str(log_dir),
+                    plaintext_port=kafka_plaintext_port,
+                )
+                kafka_proc = configure_and_start_kafka(
+                    zk_config=zk_config,
+                    kafka_config=kafka_config,
+                    kafka_description=kafka_description,
+                    log4j_config=KAFKA_LOG4J,
+                )
                 stack.callback(stop_process, kafka_proc)
 
                 config_data = {
                     "zookeeper": asdict(zk_config),
                     "kafka": asdict(kafka_config),
+                    WORKER_COUNTER_KEY: 1,
                 }
                 transfer_file.write_text(ujson.dumps(config_data))
 
         # Make sure every test worker can communicate with kafka
-        kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.kafka_port}"])
+        kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"])
         wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
+
         yield kafka_servers
+
+        # Signal the worker finished
+        with FileLock(str(lock_file)):  # pylint: disable=abstract-class-instantiated
+            assert transfer_file.exists(), "transfer_file disappeared"
+            config_data = ujson.loads(transfer_file.read_text())
+            config_data[WORKER_COUNTER_KEY] -= 1
+            transfer_file.write_text(ujson.dumps(config_data))
+
+        # Wait until every worker finished before stopping the servers
+        worker_counter = float("inf")
+        while worker_counter > 0:
+            with FileLock(str(lock_file)):  # pylint: disable=abstract-class-instantiated
+                assert transfer_file.exists(), "transfer_file disappeared"
+                config_data = ujson.loads(transfer_file.read_text())
+                worker_counter = config_data[WORKER_COUNTER_KEY]
+
+            time.sleep(2)
+
         return
 
 
@@ -198,8 +180,8 @@ def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]
 
 @pytest.fixture(scope="function", name="rest_async")
 async def fixture_rest_async(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
@@ -232,10 +214,10 @@ async def fixture_rest_async(
 
 @pytest.fixture(scope="function", name="rest_async_client")
 async def fixture_rest_async_client(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     rest_async: KafkaRest,
-    aiohttp_client,
+    aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
     rest_url = request.config.getoption("rest_url")
 
@@ -266,7 +248,10 @@ async def fixture_rest_async_client(
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
-def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
+def fixture_registry_async_pair(
+    tmp_path: Path,
+    kafka_servers: KafkaServers,
+) -> Iterator[Tuple[str, str]]:
     master_config_path = tmp_path / "karapace_config_master.json"
     slave_config_path = tmp_path / "karapace_config_slave.json"
     master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
@@ -302,8 +287,8 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
         try:
             master_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)]))
             slave_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)]))
-            wait_for_port(master_port)
-            wait_for_port(slave_port)
+            wait_for_port_subprocess(master_port, master_process)
+            wait_for_port_subprocess(slave_port, slave_process)
             yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
         finally:
             if master_process:
@@ -314,8 +299,8 @@ def fixture_registry_async_pair(tmp_path: Path, kafka_servers: KafkaServers):
 
 @pytest.fixture(scope="function", name="registry_async")
 async def fixture_registry_async(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[Optional[KarapaceSchemaRegistry]]:
@@ -352,10 +337,10 @@ async def fixture_registry_async(
 
 @pytest.fixture(scope="function", name="registry_async_client")
 async def fixture_registry_async_client(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     registry_async: KarapaceSchemaRegistry,
-    aiohttp_client,
+    aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
 
     registry_url = request.config.getoption("registry_url")
@@ -387,31 +372,31 @@ async def fixture_registry_async_client(
 
 
 @pytest.fixture(scope="function", name="credentials_folder")
-def fixture_credentials_folder():
+def fixture_credentials_folder() -> str:
     integration_test_folder = os.path.dirname(__file__)
     credentials_folder = os.path.join(integration_test_folder, "credentials")
     return credentials_folder
 
 
 @pytest.fixture(scope="function", name="server_ca")
-def fixture_server_ca(credentials_folder):
+def fixture_server_ca(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "cacert.pem")
 
 
 @pytest.fixture(scope="function", name="server_cert")
-def fixture_server_cert(credentials_folder):
+def fixture_server_cert(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "servercert.pem")
 
 
 @pytest.fixture(scope="function", name="server_key")
-def fixture_server_key(credentials_folder):
+def fixture_server_key(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "serverkey.pem")
 
 
 @pytest.fixture(scope="function", name="registry_async_tls")
 async def fixture_registry_async_tls(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
     kafka_servers: KafkaServers,
     server_cert: str,
@@ -453,10 +438,10 @@ async def fixture_registry_async_tls(
 
 @pytest.fixture(scope="function", name="registry_async_client_tls")
 async def fixture_registry_async_client_tls(
-    request,
-    loop,  # pylint: disable=unused-argument
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     registry_async_tls: KarapaceSchemaRegistry,
-    aiohttp_client,
+    aiohttp_client: AiohttpClient,
     server_ca: str,
 ) -> AsyncIterator[Client]:
 
@@ -485,200 +470,3 @@ async def fixture_registry_async_client_tls(
         yield client
     finally:
         await client.close()
-
-
-def zk_java_args(cfg_path: Path) -> List[str]:
-    if not os.path.exists(BASEDIR):
-        raise RuntimeError(
-            f"Couldn't find kafka installation to run integration tests. The "
-            f"expected folder {BASEDIR} does not exist. Run `make fetch-kafka` "
-            f"to download and extract the release."
-        )
-    java_args = [
-        "-cp",
-        CLASSPATH,
-        "org.apache.zookeeper.server.quorum.QuorumPeerMain",
-        str(cfg_path),
-    ]
-    return java_args
-
-
-def kafka_java_args(heap_mb, kafka_config_path, logs_dir, log4j_properties_path):
-    if not os.path.exists(BASEDIR):
-        raise RuntimeError(
-            f"Couldn't find kafka installation to run integration tests. The "
-            f"expected folder {BASEDIR} does not exist. Run `make fetch-kafka` "
-            f"to download and extract the release."
-        )
-    java_args = [
-        "-Xmx{}M".format(heap_mb),
-        "-Xms{}M".format(heap_mb),
-        "-Dkafka.logs.dir={}/logs".format(logs_dir),
-        "-Dlog4j.configuration=file:{}".format(log4j_properties_path),
-        "-cp",
-        CLASSPATH,
-        "kafka.Kafka",
-        kafka_config_path,
-    ]
-    return java_args
-
-
-def get_java_process_configuration(java_args: List[str]) -> List[str]:
-    command = [
-        "/usr/bin/java",
-        "-server",
-        "-XX:+UseG1GC",
-        "-XX:MaxGCPauseMillis=20",
-        "-XX:InitiatingHeapOccupancyPercent=35",
-        "-XX:+DisableExplicitGC",
-        "-XX:+ExitOnOutOfMemoryError",
-        "-Djava.awt.headless=true",
-        "-Dcom.sun.management.jmxremote",
-        "-Dcom.sun.management.jmxremote.authenticate=false",
-        "-Dcom.sun.management.jmxremote.ssl=false",
-    ]
-    command.extend(java_args)
-    return command
-
-
-def configure_and_start_kafka(kafka_dir: Path, zk: ZKConfig) -> Tuple[KafkaConfig, Popen]:
-    # setup filesystem
-    data_dir = kafka_dir / "data"
-    config_dir = kafka_dir / "config"
-    config_path = config_dir / "server.properties"
-    data_dir.mkdir(parents=True)
-    config_dir.mkdir(parents=True)
-
-    plaintext_port = get_random_port(port_range=KAFKA_PORT_RANGE, blacklist=[])
-
-    config = KafkaConfig(
-        datadir=str(data_dir),
-        kafka_keystore_password="secret",
-        kafka_port=plaintext_port,
-        zookeeper_port=zk.client_port,
-    )
-
-    advertised_listeners = ",".join(
-        [
-            "PLAINTEXT://127.0.0.1:{}".format(plaintext_port),
-        ]
-    )
-    listeners = ",".join(
-        [
-            "PLAINTEXT://:{}".format(plaintext_port),
-        ]
-    )
-
-    # Keep in sync with containers/docker-compose.yml
-    kafka_config = {
-        "broker.id": 1,
-        "broker.rack": "local",
-        "advertised.listeners": advertised_listeners,
-        "auto.create.topics.enable": False,
-        "default.replication.factor": 1,
-        "delete.topic.enable": "true",
-        "inter.broker.listener.name": "PLAINTEXT",
-        "inter.broker.protocol.version": KAFKA_CURRENT_VERSION,
-        "listeners": listeners,
-        "log.cleaner.enable": "true",
-        "log.dirs": config.datadir,
-        "log.message.format.version": KAFKA_CURRENT_VERSION,
-        "log.retention.check.interval.ms": 300000,
-        "log.segment.bytes": 200 * 1024 * 1024,  # 200 MiB
-        "num.io.threads": 8,
-        "num.network.threads": 112,
-        "num.partitions": 1,
-        "num.replica.fetchers": 4,
-        "num.recovery.threads.per.data.dir": 1,
-        "offsets.topic.replication.factor": 1,
-        "socket.receive.buffer.bytes": 100 * 1024,
-        "socket.request.max.bytes": 100 * 1024 * 1024,
-        "socket.send.buffer.bytes": 100 * 1024,
-        "transaction.state.log.min.isr": 1,
-        "transaction.state.log.num.partitions": 16,
-        "transaction.state.log.replication.factor": 1,
-        "zookeeper.connection.timeout.ms": 6000,
-        "zookeeper.connect": f"127.0.0.1:{zk.client_port}",
-    }
-
-    with config_path.open("w") as fp:
-        for key, value in kafka_config.items():
-            fp.write("{}={}\n".format(key, value))
-
-    log4j_properties_path = os.path.join(BASEDIR, "config/log4j.properties")
-
-    kafka_cmd = get_java_process_configuration(
-        java_args=kafka_java_args(
-            heap_mb=256,
-            logs_dir=str(kafka_dir),
-            log4j_properties_path=log4j_properties_path,
-            kafka_config_path=str(config_path),
-        ),
-    )
-    env: Dict[bytes, bytes] = {}
-    proc = Popen(kafka_cmd, env=env)
-    return config, proc
-
-
-def configure_and_start_zk(zk_dir: Path) -> Tuple[ZKConfig, Popen]:
-    cfg_path = zk_dir / "zoo.cfg"
-    logs_dir = zk_dir / "logs"
-    logs_dir.mkdir(parents=True)
-
-    client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
-    admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[client_port])
-    config = ZKConfig(
-        client_port=client_port,
-        admin_port=admin_port,
-        path=str(zk_dir),
-    )
-    zoo_cfg = """
-# The number of milliseconds of each tick
-tickTime=2000
-# The number of ticks that the initial
-# synchronization phase can take
-initLimit=10
-# The number of ticks that can pass between
-# sending a request and getting an acknowledgement
-syncLimit=5
-# the directory where the snapshot is stored.
-# do not use /tmp for storage, /tmp here is just
-# example sakes.
-dataDir={path}
-# the port at which the clients will connect
-clientPort={client_port}
-#clientPortAddress=127.0.0.1
-# the maximum number of client connections.
-# increase this if you need to handle more clients
-#maxClientCnxns=60
-#
-# Be sure to read the maintenance section of the
-# administrator guide before turning on autopurge.
-#
-# http://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_maintenance
-#
-# The number of snapshots to retain in dataDir
-#autopurge.snapRetainCount=3
-# Purge task interval in hours
-# Set to "0" to disable auto purge feature
-#autopurge.purgeInterval=1
-# admin server
-admin.serverPort={admin_port}
-admin.enableServer=false
-# Allow reconfig calls to be made to add/remove nodes to the cluster on the fly
-reconfigEnabled=true
-# Don't require authentication for reconfig
-skipACL=yes
-""".format(
-        client_port=config.client_port,
-        admin_port=config.admin_port,
-        path=config.path,
-    )
-    cfg_path.write_text(zoo_cfg)
-    env = {
-        "CLASSPATH": "/usr/share/java/slf4j/slf4j-simple.jar",
-        "ZOO_LOG_DIR": str(logs_dir),
-    }
-    java_args = get_java_process_configuration(java_args=zk_java_args(cfg_path))
-    proc = Popen(java_args, env=env)
-    return config, proc

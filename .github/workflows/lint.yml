@@ -21,8 +21,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # required for pylint
+      - name: Generate version.py
+        run: make karapace/version.py
+
       - name: Run all pre-commit hooks
-        run: make lint
+        run: pre-commit run --all-files
 
   copyright:
       runs-on: ubuntu-latest
