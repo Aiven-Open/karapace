@@ -26,7 +26,7 @@ setup(
         "aiohttp",
         "aiohttp_socks",
         "aiokafka",
-        "avro-python3",
+        "avro",
         "jsonschema",
         "kafka-python",
         "networkx",
