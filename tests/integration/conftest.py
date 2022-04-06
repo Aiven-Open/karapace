@@ -88,8 +88,7 @@ def fixture_kafka_server(
     lock_file = lock_path_for(transfer_file)
 
     with ExitStack() as stack:
-        # There is an issue with pylint here, see https:/github.com/tox-dev/py-filelock/issues/102
-        with FileLock(str(lock_file)):  # pylint: disable=abstract-class-instantiated
+        with FileLock(str(lock_file)):
             if transfer_file.exists():
                 config_data = ujson.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
@@ -147,7 +146,7 @@ def fixture_kafka_server(
         yield kafka_servers
 
         # Signal the worker finished
-        with FileLock(str(lock_file)):  # pylint: disable=abstract-class-instantiated
+        with FileLock(str(lock_file)):
             assert transfer_file.exists(), "transfer_file disappeared"
             config_data = ujson.loads(transfer_file.read_text())
             config_data[WORKER_COUNTER_KEY] -= 1
@@ -156,7 +155,7 @@ def fixture_kafka_server(
         # Wait until every worker finished before stopping the servers
         worker_counter = float("inf")
         while worker_counter > 0:
-            with FileLock(str(lock_file)):  # pylint: disable=abstract-class-instantiated
+            with FileLock(str(lock_file)):
                 assert transfer_file.exists(), "transfer_file disappeared"
                 config_data = ujson.loads(transfer_file.read_text())
                 worker_counter = config_data[WORKER_COUNTER_KEY]
