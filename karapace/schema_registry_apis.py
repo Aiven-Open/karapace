@@ -298,7 +298,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def compatibility_check(self, content_type, *, subject, version, request):
         """Check for schema compatibility"""
         body = request.json
-        self.log.info("Got request to check subject: %r, version_id: %r compatibility", subject, version)
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         try:
             new_schema = ValidatedTypedSchema.parse(schema_type, body["schema"])
