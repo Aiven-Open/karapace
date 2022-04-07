@@ -5,8 +5,9 @@ from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
+from tests.integration.utils.kafka_server import KafkaServers
 from tests.schemas.json_schemas import TRUE_SCHEMA
-from tests.utils import create_group_name_factory, create_subject_name_factory, KafkaServers, new_random_name
+from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name
 
 import time
 
