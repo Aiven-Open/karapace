@@ -302,7 +302,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
         try:
             new_schema = ValidatedTypedSchema.parse(schema_type, body["schema"])
         except InvalidSchema:
-            self.log.warning("Invalid schema: %r", body["schema"])
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
@@ -312,12 +311,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
-        self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
         try:
             old_schema = ValidatedTypedSchema.parse(old_schema_type, old["schema"])
         except InvalidSchema:
-            self.log.warning("Invalid existing schema: %r", old["schema"])
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
@@ -335,9 +332,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
             compatibility_mode=compatibility_mode,
         )
         if is_incompatible(result):
-            self.log.warning(
-                "Invalid schema %s found by compatibility check: old: %s new: %s", result, old_schema, new_schema
-            )
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
 
