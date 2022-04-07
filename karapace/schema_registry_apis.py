@@ -307,7 +307,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
-                    "message": "Invalid Avro schema",
+                    "message": f"Invalid {schema_type} schema",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -322,7 +322,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
-                    "message": "Invalid Avro schema",
+                    "message": f"Found an invalid {old_schema_type} schema registered",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
