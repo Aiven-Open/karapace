@@ -155,7 +155,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def close(self) -> None:
         await super().close()
 
-        self.log.info("Closing master coordinator")
         self.mc.close()
 
         self.log.info("Closing schema reader")
