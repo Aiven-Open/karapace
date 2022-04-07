@@ -156,8 +156,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
         await super().close()
 
         self.mc.close()
-
-        self.log.info("Closing schema reader")
         self.ksr.close()
 
         self.log.info("Closing producer")
