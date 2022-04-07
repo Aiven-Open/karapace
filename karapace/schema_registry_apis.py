@@ -10,8 +10,9 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import InvalidSchema, InvalidSchemaType, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader, SchemaType, TypedSchema
+from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, NoReturn, Optional, Tuple
 
 import aiohttp
 import async_timeout
@@ -298,8 +299,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
         """Check for schema compatibility"""
         body = request.json
         self.log.info("Got request to check subject: %r, version_id: %r compatibility", subject, version)
+        schema_type = self._validate_schema_type(content_type=content_type, data=body)
         try:
-            schema_type = SchemaType(body.get("schemaType", "AVRO"))
             new_schema = ValidatedTypedSchema.parse(schema_type, body["schema"])
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", body["schema"])
@@ -313,8 +314,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
             )
         old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
         self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
+        old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
         try:
-            old_schema_type = SchemaType(old.get("schemaType", "AVRO"))
             old_schema = ValidatedTypedSchema.parse(old_schema_type, old["schema"])
         except InvalidSchema:
             self.log.warning("Invalid existing schema: %r", old["schema"])
@@ -684,17 +685,20 @@ class KarapaceSchemaRegistry(KarapaceBase):
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 )
 
-    def _validate_schema_type(self, content_type, body) -> None:
-        schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO.value))
-        if schema_type not in {SchemaType.JSONSCHEMA, SchemaType.AVRO, SchemaType.PROTOBUF}:
+    def _validate_schema_type(self, content_type: str, data: JsonData) -> SchemaType:
+        schema_type_unparsed = data.get("schemaType", SchemaType.AVRO.value)
+        try:
+            schema_type = SchemaType(schema_type_unparsed)
+        except ValueError:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                    "message": f"unrecognized schemaType: {schema_type}",
+                    "message": f"Invalid schemaType {schema_type_unparsed}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
+        return schema_type
 
     def _validate_schema_key(self, content_type, body) -> None:
         if "schema" not in body:
@@ -722,7 +726,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         schema_str = body["schema"]
-        schema_type = SchemaType(body.get("schemaType", "AVRO"))
+        schema_type = self._validate_schema_type(content_type=content_type, data=body)
         try:
             new_schema = ValidatedTypedSchema.parse(schema_type, schema_str)
         except InvalidSchema:
@@ -762,22 +766,27 @@ class KarapaceSchemaRegistry(KarapaceBase):
         body = request.json
         self.log.debug("POST with subject: %r, request: %r", subject, body)
         self._validate_schema_request_body(content_type, body)
-        self._validate_schema_type(content_type, body)
+        schema_type = self._validate_schema_type(content_type, body)
         self._validate_schema_key(content_type, body)
         are_we_master, master_url = await self.get_master()
         if are_we_master:
             async with self.schema_lock:
-                await self.write_new_schema_local(subject, body, content_type)
+                await self.write_new_schema_local(subject, body, content_type, schema_type)
         elif not master_url:
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(body=body, url=url, content_type=content_type, method="POST")
 
-    def write_new_schema_local(self, subject, body, content_type):
+    def write_new_schema_local(
+        self,
+        subject: str,
+        body: JsonData,
+        content_type: str,
+        schema_type: SchemaType,
+    ) -> NoReturn:
         """Since we're the master we get to write the new schema"""
         self.log.info("Writing new schema locally since we're the master")
-        schema_type = SchemaType(body.get("schemaType", SchemaType.AVRO))
         try:
             new_schema = ValidatedTypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
         except (InvalidSchema, InvalidSchemaType) as e:

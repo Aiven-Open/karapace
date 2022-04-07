@@ -270,6 +270,69 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_regression_compatibility_should_not_give_internal_server_error_on_invalid_schema_type(
+    registry_async_client: Client,
+    trail: str,
+) -> None:
+    test_name = "test_regression_compatibility_should_not_give_internal_server_error_on_invalid_schema_type"
+    subject = create_subject_name_factory(test_name)()
+    schema_name = create_schema_name_factory(test_name)()
+
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {
+                "name": "age",
+                "type": "int",
+            },
+        ],
+    }
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}",
+        json={"schema": ujson.dumps(schema)},
+    )
+    assert res.status_code == 200
+
+    # replace int with long
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        json={"schema": ujson.dumps(schema), "schemaType": "AVROO"},
+    )
+    assert res.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert res.json()["error_code"] == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_regression_invalid_schema_type_should_not_give_internal_server_error(
+    registry_async_client: Client,
+    trail: str,
+) -> None:
+    test_name = "test_regression_invalid_schema_type_should_not_give_internal_server_error"
+    subject = create_subject_name_factory(test_name)()
+    schema_name = create_schema_name_factory(test_name)()
+
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {
+                "name": "age",
+                "type": "int",
+            },
+        ],
+    }
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}",
+        json={"schema": ujson.dumps(schema), "schemaType": "AVROO"},
+    )
+    assert res.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert res.json()["error_code"] == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_type_compatibility(registry_async_client: Client, trail: str) -> None:
     def _test_cases():
         # Generate FORWARD, BACKWARD and FULL tests for primitive types
