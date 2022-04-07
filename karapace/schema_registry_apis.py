@@ -350,7 +350,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
         with self.ksr.id_lock:
             schema = self.ksr.schemas.get(schema_id_int)
         if not schema:
-            self.log.warning("Schema: %r that was requested, not found", int(schema_id))
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
