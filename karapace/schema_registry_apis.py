@@ -298,8 +298,6 @@ class KarapaceSchemaRegistry(KarapaceBase):
         """Check for schema compatibility"""
         body = request.json
         self.log.info("Got request to check subject: %r, version_id: %r compatibility", subject, version)
-        old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
-        self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             schema_type = SchemaType(body.get("schemaType", "AVRO"))
             new_schema = ValidatedTypedSchema.parse(schema_type, body["schema"])
@@ -313,6 +311,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
+        old = await self.subject_version_get(content_type=content_type, subject=subject, version=version, return_dict=True)
+        self.log.info("Existing schema: %r, new_schema: %r", old["schema"], body["schema"])
         try:
             old_schema_type = SchemaType(old.get("schemaType", "AVRO"))
             old_schema = ValidatedTypedSchema.parse(old_schema_type, old["schema"])
