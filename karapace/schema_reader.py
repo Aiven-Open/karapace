@@ -4,6 +4,7 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from contextlib import closing, ExitStack
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
@@ -176,65 +177,59 @@ class KafkaSchemaReader(Thread):
         self._stop.set()
 
     def run(self) -> None:
-        while not self._stop.is_set() and self.admin_client is None:
-            try:
-                self.admin_client = _create_admin_client_from_config(self.config)
-            except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-                LOG.warning("[Admin Client] No Brokers available yet. Retrying")
-                self._stop.wait(timeout=2.0)
-            except KafkaConfigurationError:
-                LOG.exception("[Admin Client] Invalid configuration. Bailing")
-                raise
-            except:  # pylint: disable=bare-except
-                LOG.exception("[Admin Client] Unexpected exception. Retrying")
-                self._stop.wait(timeout=2.0)
+        with ExitStack() as stack:
+            while not self._stop.is_set() and self.admin_client is None:
+                try:
+                    self.admin_client = _create_admin_client_from_config(self.config)
+                    stack.enter_context(closing(self.admin_client))
+                except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                    LOG.warning("[Admin Client] No Brokers available yet. Retrying")
+                    self._stop.wait(timeout=2.0)
+                except KafkaConfigurationError:
+                    LOG.exception("[Admin Client] Invalid configuration. Bailing")
+                    raise
+                except Exception as e:  # pylint: disable=broad-except
+                    LOG.exception("[Admin Client] Unexpected exception. Retrying")
+                    self.stats.unexpected_exception(ex=e, where="admin_client_instantiation")
+                    self._stop.wait(timeout=2.0)
 
-        while not self._stop.is_set() and self.consumer is None:
-            try:
-                self.consumer = _create_consumer_from_config(self.config)
-            except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-                LOG.warning("[Consumer] No Brokers available yet. Retrying")
-                self._stop.wait(timeout=2.0)
-            except KafkaConfigurationError:
-                LOG.exception("[Consumer] Invalid configuration. Bailing")
-                raise
-            except:  # pylint: disable=bare-except
-                LOG.exception("[Consumer] Unexpected exception. Retrying")
-                self._stop.wait(timeout=2.0)
+            while not self._stop.is_set() and self.consumer is None:
+                try:
+                    self.consumer = _create_consumer_from_config(self.config)
+                    stack.enter_context(closing(self.consumer))
+                except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                    LOG.warning("[Consumer] No Brokers available yet. Retrying")
+                    self._stop.wait(timeout=2.0)
+                except KafkaConfigurationError:
+                    LOG.exception("[Consumer] Invalid configuration. Bailing")
+                    raise
+                except Exception as e:  # pylint: disable=broad-except
+                    LOG.exception("[Consumer] Unexpected exception. Retrying")
+                    self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
+                    self._stop.wait(timeout=2.0)
 
-        schema_topic_exists = False
-        schema_topic = new_schema_topic_from_config(self.config)
-        schema_topic_create = [schema_topic]
-        while not self._stop.is_set() and not schema_topic_exists:
-            try:
-                LOG.info("[Schema Topic] Creating %r", schema_topic)
-                self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-                LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
-                schema_topic_exists = True
-            except TopicAlreadyExistsError:
-                LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
-                schema_topic_exists = True
-            except:  # pylint: disable=bare-except
-                LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
-                self._stop.wait(timeout=5.0)
+            schema_topic_exists = False
+            schema_topic = new_schema_topic_from_config(self.config)
+            schema_topic_create = [schema_topic]
+            while not self._stop.is_set() and not schema_topic_exists:
+                try:
+                    LOG.info("[Schema Topic] Creating %r", schema_topic)
+                    self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
+                    LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
+                    schema_topic_exists = True
+                except TopicAlreadyExistsError:
+                    LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
+                    schema_topic_exists = True
+                except:  # pylint: disable=bare-except
+                    LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
+                    self._stop.wait(timeout=5.0)
 
-        while not self._stop.is_set():
-            try:
-                self.handle_messages()
-                LOG.info("Status: offset: %r, ready: %r", self.offset, self.ready)
-            except Exception as e:  # pylint: disable=broad-except
-                if self.stats:
+            while not self._stop.is_set():
+                try:
+                    self.handle_messages()
+                except Exception as e:  # pylint: disable=broad-except
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
-                LOG.exception("Unexpected exception in schema reader loop")
-        try:
-            if self.admin_client:
-                self.admin_client.close()
-            if self.consumer:
-                self.consumer.close()
-        except Exception as e:  # pylint: disable=broad-except
-            if self.stats:
-                self.stats.unexpected_exception(ex=e, where="schema_reader_exit")
-            LOG.exception("Unexpected exception closing schema reader")
+                    LOG.exception("Unexpected exception in schema reader loop")
 
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
