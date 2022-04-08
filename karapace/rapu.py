@@ -167,9 +167,18 @@ class RestApp:
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(sentry_config=config["sentry"])
         self.raven_client = self.stats.raven_client
-        self.app.on_cleanup.append(self.cleanup_stats_client)
+        self.app.on_cleanup.append(self.close_by_app)
 
-    async def cleanup_stats_client(self, app):  # pylint: disable=unused-argument
+    async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        await self.close()
+
+    async def close(self) -> None:
+        """Method used to free all the resources allocated by the applicaiton.
+
+        This will be called as a callback by the aiohttp server. It needs to be
+        set as hook because the awaitables have to run inside the event loop
+        created by the aiohttp library.
+        """
         self.stats.close()
 
     @staticmethod

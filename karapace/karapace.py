@@ -18,15 +18,7 @@ class KarapaceBase(RestApp):
 
         self.kafka_timeout = 10
         self.route("/", callback=self.root_get, method="GET")
-        self.app.on_shutdown.append(self.close_by_app)
         self.log.info("Karapace initialized")
-
-    async def close_by_app(self, app):
-        # pylint: disable=unused-argument
-        await self.close()
-
-    async def close(self) -> None:
-        pass
 
     @staticmethod
     def r(body: Union[dict, list], content_type: str, status: HTTPStatus = HTTPStatus.OK) -> NoReturn:
