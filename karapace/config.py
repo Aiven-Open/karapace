@@ -41,6 +41,7 @@ DEFAULTS = {
     "registry_port": 8081,
     "registry_ca": None,
     "log_level": "DEBUG",
+    "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
     "master_eligibility": True,
     "replication_factor": 1,
     "security_protocol": "PLAINTEXT",
@@ -66,7 +67,6 @@ DEFAULTS = {
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
 }
-DEFAULT_LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
 
 
 class InvalidConfiguration(Exception):
