@@ -21,7 +21,6 @@ class KarapaceBase(RestApp):
         self.kafka_timeout = 10
         self.route("/", callback=self.root_get, method="GET")
         self.log = logging.getLogger("Karapace")
-        self.app.on_startup.append(self.create_http_client)
         self.log.info("Karapace initialized")
         self.app.on_shutdown.append(self.close_by_app)
 

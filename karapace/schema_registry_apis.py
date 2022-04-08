@@ -7,12 +7,14 @@ from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import Config
 from karapace.karapace import KarapaceBase
 from karapace.master_coordinator import MasterCoordinator
-from karapace.rapu import HTTPRequest
+from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import InvalidSchema, InvalidSchemaType, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader, SchemaType, TypedSchema
 from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Any, Dict, Optional, Tuple
 
+import aiohttp
+import async_timeout
 import asyncio
 import time
 
@@ -58,6 +60,17 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.ksr.start()
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
+
+        self._forward_client = None
+        self.app.on_startup.append(self._create_forward_client)
+        self.app.on_cleanup.append(self._cleanup_forward_client)
+
+    async def _create_forward_client(self, app):  # pylint: disable=unused-argument
+        self._forward_client = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
+
+    async def _cleanup_forward_client(self, app):  # pylint: disable=unused-argument
+        if self._forward_client:
+            await self._forward_client.close()
 
     def _create_producer(self) -> KafkaProducer:
         while True:
@@ -893,9 +906,19 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r({"id": schema_id}, content_type)
 
     async def forward_request_remote(self, *, body, url, content_type, method="POST"):
+        assert self._forward_client is not None, "Server must be initialized"
+
         self.log.info("Writing new schema to remote url: %r since we're not the master", url)
-        response = await self.http_request(url=url, method=method, json=body, timeout=60.0)
-        self.r(body=response.body, content_type=content_type, status=HTTPStatus(response.status))
+        timeout = 60.0
+        func = getattr(self._forward_client, method.lower())
+        with async_timeout.timeout(timeout):
+            async with func(url, json=body) as response:
+                if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
+                    resp_content = await response.json()
+                else:
+                    resp_content = await response.text()
+
+        self.r(body=resp_content, content_type=content_type, status=HTTPStatus(response.status))
 
     def no_master_error(self, content_type):
         self.r(
