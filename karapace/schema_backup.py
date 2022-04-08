@@ -11,7 +11,7 @@ from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.utils import json_encode, KarapaceKafkaClient
+from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
 from typing import Dict, List, Optional, Tuple
 
 import argparse
@@ -24,10 +24,6 @@ import ujson
 
 class BackupError(Exception):
     """Backup Error"""
-
-
-class Timeout(Exception):
-    """Timeout Error"""
 
 
 class SchemaBackup:

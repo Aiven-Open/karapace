@@ -6,10 +6,10 @@ See LICENSE for details
 """
 from http import HTTPStatus
 from kafka import KafkaProducer
-from karapace import config
 from karapace.client import Client
 from karapace.rapu import is_success
-from karapace.schema_registry_apis import KarapaceSchemaRegistry, SchemaErrorMessages
+from karapace.schema_registry_apis import SchemaErrorMessages
+from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import (
     create_field_name_factory,
@@ -863,12 +863,12 @@ async def assert_schema_versions(client: Client, trail: str, schema_id: int, exp
     """
     res = await client.get(f"/schemas/ids/{schema_id}/versions{trail}")
     assert res.status_code == 200
+    registered_schemas = res.json()
 
     # Schema Registry doesn't return an ordered list, Karapace does.
     # Need to check equality ignoring ordering.
-    assert len(res.json()) == len(expected)
-    for e in ({"subject": e[0], "version": e[1]} for e in expected):
-        assert e in res.json()
+    result = [(schema["subject"], schema["version"]) for schema in registered_schemas]
+    assert set(result) == set(expected)
 
 
 async def assert_schema_versions_failed(client: Client, trail: str, schema_id: int, response_code: int = 404) -> None:
@@ -1895,13 +1895,10 @@ async def test_schema_remains_constant(registry_async_client: Client) -> None:
 
 
 async def test_malformed_kafka_message(
-    kafka_servers: KafkaServers, registry_async: KarapaceSchemaRegistry, registry_async_client: Client
+    kafka_servers: KafkaServers,
+    registry_cluster: RegistryDescription,
+    registry_async_client: Client,
 ) -> None:
-    if registry_async:
-        topic = registry_async.config["topic_name"]
-    else:
-        topic = config.DEFAULTS["topic_name"]
-
     producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
     message_key = {"subject": "foo", "version": 1, "magic": 1, "keytype": "SCHEMA"}
     import random
@@ -1910,7 +1907,9 @@ async def test_malformed_kafka_message(
     payload = {"schema": jsonlib.dumps({"foo": "bar"}, indent=None, separators=(",", ":"))}
     message_value = {"deleted": False, "id": schema_id, "subject": "foo", "version": 1}
     message_value.update(payload)
-    producer.send(topic, key=ujson.dumps(message_key).encode(), value=ujson.dumps(message_value).encode()).get()
+    producer.send(
+        registry_cluster.schemas_topic, key=ujson.dumps(message_key).encode(), value=ujson.dumps(message_value).encode()
+    ).get()
 
     path = f"schemas/ids/{schema_id}"
     res = await repeat_until_successful_request(
