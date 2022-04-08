@@ -2,6 +2,7 @@ from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from contextlib import AsyncExitStack, closing
 from http import HTTPStatus
 from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
 from karapace.config import Config, create_client_ssl_context
@@ -327,18 +328,20 @@ class KafkaRest(KarapaceBase):
                 time.sleep(1)
 
     async def close(self) -> None:
-        await super().close()
+        async with AsyncExitStack() as stack, self._async_producer_lock:
+            stack.push_async_callback(super().close)
 
-        async with self._async_producer_lock:
             if self._async_producer is not None:
                 self.log.info("Disposing async producer")
-                await self._async_producer.stop()
+                stack.push_async_callback(self._async_producer.stop)
 
-        if self.admin_client:
-            self.admin_client.close()
+            if self.admin_client is not None:
+                stack.enter_context(closing(self.admin_client))
+
+            if self.consumer_manager is not None:
+                stack.enter_context(closing(self.consumer_manager))
+
             self.admin_client = None
-        if self.consumer_manager:
-            self.consumer_manager.close()
             self.consumer_manager = None
 
     async def publish(self, topic: str, partition_id: Optional[str], content_type: str, formats: dict, data: dict):

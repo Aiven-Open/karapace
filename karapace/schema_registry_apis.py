@@ -1,4 +1,5 @@
 from avro.errors import SchemaParseException
+from contextlib import AsyncExitStack, closing
 from enum import Enum, unique
 from http import HTTPStatus
 from kafka import KafkaProducer
@@ -64,14 +65,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
         self._forward_client = None
         self.app.on_startup.append(self._create_forward_client)
-        self.app.on_cleanup.append(self._cleanup_forward_client)
 
     async def _create_forward_client(self, app):  # pylint: disable=unused-argument
         self._forward_client = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
-
-    async def _cleanup_forward_client(self, app):  # pylint: disable=unused-argument
-        if self._forward_client:
-            await self._forward_client.close()
 
     def _create_producer(self) -> KafkaProducer:
         while True:
@@ -154,11 +150,13 @@ class KarapaceSchemaRegistry(KarapaceBase):
         )
 
     async def close(self) -> None:
-        await super().close()
-
-        self.mc.close()
-        self.ksr.close()
-        self.producer.close()
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(super().close)
+            stack.enter_context(closing(self.mc))
+            stack.enter_context(closing(self.ksr))
+            stack.enter_context(closing(self.producer))
+            if self._forward_client:
+                stack.push_async_callback(self._forward_client.close)
 
     def _subject_get(self, subject, content_type, include_deleted=False) -> Dict[str, Any]:
         subject_data = self.ksr.subjects.get(subject)
