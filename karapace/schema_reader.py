@@ -58,6 +58,21 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     )
 
 
+def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
+    return KafkaAdminClient(
+        api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
+        bootstrap_servers=config["bootstrap_uri"],
+        client_id=config["client_id"],
+        security_protocol=config["security_protocol"],
+        ssl_cafile=config["ssl_cafile"],
+        ssl_certfile=config["ssl_certfile"],
+        ssl_keyfile=config["ssl_keyfile"],
+        sasl_mechanism=config["sasl_mechanism"],
+        sasl_plain_username=config["sasl_plain_username"],
+        sasl_plain_password=config["sasl_plain_password"],
+    )
+
+
 class OffsetsWatcher:
     """Synchronization container for threads to wait until an offset is seen.
 
@@ -140,18 +155,7 @@ class KafkaSchemaReader(Thread):
 
     def init_admin_client(self) -> bool:
         try:
-            self.admin_client = KafkaAdminClient(
-                api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
-                bootstrap_servers=self.config["bootstrap_uri"],
-                client_id=self.config["client_id"],
-                security_protocol=self.config["security_protocol"],
-                ssl_cafile=self.config["ssl_cafile"],
-                ssl_certfile=self.config["ssl_certfile"],
-                ssl_keyfile=self.config["ssl_keyfile"],
-                sasl_mechanism=self.config["sasl_mechanism"],
-                sasl_plain_username=self.config["sasl_plain_username"],
-                sasl_plain_password=self.config["sasl_plain_password"],
-            )
+            self.admin_client = _create_admin_client_from_config(self.config)
             return True
         except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
             LOG.warning("No Brokers available yet, retrying init_admin_client()")
