@@ -17,7 +17,6 @@ from threading import Event, Lock, Thread
 from typing import Any, Dict, Optional
 
 import logging
-import time
 import ujson
 
 Offset = int
@@ -160,7 +159,9 @@ class KafkaSchemaReader(Thread):
         self.offset = OFFSET_EMPTY
         self.ready = False
 
-        self._running = True
+        # This event controls when the Reader should stop running, it will be
+        # set by another thread (e.g. `KarapaceSchemaRegistry`)
+        self._stop = Event()
 
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
@@ -172,39 +173,39 @@ class KafkaSchemaReader(Thread):
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
-        self._running = False
+        self._stop.set()
 
     def run(self) -> None:
-        while self._running and self.admin_client is None:
+        while not self._stop.is_set() and self.admin_client is None:
             try:
                 self.admin_client = _create_admin_client_from_config(self.config)
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                 LOG.warning("[Admin Client] No Brokers available yet. Retrying")
-                time.sleep(2.0)
+                self._stop.wait(timeout=2.0)
             except KafkaConfigurationError:
                 LOG.exception("[Admin Client] Invalid configuration. Bailing")
                 raise
             except:  # pylint: disable=bare-except
                 LOG.exception("[Admin Client] Unexpected exception. Retrying")
-                time.sleep(2.0)
+                self._stop.wait(timeout=2.0)
 
-        while self._running and self.consumer is None:
+        while not self._stop.is_set() and self.consumer is None:
             try:
                 self.consumer = _create_consumer_from_config(self.config)
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                 LOG.warning("[Consumer] No Brokers available yet. Retrying")
-                time.sleep(2.0)
+                self._stop.wait(timeout=2.0)
             except KafkaConfigurationError:
                 LOG.exception("[Consumer] Invalid configuration. Bailing")
                 raise
             except:  # pylint: disable=bare-except
                 LOG.exception("[Consumer] Unexpected exception. Retrying")
-                time.sleep(2.0)
+                self._stop.wait(timeout=2.0)
 
         schema_topic_exists = False
         schema_topic = new_schema_topic_from_config(self.config)
         schema_topic_create = [schema_topic]
-        while self._running and not schema_topic_exists:
+        while not self._stop.is_set() and not schema_topic_exists:
             try:
                 LOG.info("[Schema Topic] Creating %r", schema_topic)
                 self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
@@ -215,9 +216,9 @@ class KafkaSchemaReader(Thread):
                 schema_topic_exists = True
             except:  # pylint: disable=bare-except
                 LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
-                time.sleep(5)
+                self._stop.wait(timeout=5.0)
 
-        while self._running:
+        while not self._stop.is_set():
             try:
                 self.handle_messages()
                 LOG.info("Status: offset: %r, ready: %r", self.offset, self.ready)
