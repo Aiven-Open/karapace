@@ -73,6 +73,15 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
     )
 
 
+def new_schema_topic_from_config(config: Config) -> NewTopic:
+    return NewTopic(
+        name=config["topic_name"],
+        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+        replication_factor=config["replication_factor"],
+        topic_configs={"cleanup.policy": "compact"},
+    )
+
+
 class OffsetsWatcher:
     """Synchronization container for threads to wait until an offset is seen.
 
@@ -165,19 +174,10 @@ class KafkaSchemaReader(Thread):
             time.sleep(2.0)
         return False
 
-    @staticmethod
-    def get_new_schema_topic(config: dict) -> NewTopic:
-        return NewTopic(
-            name=config["topic_name"],
-            num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-            replication_factor=config["replication_factor"],
-            topic_configs={"cleanup.policy": "compact"},
-        )
-
     def create_schema_topic(self) -> bool:
         assert self.admin_client is not None, "Thread must be started"
 
-        schema_topic = self.get_new_schema_topic(self.config)
+        schema_topic = new_schema_topic_from_config(self.config)
         try:
             LOG.info("Creating topic: %r", schema_topic)
             self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
