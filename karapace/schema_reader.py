@@ -6,7 +6,7 @@ See LICENSE for details
 """
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.config import Config
 from karapace.master_coordinator import MasterCoordinator
@@ -138,7 +138,6 @@ class KafkaSchemaReader(Thread):
         self.schemas: Dict[int, TypedSchema] = {}
         self.global_schema_id = 0
         self.admin_client: Optional[KafkaAdminClient] = None
-        self.schema_topic = None
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer: Optional[KafkaConsumer] = None
         self.offset_watcher = OffsetsWatcher()
@@ -162,37 +161,6 @@ class KafkaSchemaReader(Thread):
         self.offset = OFFSET_EMPTY
         self.ready = False
 
-    def init_admin_client(self) -> bool:
-        try:
-            self.admin_client = _create_admin_client_from_config(self.config)
-            return True
-        except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-            LOG.warning("No Brokers available yet, retrying init_admin_client()")
-            time.sleep(2.0)
-        except:  # pylint: disable=bare-except
-            LOG.exception("Failed to initialize admin client, retrying init_admin_client()")
-            time.sleep(2.0)
-        return False
-
-    def create_schema_topic(self) -> bool:
-        assert self.admin_client is not None, "Thread must be started"
-
-        schema_topic = new_schema_topic_from_config(self.config)
-        try:
-            LOG.info("Creating topic: %r", schema_topic)
-            self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-            LOG.info("Topic: %r created successfully", self.config["topic_name"])
-            self.schema_topic = schema_topic
-            return True
-        except TopicAlreadyExistsError:
-            LOG.warning("Topic: %r already exists", self.config["topic_name"])
-            self.schema_topic = schema_topic
-            return True
-        except:  # pylint: disable=bare-except
-            LOG.exception("Failed to create topic: %r, retrying create_schema_topic()", self.config["topic_name"])
-            time.sleep(5)
-        return False
-
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
             for schema_id, schema in self.schemas.items():
@@ -206,16 +174,50 @@ class KafkaSchemaReader(Thread):
         self.running = False
 
     def run(self) -> None:
+        while self.running and self.admin_client is None:
+            try:
+                self.admin_client = _create_admin_client_from_config(self.config)
+            except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                LOG.warning("[Admin Client] No Brokers available yet. Retrying")
+                time.sleep(2.0)
+            except KafkaConfigurationError:
+                LOG.exception("[Admin Client] Invalid configuration. Bailing")
+                raise
+            except:  # pylint: disable=bare-except
+                LOG.exception("[Admin Client] Unexpected exception. Retrying")
+                time.sleep(2.0)
+
+        while self.running and self.consumer is None:
+            try:
+                self.consumer = _create_consumer_from_config(self.config)
+            except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                LOG.warning("[Consumer] No Brokers available yet. Retrying")
+                time.sleep(2.0)
+            except KafkaConfigurationError:
+                LOG.exception("[Consumer] Invalid configuration. Bailing")
+                raise
+            except:  # pylint: disable=bare-except
+                LOG.exception("[Consumer] Unexpected exception. Retrying")
+                time.sleep(2.0)
+
+        schema_topic_exists = False
+        schema_topic = new_schema_topic_from_config(self.config)
+        schema_topic_create = [schema_topic]
+        while self.running and not schema_topic_exists:
+            try:
+                LOG.info("[Schema Topic] Creating %r", schema_topic)
+                self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
+                LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
+                schema_topic_exists = True
+            except TopicAlreadyExistsError:
+                LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
+                schema_topic_exists = True
+            except:  # pylint: disable=bare-except
+                LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
+                time.sleep(5)
+
         while self.running:
             try:
-                if not self.admin_client:
-                    if self.init_admin_client() is False:
-                        continue
-                if not self.schema_topic:
-                    if self.create_schema_topic() is False:
-                        continue
-                if not self.consumer:
-                    self.consumer = _create_consumer_from_config(self.config)
                 self.handle_messages()
                 LOG.info("Status: offset: %r, ready: %r", self.offset, self.ready)
             except Exception as e:  # pylint: disable=broad-except
