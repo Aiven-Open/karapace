@@ -24,7 +24,6 @@ import cgi
 import hashlib
 import logging
 import re
-import ssl
 import time
 import ujson
 
@@ -170,7 +169,6 @@ class RestApp:
         self.app.on_startup.append(self.create_http_client)
         self.app.on_cleanup.append(self.cleanup_http_client)
         self.http_client_v = None
-        self.http_client_no_v = None
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(sentry_config=config["sentry"])
         self.raven_client = self.stats.raven_client
@@ -180,13 +178,9 @@ class RestApp:
         self.stats.close()
 
     async def create_http_client(self, app):  # pylint: disable=unused-argument
-        no_v_conn = aiohttp.TCPConnector(ssl=False)
-        self.http_client_no_v = aiohttp.ClientSession(connector=no_v_conn, headers={"User-Agent": SERVER_NAME})
         self.http_client_v = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
 
     async def cleanup_http_client(self, app):  # pylint: disable=unused-argument
-        if self.http_client_no_v:
-            await self.http_client_no_v.close()
         if self.http_client_v:
             await self.http_client_v.close()
 
@@ -448,13 +442,8 @@ class RestApp:
             if "Added route will never be executed, method OPTIONS is already registered" not in str(ex):
                 raise
 
-    async def http_request(self, url, *, method="GET", json=None, timeout=10.0, verify=True, proxy=None):
+    async def http_request(self, url, *, method="GET", json=None, timeout=10.0, proxy=None):
         close_session = False
-
-        if isinstance(verify, str):
-            sslcontext = ssl.create_default_context(cadata=verify)
-        else:
-            sslcontext = None
 
         if proxy:
             connector = aiohttp_socks.SocksConnector(
@@ -464,21 +453,13 @@ class RestApp:
                 username=proxy["username"],
                 password=proxy["password"],
                 rdns=False,
-                verify_ssl=verify,
-                ssl_context=sslcontext,
+                verify_ssl=True,
+                ssl_context=None,
             )
             session = aiohttp.ClientSession(connector=connector)
             close_session = True
-        elif sslcontext:
-            conn = aiohttp.TCPConnector(ssl_context=sslcontext)
-            session = aiohttp.ClientSession(connector=conn)
-            close_session = True
-        elif verify is True:
-            session = self.http_client_v
-        elif verify is False:
-            session = self.http_client_no_v
         else:
-            raise ValueError("invalid arguments to http_request")
+            session = self.http_client_v
 
         func = getattr(session, method.lower())
         try:
