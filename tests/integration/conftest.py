@@ -12,11 +12,10 @@ from dataclasses import asdict
 from filelock import FileLock
 from kafka import KafkaProducer
 from karapace.client import Client
-from karapace.config import set_config_defaults, write_config
+from karapace.config import Config, set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
-from karapace.schema_registry_apis import KarapaceSchemaRegistry
 from pathlib import Path
-from subprocess import Popen
+from tests.integration.utils.cluster import RegistryDescription, start_schema_registry_cluster
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.kafka_server import (
     configure_and_start_kafka,
@@ -24,17 +23,19 @@ from tests.integration.utils.kafka_server import (
     maybe_download_kafka,
     wait_for_kafka,
 )
-from tests.integration.utils.network import get_random_port, KAFKA_PORT_RANGE, REGISTRY_PORT_RANGE, ZK_PORT_RANGE
+from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
-from tests.utils import new_random_name, repeat_until_successful_request
-from typing import AsyncIterator, Iterator, Optional, Tuple
+from tests.utils import repeat_until_successful_request
+from typing import AsyncIterator, Iterator, List, Optional
 
 import asyncio
 import os
 import pathlib
 import pytest
+import re
+import string
 import time
 import ujson
 
@@ -46,6 +47,36 @@ KAFKA_SCALA_VERSION = "2.13"
 # stdout logger is disabled to keep the pytest report readable
 KAFKA_LOG4J = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
 WORKER_COUNTER_KEY = "worker_counter"
+
+
+def _clear_test_name(name: str) -> str:
+    # Based on:
+    # https://github.com/pytest-dev/pytest/blob/238b25ffa9d4acbc7072ac3dd6d8240765643aed/src/_pytest/tmpdir.py#L189-L194
+    # The purpose is to return a similar name to make finding matching logs easier
+    return re.sub(r"[\W]", "_", name)[:30]
+
+
+@pytest.fixture(scope="session", name="port_range")
+def fixture_port_range() -> PortRangeInclusive:
+    """Container used by other fixtures to register used ports"""
+    # To find a good port range use the following:
+    #
+    #   curl --silent 'https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt' | \
+    #       egrep -i -e '^\s*[0-9]+-[0-9]+\s*unassigned' | \
+    #       awk '{print $1}'
+    #
+    start = 48700
+    end = 49000
+
+    # Split the ports among the workers to prevent port reuse
+    worker_name = os.environ.get("PYTEST_XDIST_WORKER", "0")
+    worker_id = int(worker_name.lstrip(string.ascii_letters))
+    worker_count = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
+    total_ports = end - start
+    ports_per_worker = total_ports // worker_count
+    start_worker = (ports_per_worker * worker_id) + start
+    end_worker = start_worker + ports_per_worker - 1
+    return PortRangeInclusive(start_worker, end_worker)
 
 
 @pytest.fixture(scope="session", name="kafka_description")
@@ -70,6 +101,7 @@ def fixture_kafka_server(
     session_datadir: Path,
     session_logdir: Path,
     kafka_description: KafkaDescription,
+    port_range: PortRangeInclusive,
 ) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
 
@@ -88,20 +120,19 @@ def fixture_kafka_server(
     lock_file = lock_path_for(transfer_file)
 
     with ExitStack() as stack:
+        zk_client_port = stack.enter_context(port_range.allocate_port())
+        zk_admin_port = stack.enter_context(port_range.allocate_port())
+        kafka_plaintext_port = stack.enter_context(port_range.allocate_port())
+
         with FileLock(str(lock_file)):
             if transfer_file.exists():
                 config_data = ujson.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
-
-                # Count the new worker
-                config_data[WORKER_COUNTER_KEY] += 1
-                transfer_file.write_text(ujson.dumps(config_data))
+                config_data[WORKER_COUNTER_KEY] += 1  # Count the new worker
             else:
                 maybe_download_kafka(kafka_description)
 
-                zk_client_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[])
-                zk_admin_port = get_random_port(port_range=ZK_PORT_RANGE, blacklist=[zk_client_port])
                 zk_config = ZKConfig(
                     client_port=zk_client_port,
                     admin_port=zk_admin_port,
@@ -114,7 +145,6 @@ def fixture_kafka_server(
                 # Make sure zookeeper is running before trying to start Kafka
                 wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
 
-                kafka_plaintext_port = get_random_port(port_range=KAFKA_PORT_RANGE, blacklist=[])
                 data_dir = session_datadir / "kafka"
                 log_dir = session_logdir / "kafka"
                 data_dir.mkdir(parents=True)
@@ -137,30 +167,32 @@ def fixture_kafka_server(
                     "kafka": asdict(kafka_config),
                     WORKER_COUNTER_KEY: 1,
                 }
-                transfer_file.write_text(ujson.dumps(config_data))
 
-        # Make sure every test worker can communicate with kafka
-        kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"])
-        wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
-
-        yield kafka_servers
-
-        # Signal the worker finished
-        with FileLock(str(lock_file)):
-            assert transfer_file.exists(), "transfer_file disappeared"
-            config_data = ujson.loads(transfer_file.read_text())
-            config_data[WORKER_COUNTER_KEY] -= 1
             transfer_file.write_text(ujson.dumps(config_data))
 
-        # Wait until every worker finished before stopping the servers
-        worker_counter = float("inf")
-        while worker_counter > 0:
+        try:
+            # Make sure every test worker can communicate with kafka
+            kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"])
+            wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
+
+            yield kafka_servers
+        finally:
+            # This must be called on errors, otherwise the master node will wait forever
             with FileLock(str(lock_file)):
                 assert transfer_file.exists(), "transfer_file disappeared"
                 config_data = ujson.loads(transfer_file.read_text())
-                worker_counter = config_data[WORKER_COUNTER_KEY]
+                config_data[WORKER_COUNTER_KEY] -= 1
+                transfer_file.write_text(ujson.dumps(config_data))
 
-            time.sleep(2)
+            # Wait until every worker finished before stopping the servers
+            worker_counter = float("inf")
+            while worker_counter > 0:
+                with FileLock(str(lock_file)):
+                    assert transfer_file.exists(), "transfer_file disappeared"
+                    config_data = ujson.loads(transfer_file.read_text())
+                    worker_counter = config_data[WORKER_COUNTER_KEY]
+
+                time.sleep(2)
 
         return
 
@@ -247,112 +279,63 @@ async def fixture_rest_async_client(
 
 
 @pytest.fixture(scope="function", name="registry_async_pair")
-def fixture_registry_async_pair(
-    tmp_path: Path,
-    kafka_servers: KafkaServers,
-) -> Iterator[Tuple[str, str]]:
-    master_config_path = tmp_path / "karapace_config_master.json"
-    slave_config_path = tmp_path / "karapace_config_slave.json"
-    master_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[])
-    slave_port = get_random_port(port_range=REGISTRY_PORT_RANGE, blacklist=[master_port])
-    topic_name = new_random_name("schema_pairs")
-    group_id = new_random_name("schema_pairs")
-    write_config(
-        master_config_path,
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": topic_name,
-            "group_id": group_id,
-            "advertised_hostname": "127.0.0.1",
-            "karapace_registry": True,
-            "port": master_port,
-        },
-    )
-    write_config(
-        slave_config_path,
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": topic_name,
-            "group_id": group_id,
-            "advertised_hostname": "127.0.0.1",
-            "karapace_registry": True,
-            "port": slave_port,
-        },
-    )
-
-    master_process = None
-    slave_process = None
-    with ExitStack() as stack:
-        try:
-            master_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(master_config_path)]))
-            slave_process = stack.enter_context(Popen(["python", "-m", "karapace.karapace_all", str(slave_config_path)]))
-            wait_for_port_subprocess(master_port, master_process)
-            wait_for_port_subprocess(slave_port, slave_process)
-            yield f"http://127.0.0.1:{master_port}", f"http://127.0.0.1:{slave_port}"
-        finally:
-            if master_process:
-                master_process.kill()
-            if slave_process:
-                slave_process.kill()
-
-
-@pytest.fixture(scope="function", name="registry_async")
-async def fixture_registry_async(
+async def fixture_registry_async_pair(
     request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
+    session_logdir: Path,
     kafka_servers: KafkaServers,
-) -> AsyncIterator[Optional[KarapaceSchemaRegistry]]:
+    port_range: PortRangeInclusive,
+) -> Iterator[List[str]]:
+    """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
+
+    config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+    config2: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+
+    async with start_schema_registry_cluster(
+        config_templates=[config1, config2],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as endpoints:
+        yield [server.endpoint.to_url() for server in endpoints]
+
+
+@pytest.fixture(scope="function", name="registry_cluster")
+async def fixture_registry_cluster(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+) -> AsyncIterator[RegistryDescription]:
     # Do not start a registry when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
     # won't work and will cause test failures.
     registry_url = request.config.getoption("registry_url")
     if registry_url:
-        yield None
+        yield registry_url
         return
 
-    config_path = tmp_path / "karapace_config.json"
-
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            # Using the default settings instead of random values, otherwise it
-            # would not be possible to run the tests with external services.
-            # Because of this every test must be written in such a way that it can
-            # be executed twice with the same servers.
-            # "topic_name": new_random_name("topic"),
-            "group_id": new_random_name("registry_async"),
-        }
-    )
-    write_config(config_path, config)
-    registry = KarapaceSchemaRegistry(config=config)
-    await registry.get_master()
-    try:
-        yield registry
-    finally:
-        await registry.close()
+    config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+    async with start_schema_registry_cluster(
+        config_templates=[config],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as servers:
+        yield servers[0]
 
 
 @pytest.fixture(scope="function", name="registry_async_client")
 async def fixture_registry_async_client(
     request: SubRequest,
+    registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    registry_async: KarapaceSchemaRegistry,
-    aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
 
-    registry_url = request.config.getoption("registry_url")
-
-    # client and server_uri are incompatible settings.
-    if registry_url:
-        client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
-    else:
-
-        async def get_client() -> ClientSession:
-            return await aiohttp_client(registry_async.app)
-
-        client = Client(client_factory=get_client)
+    client = Client(
+        server_uri=registry_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+    )
 
     try:
         # wait until the server is listening, otherwise the tests may fail
@@ -361,7 +344,7 @@ async def fixture_registry_async_client(
             "subjects",
             json_data=None,
             headers=None,
-            error_msg="REST API is unreachable",
+            error_msg=f"Registry API {client.server_uri} is unreachable",
             timeout=10,
             sleep=0.3,
         )
@@ -392,68 +375,50 @@ def fixture_server_key(credentials_folder: str) -> str:
     return os.path.join(credentials_folder, "serverkey.pem")
 
 
-@pytest.fixture(scope="function", name="registry_async_tls")
-async def fixture_registry_async_tls(
+@pytest.fixture(scope="function", name="registry_https_endpoint")
+async def fixture_registry_https_endpoint(
     request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
+    session_logdir: Path,
     kafka_servers: KafkaServers,
     server_cert: str,
     server_key: str,
-) -> AsyncIterator[Optional[KarapaceSchemaRegistry]]:
+    port_range: PortRangeInclusive,
+) -> AsyncIterator[str]:
     # Do not start a registry when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
     # won't work and will cause test failures.
     registry_url = request.config.getoption("registry_url")
     if registry_url:
-        yield None
+        yield registry_url
         return
 
-    config_path = tmp_path / "karapace_config.json"
-
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "server_tls_certfile": server_cert,
-            "server_tls_keyfile": server_key,
-            "port": 8444,
-            # Using the default settings instead of random values, otherwise it
-            # would not be possible to run the tests with external services.
-            # Because of this every test must be written in such a way that it can
-            # be executed twice with the same servers.
-            # "topic_name": new_random_name("topic"),
-            "group_id": new_random_name("registry_async_tls"),
-        }
-    )
-    write_config(config_path, config)
-    registry = KarapaceSchemaRegistry(config=config)
-    await registry.get_master()
-    try:
-        yield registry
-    finally:
-        await registry.close()
+    config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "server_tls_certfile": server_cert,
+        "server_tls_keyfile": server_key,
+    }
+    async with start_schema_registry_cluster(
+        config_templates=[config],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as servers:
+        yield servers[0].endpoint.to_url()
 
 
 @pytest.fixture(scope="function", name="registry_async_client_tls")
 async def fixture_registry_async_client_tls(
-    request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    registry_async_tls: KarapaceSchemaRegistry,
-    aiohttp_client: AiohttpClient,
+    registry_https_endpoint: str,
     server_ca: str,
 ) -> AsyncIterator[Client]:
+    pytest.skip("Test certification is not properly set")
 
-    registry_url = request.config.getoption("registry_url")
-
-    if registry_url:
-        client = Client(server_uri=registry_url, server_ca=request.config.getoption("server_ca"))
-    else:
-
-        async def get_client() -> ClientSession:
-            return await aiohttp_client(registry_async_tls.app)
-
-        client = Client(client_factory=get_client, server_ca=server_ca)
+    client = Client(
+        server_uri=registry_https_endpoint,
+        server_ca=server_ca,
+    )
 
     try:
         # wait until the server is listening, otherwise the tests may fail
@@ -462,7 +427,7 @@ async def fixture_registry_async_client_tls(
             "subjects",
             json_data=None,
             headers=None,
-            error_msg="REST API is unreachable",
+            error_msg=f"Registry API {registry_https_endpoint} is unreachable",
             timeout=10,
             sleep=0.3,
         )
