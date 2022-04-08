@@ -11,7 +11,6 @@ from karapace.config import Config
 from karapace.rapu import HTTPResponse, RestApp
 from typing import NoReturn, Union
 
-import asyncio
 import logging
 
 
@@ -23,7 +22,6 @@ class KarapaceBase(RestApp):
         self.route("/", callback=self.root_get, method="GET")
         self.log = logging.getLogger("Karapace")
         self.app.on_startup.append(self.create_http_client)
-        self.master_lock = asyncio.Lock()
         self.log.info("Karapace initialized")
         self.app.on_shutdown.append(self.close_by_app)
 
