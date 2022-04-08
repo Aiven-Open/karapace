@@ -17,7 +17,6 @@ from typing import Dict, NoReturn, Optional, overload, Union
 import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
-import async_timeout
 import asyncio
 import cgi
 import hashlib
@@ -165,9 +164,6 @@ class RestApp:
         self.config = config
         self.app_request_metric = "{}_request".format(app_name)
         self.app = aiohttp.web.Application()
-        self.app.on_startup.append(self.create_http_client)
-        self.app.on_cleanup.append(self.cleanup_http_client)
-        self.http_client_v = None
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(sentry_config=config["sentry"])
         self.raven_client = self.stats.raven_client
@@ -175,13 +171,6 @@ class RestApp:
 
     async def cleanup_stats_client(self, app):  # pylint: disable=unused-argument
         self.stats.close()
-
-    async def create_http_client(self, app):  # pylint: disable=unused-argument
-        self.http_client_v = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
-
-    async def cleanup_http_client(self, app):  # pylint: disable=unused-argument
-        if self.http_client_v:
-            await self.http_client_v.close()
 
     @staticmethod
     def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument
@@ -440,18 +429,6 @@ class RestApp:
         except RuntimeError as ex:
             if "Added route will never be executed, method OPTIONS is already registered" not in str(ex):
                 raise
-
-    async def http_request(self, url, *, method="GET", json=None, timeout=10.0):
-        func = getattr(self.http_client_v, method.lower())
-        with async_timeout.timeout(timeout):
-            async with func(url, json=json) as response:
-                if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
-                    resp_content = await response.json()
-                else:
-                    resp_content = await response.text()
-                result = HTTPResponse(body=resp_content, status=HTTPStatus(response.status))
-
-        return result
 
     def run(self) -> None:
         ssl_context = create_server_ssl_context(self.config)
