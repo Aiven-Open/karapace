@@ -141,7 +141,6 @@ class KafkaSchemaReader(Thread):
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer: Optional[KafkaConsumer] = None
         self.offset_watcher = OffsetsWatcher()
-        self.running = True
         self.id_lock = Lock()
         self.stats = StatsClient(
             sentry_config=config["sentry"],  # type: ignore[arg-type]
@@ -161,6 +160,8 @@ class KafkaSchemaReader(Thread):
         self.offset = OFFSET_EMPTY
         self.ready = False
 
+        self._running = True
+
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
             for schema_id, schema in self.schemas.items():
@@ -171,10 +172,10 @@ class KafkaSchemaReader(Thread):
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
-        self.running = False
+        self._running = False
 
     def run(self) -> None:
-        while self.running and self.admin_client is None:
+        while self._running and self.admin_client is None:
             try:
                 self.admin_client = _create_admin_client_from_config(self.config)
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
@@ -187,7 +188,7 @@ class KafkaSchemaReader(Thread):
                 LOG.exception("[Admin Client] Unexpected exception. Retrying")
                 time.sleep(2.0)
 
-        while self.running and self.consumer is None:
+        while self._running and self.consumer is None:
             try:
                 self.consumer = _create_consumer_from_config(self.config)
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
@@ -203,7 +204,7 @@ class KafkaSchemaReader(Thread):
         schema_topic_exists = False
         schema_topic = new_schema_topic_from_config(self.config)
         schema_topic_create = [schema_topic]
-        while self.running and not schema_topic_exists:
+        while self._running and not schema_topic_exists:
             try:
                 LOG.info("[Schema Topic] Creating %r", schema_topic)
                 self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
@@ -216,7 +217,7 @@ class KafkaSchemaReader(Thread):
                 LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
                 time.sleep(5)
 
-        while self.running:
+        while self._running:
             try:
                 self.handle_messages()
                 LOG.info("Status: offset: %r, ready: %r", self.offset, self.ready)
