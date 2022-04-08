@@ -22,6 +22,7 @@ HOSTNAME = socket.gethostname()
 
 DEFAULTS = {
     "access_logs_debug": False,
+    "access_log_class": None,
     "advertised_hostname": HOSTNAME,
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
