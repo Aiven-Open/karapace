@@ -17,7 +17,6 @@ from typing import Dict, NoReturn, Optional, overload, Union
 import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
-import aiohttp_socks
 import async_timeout
 import asyncio
 import cgi
@@ -442,37 +441,15 @@ class RestApp:
             if "Added route will never be executed, method OPTIONS is already registered" not in str(ex):
                 raise
 
-    async def http_request(self, url, *, method="GET", json=None, timeout=10.0, proxy=None):
-        close_session = False
-
-        if proxy:
-            connector = aiohttp_socks.SocksConnector(
-                socks_ver=aiohttp_socks.SocksVer.SOCKS5,
-                host=proxy["host"],
-                port=proxy["port"],
-                username=proxy["username"],
-                password=proxy["password"],
-                rdns=False,
-                verify_ssl=True,
-                ssl_context=None,
-            )
-            session = aiohttp.ClientSession(connector=connector)
-            close_session = True
-        else:
-            session = self.http_client_v
-
-        func = getattr(session, method.lower())
-        try:
-            with async_timeout.timeout(timeout):
-                async with func(url, json=json) as response:
-                    if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
-                        resp_content = await response.json()
-                    else:
-                        resp_content = await response.text()
-                    result = HTTPResponse(body=resp_content, status=HTTPStatus(response.status))
-        finally:
-            if close_session:
-                await session.close()
+    async def http_request(self, url, *, method="GET", json=None, timeout=10.0):
+        func = getattr(self.http_client_v, method.lower())
+        with async_timeout.timeout(timeout):
+            async with func(url, json=json) as response:
+                if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
+                    resp_content = await response.json()
+                else:
+                    resp_content = await response.text()
+                result = HTTPResponse(body=resp_content, status=HTTPStatus(response.status))
 
         return result
 
