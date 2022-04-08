@@ -10,7 +10,7 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExis
 from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
-from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_reader import new_schema_topic_from_config
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
 from typing import Dict, List, Optional, Tuple
 
@@ -108,7 +108,7 @@ class SchemaBackup:
             if time.monotonic() - start_time > wait_time:
                 raise Timeout(f"Timeout ({wait_time}) on creating admin client")
 
-            schema_topic = KafkaSchemaReader.get_new_schema_topic(self.config)
+            schema_topic = new_schema_topic_from_config(self.config)
             try:
                 LOG.info("Creating schema topic: %r", schema_topic)
                 self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
