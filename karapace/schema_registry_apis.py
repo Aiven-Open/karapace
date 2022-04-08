@@ -429,7 +429,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/config"
-            await self.forward_request_remote(body=body, url=url, content_type=content_type, method="PUT")
+            await self._forward_request_remote(body=body, url=url, content_type=content_type, method="PUT")
 
         self.r({"compatibility": self.ksr.config["compatibility"]}, content_type)
 
@@ -480,7 +480,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/config/{subject}"
-            await self.forward_request_remote(body=request.json, url=url, content_type=content_type, method="PUT")
+            await self._forward_request_remote(body=request.json, url=url, content_type=content_type, method="PUT")
 
         self.r({"compatibility": compatibility_level.value}, content_type)
 
@@ -527,7 +527,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}?permanent={permanent}"
-            await self.forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
+            await self._forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_get(self, content_type, *, subject, version, return_dict=False):
         self._validate_version(content_type, version)
@@ -630,7 +630,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
-            await self.forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
+            await self._forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(self, content_type, *, subject, version):
         self._validate_version(content_type, version)
@@ -777,7 +777,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions"
-            await self.forward_request_remote(body=body, url=url, content_type=content_type, method="POST")
+            await self._forward_request_remote(body=body, url=url, content_type=content_type, method="POST")
 
     def write_new_schema_local(self, subject, body, content_type):
         """Since we're the master we get to write the new schema"""
@@ -905,7 +905,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         )
         self.r({"id": schema_id}, content_type)
 
-    async def forward_request_remote(self, *, body, url, content_type, method="POST"):
+    async def _forward_request_remote(self, *, body, url, content_type, method="POST"):
         assert self._forward_client is not None, "Server must be initialized"
 
         self.log.info("Writing new schema to remote url: %r since we're not the master", url)
