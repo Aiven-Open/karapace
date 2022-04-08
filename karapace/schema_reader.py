@@ -33,6 +33,31 @@ OFFSET_EMPTY = -1
 LOG = logging.getLogger(__name__)
 
 
+def _create_consumer_from_config(config: Config) -> KafkaConsumer:
+    # Group not set on purpose, all consumers read the same data
+    session_timeout_ms = config["session_timeout_ms"]
+    request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
+    return KafkaConsumer(
+        config["topic_name"],
+        enable_auto_commit=False,
+        api_version=(1, 0, 0),
+        bootstrap_servers=config["bootstrap_uri"],
+        client_id=config["client_id"],
+        security_protocol=config["security_protocol"],
+        ssl_cafile=config["ssl_cafile"],
+        ssl_certfile=config["ssl_certfile"],
+        ssl_keyfile=config["ssl_keyfile"],
+        sasl_mechanism=config["sasl_mechanism"],
+        sasl_plain_username=config["sasl_plain_username"],
+        sasl_plain_password=config["sasl_plain_password"],
+        auto_offset_reset="earliest",
+        session_timeout_ms=session_timeout_ms,
+        request_timeout_ms=request_timeout_ms,
+        kafka_client=KarapaceKafkaClient,
+        metadata_max_age_ms=config["metadata_max_age_ms"],
+    )
+
+
 class OffsetsWatcher:
     """Synchronization container for threads to wait until an offset is seen.
 
@@ -113,30 +138,6 @@ class KafkaSchemaReader(Thread):
         self.offset = OFFSET_EMPTY
         self.ready = False
 
-    def init_consumer(self) -> None:
-        # Group not set on purpose, all consumers read the same data
-        session_timeout_ms = self.config["session_timeout_ms"]
-        request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
-        self.consumer = KafkaConsumer(
-            self.config["topic_name"],
-            enable_auto_commit=False,
-            api_version=(1, 0, 0),
-            bootstrap_servers=self.config["bootstrap_uri"],
-            client_id=self.config["client_id"],
-            security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            sasl_mechanism=self.config["sasl_mechanism"],
-            sasl_plain_username=self.config["sasl_plain_username"],
-            sasl_plain_password=self.config["sasl_plain_password"],
-            auto_offset_reset="earliest",
-            session_timeout_ms=session_timeout_ms,
-            request_timeout_ms=request_timeout_ms,
-            kafka_client=KarapaceKafkaClient,
-            metadata_max_age_ms=self.config["metadata_max_age_ms"],
-        )
-
     def init_admin_client(self) -> bool:
         try:
             self.admin_client = KafkaAdminClient(
@@ -210,7 +211,7 @@ class KafkaSchemaReader(Thread):
                     if self.create_schema_topic() is False:
                         continue
                 if not self.consumer:
-                    self.init_consumer()
+                    self.consumer = _create_consumer_from_config(self.config)
                 self.handle_messages()
                 LOG.info("Status: offset: %r, ready: %r", self.offset, self.ready)
             except Exception as e:  # pylint: disable=broad-except
