@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 import asyncio
 import copy
+import ssl
 import ujson
 import uuid
 
@@ -240,23 +241,19 @@ async def wait_for_topics(rest_async_client: Client, topic_names: List[str], tim
 
 
 async def repeat_until_successful_request(
-    callback, path: str, json_data, headers, error_msg: str, timeout: float, sleep: float
+    callback,
+    path: str,
+    json_data,
+    headers,
+    error_msg: str,
+    timeout: float,
+    sleep: float,
 ):
     expiration = Expiration.from_timeout(timeout=timeout)
     ok = False
     res = None
 
-    try:
-        res = await callback(path, json=json_data, headers=headers)
-    # ClientOSError: Raised when the listening socket is not yet open in the server
-    # ServerDisconnectedError: Wrong url
-    except (ClientOSError, ServerDisconnectedError):
-        pass
-    else:
-        ok = res.ok
-
     while not ok:
-        await asyncio.sleep(sleep)
         expiration.raise_timeout_if_expired(
             msg_format=f"{error_msg} {res} after {timeout} secs",
             error_msg=error_msg,
@@ -266,8 +263,13 @@ async def repeat_until_successful_request(
 
         try:
             res = await callback(path, json=json_data, headers=headers)
+        # SSLCertVerificationError: likely a configuration error, nothing to do
+        except ssl.SSLCertVerificationError:
+            raise
+        # ClientOSError: Raised when the listening socket is not yet open in the server
+        # ServerDisconnectedError: Wrong url
         except (ClientOSError, ServerDisconnectedError):
-            pass
+            await asyncio.sleep(sleep)
         else:
             ok = res.ok
 
