@@ -32,6 +32,9 @@ SubjectData = Dict[str, Any]
 OFFSET_EMPTY = -1
 LOG = logging.getLogger(__name__)
 
+KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS = 2.0
+SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS = 5.0
+
 
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
@@ -184,7 +187,7 @@ class KafkaSchemaReader(Thread):
                     stack.enter_context(closing(self.admin_client))
                 except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                     LOG.warning("[Admin Client] No Brokers available yet. Retrying")
-                    self._stop.wait(timeout=2.0)
+                    self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
                     LOG.exception("[Admin Client] Invalid configuration. Bailing")
                     raise
@@ -206,7 +209,7 @@ class KafkaSchemaReader(Thread):
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
-                    self._stop.wait(timeout=2.0)
+                    self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
 
             schema_topic_exists = False
             schema_topic = new_schema_topic_from_config(self.config)
@@ -222,7 +225,7 @@ class KafkaSchemaReader(Thread):
                     schema_topic_exists = True
                 except:  # pylint: disable=bare-except
                     LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
-                    self._stop.wait(timeout=5.0)
+                    self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
 
             while not self._stop.is_set():
                 try:
