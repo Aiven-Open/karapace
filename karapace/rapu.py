@@ -17,14 +17,11 @@ from typing import Dict, NoReturn, Optional, overload, Union
 import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
-import aiohttp_socks
-import async_timeout
 import asyncio
 import cgi
 import hashlib
 import logging
 import re
-import ssl
 import time
 import ujson
 
@@ -167,10 +164,6 @@ class RestApp:
         self.config = config
         self.app_request_metric = "{}_request".format(app_name)
         self.app = aiohttp.web.Application()
-        self.app.on_startup.append(self.create_http_client)
-        self.app.on_cleanup.append(self.cleanup_http_client)
-        self.http_client_v = None
-        self.http_client_no_v = None
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(sentry_config=config["sentry"])
         self.raven_client = self.stats.raven_client
@@ -178,17 +171,6 @@ class RestApp:
 
     async def cleanup_stats_client(self, app):  # pylint: disable=unused-argument
         self.stats.close()
-
-    async def create_http_client(self, app):  # pylint: disable=unused-argument
-        no_v_conn = aiohttp.TCPConnector(ssl=False)
-        self.http_client_no_v = aiohttp.ClientSession(connector=no_v_conn, headers={"User-Agent": SERVER_NAME})
-        self.http_client_v = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
-
-    async def cleanup_http_client(self, app):  # pylint: disable=unused-argument
-        if self.http_client_no_v:
-            await self.http_client_no_v.close()
-        if self.http_client_v:
-            await self.http_client_v.close()
 
     @staticmethod
     def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument
@@ -447,53 +429,6 @@ class RestApp:
         except RuntimeError as ex:
             if "Added route will never be executed, method OPTIONS is already registered" not in str(ex):
                 raise
-
-    async def http_request(self, url, *, method="GET", json=None, timeout=10.0, verify=True, proxy=None):
-        close_session = False
-
-        if isinstance(verify, str):
-            sslcontext = ssl.create_default_context(cadata=verify)
-        else:
-            sslcontext = None
-
-        if proxy:
-            connector = aiohttp_socks.SocksConnector(
-                socks_ver=aiohttp_socks.SocksVer.SOCKS5,
-                host=proxy["host"],
-                port=proxy["port"],
-                username=proxy["username"],
-                password=proxy["password"],
-                rdns=False,
-                verify_ssl=verify,
-                ssl_context=sslcontext,
-            )
-            session = aiohttp.ClientSession(connector=connector)
-            close_session = True
-        elif sslcontext:
-            conn = aiohttp.TCPConnector(ssl_context=sslcontext)
-            session = aiohttp.ClientSession(connector=conn)
-            close_session = True
-        elif verify is True:
-            session = self.http_client_v
-        elif verify is False:
-            session = self.http_client_no_v
-        else:
-            raise ValueError("invalid arguments to http_request")
-
-        func = getattr(session, method.lower())
-        try:
-            with async_timeout.timeout(timeout):
-                async with func(url, json=json) as response:
-                    if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
-                        resp_content = await response.json()
-                    else:
-                        resp_content = await response.text()
-                    result = HTTPResponse(body=resp_content, status=HTTPStatus(response.status))
-        finally:
-            if close_session:
-                await session.close()
-
-        return result
 
     def run(self) -> None:
         ssl_context = create_server_ssl_context(self.config)

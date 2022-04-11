@@ -37,8 +37,12 @@ def wait_for_port_subprocess(
 
 def stop_process(proc: Optional[Popen]) -> None:
     if proc:
-        os.kill(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=10.0)
+        try:
+            os.kill(proc.pid, signal.SIGKILL)
+            proc.wait(timeout=10.0)
+        # ProcessLookupError: Raised when the process is already gone
+        except ProcessLookupError:
+            pass
 
 
 def get_java_process_configuration(java_args: List[str]) -> List[str]:
