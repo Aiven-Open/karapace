@@ -8,10 +8,11 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
+from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode, KarapaceKafkaClient
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 import argparse
 import logging
@@ -138,33 +139,7 @@ class SchemaBackup:
             self.admin_client = None
 
     def request_backup(self):
-        if not self.consumer:
-            self.init_consumer()
-        self.log.info("Starting schema backup read for topic: %r", self.topic_name)
-
-        values = []
-        topic_fully_consumed = False
-
-        while not topic_fully_consumed:
-
-            raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
-            topic_fully_consumed = len(raw_msg) == 0
-
-            for _, messages in raw_msg.items():
-                for message in messages:
-                    key = message.key.decode("utf8")
-                    try:
-                        key = ujson.loads(key)
-                    except ValueError:
-                        self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
-                    value = None
-                    if message.value:
-                        value = message.value.decode("utf8")
-                        try:
-                            value = ujson.loads(value)
-                        except ValueError:
-                            self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
-                    values.append((key, value))
+        values = self._export()
 
         ser = ujson.dumps(values)
         if self.backup_location:
@@ -203,6 +178,65 @@ class SchemaBackup:
             self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
         self.close()
 
+    def export_anonymized_avro_schemas(self):
+        values = self._export()
+        anonymized_schemas = []
+
+        for value in values:
+            # The schemas topic contain all changes to schema metadata.
+            # Check that the message has key `schema` and type is Avro schema.
+            # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
+            if value[1] and "schema" in value[1] and value[1].get("schemaType", "AVRO") == "AVRO":
+                original_schema = ujson.loads(value[1].get("schema"))
+                anonymized_schema = anonymize_avro.anonymize(original_schema)
+                if anonymized_schema:
+                    if "subject" in value[0]:
+                        value[0]["subject"] = anonymize_avro.anonymize_name(value[0]["subject"])
+                    if "subject" in value[1]:
+                        value[1]["subject"] = anonymize_avro.anonymize_name(value[1]["subject"])
+                    value[1]["schema"] = anonymized_schema
+                    anonymized_schemas.append((value[0], value[1]))
+        ser = ujson.dumps(anonymized_schemas)
+        if self.backup_location:
+            with open(self.backup_location, mode="w", encoding="utf8") as fp:
+                fp.write(ser)
+                self.log.info("Anonymized Avro schema export written to %r", self.backup_location)
+        else:
+            print(ser)
+            self.log.info("Anonymized Avro schema export written to stdout")
+        self.close()
+
+    def _export(self) -> List[Tuple[str, Dict[str, str]]]:
+        if not self.consumer:
+            self.init_consumer()
+        self.log.info("Starting schema backup read for topic: %r", self.topic_name)
+
+        values = []
+        topic_fully_consumed = False
+
+        while not topic_fully_consumed:
+
+            raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
+            topic_fully_consumed = len(raw_msg) == 0
+
+            for _, messages in raw_msg.items():
+                for message in messages:
+                    key = message.key.decode("utf8")
+                    try:
+                        key = ujson.loads(key)
+                    except ValueError:
+                        self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
+                    value = None
+                    if message.value:
+                        value = message.value.decode("utf8")
+                        try:
+                            value = ujson.loads(value)
+                        except ValueError:
+                            self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
+                    values.append((key, value))
+
+        return values
+
 
 def encode_value(value):
     if value == "null":
@@ -218,7 +252,10 @@ def parse_args():
 
     parser_get = subparsers.add_parser("get", help="Store the schema backup into a file")
     parser_restore = subparsers.add_parser("restore", help="Restore the schema backup from a file")
-    for p in [parser_get, parser_restore]:
+    parser_export_anonymized_avro_schemas = subparsers.add_parser(
+        "export-anonymized-avro-schemas", help="Export anonymized Avro schemas into a file"
+    )
+    for p in [parser_get, parser_restore, parser_export_anonymized_avro_schemas]:
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--location", default="", help="File path for the backup file")
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)
@@ -239,6 +276,9 @@ def main() -> int:
         return 0
     if args.command == "restore":
         sb.restore_backup()
+        return 0
+    if args.command == "export-anonymized-avro-schemas":
+        sb.export_anonymized_avro_schemas()
         return 0
     return 1
 
