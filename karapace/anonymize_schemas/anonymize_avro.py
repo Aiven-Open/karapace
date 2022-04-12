@@ -114,4 +114,4 @@ def anonymize(input_schema: Schema) -> Schema:
                 output_schema[key] = anonymize(value)
         return output_schema
     else:
-        return input_schema
+        return input_schema  # type: ignore[unreachable]
