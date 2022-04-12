@@ -13,9 +13,10 @@ import pytest
 PRIMITIVE_TYPE_SCHEMA = json.loads('"int"')
 EXPECTED_PRIMITIVE_TYPE_SCHEMA = "int"
 
-
+# Pylint issue: https://github.com/PyCQA/pylint/issues/3368
+# pylint: disable=line-too-long
 SCHEMA_WITH_NAME = json.loads('"io.aiven.myrecord"')
-EXPECTED_SCHEMA_WITH_NAME = "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afe8733e983101f1f4ff50d24152890d0da71418"  # pylint: disable=line-too-long
+EXPECTED_SCHEMA_WITH_NAME = "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afe8733e983101f1f4ff50d24152890d0da71418"
 
 
 FIXED_VALUE_SCHEMA_INVALID = json.loads("100.101")
@@ -212,7 +213,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
     "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
     "name": "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",
     "aliases": [
-        "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a99e5e92725f9873fa5802326346a6067051ee61",  # pylint: disable=line-too-long
+        "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a99e5e92725f9873fa5802326346a6067051ee61",
         "a99e5e92725f9873fa5802326346a6067051ee61",
     ],
     "fields": [
@@ -235,7 +236,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "name": "abe0d2dc12d0aa622bacbe23b5516c2e7895e1d7",
             "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
             "aliases": [
-                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afaba999b462193044dfff2af00fd144e3622c93"  # pylint: disable=line-too-long
+                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afaba999b462193044dfff2af00fd144e3622c93"
             ],
             "symbols": ["a58b5a8ced9db48b30e008b148004c1065ce53b1", "a6e018ece5a1d3b750531de58d16b961de23d629"],
             "default": "a6e018ece5a1d3b750531de58d16b961de23d629",
@@ -243,16 +244,16 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
         {
             "type": "array",
             "name": "af227bcd25744bf96408ccc655a37521935c7ab1",
-            "items": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",  # pylint: disable=line-too-long
+            "items": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",
             "default": [],
-            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26.aa39a3ee5e6b4b0d3255bfef95601890afd80709",  # pylint: disable=line-too-long
+            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26.aa39a3ee5e6b4b0d3255bfef95601890afd80709",
         },
         {
             "type": "array",
             "name": "ab840f929bee7c863e52894210d3916a03226427",
             "items": [
                 "string",
-                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.ac8fb489b3e9ff687f990ffb2b2f1ec08b0052ca",  # pylint: disable=line-too-long
+                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.ac8fb489b3e9ff687f990ffb2b2f1ec08b0052ca",
             ],
             "default": [],
         },
@@ -265,7 +266,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
         {
             "type": [
                 "null",
-                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",  # pylint: disable=line-too-long
+                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",
             ],
             "name": "ae69f15f11172a41f77b4a0aa0b7a60906eecb3c",
         },
@@ -274,7 +275,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "name": "ab98f5b85764b8561cacbb055a963cd334928cba",
             "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
             "aliases": [
-                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a6e4c69f975b291f655e5eaa65ed9eb97781cb01"  # pylint: disable=line-too-long
+                "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a6e4c69f975b291f655e5eaa65ed9eb97781cb01"
             ],
             "order": "ae5d03fc0f0537f32701e8cab51a448a0f591d97",
             "size": 16,
@@ -426,7 +427,7 @@ EXPECTED_NESTED_RECORD_SCHEMA = {
     "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
     "name": "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",
     "aliases": [
-        "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a99e5e92725f9873fa5802326346a6067051ee61",  # pylint: disable=line-too-long
+        "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a99e5e92725f9873fa5802326346a6067051ee61",
         "a99e5e92725f9873fa5802326346a6067051ee61",
     ],
     "fields": [
@@ -447,7 +448,7 @@ EXPECTED_NESTED_RECORD_SCHEMA = {
                         "name": "abe0d2dc12d0aa622bacbe23b5516c2e7895e1d7",
                         "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
                         "aliases": [
-                            "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afaba999b462193044dfff2af00fd144e3622c93",  # pylint: disable=line-too-long
+                            "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afaba999b462193044dfff2af00fd144e3622c93",
                         ],
                         "symbols": ["a58b5a8ced9db48b30e008b148004c1065ce53b1", "a6e018ece5a1d3b750531de58d16b961de23d629"],
                         "default": "a6e018ece5a1d3b750531de58d16b961de23d629",
