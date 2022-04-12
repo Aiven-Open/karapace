@@ -58,7 +58,7 @@ async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, 
         "subjects/{}/versions".format(subject),
         json={"schema": f"{schema_string}", "schemaType": schemaType},
     )
-    assert res.status == 200
+    assert res.status_code == 200
     assert "id" in res.json()
 
 
