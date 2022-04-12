@@ -4,11 +4,11 @@ karapace - test schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
-from karapace.utils import Client
 from pathlib import Path
-from tests.utils import KafkaServers
+from tests.integration.utils.kafka_server import KafkaServers
 from typing import Any, Dict
 
 import os
@@ -58,7 +58,7 @@ async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, 
         "subjects/{}/versions".format(subject),
         json={"schema": f"{schema_string}", "schemaType": schemaType},
     )
-    assert res.status == 200
+    assert res.status_code == 200
     assert "id" in res.json()
 
 
