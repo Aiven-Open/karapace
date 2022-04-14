@@ -35,6 +35,7 @@ jobs:
       run: make karapace/version.py
 
     - name: Execute unit-tests
+      timeout-minutes: 2
       run: python3 -m pytest -s -vvv tests/unit/
 
     - name: Execute integration-tests
