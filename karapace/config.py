@@ -30,6 +30,8 @@ DEFAULTS = {
     "group_id": "schema-registry",
     "host": "127.0.0.1",
     "port": 8081,
+    "advertised_port": None,
+    "use_secured_proxy": False,
     "server_tls_certfile": None,
     "server_tls_keyfile": None,
     "registry_host": "127.0.0.1",

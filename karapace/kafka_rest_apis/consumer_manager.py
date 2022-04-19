@@ -29,7 +29,11 @@ TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format",
 class ConsumerManager:
     def __init__(self, config: dict) -> None:
         self.config = config
-        self.hostname = f"http://{self.config['advertised_hostname']}:{self.config['port']}"
+        self.protocol = 'https' if self.config['use_secured_proxy'] else 'http'
+        if self.config['advertised_port'] is None:
+            self.hostname = f"{self.protocol}://{self.config['advertised_hostname']}:{self.config['port']}"
+        else:
+            self.hostname = f"{self.protocol}://{self.config['advertised_hostname']}:{self.config['advertised_port']}"
         self.log = logging.getLogger("RestConsumerManager")
         self.deserializer = SchemaRegistryDeserializer(config=config)
         self.consumers = {}
