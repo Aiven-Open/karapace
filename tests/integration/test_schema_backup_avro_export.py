@@ -8,6 +8,7 @@ from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.schema_backup import SchemaBackup
 from pathlib import Path
+from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from typing import Any, Dict
 
@@ -63,14 +64,22 @@ async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, 
 
 
 async def test_export_anonymized_avro_schemas(
-    registry_async_client: Client, kafka_servers: KafkaServers, tmp_path: Path
+    registry_async_client: Client,
+    kafka_servers: KafkaServers,
+    tmp_path: Path,
+    registry_cluster: RegistryDescription,
 ) -> None:
     await insert_data(registry_async_client, "JSON", JSON_SUBJECT, JSON_SCHEMA)
     await insert_data(registry_async_client, "AVRO", AVRO_SUBJECT, AVRO_SCHEMA)
 
     # Get the backup
     export_location = tmp_path / "export.log"
-    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "topic_name": registry_cluster.schemas_topic,
+        }
+    )
     sb = SchemaBackup(config, str(export_location))
     sb.export_anonymized_avro_schemas()
 

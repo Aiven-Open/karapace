@@ -35,9 +35,11 @@ jobs:
       run: make karapace/version.py
 
     - name: Execute unit-tests
+      timeout-minutes: 2
       run: python3 -m pytest -s -vvv tests/unit/
 
     - name: Execute integration-tests
+      timeout-minutes: 10
       run: python3 -m pytest -s -vvv tests/integration/ --log-dir=/tmp/ci-logs --log-file=/tmp/ci-logs/pytest.log
 
     - name: Archive logs
