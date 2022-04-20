@@ -21,6 +21,8 @@ import sys
 import time
 import ujson
 
+LOG = logging.getLogger(__name__)
+
 
 class BackupError(Exception):
     """Backup Error"""
@@ -31,7 +33,6 @@ class SchemaBackup:
         self.config = config
         self.backup_location = backup_path
         self.topic_name = topic_option or self.config["topic_name"]
-        self.log = logging.getLogger("SchemaBackup")
         self.consumer = None
         self.producer = None
         self.admin_client = None
@@ -88,15 +89,15 @@ class SchemaBackup:
                 )
                 break
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-                self.log.warning("No Brokers available yet, retrying init_admin_client()")
+                LOG.warning("No Brokers available yet, retrying init_admin_client()")
             except:  # pylint: disable=bare-except
-                self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
+                LOG.exception("Failed to initialize admin client, retrying init_admin_client()")
 
             time.sleep(2.0)
 
     def _create_schema_topic_if_needed(self):
         if self.topic_name != self.config["topic_name"]:
-            self.log.info("Topic name overridden, not creating a topic with schema configuration")
+            LOG.info("Topic name overridden, not creating a topic with schema configuration")
             return
 
         self.init_admin_client()
@@ -109,21 +110,21 @@ class SchemaBackup:
 
             schema_topic = KafkaSchemaReader.get_new_schema_topic(self.config)
             try:
-                self.log.info("Creating schema topic: %r", schema_topic)
+                LOG.info("Creating schema topic: %r", schema_topic)
                 self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-                self.log.info("Topic: %r created successfully", self.config["topic_name"])
+                LOG.info("Topic: %r created successfully", self.config["topic_name"])
                 break
             except TopicAlreadyExistsError:
-                self.log.info("Topic: %r already exists", self.config["topic_name"])
+                LOG.info("Topic: %r already exists", self.config["topic_name"])
                 break
             except:  # pylint: disable=bare-except
-                self.log.exception(
+                LOG.exception(
                     "Failed to create topic: %r, retrying _create_schema_topic_if_needed()", self.config["topic_name"]
                 )
                 time.sleep(5)
 
     def close(self):
-        self.log.info("Closing schema backup reader")
+        LOG.info("Closing schema backup reader")
         if self.consumer:
             self.consumer.close()
             self.consumer = None
@@ -141,10 +142,10 @@ class SchemaBackup:
         if self.backup_location:
             with open(self.backup_location, mode="w", encoding="utf8") as fp:
                 fp.write(ser)
-                self.log.info("Schema backup written to %r", self.backup_location)
+                LOG.info("Schema backup written to %r", self.backup_location)
         else:
             print(ser)
-            self.log.info("Schema backup written to stdout")
+            LOG.info("Schema backup written to stdout")
         self.close()
 
     def restore_backup(self):
@@ -155,7 +156,7 @@ class SchemaBackup:
 
         if not self.producer:
             self.init_producer()
-        self.log.info("Starting backup restore for topic: %r", self.topic_name)
+        LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
         values = None
         with open(self.backup_location, mode="r", encoding="utf8") as fp:
@@ -171,7 +172,7 @@ class SchemaBackup:
             future = self.producer.send(self.topic_name, key=key, value=value)
             self.producer.flush(timeout=self.timeout_ms)
             msg = future.get(self.timeout_ms)
-            self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
+            LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
         self.close()
 
     def export_anonymized_avro_schemas(self):
@@ -196,16 +197,16 @@ class SchemaBackup:
         if self.backup_location:
             with open(self.backup_location, mode="w", encoding="utf8") as fp:
                 fp.write(ser)
-                self.log.info("Anonymized Avro schema export written to %r", self.backup_location)
+                LOG.info("Anonymized Avro schema export written to %r", self.backup_location)
         else:
             print(ser)
-            self.log.info("Anonymized Avro schema export written to stdout")
+            LOG.info("Anonymized Avro schema export written to stdout")
         self.close()
 
     def _export(self) -> List[Tuple[str, Dict[str, str]]]:
         if not self.consumer:
             self.init_consumer()
-        self.log.info("Starting schema backup read for topic: %r", self.topic_name)
+        LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
         values = []
         topic_fully_consumed = False
@@ -221,14 +222,14 @@ class SchemaBackup:
                     try:
                         key = ujson.loads(key)
                     except ValueError:
-                        self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
+                        LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
                     value = None
                     if message.value:
                         value = message.value.decode("utf8")
                         try:
                             value = ujson.loads(value)
                         except ValueError:
-                            self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
+                            LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                     values.append((key, value))
 
         return values

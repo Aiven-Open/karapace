@@ -19,7 +19,7 @@ import ujson
 Config = Dict[str, Union[None, str, int, bool, List[str], AccessLogger]]
 LOG = logging.getLogger(__name__)
 HOSTNAME = socket.gethostname()
-
+SASL_PLAIN_PASSWORD = "sasl_plain_password"
 DEFAULTS = {
     "access_logs_debug": False,
     "access_log_class": None,
@@ -53,7 +53,7 @@ DEFAULTS = {
     "ssl_password": None,
     "sasl_mechanism": None,
     "sasl_plain_username": None,
-    "sasl_plain_password": None,
+    SASL_PLAIN_PASSWORD: None,
     "topic_name": DEFAULT_SCHEMA_TOPIC,
     "metadata_max_age_ms": 60000,
     "admin_metadata_max_age": 5,
@@ -67,6 +67,7 @@ DEFAULTS = {
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
 }
+SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
 
 class InvalidConfiguration(Exception):
@@ -109,12 +110,20 @@ def set_settings_from_environment(config: Config) -> None:
         env_name = config_name_with_prefix.upper()
         env_val = os.environ.get(env_name)
         if env_val is not None:
-            LOG.debug(
-                "Populating config value %r from env var %r with %r instead of config file",
-                config_name,
-                env_name,
-                env_val,
-            )
+            if config_name not in SECRET_CONFIG_OPTIONS:
+                LOG.info(
+                    "Populating config value %r from env var %r with %r instead of config file",
+                    config_name,
+                    env_name,
+                    env_val,
+                )
+            else:
+                LOG.info(
+                    "Populating config value %r from env var %r instead of config file",
+                    config_name,
+                    env_name,
+                )
+
             config[config_name] = parse_env_value(env_val)
 
 

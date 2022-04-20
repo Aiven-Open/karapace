@@ -10,11 +10,8 @@ from typing import Any, Dict, List
 import hashlib
 import importlib
 import importlib.util
-import logging
 import os
 import subprocess
-
-logger = logging.getLogger(__name__)
 
 
 def calculate_class_name(name: str) -> str:

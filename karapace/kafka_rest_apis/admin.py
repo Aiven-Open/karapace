@@ -9,12 +9,10 @@ from typing import List
 
 import logging
 
+LOG = logging.getLogger(__name__)
+
 
 class KafkaRestAdminClient(KafkaAdminClient):
-    def __init__(self, **configs):
-        super().__init__(**configs)
-        self.log = logging.getLogger("AdminClient")
-
     def get_topic_config(self, topic: str) -> dict:
         config_version = self._matching_api_version(DescribeConfigsRequest)
         req_cfgs = [ConfigResource(ConfigResourceType.TOPIC, topic)]
@@ -50,7 +48,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
         except Cancelled:
             if retries > 3:
                 raise
-            self.log.debug("Retrying metadata with %d retires", retries)
+            LOG.debug("Retrying metadata with %d retires", retries)
             return self.cluster_metadata(topics, retries + 1)
         return self._make_metadata_response(future.value)
 

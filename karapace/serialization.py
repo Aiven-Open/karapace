@@ -13,11 +13,8 @@ import asyncio
 import avro
 import avro.schema
 import io
-import logging
 import struct
 import ujson
-
-log = logging.getLogger(__name__)
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
