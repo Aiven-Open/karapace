@@ -176,6 +176,8 @@ async def new_consumer(c, group, fmt="avro", trail=""):
 
 
 def new_random_name(prefix: str) -> str:
+    # A hyphen is not a valid character for Avro identifiers. Use only the
+    # first 8 characters of the UUID.
     suffix = str(uuid.uuid4())[:8]
     return f"{prefix}{suffix}"
 
@@ -205,9 +207,7 @@ def create_id_factory(prefix: str) -> Callable[[], str]:
 
     def create_name() -> str:
         nonlocal index
-        random_name = str(uuid.uuid4())[:8]
-        name = f"{quote(prefix).replace('/', '_')}_{index}_{random_name}"
-        return name
+        return new_random_name(f"{quote(prefix).replace('/', '_')}_{index}_")
 
     return create_name
 
