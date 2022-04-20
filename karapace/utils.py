@@ -20,8 +20,8 @@ import logging
 import time
 import ujson
 
-log = logging.getLogger("KarapaceUtils")
 NS_BLACKOUT_DURATION_SECONDS = 120
+LOG = logging.getLogger(__name__)
 
 
 def _isoformat(datetime_obj: datetime) -> str:
@@ -151,7 +151,7 @@ class KarapaceKafkaClient(KafkaClient):
             conns = self._conns.copy().values()
             for conn in conns:
                 if conn and conn.ns_blackout():
-                    log.info(
+                    LOG.info(
                         "Node id %s no longer in cluster metadata, closing connection and requesting update", conn.node_id
                     )
                     self.close(conn.node_id)
@@ -164,7 +164,7 @@ class KarapaceKafkaClient(KafkaClient):
         try:
             self.close_invalid_connections()
         except Exception as e:  # pylint: disable=broad-except
-            log.error("Error closing invalid connections: %r", e)
+            LOG.error("Error closing invalid connections: %r", e)
 
     def _maybe_refresh_metadata(self, wakeup=False):
         """
@@ -185,7 +185,7 @@ class KarapaceKafkaClient(KafkaClient):
         else:
             node_id = bootstrap_nodes[0].nodeId
         if node_id is None:
-            log.debug("Give up sending metadata request since no node is available")
+            LOG.debug("Give up sending metadata request since no node is available")
             return self.config["reconnect_backoff_ms"]
 
         if self._can_send_request(node_id):
@@ -197,7 +197,7 @@ class KarapaceKafkaClient(KafkaClient):
                 topics = [] if self.config["api_version"] < (0, 10) else None
             api_version = 0 if self.config["api_version"] < (0, 10) else 1
             request = MetadataRequest[api_version](topics)
-            log.debug("Sending metadata request %s to node %s", request, node_id)
+            LOG.debug("Sending metadata request %s to node %s", request, node_id)
             future = self.send(node_id, request, wakeup=wakeup)
             future.add_callback(self.cluster.update_metadata)
             future.add_errback(self.cluster.failed_update)
@@ -217,7 +217,7 @@ class KarapaceKafkaClient(KafkaClient):
             return self.config["reconnect_backoff_ms"]
 
         if self.maybe_connect(node_id, wakeup=wakeup):
-            log.debug("Initializing connection to node %s for metadata request", node_id)
+            LOG.debug("Initializing connection to node %s for metadata request", node_id)
             return self.config["reconnect_backoff_ms"]
         return float("inf")
 

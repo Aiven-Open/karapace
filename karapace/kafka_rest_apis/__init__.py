@@ -17,7 +17,6 @@ from typing import List, Optional, Tuple
 
 import asyncio
 import base64
-import logging
 import time
 import ujson
 
@@ -39,7 +38,6 @@ class KafkaRest(KarapaceBase):
         super().__init__(config=config)
         self._add_kafka_rest_routes()
         self.serializer = SchemaRegistrySerializer(config=config)
-        self.log = logging.getLogger("KarapaceRest")
         self._cluster_metadata = None
         self._metadata_birth = None
         self.metadata_max_age = self.config["admin_metadata_max_age"]
