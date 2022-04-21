@@ -1526,6 +1526,41 @@ async def test_schema_same_subject(registry_async_client: Client, trail: str) ->
     assert json == {"id": schema_id, "subject": subject, "schema": ujson.loads(schema_str), "version": 1}
 
 
+async def test_schema_same_subject_unnamed(registry_async_client: Client) -> None:
+    """
+    The same schema JSON should be returned when checking the same schema str against the same subject
+    """
+    subject_name_factory = create_subject_name_factory("test_schema_same_subject_unnamed")
+    schema_name = create_schema_name_factory("test_schema_same_subject_unnamed")()
+
+    schema_str = ujson.dumps(
+        {
+            "type": "int",
+            "name": schema_name,
+        }
+    )
+    subject = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    schema_id = res.json()["id"]
+
+    unnamed_schema_str = ujson.dumps({"type": "int"})
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json={"schema": unnamed_schema_str},
+    )
+    assert res.status_code == 200
+
+    # Switch the str schema to a dict for comparison
+    json = res.json()
+    json["schema"] = ujson.loads(json["schema"])
+    assert json == {"id": schema_id, "subject": subject, "schema": ujson.loads(schema_str), "version": 1}
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_version_number_existing_schema(registry_async_client: Client, trail: str) -> None:
     """
