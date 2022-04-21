@@ -741,19 +741,22 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
         for schema in subject_data["schemas"].values():
-            typed_schema = schema["schema"]
-            if typed_schema == new_schema:
+            validated_typed_schema = ValidatedTypedSchema.parse(schema["schema"].schema_type, schema["schema"].schema_str)
+            if (
+                validated_typed_schema.schema_type == new_schema.schema_type
+                and validated_typed_schema.schema == new_schema.schema
+            ):
                 ret = {
                     "subject": subject,
                     "version": schema["version"],
                     "id": schema["id"],
-                    "schema": typed_schema.schema_str,
+                    "schema": validated_typed_schema.schema_str,
                 }
                 if schema_type is not SchemaType.AVRO:
                     ret["schemaType"] = schema_type
                 self.r(ret, content_type)
             else:
-                self.log.debug("Schema %r did not match %r", schema, typed_schema)
+                self.log.debug("Schema %r did not match %r", schema, validated_typed_schema)
         self.r(
             body={
                 "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
