@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from aiohttp import ClientSession
 from collections.abc import Mapping
+from karapace.typing import JsonData
 from typing import Awaitable, Callable, Optional, Union
 from urllib.parse import urljoin
 
@@ -14,7 +15,6 @@ import ssl
 
 Path = str
 Headers = dict
-JsonData = object  # Type of the result after parsing JSON
 
 LOG = logging.getLogger(__name__)
 
