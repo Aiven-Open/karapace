@@ -13,7 +13,7 @@ from karapace.config import Config, read_config
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
-from typing import Optional
+from typing import IO, Optional, Tuple
 
 import argparse
 import json
@@ -36,6 +36,12 @@ def Writer(filename: Optional[str] = None):
     yield writer
     if filename:
         writer.close()
+
+
+def _check_backup_file_is_jsonlines_version(fp: IO) -> bool:
+    jsonlines_version = fp.read(2) == "[{"
+    fp.seek(0)
+    return jsonlines_version
 
 
 class SchemaBackup:
@@ -155,22 +161,38 @@ class SchemaBackup:
             self.init_producer()
         LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
-        values = None
         with open(self.backup_location, mode="r", encoding="utf8") as fp:
-            raw_msg = fp.read()
-            values = json.loads(raw_msg)
+            if _check_backup_file_is_jsonlines_version(fp):
+                # json lines formatted backup file
+                self._restore_backup(fp)
+            else:
+                self._restore_backup_version_1_single_array(fp)
+        self.close()
+
+    def _handle_restore_message(self, item: Tuple[str, str]):
+        key = encode_value(item[0])
+        value = encode_value(item[1])
+        future = self.producer.send(self.topic_name, key=key, value=value)
+        self.producer.flush(timeout=self.timeout_ms)
+        msg = future.get(self.timeout_ms)
+        LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
+
+    def _restore_backup_version_1_single_array(self, fp: IO) -> None:
+        values = None
+        raw_msg = fp.read()
+        values = json.loads(raw_msg)
 
         if not values:
             return
 
         for item in values:
-            key = encode_value(item[0])
-            value = encode_value(item[1])
-            future = self.producer.send(self.topic_name, key=key, value=value)
-            self.producer.flush(timeout=self.timeout_ms)
-            msg = future.get(self.timeout_ms)
-            LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
-        self.close()
+            self._handle_restore_message(item)
+
+    def _restore_backup(self, fp: IO) -> None:
+        for line in fp:
+            if line.strip():
+                item = json.loads(line)
+                self._handle_restore_message(item)
 
     def export(self, export_func) -> None:
         if not self.consumer:
@@ -178,12 +200,9 @@ class SchemaBackup:
         LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
         topic_fully_consumed = False
-        first_schema = True
 
         with Writer(self.backup_location) as fp:
-            fp.write("[")
             while not topic_fully_consumed:
-
                 raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
                 topic_fully_consumed = len(raw_msg) == 0
 
@@ -203,12 +222,8 @@ class SchemaBackup:
                                 LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                         ser = export_func(key=key, value=value)
                         if ser:
-                            if not first_schema:
-                                fp.write(",\n")
-                            else:
-                                first_schema = False
                             fp.write(ser)
-            fp.write("]")
+                            fp.write("\n")
 
         if self.backup_location:
             LOG.info("Anonymized Avro schema export written to %r", self.backup_location)

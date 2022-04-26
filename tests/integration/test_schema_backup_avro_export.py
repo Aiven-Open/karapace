@@ -61,7 +61,7 @@ EXPECTED_COMPATIBILITY_CHANGE = {"compatibilityLevel": "NONE"}
 async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, Any]) -> None:
     schema_string = json.dumps(data)
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": f"{schema_string}", "schemaType": schemaType},
     )
     assert res.status_code == 200
@@ -70,7 +70,7 @@ async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, 
 
 async def insert_compatibility_level_change(c: Client, subject: str, data: Dict[str, Any]) -> None:
     res = await c.put(
-        "config/{}".format(subject),
+        f"config/{subject}",
         json=data,
     )
     assert res.status_code == 200
@@ -102,8 +102,8 @@ async def test_export_anonymized_avro_schemas(
     expected_subject_hash_found = False
     compatibility_level_change_subject_hash_found = False
     with export_location.open("r") as fp:
-        exported_data = json.load(fp)
-        for msg in exported_data:
+        for item in fp:
+            msg = json.loads(item)
             assert len(msg) == 2
             key = msg[0]
             schema_data = msg[1]
