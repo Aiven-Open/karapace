@@ -11,11 +11,13 @@ from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
 from karapace.schema_reader import new_schema_topic_from_config
+from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import argparse
 import json
+import contextlib
 import logging
 import os
 import sys
@@ -26,6 +28,14 @@ LOG = logging.getLogger(__name__)
 
 class BackupError(Exception):
     """Backup Error"""
+
+
+@contextlib.contextmanager
+def Writer(filename: Optional[str] = None):
+    writer = open(filename, "w", encoding="utf8") if filename else sys.stdout
+    yield writer
+    if filename:
+        writer.close()
 
 
 class SchemaBackup:
@@ -135,20 +145,7 @@ class SchemaBackup:
             self.admin_client.close()
             self.admin_client = None
 
-    def request_backup(self):
-        values = self._export()
-
-        ser = json.dumps(values)
-        if self.backup_location:
-            with open(self.backup_location, mode="w", encoding="utf8") as fp:
-                fp.write(ser)
-                LOG.info("Schema backup written to %r", self.backup_location)
-        else:
-            print(ser)
-            LOG.info("Schema backup written to stdout")
-        self.close()
-
-    def restore_backup(self):
+    def restore_backup(self) -> None:
         if not os.path.exists(self.backup_location):
             raise BackupError("Backup location doesn't exist")
 
@@ -175,64 +172,49 @@ class SchemaBackup:
             LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
         self.close()
 
-    def export_anonymized_avro_schemas(self):
-        values = self._export()
-        anonymized_schemas = []
-
-        for value in values:
-            # The schemas topic contain all changes to schema metadata.
-            # Check that the message has key `schema` and type is Avro schema.
-            # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
-            if value[1] and "schema" in value[1] and value[1].get("schemaType", "AVRO") == "AVRO":
-                original_schema = json.loads(value[1].get("schema"))
-                anonymized_schema = anonymize_avro.anonymize(original_schema)
-                if anonymized_schema:
-                    if "subject" in value[0]:
-                        value[0]["subject"] = anonymize_avro.anonymize_name(value[0]["subject"])
-                    if "subject" in value[1]:
-                        value[1]["subject"] = anonymize_avro.anonymize_name(value[1]["subject"])
-                    value[1]["schema"] = anonymized_schema
-                    anonymized_schemas.append((value[0], value[1]))
-        ser = json.dumps(anonymized_schemas)
-        if self.backup_location:
-            with open(self.backup_location, mode="w", encoding="utf8") as fp:
-                fp.write(ser)
-                LOG.info("Anonymized Avro schema export written to %r", self.backup_location)
-        else:
-            print(ser)
-            LOG.info("Anonymized Avro schema export written to stdout")
-        self.close()
-
-    def _export(self) -> List[Tuple[str, Dict[str, str]]]:
+    def export(self, export_func) -> None:
         if not self.consumer:
             self.init_consumer()
         LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
-        values = []
         topic_fully_consumed = False
+        first_schema = True
 
-        while not topic_fully_consumed:
+        with Writer(self.backup_location) as fp:
+            fp.write("[")
+            while not topic_fully_consumed:
 
-            raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
-            topic_fully_consumed = len(raw_msg) == 0
+                raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
+                topic_fully_consumed = len(raw_msg) == 0
 
-            for _, messages in raw_msg.items():
-                for message in messages:
-                    key = message.key.decode("utf8")
-                    try:
-                        key = json.loads(key)
-                    except json.JSONDecodeError:
-                        LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
-                    value = None
-                    if message.value:
-                        value = message.value.decode("utf8")
+                for _, messages in raw_msg.items():
+                    for message in messages:
+                        key = message.key.decode("utf8")
                         try:
-                            value = json.loads(value)
+                            key = json.loads(key)
                         except json.JSONDecodeError:
-                            LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
-                    values.append((key, value))
+                            LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
+                        value = None
+                        if message.value:
+                            value = message.value.decode("utf8")
+                            try:
+                                value = json.loads(value)
+                            except json.JSONDecodeError:
+                                LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
+                        ser = export_func(key=key, value=value)
+                        if ser:
+                            if not first_schema:
+                                fp.write(",\n")
+                            else:
+                                first_schema = False
+                            fp.write(ser)
+            fp.write("]")
 
-        return values
+        if self.backup_location:
+            LOG.info("Anonymized Avro schema export written to %r", self.backup_location)
+        else:
+            LOG.info("Anonymized Avro schema export written to stdout")
+        self.close()
 
 
 def encode_value(value):
@@ -241,6 +223,28 @@ def encode_value(value):
     if isinstance(value, str):
         return value.encode("utf8")
     return json_encode(value, sort_keys=False, binary=True)
+
+
+def serialize_schema_message(key: JsonData, value: JsonData) -> str:
+    ser = json.dumps((key, value))
+    return ser
+
+
+def anonymize_avro_schema_message(key: JsonData, value: JsonData) -> str:
+    # Check that the message has key `schema` and type is Avro schema.
+    # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
+    if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
+        original_schema = json.loads(value.get("schema"))
+        anonymized_schema = anonymize_avro.anonymize(original_schema)
+        if anonymized_schema:
+            if "subject" in value:
+                value["subject"] = anonymize_avro.anonymize_name(value["subject"])
+            value["schema"] = anonymized_schema
+    # The schemas topic contain all changes to schema metadata.
+    if key.get("subject", None):
+        key["subject"] = anonymize_avro.anonymize_name(key["subject"])
+    ser = json.dumps((key, value))
+    return ser
 
 
 def parse_args():
@@ -269,13 +273,13 @@ def main() -> int:
     sb = SchemaBackup(config, args.location, args.topic)
 
     if args.command == "get":
-        sb.request_backup()
+        sb.export(serialize_schema_message)
         return 0
     if args.command == "restore":
         sb.restore_backup()
         return 0
     if args.command == "export-anonymized-avro-schemas":
-        sb.export_anonymized_avro_schemas()
+        sb.export(anonymize_avro_schema_message)
         return 0
     return 1
 
