@@ -6,7 +6,7 @@ See LICENSE for details
 """
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.schema_backup import SchemaBackup
+from karapace.schema_backup import SchemaBackup, serialize_schema_message
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
@@ -38,7 +38,7 @@ async def test_backup_get(registry_async_client, kafka_servers: KafkaServers, tm
     backup_location = tmp_path / "schemas.log"
     config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
     sb = SchemaBackup(config, str(backup_location))
-    sb.request_backup()
+    sb.export(serialize_schema_message)
 
     # The backup file has been created
     assert os.path.exists(backup_location)
