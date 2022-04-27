@@ -1,6 +1,9 @@
 Quickstart examples
 ===================
 
+Schema Hub
+----------
+
 To register the first version of a schema under the subject "test" using Avro schema::
 
   $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
@@ -74,6 +77,10 @@ Change compatibility requirement to FULL for the test-key subject::
   $ curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
     --data '{"compatibility": "FULL"}' http://localhost:8081/config/test-key
   {"compatibility":"FULL"}
+
+
+REST API 
+---------
 
 List topics::
 
