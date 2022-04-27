@@ -32,10 +32,8 @@ Features
   server-sides
 * Moderate memory consumption
 * Asynchronous architecture based on aiohttp
-* Supports Avro and JSON Schema. Protobuf development is tracked with `Issue 67`_.
-* Leader/Replica architecture for HA and load balancing.
-
-.. _Issue 67: https://github.com/aiven/karapace/issues/67
+* Supports Avro, JSON Schema, and Protobuf
+* Leader/Replica architecture for HA and load balancing
 
 Compatibility details
 ---------------------
@@ -124,7 +122,7 @@ To get the specific version 1 of the schema just registered run::
 
 To get the latest version of the schema under subject test-key run::
 
-  $ curl -X GET http://localhost:8081/subjects/Kafka-value/versions/latest
+  $ curl -X GET http://localhost:8081/subjects/test-key/versions/latest
   {"subject":"test-key","version":1,"id":1,"schema":"{\"fields\":[{\"name\":\"age\",\"type\":\"int\"}],\"name\":\"Obj\",\"type\":\"record\"}"}
 
 In order to delete version 10 of the schema registered under subject "test-key" (if it exists)::
@@ -164,43 +162,43 @@ Change compatibility requirement to FULL for the test-key subject::
 
 List topics::
 
-  $ curl "http://localhost:8081/topics"
+  $ curl "http://localhost:8082/topics"
 
 Get info for one particular topic::
 
-  $ curl "http://localhost:8081/topics/my_topic"
+  $ curl "http://localhost:8082/topics/my_topic"
 
 Produce a message backed up by schema registry::
 
   $ curl -H "Content-Type: application/vnd.kafka.avro.v2+json" -X POST -d \
     '{"value_schema": "{\"namespace\": \"example.avro\", \"type\": \"record\", \"name\": \"simple\", \"fields\": \
-    [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8081/topics/my_topic
+    [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' http://localhost:8082/topics/my_topic
 
 Create a consumer::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" -H "Accept: application/vnd.kafka.v2+json" \
     --data '{"name": "my_consumer", "format": "avro", "auto.offset.reset": "earliest"}' \
-    http://localhost:8081/consumers/avro_consumers
+    http://localhost:8082/consumers/avro_consumers
 
 Subscribe to the topic we previously published to::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{"topics":["my_topic"]}' \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/subscription
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer/subscription
 
 Consume previously published message::
 
   $ curl -X GET -H "Accept: application/vnd.kafka.avro.v2+json" \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
 
 Commit offsets for a particular topic partition::
 
   $ curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" --data '{}' \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer/offsets
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer/offsets
 
 Delete consumer::
 
   $ curl -X DELETE -H "Accept: application/vnd.kafka.v2+json" \
-    http://localhost:8081/consumers/avro_consumers/instances/my_consumer
+    http://localhost:8082/consumers/avro_consumers/instances/my_consumer
 
 Backing up your Karapace
 ========================
@@ -416,6 +414,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - If the registry part of the app should be included in the starting process
        At least one of this and ``karapace_rest`` options need to be enabled in order
        for the service to start
+   * - ``protobuf_runtime_directory``
+     - ``runtime``
+     - Runtime directory for the ``protoc`` protobuf schema parser and code generator
    * - ``name_strategy``
      - ``subject_name``
      - Name strategy to use when storing schemas from the kafka rest proxy service

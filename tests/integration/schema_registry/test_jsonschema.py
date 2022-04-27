@@ -1,7 +1,7 @@
 from jsonschema import Draft7Validator
+from karapace.client import Client
 from karapace.compatibility import CompatibilityModes
 from karapace.schema_reader import SchemaType
-from karapace.utils import Client
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
     A_DINT_B_INT_OBJECT_SCHEMA,
@@ -94,8 +94,8 @@ from tests.schemas.json_schemas import (
 )
 from tests.utils import new_random_name
 
-import json as jsonlib
 import pytest
+import ujson
 
 
 async def debugging_details(
@@ -104,8 +104,8 @@ async def debugging_details(
     client: Client,
     subject: str,
 ) -> str:
-    newer_schema = jsonlib.dumps(newer.schema)
-    older_schema = jsonlib.dumps(older.schema)
+    newer_schema = ujson.dumps(newer.schema)
+    older_schema = ujson.dumps(older.schema)
     config_res = await client.get(f"config/{subject}?defaultToGlobal=true")
     config = config_res.json()
     return f"subject={subject} newer={newer_schema} older={older_schema} compatibility={config}"
@@ -121,31 +121,31 @@ async def not_schemas_are_compatible(
 
     # sanity check
     subject_res = await client.get(f"subjects/{subject}/versions")
-    assert subject_res.status == 404, "random subject should no exist {subject}"
+    assert subject_res.status_code == 404, "random subject should no exist {subject}"
 
     older_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": jsonlib.dumps(older.schema),
+            "schema": ujson.dumps(older.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
-    assert older_res.status == 200, await debugging_details(newer, older, client, subject)
+    assert older_res.status_code == 200, await debugging_details(newer, older, client, subject)
     assert "id" in older_res.json(), await debugging_details(newer, older, client, subject)
 
     # enforce the target compatibility mode. not using the global setting
     # because that interfere with parallel runs.
     subject_config_res = await client.put(f"config/{subject}", json={"compatibility": compatibility_mode.value})
-    assert subject_config_res.status == 200
+    assert subject_config_res.status_code == 200
 
     newer_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": jsonlib.dumps(newer.schema),
+            "schema": ujson.dumps(newer.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
-    assert newer_res.status != 200, await debugging_details(newer, older, client, subject)
+    assert newer_res.status_code != 200, await debugging_details(newer, older, client, subject)
 
     # Sanity check. The compatibility must be explicitly set because any
     # difference can result in unexpected errors.
@@ -164,31 +164,31 @@ async def schemas_are_compatible(
 
     # sanity check
     subject_res = await client.get(f"subjects/{subject}/versions")
-    assert subject_res.status == 404, "random subject should no exist {subject}"
+    assert subject_res.status_code == 404, "random subject should no exist {subject}"
 
     older_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": jsonlib.dumps(older.schema),
+            "schema": ujson.dumps(older.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
-    assert older_res.status == 200, await debugging_details(newer, older, client, subject)
+    assert older_res.status_code == 200, await debugging_details(newer, older, client, subject)
     assert "id" in older_res.json(), await debugging_details(newer, older, client, subject)
 
     # enforce the target compatibility mode. not using the global setting
     # because that interfere with parallel runs.
     subject_config_res = await client.put(f"config/{subject}", json={"compatibility": compatibility_mode.value})
-    assert subject_config_res.status == 200
+    assert subject_config_res.status_code == 200
 
     newer_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": jsonlib.dumps(newer.schema),
+            "schema": ujson.dumps(newer.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
-    assert newer_res.status == 200, await debugging_details(newer, older, client, subject)
+    assert newer_res.status_code == 200, await debugging_details(newer, older, client, subject)
     # Because the IDs are global, and the same schema is used in multiple
     # tests, their order is unknown.
     assert older_res.json()["id"] != newer_res.json()["id"], await debugging_details(newer, older, client, subject)
@@ -237,27 +237,27 @@ async def test_same_jsonschema_must_have_same_id(
         subject = new_random_name("subject")
 
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility.value})
-        assert res.status == 200
+        assert res.status_code == 200
 
         first_res = await registry_async_client.post(
             f"subjects/{subject}/versions{trail}",
             json={
-                "schema": jsonlib.dumps(schema.schema),
+                "schema": ujson.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
             },
         )
-        assert first_res.status == 200
+        assert first_res.status_code == 200
         first_id = first_res.json().get("id")
         assert first_id
 
         second_res = await registry_async_client.post(
             f"subjects/{subject}/versions{trail}",
             json={
-                "schema": jsonlib.dumps(schema.schema),
+                "schema": ujson.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
             },
         )
-        assert second_res.status == 200
+        assert second_res.status_code == 200
         assert first_id == second_res.json()["id"]
 
 

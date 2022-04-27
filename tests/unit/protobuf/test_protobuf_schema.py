@@ -2,7 +2,7 @@ from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_reader import SchemaType, TypedSchema
+from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from tests.schemas.protobuf import (
     schema_protobuf_compare_one,
     schema_protobuf_order_after,
@@ -15,7 +15,7 @@ location: Location = Location.get("file.proto")
 
 def test_protobuf_schema_simple():
     proto = trim_margin(schema_protobuf_schema_registry1)
-    protobuf_schema = TypedSchema.parse(SchemaType.PROTOBUF, proto)
+    protobuf_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto)
     result = str(protobuf_schema)
 
     assert result == proto
@@ -23,7 +23,7 @@ def test_protobuf_schema_simple():
 
 def test_protobuf_schema_sort():
     proto = trim_margin(schema_protobuf_order_before)
-    protobuf_schema = TypedSchema.parse(SchemaType.PROTOBUF, proto)
+    protobuf_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto)
     result = str(protobuf_schema)
     proto2 = trim_margin(schema_protobuf_order_after)
     assert result == proto2
@@ -31,9 +31,9 @@ def test_protobuf_schema_sort():
 
 def test_protobuf_schema_compare():
     proto1 = trim_margin(schema_protobuf_order_after)
-    protobuf_schema1: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1)
+    protobuf_schema1: ValidatedTypedSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1)
     proto2 = trim_margin(schema_protobuf_compare_one)
-    protobuf_schema2: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2)
+    protobuf_schema2: ValidatedTypedSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2)
     result = CompareResult()
     protobuf_schema1.schema.compare(protobuf_schema2.schema, result)
     assert result.is_compatible()
@@ -41,9 +41,9 @@ def test_protobuf_schema_compare():
 
 def test_protobuf_schema_compare2():
     proto1 = trim_margin(schema_protobuf_order_after)
-    protobuf_schema1: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1)
+    protobuf_schema1: ValidatedTypedSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1)
     proto2 = trim_margin(schema_protobuf_compare_one)
-    protobuf_schema2: TypedSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2)
+    protobuf_schema2: ValidatedTypedSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2)
     result = CompareResult()
     protobuf_schema2.schema.compare(protobuf_schema1.schema, result)
     assert result.is_compatible()
@@ -85,8 +85,8 @@ def test_protobuf_schema_compare3():
                 |"""
 
     proto2 = trim_margin(proto2)
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)
@@ -120,8 +120,8 @@ def test_protobuf_message_compatible_label_alter():
 
     proto2 = trim_margin(proto2)
 
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)
@@ -149,8 +149,8 @@ def test_protobuf_field_type_incompatible_alter():
 
     proto2 = trim_margin(proto2)
 
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)
@@ -184,8 +184,8 @@ def test_protobuf_field_label_compatible_alter():
 
     proto2 = trim_margin(proto2)
 
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)
@@ -218,8 +218,8 @@ def test_protobuf_field_incompatible_drop_from_oneof():
 
     proto2 = trim_margin(proto2)
 
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)
@@ -250,8 +250,8 @@ def test_protobuf_field_incompatible_alter_to_oneof():
 
     proto2 = trim_margin(proto2)
 
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)
@@ -282,8 +282,8 @@ def test_protobuf_field_compatible_alter_to_oneof():
 
     proto2 = trim_margin(proto2)
 
-    protobuf_schema1: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
-    protobuf_schema2: ProtobufSchema = TypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
+    protobuf_schema1: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema
+    protobuf_schema2: ProtobufSchema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema
     result = CompareResult()
 
     protobuf_schema1.compare(protobuf_schema2, result)

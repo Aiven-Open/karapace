@@ -2,9 +2,10 @@ from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from contextlib import AsyncExitStack, closing
 from http import HTTPStatus
 from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
-from karapace.config import create_client_ssl_context
+from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
@@ -13,15 +14,12 @@ from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
 from karapace.utils import convert_to_int, KarapaceKafkaClient
-from threading import Lock
 from typing import List, Optional, Tuple
 
 import asyncio
 import base64
-import copy
-import json
-import logging
 import time
+import ujson
 
 RECORD_KEYS = ["key", "value", "partition"]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
@@ -37,16 +35,15 @@ class FormatError(Exception):
 
 
 class KafkaRest(KarapaceBase):
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__(config=config)
         self._add_kafka_rest_routes()
         self.serializer = SchemaRegistrySerializer(config=config)
-        self.log = logging.getLogger("KarapaceRest")
         self._cluster_metadata = None
         self._metadata_birth = None
         self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
-        self.admin_lock = Lock()
+        self.admin_lock = asyncio.Lock()
         self.metadata_cache = None
         self.schemas_cache = {}
         self.consumer_manager = ConsumerManager(config=config)
@@ -206,7 +203,10 @@ class KafkaRest(KarapaceBase):
 
     async def commit_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
         await self.consumer_manager.commit_offsets(
-            ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, self.cluster_metadata()
+            ConsumerManager.create_internal_name(group_name, instance),
+            content_type,
+            request.json,
+            await self.cluster_metadata(),
         )
 
     async def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
@@ -270,33 +270,40 @@ class KafkaRest(KarapaceBase):
         )
 
     # OFFSETS
-    def get_offsets(self, topic: str, partition_id: int) -> dict:
-        with self.admin_lock:
+    async def get_offsets(self, topic: str, partition_id: int) -> dict:
+        async with self.admin_lock:
             return self.admin_client.get_offsets(topic, partition_id)
 
-    def get_topic_config(self, topic: str) -> dict:
-        with self.admin_lock:
+    async def get_topic_config(self, topic: str) -> dict:
+        async with self.admin_lock:
             return self.admin_client.get_topic_config(topic)
 
-    def cluster_metadata(self, topics: Optional[List[str]] = None) -> dict:
-        if self._metadata_birth is None or time.time() - self._metadata_birth > self.metadata_max_age:
-            self._cluster_metadata = None
-        if not self._cluster_metadata:
-            self._metadata_birth = time.time()
-            with self.admin_lock:
-                try:
-                    self._cluster_metadata = self.admin_client.cluster_metadata(topics)
-                except NodeNotReadyError:
-                    self.log.exception("Could not refresh cluster metadata")
-                    self.r(
-                        body={
-                            "message": "Kafka node not ready",
-                            "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
-                        },
-                        content_type="application/json",
-                        status=HTTPStatus.INTERNAL_SERVER_ERROR,
-                    )
-        return copy.deepcopy(self._cluster_metadata)
+    async def cluster_metadata(self, topics: Optional[List[str]] = None) -> dict:
+        async with self.admin_lock:
+            if self._metadata_birth is None or time.monotonic() - self._metadata_birth > self.metadata_max_age:
+                self._cluster_metadata = None
+
+            if self._cluster_metadata and topics is None:
+                return self._cluster_metadata
+
+            try:
+                metadata_birth = time.monotonic()
+                metadata = self.admin_client.cluster_metadata(topics)
+                # Only store cache if fetched full metadata
+                if topics is None:
+                    self._metadata_birth = metadata_birth
+                    self._cluster_metadata = metadata
+            except NodeNotReadyError:
+                self.log.exception("Could not refresh cluster metadata")
+                self.r(
+                    body={
+                        "message": "Kafka node not ready",
+                        "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                    },
+                    content_type="application/json",
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+            return metadata
 
     def init_admin_client(self):
         while True:
@@ -321,24 +328,26 @@ class KafkaRest(KarapaceBase):
                 time.sleep(1)
 
     async def close(self) -> None:
-        await super().close()
+        async with AsyncExitStack() as stack, self._async_producer_lock:
+            stack.push_async_callback(super().close)
 
-        async with self._async_producer_lock:
             if self._async_producer is not None:
                 self.log.info("Disposing async producer")
-                await self._async_producer.stop()
+                stack.push_async_callback(self._async_producer.stop)
 
-        if self.admin_client:
-            self.admin_client.close()
+            if self.admin_client is not None:
+                stack.enter_context(closing(self.admin_client))
+
+            if self.consumer_manager is not None:
+                stack.enter_context(closing(self.consumer_manager))
+
             self.admin_client = None
-        if self.consumer_manager:
-            self.consumer_manager.close()
             self.consumer_manager = None
 
     async def publish(self, topic: str, partition_id: Optional[str], content_type: str, formats: dict, data: dict):
-        _ = self.get_topic_info(topic, content_type)
+        _ = await self.get_topic_info(topic, content_type)
         if partition_id is not None:
-            _ = self.get_partition_info(topic, partition_id, content_type)
+            _ = await self.get_partition_info(topic, partition_id, content_type)
             partition_id = int(partition_id)
         for k in ["key_schema_id", "value_schema_id"]:
             convert_to_int(data, k, content_type)
@@ -456,6 +465,15 @@ class KafkaRest(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.BAD_REQUEST,
             )
+        except SchemaRetrievalError:
+            self.r(
+                body={
+                    "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
+                    "message": f"Error when registering schema. format = {schema_type}, subject = {topic}-{prefix}",
+                },
+                content_type=content_type,
+                status=HTTPStatus.REQUEST_TIMEOUT,
+            )
 
     async def _prepare_records(
         self,
@@ -474,10 +492,10 @@ class KafkaRest(KarapaceBase):
             prepared_records.append((key, value, record.get("partition", default_partition)))
         return prepared_records
 
-    def get_partition_info(self, topic: str, partition: str, content_type: str) -> dict:
+    async def get_partition_info(self, topic: str, partition: str, content_type: str) -> dict:
         partition = self.validate_partition_id(partition, content_type)
         try:
-            topic_data = self.get_topic_info(topic, content_type)
+            topic_data = await self.get_topic_info(topic, content_type)
             partitions = topic_data["partitions"]
             for p in partitions:
                 if p["partition"] == partition:
@@ -501,15 +519,15 @@ class KafkaRest(KarapaceBase):
             )
         return {}
 
-    def get_topic_info(self, topic: str, content_type: str) -> dict:
-        md = self.cluster_metadata()["topics"]
-        if topic not in md:
+    async def get_topic_info(self, topic: str, content_type: str) -> dict:
+        metadata = await self.cluster_metadata()
+        if topic not in metadata["topics"]:
             self.not_found(
-                message=f"Topic {topic} not found in {list(md.keys())}",
+                message=f"Topic {topic} not found in {list(metadata.keys())}",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
             )
-        return md[topic]
+        return metadata["topics"][topic]
 
     @staticmethod
     def all_empty(data: dict, key: str) -> bool:
@@ -526,7 +544,7 @@ class KafkaRest(KarapaceBase):
         # not pretty
         if ser_format == "json":
             # TODO -> get encoding from headers
-            return json.dumps(obj).encode("utf8")
+            return ujson.dumps(obj).encode("utf8")
         if ser_format == "binary":
             return base64.b64decode(obj)
         if ser_format in {"avro", "jsonschema", "protobuf"}:
@@ -609,16 +627,16 @@ class KafkaRest(KarapaceBase):
                 resp["error_code"] = 2
             return resp
 
-    def list_topics(self, content_type: str):
-        metadata = self.cluster_metadata()
+    async def list_topics(self, content_type: str):
+        metadata = await self.cluster_metadata()
         topics = list(metadata["topics"].keys())
         self.r(topics, content_type)
 
-    def topic_details(self, content_type: str, *, topic: str):
+    async def topic_details(self, content_type: str, *, topic: str):
         self.log.info("Retrieving topic details for %s", topic)
         try:
-            metadata = self.cluster_metadata([topic])
-            config = self.get_topic_config(topic)
+            metadata = await self.cluster_metadata([topic])
+            config = await self.get_topic_config(topic)
             if topic not in metadata["topics"]:
                 self.not_found(
                     message=f"Topic {topic} not found",
@@ -636,10 +654,11 @@ class KafkaRest(KarapaceBase):
                 sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
             )
 
-    def list_partitions(self, content_type: str, *, topic: Optional[str]):
+    async def list_partitions(self, content_type: str, *, topic: Optional[str]):
         self.log.info("Retrieving partition details for topic %s", topic)
         try:
-            topic_details = self.cluster_metadata([topic])["topics"]
+            metadata = await self.cluster_metadata([topic])
+            topic_details = metadata["topics"]
             self.r(topic_details[topic]["partitions"], content_type)
         except (UnknownTopicOrPartitionError, KeyError):
             self.not_found(
@@ -648,19 +667,20 @@ class KafkaRest(KarapaceBase):
                 sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
             )
 
-    def partition_details(self, content_type: str, *, topic: str, partition_id: str):
+    async def partition_details(self, content_type: str, *, topic: str, partition_id: str):
         self.log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
-        p = self.get_partition_info(topic, partition_id, content_type)
+        p = await self.get_partition_info(topic, partition_id, content_type)
         self.r(p, content_type)
 
-    def partition_offsets(self, content_type: str, *, topic: str, partition_id: str):
+    async def partition_offsets(self, content_type: str, *, topic: str, partition_id: str):
         self.log.info("Retrieving partition offsets for topic %s and partition %s", topic, partition_id)
         partition_id = self.validate_partition_id(partition_id, content_type)
         try:
-            self.r(self.get_offsets(topic, partition_id), content_type)
+            self.r(await self.get_offsets(topic, partition_id), content_type)
         except UnknownTopicOrPartitionError as e:
             # Do a topics request on failure, figure out faster ways once we get correctness down
-            if topic not in self.cluster_metadata()["topics"]:
+            metadata = await self.cluster_metadata()
+            if topic not in metadata["topics"]:
                 self.not_found(
                     message=f"Topic {topic} not found: {e}",
                     content_type=content_type,
@@ -672,7 +692,8 @@ class KafkaRest(KarapaceBase):
                 sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
             )
 
-    def list_brokers(self, content_type: str):
-        metadata = self.cluster_metadata()
+    async def list_brokers(self, content_type: str):
+        metadata = await self.cluster_metadata()
+        metadata = metadata.copy()  # shallow copy as we want to mutate it
         metadata.pop("topics")
         self.r(metadata, content_type)

@@ -8,6 +8,7 @@ See LICENSE for details
 """
 from accept_types import get_best_match
 from http import HTTPStatus
+from karapace.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
@@ -16,16 +17,13 @@ from typing import Dict, NoReturn, Optional, overload, Union
 import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
-import aiohttp_socks
-import async_timeout
 import asyncio
 import cgi
 import hashlib
-import json as jsonlib
 import logging
 import re
-import ssl
 import time
+import ujson
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 JSON_CONTENT_TYPE = "application/json"
@@ -161,32 +159,27 @@ def http_error(message, content_type: str, code: HTTPStatus) -> NoReturn:
 
 
 class RestApp:
-    def __init__(self, *, app_name, sentry_config):
+    def __init__(self, *, app_name: str, config: Config) -> None:
         self.app_name = app_name
+        self.config = config
         self.app_request_metric = "{}_request".format(app_name)
         self.app = aiohttp.web.Application()
-        self.app.on_startup.append(self.create_http_client)
-        self.app.on_cleanup.append(self.cleanup_http_client)
-        self.http_client_v = None
-        self.http_client_no_v = None
         self.log = logging.getLogger(self.app_name)
-        self.stats = StatsClient(sentry_config=sentry_config)
+        self.stats = StatsClient(sentry_config=config["sentry"])
         self.raven_client = self.stats.raven_client
-        self.app.on_cleanup.append(self.cleanup_stats_client)
+        self.app.on_cleanup.append(self.close_by_app)
 
-    async def cleanup_stats_client(self, app):  # pylint: disable=unused-argument
+    async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        await self.close()
+
+    async def close(self) -> None:
+        """Method used to free all the resources allocated by the applicaiton.
+
+        This will be called as a callback by the aiohttp server. It needs to be
+        set as hook because the awaitables have to run inside the event loop
+        created by the aiohttp library.
+        """
         self.stats.close()
-
-    async def create_http_client(self, app):  # pylint: disable=unused-argument
-        no_v_conn = aiohttp.TCPConnector(ssl=False)
-        self.http_client_no_v = aiohttp.ClientSession(connector=no_v_conn, headers={"User-Agent": SERVER_NAME})
-        self.http_client_v = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
-
-    async def cleanup_http_client(self, app):  # pylint: disable=unused-argument
-        if self.http_client_no_v:
-            await self.http_client_no_v.close()
-        if self.http_client_v:
-            await self.http_client_v.close()
 
     @staticmethod
     def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument
@@ -288,11 +281,7 @@ class RestApp:
                     _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
-                    rapu_request.json = jsonlib.loads(body_string)
-                except jsonlib.decoder.JSONDecodeError:
-                    raise HTTPResponse(  # pylint: disable=raise-missing-from
-                        body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
-                    )
+                    rapu_request.json = ujson.loads(body_string)
                 except UnicodeDecodeError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST
@@ -300,6 +289,10 @@ class RestApp:
                 except LookupError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST
+                    )
+                except ValueError:
+                    raise HTTPResponse(  # pylint: disable=raise-missing-from
+                        body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
                     )
             else:
                 if body not in {b"", b"{}"}:
@@ -333,13 +326,13 @@ class RestApp:
                 headers = ex.headers
             except:  # pylint: disable=bare-except
                 self.log.exception("Internal server error")
+                headers = {"Content-Type": "application/json"}
                 data = {"error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value, "message": "Internal server error"}
                 status = HTTPStatus.INTERNAL_SERVER_ERROR
-                headers = {}
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
 
             if isinstance(data, (dict, list)):
-                resp_bytes = json_encode(data, binary=True, sort_keys=True, compact=True)
+                resp_bytes = json_encode(data, binary=True)
             elif isinstance(data, str):
                 if "Content-Type" not in headers:
                     headers["Content-Type"] = "text/plain; charset=utf-8"
@@ -446,59 +439,15 @@ class RestApp:
             if "Added route will never be executed, method OPTIONS is already registered" not in str(ex):
                 raise
 
-    async def http_request(self, url, *, method="GET", json=None, timeout=10.0, verify=True, proxy=None):
-        close_session = False
+    def run(self) -> None:
+        ssl_context = create_server_ssl_context(self.config)
 
-        if isinstance(verify, str):
-            sslcontext = ssl.create_default_context(cadata=verify)
-        else:
-            sslcontext = None
-
-        if proxy:
-            connector = aiohttp_socks.SocksConnector(
-                socks_ver=aiohttp_socks.SocksVer.SOCKS5,
-                host=proxy["host"],
-                port=proxy["port"],
-                username=proxy["username"],
-                password=proxy["password"],
-                rdns=False,
-                verify_ssl=verify,
-                ssl_context=sslcontext,
-            )
-            session = aiohttp.ClientSession(connector=connector)
-            close_session = True
-        elif sslcontext:
-            conn = aiohttp.TCPConnector(ssl_context=sslcontext)
-            session = aiohttp.ClientSession(connector=conn)
-            close_session = True
-        elif verify is True:
-            session = self.http_client_v
-        elif verify is False:
-            session = self.http_client_no_v
-        else:
-            raise ValueError("invalid arguments to http_request")
-
-        func = getattr(session, method.lower())
-        try:
-            with async_timeout.timeout(timeout):
-                async with func(url, json=json) as response:
-                    if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
-                        resp_content = await response.json()
-                    else:
-                        resp_content = await response.text()
-                    result = HTTPResponse(body=resp_content, status=HTTPStatus(response.status))
-        finally:
-            if close_session:
-                await session.close()
-
-        return result
-
-    def run(self, *, host: str, port: int, ssl_context: Optional[ssl.SSLContext] = None) -> None:
         aiohttp.web.run_app(
             app=self.app,
-            host=host,
-            port=port,
+            host=self.config["host"],
+            port=self.config["port"],
             ssl_context=ssl_context,
+            access_log_class=self.config["access_log_class"],
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )
 

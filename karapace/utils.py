@@ -4,62 +4,76 @@ karapace - utils
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from functools import partial
+from aiohttp.web_log import AccessLogger
+from aiohttp.web_request import BaseRequest
+from aiohttp.web_response import StreamResponse
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
-from typing import NoReturn, Optional
-from urllib.parse import urljoin
+from types import MappingProxyType
+from typing import NoReturn, overload, Union
 
-import aiohttp
-import datetime
-import decimal
-import json as jsonlib
 import kafka.client_async
 import logging
-import requests
-import ssl
 import time
-import types
+import ujson
 
-log = logging.getLogger("KarapaceUtils")
 NS_BLACKOUT_DURATION_SECONDS = 120
+LOG = logging.getLogger(__name__)
 
 
-def isoformat(datetime_obj=None, *, preserve_subsecond=False, compact=False):
+def _isoformat(datetime_obj: datetime) -> str:
     """Return datetime to ISO 8601 variant suitable for users.
-    Assume UTC for datetime objects without a timezone, always use
-    the Z timezone designator."""
-    if datetime_obj is None:
-        datetime_obj = datetime.datetime.utcnow()
-    elif datetime_obj.tzinfo:
-        datetime_obj = datetime_obj.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-    isof = datetime_obj.isoformat()
-    if not preserve_subsecond:
-        isof = isof[:19]
-    if compact:
-        isof = isof.replace("-", "").replace(":", "").replace(".", "")
-    return isof + "Z"
+
+    Assume UTC for datetime objects without a timezone, always use the Z
+    timezone designator.
+    """
+    if datetime_obj.tzinfo:
+        datetime_obj = datetime_obj.astimezone(timezone.utc).replace(tzinfo=None)
+    return datetime_obj.isoformat() + "Z"
 
 
-def default_json_serialization(obj):
-    if isinstance(obj, datetime.datetime):
-        return isoformat(obj, preserve_subsecond=True)
-    if isinstance(obj, datetime.timedelta):
+@overload
+def default_json_serialization(obj: datetime) -> str:
+    ...
+
+
+@overload
+def default_json_serialization(obj: timedelta) -> float:
+    ...
+
+
+@overload
+def default_json_serialization(obj: Decimal) -> str:
+    ...
+
+
+@overload
+def default_json_serialization(obj: MappingProxyType) -> dict:
+    ...
+
+
+def default_json_serialization(  # pylint: disable=inconsistent-return-statements
+    obj: Union[datetime, timedelta, Decimal, MappingProxyType],
+) -> Union[str, float, dict]:
+    if isinstance(obj, datetime):
+        return _isoformat(obj)
+    if isinstance(obj, timedelta):
         return obj.total_seconds()
-    if isinstance(obj, decimal.Decimal):
+    if isinstance(obj, Decimal):
         return str(obj)
-    if isinstance(obj, types.MappingProxyType):
+    if isinstance(obj, MappingProxyType):
         return dict(obj)
 
-    raise TypeError("Object of type {!r} is not JSON serializable".format(obj.__class__.__name__))
+    assert_never("Object of type {!r} is not JSON serializable".format(obj.__class__.__name__))
 
 
-def json_encode(obj, *, compact=True, sort_keys=True, binary=False):
-    res = jsonlib.dumps(
+def json_encode(obj, *, sort_keys: bool = True, binary=False):
+    res = ujson.dumps(
         obj,
-        sort_keys=sort_keys if sort_keys is not None else not compact,
-        indent=None if compact else 4,
-        separators=(",", ":") if compact else None,
+        sort_keys=sort_keys,
         default=default_json_serialization,
     )
     return res.encode("utf-8") if binary else res
@@ -69,157 +83,49 @@ def assert_never(value: NoReturn) -> NoReturn:
     raise RuntimeError(f"This code should never be reached, got: {value}")
 
 
-class Result:
-    def __init__(self, status, json_result, headers=None):
-        # We create both status and status_code so people can be agnostic on whichever to use
-        self.status_code = status
-        self.status = status
-        self.json_result = json_result
-        self.headers = headers if headers else {}
+class Timeout(Exception):
+    pass
 
-    def json(self):
-        return self.json_result
 
-    def __repr__(self):
-        return "Result(status=%d, json_result=%r)" % (self.status_code, self.json_result)
+@dataclass(frozen=True)
+class Expiration:
+    start_time: float
+    deadline: float
+
+    @classmethod
+    def from_timeout(cls, timeout: float) -> "Expiration":
+        start_time = time.monotonic()
+        deadline = start_time + timeout
+        return cls(start_time, deadline)
 
     @property
-    def ok(self):
-        return 200 <= self.status_code < 300
+    def elapsed(self) -> float:
+        return time.monotonic() - self.start_time
+
+    def is_expired(self) -> bool:
+        return time.monotonic() > self.deadline
+
+    def raise_timeout_if_expired(self, msg_format: str, *args: object, **kwargs: object) -> None:
+        """Raise `Timeout` if this object is expired.
+
+        Note:
+            This method is supposed to be used in a loop, e.g.:
+
+                expiration = Expiration.from_timeout(timeout=60)
+                while is_data_ready(data):
+                    expiration.raise_timeout_if_expired("something about", data)
+                    data = gather_data()
+
+            The exception message should be meaningful, so it may format data
+            into the message itself. However formatting is expensive and should
+            be done only when the deadline is expired, so this uses a similar
+            interface to `logging.<level>()`.
+        """
+        if self.is_expired():
+            raise Timeout(msg_format.format(*args, **kwargs))
 
 
-async def get_aiohttp_client() -> aiohttp.ClientSession:
-    return aiohttp.ClientSession()
-
-
-class Client:
-    def __init__(self, server_uri=None, client_factory=get_aiohttp_client, server_ca: Optional[str] = None):
-        self.server_uri = server_uri or ""
-        self.path_for = partial(urljoin, self.server_uri)
-        self.session = requests.Session()
-        self.session.verify = server_ca
-        # aiohttp requires to be in the same async loop when creating its client and when using it.
-        # Since karapace Client object is initialized before creating the async context, (in
-        # kafka_rest_api main, when KafkaRest is created), we can't create the aiohttp here.
-        # Instead we wait for the first query in async context and lazy-initialize aiohttp client.
-        self.client_factory = client_factory
-        if server_ca is None:
-            self.ssl_mode = False
-        else:
-            self.ssl_mode = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            self.ssl_mode.load_verify_locations(cafile=server_ca)
-        self._client = None
-
-    async def close(self):
-        try:
-            self.session.close()
-        except:  # pylint: disable=bare-except
-            log.info("Could not close session")
-        try:
-            if self._client is not None:
-                await self._client.close()
-        except:  # pylint: disable=bare-except
-            log.info("Could not close client")
-
-    async def get_client(self):
-        if self._client is None:
-            self._client = await self.client_factory()
-        return self._client
-
-    async def get(self, path, json=None, headers=None):
-        path = self.path_for(path)
-        if not headers:
-            headers = {}
-        client = await self.get_client()
-        if client:
-            async with client.get(
-                path,
-                json=json,
-                headers=headers,
-                ssl=self.ssl_mode,
-            ) as res:
-                # required for forcing the response body conversion to json despite missing valid Accept headers
-                json_result = await res.json(content_type=None)
-                return Result(res.status, json_result, headers=res.headers)
-        elif self.server_uri:
-            res = requests.get(path, headers=headers, json=json)
-            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
-
-    async def delete(self, path, headers=None):
-        path = self.path_for(path)
-        if not headers:
-            headers = {}
-        client = await self.get_client()
-        if client:
-            async with client.delete(
-                path,
-                headers=headers,
-                ssl=self.ssl_mode,
-            ) as res:
-                json_result = {} if res.status == 204 else await res.json()
-                return Result(res.status, json_result, headers=res.headers)
-        elif self.server_uri:
-            res = requests.delete(path, headers=headers)
-            json_result = {} if res.status_code == 204 else res.json()
-            return Result(status=res.status_code, json_result=json_result, headers=res.headers)
-
-    async def post(self, path, json, headers=None):
-        path = self.path_for(path)
-        if not headers:
-            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
-
-        client = await self.get_client()
-        if client:
-            async with client.post(
-                path,
-                headers=headers,
-                json=json,
-                ssl=self.ssl_mode,
-            ) as res:
-                json_result = {} if res.status == 204 else await res.json()
-                return Result(res.status, json_result, headers=res.headers)
-        elif self.server_uri:
-            res = self.session.post(path, headers=headers, json=json)
-            json_body = {} if res.status_code == 204 else res.json()
-            return Result(status=res.status_code, json_result=json_body, headers=res.headers)
-
-    async def put(self, path, json, headers=None):
-        path = self.path_for(path)
-        if not headers:
-            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
-
-        client = await self.get_client()
-        if client:
-            async with client.put(
-                path,
-                headers=headers,
-                json=json,
-                ssl=self.ssl_mode,
-            ) as res:
-                json_result = await res.json()
-                return Result(res.status, json_result, headers=res.headers)
-        elif self.server_uri:
-            res = self.session.put(path, headers=headers, json=json)
-            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
-
-    async def put_with_data(self, path, data, headers):
-        path = self.path_for(path)
-        client = await self.get_client()
-        if client:
-            async with client.put(
-                path,
-                headers=headers,
-                data=data,
-                ssl=self.ssl_mode,
-            ) as res:
-                json_result = await res.json()
-                return Result(res.status, json_result, headers=res.headers)
-        elif self.server_uri:
-            res = self.session.put(path, headers=headers, data=data)
-            return Result(status=res.status_code, json_result=res.json(), headers=res.headers)
-
-
-def convert_to_int(object_: dict, key: str, content_type: str):
+def convert_to_int(object_: dict, key: str, content_type: str) -> None:
     if object_.get(key) is None:
         return
     try:
@@ -245,7 +151,7 @@ class KarapaceKafkaClient(KafkaClient):
             conns = self._conns.copy().values()
             for conn in conns:
                 if conn and conn.ns_blackout():
-                    log.info(
+                    LOG.info(
                         "Node id %s no longer in cluster metadata, closing connection and requesting update", conn.node_id
                     )
                     self.close(conn.node_id)
@@ -258,7 +164,7 @@ class KarapaceKafkaClient(KafkaClient):
         try:
             self.close_invalid_connections()
         except Exception as e:  # pylint: disable=broad-except
-            log.error("Error closing invalid connections: %r", e)
+            LOG.error("Error closing invalid connections: %r", e)
 
     def _maybe_refresh_metadata(self, wakeup=False):
         """
@@ -279,7 +185,7 @@ class KarapaceKafkaClient(KafkaClient):
         else:
             node_id = bootstrap_nodes[0].nodeId
         if node_id is None:
-            log.debug("Give up sending metadata request since no node is available")
+            LOG.debug("Give up sending metadata request since no node is available")
             return self.config["reconnect_backoff_ms"]
 
         if self._can_send_request(node_id):
@@ -291,7 +197,7 @@ class KarapaceKafkaClient(KafkaClient):
                 topics = [] if self.config["api_version"] < (0, 10) else None
             api_version = 0 if self.config["api_version"] < (0, 10) else 1
             request = MetadataRequest[api_version](topics)
-            log.debug("Sending metadata request %s to node %s", request, node_id)
+            LOG.debug("Sending metadata request %s to node %s", request, node_id)
             future = self.send(node_id, request, wakeup=wakeup)
             future.add_callback(self.cluster.update_metadata)
             future.add_errback(self.cluster.failed_update)
@@ -311,7 +217,7 @@ class KarapaceKafkaClient(KafkaClient):
             return self.config["reconnect_backoff_ms"]
 
         if self.maybe_connect(node_id, wakeup=wakeup):
-            log.debug("Initializing connection to node %s for metadata request", node_id)
+            LOG.debug("Initializing connection to node %s for metadata request", node_id)
             return self.config["reconnect_backoff_ms"]
         return float("inf")
 
@@ -332,3 +238,36 @@ class KarapaceBrokerConnection(BrokerConnection):
 
     def blacked_out(self):
         return self.ns_blackout() or super().blacked_out()
+
+
+class DebugAccessLogger(AccessLogger):
+    """
+    Logs access logs as DEBUG instead of INFO.
+    Source: https://github.com/aio-libs/aiohttp/blob/d01e257da9b37c35c68b3931026a2d918c271446/aiohttp/web_log.py#L191-L210
+    """
+
+    def log(
+        self,
+        request: BaseRequest,
+        response: StreamResponse,
+        time: float,  # pylint: disable=redefined-outer-name
+    ) -> None:
+        try:
+            fmt_info = self._format_line(request, response, time)
+
+            values = list()
+            extra = dict()
+            for key, value in fmt_info:
+                values.append(value)
+
+                if key.__class__ is str:
+                    extra[key] = value
+                else:
+                    k1, k2 = key
+                    dct = extra.get(k1, {})
+                    dct[k2] = value
+                    extra[k1] = dct
+
+            self.logger.debug(self._log_format % tuple(values), extra=extra)
+        except Exception:  # pylint: disable=broad-except
+            self.logger.exception("Error in logging")

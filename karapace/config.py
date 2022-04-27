@@ -4,20 +4,25 @@ karapace - configuration validation
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp.web_log import AccessLogger
 from enum import Enum, unique
+from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
 
-import json
+import logging
 import os
 import socket
 import ssl
+import ujson
 
-Config = Dict[str, Union[None, str, int, bool, List[str]]]
-
-HOSTNAME = socket.gethostname()  # pylint bug (#4302) pylint: disable=no-member
-
+Config = Dict[str, Union[None, str, int, bool, List[str], AccessLogger]]
+LOG = logging.getLogger(__name__)
+HOSTNAME = socket.gethostname()
+SASL_PLAIN_PASSWORD = "sasl_plain_password"
 DEFAULTS = {
+    "access_logs_debug": False,
+    "access_log_class": None,
     "advertised_hostname": HOSTNAME,
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
@@ -38,6 +43,7 @@ DEFAULTS = {
     "registry_port": 8081,
     "registry_ca": None,
     "log_level": "DEBUG",
+    "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
     "master_eligibility": True,
     "replication_factor": 1,
     "security_protocol": "PLAINTEXT",
@@ -49,8 +55,8 @@ DEFAULTS = {
     "ssl_password": None,
     "sasl_mechanism": None,
     "sasl_plain_username": None,
-    "sasl_plain_password": None,
-    "topic_name": "_schemas",
+    SASL_PLAIN_PASSWORD: None,
+    "topic_name": DEFAULT_SCHEMA_TOPIC,
     "metadata_max_age_ms": 60000,
     "admin_metadata_max_age": 5,
     "producer_acks": 1,
@@ -63,7 +69,7 @@ DEFAULTS = {
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
 }
-DEFAULT_LOG_FORMAT_JOURNAL = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
+SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
 
 class InvalidConfiguration(Exception):
@@ -90,17 +96,53 @@ def parse_env_value(value: str) -> Union[str, int, bool]:
 
 
 def set_config_defaults(config: Config) -> Config:
-    for k, v in DEFAULTS.items():
-        if k.startswith("karapace"):
-            env_name = k.upper()
-        else:
-            env_name = f"karapace_{k}".upper()
-        if env_name in os.environ:
-            val = os.environ[env_name]
-            print(f"Populating config value {k} from env var {env_name} with {val} instead of config file")
-            config[k] = parse_env_value(os.environ[env_name])
-        config.setdefault(k, v)
+    new_config = DEFAULTS.copy()
+    new_config.update(config)
 
+    set_settings_from_environment(new_config)
+    set_sentry_dsn_from_environment(new_config)
+    validate_config(new_config)
+    return new_config
+
+
+def set_settings_from_environment(config: Config) -> None:
+    """The environment variables have precedence and overwrite the configuration settings."""
+    for config_name in DEFAULTS:
+        config_name_with_prefix = config_name if config_name.startswith("karapace") else f"karapace_{config_name}"
+        env_name = config_name_with_prefix.upper()
+        env_val = os.environ.get(env_name)
+        if env_val is not None:
+            if config_name not in SECRET_CONFIG_OPTIONS:
+                LOG.info(
+                    "Populating config value %r from env var %r with %r instead of config file",
+                    config_name,
+                    env_name,
+                    env_val,
+                )
+            else:
+                LOG.info(
+                    "Populating config value %r from env var %r instead of config file",
+                    config_name,
+                    env_name,
+                )
+
+            config[config_name] = parse_env_value(env_val)
+
+
+def set_sentry_dsn_from_environment(config: Config) -> None:
+    sentry_config = config.setdefault("sentry", {"dsn": None})
+
+    # environment variable has precedence
+    sentry_dsn = os.environ.get("SENTRY_DSN")
+    if sentry_dsn is not None:
+        sentry_config["dsn"] = sentry_dsn
+
+    # Tag app should always be karapace
+    sentry_config.setdefault("tags", {})
+    sentry_config["tags"]["app"] = "Karapace"
+
+
+def validate_config(config: Config) -> None:
     master_election_strategy = config["master_election_strategy"]
     try:
         ElectionStrategy(master_election_strategy.lower())
@@ -110,17 +152,15 @@ def set_config_defaults(config: Config) -> Config:
             f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
         ) from None
 
-    return config
-
 
 def write_config(config_path: Path, custom_values: Config) -> None:
-    config_path.write_text(json.dumps(custom_values))
+    config_path.write_text(ujson.dumps(custom_values))
 
 
 def read_config(config_handler: IO) -> Config:
     try:
-        config = json.load(config_handler)
-    except json.JSONDecodeError as ex:
+        config = ujson.load(config_handler)
+    except ValueError as ex:
         raise InvalidConfiguration("Configuration is not a valid JSON") from ex
 
     return set_config_defaults(config)

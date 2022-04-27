@@ -26,11 +26,13 @@ setup(
         "aiohttp",
         "aiohttp_socks",
         "aiokafka",
-        "avro-python3",
+        "avro",
         "jsonschema",
-        "networkx",
         "kafka-python",
+        "networkx",
+        "protobuf",
         "requests",
+        "ujson",
     ],
     extras_require={
         # compression algorithms supported by AioKafka and KafkaConsumer

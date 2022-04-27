@@ -7,8 +7,9 @@ lz4==3.0.2
 requests==2.27.1
 networkx==2.5
 python-dateutil==2.8.2
-protobuf~=3.14.0
-
+protobuf==3.19.4
+ujson==5.1.0
+avro==1.11.0
 # Patched dependencies
 #
 # Note: It is important to use commits to reference patched dependencies. This
@@ -17,7 +18,6 @@ protobuf~=3.14.0
 # - The contents of the file change, which invalidates the existing docker
 #   images and forces a new image generation.
 #
-git+https://github.com/aiven/avro.git@513b153bac5040af6bba5847aef202adb680b67b#subdirectory=lang/py3/
 git+https://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
 
 # Indirect dependencies

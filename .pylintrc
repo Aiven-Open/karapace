@@ -1,7 +1,11 @@
 [MASTER]
 jobs=4
+extension-pkg-allow-list=ujson
 
 [MESSAGES CONTROL]
+enable=
+  useless-suppression,
+
 disable=
   bad-continuation,
   duplicate-code,

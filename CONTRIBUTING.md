@@ -41,24 +41,35 @@ tests should be engineered with this in mind:
 - Don't reuse schema/subject/topic names
 - Expect other clients to be interacting with the servers at the same time.
 
-To run the tests use `make`. It will download Kafka to be used in the tests for you:
-
-```sh
-make unittest
-make integrationtest
+Before running the tests make sure you have `protoc` installed. `protoc` is part of the protobuf-compiler package.
+In Fedora® distributions you can install it using:
+```
+dnf install protobuf-compiler
 ```
 
-### PyCharm
+To run the tests use the binary `pytest` available in the virtualenv. It will download Kafka to be
+used in the tests for you:
 
-If you want to run the tests from within the IDE, first download Kafka using `make fetch-kafka`, and
-use the project root as the working directory.
+```sh
+make karapace/version.py
+pytest tests/unit
+pytest tests/integration
+```
+
+The integration tests can be configured with the use of a few parameters:
+
+- `--kafka-version`: allows to change the version of the Kafka server used by the tests. Example
+    versions: `2.7.2`, `2.8.1`, `3.0.0`.
+- `--kafka-bootstrap-servers`: A comma separated list of servers. This option allows to use an
+    external server (the tests won't start a server for you)
+
+Other options can be seen with `pytest test/integration --help`
 
 ## Static checking and Linting
 
 The code is statically checked and formatted using [a few
 tools](https://github.com/aiven/karapace/blob/master/requirements-dev.txt). To run these
 automatically on each commit please enable the [pre-commit](https://pre-commit.com) hooks.
-Alternatively you can run it manually with `make pre-commit`.
 
 ## Manual testing
 
@@ -88,3 +99,6 @@ override the `bootstrap_uri` config value, one would use the environment variabl
 - Choose a meaningful title for your pull request.
 - The pull request description should focus on what changed and why.
 - Check that the tests pass (and add test coverage for your changes if appropriate).
+
+## Trademarks:
+Fedora and the Infinity design logo are trademarks of Red Hat, Inc.

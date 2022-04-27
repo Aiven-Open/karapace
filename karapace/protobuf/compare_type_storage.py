@@ -6,8 +6,8 @@ from karapace.protobuf.type_element import TypeElement
 from typing import Dict, List, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from karapace.protobuf.message_element import MessageElement
     from karapace.protobuf.field_element import FieldElement
+    from karapace.protobuf.message_element import MessageElement
 
 
 def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
@@ -49,8 +49,8 @@ class CompareTypes:
             name = prefix + "." + type_element.name
         else:
             name = type_element.name
-        from karapace.protobuf.message_element import MessageElement
         from karapace.protobuf.field_element import FieldElement
+        from karapace.protobuf.message_element import MessageElement
 
         if isinstance(type_element, MessageElement):  # add support of MapEntry messages
             if "map_entry" in type_element.options:

@@ -1,7 +1,7 @@
+from avro.compatibility import merge, SchemaCompatibilityResult, SchemaCompatibilityType, SchemaIncompatibilityType
 from dataclasses import dataclass
 from itertools import product
 from jsonschema import Draft7Validator
-from karapace.avro_compatibility import is_compatible, is_incompatible, SchemaCompatibilityResult
 from karapace.compatibility.jsonschema.types import (
     AssertionCheck,
     BooleanSchema,
@@ -30,10 +30,7 @@ from karapace.compatibility.jsonschema.utils import (
 )
 from typing import Any, List, Optional
 
-import logging
 import networkx as nx
-
-LOG = logging.getLogger(__name__)
 
 INTRODUCED_INCOMPATIBILITY_MSG_FMT = "Introduced incompatible assertion {assert_name} with value {introduced_value}"
 RESTRICTED_INCOMPATIBILITY_MSG_FMT = "More restrictive assertion {assert_name} from {writer_value} to {reader_value}"
@@ -134,10 +131,14 @@ def type_mismatch(
     writer_type: JSONSCHEMA_TYPES,
     location: List[str],
 ) -> SchemaCompatibilityResult:
-    return SchemaCompatibilityResult.incompatible(
-        incompat_type=Incompatibility.type_changed,
-        message=f"type {reader_type} is not compatible with type {writer_type}",
-        location=location,
+    locations = "/".join(location)
+    if len(location) > 1:  # Remove ROOT_REFERENCE_TOKEN
+        locations = locations[1:]
+    return SchemaCompatibilityResult(
+        compatibility=SchemaCompatibilityType.incompatible,
+        incompatibilities=[Incompatibility.type_changed],
+        locations={locations},
+        messages={f"type {reader_type} is not compatible with type {writer_type}"},
     )
 
 
@@ -179,6 +180,28 @@ def count_uniquely_compatible_schemas(reader_type: Instance, reader_schema, writ
     return len(matching) // 2
 
 
+def incompatible_schema(
+    incompat_type: SchemaIncompatibilityType, message: str, location: List[str]
+) -> SchemaCompatibilityResult:
+    locations = "/".join(location)
+    if len(location) > 1:  # Remove ROOT_REFERENCE_TOKEN
+        locations = locations[1:]
+    return SchemaCompatibilityResult(
+        compatibility=SchemaCompatibilityType.incompatible,
+        incompatibilities=[incompat_type],
+        locations={locations},
+        messages={message},
+    )
+
+
+def is_incompatible(result: "SchemaCompatibilityResult") -> bool:
+    return result.compatibility is SchemaCompatibilityType.incompatible
+
+
+def is_compatible(result: "SchemaCompatibilityResult") -> bool:
+    return result.compatibility is SchemaCompatibilityType.compatible
+
+
 def compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
     """Checks that `reader` can read values produced by `writer`."""
     assert reader is not None
@@ -209,7 +232,7 @@ def compatibility_rec(
     reader_schema: Optional[Any], writer_schema: Optional[Any], location: List[str]
 ) -> SchemaCompatibilityResult:
     if introduced_constraint(reader_schema, writer_schema):
-        return SchemaCompatibilityResult.incompatible(
+        return incompatible_schema(
             incompat_type=Incompatibility.schema_added,
             message="schema added, previously used values may not be valid anymore",
             location=location,
@@ -222,8 +245,7 @@ def compatibility_rec(
     # reader has type `array` to represent a list, and the writer is either a
     # different type or it is also an `array` but now it representes a tuple.
     if reader_schema is None and writer_schema is not None:
-        LOG.debug("Schema removed reader_schema.type='%r'", get_type_of(reader_schema))
-        return SchemaCompatibilityResult.incompatible(
+        return incompatible_schema(
             incompat_type=Incompatibility.schema_removed,
             message="schema removed",
             location=location,
@@ -270,7 +292,7 @@ def compatibility_rec(
             writer_schema = {"type": Instance.OBJECT.value}
         result = compatibility_object(reader_schema, writer_schema, location)
     elif reader_type is BooleanSchema:
-        result = SchemaCompatibilityResult.compatible()
+        result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
     elif reader_type is Subschema.NOT:
         assert reader_schema, "if just one schema is NOT the result should have been a type_mismatch"
         assert writer_schema, "if just one schema is NOT the result should have been a type_mismatch"
@@ -282,7 +304,7 @@ def compatibility_rec(
             location_not,
         )
     elif reader_type == Instance.BOOLEAN:
-        result = SchemaCompatibilityResult.compatible()
+        result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
     elif reader_type == Instance.STRING:
         result = compatibility_string(reader_schema, writer_schema, location)
     elif reader_type == Instance.ARRAY:
@@ -290,7 +312,7 @@ def compatibility_rec(
     elif reader_type == Keyword.ENUM:
         result = compatibility_enum(reader_schema, writer_schema, location)
     elif reader_type is Instance.NULL:
-        result = SchemaCompatibilityResult.compatible()
+        result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
     else:
         raise ValueError(f"unknown type {reader_type}")
 
@@ -300,13 +322,14 @@ def compatibility_rec(
 def check_assertion_compatibility(
     reader_schema, writer_schema, assertion_check: AssertionCheck, location: List[str]
 ) -> SchemaCompatibilityResult:
-    result = SchemaCompatibilityResult.compatible()
+    result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     reader_value = reader_schema.get(assertion_check.keyword.value)
     writer_value = writer_schema.get(assertion_check.keyword.value)
 
     if introduced_constraint(reader_value, writer_value):
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=assertion_check.error_when_introducing,
             message=assertion_check.error_msg_when_introducing.format(
                 assert_name=assertion_check.keyword.value, introduced_value=writer_value
@@ -316,7 +339,8 @@ def check_assertion_compatibility(
 
     # The type error below is due to a mypy bug for version 0.820 (issue #10131)
     if assertion_check.comparison(reader_value, writer_value):  # type: ignore[call-arg]
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=assertion_check.error_when_restricting,
             message=assertion_check.error_msg_when_restricting.format(
                 assert_name=assertion_check.keyword.value, reader_value=reader_value, writer_value=writer_value
@@ -335,18 +359,18 @@ def compatibility_enum(reader_schema, writer_schema, location: List[str]) -> Sch
     options_removed_by_reader = set(writer_schema[Keyword.ENUM.value]) - set(reader_schema[Keyword.ENUM.value])
     if options_removed_by_reader:
         options = ", ".join(options_removed_by_reader)
-        return SchemaCompatibilityResult.incompatible(
+        return incompatible_schema(
             Incompatibility.enum_array_narrowed,
             message=f"some of enum options are no longer valid {options}",
             location=location + [Keyword.ENUM.value],
         )
 
-    return SchemaCompatibilityResult.compatible()
+    return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
 
 def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.2
-    result = SchemaCompatibilityResult.compatible()
+    result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     reader_type = get_type_of(reader_schema)
     writer_type = get_type_of(writer_schema)
@@ -364,13 +388,14 @@ def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -
             assertion_check,
             location,
         )
-        result = result.merged_with(check_result)
+        result = merge(result, check_result)
 
     reader_multiple = reader_schema.get(Keyword.MULTIPLE.value)
     writer_multiple = writer_schema.get(Keyword.MULTIPLE.value)
 
     if introduced_constraint(reader_multiple, writer_multiple):
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=Incompatibility.multiple_added,
             message=INTRODUCED_INCOMPATIBILITY_MSG_FMT.format(
                 assert_name=Keyword.MULTIPLE.value, introduced_value=writer_multiple
@@ -381,8 +406,8 @@ def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -
     if ne(reader_multiple, writer_multiple):
         if reader_multiple > writer_multiple:
             message_expanded = f"Multiple must not increase ({reader_multiple} > {writer_multiple})"
-            result.add_incompatibility(
-                incompat_type=Incompatibility.multiple_expanded, message=message_expanded, location=location
+            add_incompatibility(
+                result, incompat_type=Incompatibility.multiple_expanded, message=message_expanded, location=location
             )
 
         elif writer_multiple % reader_multiple != 0:
@@ -390,20 +415,20 @@ def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -
                 f"{reader_multiple} must be an integer multiple of "
                 f"{writer_multiple} ({writer_multiple} % {reader_multiple} = 0)"
             )
-            result.add_incompatibility(
-                incompat_type=Incompatibility.multiple_changed, message=message_changed, location=location
+            add_incompatibility(
+                result, incompat_type=Incompatibility.multiple_changed, message=message_changed, location=location
             )
 
     if reader_type == Instance.INTEGER and writer_type == Instance.NUMBER:
         message_narrowed = "Writer produces numbers while reader only accepted integers"
-        result.add_incompatibility(incompat_type=Incompatibility.type_narrowed, message=message_narrowed, location=location)
+        add_incompatibility(result, incompat_type=Incompatibility.type_narrowed, message=message_narrowed, location=location)
 
     return result
 
 
 def compatibility_string(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.3
-    result = SchemaCompatibilityResult.compatible()
+    result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     assert get_type_of(reader_schema) == Instance.STRING, "types should have been previously checked"
     assert get_type_of(writer_schema) == Instance.STRING, "types should have been previously checked"
@@ -416,7 +441,7 @@ def compatibility_string(reader_schema, writer_schema, location: List[str]) -> S
             assertion_check,
             location,
         )
-        result = result.merged_with(check_result)
+        result = merge(result, check_result)
     return result
 
 
@@ -430,7 +455,7 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     reader_items = reader_schema.get(Keyword.ITEMS.value)
     writer_items = writer_schema.get(Keyword.ITEMS.value)
 
-    result = SchemaCompatibilityResult.compatible()
+    result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     reader_is_tuple = is_tuple(reader_schema)
     writer_is_tuple = is_tuple(writer_schema)
@@ -454,7 +479,7 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     for pos, (reader_item, writer_item) in enumerate(zip(reader_items_iter, writer_items_iter), start=pos):
         rec_result = compatibility_rec(reader_item, writer_item, location + ["items", f"{pos}"])
         if is_incompatible(rec_result):
-            result = result.merged_with(rec_result)
+            result = merge(result, rec_result)
 
     reader_additional_items = reader_schema.get(Keyword.ADDITIONAL_ITEMS.value, True)
     reader_restricts_additional_items = not is_true_schema(reader_additional_items)
@@ -463,7 +488,8 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     if writer_has_more_items and reader_restricts_additional_items:
         reader_rejects_additional_items = is_false_schema(reader_restricts_additional_items)
         if reader_rejects_additional_items:
-            result.add_incompatibility(
+            add_incompatibility(
+                result,
                 incompat_type=Incompatibility.item_removed_from_closed_content_model,
                 message=f"Elements starting from index {pos} are not allowed",
                 location=location + [Keyword.ADDITIONAL_ITEMS.value],
@@ -472,7 +498,8 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
             for pos, writer_item in enumerate(writer_items_iter, start=pos):
                 rec_result = compatibility_rec(reader_restricts_additional_items, writer_item, location_additional_items)
                 if is_incompatible(rec_result):
-                    result.add_incompatibility(
+                    add_incompatibility(
+                        result,
                         incompat_type=Incompatibility.item_removed_not_covered_by_partially_open_content_model,
                         message=f"Item in position {pos} is not compatible",
                         location=location_additional_items,
@@ -488,20 +515,23 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
                 location_reader_item = location + ["items", f"{pos}"]
                 rec_result = compatibility_rec(reader_item, writer_additional_items, location_reader_item)
                 if is_incompatible(rec_result):
-                    result.add_incompatibility(
+                    add_incompatibility(
+                        result,
                         incompat_type=Incompatibility.item_added_not_covered_by_partially_open_content_model,
                         message="New element schema incompatible with the other version",
                         location=location_reader_item,
                     )
 
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=Incompatibility.item_added_to_open_content_model,
             message=f"Elements starting from index {pos} are now required",
             location=location,
         )
 
     if is_tuple_without_additional_items(reader_schema) and not is_tuple_without_additional_items(writer_schema):
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=Incompatibility.additional_items_removed,
             message="Additional items are not longer allowed",
             location=location_additional_items,
@@ -510,14 +540,15 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     reader_additional_items = reader_schema.get(Keyword.ITEMS)
     writer_additional_items = writer_schema.get(Keyword.ITEMS)
     if introduced_constraint(reader_additional_items, writer_additional_items):
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=Incompatibility.additional_items_removed,
             message="Items are now restricted, old values may not be valid anymore",
             location=location_additional_items,
         )
 
     rec_result = compatibility_rec(reader_additional_items, writer_additional_items, location_additional_items)
-    result = result.merged_with(rec_result)
+    result = merge(result, rec_result)
 
     checks: List[AssertionCheck] = [MAX_ITEMS_CHECK, MIN_ITEMS_CHECK]
     for assertion_check in checks:
@@ -527,13 +558,14 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
             assertion_check,
             location,
         )
-        result = result.merged_with(check_result)
+        result = merge(result, check_result)
 
     reader_unique_items = reader_schema.get(Keyword.UNIQUE_ITEMS)
     writer_unique_items = reader_schema.get(Keyword.UNIQUE_ITEMS)
 
     if introduced_constraint(reader_unique_items, writer_unique_items):
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=Incompatibility.unique_items_added,
             message=INTRODUCED_INCOMPATIBILITY_MSG_FMT.format(
                 assert_name=Keyword.UNIQUE_ITEMS.value,
@@ -545,9 +577,21 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     return result
 
 
+def add_incompatibility(
+    result: SchemaCompatibilityResult, incompat_type: SchemaIncompatibilityType, message: str, location: List[str]
+) -> None:
+    """Add an incompatibility, this will modify the object in-place."""
+    formatted_location = "/".join(location[1:] if len(location) > 1 else location)
+
+    result.compatibility = SchemaCompatibilityType.incompatible
+    result.incompatibilities.append(incompat_type)
+    result.messages.add(message)
+    result.locations.add(formatted_location)
+
+
 def compatibility_object(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.5
-    result = SchemaCompatibilityResult.compatible()
+    result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     assert get_type_of(reader_schema) == Instance.OBJECT, "types should have been previously checked"
     assert get_type_of(writer_schema) == Instance.OBJECT, "types should have been previously checked"
@@ -574,7 +618,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
         is_required_by_reader = reader_property.get(Keyword.REQUIRED.value)
         is_required_by_writer = writer_property.get(Keyword.REQUIRED.value)
         if not is_required_by_writer and is_required_by_reader:
-            result.add_incompatibility(
+            add_incompatibility(
+                result,
                 incompat_type=Incompatibility.required_attribute_added,
                 message=f"Property {common_property} became required",
                 location=this_property_location,
@@ -586,7 +631,7 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
             location=this_property_location,
         )
         if is_incompatible(rec_result):
-            result = result.merged_with(rec_result)
+            result = merge(result, rec_result)
 
     # With an open content model any property can be added without breaking
     # compatibility because those do not have assertions, so only check if the
@@ -596,7 +641,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
             schema_for_property = schema_from_partially_open_content_model(reader_schema, unknown_property_to_reader)
 
             if schema_for_property is None:
-                result.add_incompatibility(
+                add_incompatibility(
+                    result,
                     incompat_type=Incompatibility.property_removed_from_closed_content_model,
                     message=f"The property {unknown_property_to_reader} is not accepted anymore",
                     location=properties_location,
@@ -608,8 +654,9 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                     location=properties_location,
                 )
                 if is_incompatible(rec_result):
-                    result = result.merged_with(rec_result)
-                    result.add_incompatibility(
+                    result = merge(result, rec_result)
+                    add_incompatibility(
+                        result,
                         incompat_type=Incompatibility.property_removed_not_covered_by_partially_open_content_model,
                         message=f"property {unknown_property_to_reader} is not compatible",
                         location=properties_location,
@@ -627,7 +674,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                 f"neither patternProperties nor additionalProperties), now "
                 f"these values are restricted."
             )
-            result.add_incompatibility(
+            add_incompatibility(
+                result,
                 incompat_type=Incompatibility.property_added_to_open_content_model,
                 message=message_property_added_to_open_content_model,
                 location=properties_location,
@@ -647,7 +695,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                         location=properties_location,
                     )
                     if is_incompatible(rec_result):
-                        result.add_incompatibility(
+                        add_incompatibility(
+                            result,
                             incompat_type=Incompatibility.property_added_not_covered_by_partially_open_content_model,
                             message="incompatible schemas",
                             location=properties_location,
@@ -661,7 +710,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
                     [],
                 )
                 if new_property_is_required_without_default:
-                    result.add_incompatibility(
+                    add_incompatibility(
+                        result,
                         incompat_type=Incompatibility.required_property_added_to_unopen_content_model,
                         message=f"Property {unknown_property_to_writer} added without a default",
                         location=properties_location,
@@ -674,7 +724,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
         reader_attribute_dependencies = reader_attribute_dependencies_schema.get(writer_attribute_dependency_name)
 
         if not reader_attribute_dependencies:
-            result.add_incompatibility(
+            add_incompatibility(
+                result,
                 incompat_type=Incompatibility.dependency_array_added,
                 message="incompatible dependency array",
                 location=location,
@@ -682,7 +733,8 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
 
         new_dependencies = set(writer_attribute_dependencies) - set(reader_attribute_dependencies)
         if new_dependencies:
-            result.add_incompatibility(
+            add_incompatibility(
+                result,
                 incompat_type=Incompatibility.dependency_array_extended,
                 message=f"new dependencies {new_dependencies}",
                 location=location,
@@ -694,14 +746,15 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
     for writer_dependent_schema_name, writer_dependent_schema in writer_dependent_schemas.items():
         reader_dependent_schema = reader_dependent_schemas.get(writer_dependent_schema_name)
         if introduced_constraint(reader_dependent_schema, writer_dependent_schemas):
-            result.add_incompatibility(
+            add_incompatibility(
+                result,
                 incompat_type=Incompatibility.dependency_schema_added,
                 message=f"new dependency schema {writer_dependent_schema_name}",
                 location=location,
             )
 
         rec_result = compatibility_rec(reader_dependent_schema, writer_dependent_schema, location)
-        result = result.merged_with(rec_result)
+        result = merge(result, rec_result)
 
     checks: List[AssertionCheck] = [MAX_PROPERTIES_CHECK, MIN_PROPERTIES_CHECK]
     for assertion_check in checks:
@@ -711,14 +764,15 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
             assertion_check,
             location,
         )
-        result = result.merged_with(check_result)
+        result = merge(result, check_result)
 
     reader_additional_properties = reader_schema.get(Keyword.ADDITIONAL_PROPERTIES.value)
     writer_additional_properties = writer_schema.get(Keyword.ADDITIONAL_PROPERTIES.value)
     location_additional_properties = location + [Keyword.ADDITIONAL_PROPERTIES.value]
 
     if introduced_constraint(reader_additional_properties, writer_additional_properties):
-        result.add_incompatibility(
+        add_incompatibility(
+            result,
             incompat_type=Incompatibility.additional_properties_narrowed,
             message="additionalProperties instroduced",
             location=location_additional_properties,
@@ -728,7 +782,7 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
         rec_result = compatibility_rec(
             reader_additional_properties, writer_additional_properties, location_additional_properties
         )
-        result = result.merged_with(rec_result)
+        result = merge(result, rec_result)
 
     return result
 
@@ -784,7 +838,7 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
 
     if reader_subschemas is not None and writer_subschemas is not None:
         if reader_type not in (Subschema.ANY_OF, writer_type):
-            return SchemaCompatibilityResult.incompatible(
+            return incompatible_schema(
                 Incompatibility.combined_type_changed,
                 message=f"incompatible subschema change, from {reader_type} to {writer_type}",
                 location=subschema_location,
@@ -799,7 +853,7 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
                 f"schemas increased from {len_writer_subschemas} to "
                 f"{len_reader_subschemas}"
             )
-            return SchemaCompatibilityResult.incompatible(
+            return incompatible_schema(
                 Incompatibility.product_type_extended,
                 message=msg,
                 location=subschema_location,
@@ -812,7 +866,7 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
                 f"reduced from {len_writer_subschemas} to "
                 f"{len_reader_subschemas}"
             )
-            return SchemaCompatibilityResult.incompatible(
+            return incompatible_schema(
                 Incompatibility.sum_type_narrowed,
                 message=msg,
                 location=subschema_location,
@@ -830,11 +884,11 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
             subschema_location,
         )
         if compatible_schemas_count < qty_of_required_compatible_subschemas:
-            return SchemaCompatibilityResult.incompatible(
+            return incompatible_schema(
                 Incompatibility.combined_type_subschemas_changed,
                 message="subschemas are incompatible",
                 location=subschema_location,
             )
-        return SchemaCompatibilityResult.compatible()
+        return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     return type_mismatch(reader_type, writer_type, subschema_location)

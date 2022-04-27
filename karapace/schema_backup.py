@@ -8,25 +8,24 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
+from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
-from karapace.schema_reader import KafkaSchemaReader
-from karapace.utils import json_encode, KarapaceKafkaClient
-from typing import Optional
+from karapace.schema_reader import new_schema_topic_from_config
+from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
+from typing import Dict, List, Optional, Tuple
 
 import argparse
-import json
 import logging
 import os
 import sys
 import time
+import ujson
+
+LOG = logging.getLogger(__name__)
 
 
 class BackupError(Exception):
     """Backup Error"""
-
-
-class Timeout(Exception):
-    """Timeout Error"""
 
 
 class SchemaBackup:
@@ -34,7 +33,6 @@ class SchemaBackup:
         self.config = config
         self.backup_location = backup_path
         self.topic_name = topic_option or self.config["topic_name"]
-        self.log = logging.getLogger("SchemaBackup")
         self.consumer = None
         self.producer = None
         self.admin_client = None
@@ -91,15 +89,15 @@ class SchemaBackup:
                 )
                 break
             except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-                self.log.warning("No Brokers available yet, retrying init_admin_client()")
+                LOG.warning("No Brokers available yet, retrying init_admin_client()")
             except:  # pylint: disable=bare-except
-                self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
+                LOG.exception("Failed to initialize admin client, retrying init_admin_client()")
 
             time.sleep(2.0)
 
     def _create_schema_topic_if_needed(self):
         if self.topic_name != self.config["topic_name"]:
-            self.log.info("Topic name overridden, not creating a topic with schema configuration")
+            LOG.info("Topic name overridden, not creating a topic with schema configuration")
             return
 
         self.init_admin_client()
@@ -110,23 +108,23 @@ class SchemaBackup:
             if time.monotonic() - start_time > wait_time:
                 raise Timeout(f"Timeout ({wait_time}) on creating admin client")
 
-            schema_topic = KafkaSchemaReader.get_new_schema_topic(self.config)
+            schema_topic = new_schema_topic_from_config(self.config)
             try:
-                self.log.info("Creating schema topic: %r", schema_topic)
+                LOG.info("Creating schema topic: %r", schema_topic)
                 self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-                self.log.info("Topic: %r created successfully", self.config["topic_name"])
+                LOG.info("Topic: %r created successfully", self.config["topic_name"])
                 break
             except TopicAlreadyExistsError:
-                self.log.info("Topic: %r already exists", self.config["topic_name"])
+                LOG.info("Topic: %r already exists", self.config["topic_name"])
                 break
             except:  # pylint: disable=bare-except
-                self.log.exception(
+                LOG.exception(
                     "Failed to create topic: %r, retrying _create_schema_topic_if_needed()", self.config["topic_name"]
                 )
                 time.sleep(5)
 
     def close(self):
-        self.log.info("Closing schema backup reader")
+        LOG.info("Closing schema backup reader")
         if self.consumer:
             self.consumer.close()
             self.consumer = None
@@ -138,9 +136,77 @@ class SchemaBackup:
             self.admin_client = None
 
     def request_backup(self):
+        values = self._export()
+
+        ser = ujson.dumps(values)
+        if self.backup_location:
+            with open(self.backup_location, mode="w", encoding="utf8") as fp:
+                fp.write(ser)
+                LOG.info("Schema backup written to %r", self.backup_location)
+        else:
+            print(ser)
+            LOG.info("Schema backup written to stdout")
+        self.close()
+
+    def restore_backup(self):
+        if not os.path.exists(self.backup_location):
+            raise BackupError("Backup location doesn't exist")
+
+        self._create_schema_topic_if_needed()
+
+        if not self.producer:
+            self.init_producer()
+        LOG.info("Starting backup restore for topic: %r", self.topic_name)
+
+        values = None
+        with open(self.backup_location, mode="r", encoding="utf8") as fp:
+            raw_msg = fp.read()
+            values = ujson.loads(raw_msg)
+
+        if not values:
+            return
+
+        for item in values:
+            key = encode_value(item[0])
+            value = encode_value(item[1])
+            future = self.producer.send(self.topic_name, key=key, value=value)
+            self.producer.flush(timeout=self.timeout_ms)
+            msg = future.get(self.timeout_ms)
+            LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
+        self.close()
+
+    def export_anonymized_avro_schemas(self):
+        values = self._export()
+        anonymized_schemas = []
+
+        for value in values:
+            # The schemas topic contain all changes to schema metadata.
+            # Check that the message has key `schema` and type is Avro schema.
+            # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
+            if value[1] and "schema" in value[1] and value[1].get("schemaType", "AVRO") == "AVRO":
+                original_schema = ujson.loads(value[1].get("schema"))
+                anonymized_schema = anonymize_avro.anonymize(original_schema)
+                if anonymized_schema:
+                    if "subject" in value[0]:
+                        value[0]["subject"] = anonymize_avro.anonymize_name(value[0]["subject"])
+                    if "subject" in value[1]:
+                        value[1]["subject"] = anonymize_avro.anonymize_name(value[1]["subject"])
+                    value[1]["schema"] = anonymized_schema
+                    anonymized_schemas.append((value[0], value[1]))
+        ser = ujson.dumps(anonymized_schemas)
+        if self.backup_location:
+            with open(self.backup_location, mode="w", encoding="utf8") as fp:
+                fp.write(ser)
+                LOG.info("Anonymized Avro schema export written to %r", self.backup_location)
+        else:
+            print(ser)
+            LOG.info("Anonymized Avro schema export written to stdout")
+        self.close()
+
+    def _export(self) -> List[Tuple[str, Dict[str, str]]]:
         if not self.consumer:
             self.init_consumer()
-        self.log.info("Starting schema backup read for topic: %r", self.topic_name)
+        LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
         values = []
         topic_fully_consumed = False
@@ -154,54 +220,19 @@ class SchemaBackup:
                 for message in messages:
                     key = message.key.decode("utf8")
                     try:
-                        key = json.loads(key)
-                    except json.JSONDecodeError:
-                        self.log.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
+                        key = ujson.loads(key)
+                    except ValueError:
+                        LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
                     value = None
                     if message.value:
                         value = message.value.decode("utf8")
                         try:
-                            value = json.loads(value)
-                        except json.JSONDecodeError:
-                            self.log.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
+                            value = ujson.loads(value)
+                        except ValueError:
+                            LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                     values.append((key, value))
 
-        ser = json.dumps(values)
-        if self.backup_location:
-            with open(self.backup_location, mode="w", encoding="utf8") as fp:
-                fp.write(ser)
-                self.log.info("Schema backup written to %r", self.backup_location)
-        else:
-            print(ser)
-            self.log.info("Schema backup written to stdout")
-        self.close()
-
-    def restore_backup(self):
-        if not os.path.exists(self.backup_location):
-            raise BackupError("Backup location doesn't exist")
-
-        self._create_schema_topic_if_needed()
-
-        if not self.producer:
-            self.init_producer()
-        self.log.info("Starting backup restore for topic: %r", self.topic_name)
-
-        values = None
-        with open(self.backup_location, mode="r", encoding="utf8") as fp:
-            raw_msg = fp.read()
-            values = json.loads(raw_msg)
-
-        if not values:
-            return
-
-        for item in values:
-            key = encode_value(item[0])
-            value = encode_value(item[1])
-            future = self.producer.send(self.topic_name, key=key, value=value)
-            self.producer.flush(timeout=self.timeout_ms)
-            msg = future.get(self.timeout_ms)
-            self.log.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
-        self.close()
+        return values
 
 
 def encode_value(value):
@@ -218,7 +249,10 @@ def parse_args():
 
     parser_get = subparsers.add_parser("get", help="Store the schema backup into a file")
     parser_restore = subparsers.add_parser("restore", help="Restore the schema backup from a file")
-    for p in [parser_get, parser_restore]:
+    parser_export_anonymized_avro_schemas = subparsers.add_parser(
+        "export-anonymized-avro-schemas", help="Export anonymized Avro schemas into a file"
+    )
+    for p in [parser_get, parser_restore, parser_export_anonymized_avro_schemas]:
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--location", default="", help="File path for the backup file")
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)
@@ -239,6 +273,9 @@ def main() -> int:
         return 0
     if args.command == "restore":
         sb.restore_backup()
+        return 0
+    if args.command == "export-anonymized-avro-schemas":
+        sb.export_anonymized_avro_schemas()
         return 0
     return 1
 

@@ -4,283 +4,239 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from avro.schema import Schema as AvroSchema, SchemaParseException
-from enum import Enum, unique
-from json import JSONDecodeError
-from jsonschema import Draft7Validator
-from jsonschema.exceptions import SchemaError
+from contextlib import closing, ExitStack
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
-from karapace.avro_compatibility import parse_avro_schema_definition
-from karapace.protobuf.exception import (
-    Error as ProtobufError,
-    IllegalArgumentException,
-    IllegalStateException,
-    ProtobufException,
-    ProtobufParserRuntimeException,
-    SchemaParseException as ProtobufSchemaParseException,
-)
-from karapace.protobuf.schema import ProtobufSchema
+from karapace.config import Config
+from karapace.master_coordinator import MasterCoordinator
+from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
-from karapace.utils import json_encode, KarapaceKafkaClient
-from queue import Queue
-from threading import Lock, Thread
-from typing import Dict, Optional
+from karapace.utils import KarapaceKafkaClient
+from threading import Event, Lock, Thread
+from typing import Any, Dict, Optional
 
-import json
 import logging
-import time
+import ujson
 
-log = logging.getLogger(__name__)
+Offset = int
+Subject = str
+Version = int
+Schema = Dict[str, Any]
+# Container type for a subject, with configuration settings and all the schemas
+SubjectData = Dict[str, Any]
+
+# The value `0` is a valid offset and it represents the first message produced
+# to a topic, therefore it can not be used.
+OFFSET_EMPTY = -1
+LOG = logging.getLogger(__name__)
+
+KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS = 2.0
+SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS = 5.0
 
 
-def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
-    """Parses and validates `schema_definition`.
+def _create_consumer_from_config(config: Config) -> KafkaConsumer:
+    # Group not set on purpose, all consumers read the same data
+    session_timeout_ms = config["session_timeout_ms"]
+    request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
+    return KafkaConsumer(
+        config["topic_name"],
+        enable_auto_commit=False,
+        api_version=(1, 0, 0),
+        bootstrap_servers=config["bootstrap_uri"],
+        client_id=config["client_id"],
+        security_protocol=config["security_protocol"],
+        ssl_cafile=config["ssl_cafile"],
+        ssl_certfile=config["ssl_certfile"],
+        ssl_keyfile=config["ssl_keyfile"],
+        sasl_mechanism=config["sasl_mechanism"],
+        sasl_plain_username=config["sasl_plain_username"],
+        sasl_plain_password=config["sasl_plain_password"],
+        auto_offset_reset="earliest",
+        session_timeout_ms=session_timeout_ms,
+        request_timeout_ms=request_timeout_ms,
+        kafka_client=KarapaceKafkaClient,
+        metadata_max_age_ms=config["metadata_max_age_ms"],
+    )
 
-    Raises:
-        SchemaError: If `schema_definition` is not a valid Draft7 schema.
+
+def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
+    return KafkaAdminClient(
+        api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
+        bootstrap_servers=config["bootstrap_uri"],
+        client_id=config["client_id"],
+        security_protocol=config["security_protocol"],
+        ssl_cafile=config["ssl_cafile"],
+        ssl_certfile=config["ssl_certfile"],
+        ssl_keyfile=config["ssl_keyfile"],
+        sasl_mechanism=config["sasl_mechanism"],
+        sasl_plain_username=config["sasl_plain_username"],
+        sasl_plain_password=config["sasl_plain_password"],
+    )
+
+
+def new_schema_topic_from_config(config: Config) -> NewTopic:
+    return NewTopic(
+        name=config["topic_name"],
+        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+        replication_factor=config["replication_factor"],
+        topic_configs={"cleanup.policy": "compact"},
+    )
+
+
+class OffsetsWatcher:
+    """Synchronization container for threads to wait until an offset is seen.
+
+    This works under the assumption offsets are used only once, which should be
+    correct as long as no unclean leader election is performed.
     """
-    schema = json.loads(schema_definition)
-    Draft7Validator.check_schema(schema)
-    return Draft7Validator(schema)
 
+    def __init__(self) -> None:
+        # Lock used to protected _events, any modifications to that object must
+        # be performed with this lock acquired
+        self._events_lock = Lock()
+        self._events: Dict[Offset, Event] = dict()
 
-def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
-    """Parses and validates `schema_definition`.
+    def offset_seen(self, new_offset: int) -> None:
+        with self._events_lock:
+            # Note: The reader thread could be already waiting on the offset,
+            # in that case the existing object must be used, otherwise a new
+            # one is created.
+            event = self._events.setdefault(new_offset, Event())
+            event.set()
 
-    Raises:
-        Nothing yet.
+    def wait_for_offset(self, expected_offset: int, timeout: float) -> bool:
+        """Block until expected_offset is seen.
 
-    """
+        Args:
+            expected_offset: The message offset generated by the producer.
+            timeout: How long the caller will wait for the offset in seconds.
+        """
+        with self._events_lock:
+            # Note: The writer thread could be already seen the offset, in that
+            # case the existing object must be used, otherwise a new one is
+            # created.
+            event = self._events.setdefault(expected_offset, Event())
 
-    return ProtobufSchema(schema_definition)
+        result = event.wait(timeout=timeout)
 
+        with self._events_lock:
+            del self._events[expected_offset]
 
-class InvalidSchema(Exception):
-    pass
-
-
-@unique
-class SchemaType(str, Enum):
-    AVRO = "AVRO"
-    JSONSCHEMA = "JSON"
-    PROTOBUF = "PROTOBUF"
-
-
-class TypedSchema:
-    def __init__(self, schema, schema_type: SchemaType, schema_str: str):
-        self.schema_type = schema_type
-        self.schema = schema
-        self.schema_str = schema_str
-
-    @staticmethod
-    def parse_json(schema_str: str):
-        try:
-            return TypedSchema(parse_jsonschema_definition(schema_str), SchemaType.JSONSCHEMA, schema_str)
-        # TypeError - Raised when the user forgets to encode the schema as a string.
-        except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
-            raise InvalidSchema from e
-
-    @staticmethod
-    def parse_avro(schema_str: str):
-        try:
-            ts = TypedSchema(parse_avro_schema_definition(schema_str), SchemaType.AVRO, schema_str)
-            return ts
-        except (SchemaParseException, JSONDecodeError, TypeError) as e:
-            raise InvalidSchema from e
-
-    @staticmethod
-    def parse_protobuf(schema_str: str) -> Optional["TypedSchema"]:
-        try:
-            ts = TypedSchema(parse_protobuf_schema_definition(schema_str), SchemaType.PROTOBUF, schema_str)
-            return ts
-        except (
-            TypeError,
-            SchemaError,
-            AssertionError,
-            ProtobufParserRuntimeException,
-            IllegalStateException,
-            IllegalArgumentException,
-            ProtobufError,
-            ProtobufException,
-            ProtobufSchemaParseException,
-        ) as e:
-            log.exception("Unexpected error: %s \n schema:[%s]", e, schema_str)
-            raise InvalidSchema from e
-
-    @staticmethod
-    def parse(schema_type: SchemaType, schema_str: str):  # pylint: disable=inconsistent-return-statements
-        if schema_type is SchemaType.AVRO:
-            return TypedSchema.parse_avro(schema_str)
-        if schema_type is SchemaType.JSONSCHEMA:
-            return TypedSchema.parse_json(schema_str)
-        if schema_type is SchemaType.PROTOBUF:
-            return TypedSchema.parse_protobuf(schema_str)
-        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
-
-    def to_json(self):
-        if isinstance(self.schema, Draft7Validator):
-            return self.schema.schema
-        if isinstance(self.schema, AvroSchema):
-            return self.schema.to_json(names=None)
-        if isinstance(self.schema, ProtobufSchema):
-            raise InvalidSchema("Protobuf do not support to_json serialization")
-        return self.schema
-
-    def __str__(self) -> str:
-        if isinstance(self.schema, ProtobufSchema):
-            return str(self.schema)
-        return json_encode(self.to_json(), compact=True)
-
-    def __repr__(self):
-        if isinstance(self.schema, ProtobufSchema):
-            return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
-        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_json())})"
-
-    def __eq__(self, other):
-        return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type
+        return result
 
 
 class KafkaSchemaReader(Thread):
-    def __init__(self, config, master_coordinator=None):
-        Thread.__init__(self)
+    def __init__(
+        self,
+        config: Config,
+        master_coordinator: Optional[MasterCoordinator] = None,
+    ) -> None:
+        Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
-        self.log = logging.getLogger("KafkaSchemaReader")
         self.timeout_ms = 200
         self.config = config
-        self.subjects = {}
+        self.subjects: Dict[Subject, SubjectData] = {}
         self.schemas: Dict[int, TypedSchema] = {}
         self.global_schema_id = 0
-        self.offset = 0
-        self.admin_client = None
-        self.schema_topic = None
+        self.admin_client: Optional[KafkaAdminClient] = None
         self.topic_replication_factor = self.config["replication_factor"]
-        self.consumer = None
-        self.queue = Queue()
-        self.ready = False
-        self.running = True
+        self.consumer: Optional[KafkaConsumer] = None
+        self.offset_watcher = OffsetsWatcher()
         self.id_lock = Lock()
-        sentry_config = config.get("sentry", {"dsn": None}).copy()
-        if "tags" not in sentry_config:
-            sentry_config["tags"] = {}
-        self.stats = StatsClient(sentry_config=sentry_config)
-
-    def init_consumer(self):
-        # Group not set on purpose, all consumers read the same data
-        session_timeout_ms = self.config["session_timeout_ms"]
-        request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
-        self.consumer = KafkaConsumer(
-            self.config["topic_name"],
-            enable_auto_commit=False,
-            api_version=(1, 0, 0),
-            bootstrap_servers=self.config["bootstrap_uri"],
-            client_id=self.config["client_id"],
-            security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            sasl_mechanism=self.config["sasl_mechanism"],
-            sasl_plain_username=self.config["sasl_plain_username"],
-            sasl_plain_password=self.config["sasl_plain_password"],
-            auto_offset_reset="earliest",
-            session_timeout_ms=session_timeout_ms,
-            request_timeout_ms=request_timeout_ms,
-            kafka_client=KarapaceKafkaClient,
-            metadata_max_age_ms=self.config["metadata_max_age_ms"],
+        self.stats = StatsClient(
+            sentry_config=config["sentry"],  # type: ignore[arg-type]
         )
 
-    def init_admin_client(self):
-        try:
-            self.admin_client = KafkaAdminClient(
-                api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
-                bootstrap_servers=self.config["bootstrap_uri"],
-                client_id=self.config["client_id"],
-                security_protocol=self.config["security_protocol"],
-                ssl_cafile=self.config["ssl_cafile"],
-                ssl_certfile=self.config["ssl_certfile"],
-                ssl_keyfile=self.config["ssl_keyfile"],
-                sasl_mechanism=self.config["sasl_mechanism"],
-                sasl_plain_username=self.config["sasl_plain_username"],
-                sasl_plain_password=self.config["sasl_plain_password"],
-            )
-            return True
-        except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
-            self.log.warning("No Brokers available yet, retrying init_admin_client()")
-            time.sleep(2.0)
-        except:  # pylint: disable=bare-except
-            self.log.exception("Failed to initialize admin client, retrying init_admin_client()")
-            time.sleep(2.0)
-        return False
+        # Thread synchronization objects
+        # - offset is used by the REST API to wait until this thread has
+        # consumed the produced messages. This makes the REST APIs more
+        # consistent (e.g. a request to a schema that was just produced will
+        # return the correct data.)
+        # - ready is used by the REST API to wait until this thread has
+        # synchronized with data in the schema topic. This prevents the server
+        # from returning stale data (e.g. a schemas has been soft deleted, but
+        # the topic has not been compacted yet, waiting allows this to consume
+        # the soft delete message and return the correct data instead of the
+        # old stale version that has not been deleted yet.)
+        self.offset = OFFSET_EMPTY
+        self.ready = False
 
-    @staticmethod
-    def get_new_schema_topic(config):
-        return NewTopic(
-            name=config["topic_name"],
-            num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-            replication_factor=config["replication_factor"],
-            topic_configs={"cleanup.policy": "compact"},
-        )
+        # This event controls when the Reader should stop running, it will be
+        # set by another thread (e.g. `KarapaceSchemaRegistry`)
+        self._stop = Event()
 
-    def create_schema_topic(self):
-        schema_topic = self.get_new_schema_topic(self.config)
-        try:
-            self.log.info("Creating topic: %r", schema_topic)
-            self.admin_client.create_topics([schema_topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-            self.log.info("Topic: %r created successfully", self.config["topic_name"])
-            self.schema_topic = schema_topic
-            return True
-        except TopicAlreadyExistsError:
-            self.log.warning("Topic: %r already exists", self.config["topic_name"])
-            self.schema_topic = schema_topic
-            return True
-        except:  # pylint: disable=bare-except
-            self.log.exception("Failed to create topic: %r, retrying create_schema_topic()", self.config["topic_name"])
-            time.sleep(5)
-        return False
-
-    def get_schema_id(self, new_schema):
+    def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
-            schemas = self.schemas.items()
-        for schema_id, schema in schemas:
-            if schema == new_schema:
-                return schema_id
-        with self.id_lock:
+            for schema_id, schema in self.schemas.items():
+                if schema == new_schema:
+                    return schema_id
             self.global_schema_id += 1
             return self.global_schema_id
 
-    def close(self):
-        self.log.info("Closing schema_reader")
-        self.running = False
+    def close(self) -> None:
+        LOG.info("Closing schema_reader")
+        self._stop.set()
 
-    def run(self):
-        while self.running:
-            try:
-                if not self.admin_client:
-                    if self.init_admin_client() is False:
-                        continue
-                if not self.schema_topic:
-                    if self.create_schema_topic() is False:
-                        continue
-                if not self.consumer:
-                    self.init_consumer()
-                self.handle_messages()
-            except Exception as e:  # pylint: disable=broad-except
-                if self.stats:
+    def run(self) -> None:
+        with ExitStack() as stack:
+            while not self._stop.is_set() and self.admin_client is None:
+                try:
+                    self.admin_client = _create_admin_client_from_config(self.config)
+                    stack.enter_context(closing(self.admin_client))
+                except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                    LOG.warning("[Admin Client] No Brokers available yet. Retrying")
+                    self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
+                except KafkaConfigurationError:
+                    LOG.exception("[Admin Client] Invalid configuration. Bailing")
+                    raise
+                except Exception as e:  # pylint: disable=broad-except
+                    LOG.exception("[Admin Client] Unexpected exception. Retrying")
+                    self.stats.unexpected_exception(ex=e, where="admin_client_instantiation")
+                    self._stop.wait(timeout=2.0)
+
+            while not self._stop.is_set() and self.consumer is None:
+                try:
+                    self.consumer = _create_consumer_from_config(self.config)
+                    stack.enter_context(closing(self.consumer))
+                except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
+                    LOG.warning("[Consumer] No Brokers available yet. Retrying")
+                    self._stop.wait(timeout=2.0)
+                except KafkaConfigurationError:
+                    LOG.exception("[Consumer] Invalid configuration. Bailing")
+                    raise
+                except Exception as e:  # pylint: disable=broad-except
+                    LOG.exception("[Consumer] Unexpected exception. Retrying")
+                    self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
+                    self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
+
+            schema_topic_exists = False
+            schema_topic = new_schema_topic_from_config(self.config)
+            schema_topic_create = [schema_topic]
+            while not self._stop.is_set() and not schema_topic_exists:
+                try:
+                    LOG.info("[Schema Topic] Creating %r", schema_topic)
+                    self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
+                    LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
+                    schema_topic_exists = True
+                except TopicAlreadyExistsError:
+                    LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
+                    schema_topic_exists = True
+                except:  # pylint: disable=bare-except
+                    LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
+                    self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
+
+            while not self._stop.is_set():
+                try:
+                    self.handle_messages()
+                except Exception as e:  # pylint: disable=broad-except
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
-                self.log.exception("Unexpected exception in schema reader loop")
-        try:
-            if self.admin_client:
-                self.admin_client.close()
-            if self.consumer:
-                self.consumer.close()
-        except Exception as e:  # pylint: disable=broad-except
-            if self.stats:
-                self.stats.unexpected_exception(ex=e, where="schema_reader_exit")
-            self.log.exception("Unexpected exception closing schema reader")
+                    LOG.exception("Unexpected exception in schema reader loop")
 
-    def handle_messages(self):
+    def handle_messages(self) -> None:
+        assert self.consumer is not None, "Thread must be started"
+
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False and not raw_msgs:
             self.ready = True
@@ -297,125 +253,144 @@ class KafkaSchemaReader(Thread):
         for _, msgs in raw_msgs.items():
             for msg in msgs:
                 try:
-                    key = json.loads(msg.key.decode("utf8"))
-                except json.JSONDecodeError:
-                    self.log.exception("Invalid JSON in msg.key: %r, value: %r", msg.key, msg.value)
+                    key = ujson.loads(msg.key.decode("utf8"))
+                except ValueError:
+                    LOG.exception("Invalid JSON in msg.key")
                     continue
 
                 value = None
                 if msg.value:
                     try:
-                        value = json.loads(msg.value.decode("utf8"))
-                    except json.JSONDecodeError:
-                        self.log.exception("Invalid JSON in msg.value: %r, key: %r", msg.value, msg.key)
+                        value = ujson.loads(msg.value.decode("utf8"))
+                    except ValueError:
+                        LOG.exception("Invalid JSON in msg.value")
                         continue
 
-                self.log.info("Read new record: key: %r, value: %r, offset: %r", key, value, msg.offset)
                 self.handle_msg(key, value)
                 self.offset = msg.offset
-                self.log.info("Handled message, current offset: %r", self.offset)
                 if self.ready and add_offsets:
-                    self.queue.put(self.offset)
+                    self.offset_watcher.offset_seen(self.offset)
 
-    def handle_msg(self, key: dict, value: dict):
-        if key["keytype"] == "CONFIG":
-            if "subject" in key and key["subject"] is not None:
-                if not value:
-                    self.log.info("Deleting compatibility config completely for subject: %r", key["subject"])
-                    self.subjects[key["subject"]].pop("compatibility", None)
-                    return
-                self.log.info(
-                    "Setting subject: %r config to: %r, value: %r", key["subject"], value["compatibilityLevel"], value
-                )
-                if not key["subject"] in self.subjects:
-                    self.log.info("Adding first version of subject: %r with no schemas", key["subject"])
-                    self.subjects[key["subject"]] = {"schemas": {}}
-                subject_data = self.subjects.get(key["subject"])
-                subject_data["compatibility"] = value["compatibilityLevel"]
-            else:
-                self.log.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
-                self.config["compatibility"] = value["compatibilityLevel"]
-        elif key["keytype"] == "SCHEMA":
-            if not value:
-                subject, version = key["subject"], key["version"]
-                self.log.info("Deleting subject: %r version: %r completely", subject, version)
-                if subject not in self.subjects:
-                    self.log.error("Subject %s did not exist, should have", subject)
-                elif version not in self.subjects[subject]["schemas"]:
-                    self.log.error("Version %d for subject %s did not exist, should have", version, subject)
-                else:
-                    self.subjects[subject]["schemas"].pop(version, None)
-                return
-            schema_type = value.get("schemaType", "AVRO")
-            schema_str = value["schema"]
-            try:
-                typed_schema = TypedSchema.parse(schema_type=SchemaType(schema_type), schema_str=schema_str)
-            except InvalidSchema:
-                try:
-                    schema_json = json.loads(schema_str)
-                    typed_schema = TypedSchema(
-                        schema_type=SchemaType(schema_type), schema=schema_json, schema_str=schema_str
-                    )
-                except JSONDecodeError:
-                    self.log.error("Invalid json: %s", value["schema"])
-                    return
-            self.log.debug("Got typed schema %r", typed_schema)
-            subject = value["subject"]
+    def _handle_msg_config(self, key: dict, value: Optional[dict]) -> None:
+        subject = key.get("subject")
+        if subject is not None:
             if subject not in self.subjects:
-                self.log.info("Adding first version of subject: %r, value: %r", subject, value)
-                self.subjects[subject] = {
-                    "schemas": {
-                        value["version"]: {
-                            "schema": typed_schema,
-                            "version": value["version"],
-                            "id": value["id"],
-                            "deleted": value.get("deleted", False),
-                        }
-                    }
-                }
-                self.log.info("Setting schema_id: %r with schema: %r", value["id"], typed_schema)
-                self.schemas[value["id"]] = typed_schema
-                if value["id"] > self.global_schema_id:  # Not an existing schema
-                    self.global_schema_id = value["id"]
-            elif value.get("deleted", False) is True:
-                self.log.info("Deleting subject: %r, version: %r", subject, value["version"])
-                if not value["version"] in self.subjects[subject]["schemas"]:
-                    self.schemas[value["id"]] = typed_schema
-                else:
-                    self.subjects[subject]["schemas"][value["version"]]["deleted"] = True
-            elif value.get("deleted", False) is False:
-                self.log.info("Adding new version of subject: %r, value: %r", subject, value)
-                self.subjects[subject]["schemas"][value["version"]] = {
-                    "schema": typed_schema,
-                    "version": value["version"],
-                    "id": value["id"],
-                    "deleted": value.get("deleted", False),
-                }
-                self.log.info("Setting schema_id: %r with schema: %r", value["id"], value["schema"])
-                with self.id_lock:
-                    self.schemas[value["id"]] = typed_schema
-                if value["id"] > self.global_schema_id:  # Not an existing schema
-                    self.global_schema_id = value["id"]
-        elif key["keytype"] == "DELETE_SUBJECT":
-            self.log.info("Deleting subject: %r, value: %r", value["subject"], value)
-            if not value["subject"] in self.subjects:
-                self.log.error("Subject: %r did not exist, should have", value["subject"])
+                LOG.info("Adding first version of subject: %r with no schemas", subject)
+                self.subjects[subject] = {"schemas": {}}
+
+            if not value:
+                LOG.info("Deleting compatibility config completely for subject: %r", subject)
+                self.subjects[subject].pop("compatibility", None)
             else:
-                updated_schemas = {
-                    key: self._delete_schema_below_version(schema, value["version"])
-                    for key, schema in self.subjects[value["subject"]]["schemas"].items()
-                }
-                self.subjects[value["subject"]]["schemas"] = updated_schemas
+                LOG.info("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
+                self.subjects[subject]["compatibility"] = value["compatibilityLevel"]
+        elif value is not None:
+            LOG.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
+            self.config["compatibility"] = value["compatibilityLevel"]
+
+    def _handle_msg_delete_subject(self, key: dict, value: Optional[dict]) -> None:  # pylint: disable=unused-argument
+        if value is None:
+            LOG.error("DELETE_SUBJECT record doesnt have a value, should have")
+            return
+
+        subject = value["subject"]
+        if subject not in self.subjects:
+            LOG.error("Subject: %r did not exist, should have", subject)
+        else:
+            LOG.info("Deleting subject: %r, value: %r", subject, value)
+            updated_schemas = {
+                key: self._delete_schema_below_version(schema, value["version"])
+                for key, schema in self.subjects[subject]["schemas"].items()
+            }
+            self.subjects[value["subject"]]["schemas"] = updated_schemas
+
+    def _handle_msg_schema_hard_delete(self, key: dict) -> None:
+        subject, version = key["subject"], key["version"]
+
+        if subject not in self.subjects:
+            LOG.error("Hard delete: Subject %s did not exist, should have", subject)
+        elif version not in self.subjects[subject]["schemas"]:
+            LOG.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
+        else:
+            LOG.info("Hard delete: subject: %r version: %r", subject, version)
+            self.subjects[subject]["schemas"].pop(version, None)
+
+    def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
+        if not value:
+            self._handle_msg_schema_hard_delete(key)
+            return
+
+        schema_type = value.get("schemaType", "AVRO")
+        schema_str = value["schema"]
+        schema_subject = value["subject"]
+        schema_id = value["id"]
+        schema_version = value["version"]
+        schema_deleted = value.get("deleted", False)
+
+        try:
+            schema_type_parsed = SchemaType(schema_type)
+        except ValueError:
+            LOG.error("Invalid schema type: %s", schema_type)
+            return
+
+        # Protobuf doesn't use JSON
+        if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
+            try:
+                ujson.loads(schema_str)
+            except ValueError:
+                LOG.error("Schema is not invalid JSON")
+                return
+
+        if schema_subject not in self.subjects:
+            LOG.info("Adding first version of subject: %r with no schemas", schema_subject)
+            self.subjects[schema_subject] = {"schemas": {}}
+
+        subjects_schemas = self.subjects[schema_subject]["schemas"]
+
+        typed_schema = TypedSchema(
+            schema_type=schema_type_parsed,
+            schema_str=schema_str,
+        )
+        schema = {
+            "schema": typed_schema,
+            "version": schema_version,
+            "id": schema_id,
+            "deleted": schema_deleted,
+        }
+
+        if schema_version in subjects_schemas:
+            LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+        else:
+            LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+
+        subjects_schemas[schema_version] = schema
+
+        with self.id_lock:
+            self.schemas[schema_id] = typed_schema
+            self.global_schema_id = max(self.global_schema_id, schema_id)
+
+    def handle_msg(self, key: dict, value: Optional[dict]) -> None:
+        if key["keytype"] == "CONFIG":
+            self._handle_msg_config(key, value)
+        elif key["keytype"] == "SCHEMA":
+            self._handle_msg_schema(key, value)
+        elif key["keytype"] == "DELETE_SUBJECT":
+            self._handle_msg_delete_subject(key, value)
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
 
     @staticmethod
-    def _delete_schema_below_version(schema, version):
+    def _delete_schema_below_version(schema: Schema, version: Version) -> Schema:
         if schema["version"] <= version:
             schema["deleted"] = True
         return schema
 
-    def get_schemas(self, subject, *, include_deleted=False):
+    def get_schemas(
+        self,
+        subject: Subject,
+        *,
+        include_deleted: bool = False,
+    ) -> Dict:
         if include_deleted:
             return self.subjects[subject]["schemas"]
         non_deleted_schemas = {

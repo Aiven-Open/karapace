@@ -10,6 +10,9 @@ from tests.utils import (
     wait_for_topics,
 )
 
+import asyncio
+import json
+
 NEW_TOPIC_TIMEOUT = 10
 
 
@@ -129,12 +132,12 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
             # unknown schema id
             unknown_payload = {f"{pl_type}_schema_id": 666, "records": [{pl_type: o} for o in second_obj]}
             res = await rest_async_client.post(url, json=unknown_payload, headers=header)
-            assert res.status == 408
+            assert res.status_code == 408
             # mismatched schema
             # TODO -> maybe this test is useless, since it tests registry behavior
             # mismatch_payload = {f"{pl_type}_schema_id": new_schema_id,"records": [{pl_type: o} for o in test_objects]}
             # res = await rest_client.post(url, json=mismatch_payload, headers=header)
-            # assert res.status == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
+            # assert res.status_code == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
 
 async def test_admin_client(admin_client, producer):
@@ -217,6 +220,25 @@ async def test_topics(rest_async_client, admin_client):
     assert res.json()["error_code"] == 40403, "Error code does not match"
 
 
+async def test_list_topics(rest_async_client, admin_client):
+    tn1 = new_topic(admin_client)
+    tn2 = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn1, tn2], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    # Wait until cluster_metadata cache expires
+    await asyncio.sleep(3)
+
+    res = await rest_async_client.get(f"/topics/{tn1}")
+    assert res.ok, "Status code is not 200: %r" % res.status_code
+    data = res.json()
+    assert data["name"] == tn1, f"Topic name should be {tn1} and is {data['name']}"
+
+    topic_list_res = await rest_async_client.get("/topics")
+    assert topic_list_res.ok, "Listing topics succeeded instead of %r" % res.status_code
+    topic_list = topic_list_res.json()
+    assert tn1 in topic_list and tn2 in topic_list, f"Topic list contains all topics tn1={tn1} and tn2={tn2}"
+
+
 async def test_publish(rest_async_client, admin_client):
     topic = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
@@ -242,19 +264,64 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         # Malformed schema ++ empty records
         for js in [{"records": []}, {"foo": "bar"}, {"records": [{"valur": {"foo": "bar"}}]}]:
             res = await rest_async_client.post(url, json=js, headers=REST_HEADERS["json"])
-            assert res.status == 422
+            assert res.status_code == 422
         res = await rest_async_client.post(url, json={"records": [{"value": {"foo": "bar"}}]}, headers=REST_HEADERS["avro"])
         res_json = res.json()
-        assert res.status == 422
+        assert res.status_code == 422
         assert res_json["error_code"] == 42202
         res = await rest_async_client.post(url, json={"records": [{"key": {"foo": "bar"}}]}, headers=REST_HEADERS["avro"])
         res_json = res.json()
-        assert res.status == 422
+        assert res.status_code == 422
         assert res_json["error_code"] == 42201
         res = await rest_async_client.post(url, json={"records": [{"value": "not base64"}]}, headers=REST_HEADERS["binary"])
         res_json = res.json()
-        assert res.status == 422
+        assert res.status_code == 422
         assert res_json["error_code"] == 42205
+
+
+async def test_publish_incompatible_schema(rest_async_client, admin_client):
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    url = f"/topics/{topic_name}"
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+    schema_2 = {
+        "type": "record",
+        "name": "Schema2",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Foobar"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema": json.dumps(schema_2), "records": [{"value": {"name2": "Foobar"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 408
+    res_json = res.json()
+    assert res_json["error_code"] == 40801
+    assert "message" in res_json
+    assert "Error when registering schema" in res_json["message"]
 
 
 async def test_brokers(rest_async_client):
