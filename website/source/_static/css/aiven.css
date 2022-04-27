@@ -1,0 +1,38 @@
+.top-menu {
+    display: flex;
+    flex-direction: row;
+}
+
+.actions {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    font-size: 35px;
+    justify-content: flex-end;
+}
+
+
+/*@media (prefers-color-scheme: dark) {*/
+/*  .logo-container {*/
+/*    height: 70px;*/
+/*    width: 80%;*/
+/*    margin: 24px auto 10px;*/
+/*    padding-top: 5px;*/
+/*    background-image: url('../images/karapace-dark-mode.svg') !important;*/
+/*    background-position: center;*/
+/*    background-repeat: no-repeat;*/
+/*    background-size: 150px;*/
+/*  }*/
+
+/*}*/
+
+/*.logo-container {*/
+/*  height: 70px;*/
+/*  width: 80%;*/
+/*  margin: 24px auto 10px;*/
+/*  padding-top: 5px;*/
+/*  background-image: url('../images/karapace-light-mode.svg') !important;*/
+/*  background-position: center;*/
+/*  background-repeat: no-repeat;*/
+/*  background-size: 150px;*/
+/*}*/
