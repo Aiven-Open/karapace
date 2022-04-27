@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quickstart examples &#8212; Karapace  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="About Karapace" href="about.html" />
+    <link rel="prev" title="Install Karapace" href="install.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="quickstart-examples">
+<h1>Quickstart examples<a class="headerlink" href="#quickstart-examples" title="Permalink to this headline">¶</a></h1>
+<p>To register the first version of a schema under the subject “test” using Avro schema:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X POST -H &quot;Content-Type: application/vnd.schemaregistry.v1+json&quot; \
+  --data &#39;{&quot;schema&quot;: &quot;{\&quot;type\&quot;: \&quot;record\&quot;, \&quot;name\&quot;: \&quot;Obj\&quot;, \&quot;fields\&quot;:[{\&quot;name\&quot;: \&quot;age\&quot;, \&quot;type\&quot;: \&quot;int\&quot;}]}&quot;}&#39; \
+  http://localhost:8081/subjects/test-key/versions
+{&quot;id&quot;:1}
+</pre></div>
+</div>
+<p>To register a version of a schema using JSON Schema, one needs to use <cite>schemaType</cite> property:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X POST -H &quot;Content-Type: application/vnd.schemaregistry.v1+json&quot; \
+  --data &#39;{&quot;schemaType&quot;: &quot;JSON&quot;, &quot;schema&quot;: &quot;{\&quot;type\&quot;: \&quot;object\&quot;,\&quot;properties\&quot;:{\&quot;age\&quot;:{\&quot;type\&quot;: \&quot;number\&quot;}},\&quot;additionalProperties\&quot;:true}&quot;}&#39; \
+  http://localhost:8081/subjects/test-key-json-schema/versions
+{&quot;id&quot;:2}
+</pre></div>
+</div>
+<p>To list all subjects (including the one created just above):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET http://localhost:8081/subjects
+[&quot;test-key&quot;]
+</pre></div>
+</div>
+<p>To list all the versions of a given schema (including the one just created above):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET http://localhost:8081/subjects/test-key/versions
+[1]
+</pre></div>
+</div>
+<p>To fetch back the schema whose global id is 1 (i.e. the one registered above):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET http://localhost:8081/schemas/ids/1
+{&quot;schema&quot;:&quot;{\&quot;fields\&quot;:[{\&quot;name\&quot;:\&quot;age\&quot;,\&quot;type\&quot;:\&quot;int\&quot;}],\&quot;name\&quot;:\&quot;Obj\&quot;,\&quot;type\&quot;:\&quot;record\&quot;}&quot;}
+</pre></div>
+</div>
+<p>To get the specific version 1 of the schema just registered run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET http://localhost:8081/subjects/test-key/versions/1
+{&quot;subject&quot;:&quot;test-key&quot;,&quot;version&quot;:1,&quot;id&quot;:1,&quot;schema&quot;:&quot;{\&quot;fields\&quot;:[{\&quot;name\&quot;:\&quot;age\&quot;,\&quot;type\&quot;:\&quot;int\&quot;}],\&quot;name\&quot;:\&quot;Obj\&quot;,\&quot;type\&quot;:\&quot;record\&quot;}&quot;}
+</pre></div>
+</div>
+<p>To get the latest version of the schema under subject test-key run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET http://localhost:8081/subjects/test-key/versions/latest
+{&quot;subject&quot;:&quot;test-key&quot;,&quot;version&quot;:1,&quot;id&quot;:1,&quot;schema&quot;:&quot;{\&quot;fields\&quot;:[{\&quot;name\&quot;:\&quot;age\&quot;,\&quot;type\&quot;:\&quot;int\&quot;}],\&quot;name\&quot;:\&quot;Obj\&quot;,\&quot;type\&quot;:\&quot;record\&quot;}&quot;}
+</pre></div>
+</div>
+<p>In order to delete version 10 of the schema registered under subject “test-key” (if it exists):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X DELETE http://localhost:8081/subjects/test-key/versions/10
+ 10
+</pre></div>
+</div>
+<p>To Delete all versions of the schema registered under subject “test-key”:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X DELETE http://localhost:8081/subjects/test-key
+[1]
+</pre></div>
+</div>
+<p>Test the compatibility of a schema with the latest schema under subject “test-key”:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X POST -H &quot;Content-Type: application/vnd.schemaregistry.v1+json&quot; \
+  --data &#39;{&quot;schema&quot;: &quot;{\&quot;type\&quot;: \&quot;int\&quot;}&quot;}&#39; \
+  http://localhost:8081/compatibility/subjects/test-key/versions/latest
+{&quot;is_compatible&quot;:true}
+</pre></div>
+</div>
+<p>Get current global backwards compatibility setting value:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET http://localhost:8081/config
+{&quot;compatibilityLevel&quot;:&quot;BACKWARD&quot;}
+</pre></div>
+</div>
+<p>Change compatibility requirements for all subjects where it’s not
+specifically defined otherwise:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X PUT -H &quot;Content-Type: application/vnd.schemaregistry.v1+json&quot; \
+  --data &#39;{&quot;compatibility&quot;: &quot;NONE&quot;}&#39; http://localhost:8081/config
+{&quot;compatibility&quot;:&quot;NONE&quot;}
+</pre></div>
+</div>
+<p>Change compatibility requirement to FULL for the test-key subject:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X PUT -H &quot;Content-Type: application/vnd.schemaregistry.v1+json&quot; \
+  --data &#39;{&quot;compatibility&quot;: &quot;FULL&quot;}&#39; http://localhost:8081/config/test-key
+{&quot;compatibility&quot;:&quot;FULL&quot;}
+</pre></div>
+</div>
+<p>List topics:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl &quot;http://localhost:8082/topics&quot;
+</pre></div>
+</div>
+<p>Get info for one particular topic:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl &quot;http://localhost:8082/topics/my_topic&quot;
+</pre></div>
+</div>
+<p>Produce a message backed up by schema registry:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -H &quot;Content-Type: application/vnd.kafka.avro.v2+json&quot; -X POST -d \
+  &#39;{&quot;value_schema&quot;: &quot;{\&quot;namespace\&quot;: \&quot;example.avro\&quot;, \&quot;type\&quot;: \&quot;record\&quot;, \&quot;name\&quot;: \&quot;simple\&quot;, \&quot;fields\&quot;: \
+  [{\&quot;name\&quot;: \&quot;name\&quot;, \&quot;type\&quot;: \&quot;string\&quot;}]}&quot;, &quot;records&quot;: [{&quot;value&quot;: {&quot;name&quot;: &quot;name0&quot;}}]}&#39; http://localhost:8082/topics/my_topic
+</pre></div>
+</div>
+<p>Create a consumer:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X POST -H &quot;Content-Type: application/vnd.kafka.v2+json&quot; -H &quot;Accept: application/vnd.kafka.v2+json&quot; \
+  --data &#39;{&quot;name&quot;: &quot;my_consumer&quot;, &quot;format&quot;: &quot;avro&quot;, &quot;auto.offset.reset&quot;: &quot;earliest&quot;}&#39; \
+  http://localhost:8082/consumers/avro_consumers
+</pre></div>
+</div>
+<p>Subscribe to the topic we previously published to:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X POST -H &quot;Content-Type: application/vnd.kafka.v2+json&quot; --data &#39;{&quot;topics&quot;:[&quot;my_topic&quot;]}&#39; \
+  http://localhost:8082/consumers/avro_consumers/instances/my_consumer/subscription
+</pre></div>
+</div>
+<p>Consume previously published message:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X GET -H &quot;Accept: application/vnd.kafka.avro.v2+json&quot; \
+  http://localhost:8082/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
+</pre></div>
+</div>
+<p>Commit offsets for a particular topic partition:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X POST -H &quot;Content-Type: application/vnd.kafka.v2+json&quot; --data &#39;{}&#39; \
+  http://localhost:8082/consumers/avro_consumers/instances/my_consumer/offsets
+</pre></div>
+</div>
+<p>Delete consumer:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ curl -X DELETE -H &quot;Accept: application/vnd.kafka.v2+json&quot; \
+  http://localhost:8082/consumers/avro_consumers/instances/my_consumer
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Karapace</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Install Karapace</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about.html">About Karapace</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="install.html" title="previous chapter">Install Karapace</a></li>
+      <li>Next: <a href="about.html" title="next chapter">About Karapace</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2022, Aiven.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.3.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/quickstart.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

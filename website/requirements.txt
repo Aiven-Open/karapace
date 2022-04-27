@@ -1,0 +1,5 @@
+furo==2021.11.23
+sphinx==4.3.2
+sphinx-autobuild==2021.3.14
+sphinx-external-toc==0.2.3
+
