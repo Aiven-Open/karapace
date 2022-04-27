@@ -58,7 +58,6 @@ def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-a
     # Configuration options for the services started by the test suite
     parser.addoption(
         KAFKA_VERION_OPT,
-        default=KAFKA_VERSION,
         help=f"Kafka version used by the test suite. (Incompatible with {KAFKA_BOOTSTRAP_SERVERS_OPT})",
     )
     parser.addoption(
@@ -97,23 +96,13 @@ def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-a
 def fixture_validate_options(request) -> None:
     """This fixture only exists to validate the custom command line flags."""
     kafka_bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
-    log_dir = request.config.getoption("log_dir")
-    kafka_version = request.config.getoption("kafka_version")
     registry_url = request.config.getoption("registry_url")
     rest_url = request.config.getoption("rest_url")
     server_ca = request.config.getoption("server_ca")
 
     has_external_registry_or_rest = registry_url or rest_url
 
-    if not re.match(VERSION_REGEX, kafka_version):
-        msg = "Provided Kafka version has invalid format {kafka_version} should match {VERSION_REGEX}"
-        raise ValueError(msg)
-
-    if kafka_bootstrap_servers is not None and log_dir is not None:
-        msg = f"{KAFKA_BOOTSTRAP_SERVERS_OPT} and {LOG_DIR_OPT} are incompatible options, only provide one of the two"
-        raise ValueError(msg)
-
-    if kafka_bootstrap_servers is not None and kafka_version is not None:
+    if kafka_bootstrap_servers is None:
         msg = f"{KAFKA_BOOTSTRAP_SERVERS_OPT} and {KAFKA_VERION_OPT} are incompatible options, only provide one of the two"
         raise ValueError(msg)
 

@@ -1,0 +1,6 @@
+FROM python:buster
+
+WORKDIR /app
+COPY . /app
+
+RUN apt update && apt install -y protobuf-compiler && pip install -r requirements-dev.txt
