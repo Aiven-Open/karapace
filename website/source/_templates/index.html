@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block extrahead %} {{ super() }}
+<style>
+  body {
+    background: #f9f9ff; /* Force same background on dark theme. */
+  }
+</style>
+{% endblock %} {% block body %} {{ super() }} {% include "header.html" %}
+<main class="container max-w-6xl grow flex flex-col w-auto py-4">
+  <section class="grow md:mt-24">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+      <div class="flex flex-col gap-2 text-black">
+        <h1 class="text-4xl md:text-6xl font-medium font-['Ubuntu'] m-0 p-0">
+          Karapace
+        </h1>
+        <h2 class="text-xl md:text-4xl font-['Ubuntu'] m-0 p-0">
+          A free and Open Source tool
+        </h2>
+        <h3 class="text-sm md:text-2xl font-['Ubuntu'] m-0 p-0">
+          serving all your Apache Kafka® HTTP needs.
+        </h3>
+        <div class="hidden md:block mt-5">{% include 'hero-texts.html' %}</div>
+      </div>
+      <div>{% include 'hero.html' %}</div>
+    </div>
+  </section>
+  <section class="md:hidden text-black">
+    {% include 'hero-texts.html' %}
+  </section>
+</main>
+<footer class="hidden md:block bg-white text-black">
+  {% include 'footer.html' %}
+</footer>
+{% endblock %}

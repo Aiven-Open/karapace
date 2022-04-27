@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "tailwind:build": "tailwindcss -i source/_static/css/aiven.css -o source/_static/css/aiven.min.css --minify",
+    "tailwind:watch": "tailwindcss -i source/_static/css/aiven.css -o source/_static/css/aiven.min.css --watch --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.1.8"
+  }
+}

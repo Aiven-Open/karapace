@@ -1,0 +1,4 @@
+{% extends "!base.html" %} {%- block extrahead %} {{ super() }} <meta
+name="description" content="{{ body|striptags|replace("\u00B6",
+'')|truncate(160) }}"> {% endblock %} {% block body %} {{ super() }} {% endblock
+%}
