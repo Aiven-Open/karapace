@@ -34,7 +34,7 @@ def new_name() -> str:
 class ConsumerManager:
     def __init__(self, config: dict) -> None:
         self.config = config
-        self.protocol = "https" if self.config["advertised_protocol"] else "http"
+        self.protocol = self.config["advertised_protocol"]
         if self.config["advertised_port"] is None:
             self.hostname = f"{self.protocol}://{self.config['advertised_hostname']}:{self.config['port']}"
         else:

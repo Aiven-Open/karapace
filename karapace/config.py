@@ -25,7 +25,7 @@ DEFAULTS = {
     "access_log_class": None,
     "advertised_hostname": HOSTNAME,
     "advertised_port": None,
-    "advertised_protocol": False,
+    "advertised_protocol": "http",
     "bootstrap_uri": "127.0.0.1:9092",
     "client_id": "sr-1",
     "compatibility": "BACKWARD",
