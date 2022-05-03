@@ -34,7 +34,15 @@ def new_name() -> str:
 class ConsumerManager:
     def __init__(self, config: dict) -> None:
         self.config = config
-        self.hostname = f"http://{self.config['advertised_hostname']}:{self.config['port']}"
+        if self.config["advertised_port"] is None:
+            self.hostname = (
+                f"{self.config['advertised_protocol']}://{self.config['advertised_hostname']}:{self.config['port']}"
+            )
+        else:
+            self.hostname = (
+                f"{self.config['advertised_protocol']}://"
+                f"{self.config['advertised_hostname']}:{self.config['advertised_port']}"
+            )
         self.deserializer = SchemaRegistryDeserializer(config=config)
         self.consumers = {}
         self.consumer_locks = defaultdict(Lock)
