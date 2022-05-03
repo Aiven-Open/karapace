@@ -37,12 +37,12 @@ class ConsumerManager:
         if self.config["advertised_port"] is None:
             self.hostname = (
                 f"{self.config['advertised_protocol']}://{self.config['advertised_hostname']}:"
-                + f"{self.config['port']}"
+                f"{self.config['port']}"
             )
         else:
             self.hostname = (
                 f"{self.config['advertised_protocol']}://{self.config['advertised_hostname']}:"
-                + f"{self.config['advertised_port']}"
+                f"{self.config['advertised_port']}"
             )
         self.deserializer = SchemaRegistryDeserializer(config=config)
         self.consumers = {}
