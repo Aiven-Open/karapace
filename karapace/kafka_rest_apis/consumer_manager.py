@@ -36,8 +36,7 @@ class ConsumerManager:
         self.config = config
         if self.config["advertised_port"] is None:
             self.hostname = (
-                f"{self.config['advertised_protocol']}://"
-                f"{self.config['advertised_hostname']}:{self.config['port']}"
+                f"{self.config['advertised_protocol']}://{self.config['advertised_hostname']}:{self.config['port']}"
             )
         else:
             self.hostname = (
