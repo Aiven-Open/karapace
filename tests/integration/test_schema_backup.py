@@ -13,6 +13,7 @@ from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 
+import base64
 import json
 import os
 import time
@@ -31,17 +32,36 @@ async def insert_data(client: Client) -> str:
     return subject
 
 
-async def test_backup_get(registry_async_client, kafka_servers: KafkaServers, tmp_path: Path):
+async def test_backup_get(
+    registry_async_client,
+    kafka_servers: KafkaServers,
+    tmp_path: Path,
+    registry_cluster: RegistryDescription,
+) -> None:
     await insert_data(registry_async_client)
 
     # Get the backup
     backup_location = tmp_path / "schemas.log"
-    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "topic_name": registry_cluster.schemas_topic,
+        }
+    )
     sb = SchemaBackup(config, str(backup_location))
     sb.export(serialize_schema_message)
 
     # The backup file has been created
     assert os.path.exists(backup_location)
+
+    lines = 0
+    with open(backup_location, "r", encoding="utf8") as fp:
+        for line in fp:
+            lines += 1
+            data = line.split("\t")
+            assert len(data) == 2
+
+    assert lines == 1
 
 
 async def test_backup_restore(
@@ -202,7 +222,8 @@ async def test_backup_restore_from_jsonlines_file(
     schema_0 = {"schema": """{"type": "record", "name": "testrecord", "fields": [{"type": "int", "name": "ti"}]}"""}
     res = await registry_async_client.post(f"subjects/{subject}/versions", json=schema_0)
     schema_id = res.json()["id"]
-    with open(restore_location, mode="w", encoding="utf8") as fp:
+    with open(restore_location, mode="wb") as fp:
+        key_1 = json.dumps({"subject": f"{subject}", "magic": 1, "keytype": "SCHEMA", "version": 1}, indent=4)
         schema_1 = json.dumps(
             {
                 "schema": """{"type": "record", "name": "testrecord", "fields": [{"type": "int", "name": "ti"}]}""",
@@ -210,8 +231,15 @@ async def test_backup_restore_from_jsonlines_file(
                 "id": schema_id,
                 "deleted": False,
                 "subject": subject,
-            }
+            },
+            indent=4,
         )
+        fp.write(base64.b16encode(key_1.encode("utf8")))
+        fp.write("\t".encode("utf8"))
+        fp.write(base64.b16encode(schema_1.encode("utf8")))
+        fp.write("\n".encode("utf8"))
+
+        key_2 = json.dumps({"subject": f"{subject}", "magic": 1, "keytype": "SCHEMA", "version": 2}, indent=4)
         schema_2 = json.dumps(
             {
                 "schema": """{"type": "record", "name": "testrecord", """
@@ -221,11 +249,13 @@ async def test_backup_restore_from_jsonlines_file(
                 "id": schema_id,
                 "deleted": False,
                 "subject": subject,
-            }
+            },
+            indent=4,
         )
-
-        fp.write(f"""[{{"subject": "{subject}", "magic": 1, "keytype": "SCHEMA", "version": 1}}, {schema_1}]\n""")
-        fp.write(f"""[{{"subject": "{subject}", "magic": 1, "keytype": "SCHEMA", "version": 2}}, {schema_2}]""")
+        fp.write(base64.b16encode(key_2.encode("utf8")))
+        fp.write("\t".encode("utf8"))
+        fp.write(base64.b16encode(schema_2.encode("utf8")))
+        fp.write("\n".encode("utf8"))
     sb.restore_backup()
     time.sleep(1.0)
     res = await registry_async_client.get(f"subjects/{subject}/versions")

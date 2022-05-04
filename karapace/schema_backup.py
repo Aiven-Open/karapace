@@ -4,6 +4,7 @@ karapace - schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from enum import Enum
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
@@ -11,19 +12,31 @@ from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
 from karapace.schema_reader import new_schema_topic_from_config
-from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
 from typing import IO, Iterable, Optional, TextIO, Tuple
 
 import argparse
-import json
+import base64
 import contextlib
+import json
 import logging
 import os
 import sys
 import time
 
 LOG = logging.getLogger(__name__)
+
+
+# fmt: off
+HEX_CHARACTERS = (
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "a", "b", "c", "d", "e", "f"
+)
+# fmt: on
+
+
+class BackupVersion(Enum):
+    V1 = 1
+    V2 = 2
 
 
 class BackupError(Exception):
@@ -38,10 +51,12 @@ def Writer(filename: Optional[str] = None) -> Iterable[TextIO]:
         writer.close()
 
 
-def _check_backup_file_is_jsonlines_version(fp: IO) -> bool:
-    jsonlines_version = fp.read(2) == "[{"
+def _check_backup_file_version(fp: IO) -> BackupVersion:
+    if fp.read(1) in HEX_CHARACTERS:
+        fp.seek(0)
+        return BackupVersion.V2
     fp.seek(0)
-    return jsonlines_version
+    return BackupVersion.V1
 
 
 class SchemaBackup:
@@ -162,9 +177,8 @@ class SchemaBackup:
         LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
         with open(self.backup_location, mode="r", encoding="utf8") as fp:
-            if _check_backup_file_is_jsonlines_version(fp):
-                # json lines formatted backup file
-                self._restore_backup(fp)
+            if _check_backup_file_version(fp) == BackupVersion.V2:
+                self._restore_backup_version_2(fp)
             else:
                 self._restore_backup_version_1_single_array(fp)
         self.close()
@@ -188,11 +202,12 @@ class SchemaBackup:
         for item in values:
             self._handle_restore_message(item)
 
-    def _restore_backup(self, fp: IO) -> None:
+    def _restore_backup_version_2(self, fp: IO) -> None:
         for line in fp:
-            if line.strip():
-                item = json.loads(line)
-                self._handle_restore_message(item)
+            hex_key, hex_value = line.split("\t")
+            key = base64.b16decode(hex_key).decode("utf8")
+            value = base64.b16decode(hex_value.strip()).decode("utf8")  # strip to remove the linefeed
+            self._handle_restore_message((key, value))
 
     def export(self, export_func) -> None:
         if not self.consumer:
@@ -208,22 +223,9 @@ class SchemaBackup:
 
                 for _, messages in raw_msg.items():
                     for message in messages:
-                        key = message.key.decode("utf8")
-                        try:
-                            key = json.loads(key)
-                        except json.JSONDecodeError:
-                            LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
-                        value = None
-                        if message.value:
-                            value = message.value.decode("utf8")
-                            try:
-                                value = json.loads(value)
-                            except json.JSONDecodeError:
-                                LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
-                        ser = export_func(key=key, value=value)
+                        ser = export_func(key_bytes=message.key, value_bytes=message.value)
                         if ser:
                             fp.write(ser)
-                            fp.write("\n")
 
         if self.backup_location:
             LOG.info("Schema export written to %r", self.backup_location)
@@ -240,14 +242,19 @@ def encode_value(value: str) -> bytes:
     return json_encode(value, sort_keys=False, binary=True)
 
 
-def serialize_schema_message(key: JsonData, value: JsonData) -> str:
-    ser = json.dumps((key, value))
-    return ser
+def serialize_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
+    key = base64.b16encode(key_bytes).decode("utf8")
+    value = base64.b16encode(value_bytes).decode("utf8")
+    return f"{key}\t{value}\n"
 
 
-def anonymize_avro_schema_message(key: JsonData, value: JsonData) -> str:
+def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
     # Check that the message has key `schema` and type is Avro schema.
     # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
+
+    key = json.loads(key_bytes.decode("utf8"))
+    value = json.loads(value_bytes.decode("utf8"))
+
     if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
         original_schema = json.loads(value.get("schema"))
         anonymized_schema = anonymize_avro.anonymize(original_schema)
@@ -258,8 +265,7 @@ def anonymize_avro_schema_message(key: JsonData, value: JsonData) -> str:
     # The schemas topic contain all changes to schema metadata.
     if key.get("subject", None):
         key["subject"] = anonymize_avro.anonymize_name(key["subject"])
-    ser = json.dumps((key, value))
-    return ser
+    return serialize_schema_message(json.dumps(key).encode("utf8"), json.dumps(value).encode("utf8"))
 
 
 def parse_args():
