@@ -13,7 +13,7 @@ from karapace.config import Config, read_config
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
-from typing import IO, Optional, Tuple
+from typing import IO, Iterable, Optional, TextIO, Tuple
 
 import argparse
 import json
@@ -31,7 +31,7 @@ class BackupError(Exception):
 
 
 @contextlib.contextmanager
-def Writer(filename: Optional[str] = None):
+def Writer(filename: Optional[str] = None) -> Iterable[TextIO]:
     writer = open(filename, "w", encoding="utf8") if filename else sys.stdout
     yield writer
     if filename:
@@ -54,7 +54,7 @@ class SchemaBackup:
         self.admin_client = None
         self.timeout_ms = 1000
 
-    def init_consumer(self):
+    def init_consumer(self) -> None:
         self.consumer = KafkaConsumer(
             self.topic_name,
             enable_auto_commit=False,
@@ -72,7 +72,7 @@ class SchemaBackup:
             kafka_client=KarapaceKafkaClient,
         )
 
-    def init_producer(self):
+    def init_producer(self) -> None:
         self.producer = KafkaProducer(
             bootstrap_servers=self.config["bootstrap_uri"],
             security_protocol=self.config["security_protocol"],
@@ -85,7 +85,7 @@ class SchemaBackup:
             kafka_client=KarapaceKafkaClient,
         )
 
-    def init_admin_client(self):
+    def init_admin_client(self) -> None:
         start_time = time.monotonic()
         wait_time = constants.MINUTE
         while True:
@@ -111,7 +111,7 @@ class SchemaBackup:
 
             time.sleep(2.0)
 
-    def _create_schema_topic_if_needed(self):
+    def _create_schema_topic_if_needed(self) -> None:
         if self.topic_name != self.config["topic_name"]:
             LOG.info("Topic name overridden, not creating a topic with schema configuration")
             return
@@ -139,7 +139,7 @@ class SchemaBackup:
                 )
                 time.sleep(5)
 
-    def close(self):
+    def close(self) -> None:
         LOG.info("Closing schema backup reader")
         if self.consumer:
             self.consumer.close()
@@ -169,7 +169,7 @@ class SchemaBackup:
                 self._restore_backup_version_1_single_array(fp)
         self.close()
 
-    def _handle_restore_message(self, item: Tuple[str, str]):
+    def _handle_restore_message(self, item: Tuple[str, str]) -> None:
         key = encode_value(item[0])
         value = encode_value(item[1])
         future = self.producer.send(self.topic_name, key=key, value=value)
@@ -226,13 +226,13 @@ class SchemaBackup:
                             fp.write("\n")
 
         if self.backup_location:
-            LOG.info("Anonymized Avro schema export written to %r", self.backup_location)
+            LOG.info("Schema export written to %r", self.backup_location)
         else:
-            LOG.info("Anonymized Avro schema export written to stdout")
+            LOG.info("Schema export written to stdout")
         self.close()
 
 
-def encode_value(value):
+def encode_value(value: str) -> bytes:
     if value == "null":
         return None
     if isinstance(value, str):
