@@ -186,10 +186,8 @@ class SchemaBackup:
     def _handle_restore_message(self, item: Tuple[str, str]) -> None:
         key = encode_value(item[0])
         value = encode_value(item[1])
-        future = self.producer.send(self.topic_name, key=key, value=value)
-        self.producer.flush(timeout=self.timeout_ms)
-        msg = future.get(self.timeout_ms)
-        LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
+        self.producer.send(self.topic_name, key=key, value=value)
+        LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
 
     def _restore_backup_version_1_single_array(self, fp: IO) -> None:
         values = None
