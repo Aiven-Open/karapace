@@ -26,6 +26,9 @@ import time
 
 LOG = logging.getLogger(__name__)
 
+# Schema topic has single partition.
+# Use of this in `producer.send` disables the partitioner to calculate which partition the data is sent.
+PARTITION_ZERO = 0
 
 # fmt: off
 HEX_CHARACTERS = (
@@ -186,7 +189,7 @@ class SchemaBackup:
     def _handle_restore_message(self, item: Tuple[str, str]) -> None:
         key = encode_value(item[0])
         value = encode_value(item[1])
-        self.producer.send(self.topic_name, key=key, value=value)
+        self.producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
         LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
 
     def _restore_backup_version_1_single_array(self, fp: IO) -> None:
