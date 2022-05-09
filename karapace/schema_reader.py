@@ -167,6 +167,13 @@ class KafkaSchemaReader(Thread):
         # set by another thread (e.g. `KarapaceSchemaRegistry`)
         self._stop = Event()
 
+        # Content based deduplication of schemas. This is used to reduce memory
+        # usage when the same schema is produce multiple times to the same or
+        # different subjects. The deduplication is based on the schema content
+        # instead of the ids to handle corrupt data (where the ids are equal
+        # but the schema themselves don't match)
+        self._hash_to_schema: Dict[int, TypedSchema] = {}
+
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
             for schema_id, schema in self.schemas.items():
@@ -333,10 +340,15 @@ class KafkaSchemaReader(Thread):
             LOG.error("Invalid schema type: %s", schema_type)
             return
 
-        # Protobuf doesn't use JSON
+        # This does two jobs:
+        # - Validates the schema's JSON
+        # - Re-encode the schema to make sure small differences on formatting
+        # won't interfere with the equality. Note: This means it is possible
+        # for the REST API to return data that is formated differently from
+        # what is available in the topic.
         if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
             try:
-                ujson.loads(schema_str)
+                schema_str = ujson.dumps(ujson.loads(schema_str), sort_keys=True)
             except ValueError:
                 LOG.error("Schema is not invalid JSON")
                 return
@@ -347,25 +359,35 @@ class KafkaSchemaReader(Thread):
 
         subjects_schemas = self.subjects[schema_subject]["schemas"]
 
-        typed_schema = TypedSchema(
-            schema_type=schema_type_parsed,
-            schema_str=schema_str,
-        )
-        schema = {
-            "schema": typed_schema,
-            "version": schema_version,
-            "id": schema_id,
-            "deleted": schema_deleted,
-        }
-
-        if schema_version in subjects_schemas:
-            LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-        else:
-            LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-
-        subjects_schemas[schema_version] = schema
-
         with self.id_lock:
+            # dedup schemas to reduce memory pressure
+            schema_str = self._hash_to_schema.setdefault(hash(schema_str), schema_str)
+
+            typed_schema = TypedSchema(
+                schema_type=schema_type_parsed,
+                schema_str=schema_str,
+            )
+            schema = {
+                "schema": typed_schema,
+                "version": schema_version,
+                "id": schema_id,
+                "deleted": schema_deleted,
+            }
+
+            if schema_version in subjects_schemas:
+                LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+            else:
+                LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+
+            subjects_schemas[schema_version] = schema
+
+            subjects_schemas[schema_version] = {
+                "schema": typed_schema,
+                "version": schema_version,
+                "id": schema_id,
+                "deleted": schema_deleted,
+            }
+
             self.schemas[schema_id] = typed_schema
             self.global_schema_id = max(self.global_schema_id, schema_id)
 
