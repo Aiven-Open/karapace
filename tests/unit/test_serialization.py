@@ -16,10 +16,10 @@ from tests.utils import test_objects_avro
 import avro
 import copy
 import io
+import json
 import logging
 import pytest
 import struct
-import ujson
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ async def test_happy_flow(default_config_path, mock_registry_client):
 def test_flatten_unions_record() -> None:
     typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
-        ujson.dumps(
+        json.dumps(
             {
                 "namespace": "io.aiven.data",
                 "name": "Test",
@@ -80,7 +80,7 @@ def test_flatten_unions_record() -> None:
 def test_flatten_unions_array() -> None:
     typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
-        ujson.dumps(
+        json.dumps(
             {
                 "type": "array",
                 "items": {
@@ -108,7 +108,7 @@ def test_flatten_unions_array() -> None:
 def test_flatten_unions_map() -> None:
     typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
-        ujson.dumps(
+        json.dumps(
             {
                 "type": "map",
                 "values": {
@@ -131,7 +131,7 @@ def test_flatten_unions_map() -> None:
 
     typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
-        ujson.dumps({"type": "array", "items": ["null", "string", "int"]}),
+        json.dumps({"type": "array", "items": ["null", "string", "int"]}),
     )
     record = [{"string": "foo"}, None, {"int": 1}]
     flatten_record = ["foo", None, 1]
@@ -156,7 +156,7 @@ def test_avro_json_write_invalid() -> None:
         {"foo": "bar"},
     ]
 
-    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema))
     bio = io.BytesIO()
 
     for record in records:
@@ -215,7 +215,7 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
             }
         ],
     }
-    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, ujson.dumps(schema))
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema))
 
     properly_tagged_encoding_a = {"outter": {duplicated_name: {duplicated_name: "data"}}}
     properly_tagged_encoding_b = {"outter": {"int": 1}}

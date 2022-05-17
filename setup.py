@@ -32,7 +32,6 @@ setup(
         "networkx",
         "protobuf",
         "requests",
-        "ujson",
     ],
     extras_require={
         # compression algorithms supported by AioKafka and KafkaConsumer

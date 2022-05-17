@@ -18,8 +18,8 @@ from typing import List, Optional, Tuple
 
 import asyncio
 import base64
+import json
 import time
-import ujson
 
 RECORD_KEYS = ["key", "value", "partition"]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
@@ -544,7 +544,7 @@ class KafkaRest(KarapaceBase):
         # not pretty
         if ser_format == "json":
             # TODO -> get encoding from headers
-            return ujson.dumps(obj).encode("utf8")
+            return json.dumps(obj).encode("utf8")
         if ser_format == "binary":
             return base64.b64decode(obj)
         if ser_format in {"avro", "jsonschema", "protobuf"}:

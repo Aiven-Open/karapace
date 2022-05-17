@@ -94,8 +94,8 @@ from tests.schemas.json_schemas import (
 )
 from tests.utils import new_random_name
 
+import json
 import pytest
-import ujson
 
 
 async def debugging_details(
@@ -104,8 +104,8 @@ async def debugging_details(
     client: Client,
     subject: str,
 ) -> str:
-    newer_schema = ujson.dumps(newer.schema)
-    older_schema = ujson.dumps(older.schema)
+    newer_schema = json.dumps(newer.schema)
+    older_schema = json.dumps(older.schema)
     config_res = await client.get(f"config/{subject}?defaultToGlobal=true")
     config = config_res.json()
     return f"subject={subject} newer={newer_schema} older={older_schema} compatibility={config}"
@@ -126,7 +126,7 @@ async def not_schemas_are_compatible(
     older_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": ujson.dumps(older.schema),
+            "schema": json.dumps(older.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
@@ -141,7 +141,7 @@ async def not_schemas_are_compatible(
     newer_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": ujson.dumps(newer.schema),
+            "schema": json.dumps(newer.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
@@ -169,7 +169,7 @@ async def schemas_are_compatible(
     older_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": ujson.dumps(older.schema),
+            "schema": json.dumps(older.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
@@ -184,7 +184,7 @@ async def schemas_are_compatible(
     newer_res = await client.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": ujson.dumps(newer.schema),
+            "schema": json.dumps(newer.schema),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
@@ -242,7 +242,7 @@ async def test_same_jsonschema_must_have_same_id(
         first_res = await registry_async_client.post(
             f"subjects/{subject}/versions{trail}",
             json={
-                "schema": ujson.dumps(schema.schema),
+                "schema": json.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
             },
         )
@@ -253,7 +253,7 @@ async def test_same_jsonschema_must_have_same_id(
         second_res = await registry_async_client.post(
             f"subjects/{subject}/versions{trail}",
             json={
-                "schema": ujson.dumps(schema.schema),
+                "schema": json.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
             },
         )

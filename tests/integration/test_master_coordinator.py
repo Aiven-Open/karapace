@@ -12,10 +12,10 @@ from tests.integration.utils.network import PortRangeInclusive
 from tests.utils import new_random_name
 
 import asyncio
+import json
 import pytest
 import requests
 import time
-import ujson
 
 
 def init_admin(config):
@@ -156,7 +156,7 @@ async def test_schema_request_forwarding(registry_async_pair):
 
     # New schema updates, last compatibility is None
     for s in [schema, other_schema]:
-        resp = requests.post(f"{slave_url}/subjects/{subject}/versions", json={"schema": ujson.dumps(s)})
+        resp = requests.post(f"{slave_url}/subjects/{subject}/versions", json={"schema": json.dumps(s)})
     assert resp.ok
     data = resp.json()
     assert "id" in data, data
