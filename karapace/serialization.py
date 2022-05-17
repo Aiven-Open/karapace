@@ -13,8 +13,8 @@ import asyncio
 import avro
 import avro.schema
 import io
+import json
 import struct
-import ujson
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
@@ -247,7 +247,7 @@ def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
         reader = DatumReader(writers_schema=schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
-        value = ujson.load(bio)
+        value = json.load(bio)
         try:
             schema.schema.validate(value)
         except ValidationError as e:

@@ -9,8 +9,8 @@ from urllib.parse import quote
 
 import asyncio
 import copy
+import json
 import ssl
-import ujson
 import uuid
 
 consumer_valid_payload = {
@@ -20,7 +20,7 @@ consumer_valid_payload = {
     "fetch.min.bytes": 100000,
     "auto.commit.enable": "true",
 }
-schema_jsonschema_json = ujson.dumps(
+schema_jsonschema_json = json.dumps(
     {
         "type": "object",
         "properties": {
@@ -29,7 +29,7 @@ schema_jsonschema_json = ujson.dumps(
     }
 )
 
-schema_avro_json = ujson.dumps(
+schema_avro_json = json.dumps(
     {
         "namespace": "example.avro",
         "type": "record",
@@ -137,7 +137,7 @@ test_objects_protobuf_second = [
 
 schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
 
-second_schema_json = ujson.dumps(
+second_schema_json = json.dumps(
     {"namespace": "example.avro.other", "type": "record", "name": "Dude", "fields": [{"name": "name", "type": "string"}]}
 )
 

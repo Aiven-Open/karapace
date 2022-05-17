@@ -5,8 +5,8 @@ from subprocess import Popen
 from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process
 
+import json
 import socket
-import ujson
 
 
 def test_regression_server_must_exit_on_exception(
@@ -33,7 +33,7 @@ def test_regression_server_must_exit_on_exception(
 
         logfile = stack.enter_context((tmp_path / "karapace.log").open("w"))
         errfile = stack.enter_context((tmp_path / "karapace.err").open("w"))
-        config_path.write_text(ujson.dumps(config))
+        config_path.write_text(json.dumps(config))
         sock.bind(("127.0.0.1", port))
         process = Popen(
             args=["python", "-m", "karapace.karapace_all", str(config_path)],

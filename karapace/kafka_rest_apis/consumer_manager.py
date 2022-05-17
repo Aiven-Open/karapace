@@ -15,9 +15,9 @@ from urllib.parse import urljoin
 
 import asyncio
 import base64
+import json
 import logging
 import time
-import ujson
 import uuid
 
 KNOWN_FORMATS = {"json", "avro", "binary", "jsonschema", "protobuf"}
@@ -506,7 +506,7 @@ class ConsumerManager:
         if fmt in {"avro", "jsonschema", "protobuf"}:
             return await self.deserializer.deserialize(bytes_)
         if fmt == "json":
-            return ujson.loads(bytes_.decode("utf-8"))
+            return json.loads(bytes_.decode("utf-8"))
         return base64.b64encode(bytes_).decode("utf-8")
 
     def close(self):

@@ -17,8 +17,8 @@ from karapace.utils import KarapaceKafkaClient
 from threading import Event, Lock, Thread
 from typing import Any, Dict, Optional
 
+import json
 import logging
-import ujson
 
 Offset = int
 Subject = str
@@ -260,16 +260,16 @@ class KafkaSchemaReader(Thread):
         for _, msgs in raw_msgs.items():
             for msg in msgs:
                 try:
-                    key = ujson.loads(msg.key.decode("utf8"))
-                except ValueError:
+                    key = json.loads(msg.key.decode("utf8"))
+                except json.JSONDecodeError:
                     LOG.exception("Invalid JSON in msg.key")
                     continue
 
                 value = None
                 if msg.value:
                     try:
-                        value = ujson.loads(msg.value.decode("utf8"))
-                    except ValueError:
+                        value = json.loads(msg.value.decode("utf8"))
+                    except json.JSONDecodeError:
                         LOG.exception("Invalid JSON in msg.value")
                         continue
 
@@ -348,8 +348,8 @@ class KafkaSchemaReader(Thread):
         # what is available in the topic.
         if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
             try:
-                schema_str = ujson.dumps(ujson.loads(schema_str), sort_keys=True)
-            except ValueError:
+                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+            except json.JSONDecodeError:
                 LOG.error("Schema is not invalid JSON")
                 return
 

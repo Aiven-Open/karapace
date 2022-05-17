@@ -2,9 +2,9 @@ from avro.compatibility import SchemaCompatibilityResult
 from pathlib import Path
 from typing import List, Optional
 
+import json
 import pytest
 import re
-import ujson
 
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
@@ -157,5 +157,5 @@ def fixture_session_logdir(request, tmp_path_factory, worker_id) -> Path:
 @pytest.fixture(scope="session", name="default_config_path")
 def fixture_default_config(session_logdir: Path) -> str:
     path = session_logdir / "karapace_config.json"
-    path.write_text(ujson.dumps({"registry_host": "localhost", "registry_port": 8081}))
+    path.write_text(json.dumps({"registry_host": "localhost", "registry_port": 8081}))
     return str(path)
