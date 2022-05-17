@@ -31,13 +31,13 @@ from tests.utils import repeat_until_successful_request
 from typing import AsyncIterator, Iterator, List, Optional
 
 import asyncio
+import json
 import os
 import pathlib
 import pytest
 import re
 import string
 import time
-import ujson
 
 REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
 RUNTIME_DIR = REPOSITORY_DIR / "runtime"
@@ -126,7 +126,7 @@ def fixture_kafka_server(
 
         with FileLock(str(lock_file)):
             if transfer_file.exists():
-                config_data = ujson.loads(transfer_file.read_text())
+                config_data = json.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
                 config_data[WORKER_COUNTER_KEY] += 1  # Count the new worker
@@ -168,7 +168,7 @@ def fixture_kafka_server(
                     WORKER_COUNTER_KEY: 1,
                 }
 
-            transfer_file.write_text(ujson.dumps(config_data))
+            transfer_file.write_text(json.dumps(config_data))
 
         try:
             # Make sure every test worker can communicate with kafka
@@ -180,16 +180,16 @@ def fixture_kafka_server(
             # This must be called on errors, otherwise the master node will wait forever
             with FileLock(str(lock_file)):
                 assert transfer_file.exists(), "transfer_file disappeared"
-                config_data = ujson.loads(transfer_file.read_text())
+                config_data = json.loads(transfer_file.read_text())
                 config_data[WORKER_COUNTER_KEY] -= 1
-                transfer_file.write_text(ujson.dumps(config_data))
+                transfer_file.write_text(json.dumps(config_data))
 
             # Wait until every worker finished before stopping the servers
             worker_counter = float("inf")
             while worker_counter > 0:
                 with FileLock(str(lock_file)):
                     assert transfer_file.exists(), "transfer_file disappeared"
-                    config_data = ujson.loads(transfer_file.read_text())
+                    config_data = json.loads(transfer_file.read_text())
                     worker_counter = config_data[WORKER_COUNTER_KEY]
 
                 time.sleep(2)

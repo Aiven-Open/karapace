@@ -12,8 +12,8 @@ from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from typing import Any, Dict
 
+import json
 import os
-import ujson
 
 baseurl = "http://localhost:8081"
 
@@ -54,7 +54,7 @@ EXPECTED_AVRO_SCHEMA = {
 
 
 async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, Any]) -> None:
-    schema_string = ujson.dumps(data)
+    schema_string = json.dumps(data)
     res = await c.post(
         "subjects/{}/versions".format(subject),
         json={"schema": f"{schema_string}", "schemaType": schemaType},
@@ -89,7 +89,7 @@ async def test_export_anonymized_avro_schemas(
     expected_subject_hash_found = False
     json_schema_subject_hash_found = False
     with export_location.open("r") as fp:
-        exported_data = ujson.load(fp)
+        exported_data = json.load(fp)
         for msg in exported_data:
             assert len(msg) == 2
             key = msg[0]

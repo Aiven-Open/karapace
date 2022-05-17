@@ -13,9 +13,9 @@ from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 
+import json
 import os
 import time
-import ujson
 
 baseurl = "http://localhost:8081"
 
@@ -54,7 +54,7 @@ async def test_backup_restore(
     restore_location = tmp_path / "restore.log"
 
     with restore_location.open("w") as fp:
-        ujson.dump(
+        json.dump(
             [
                 [
                     {

@@ -8,7 +8,6 @@ requests==2.27.1
 networkx==2.5
 python-dateutil==2.8.2
 protobuf==3.19.4
-ujson==5.1.0
 avro==1.11.0
 # Patched dependencies
 #
