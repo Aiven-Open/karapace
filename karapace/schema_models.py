@@ -16,7 +16,6 @@ from karapace.utils import json_encode
 from typing import Any, Dict, Union
 
 import json
-import ujson
 
 
 def parse_avro_schema_definition(s: str) -> AvroSchema:
@@ -44,7 +43,7 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
     """
-    schema = ujson.loads(schema_definition)
+    schema = json.loads(schema_definition)
     Draft7Validator.check_schema(schema)
     return Draft7Validator(schema)
 
@@ -89,7 +88,7 @@ class TypedSchema:
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
-        return ujson.loads(self.schema_str)
+        return json.loads(self.schema_str)
 
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
@@ -119,14 +118,14 @@ class ValidatedTypedSchema(TypedSchema):
         if schema_type is SchemaType.AVRO:
             try:
                 parsed_schema = parse_avro_schema_definition(schema_str)
-            except (SchemaParseException, ValueError, TypeError) as e:
+            except (SchemaParseException, json.JSONDecodeError, TypeError) as e:
                 raise InvalidSchema from e
 
         elif schema_type is SchemaType.JSONSCHEMA:
             try:
                 parsed_schema = parse_jsonschema_definition(schema_str)
                 # TypeError - Raised when the user forgets to encode the schema as a string.
-            except (TypeError, ValueError, SchemaError, AssertionError) as e:
+            except (TypeError, json.JSONDecodeError, SchemaError, AssertionError) as e:
                 raise InvalidSchema from e
 
         elif schema_type is SchemaType.PROTOBUF:

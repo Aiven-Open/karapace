@@ -20,10 +20,10 @@ import aiohttp.web_exceptions
 import asyncio
 import cgi
 import hashlib
+import json
 import logging
 import re
 import time
-import ujson
 
 SERVER_NAME = "Karapace/{}".format(__version__)
 JSON_CONTENT_TYPE = "application/json"
@@ -281,7 +281,7 @@ class RestApp:
                     _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
-                    rapu_request.json = ujson.loads(body_string)
+                    rapu_request.json = json.loads(body_string)
                 except UnicodeDecodeError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST

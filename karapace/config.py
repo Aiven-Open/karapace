@@ -10,11 +10,11 @@ from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
 
+import json
 import logging
 import os
 import socket
 import ssl
-import ujson
 
 Config = Dict[str, Union[None, str, int, bool, List[str], AccessLogger]]
 LOG = logging.getLogger(__name__)
@@ -154,13 +154,13 @@ def validate_config(config: Config) -> None:
 
 
 def write_config(config_path: Path, custom_values: Config) -> None:
-    config_path.write_text(ujson.dumps(custom_values))
+    config_path.write_text(json.dumps(custom_values))
 
 
 def read_config(config_handler: IO) -> Config:
     try:
-        config = ujson.load(config_handler)
-    except ValueError as ex:
+        config = json.load(config_handler)
+    except json.JSONDecodeError as ex:
         raise InvalidConfiguration("Configuration is not a valid JSON") from ex
 
     return set_config_defaults(config)

@@ -15,11 +15,11 @@ from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
 from typing import Dict, List, Optional, Tuple
 
 import argparse
+import json
 import logging
 import os
 import sys
 import time
-import ujson
 
 LOG = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class SchemaBackup:
     def request_backup(self):
         values = self._export()
 
-        ser = ujson.dumps(values)
+        ser = json.dumps(values)
         if self.backup_location:
             with open(self.backup_location, mode="w", encoding="utf8") as fp:
                 fp.write(ser)
@@ -161,7 +161,7 @@ class SchemaBackup:
         values = None
         with open(self.backup_location, mode="r", encoding="utf8") as fp:
             raw_msg = fp.read()
-            values = ujson.loads(raw_msg)
+            values = json.loads(raw_msg)
 
         if not values:
             return
@@ -184,7 +184,7 @@ class SchemaBackup:
             # Check that the message has key `schema` and type is Avro schema.
             # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
             if value[1] and "schema" in value[1] and value[1].get("schemaType", "AVRO") == "AVRO":
-                original_schema = ujson.loads(value[1].get("schema"))
+                original_schema = json.loads(value[1].get("schema"))
                 anonymized_schema = anonymize_avro.anonymize(original_schema)
                 if anonymized_schema:
                     if "subject" in value[0]:
@@ -193,7 +193,7 @@ class SchemaBackup:
                         value[1]["subject"] = anonymize_avro.anonymize_name(value[1]["subject"])
                     value[1]["schema"] = anonymized_schema
                     anonymized_schemas.append((value[0], value[1]))
-        ser = ujson.dumps(anonymized_schemas)
+        ser = json.dumps(anonymized_schemas)
         if self.backup_location:
             with open(self.backup_location, mode="w", encoding="utf8") as fp:
                 fp.write(ser)
@@ -220,15 +220,15 @@ class SchemaBackup:
                 for message in messages:
                     key = message.key.decode("utf8")
                     try:
-                        key = ujson.loads(key)
-                    except ValueError:
+                        key = json.loads(key)
+                    except json.JSONDecodeError:
                         LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
                     value = None
                     if message.value:
                         value = message.value.decode("utf8")
                         try:
-                            value = ujson.loads(value)
-                        except ValueError:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
                             LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
                     values.append((key, value))
 
