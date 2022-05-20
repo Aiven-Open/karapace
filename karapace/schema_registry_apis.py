@@ -3,6 +3,7 @@ from contextlib import AsyncExitStack, closing
 from enum import Enum, unique
 from http import HTTPStatus
 from kafka import KafkaProducer
+from karapace.auth import http_authorizer, no_authorizer, Operation
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import Config
@@ -16,10 +17,14 @@ from karapace.utils import json_encode, KarapaceKafkaClient
 from typing import Any, Dict, NoReturn, Optional, Tuple
 
 import aiohttp
+import aiohttp.web
 import async_timeout
 import asyncio
 import json
+import logging
 import time
+
+log = logging.getLogger(__name__)
 
 
 @unique
@@ -55,6 +60,11 @@ class SchemaErrorMessages(Enum):
 class KarapaceSchemaRegistry(KarapaceBase):
     def __init__(self, config: Config) -> None:
         super().__init__(config=config)
+
+        self._auth = no_authorizer
+        if self.config["registry_authfile"] is not None:
+            self._auth = http_authorizer(self.config["registry_authfile"])
+
         self._add_schema_registry_routes()
         self.producer = self._create_producer()
         self.mc = MasterCoordinator(config=self.config)
@@ -98,6 +108,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             callback=self.compatibility_check,
             method="POST",
             schema_request=True,
+            auth=self._auth(Operation.Write),
         )
         self.route(
             "/config/<subject:path>",
@@ -106,26 +117,78 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_request=True,
             with_request=True,
             json_body=False,
+            auth=self._auth(Operation.Read),
         )
-        self.route("/config/<subject:path>", callback=self.config_subject_set, method="PUT", schema_request=True)
-        self.route("/config", callback=self.config_get, method="GET", schema_request=True)
-        self.route("/config", callback=self.config_set, method="PUT", schema_request=True)
         self.route(
-            "/schemas/ids/<schema_id:path>/versions", callback=self.schemas_get_versions, method="GET", schema_request=True
+            "/config/<subject:path>",
+            callback=self.config_subject_set,
+            method="PUT",
+            schema_request=True,
+            auth=self._auth(Operation.Write),
         )
-        self.route("/schemas/ids/<schema_id:path>", callback=self.schemas_get, method="GET", schema_request=True)
-        self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True)
-        self.route("/subjects", callback=self.subjects_list, method="GET", schema_request=True)
-        self.route("/subjects/<subject:path>/versions", callback=self.subject_post, method="POST", schema_request=True)
-        self.route("/subjects/<subject:path>", callback=self.subjects_schema_post, method="POST", schema_request=True)
         self.route(
-            "/subjects/<subject:path>/versions", callback=self.subject_versions_list, method="GET", schema_request=True
+            "/config",
+            callback=self.config_get,
+            method="GET",
+            schema_request=True,
+            auth=self._auth(Operation.Read),
+        )
+        self.route(
+            "/config",
+            callback=self.config_set,
+            method="PUT",
+            schema_request=True,
+            auth=self._auth(Operation.Write),
+        )
+        self.route(
+            "/schemas/ids/<schema_id:path>/versions",
+            callback=self.schemas_get_versions,
+            method="GET",
+            schema_request=True,
+            auth=self._auth(Operation.Read),
+        )
+        self.route(
+            "/schemas/ids/<schema_id:path>",
+            callback=self.schemas_get,
+            method="GET",
+            schema_request=True,
+            auth=self._auth(Operation.Read),
+        )
+        self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True, auth=None)
+        self.route(
+            "/subjects",
+            callback=self.subjects_list,
+            method="GET",
+            schema_request=True,
+            auth=self._auth(Operation.Read),
+        )
+        self.route(
+            "/subjects/<subject:path>/versions",
+            callback=self.subject_post,
+            method="POST",
+            schema_request=True,
+            auth=self._auth(Operation.Write),
+        )
+        self.route(
+            "/subjects/<subject:path>",
+            callback=self.subjects_schema_post,
+            method="POST",
+            schema_request=True,
+            auth=self._auth(Operation.Write),
+        )
+        self.route(
+            "/subjects/<subject:path>/versions",
+            callback=self.subject_versions_list,
+            method="GET",
+            schema_request=True,
+            auth=self._auth(Operation.Read),
         )
         self.route(
             "/subjects/<subject:path>/versions/<version>",
             callback=self.subject_version_get,
             method="GET",
             schema_request=True,
+            auth=self._auth(Operation.Read),
         )
         self.route(
             "/subjects/<subject:path>/versions/<version:path>",  # needs
@@ -134,12 +197,14 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_request=True,
             with_request=True,
             json_body=False,
+            auth=self._auth(Operation.Write),
         )
         self.route(
             "/subjects/<subject:path>/versions/<version>/schema",
             callback=self.subject_version_schema_get,
             method="GET",
             schema_request=True,
+            auth=self._auth(Operation.Read),
         )
         self.route(
             "/subjects/<subject:path>",
@@ -148,6 +213,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             schema_request=True,
             with_request=True,
             json_body=False,
+            auth=self._auth(Operation.Write),
         )
 
     async def close(self) -> None:
@@ -665,12 +731,12 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
-        for field in body:
-            if field not in {"schema", "schemaType"}:
+        for attr in body:
+            if attr not in {"schema", "schemaType"}:
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                        "message": f"Unrecognized field: {field}",
+                        "message": f"Unrecognized field: {attr}",
                     },
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,

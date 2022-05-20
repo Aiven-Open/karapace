@@ -434,3 +434,59 @@ async def fixture_registry_async_client_tls(
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_http_auth_endpoint")
+async def fixture_registry_http_auth_endpoint(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+) -> AsyncIterator[str]:
+    # Do not start a registry when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    registry_url = request.config.getoption("registry_url")
+    if registry_url:
+        yield registry_url
+        return
+
+    config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "registry_authfile": "tests/integration/config/karapace.auth.json",
+    }
+    async with start_schema_registry_cluster(
+        config_templates=[config],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as servers:
+        yield servers[0].endpoint.to_url()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_auth")
+async def fixture_registry_async_client_auth(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    registry_http_auth_endpoint: str,
+) -> AsyncIterator[Client]:
+    client = Client(
+        server_uri=registry_http_auth_endpoint,
+        server_ca=request.config.getoption("server_ca"),
+    )
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "schemas/types",
+            json_data=None,
+            headers=None,
+            error_msg=f"Registry API {registry_http_auth_endpoint} is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
