@@ -36,3 +36,7 @@ class SubjectNotFoundException(Exception):
 
 class SubjectNotSoftDeletedException(Exception):
     pass
+
+
+class SchemaTooLargeException(Exception):
+    pass
