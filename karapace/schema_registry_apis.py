@@ -12,6 +12,7 @@ from karapace.errors import (
     InvalidSchemaType,
     InvalidVersion,
     SchemasNotFoundException,
+    SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
@@ -48,6 +49,7 @@ class SchemaErrorCodes(Enum):
     INVALID_COMPATIBILITY_LEVEL = 42203
     INVALID_AVRO_SCHEMA = 44201
     INVALID_SUBJECT = 42208
+    SCHEMA_TOO_LARGE_ERROR_CODE = 42209
     NO_MASTER_ERROR = 50003
 
 
@@ -860,6 +862,16 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     content_type=content_type,
                     status=HTTPStatus.CONFLICT,
                 )
+            except SchemaTooLargeException:
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SCHEMA_TOO_LARGE_ERROR_CODE.value,
+                        "message": "Schema is too large",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                )
+
         elif not master_url:
             self.no_master_error(content_type)
         else:

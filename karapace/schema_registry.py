@@ -1,5 +1,5 @@
 from contextlib import AsyncExitStack, closing
-from kafka import KafkaProducer
+from kafka import errors as kafka_errors, KafkaProducer
 from kafka.producer.future import FutureRecordMetadata
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -8,6 +8,7 @@ from karapace.errors import (
     IncompatibleSchema,
     InvalidVersion,
     SchemasNotFoundException,
+    SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
@@ -367,7 +368,11 @@ class KarapaceSchemaRegistry:
 
         future = self.producer.send(self.config["topic_name"], key=key, value=value)
         self.producer.flush(timeout=self.kafka_timeout)
-        msg = future.get(self.kafka_timeout)
+        try:
+            msg = future.get(self.kafka_timeout)
+        except kafka_errors.MessageSizeTooLargeError as ex:
+            raise SchemaTooLargeException from ex
+
         sent_offset = msg.offset
 
         LOG.info(
