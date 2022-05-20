@@ -394,7 +394,18 @@ class RestApp:
 
         return resp
 
-    def route(self, path, *, callback, method, schema_request=False, with_request=None, json_body=None, rest_request=False):
+    def route(
+        self,
+        path,
+        *,
+        callback,
+        method,
+        schema_request=False,
+        with_request=None,
+        json_body=None,
+        rest_request=False,
+        auth=None,
+    ):
         # pretty path for statsd reporting
         path_for_stats = re.sub(r"<[\w:]+>", "x", path)
 
@@ -410,6 +421,9 @@ class RestApp:
             json_body = True
 
         async def wrapped_callback(request):
+            if auth is not None:
+                auth(request)
+
             return await self._handle_request(
                 request=request,
                 path_for_stats=path_for_stats,

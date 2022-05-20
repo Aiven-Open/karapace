@@ -42,6 +42,7 @@ DEFAULTS = {
     "registry_host": "127.0.0.1",
     "registry_port": 8081,
     "registry_ca": None,
+    "registry_authfile": None,
     "log_level": "DEBUG",
     "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
     "master_eligibility": True,

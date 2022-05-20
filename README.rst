@@ -401,6 +401,10 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - Kafka Registry CA certificate, used by Kafka Rest for Avro related requests.
        If this is set, Kafka Rest will use HTTPS to connect to the registry.
        If running both in the same process, it should be left to its default value
+   * - ``registry_authfile``
+     - ``/path/to/authfile.json``
+     - Filename to specify users and access control rules for Karapace Schema Registry.
+       If this is set, schema registry requires authorized user to connect to the registry.
    * - ``metadata_max_age_ms``
      - ``60000``
      - Period of time in milliseconds after Kafka metadata is force refreshed.
@@ -423,6 +427,82 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``master_election_strategy``
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
+
+Karapace Schema Registry authorization file is an optional JSON configuration, which contains a list of authorized users in ``users`` list and a set of access control rules in ``acls`` list.  Karapace uses HTTP Basic Authentication for user authentication.
+
+Each user entry contains following attributes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Description
+   * - ``username``
+     - A string
+   * - ``algorithm``
+     - One of supported hashing algorithms, ``scrypt``, ``sha1``, ``sha256``, or ``sha512``
+   * - ``salt``
+     - Salt used for hashing the password
+   * - ``password``
+     - Hash string of the password calculated using given algorithm and salt.
+
+Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or by invoking directly with ``python -m karapace.auth``. The tool generates JSON entry with these fields. ::
+
+  $ karapace_mkpasswd -u user -a sha512 secret
+  {
+      "username": "user",
+      "algorithm": "sha512",
+      "salt": "iuLouaExTeg9ypqTxqP-dw",
+      "password": "R6ghYSXdLGsq6hkQcg8wT4xkD4QToxBhlp7NerTnyB077M+mD2qiN7ZxXCDb4aE+5lExu5P11UpMPYAcVYxSQA=="
+  }
+
+Each access control rule contains following attributes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Description
+   * - ``username``
+     - A string to match against authenticated user
+   * - ``operation``
+     - Exact value of ``Read`` or ``Write``. Write implies also read permissions. Write includes all mutable operations, e.g. deleting schema versions
+   * - ``resource``
+     - A regular expression used to match against accessed resource of form ``Subject:<subject_name>`` or ``Config:<optional_subject_name>``
+
+Example of complete authorization file
+--------------------------------------
+
+::
+
+    {
+        "users": [
+            {
+                "username": "admin",
+                "algorithm": "scrypt",
+                "salt": "5nq6IYKAwodZEsEs4UElYw",
+                "password": "1Z+NCmV6nYFfrTPugqftgP8uWGeIAFOWMpLnjVJ3kEoQdsbEgM+33jdzBF+DR6KcMDl/7RJpKz4Olh3sC5VvuA=="
+            },
+            {
+                "username": "plainuser",
+                "algorithm": "sha256",
+                "salt": "ZHzHX4TlGf1Mf4NTGyVxJA",
+                "password": "r7MjkGAhQCJCXqirW8FYjNqKYFL6uU2EgpG9xOoNxCk="
+            }
+        ],
+        "acls": [
+            {
+                "username": "admin",
+                "operation": "Write",
+                "resource": ".*"
+            },
+            {
+                "username": "plainuser",
+                "operation": "Read",
+                "resource": "Subject:general.*"
+            }
+        ]
+    }
 
 Uninstall
 =========

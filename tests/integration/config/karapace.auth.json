@@ -1,0 +1,39 @@
+{
+    "users": [
+        {
+            "username": "admin",
+            "algorithm": "scrypt",
+            "salt": "adminsalt",
+            "password": "AG7+ttm/skHjqEZ90yzEkgjy75yaqoucNnQPIP2S++1rYOPXEtm4+AF7WdDGj+J0sIPFdYC9nXYsvkB1xYDYkw=="
+        },
+        {
+            "username": "aladdin",
+            "algorithm": "scrypt",
+            "salt": "salt",
+            "password": "DIwy3kT+rC2bunAR1y52eGcAksnTcuqCTF/w+DXixrkmYUJW+WGSQZm6yHAqvTY1A3P2pKg6BBDFu62ySylSHg=="
+        },
+        {
+            "username": "reader",
+            "algorithm": "scrypt",
+            "salt": "third-salt",
+            "password": "UHr3Jd6edhiFCRuDkiSZtYicBUqGLALt9kQMeUSt8S2hfzdYJpCIj4qThUXV0RJjKq2tnUoJLwbXmPa+VMFURA=="
+        }
+    ],
+    "acls": [
+        {
+            "username": "admin",
+            "operation": "Write",
+            "resource": ".*"
+        },
+        {
+            "username": "aladdin",
+            "operation": "Write",
+            "resource": "Subject:cave-.*"
+        },
+        {
+            "username": "reader",
+            "operation": "Read",
+            "resource": "Subject:cave-.*"
+        }
+    ]
+}

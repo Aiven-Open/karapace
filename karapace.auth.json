@@ -1,0 +1,28 @@
+{
+    "users": [
+        {
+            "username": "admin",
+            "algorithm": "scrypt",
+            "salt": "adminsalt",
+            "password": "AG7+ttm/skHjqEZ90yzEkgjy75yaqoucNnQPIP2S++1rYOPXEtm4+AF7WdDGj+J0sIPFdYC9nXYsvkB1xYDYkw=="
+        },
+        {
+            "username": "plainuser",
+            "algorithm": "scrypt",
+            "salt": "salt",
+            "password": "Bf+uvMpBdwr0JdS6m057zf9TIjfcqTHBkqNtlNtzB9TC35XmBlFLQRPMs608GffKZI43OhEqa4KQ86aYGKqbfg=="
+        }
+    ],
+    "acls": [
+        {
+            "username": "admin",
+            "operation": "Write",
+            "resource": ".*"
+        },
+        {
+            "username": "plainuser",
+            "operation": "Read",
+            "resource": "Subject:general.*"
+        }
+    ]
+}

@@ -4,7 +4,7 @@ karapace - utils
 Copyright (c) 2022 Aiven Ltd
 See LICENSE for details
 """
-from aiohttp import ClientSession
+from aiohttp import BasicAuth, ClientSession
 from collections.abc import Mapping
 from karapace.typing import JsonData
 from typing import Awaitable, Callable, Optional, Union
@@ -88,6 +88,7 @@ class Client:
         path: Path,
         json: JsonData = None,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -97,6 +98,7 @@ class Client:
             path,
             json=json,
             headers=headers,
+            auth=auth,
             ssl=self.ssl_mode,
         ) as res:
             # required for forcing the response body conversion to json despite missing valid Accept headers
@@ -107,6 +109,7 @@ class Client:
         self,
         path: Path,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -115,6 +118,7 @@ class Client:
         async with client.delete(
             path,
             headers=headers,
+            auth=auth,
             ssl=self.ssl_mode,
         ) as res:
             json_result = {} if res.status == 204 else await res.json()
@@ -125,6 +129,7 @@ class Client:
         path: Path,
         json: JsonData,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -134,6 +139,7 @@ class Client:
         async with client.post(
             path,
             headers=headers,
+            auth=auth,
             json=json,
             ssl=self.ssl_mode,
         ) as res:
@@ -145,6 +151,7 @@ class Client:
         path: Path,
         json: JsonData,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -154,6 +161,7 @@ class Client:
         async with client.put(
             path,
             headers=headers,
+            auth=auth,
             json=json,
             ssl=self.ssl_mode,
         ) as res:
@@ -165,12 +173,14 @@ class Client:
         path: Path,
         data: JsonData,
         headers: Optional[Headers],
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         client = await self.get_client()
         async with client.put(
             path,
             headers=headers,
+            auth=auth,
             data=data,
             ssl=self.ssl_mode,
         ) as res:

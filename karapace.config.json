@@ -22,6 +22,7 @@
     "sasl_plain_password": null,
     "karapace_rest": true,
     "karapace_registry": true,
+    "registry_authfile": "karapace.auth.json",
     "topic_name": "_schemas",
     "protobuf_runtime_directory": "runtime",
     "session_timeout_ms": 10000
