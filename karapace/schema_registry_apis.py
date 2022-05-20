@@ -47,6 +47,7 @@ class SchemaErrorCodes(Enum):
     INVALID_VERSION_ID = 42202
     INVALID_COMPATIBILITY_LEVEL = 42203
     INVALID_AVRO_SCHEMA = 44201
+    INVALID_SUBJECT = 42208
     NO_MASTER_ERROR = 50003
 
 
@@ -580,6 +581,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             try:
                 resolved_version = await self.schema_registry.subject_version_delete_local(subject, version, permanent)
                 self.r(str(resolved_version), content_type, status=HTTPStatus.OK)
+            except SubjectNotFoundException:
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                        "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
             except VersionNotFoundException:
                 self.r(
                     body={
@@ -661,6 +671,18 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
+            )
+
+    def _validate_subject(self, content_type: str, subject: str) -> None:
+        """Subject may not contain control characters."""
+        if bool([c for c in subject if (ord(c) <= 31 or (ord(c) >= 127 and ord(c) <= 159))]):
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_SUBJECT.value,
+                    "message": f"The specified subject '{subject}' is not a valid.",
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
     def _validate_schema_request_body(self, content_type: str, body: Union[dict, Any]) -> None:
@@ -786,6 +808,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         body = request.json
         self.log.debug("POST with subject: %r, request: %r", subject, body)
+        self._validate_subject(content_type, subject)
         self._validate_schema_request_body(content_type, body)
         schema_type = self._validate_schema_type(content_type, body)
         self._validate_schema_key(content_type, body)
