@@ -3,6 +3,7 @@ from avro.schema import parse as avro_parse, Schema as AvroSchema
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
+from karapace.errors import InvalidSchema
 from karapace.protobuf.exception import (
     Error as ProtobufError,
     IllegalArgumentException,
@@ -57,14 +58,6 @@ def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
     """
 
     return ProtobufSchema(schema_definition)
-
-
-class InvalidSchemaType(Exception):
-    pass
-
-
-class InvalidSchema(Exception):
-    pass
 
 
 @unique
