@@ -2102,7 +2102,7 @@ async def test_invalid_namespace(registry_async_client: Client) -> None:
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
     assert res.status_code == 422, res.json()
     json_res = res.json()
-    assert json_res["error_code"] == 44201, json_res
+    assert json_res["error_code"] == 42201, json_res
     expected_message = (
         "Invalid AVRO schema. Error: foo-bar-baz is not a valid Avro name because it does not match the pattern "
         "(?:^|\\.)[A-Za-z_][A-Za-z0-9_]*$"

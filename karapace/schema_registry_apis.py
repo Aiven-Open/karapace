@@ -33,7 +33,6 @@ import json
 
 @unique
 class SchemaErrorCodes(Enum):
-    EMPTY_SCHEMA = 42201
     HTTP_NOT_FOUND = HTTPStatus.NOT_FOUND.value
     HTTP_CONFLICT = HTTPStatus.CONFLICT.value
     HTTP_UNPROCESSABLE_ENTITY = HTTPStatus.UNPROCESSABLE_ENTITY.value
@@ -47,7 +46,7 @@ class SchemaErrorCodes(Enum):
     SCHEMAVERSION_NOT_SOFT_DELETED = 40407
     INVALID_VERSION_ID = 42202
     INVALID_COMPATIBILITY_LEVEL = 42203
-    INVALID_AVRO_SCHEMA = 44201
+    INVALID_SCHEMA = 42201
     INVALID_SUBJECT = 42208
     SCHEMA_TOO_LARGE_ERROR_CODE = 42209
     NO_MASTER_ERROR = 50003
@@ -270,7 +269,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         except InvalidSchema:
             self.r(
                 body={
-                    "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Invalid {schema_type} schema",
                 },
                 content_type=content_type,
@@ -305,7 +304,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         except InvalidSchema:
             self.r(
                 body={
-                    "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Found an invalid {old_schema_type} schema registered",
                 },
                 content_type=content_type,
@@ -727,7 +726,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if "schema" not in body:
             self.r(
                 body={
-                    "error_code": SchemaErrorCodes.EMPTY_SCHEMA.value,
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": "Empty schema",
                 },
                 content_type=content_type,
@@ -825,7 +824,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 human_error = "Provided schema is not valid"
             self.r(
                 body={
-                    "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Invalid {schema_type} schema. Error: {human_error}",
                 },
                 content_type=content_type,
@@ -847,7 +846,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             except InvalidSchema as ex:
                 self.r(
                     body={
-                        "error_code": SchemaErrorCodes.INVALID_AVRO_SCHEMA.value,
+                        "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                         "message": f"Invalid {schema_type} schema. Error: {str(ex)}",
                     },
                     content_type=content_type,
