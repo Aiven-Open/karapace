@@ -1880,8 +1880,10 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
 
     res = await registry_async_client.get(f"config/{subject_1}{trail}")
     assert res.status_code == 404
-    assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject_1)
+    assert res.json()["error_code"] == 40408
+    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT.value.format(
+        subject=subject_1
+    )
 
     res = await registry_async_client.put(f"config/{subject_1}{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
