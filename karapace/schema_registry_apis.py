@@ -162,6 +162,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.subjects_list,
             method="GET",
             schema_request=True,
+            with_request=True,
+            json_body=False,
             auth=self._auth,
         )
         self.route(
@@ -548,8 +550,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self.r({"compatibility": compatibility_level.value}, content_type)
 
-    async def subjects_list(self, content_type: str, *, user: Optional[User] = None) -> None:
-        subjects = self.schema_registry.subjects_list
+    async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None) -> None:
+        deleted = request.query.get("deleted", "false").lower() == "true"
+        subjects = self.schema_registry.subjects_list(include_deleted=deleted)
         if self._auth is not None:
             subjects = list(
                 filter(

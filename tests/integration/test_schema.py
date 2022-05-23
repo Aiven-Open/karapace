@@ -1762,6 +1762,52 @@ async def test_schema_json_subject_comparison(registry_async_client: Client) -> 
     }
 
 
+async def test_schema_listing(registry_async_client: Client) -> None:
+    subject_name_factory = create_subject_name_factory("test_schema_listing_subject_")
+    schema_name = create_schema_name_factory("test_schema_listing_subject_")()
+
+    schema_str = json.dumps(
+        {
+            "type": "record",
+            "name": schema_name,
+            "fields": [
+                {
+                    "name": "f",
+                    "type": "string",
+                }
+            ],
+        }
+    )
+    subject_1 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+
+    subject_2 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_2}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    schema_id_2 = res.json()["id"]
+
+    # Soft delete schema 2
+    res = await registry_async_client.delete(f"subjects/{subject_2}/versions/{schema_id_2}")
+    assert res.status_code == 200
+    assert res.json() == 1
+
+    res = await registry_async_client.get("subjects/")
+    assert len(res.json()) == 1
+    assert res.json()[0] == subject_1
+
+    res = await registry_async_client.get("subjects/?deleted=true")
+    assert len(res.json()) == 2
+    assert res.json()[0] == subject_1
+    assert res.json()[1] == subject_2
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_version_number_existing_schema(registry_async_client: Client, trail: str) -> None:
     """
