@@ -44,7 +44,7 @@ def _resolve_version(subject_data: SubjectData, version: Version) -> ResolvedVer
     return resolved_version
 
 
-def _validate_version(version: Version) -> Version:
+def validate_version(version: Version) -> Version:
     try:
         version_number = int(version)
         if version_number > 0:
@@ -214,9 +214,9 @@ class KarapaceSchemaRegistry:
         subject_data["schemas"] = schemas
         return subject_data
 
-    async def subject_version_get(self, subject: Subject, version: Version) -> SubjectData:
-        _validate_version(version)
-        subject_data = self.subject_get(subject)
+    async def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> SubjectData:
+        validate_version(version)
+        subject_data = self.subject_get(subject, include_deleted=include_deleted)
         if not subject_data:
             raise SubjectNotFoundException()
         schema_data = None
