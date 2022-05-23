@@ -1172,6 +1172,57 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_delete_latest_version(registry_async_client: Client, trail: str) -> None:
+    """
+    Tests deleting schema with `latest` version.
+    """
+    subject = create_subject_name_factory(f"test_schema_delete_latest_version_{trail}")()
+    schema_name = create_schema_name_factory(f"test_schema_delete_latest_version_{trail}")()
+
+    schema_1 = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{"name": "field_1", "type": "string"}, {"name": "field_2", "type": "string"}],
+    }
+    schema_str_1 = json.dumps(schema_1)
+    schema_2 = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {"name": "field_1", "type": "string"},
+        ],
+    }
+    schema_str_2 = json.dumps(schema_2)
+
+    schema_id_1, version_1 = await register_schema(registry_async_client, trail, subject, schema_str_1)
+    schema_1_versions = [(subject, version_1)]
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+
+    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+
+    schema_id_2, version_2 = await register_schema(registry_async_client, trail, subject, schema_str_2)
+    schema_2_versions = [(subject, version_2)]
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
+
+    # Deleting latest version, the other still found
+    res = await registry_async_client.delete("subjects/{}/versions/latest".format(subject))
+    assert res.status_code == 200
+    assert res.json() == version_2
+
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
+
+    # Deleting the latest version, no schemas left
+    res = await registry_async_client.delete("subjects/{}/versions/latest".format(subject))
+    assert res.status_code == 200
+    assert res.json() == version_1
+
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, [])
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_types(registry_async_client: Client, trail: str) -> None:
     """
     Tests for /schemas/types endpoint.

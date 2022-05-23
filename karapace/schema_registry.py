@@ -160,7 +160,6 @@ class KarapaceSchemaRegistry:
     async def subject_delete_local(self, subject: str, permanent: bool) -> List[ResolvedVersion]:
         async with self.schema_lock:
             subject_data = self.subject_get(subject, include_deleted=permanent)
-
             if permanent and [
                 version for version, value in subject_data["schemas"].items() if not value.get("deleted", False)
             ]:
@@ -186,6 +185,10 @@ class KarapaceSchemaRegistry:
     async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> ResolvedVersion:
         async with self.schema_lock:
             subject_data = self.subject_get(subject, include_deleted=True)
+            if not permanent and isinstance(version, str) and version == "latest":
+                subject_data["schemas"] = {
+                    key: value for (key, value) in subject_data["schemas"].items() if value.get("deleted", False) is False
+                }
             resolved_version = _resolve_version(subject_data=subject_data, version=version)
             subject_schema_data = subject_data["schemas"].get(resolved_version, None)
 
