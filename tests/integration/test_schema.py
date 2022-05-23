@@ -2397,12 +2397,24 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 1 not found."
 
+    # Check that soft deleted is found when asking also for deleted schemas
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1?deleted=true")
+    assert res.status_code == 200
+    assert res.json()["version"] == 1
+    assert res.json()["subject"] == subject
+
     # Hard delete schema v1
     res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
     assert res.status_code == 200
 
     # Cannot hard delete twice
     res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
+    assert res.json()["message"] == "Version 1 not found."
+
+    # Check hard deleted is not found at all
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1?deleted=true")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 1 not found."

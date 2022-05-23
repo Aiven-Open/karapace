@@ -22,7 +22,7 @@ from karapace.errors import (
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.schema_registry import KarapaceSchemaRegistry
+from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
 from karapace.typing import JsonData
 from typing import Any, Dict, Optional, Union
 
@@ -179,6 +179,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.subject_versions_list,
             method="GET",
             schema_request=True,
+            with_request=True,
+            json_body=False,
             auth=self._auth,
         )
         self.route(
@@ -186,6 +188,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.subject_version_get,
             method="GET",
             schema_request=True,
+            with_request=True,
+            json_body=False,
             auth=self._auth,
         )
         self.route(
@@ -573,12 +577,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_get(
-        self, content_type: str, *, subject: str, version: str, user: Optional[User] = None
+        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: Optional[User] = None
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
+        deleted = request.query.get("deleted", "false").lower() == "true"
         try:
-            subject_data = await self.schema_registry.subject_version_get(subject, version)
+            subject_data = await self.schema_registry.subject_version_get(subject, version, include_deleted=deleted)
             if "compatibility" in subject_data:
                 del subject_data["compatibility"]
             self.r(subject_data, content_type)
@@ -607,7 +612,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: Optional[User] = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-        version = int(version)
+        version = validate_version(version)
         permanent = request.query.get("permanent", "false").lower() == "true"
 
         are_we_master, master_url = await self.schema_registry.get_master()
@@ -691,10 +696,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-    async def subject_versions_list(self, content_type: str, *, subject: str, user: Optional[User] = None) -> None:
+    async def subject_versions_list(
+        self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
+    ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
+        deleted = request.query.get("deleted", "false").lower() == "true"
         try:
-            subject_data = self.schema_registry.subject_get(subject)
+            subject_data = self.schema_registry.subject_get(subject, include_deleted=deleted)
             schemas = list(subject_data["schemas"])
             self.r(schemas, content_type, status=HTTPStatus.OK)
         except (SubjectNotFoundException, SchemasNotFoundException):
