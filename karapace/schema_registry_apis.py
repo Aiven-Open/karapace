@@ -44,6 +44,7 @@ class SchemaErrorCodes(Enum):
     SUBJECT_NOT_SOFT_DELETED = 40405
     SCHEMAVERSION_SOFT_DELETED = 40406
     SCHEMAVERSION_NOT_SOFT_DELETED = 40407
+    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_ERROR_CODE = 40408
     INVALID_VERSION_ID = 42202
     INVALID_COMPATIBILITY_LEVEL = 42203
     INVALID_SCHEMA = 42201
@@ -60,6 +61,7 @@ class SchemaErrorMessages(Enum):
         "forward, full, backward_transitive, forward_transitive, and "
         "full_transitive"
     )
+    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT = "Subject '%s' does not have subject-level compatibility configured"
 
 
 class KarapaceSchemaRegistryController(KarapaceBase):
@@ -501,8 +503,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self.r(
             body={
-                "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                "error_code": SchemaErrorCodes.SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_ERROR_CODE.value,
+                "message": SchemaErrorMessages.SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT.value.format(subject=subject),
             },
             content_type=content_type,
             status=HTTPStatus.NOT_FOUND,
