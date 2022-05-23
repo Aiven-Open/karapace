@@ -14,7 +14,7 @@ from karapace.protobuf.exception import (
 )
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.utils import json_encode
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import json
 
@@ -77,6 +77,7 @@ class TypedSchema:
         """
         self.schema_type = schema_type
         self.schema_str = schema_str
+        self.max_id: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:

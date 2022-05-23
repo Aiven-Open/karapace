@@ -142,10 +142,15 @@ class KarapaceSchemaRegistry:
         async with self.schema_lock:
             return self.schema_reader.get_schemas_list(include_deleted=include_deleted, latest_only=latest_only)
 
-    def schemas_get(self, schema_id: int) -> Optional[TypedSchema]:
+    def schemas_get(self, schema_id: int, *, fetch_max_id: bool = False) -> Optional[TypedSchema]:
         with self.schema_reader.id_lock:
             try:
-                return self.schema_reader.schemas.get(schema_id)
+                schema = self.schema_reader.schemas.get(schema_id)
+
+                if schema and fetch_max_id:
+                    schema.max_id = self.schema_reader.global_schema_id
+
+                return schema
             except KeyError:
                 return None
 
