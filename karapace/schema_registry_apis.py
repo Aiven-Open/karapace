@@ -152,6 +152,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.schemas_get,
             method="GET",
             schema_request=True,
+            with_request=True,
+            json_body=False,
             auth=self._auth,
         )
         self.route("/schemas/types", callback=self.schemas_types, method="GET", schema_request=True, auth=None)
@@ -373,7 +375,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             status=HTTPStatus.OK,
         )
 
-    async def schemas_get(self, content_type: str, *, user: Optional[User] = None, schema_id: str) -> None:
+    async def schemas_get(
+        self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None, schema_id: str
+    ) -> None:
         try:
             schema_id_int = int(schema_id)
         except ValueError:
@@ -385,7 +389,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
-        schema = self.schema_registry.schemas_get(schema_id_int)
+
+        fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
+        schema = self.schema_registry.schemas_get(schema_id_int, fetch_max_id=fetch_max_id)
 
         def _has_subject_with_id() -> bool:
             with self.schema_registry.schema_reader.id_lock:
@@ -418,6 +424,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         response_body = {"schema": schema.schema_str}
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
+        if fetch_max_id:
+            response_body["maxId"] = schema.max_id
         self.r(response_body, content_type)
 
     async def schemas_get_versions(self, content_type: str, *, schema_id: str, user: Optional[User] = None) -> None:
