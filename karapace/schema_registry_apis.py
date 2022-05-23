@@ -299,14 +299,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         except InvalidVersion:
             self._invalid_version(content_type, version)
         except SubjectNotFoundException:
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
-                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
-                },
-                content_type=content_type,
-                status=HTTPStatus.NOT_FOUND,
-            )
+            # If subject is not found there is no previous schema. New schema is compatible.
+            self.r({"is_compatible": True}, content_type)
         except (VersionNotFoundException, SchemasNotFoundException):
             self.r(
                 body={
