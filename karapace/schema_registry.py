@@ -138,6 +138,10 @@ class KarapaceSchemaRegistry:
             raise ValueError(f"Unknown compatibility mode {compatibility}") from e
         return compatibility_mode
 
+    async def schemas_list(self, *, include_deleted: bool, latest_only: bool) -> Dict[Subject, SubjectData]:
+        async with self.schema_lock:
+            return self.schema_reader.get_schemas_list(include_deleted=include_deleted, latest_only=latest_only)
+
     def schemas_get(self, schema_id: int) -> Optional[TypedSchema]:
         with self.schema_reader.id_lock:
             try:

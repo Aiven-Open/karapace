@@ -130,6 +130,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             auth=self._auth,
         )
         self.route(
+            "/schemas",
+            callback=self.schemas_list,
+            method="GET",
+            schema_request=True,
+            with_request=True,
+            json_body=False,
+            auth=self._auth,
+        )
+        self.route(
             "/schemas/ids/<schema_id:path>/versions",
             callback=self.schemas_get_versions,
             method="GET",
@@ -333,6 +342,30 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if is_incompatible(result):
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
+
+    async def schemas_list(self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None):
+        deleted = request.query.get("deleted", "false").lower() == "true"
+        latest_only = request.query.get("latestOnly", "false").lower() == "true"
+
+        schemas = await self.schema_registry.schemas_list(include_deleted=deleted, latest_only=latest_only)
+        response_schemas = []
+        for subject, schema in schemas.items():
+            if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+                continue
+            response_schemas.append(
+                {
+                    "subject": subject,
+                    "version": schema["version"],
+                    "id": schema["id"],
+                    "schemaType": schema.get("schemaType", "AVRO"),
+                    "schema": schema["schema"].schema_str,
+                }
+            )
+        self.r(
+            body=response_schemas,
+            content_type=content_type,
+            status=HTTPStatus.OK,
+        )
 
     async def schemas_get(self, content_type: str, *, user: Optional[User] = None, schema_id: str) -> None:
         try:
