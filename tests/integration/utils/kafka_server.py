@@ -19,6 +19,8 @@ import requests
 import tarfile
 import time
 
+log = logging.getLogger(__name__)
+
 
 @dataclass
 class KafkaServers:
@@ -70,7 +72,7 @@ def wait_for_kafka(
 def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
     """If necessary download kafka to run the tests."""
     if not os.path.exists(kafka_description.install_dir):
-        logging.info("Downloading Kafka {url}", url=kafka_description.download_url)
+        log.info("Downloading Kafka '%s'", kafka_description.download_url)
 
         download = requests.get(kafka_description.download_url, stream=True)
         with tarfile.open(mode="r:gz", fileobj=download.raw) as file:
