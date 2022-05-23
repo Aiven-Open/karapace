@@ -79,16 +79,16 @@ def check_compatibility(
     old_schema: ValidatedTypedSchema, new_schema: ValidatedTypedSchema, compatibility_mode: CompatibilityModes
 ) -> SchemaCompatibilityResult:
     """Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`."""
+    if compatibility_mode is CompatibilityModes.NONE:
+        LOG.info("Compatibility level set to NONE, no schema compatibility checks performed")
+        return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
+
     if old_schema.schema_type is not new_schema.schema_type:
         return incompatible_schema(
             incompat_type=SchemaIncompatibilityType.type_mismatch,
             message=f"Comparing different schema types: {old_schema.schema_type} with {new_schema.schema_type}",
             location=[],
         )
-
-    if compatibility_mode is CompatibilityModes.NONE:
-        LOG.info("Compatibility level set to NONE, no schema compatibility checks performed")
-        return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     if old_schema.schema_type is SchemaType.AVRO:
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
