@@ -75,9 +75,12 @@ class KarapaceSchemaRegistry:
     def subjects(self) -> Dict[Subject, SubjectData]:
         return self.schema_reader.subjects
 
-    @property
-    def subjects_list(self) -> List[Subject]:
-        return [key for key, val in self.schema_reader.subjects.items() if self.schema_reader.get_schemas(key)]
+    def subjects_list(self, include_deleted: bool = False) -> List[Subject]:
+        return [
+            key
+            for key, val in self.schema_reader.subjects.items()
+            if self.schema_reader.get_schemas(key, include_deleted=include_deleted)
+        ]
 
     @property
     def compatibility(self) -> str:
