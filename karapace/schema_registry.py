@@ -473,6 +473,16 @@ class KarapaceSchemaRegistry:
         value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
         return self.send_kafka_message(key, value)
 
+    def send_config_subject_delete_message(self, subject: Subject) -> FutureRecordMetadata:
+        key = self.key_formatter.format_key(
+            {
+                "subject": subject,
+                "magic": 0,
+                "keytype": "CONFIG",
+            }
+        )
+        return self.send_kafka_message(key, "".encode("utf-8"))
+
     def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
             {

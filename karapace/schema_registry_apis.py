@@ -119,6 +119,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             auth=self._auth,
         )
         self.route(
+            "/config/<subject:path>",
+            callback=self.config_subject_delete,
+            method="DELETE",
+            schema_request=True,
+            with_request=True,
+            json_body=False,
+            auth=self._auth,
+        )
+        self.route(
             "/config",
             callback=self.config_get,
             method="GET",
@@ -516,7 +525,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def config_subject_set(
-        self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None, subject: str
+        self,
+        content_type: str,
+        *,
+        subject: str,
+        request: HTTPRequest,
+        user: Optional[User] = None,
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
 
@@ -544,6 +558,31 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         self.r({"compatibility": compatibility_level.value}, content_type)
+
+    async def config_subject_delete(
+        self,
+        content_type,
+        *,
+        subject: str,
+        request: HTTPRequest,
+        user: Optional[User] = None,
+    ) -> None:
+        if self._auth:
+            if not self._auth.check_authorization(user, Operation.Write, f"Subject:{subject}"):
+                self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
+
+        are_we_master, master_url = await self.schema_registry.get_master()
+        if are_we_master:
+            self.schema_registry.send_config_subject_delete_message(subject=subject)
+        elif not master_url:
+            self.no_master_error(content_type)
+        else:
+            url = f"{master_url}/config/{subject}"
+            await self._forward_request_remote(
+                request=request, body=request.json, url=url, content_type=content_type, method="PUT"
+            )
+
+        self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
 
     async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None) -> None:
         deleted = request.query.get("deleted", "false").lower() == "true"
