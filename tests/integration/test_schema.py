@@ -2584,6 +2584,12 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
+    # Soft delete cannot be done twice
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40404
+    assert res.json()["message"] == f"Subject '{subject}' was soft deleted.Set permanent=true to delete permanently"
+
     # Hard delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 200
