@@ -38,5 +38,9 @@ class SubjectNotSoftDeletedException(Exception):
     pass
 
 
+class SubjectSoftDeletedException(Exception):
+    pass
+
+
 class SchemaTooLargeException(Exception):
     pass

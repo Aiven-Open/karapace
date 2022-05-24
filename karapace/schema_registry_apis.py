@@ -17,6 +17,7 @@ from karapace.errors import (
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
     SubjectNotSoftDeletedException,
+    SubjectSoftDeletedException,
     VersionNotFoundException,
 )
 from karapace.karapace import KarapaceBase
@@ -566,13 +567,22 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
             try:
-                version_list = await self.schema_registry.subject_delete_local(subject, permanent)
+                version_list = await self.schema_registry.subject_delete_local(subject=subject, permanent=permanent)
                 self.r(version_list, content_type, status=HTTPStatus.OK)
             except SubjectNotSoftDeletedException:
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.SUBJECT_NOT_SOFT_DELETED.value,
                         "message": f"Subject '{subject}' was not deleted first before being permanently deleted",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
+            except SubjectSoftDeletedException:
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SUBJECT_SOFT_DELETED.value,
+                        "message": f"Subject '{subject}' was soft deleted.Set permanent=true to delete permanently",
                     },
                     content_type=content_type,
                     status=HTTPStatus.NOT_FOUND,
@@ -788,9 +798,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         body = request.json
         self._validate_schema_request_body(content_type, body)
+        deleted = request.query.get("deleted", "false").lower() == "true"
         try:
-            subject_data = self._subject_get(subject, content_type)
-        except SubjectNotFoundException:
+            subject_data = self._subject_get(subject, content_type, include_deleted=deleted)
+        except (SchemasNotFoundException, SubjectNotFoundException):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,

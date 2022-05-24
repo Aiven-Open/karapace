@@ -13,6 +13,7 @@ from karapace.errors import (
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
     SubjectNotSoftDeletedException,
+    SubjectSoftDeletedException,
     VersionNotFoundException,
 )
 from karapace.key_format import KeyFormatter
@@ -159,27 +160,45 @@ class KarapaceSchemaRegistry:
 
     async def subject_delete_local(self, subject: str, permanent: bool) -> List[ResolvedVersion]:
         async with self.schema_lock:
-            subject_data = self.subject_get(subject, include_deleted=permanent)
-            if permanent and [
-                version for version, value in subject_data["schemas"].items() if not value.get("deleted", False)
-            ]:
+            subject_data_all = self.subject_get(subject, include_deleted=True)
+            subject_schemas_all = subject_data_all["schemas"]
+
+            # Subject can be permanently deleted if no schemas or all are soft deleted.
+            can_permanent_delete = not bool(
+                [version for version, value in subject_schemas_all.items() if not value.get("deleted", False)]
+            )
+            if permanent and not can_permanent_delete:
                 raise SubjectNotSoftDeletedException()
 
-            version_list = list(subject_data["schemas"])
-            if version_list:
-                latest_schema_id = version_list[-1]
-            else:
-                latest_schema_id = 0
+            # Subject is soft deleted if all schemas in subject have deleted flag
+            already_soft_deleted = len(subject_schemas_all) == len(
+                [version for version, value in subject_schemas_all.items() if value.get("deleted", False)]
+            )
 
+            if not permanent and already_soft_deleted:
+                raise SubjectSoftDeletedException()
+
+            latest_schema_id = 0
+            version_list = []
             if permanent:
-                for version, value in list(subject_data["schemas"].items()):
+                version_list = list(subject_schemas_all)
+                latest_schema_id = version_list[-1]
+                for version, value in list(subject_schemas_all.items()):
                     schema_id = value.get("id")
                     LOG.info("Permanently deleting subject '%s' version %s (schema id=%s)", subject, version, schema_id)
                     self.send_schema_message(
                         subject=subject, schema=None, schema_id=schema_id, version=version, deleted=True
                     )
             else:
+                try:
+                    subject_data_live = self.subject_get(subject, include_deleted=False)
+                    version_list = list(subject_data_live["schemas"])
+                    if version_list:
+                        latest_schema_id = version_list[-1]
+                except SchemasNotFoundException:
+                    pass
                 self.send_delete_subject_message(subject, latest_schema_id)
+
             return version_list
 
     async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> ResolvedVersion:
