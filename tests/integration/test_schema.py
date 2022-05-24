@@ -1991,6 +1991,19 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
 
+    # Delete set compatibility on subject 1
+    res = await registry_async_client.delete(f"config/{subject_1}{trail}")
+    assert res.status_code == 200
+    assert res.json()["compatibility"] == "NONE"
+
+    # Verify compatibility not set on subject after delete
+    res = await registry_async_client.get(f"config/{subject_1}{trail}")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40408
+    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT.value.format(
+        subject=subject_1
+    )
+
     # It's possible to add a config to a subject that doesn't exist yet
     subject_2 = subject_name_factory()
     res = await registry_async_client.put(f"config/{subject_2}{trail}", json={"compatibility": "FULL"})
