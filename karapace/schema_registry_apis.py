@@ -878,7 +878,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
-        for schema in subject_data["schemas"].values():
+
+        # Match schemas based on version from latest to oldest
+        for schema in sorted(subject_data["schemas"].values(), key=lambda item: item["version"], reverse=True):
             validated_typed_schema = ValidatedTypedSchema.parse(schema["schema"].schema_type, schema["schema"].schema_str)
             if schema_type is SchemaType.JSONSCHEMA:
                 schema_valid = validated_typed_schema.to_dict() == new_schema.to_dict()
