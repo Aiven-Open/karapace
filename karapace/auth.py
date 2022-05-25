@@ -3,7 +3,7 @@ from enum import Enum, unique
 from hmac import compare_digest
 from karapace.config import InvalidConfiguration
 from karapace.rapu import JSON_CONTENT_TYPE
-from typing import Any, Optional
+from typing import Optional
 
 import aiohttp
 import aiohttp.web
@@ -49,23 +49,25 @@ class ACL:
     resource: re.Pattern
 
 
-def http_authorizer(filename: str) -> Any:
-    with open(filename, "r") as authfile:
-        try:
-            authdata = json.load(authfile)
+class HTTPAuthorizer:
+    def __init__(self, filename: str):
+        with open(filename, "r") as authfile:
+            try:
+                authdata = json.load(authfile)
 
-            userdb = {user["username"]: User(**user) for user in authdata["users"]}
-            acls = [
-                ACL(acl["username"], Operation(acl["operation"]), re.compile(acl["resource"])) for acl in authdata["acls"]
-            ]
-            log.info(
-                "Loaded schema registry ACL rules: %s",
-                [(acl.username, acl.operation.value, acl.resource.pattern) for acl in acls],
-            )
-        except Exception as ex:
-            raise InvalidConfiguration("Auth configuration is not a valid JSON") from ex
+                self.userdb = {user["username"]: User(**user) for user in authdata["users"]}
+                self.acls = [
+                    ACL(acl["username"], Operation(acl["operation"]), re.compile(acl["resource"]))
+                    for acl in authdata["acls"]
+                ]
+                log.info(
+                    "Loaded schema registry ACL rules: %s",
+                    [(acl.username, acl.operation.value, acl.resource.pattern) for acl in self.acls],
+                )
+            except Exception as ex:
+                raise InvalidConfiguration("Auth configuration is not a valid JSON") from ex
 
-    def check_authorization(user: Optional[User], operation: Operation, resource: str) -> bool:
+    def check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> bool:
         def check_operation(operation: Operation, acl: ACL) -> bool:
             if operation == Operation.Read:
                 return True
@@ -76,7 +78,7 @@ def http_authorizer(filename: str) -> Any:
         def check_resource(resource: str, acl: ACL) -> bool:
             return acl.resource.match(resource) is not None
 
-        for acl in acls:
+        for acl in self.acls:
             if (
                 user is not None
                 and acl.username == user.username
@@ -86,13 +88,13 @@ def http_authorizer(filename: str) -> Any:
                 return True
         return False
 
-    def authorization_handler(operation: Operation, request: aiohttp.web.Request) -> None:
+    def authenticate(self, request: aiohttp.web.Request) -> Optional[User]:
         user = None
         auth_header = request.headers.get("Authorization")
         if auth_header is not None:
             try:
                 auth = aiohttp.BasicAuth.decode(auth_header)
-                user = userdb.get(auth.login)
+                user = self.userdb.get(auth.login)
             except ValueError:
                 # pylint: disable=raise-missing-from
                 raise aiohttp.web.HTTPUnauthorized(
@@ -108,17 +110,4 @@ def http_authorizer(filename: str) -> Any:
                     content_type=JSON_CONTENT_TYPE,
                 )
 
-        resource = (
-            f"Subject:{request.match_info['subject']}" if request.match_info.get("subject") is not None else "Subject:"
-        )
-        if not check_authorization(user, operation, resource):
-            raise aiohttp.web.HTTPForbidden(text='{"message": "Forbidden"}', content_type=JSON_CONTENT_TYPE)
-
-    def context_authorizer(operation: Operation) -> Any:
-        return lambda request: authorization_handler(operation, request)
-
-    return context_authorizer
-
-
-def no_authorizer(_: str) -> Any:
-    return None
+        return user
