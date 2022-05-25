@@ -155,6 +155,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.schemas_get_versions,
             method="GET",
             schema_request=True,
+            with_request=True,
+            json_body=False,
             auth=self._auth,
         )
         self.route(
@@ -434,7 +436,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             response_body["maxId"] = schema.max_id
         self.r(response_body, content_type)
 
-    async def schemas_get_versions(self, content_type: str, *, schema_id: str, user: Optional[User] = None) -> None:
+    async def schemas_get_versions(
+        self, content_type: str, *, schema_id: str, request: HTTPRequest, user: Optional[User] = None
+    ) -> None:
         try:
             schema_id_int = int(schema_id)
         except ValueError:
@@ -447,8 +451,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
+        deleted = request.query.get("deleted", "false").lower() == "true"
         subject_versions = []
-        for subject_version in self.schema_registry.get_versions(schema_id_int):
+        for subject_version in self.schema_registry.get_versions(schema_id_int, include_deleted=deleted):
             subject = subject_version["subject"]
             if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue

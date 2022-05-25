@@ -382,14 +382,14 @@ class KarapaceSchemaRegistry:
             )
             return schema_id
 
-    def get_versions(self, schema_id: int) -> List[SubjectData]:
+    def get_versions(self, schema_id: int, *, include_deleted: bool = False) -> List[SubjectData]:
         subject_versions = []
         with self.schema_reader.id_lock:
             for subject, val in self.schema_reader.subjects.items():
-                if self.schema_reader.get_schemas(subject) and "schemas" in val:
+                if self.schema_reader.get_schemas(subject, include_deleted=include_deleted) and "schemas" in val:
                     schemas = val["schemas"]
                     for version, schema in schemas.items():
-                        if int(schema["id"]) == schema_id and not schema["deleted"]:
+                        if int(schema["id"]) == schema_id and (include_deleted or not schema.get("deleted", False)):
                             subject_versions.append({"subject": subject, "version": int(version)})
         subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
         return subject_versions
