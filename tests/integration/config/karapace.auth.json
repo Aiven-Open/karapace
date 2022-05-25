@@ -33,7 +33,7 @@
         {
             "username": "reader",
             "operation": "Read",
-            "resource": "Subject:cave-.*"
+            "resource": "Subject:carpet-.*"
         }
     ]
 }

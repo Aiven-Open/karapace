@@ -255,6 +255,7 @@ class RestApp:
         callback_with_request=False,
         json_request=False,
         rest_request=False,
+        user=None,
     ):
         start_time = time.monotonic()
         resp = None
@@ -315,6 +316,9 @@ class RestApp:
             if schema_request:
                 content_type = self.check_schema_headers(rapu_request)
                 callback_kwargs["content_type"] = content_type
+
+            if user is not None:
+                callback_kwargs["user"] = user
 
             try:
                 data = await callback(**callback_kwargs)
@@ -422,7 +426,9 @@ class RestApp:
 
         async def wrapped_callback(request):
             if auth is not None:
-                auth(request)
+                user = auth.authenticate(request)
+            else:
+                user = None
 
             return await self._handle_request(
                 request=request,
@@ -432,6 +438,7 @@ class RestApp:
                 callback_with_request=with_request,
                 json_request=json_body,
                 rest_request=rest_request,
+                user=user,
             )
 
         async def wrapped_cors(request):
