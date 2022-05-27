@@ -519,7 +519,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/config"
-            await self._forward_request_remote(body=body, url=url, content_type=content_type, method="PUT")
+            await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="PUT")
 
         self.r({"compatibility": self.ksr.config["compatibility"]}, content_type)
 
@@ -578,7 +578,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/config/{subject}"
-            await self._forward_request_remote(body=request.json, url=url, content_type=content_type, method="PUT")
+            await self._forward_request_remote(
+                request=request, body=request.json, url=url, content_type=content_type, method="PUT"
+            )
 
         self.r({"compatibility": compatibility_level.value}, content_type)
 
@@ -637,7 +639,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}?permanent={permanent}"
-            await self._forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
+            await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def _subject_version_get(self, *, content_type: str, subject: str, version: str) -> dict:
         self._validate_version(content_type, version)
@@ -749,7 +751,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
-            await self._forward_request_remote(body={}, url=url, content_type=content_type, method="DELETE")
+            await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(
         self, content_type: str, *, subject: str, version: str, user: Optional[User] = None
@@ -923,7 +925,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
             self.no_master_error(content_type)
         else:
             url = f"{master_url}/subjects/{subject}/versions"
-            await self._forward_request_remote(body=body, url=url, content_type=content_type, method="POST")
+            await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
 
     def write_new_schema_local(
         self,
@@ -1056,14 +1058,21 @@ class KarapaceSchemaRegistry(KarapaceBase):
         )
         self.r({"id": schema_id}, content_type)
 
-    async def _forward_request_remote(self, *, body, url, content_type, method="POST"):
+    async def _forward_request_remote(
+        self, *, request: HTTPRequest, body: Optional[dict], url: str, content_type: str, method: str = "POST"
+    ) -> None:
         assert self._forward_client is not None, "Server must be initialized"
 
-        self.log.info("Writing new schema to remote url: %r since we're not the master", url)
+        self.log.info("Forwarding %s request to remote url: %r since we're not the master", method, url)
         timeout = 60.0
         func = getattr(self._forward_client, method.lower())
+        auth_header = request.headers.get("Authorization")
+        headers = {}
+        if auth_header is not None:
+            headers["Authorization"] = auth_header
+
         with async_timeout.timeout(timeout):
-            async with func(url, json=body) as response:
+            async with func(url, headers=headers, json=body) as response:
                 if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
                     resp_content = await response.json()
                 else:

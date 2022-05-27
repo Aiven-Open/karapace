@@ -78,7 +78,7 @@ class HTTPRequest:
         self.accepts = accepts
         self.path_for_stats = path_for_stats
         self.method = method
-        self.json = None
+        self.json: Optional[dict] = None
 
     @overload
     def get_header(self, header: str) -> Optional[str]:
