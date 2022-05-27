@@ -5,8 +5,8 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from _pytest.fixtures import SubRequest
-from aiohttp import ClientSession
 from aiohttp.pytest_plugin import AiohttpClient
+from aiohttp.test_utils import TestClient
 from contextlib import closing, ExitStack
 from dataclasses import asdict
 from filelock import FileLock
@@ -257,7 +257,7 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client() -> ClientSession:
+        async def get_client() -> TestClient:
             return await aiohttp_client(rest_async.app)
 
         client = Client(client_factory=get_client)
@@ -285,7 +285,7 @@ async def fixture_registry_async_pair(
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
-) -> Iterator[List[str]]:
+) -> AsyncIterator[List[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
     config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
@@ -490,3 +490,30 @@ async def fixture_registry_async_client_auth(
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_auth_pair")
+async def fixture_registry_async_auth_pair(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+) -> AsyncIterator[List[str]]:
+    """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
+
+    config1: Config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "registry_authfile": "tests/integration/config/karapace.auth.json",
+    }
+    config2: Config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "registry_authfile": "tests/integration/config/karapace.auth.json",
+    }
+
+    async with start_schema_registry_cluster(
+        config_templates=[config1, config2],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as endpoints:
+        yield [server.endpoint.to_url() for server in endpoints]
