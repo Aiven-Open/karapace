@@ -1,7 +1,7 @@
 Karapace: schema hub and REST API for Apache Kafka
 ==================================================
 
-Karapace is your perfect compantion to Apache Kafka, adding REST API and schema handling functionality.
+Karapace is your perfect companion to Apache Kafka, adding REST API and schema handling functionality.
 
 .. image:: karapace.svg
    :alt: Karapace logo
