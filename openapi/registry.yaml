@@ -87,6 +87,155 @@ paths:
                     message: "Invalid compatibility level. Valid values are none, backward, forward, full, backward_transitive, forward_transitive, and full_transitive"
 
 
+  /subjects:
+    get:
+      summary: List the subjects the schema registry knows about
+      operationId: subjectList
+      tags:
+        - schema
+      responses:
+        '200':
+          description: The registered subjects
+          content:
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: array
+                items:
+                  type: string
+              examples:
+                success:
+                  value:
+                    - "tortoise"
+                    - "hare"
+                empty:
+                  value: []
+
+
+  /subjects/{subject}/versions:
+    get:
+      summary: Get schema versions for a subject
+      operationId: schemaVersionList
+      tags:
+        - schema
+      parameters:
+        - name: subject
+          description: Subject (or topic) to add the schema to
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "hare"
+      responses:
+        '200':
+          description: List schema versions for this subject
+          content: 
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: array
+                items:
+                  type: integer
+
+              examples:
+                List:
+                  value:
+                    - 1
+                    - 4
+
+    post:
+      summary: Register a new schema
+      operationId: schemaCreate
+      tags:
+        - schema
+      parameters:
+        - name: subject
+          description: Subject (or topic) to add the schema to
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "tortoise"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: 
+                - schema
+              properties:
+                schemaType:
+                  type: string
+                  description: Schema type (default AVRO)
+                  enum:
+                    - AVRO
+                    - JSON
+                schema:
+                  type: object
+                  required:
+                    - type
+                    - name
+                    - fields
+                  properties:
+                    type:
+                      type: string
+                    name:
+                      type: string
+                    fields:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          type:
+                            type: string
+            examples:
+              CreateAvro:
+                value:
+                  schema:
+                    type: record
+                    name: racer
+                    fields:
+                      - name: competitor_name
+                        type: string
+                      - name: starting_position
+                        type: integer
+      responses:
+        '200':
+          description: Schema registered successfully
+          content:
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: ID of the newly registered schema
+              examples:
+                Created:
+                  value:
+                    id: 4
+
+        '422':
+          description: Create failed
+          content: 
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: object
+                properties:
+                  error_code:
+                    type: integer
+                  message:
+                    type: string
+
+              examples:
+                BadSchema:
+                  value:
+                    error_code: 44201
+                    message: "Invalid AVRO schema. Error: Provided schema is not valid"
+
+
+
+
 components:
   schemas:
 
@@ -102,8 +251,10 @@ components:
         - NONE
 
 servers:
-  - url: localhost:8081
+  - url: http://localhost:8081
 
 tags:
+  - name: schema
+    description: Work with schemas
   - name: config
     description: Configuration and settings
