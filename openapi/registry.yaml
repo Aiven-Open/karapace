@@ -1,0 +1,109 @@
+openapi: "3.1.0"
+info:
+  title: Karapace Schema Registry
+  description: Manage Apache Kafka schemas with Karapace
+  version: 0.0.1
+  license:
+   name: Apache2
+   url: https://spdx.org/licenses/Apache-2.0.html
+paths:
+  "/config":
+    get:
+      operationId: getConfig
+      summary: Current configuration
+      tags:
+        - config
+      responses:
+        '200':
+          description: Current configuration settings
+          content: 
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: object
+                properties:
+                  compatibilityLevel:
+                    $ref: '#/components/schemas/compatibilityLevel'
+
+              examples:
+                Full:
+                  value:
+                    compatibilityLevel: FULL
+    put:
+      operationId: setConfig
+      summary: Update configuration
+      tags:
+        - config
+      requestBody:
+        required: true
+        content:
+          application/vnd.schemaregistry.v1+json:
+            schema:
+              type: object
+              properties:
+                compatibility:
+                  type: string
+                  enum:
+                    - BACKWARD
+                    - BACKWARD_TRANSITIVE
+                    - FORWARD
+                    - FORWARD_TRANSITIVE
+                    - FULL
+                    - FULL_TRANSITIVE
+                    - NONE
+
+
+      responses:
+        '200':
+          description: Configuration
+          content: 
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: object
+                properties:
+                  compatibilityLevel:
+                    $ref: '#/components/schemas/compatibilityLevel'
+
+              examples:
+                Forward:
+                  value:
+                    compatibilityLevel: FORWARD
+
+        '422':
+          description: Update failed
+          content: 
+            application/vnd.schemaregistry.v1+json:
+              schema:
+                type: object
+                properties:
+                  error_code:
+                    type: integer
+                  message:
+                    type: string
+
+              examples:
+                InvalidCompat:
+                  value:
+                    error_code: 42203
+                    message: "Invalid compatibility level. Valid values are none, backward, forward, full, backward_transitive, forward_transitive, and full_transitive"
+
+
+components:
+  schemas:
+
+    compatibilityLevel:
+      type: string
+      enum:
+        - BACKWARD
+        - BACKWARD_TRANSITIVE
+        - FORWARD
+        - FORWARD_TRANSITIVE
+        - FULL
+        - FULL_TRANSITIVE
+        - NONE
+
+servers:
+  - url: localhost:8081
+
+tags:
+  - name: config
+    description: Configuration and settings

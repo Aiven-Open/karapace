@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@stoplight/spectral": "^5.9.1"
+  }
+}

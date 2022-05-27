@@ -1,0 +1,16 @@
+organisation: karapace
+
+apis:
+  karapace-schema-registry:
+    root: registry.yaml
+    lint:
+      rules:
+        operation-4xx-response:
+          severity: off
+
+lint:
+  extends:
+    - recommended
+
+
+
