@@ -64,6 +64,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self._auth: Optional[HTTPAuthorizer] = None
         if self.config["registry_authfile"] is not None:
             self._auth = HTTPAuthorizer(str(self.config["registry_authfile"]))
+            self.app.on_startup.append(self._auth.start_refresh_task)
 
         self._add_schema_registry_routes()
         self.producer = self._create_producer()
@@ -229,6 +230,8 @@ class KarapaceSchemaRegistry(KarapaceBase):
             stack.enter_context(closing(self.producer))
             if self._forward_client:
                 stack.push_async_callback(self._forward_client.close)
+            if self._auth is not None:
+                stack.push_async_callback(self._auth.close)
 
     def _subject_get(self, subject: str, content_type: str, include_deleted: bool = False) -> Dict[str, Any]:
         subject_data = self.ksr.subjects.get(subject)
