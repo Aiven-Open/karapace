@@ -7,10 +7,12 @@ from typing import Optional
 
 import aiohttp
 import aiohttp.web
+import asyncio
 import base64
 import hashlib
 import json
 import logging
+import os
 import re
 
 log = logging.getLogger(__name__)
@@ -51,18 +53,51 @@ class ACL:
 
 class HTTPAuthorizer:
     def __init__(self, filename: str):
-        with open(filename, "r") as authfile:
+        self._auth_filename: str = filename
+        self._refresh_auth_task: Optional[asyncio.Task] = None
+        # Once first, can raise if file not valid
+        self._load_authfile()
+
+    async def start_refresh_task(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        async def _refresh_authfile() -> None:
+            """Reload authfile, but keep old auth data if loading fails"""
+
+            last_loaded = os.path.getmtime(self._auth_filename)
+
+            while True:
+                try:
+                    await asyncio.sleep(5)
+                    last_modified = os.path.getmtime(self._auth_filename)
+                    if last_loaded < last_modified:
+                        self._load_authfile()
+                        last_loaded = last_modified
+                except asyncio.CancelledError:
+                    log.info("Closing schema registry ACL refresh task")
+                    return
+                except InvalidConfiguration as ex:
+                    log.fatal("Schema registry auth file could not be loaded: %s", ex)
+
+        self._refresh_auth_task = asyncio.create_task(_refresh_authfile())
+
+    async def close(self) -> None:
+        if self._refresh_auth_task is not None:
+            self._refresh_auth_task.cancel()
+
+    def _load_authfile(self) -> None:
+        with open(self._auth_filename, "r") as authfile:
             try:
                 authdata = json.load(authfile)
 
-                self.userdb = {user["username"]: User(**user) for user in authdata["users"]}
-                self.acls = [
+                users = {user["username"]: User(**user) for user in authdata["users"]}
+                acls = [
                     ACL(acl["username"], Operation(acl["operation"]), re.compile(acl["resource"]))
                     for acl in authdata["acls"]
                 ]
+                self.userdb = users
+                self.acls = acls
                 log.info(
                     "Loaded schema registry ACL rules: %s",
-                    [(acl.username, acl.operation.value, acl.resource.pattern) for acl in self.acls],
+                    [(acl.username, acl.operation.value, acl.resource.pattern) for acl in acls],
                 )
             except Exception as ex:
                 raise InvalidConfiguration("Auth configuration is not a valid JSON") from ex
