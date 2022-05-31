@@ -134,24 +134,29 @@ class HTTPAuthorizer:
     def authenticate(self, request: aiohttp.web.Request) -> Optional[User]:
         user = None
         auth_header = request.headers.get("Authorization")
-        if auth_header is not None:
-            try:
-                auth = aiohttp.BasicAuth.decode(auth_header)
-                user = self.userdb.get(auth.login)
-            except ValueError:
-                # pylint: disable=raise-missing-from
-                raise aiohttp.web.HTTPUnauthorized(
-                    headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
-                    text='{"message": "Unauthorized"}',
-                    content_type=JSON_CONTENT_TYPE,
-                )
+        if auth_header is None:
+            raise aiohttp.web.HTTPUnauthorized(
+                headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
+                text='{"message": "Unauthorized"}',
+                content_type=JSON_CONTENT_TYPE,
+            )
+        try:
+            auth = aiohttp.BasicAuth.decode(auth_header)
+            user = self.userdb.get(auth.login)
+        except ValueError:
+            # pylint: disable=raise-missing-from
+            raise aiohttp.web.HTTPUnauthorized(
+                headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
+                text='{"message": "Unauthorized"}',
+                content_type=JSON_CONTENT_TYPE,
+            )
 
-            if user is None or not user.compare_password(auth.password):
-                raise aiohttp.web.HTTPUnauthorized(
-                    headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
-                    text='{"message": "Unauthorized"}',
-                    content_type=JSON_CONTENT_TYPE,
-                )
+        if user is None or not user.compare_password(auth.password):
+            raise aiohttp.web.HTTPUnauthorized(
+                headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
+                text='{"message": "Unauthorized"}',
+                content_type=JSON_CONTENT_TYPE,
+            )
 
         return user
 
