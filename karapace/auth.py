@@ -1,3 +1,4 @@
+from base64 import b64encode
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from hmac import compare_digest
@@ -7,6 +8,7 @@ from typing import Optional
 
 import aiohttp
 import aiohttp.web
+import argparse
 import asyncio
 import base64
 import hashlib
@@ -14,6 +16,8 @@ import json
 import logging
 import os
 import re
+import secrets
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -25,12 +29,16 @@ class Operation(Enum):
 
 
 def hash_password(algorithm: str, salt: str, password: str) -> str:
-    if algorithm != "scrypt":
-        raise NotImplementedError(f"Hash algorithm '{algorithm}' is not implemented")
-    return str(
-        base64.b64encode(hashlib.scrypt(bytearray(password, "utf-8"), salt=bytearray(salt, "utf-8"), n=16384, r=8, p=1)),
-        encoding="utf-8",
-    )
+    if algorithm in ["sha1", "sha256", "sha512"]:
+        return b64encode(
+            hashlib.pbkdf2_hmac(algorithm, bytearray(password, "UTF-8"), bytearray(salt, "UTF-8"), 5000)
+        ).decode("ascii")
+    if algorithm == "scrypt":
+        return str(
+            base64.b64encode(hashlib.scrypt(bytearray(password, "utf-8"), salt=bytearray(salt, "utf-8"), n=16384, r=8, p=1)),
+            encoding="utf-8",
+        )
+    raise NotImplementedError(f"Hash algorithm '{algorithm}' is not implemented")
 
 
 @dataclass
@@ -146,3 +154,27 @@ class HTTPAuthorizer:
                 )
 
         return user
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="karapace_mkpasswd", description="Karapace password hasher")
+    parser.add_argument("-u", "--user", help="Username", type=str)
+    parser.add_argument(
+        "-a", "--algorithm", help="Hash algorithm", choices=["sha1", "sha256", "sha512", "scrypt"], default="sha512"
+    )
+    parser.add_argument("password", help="Password to hash", type=str)
+    parser.add_argument("salt", help="Salt for hashing, random generated if not given", nargs="?", type=str)
+    args = parser.parse_args()
+    salt: str = args.salt or secrets.token_urlsafe(nbytes=16)
+    result = {}
+    if args.user:
+        result["username"] = args.user
+    result["algorithm"] = args.algorithm
+    result["salt"] = salt
+    result["password"] = hash_password(args.algorithm, salt, args.password)
+    print(json.dumps(result, indent=4))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

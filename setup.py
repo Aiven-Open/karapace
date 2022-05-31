@@ -46,6 +46,7 @@ setup(
         "console_scripts": [
             "karapace = karapace.karapace_all:main",
             "karapace_schema_backup = karapace.schema_backup:main",
+            "karapace_mkpasswd = karapace.auth:main",
         ],
     },
     author="Hannu Valtonen",
