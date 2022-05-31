@@ -8,15 +8,15 @@
         },
         {
             "username": "aladdin",
-            "algorithm": "scrypt",
+            "algorithm": "sha512",
             "salt": "salt",
-            "password": "DIwy3kT+rC2bunAR1y52eGcAksnTcuqCTF/w+DXixrkmYUJW+WGSQZm6yHAqvTY1A3P2pKg6BBDFu62ySylSHg=="
+            "password": "uofa7Uw+IolY0GDeCQApTVAUPlBthFYPFQ+QN+kKtXBzSwddiyLrNnIC2UQcA5X+hCL/mHNNqEMA30oIM4oqxA=="
         },
         {
             "username": "reader",
-            "algorithm": "scrypt",
+            "algorithm": "sha1",
             "salt": "third-salt",
-            "password": "UHr3Jd6edhiFCRuDkiSZtYicBUqGLALt9kQMeUSt8S2hfzdYJpCIj4qThUXV0RJjKq2tnUoJLwbXmPa+VMFURA=="
+            "password": "SeUTCvKCE8rj6lHFkyFkhopktuY="
         }
     ],
     "acls": [
