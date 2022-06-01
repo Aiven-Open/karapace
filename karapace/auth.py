@@ -28,12 +28,20 @@ class Operation(Enum):
     Write = "Write"
 
 
-def hash_password(algorithm: str, salt: str, password: str) -> str:
-    if algorithm in ["sha1", "sha256", "sha512"]:
+@unique
+class HashAlgorithm(Enum):
+    SHA1 = "sha1"
+    SHA256 = "sha256"
+    SHA512 = "sha512"
+    SCRYPT = "scrypt"
+
+
+def hash_password(algorithm: HashAlgorithm, salt: str, password: str) -> str:
+    if algorithm in [HashAlgorithm.SHA1, HashAlgorithm.SHA256, HashAlgorithm.SHA512]:
         return b64encode(
-            hashlib.pbkdf2_hmac(algorithm, bytearray(password, "UTF-8"), bytearray(salt, "UTF-8"), 5000)
+            hashlib.pbkdf2_hmac(algorithm.value, bytearray(password, "UTF-8"), bytearray(salt, "UTF-8"), 5000)
         ).decode("ascii")
-    if algorithm == "scrypt":
+    if algorithm == HashAlgorithm.SCRYPT:
         return str(
             base64.b64encode(hashlib.scrypt(bytearray(password, "utf-8"), salt=bytearray(salt, "utf-8"), n=16384, r=8, p=1)),
             encoding="utf-8",
@@ -44,7 +52,7 @@ def hash_password(algorithm: str, salt: str, password: str) -> str:
 @dataclass
 class User:
     username: str
-    algorithm: str
+    algorithm: HashAlgorithm
     salt: str
     password: str = field(repr=False)  # hashed
 
@@ -53,14 +61,14 @@ class User:
 
 
 @dataclass(frozen=True)
-class ACL:
+class ACLEntry:
     username: str
     operation: Operation
     resource: re.Pattern
 
 
 class HTTPAuthorizer:
-    def __init__(self, filename: str):
+    def __init__(self, filename: str) -> None:
         self._auth_filename: str = filename
         self._refresh_auth_task: Optional[asyncio.Task] = None
         # Once first, can raise if file not valid
@@ -92,33 +100,45 @@ class HTTPAuthorizer:
             self._refresh_auth_task.cancel()
 
     def _load_authfile(self) -> None:
-        with open(self._auth_filename, "r") as authfile:
-            try:
+        try:
+            with open(self._auth_filename, "r") as authfile:
                 authdata = json.load(authfile)
 
-                users = {user["username"]: User(**user) for user in authdata["users"]}
+                users = {
+                    user["username"]: User(
+                        username=user["username"],
+                        algorithm=HashAlgorithm(user["algorithm"]),
+                        salt=user["salt"],
+                        password=user["password"],
+                    )
+                    for user in authdata["users"]
+                }
                 acls = [
-                    ACL(acl["username"], Operation(acl["operation"]), re.compile(acl["resource"]))
+                    ACLEntry(acl["username"], Operation(acl["operation"]), re.compile(acl["resource"]))
                     for acl in authdata["acls"]
                 ]
                 self.userdb = users
+                log.info(
+                    "Loaded schema registry users: %s",
+                    users,
+                )
                 self.acls = acls
                 log.info(
                     "Loaded schema registry ACL rules: %s",
                     [(acl.username, acl.operation.value, acl.resource.pattern) for acl in acls],
                 )
-            except Exception as ex:
-                raise InvalidConfiguration("Auth configuration is not a valid JSON") from ex
+        except Exception as ex:
+            raise InvalidConfiguration("Auth configuration is not valid") from ex
 
     def check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> bool:
-        def check_operation(operation: Operation, acl: ACL) -> bool:
+        def check_operation(operation: Operation, acl: ACLEntry) -> bool:
             if operation == Operation.Read:
                 return True
             if acl.operation == Operation.Write:
                 return True
             return False
 
-        def check_resource(resource: str, acl: ACL) -> bool:
+        def check_resource(resource: str, acl: ACLEntry) -> bool:
             return acl.resource.match(resource) is not None
 
         for acl in self.acls:
@@ -176,7 +196,7 @@ def main() -> int:
         result["username"] = args.user
     result["algorithm"] = args.algorithm
     result["salt"] = salt
-    result["password"] = hash_password(args.algorithm, salt, args.password)
+    result["password"] = hash_password(HashAlgorithm(args.algorithm), salt, args.password)
     print(json.dumps(result, indent=4))
     return 0
 
