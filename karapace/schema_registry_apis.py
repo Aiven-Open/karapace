@@ -103,7 +103,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 self.log.exception("Unable to create producer, retrying")
                 time.sleep(1)
 
-    def _check_authorization(self, user: User, operation: Operation, resource: str) -> None:
+    def _check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> None:
         if self._auth:
             if not self._auth.check_authorization(user, operation, resource):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)

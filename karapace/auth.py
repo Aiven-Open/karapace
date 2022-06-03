@@ -98,6 +98,7 @@ class HTTPAuthorizer:
     async def close(self) -> None:
         if self._refresh_auth_task is not None:
             self._refresh_auth_task.cancel()
+            self._refresh_auth_task = None
 
     def _load_authfile(self) -> None:
         try:
@@ -113,46 +114,45 @@ class HTTPAuthorizer:
                     )
                     for user in authdata["users"]
                 }
-                acls = [
-                    ACLEntry(acl["username"], Operation(acl["operation"]), re.compile(acl["resource"]))
-                    for acl in authdata["acls"]
+                permissions = [
+                    ACLEntry(entry["username"], Operation(entry["operation"]), re.compile(entry["resource"]))
+                    for entry in authdata["permissions"]
                 ]
                 self.userdb = users
                 log.info(
                     "Loaded schema registry users: %s",
                     users,
                 )
-                self.acls = acls
+                self.permissions = permissions
                 log.info(
-                    "Loaded schema registry ACL rules: %s",
-                    [(acl.username, acl.operation.value, acl.resource.pattern) for acl in acls],
+                    "Loaded schema registry access control rules: %s",
+                    [(entry.username, entry.operation.value, entry.resource.pattern) for entry in permissions],
                 )
         except Exception as ex:
             raise InvalidConfiguration("Auth configuration is not valid") from ex
 
     def check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> bool:
-        def check_operation(operation: Operation, acl: ACLEntry) -> bool:
+        def check_operation(operation: Operation, aclentry: ACLEntry) -> bool:
             if operation == Operation.Read:
                 return True
-            if acl.operation == Operation.Write:
+            if aclentry.operation == Operation.Write:
                 return True
             return False
 
-        def check_resource(resource: str, acl: ACLEntry) -> bool:
-            return acl.resource.match(resource) is not None
+        def check_resource(resource: str, aclentry: ACLEntry) -> bool:
+            return aclentry.resource.match(resource) is not None
 
-        for acl in self.acls:
+        for aclentry in self.permissions:
             if (
                 user is not None
-                and acl.username == user.username
-                and check_operation(operation, acl)
-                and check_resource(resource, acl)
+                and aclentry.username == user.username
+                and check_operation(operation, aclentry)
+                and check_resource(resource, aclentry)
             ):
                 return True
         return False
 
-    def authenticate(self, request: aiohttp.web.Request) -> Optional[User]:
-        user = None
+    def authenticate(self, request: aiohttp.web.Request) -> User:
         auth_header = request.headers.get("Authorization")
         if auth_header is None:
             raise aiohttp.web.HTTPUnauthorized(
