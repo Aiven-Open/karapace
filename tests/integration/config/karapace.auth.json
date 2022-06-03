@@ -19,7 +19,7 @@
             "password": "SeUTCvKCE8rj6lHFkyFkhopktuY="
         }
     ],
-    "acls": [
+    "permissions": [
         {
             "username": "admin",
             "operation": "Write",

@@ -13,7 +13,7 @@
             "password": "Bf+uvMpBdwr0JdS6m057zf9TIjfcqTHBkqNtlNtzB9TC35XmBlFLQRPMs608GffKZI43OhEqa4KQ86aYGKqbfg=="
         }
     ],
-    "acls": [
+    "permissions": [
         {
             "username": "admin",
             "operation": "Write",

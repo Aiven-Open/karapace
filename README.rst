@@ -428,7 +428,7 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
 
-Karapace Schema Registry authorization file is an optional JSON configuration, which contains a list of authorized users in ``users`` list and a set of access control rules in ``acls`` list.  Karapace uses HTTP Basic Authentication for user authentication.
+Karapace Schema Registry authorization file is an optional JSON configuration, which contains a list of authorized users in ``users`` list and a set of access control rules in ``permissions`` list.  Karapace uses HTTP Basic Authentication for user authentication.
 
 Each user entry contains following attributes:
 
@@ -490,7 +490,7 @@ Example of complete authorization file
                 "password": "r7MjkGAhQCJCXqirW8FYjNqKYFL6uU2EgpG9xOoNxCk="
             }
         ],
-        "acls": [
+        "permissions": [
             {
                 "username": "admin",
                 "operation": "Write",
