@@ -90,7 +90,7 @@ class HTTPAuthorizer:
                 except asyncio.CancelledError:
                     log.info("Closing schema registry ACL refresh task")
                     return
-                except InvalidConfiguration as ex:
+                except Exception as ex:  # pylint: disable=broad-except
                     log.fatal("Schema registry auth file could not be loaded: %s", ex)
 
         self._refresh_auth_task = asyncio.create_task(_refresh_authfile())
