@@ -15,5 +15,8 @@ psutil==5.9.0
 # workflow
 pre-commit>=2.2.0
 
+# performance test
+locust==2.9.0
+
 # runtime requirements
 -r requirements.txt
