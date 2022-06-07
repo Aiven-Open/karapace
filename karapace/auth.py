@@ -134,6 +134,9 @@ class HTTPAuthorizer:
             raise InvalidConfiguration("Auth configuration is not valid") from ex
 
     def check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> bool:
+        if user is None:
+            return False
+
         def check_operation(operation: Operation, aclentry: ACLEntry) -> bool:
             if operation == Operation.Read:
                 return True
@@ -146,8 +149,7 @@ class HTTPAuthorizer:
 
         for aclentry in self.permissions:
             if (
-                user is not None
-                and aclentry.username == user.username
+                aclentry.username == user.username
                 and check_operation(operation, aclentry)
                 and check_resource(resource, aclentry)
             ):
