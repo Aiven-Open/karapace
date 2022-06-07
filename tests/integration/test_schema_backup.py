@@ -56,6 +56,8 @@ async def test_backup_get(
 
     lines = 0
     with open(backup_location, "r", encoding="utf8") as fp:
+        version_line = fp.readline()
+        assert version_line.rstrip() == "/V2"
         for line in fp:
             lines += 1
             data = line.split("\t")
@@ -64,7 +66,7 @@ async def test_backup_get(
     assert lines == 1
 
 
-async def test_backup_restore(
+async def test_backup_restore_version_1_file(
     registry_async_client: Client,
     kafka_servers: KafkaServers,
     tmp_path: Path,
@@ -203,7 +205,7 @@ async def test_backup_restore(
     assert res.json() == [1]
 
 
-async def test_backup_restore_from_jsonlines_file(
+async def test_backup_restore_from_version_2_file(
     registry_async_client: Client,
     kafka_servers: KafkaServers,
     tmp_path: Path,
@@ -223,6 +225,7 @@ async def test_backup_restore_from_jsonlines_file(
     res = await registry_async_client.post(f"subjects/{subject}/versions", json=schema_0)
     schema_id = res.json()["id"]
     with open(restore_location, mode="wb") as fp:
+        fp.write(b"/V2\n")
         key_1 = json.dumps({"subject": f"{subject}", "magic": 1, "keytype": "SCHEMA", "version": 1}, indent=4)
         schema_1 = json.dumps(
             {

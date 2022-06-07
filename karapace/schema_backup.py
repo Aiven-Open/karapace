@@ -29,12 +29,7 @@ LOG = logging.getLogger(__name__)
 # Schema topic has single partition.
 # Use of this in `producer.send` disables the partitioner to calculate which partition the data is sent.
 PARTITION_ZERO = 0
-
-# fmt: off
-HEX_CHARACTERS = (
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "a", "b", "c", "d", "e", "f"
-)
-# fmt: on
+BACKUP_VERSION_2_MARKER = "/V2\n"
 
 
 class BackupVersion(Enum):
@@ -55,8 +50,11 @@ def Writer(filename: Optional[str] = None) -> Iterable[TextIO]:
 
 
 def _check_backup_file_version(fp: IO) -> BackupVersion:
-    if fp.read(1) in HEX_CHARACTERS:
+    version_identifier = fp.read(4)
+    if version_identifier == BACKUP_VERSION_2_MARKER:
+        # Seek back to start, readline() to consume linefeed
         fp.seek(0)
+        fp.readline()
         return BackupVersion.V2
     fp.seek(0)
     return BackupVersion.V1
@@ -218,6 +216,7 @@ class SchemaBackup:
         topic_fully_consumed = False
 
         with Writer(self.backup_location) as fp:
+            fp.write(BACKUP_VERSION_2_MARKER)
             while not topic_fully_consumed:
                 raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
                 topic_fully_consumed = len(raw_msg) == 0

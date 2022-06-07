@@ -103,6 +103,8 @@ async def test_export_anonymized_avro_schemas(
     expected_subject_hash_found = False
     compatibility_level_change_subject_hash_found = False
     with export_location.open("r") as fp:
+        version_identifier = fp.readline()
+        assert version_identifier.rstrip() == "/V2"
         for item in fp:
             hex_key, hex_value = item.strip().split("\t")
             key = json.loads(base64.b16decode(hex_key).decode("utf8"))
