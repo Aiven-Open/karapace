@@ -79,6 +79,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.app.on_startup.append(self._create_forward_client)
 
     async def _create_forward_client(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        """Callback for aiohttp.Application.on_startup"""
         self._forward_client = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
 
     def _create_producer(self) -> KafkaProducer:
