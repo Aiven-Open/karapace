@@ -166,7 +166,6 @@ class HTTPAuthorizer:
             )
         try:
             auth = aiohttp.BasicAuth.decode(auth_header)
-            user = self.userdb.get(auth.login)
         except ValueError:
             # pylint: disable=raise-missing-from
             raise aiohttp.web.HTTPUnauthorized(
@@ -174,7 +173,7 @@ class HTTPAuthorizer:
                 text='{"message": "Unauthorized"}',
                 content_type=JSON_CONTENT_TYPE,
             )
-
+        user = self.userdb.get(auth.login)
         if user is None or not user.compare_password(auth.password):
             raise aiohttp.web.HTTPUnauthorized(
                 headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
