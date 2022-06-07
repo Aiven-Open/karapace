@@ -77,6 +77,8 @@ class HTTPAuthorizer:
         self._load_authfile()
 
     async def start_refresh_task(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        """Callback for aiohttp.Application.on_startup"""
+
         async def _refresh_authfile() -> None:
             """Reload authfile, but keep old auth data if loading fails"""
 
