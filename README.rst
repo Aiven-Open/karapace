@@ -443,7 +443,7 @@ Each user entry contains following attributes:
      - One of supported hashing algorithms, ``scrypt``, ``sha1``, ``sha256``, or ``sha512``
    * - ``salt``
      - Salt used for hashing the password
-   * - ``password``
+   * - ``password_hash``
      - Hash string of the password calculated using given algorithm and salt.
 
 Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or by invoking directly with ``python -m karapace.auth``. The tool generates JSON entry with these fields. ::
@@ -453,7 +453,7 @@ Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or 
       "username": "user",
       "algorithm": "sha512",
       "salt": "iuLouaExTeg9ypqTxqP-dw",
-      "password": "R6ghYSXdLGsq6hkQcg8wT4xkD4QToxBhlp7NerTnyB077M+mD2qiN7ZxXCDb4aE+5lExu5P11UpMPYAcVYxSQA=="
+      "password_hash": "R6ghYSXdLGsq6hkQcg8wT4xkD4QToxBhlp7NerTnyB077M+mD2qiN7ZxXCDb4aE+5lExu5P11UpMPYAcVYxSQA=="
   }
 
 Each access control rule contains following attributes:
@@ -481,13 +481,13 @@ Example of complete authorization file
                 "username": "admin",
                 "algorithm": "scrypt",
                 "salt": "5nq6IYKAwodZEsEs4UElYw",
-                "password": "1Z+NCmV6nYFfrTPugqftgP8uWGeIAFOWMpLnjVJ3kEoQdsbEgM+33jdzBF+DR6KcMDl/7RJpKz4Olh3sC5VvuA=="
+                "password_hash": "1Z+NCmV6nYFfrTPugqftgP8uWGeIAFOWMpLnjVJ3kEoQdsbEgM+33jdzBF+DR6KcMDl/7RJpKz4Olh3sC5VvuA=="
             },
             {
                 "username": "plainuser",
                 "algorithm": "sha256",
                 "salt": "ZHzHX4TlGf1Mf4NTGyVxJA",
-                "password": "r7MjkGAhQCJCXqirW8FYjNqKYFL6uU2EgpG9xOoNxCk="
+                "password_hash": "r7MjkGAhQCJCXqirW8FYjNqKYFL6uU2EgpG9xOoNxCk="
             }
         ],
         "permissions": [

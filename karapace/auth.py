@@ -36,14 +36,16 @@ class HashAlgorithm(Enum):
     SCRYPT = "scrypt"
 
 
-def hash_password(algorithm: HashAlgorithm, salt: str, password: str) -> str:
+def hash_password(algorithm: HashAlgorithm, salt: str, plaintext_password: str) -> str:
     if algorithm in [HashAlgorithm.SHA1, HashAlgorithm.SHA256, HashAlgorithm.SHA512]:
         return b64encode(
-            hashlib.pbkdf2_hmac(algorithm.value, bytearray(password, "UTF-8"), bytearray(salt, "UTF-8"), 5000)
+            hashlib.pbkdf2_hmac(algorithm.value, bytearray(plaintext_password, "UTF-8"), bytearray(salt, "UTF-8"), 5000)
         ).decode("ascii")
     if algorithm == HashAlgorithm.SCRYPT:
         return str(
-            base64.b64encode(hashlib.scrypt(bytearray(password, "utf-8"), salt=bytearray(salt, "utf-8"), n=16384, r=8, p=1)),
+            base64.b64encode(
+                hashlib.scrypt(bytearray(plaintext_password, "utf-8"), salt=bytearray(salt, "utf-8"), n=16384, r=8, p=1)
+            ),
             encoding="utf-8",
         )
     raise NotImplementedError(f"Hash algorithm '{algorithm}' is not implemented")
@@ -54,10 +56,10 @@ class User:
     username: str
     algorithm: HashAlgorithm
     salt: str
-    password: str = field(repr=False)  # hashed
+    password_hash: str = field(repr=False)
 
-    def compare_password(self, plaintext: str) -> bool:
-        return compare_digest(self.password, hash_password(self.algorithm, self.salt, plaintext))
+    def compare_password(self, plaintext_password: str) -> bool:
+        return compare_digest(self.password_hash, hash_password(self.algorithm, self.salt, plaintext_password))
 
 
 @dataclass(frozen=True)
@@ -110,7 +112,7 @@ class HTTPAuthorizer:
                         username=user["username"],
                         algorithm=HashAlgorithm(user["algorithm"]),
                         salt=user["salt"],
-                        password=user["password"],
+                        password_hash=user["password_hash"],
                     )
                     for user in authdata["users"]
                 }
@@ -187,7 +189,7 @@ def main() -> int:
     parser.add_argument(
         "-a", "--algorithm", help="Hash algorithm", choices=["sha1", "sha256", "sha512", "scrypt"], default="sha512"
     )
-    parser.add_argument("password", help="Password to hash", type=str)
+    parser.add_argument(metavar="password", dest="plaintext_password", help="Password to hash", type=str)
     parser.add_argument("salt", help="Salt for hashing, random generated if not given", nargs="?", type=str)
     args = parser.parse_args()
     salt: str = args.salt or secrets.token_urlsafe(nbytes=16)
@@ -196,7 +198,7 @@ def main() -> int:
         result["username"] = args.user
     result["algorithm"] = args.algorithm
     result["salt"] = salt
-    result["password"] = hash_password(HashAlgorithm(args.algorithm), salt, args.password)
+    result["password_hash"] = hash_password(HashAlgorithm(args.algorithm), salt, args.plaintext_password)
     print(json.dumps(result, indent=4))
     return 0
 

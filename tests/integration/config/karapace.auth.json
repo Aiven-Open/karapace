@@ -4,19 +4,19 @@
             "username": "admin",
             "algorithm": "scrypt",
             "salt": "adminsalt",
-            "password": "AG7+ttm/skHjqEZ90yzEkgjy75yaqoucNnQPIP2S++1rYOPXEtm4+AF7WdDGj+J0sIPFdYC9nXYsvkB1xYDYkw=="
+            "password_hash": "AG7+ttm/skHjqEZ90yzEkgjy75yaqoucNnQPIP2S++1rYOPXEtm4+AF7WdDGj+J0sIPFdYC9nXYsvkB1xYDYkw=="
         },
         {
             "username": "aladdin",
             "algorithm": "sha512",
             "salt": "salt",
-            "password": "uofa7Uw+IolY0GDeCQApTVAUPlBthFYPFQ+QN+kKtXBzSwddiyLrNnIC2UQcA5X+hCL/mHNNqEMA30oIM4oqxA=="
+            "password_hash": "uofa7Uw+IolY0GDeCQApTVAUPlBthFYPFQ+QN+kKtXBzSwddiyLrNnIC2UQcA5X+hCL/mHNNqEMA30oIM4oqxA=="
         },
         {
             "username": "reader",
             "algorithm": "sha1",
             "salt": "third-salt",
-            "password": "SeUTCvKCE8rj6lHFkyFkhopktuY="
+            "password_hash": "SeUTCvKCE8rj6lHFkyFkhopktuY="
         }
     ],
     "permissions": [
