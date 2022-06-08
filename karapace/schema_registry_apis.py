@@ -530,7 +530,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def config_subject_get(
         self, content_type: str, subject: str, *, request: HTTPRequest, user: Optional[User] = None
     ) -> None:
-        self._check_authorization(user, Operation.Read, f"Config:{subject}")
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         # Config for a subject can exist without schemas so no need to check for their existence
         assert self.ksr, "KarapaceSchemaRegistry not initialized. Missing call to _init"
@@ -561,7 +561,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def config_subject_set(
         self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None, subject: str
     ) -> None:
-        self._check_authorization(user, Operation.Write, f"Config:{subject}")
+        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
 
         try:
             compatibility_level = CompatibilityModes(request.json["compatibility"])
