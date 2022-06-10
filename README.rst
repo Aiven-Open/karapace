@@ -404,7 +404,7 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``registry_authfile``
      - ``/path/to/authfile.json``
      - Filename to specify users and access control rules for Karapace Schema Registry.
-       If this is set, schema registry requires authorized user to connect to the registry.
+       If this is set, Schema Segistry requires authentication for most of the endpoints and applies per endpoint authorization rules.
    * - ``metadata_max_age_ms``
      - ``60000``
      - Period of time in milliseconds after Kafka metadata is force refreshed.
@@ -428,7 +428,13 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
 
-Karapace Schema Registry authorization file is an optional JSON configuration, which contains a list of authorized users in ``users`` list and a set of access control rules in ``permissions`` list.  Karapace uses HTTP Basic Authentication for user authentication.
+
+Authentication and authorization of Karapace Schema Registry REST API
+=====================================================================
+
+To enable HTTP Basic Authentication and user authorization the authorization configuration file is set in the main configuration key ``registry_authfile`` of the Karapace.
+
+Karapace Schema Registry authorization file is an optional JSON configuration, which contains a list of authorized users in ``users`` and a list of access control rules in ``permissions``.
 
 Each user entry contains following attributes:
 
@@ -456,6 +462,18 @@ Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or 
       "password_hash": "R6ghYSXdLGsq6hkQcg8wT4xkD4QToxBhlp7NerTnyB077M+mD2qiN7ZxXCDb4aE+5lExu5P11UpMPYAcVYxSQA=="
   }
 
+Supported resource authorization:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Resource
+     - Description
+   * - ``Subject:<subject_name>``
+     - Controls authorization to subject. The ``<subject_name>`` is a regular expression to match against the accessed subject.
+   * - ``Config:``
+     - Controls authorization to global schema registry configuration.
+
 Each access control rule contains following attributes:
 
 .. list-table::
@@ -468,7 +486,7 @@ Each access control rule contains following attributes:
    * - ``operation``
      - Exact value of ``Read`` or ``Write``. Write implies also read permissions. Write includes all mutable operations, e.g. deleting schema versions
    * - ``resource``
-     - A regular expression used to match against accessed resource of form ``Subject:<subject_name>`` or ``Config:<optional_subject_name>``
+     - A regular expression used to match against accessed resource. Supported resources are ``Subject:<subject_name>`` or ``Config:``. See below for example of a complete authorization file.
 
 Example of complete authorization file
 --------------------------------------
@@ -500,6 +518,11 @@ Example of complete authorization file
                 "username": "plainuser",
                 "operation": "Read",
                 "resource": "Subject:general.*"
+            },
+            {
+                "username": "plainuser",
+                "operation": "Read",
+                "resource": "Config:"
             }
         ]
     }
