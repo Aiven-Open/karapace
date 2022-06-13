@@ -16,6 +16,7 @@ from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaR
 from karapace.utils import convert_to_int, KarapaceKafkaClient
 from typing import List, Optional, Tuple
 
+import aiohttp.web
 import asyncio
 import base64
 import json
@@ -43,13 +44,20 @@ class KafkaRest(KarapaceBase):
         self._metadata_birth = None
         self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
-        self.admin_lock = asyncio.Lock()
+        self.admin_lock = None
         self.metadata_cache = None
         self.schemas_cache = {}
         self.consumer_manager = ConsumerManager(config=config)
         self.init_admin_client()
 
+        self._async_producer_lock = None
         self._async_producer: Optional[AIOKafkaProducer] = None
+
+        self.app.on_startup.append(self.initialize_asyncio_locks)
+
+    async def initialize_asyncio_locks(self, app: aiohttp.web.Application):  # pylint: disable=unused-argument
+        """The locks can be initialized when asyncio loop is available"""
+        self.admin_lock = asyncio.Lock()
         self._async_producer_lock = asyncio.Lock()
 
     def _add_kafka_rest_routes(self) -> None:
@@ -159,6 +167,9 @@ class KafkaRest(KarapaceBase):
         self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
 
     async def _maybe_create_async_producer(self) -> AIOKafkaProducer:
+        if self._async_producer is not None:
+            return self._async_producer
+
         if self.config["producer_acks"] == "all":
             acks = "all"
         else:
@@ -192,7 +203,7 @@ class KafkaRest(KarapaceBase):
                 else:
                     self._async_producer = producer
 
-            return self._async_producer
+        return self._async_producer
 
     # CONSUMERS
     async def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest):

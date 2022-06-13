@@ -232,6 +232,7 @@ async def fixture_rest_async(
     config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers, "admin_metadata_max_age": 2})
     write_config(config_path, config)
     rest = KafkaRest(config=config)
+    await rest.initialize_asyncio_locks(app=None)
 
     assert rest.serializer.registry_client
     assert rest.consumer_manager.deserializer.registry_client
