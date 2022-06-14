@@ -782,16 +782,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self.r(schema_data["schema"].schema_str, content_type)
 
     async def subject_versions_list(self, content_type: str, *, subject: str, user: Optional[User] = None) -> None:
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
+
         subject_data = self._subject_get(subject, content_type)
         schemas = list(subject_data["schemas"])
-        if self._auth is not None:
-            schemas = list(
-                filter(
-                    lambda subject: self._auth is not None
-                    and self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"),
-                    schemas,
-                )
-            )
         self.r(schemas, content_type, status=HTTPStatus.OK)
 
     async def get_master(self) -> Tuple[bool, Optional[str]]:

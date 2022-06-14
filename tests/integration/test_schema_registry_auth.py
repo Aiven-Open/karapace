@@ -42,6 +42,49 @@ async def test_sr_auth(registry_async_client_auth: Client) -> None:
     )
 
 
+# Test each endpoint without authorization to verify those require authentícation
+async def test_sr_auth_endpoints(registry_async_client_auth: Client) -> None:
+    subject = new_random_name("any-")
+
+    res = await registry_async_client_auth.post(
+        f"compatibility/subjects/{quote(subject)}/versions/1", json={"schema": schema_avro_json}
+    )
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get(f"config/{quote(subject)}")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.put(f"config/{quote(subject)}", json={"compatibility": "NONE"})
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get("config")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.put("config", json={"compatibility": "NONE"})
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get("schemas/ids/1/versions")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get("schemas/types")
+    assert res.status_code == 200
+
+    res = await registry_async_client_auth.get("schemas/types", auth=admin)
+    assert res.status_code == 200
+
+    res = await registry_async_client_auth.post(f"subjects/{quote(subject)}/versions", json={"schema": schema_avro_json})
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.delete(f"subjects/{quote(subject)}/versions/1")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get(f"subjects/{quote(subject)}/versions/1/schema")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.delete(f"subjects/{quote(subject)}")
+    assert res.status_code == 401
+
+
 async def test_sr_list_subjects(registry_async_client_auth: Client) -> None:
     cavesubject = new_random_name("cave-")
     carpetsubject = new_random_name("carpet-")
@@ -62,13 +105,27 @@ async def test_sr_list_subjects(registry_async_client_auth: Client) -> None:
     assert res.status_code == 200
     assert [cavesubject, carpetsubject] == res.json()
 
+    res = await registry_async_client_auth.get(f"subjects/{quote(carpetsubject)}/versions")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get(f"subjects/{quote(carpetsubject)}/versions", auth=admin)
+    assert res.status_code == 200
+    assert [sc_id] == res.json()
+
     res = await registry_async_client_auth.get("subjects", auth=aladdin)
     assert res.status_code == 200
     assert [cavesubject] == res.json()
 
+    res = await registry_async_client_auth.get(f"subjects/{quote(carpetsubject)}/versions", auth=aladdin)
+    assert res.status_code == 403
+
     res = await registry_async_client_auth.get("subjects", auth=reader)
     assert res.status_code == 200
     assert [carpetsubject] == res.json()
+
+    res = await registry_async_client_auth.get(f"subjects/{quote(carpetsubject)}/versions", auth=reader)
+    assert res.status_code == 200
+    assert [1] == res.json()
 
 
 async def test_sr_ids(registry_async_client_auth: Client) -> None:
