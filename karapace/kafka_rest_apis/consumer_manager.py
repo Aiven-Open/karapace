@@ -486,9 +486,18 @@ class ConsumerManager:
                 for msg in poll_data[tp]:
                     try:
                         key = await self.deserialize(msg.key, request_format) if msg.key else None
+                    except (UnpackError, InvalidMessageHeader, InvalidPayload) as e:
+                        KarapaceBase.internal_error(
+                            message=f"key deserialization error for format {request_format}: {e}",
+                            content_type=content_type,
+                        )
+                    try:
                         value = await self.deserialize(msg.value, request_format) if msg.value else None
                     except (UnpackError, InvalidMessageHeader, InvalidPayload) as e:
-                        KarapaceBase.internal_error(message=f"deserialization error: {e}", content_type=content_type)
+                        KarapaceBase.internal_error(
+                            message=f"value deserialization error for format {request_format}: {e}",
+                            content_type=content_type,
+                        )
                     element = {
                         "topic": tp.topic,
                         "partition": tp.partition,
