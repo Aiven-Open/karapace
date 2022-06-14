@@ -62,6 +62,7 @@ ALL_TYPES = PRIMITIVE_TYPES + LOGICAL_TYPES + ["array", ENUM, "fixed", "map", "r
 ORDER_VALID_VALUES = ["ascending", "descending", "ignore"]
 
 NAME_ANONYMIZABLE_PATTERN = re.compile("[^.]+")
+INVALID_CHARACTER_PATTERN = re.compile("[^.a-zA-Z0-9_]")
 
 
 def anonymize_name(name: str) -> str:
@@ -77,9 +78,18 @@ def anonymize_name(name: str) -> str:
     """
 
     def anonymize_element(m: re.Match) -> str:
+        string = m.group()
+
+        # Preserve possible invalid characters as a suffix.
+        invalid_chars = list(set(INVALID_CHARACTER_PATTERN.findall(string)))
+        invalid_chars.sort()  # for consistency
+        invalid_chars_suffix = "".join(invalid_chars)
+
+        digest = hashlib.sha1(string.encode("utf-8")).hexdigest()
+
         # AVRO requires field names to start from a-zA-Z. SHA-1 can start with number.
         # Replace the first character with 'a'.
-        return "a" + hashlib.sha1(m.group().encode("utf-8")).hexdigest()[1:]
+        return "a" + digest[1:] + invalid_chars_suffix
 
     return NAME_ANONYMIZABLE_PATTERN.sub(anonymize_element, name)
 
