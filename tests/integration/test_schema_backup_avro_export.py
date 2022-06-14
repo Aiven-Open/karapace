@@ -19,7 +19,7 @@ baseurl = "http://localhost:8081"
 
 
 JSON_SUBJECT = "json-schemas"
-JSON_SUBJECT_HASH = "a2a0483c6ce0d38798ef218420e3f132608dbebf"
+JSON_SUBJECT_HASH = "a2a0483c6ce0d38798ef218420e3f132608dbebf-"
 JSON_SCHEMA = {
     "type": "object",
     "title": "JSON-schema",
@@ -28,7 +28,7 @@ JSON_SCHEMA = {
 }
 
 AVRO_SUBJECT = "avro-schemas"
-AVRO_SUBJECT_HASH = "a801beafef1fb8c03907b44ec7baca341a58420d"
+AVRO_SUBJECT_HASH = "a801beafef1fb8c03907b44ec7baca341a58420d-"
 AVRO_SCHEMA = {
     "type": "record",
     "namespace": "io.aiven",
