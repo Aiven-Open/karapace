@@ -246,7 +246,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "name": "af227bcd25744bf96408ccc655a37521935c7ab1",
             "items": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",
             "default": [],
-            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26.aa39a3ee5e6b4b0d3255bfef95601890afd80709",
+            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26.",
         },
         {
             "type": "array",
