@@ -5,14 +5,24 @@ Copyright (c) 2022 Aiven Ltd
 See LICENSE for details
 """
 from karapace.client import Client
+from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
-from tests.utils import new_random_name, schema_avro_json, schema_jsonschema_json
+from tests.utils import (
+    new_random_name,
+    new_topic,
+    schema_avro_json,
+    schema_jsonschema_json,
+    test_objects_avro,
+    wait_for_topics,
+)
 from typing import List
 from urllib.parse import quote
 
 import aiohttp
 import asyncio
 import requests
+
+NEW_TOPIC_TIMEOUT = 10
 
 admin = aiohttp.BasicAuth("admin", "admin")
 aladdin = aiohttp.BasicAuth("aladdin", "opensesame")
@@ -129,7 +139,6 @@ async def test_sr_list_subjects(registry_async_client_auth: Client) -> None:
 
 
 async def test_sr_ids(registry_async_client_auth: Client) -> None:
-
     cavesubject = new_random_name("cave-")
     carpetsubject = new_random_name("carpet-")
 
@@ -193,3 +202,15 @@ async def test_sr_auth_forwarding(registry_async_auth_pair: List[str]) -> None:
                 await asyncio.sleep(wait_time)
                 continue
             break
+
+
+# Test that Kafka REST API works when configured with Schema Registry requiring authorization
+async def test_rest_api_with_sr_auth(rest_async_client_registry_auth: Client, admin_client: KafkaRestAdminClient) -> None:
+    client = rest_async_client_registry_auth
+
+    topic = new_topic(admin_client, prefix="cave-rest-")
+    await wait_for_topics(client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    payload = {"value_schema": schema_avro_json, "records": [{"value": o} for o in test_objects_avro]}
+    res = await client.post(f"topics/{topic}", payload, headers={"Content-Type": "application/vnd.kafka.avro.v1+json"})
+    assert res.ok

@@ -19,8 +19,8 @@ Headers = dict
 LOG = logging.getLogger(__name__)
 
 
-async def _get_aiohttp_client() -> ClientSession:
-    return ClientSession()
+async def _get_aiohttp_client(*, auth: Optional[BasicAuth] = None) -> ClientSession:
+    return ClientSession(auth=auth)
 
 
 class Result:
@@ -49,10 +49,12 @@ class Client:
     def __init__(
         self,
         server_uri: Optional[str] = None,
-        client_factory: Callable[[], Awaitable[ClientSession]] = _get_aiohttp_client,
+        client_factory: Callable[..., Awaitable[ClientSession]] = _get_aiohttp_client,
         server_ca: Optional[str] = None,
+        session_auth: Optional[BasicAuth] = None,
     ) -> None:
         self.server_uri = server_uri or ""
+        self.session_auth = session_auth
         # aiohttp requires to be in the same async loop when creating its client and when using it.
         # Since karapace Client object is initialized before creating the async context, (in
         # kafka_rest_api main, when KafkaRest is created), we can't create the aiohttp here.
@@ -79,7 +81,7 @@ class Client:
 
     async def get_client(self) -> ClientSession:
         if self._client is None:
-            self._client = await self.client_factory()
+            self._client = await self.client_factory(auth=self.session_auth)
 
         return self._client
 

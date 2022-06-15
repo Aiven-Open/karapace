@@ -29,6 +29,7 @@ from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
 from typing import AsyncIterator, Iterator, List, Optional
+from urllib.parse import urlparse
 
 import asyncio
 import json
@@ -257,8 +258,79 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client() -> TestClient:
+        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
             return await aiohttp_client(rest_async.app)
+
+        client = Client(client_factory=get_client)
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "brokers",
+            json_data=None,
+            headers=None,
+            error_msg="REST API is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_registry_auth")
+async def fixture_rest_async_registry_auth(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    kafka_servers: KafkaServers,
+    registry_async_client_auth: Client,
+) -> AsyncIterator[Optional[KafkaRest]]:
+
+    # Do not start a REST api when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    rest_url = request.config.getoption("rest_url")
+    if rest_url:
+        yield None
+        return
+
+    registry = urlparse(registry_async_client_auth.server_uri)
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "admin_metadata_max_age": 2,
+            "registry_host": registry.hostname,
+            "registry_port": registry.port,
+            "registry_user": "admin",
+            "registry_password": "admin",
+        }
+    )
+    rest = KafkaRest(config=config)
+
+    try:
+        yield rest
+    finally:
+        await rest.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_registry_auth")
+async def fixture_rest_async_client_registry_auth(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    rest_async_registry_auth: KafkaRest,
+    aiohttp_client: AiohttpClient,
+) -> AsyncIterator[Client]:
+    rest_url = request.config.getoption("rest_url")
+
+    # client and server_uri are incompatible settings.
+    if rest_url:
+        client = Client(server_uri=rest_url)
+    else:
+
+        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+            return await aiohttp_client(rest_async_registry_auth.app)
 
         client = Client(client_factory=get_client)
 

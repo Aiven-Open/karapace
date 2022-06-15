@@ -390,12 +390,18 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - Filename to a private key for the Karapace server in HTTPS mode.
    * - ``registry_host``
      - ``127.0.0.1``
-     - Kafka Registry host, used by Kafka Rest for Avro related requests.
+     - Schema Registry host, used by Kafka Rest for schema related requests.
        If running both in the same process, it should be left to its default value
    * - ``registry_port``
      - ``8081``
-     - Kafka Registry port, used by Kafka Rest for Avro related requests.
+     - Schema Registry port, used by Kafka Rest for schema related requests.
        If running both in the same process, it should be left to its default value
+   * - ``registry_user``
+     - ``None``
+     - Schema Registry user for authentication, used by Kafka Rest for schema related requests.
+   * - ``registry_password``
+     - ``None``
+     - Schema Registry password for authentication, used by Kafka Rest for schema related requests.
    * - ``registry_ca``
      - ``/path/to/cafile``
      - Kafka Registry CA certificate, used by Kafka Rest for Avro related requests.
