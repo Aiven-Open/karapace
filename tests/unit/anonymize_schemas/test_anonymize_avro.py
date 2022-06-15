@@ -49,6 +49,16 @@ EXPECTED_SIMPLE_RECORD_SCHEMA = {
 }
 
 
+SPECIAL_CHARACTERS_SCHEMA = {
+    "type": "record",
+    "name": "!m@y#r$e%c^o&r*d(=.m)y_r-e+c[o]r<d>?",
+}
+EXPECTED_SPECIAL_CHARACTERS_SCHEMA = {
+    "type": "record",
+    "name": "a8961a6e24b2695754fca99058c5ac1ccd3470f0!#$%&(*=@^.a5f69786327ca01574e464383e995d5d333e0170)+-<>?[]",
+}
+
+
 SIMPLE_ENUM_SCHEMA = {
     "type": "enum",
     "name": "test_enum",
@@ -101,7 +111,7 @@ EXPECTED_COMPLEX_ENUM_SCHEMA = {
                     "type": "record",
                     "fields": [
                         {
-                            "name": "a477e6d87a95db19d02fb60126f68b35ccf7b694",
+                            "name": "a477e6d87a95db19d02fb60126f68b35ccf7b694-",
                             "type": "string",
                             "logicalType": "uuid",
                         }
@@ -246,7 +256,7 @@ EXPECTED_ALL_ELEMENTS_SCHEMA = {
             "name": "af227bcd25744bf96408ccc655a37521935c7ab1",
             "items": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.a94a8fe5ccb19ba61c4c0873d391e987982fbbd3.a09a23220f2c3d64d1e1d6d18c4d5280f8d82fca",
             "default": [],
-            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26.aa39a3ee5e6b4b0d3255bfef95601890afd80709",
+            "a43c4b82570e182eb1c74072896167113d2c7345": "a0f1005a1091064f11247324586b3fe8b4504e26 .",
         },
         {
             "type": "array",
@@ -362,7 +372,7 @@ EXPECTED_ALL_ELEMENTS_INVALID_DATA_SCHEMA = {
             "name": 10,
             "items": 10,
             "default": 10,
-            10: "a0b769b8796e493b9e82cb872cc9871921d67af8",
+            10: "a0b769b8796e493b9e82cb872cc9871921d67af8 ",
         },
         {
             "type": "map",
@@ -492,12 +502,12 @@ JSON_TYPE_SCHEMA = {
 }
 EXPECTED_JSON_TYPE_SCHEMA = {
     "type": "a615307cc4523f183e777df67f168c86908e8007",
-    "ac6de1b7dd91465d437ef415f94f36afc1fbc8a8": "aa6778ddeb92053ff2f1bdefc1ad93e85cf2e67f",
+    "ac6de1b7dd91465d437ef415f94f36afc1fbc8a8": "aa6778ddeb92053ff2f1bdefc1ad93e85cf2e67f-",
     "ab329146a0dd0d566b0628744d67936558741ffa": "a3499c2729730a7f807efb8676a92dcb6f8a3f8f",
     "a0449e86077449843777d1958aff83cf086dbcba": {
         "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3": {
             "type": "a178cafbd64bbbfa77f5ac0a9d5032ed88162781",
-            "ac6de1b7dd91465d437ef415f94f36afc1fbc8a8": "ad2285a805023b2a4fc65e55cfa28ca26111c438",
+            "ac6de1b7dd91465d437ef415f94f36afc1fbc8a8": "ad2285a805023b2a4fc65e55cfa28ca26111c438 ",
             "default": 5,
         },
     },
@@ -538,6 +548,7 @@ EMPTY_STR = ""
         [SCHEMA_WITH_NAME, EXPECTED_SCHEMA_WITH_NAME],
         [FIXED_VALUE_SCHEMA_INVALID, EXPECTED_FIXED_VALUE_SCHEMA_INVALID],
         [SIMPLE_RECORD_SCHEMA, EXPECTED_SIMPLE_RECORD_SCHEMA],
+        [SPECIAL_CHARACTERS_SCHEMA, EXPECTED_SPECIAL_CHARACTERS_SCHEMA],
         [SIMPLE_ENUM_SCHEMA, EXPECTED_SIMPLE_ENUM_SCHEMA],
         [COMPLEX_ENUM_SCHEMA, EXPECTED_COMPLEX_ENUM_SCHEMA],
         [NO_TYPE_SCHEMA, EXPECTED_NO_TYPE_SCHEMA],

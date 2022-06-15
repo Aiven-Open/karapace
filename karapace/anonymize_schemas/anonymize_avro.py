@@ -7,6 +7,7 @@ See LICENSE for details
 from typing import Any, Dict, List, Union
 
 import hashlib
+import re
 
 ALIASES = "aliases"
 DEFAULT = "default"
@@ -60,6 +61,9 @@ ALL_TYPES = PRIMITIVE_TYPES + LOGICAL_TYPES + ["array", ENUM, "fixed", "map", "r
 
 ORDER_VALID_VALUES = ["ascending", "descending", "ignore"]
 
+NAME_ANONYMIZABLE_PATTERN = re.compile("[^.]+")
+INVALID_CHARACTER_PATTERN = re.compile("[^.a-zA-Z0-9_]")
+
 
 def anonymize_name(name: str) -> str:
     """Anonymize the name.
@@ -72,16 +76,22 @@ def anonymize_name(name: str) -> str:
 
     Returns anonymized name.
     """
-    anonymized_elements = []
-    for element in name.split("."):
-        element = hashlib.sha1(element.encode("utf-8")).hexdigest()
-        # SHA-1 can start with number, just add 'a' as first character.
-        # This breaks the hash, but is still consistent as required.
-        as_list_element = list(element)
-        as_list_element[0] = "a"
-        anonymized_elements.append("".join(as_list_element))
 
-    return ".".join(anonymized_elements)
+    def anonymize_element(m: re.Match) -> str:
+        string = m.group()
+
+        # Preserve possible invalid characters as a suffix.
+        invalid_chars = list(set(INVALID_CHARACTER_PATTERN.findall(string)))
+        invalid_chars.sort()  # for consistency
+        invalid_chars_suffix = "".join(invalid_chars)
+
+        digest = hashlib.sha1(string.encode("utf-8")).hexdigest()
+
+        # AVRO requires field names to start from a-zA-Z. SHA-1 can start with number.
+        # Replace the first character with 'a'.
+        return "a" + digest[1:] + invalid_chars_suffix
+
+    return NAME_ANONYMIZABLE_PATTERN.sub(anonymize_element, name)
 
 
 Schema = Union[str, Dict[str, Any], List[Any]]
