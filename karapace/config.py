@@ -41,6 +41,8 @@ DEFAULTS = {
     "server_tls_keyfile": None,
     "registry_host": "127.0.0.1",
     "registry_port": 8081,
+    "registry_user": None,
+    "registry_password": None,
     "registry_ca": None,
     "registry_authfile": None,
     "log_level": "DEBUG",
