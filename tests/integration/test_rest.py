@@ -182,18 +182,31 @@ async def test_admin_client(admin_client, producer):
 
 async def test_internal(rest_async, admin_client):
     topic_name = new_topic(admin_client)
-    for p in [0, None]:
-        result = await rest_async.produce_message(topic=topic_name, key=b"key", value=b"value", partition=p)
+    prepared_records = [
+        [b"key", b"value", 0],
+        [b"key", b"value", None],
+    ]
+    results = await rest_async.produce_messages(topic=topic_name, prepared_records=prepared_records)
+    assert len(results) == 2
+    for result in results:
         assert "error" not in result, "Valid result should not contain 'error' key"
         assert "offset" in result, "Valid result is missing 'offset' key"
         assert "partition" in result, "Valid result is missing 'partition' key"
         actual_part = result["partition"]
         assert actual_part == 0, "Returned partition id should be %d but is %d" % (0, actual_part)
-    result = await rest_async.produce_message(topic=topic_name, key=b"key", value=b"value", partition=100)
-    assert "error" in result, "Invalid result missing 'error' key"
-    assert result["error"] == "Unrecognized partition"
-    assert "error_code" in result, "Invalid result missing 'error_code' key"
-    assert result["error_code"] == 1
+
+    prepared_records = [
+        [b"key", b"value", 100],
+    ]
+
+    results = await rest_async.produce_messages(topic=topic_name, prepared_records=prepared_records)
+    assert len(results) == 1
+    for result in results:
+        assert "error" in result, "Invalid result missing 'error' key"
+        assert result["error"] == "Unrecognized partition"
+        assert "error_code" in result, "Invalid result missing 'error_code' key"
+        assert result["error_code"] == 1
+
     assert rest_async.all_empty({"records": [{"key": {"foo": "bar"}}]}, "key") is False
     assert rest_async.all_empty({"records": [{"value": {"foo": "bar"}}]}, "value") is False
     assert rest_async.all_empty({"records": [{"value": {"foo": "bar"}}]}, "key") is True
