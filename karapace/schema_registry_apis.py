@@ -918,25 +918,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self._validate_schema_request_body(content_type, body)
         schema_type = self._validate_schema_type(content_type, body)
         self._validate_schema_key(content_type, body)
-        are_we_master, master_url = await self.get_master()
-        if are_we_master:
-            async with self.schema_lock:
-                await self.write_new_schema_local(subject, body, content_type, schema_type)
-        elif not master_url:
-            self.no_master_error(content_type)
-        else:
-            url = f"{master_url}/subjects/{subject}/versions"
-            await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
 
-    def write_new_schema_local(
-        self,
-        subject: str,
-        body: JsonData,
-        content_type: str,
-        schema_type: SchemaType,
-    ) -> NoReturn:
-        """Since we're the master we get to write the new schema"""
-        self.log.info("Writing new schema locally since we're the master")
         try:
             new_schema = ValidatedTypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
         except (InvalidSchema, InvalidSchemaType) as e:
@@ -953,7 +935,31 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
-        if subject not in self.ksr.subjects or not self.ksr.subjects.get(subject)["schemas"]:
+
+        schema_id = self.get_schema_id_if_exists(subject=subject, schema=new_schema)
+        if schema_id is not None:
+            self.r({"id": schema_id}, content_type)
+
+        are_we_master, master_url = await self.get_master()
+        if are_we_master:
+            async with self.schema_lock:
+                await self.write_new_schema_local(subject, new_schema, content_type)
+        elif not master_url:
+            self.no_master_error(content_type)
+        else:
+            url = f"{master_url}/subjects/{subject}/versions"
+            await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
+
+    def write_new_schema_local(
+        self,
+        subject: str,
+        new_schema: ValidatedTypedSchema,
+        content_type: str,
+    ) -> NoReturn:
+        """Since we're the master we get to write the new schema"""
+        self.log.info("Writing new schema locally since we're the master")
+        subject_data = self.ksr.subjects.get(subject, None)
+        if subject_data is None or not subject_data.get("schemas"):
             schema_id = self.ksr.get_schema_id(new_schema)
             version = 1
             self.log.info(
@@ -963,92 +969,97 @@ class KarapaceSchemaRegistry(KarapaceBase):
                 new_schema.schema_str,
                 schema_id,
             )
-        else:
-            # First check if any of the existing schemas for the subject match
-            subject_data = self.ksr.subjects[subject]
-            schemas = self.ksr.get_schemas(subject)
-            if not schemas:  # Previous ones have been deleted by the user.
-                version = max(self.ksr.subjects[subject]["schemas"]) + 1
-                schema_id = self.ksr.get_schema_id(new_schema)
-                self.log.info(
-                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
-                    subject,
-                    schema_id,
-                    version,
-                    new_schema.schema_str,
-                    schema_id,
-                )
-                self.send_schema_message(
-                    subject=subject,
-                    schema=new_schema,
-                    schema_id=schema_id,
-                    version=version,
-                    deleted=False,
-                )
-                self.r({"id": schema_id}, content_type)
+            self.send_schema_message(
+                subject=subject,
+                schema=new_schema,
+                schema_id=schema_id,
+                version=version,
+                deleted=False,
+            )
+            # Returns here
+            self.r({"id": schema_id}, content_type)
 
-            schema_versions = sorted(list(schemas))
-            # Go through these in version order
-            for version in schema_versions:
-                schema = subject_data["schemas"][version]
-                if schema["schema"] == new_schema:
-                    self.r({"id": schema["id"]}, content_type)
-                else:
-                    self.log.debug("schema: %s did not match with: %s", schema, new_schema)
-
-            compatibility_mode = self._get_compatibility_mode(subject=subject_data, content_type=content_type)
-
-            # Run a compatibility check between on file schema(s) and the one being submitted now
-            # the check is either towards the latest one or against all previous ones in case of
-            # transitive mode
-            if compatibility_mode.is_transitive():
-                check_against = schema_versions
-            else:
-                check_against = [schema_versions[-1]]
-
-            for old_version in check_against:
-                old_schema = subject_data["schemas"][old_version]["schema"]
-                validated_old_schema = ValidatedTypedSchema.parse(
-                    schema_type=old_schema.schema_type, schema_str=old_schema.schema_str
-                )
-                result = check_compatibility(
-                    old_schema=validated_old_schema,
-                    new_schema=new_schema,
-                    compatibility_mode=compatibility_mode,
-                )
-                if is_incompatible(result):
-                    message = set(result.messages).pop() if result.messages else ""
-                    self.log.warning("Incompatible schema: %s", result)
-                    self.r(
-                        body={
-                            "error_code": SchemaErrorCodes.HTTP_CONFLICT.value,
-                            "message": f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}",
-                        },
-                        content_type=content_type,
-                        status=HTTPStatus.CONFLICT,
-                    )
-
-            # We didn't find an existing schema and the schema is compatible so go and create one
+        # First check if any of the existing schemas for the subject match
+        schemas = self.ksr.get_schemas(subject)
+        if not schemas:  # Previous ones have been deleted by the user.
+            version = max(subject_data["schemas"]) + 1
             schema_id = self.ksr.get_schema_id(new_schema)
-            version = max(self.ksr.subjects[subject]["schemas"]) + 1
-            if new_schema.schema_type is SchemaType.PROTOBUF:
-                self.log.info(
-                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
-                    subject,
-                    schema_id,
-                    version,
-                    new_schema.__str__(),
-                    schema_id,
+            self.log.info(
+                "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
+                subject,
+                schema_id,
+                version,
+                new_schema.schema_str,
+                schema_id,
+            )
+            self.send_schema_message(
+                subject=subject,
+                schema=new_schema,
+                schema_id=schema_id,
+                version=version,
+                deleted=False,
+            )
+            # Returns here
+            self.r({"id": schema_id}, content_type)
+
+        schema_id = self.get_schema_id_if_exists(subject=subject, schema=new_schema)
+        if schema_id is not None:
+            self.r({"id": schema_id}, content_type)
+
+        compatibility_mode = self._get_compatibility_mode(subject=subject_data, content_type=content_type)
+
+        # Run a compatibility check between on file schema(s) and the one being submitted now
+        # the check is either towards the latest one or against all previous ones in case of
+        # transitive mode
+        schema_versions = sorted(list(schemas))
+        if compatibility_mode.is_transitive():
+            check_against = schema_versions
+        else:
+            check_against = [schema_versions[-1]]
+
+        for old_version in check_against:
+            old_schema = subject_data["schemas"][old_version]["schema"]
+            validated_old_schema = ValidatedTypedSchema.parse(
+                schema_type=old_schema.schema_type, schema_str=old_schema.schema_str
+            )
+            result = check_compatibility(
+                old_schema=validated_old_schema,
+                new_schema=new_schema,
+                compatibility_mode=compatibility_mode,
+            )
+            if is_incompatible(result):
+                message = set(result.messages).pop() if result.messages else ""
+                self.log.warning("Incompatible schema: %s", result)
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.HTTP_CONFLICT.value,
+                        "message": f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.CONFLICT,
                 )
-            else:
-                self.log.info(
-                    "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
-                    subject,
-                    schema_id,
-                    version,
-                    new_schema.to_dict(),
-                    schema_id,
-                )
+
+        # We didn't find an existing schema and the schema is compatible so go and create one
+        schema_id = self.ksr.get_schema_id(new_schema)
+        version = max(self.ksr.subjects[subject]["schemas"]) + 1
+        if new_schema.schema_type is SchemaType.PROTOBUF:
+            self.log.info(
+                "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
+                subject,
+                schema_id,
+                version,
+                new_schema.__str__(),
+                schema_id,
+            )
+        else:
+            self.log.info(
+                "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
+                subject,
+                schema_id,
+                version,
+                new_schema.to_dict(),
+                schema_id,
+            )
 
         self.send_schema_message(
             subject=subject,
@@ -1058,6 +1069,9 @@ class KarapaceSchemaRegistry(KarapaceBase):
             deleted=False,
         )
         self.r({"id": schema_id}, content_type)
+
+    def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema) -> Optional[int]:
+        return self.ksr.get_schema_id_if_exists(subject=subject, schema=schema)
 
     async def _forward_request_remote(
         self, *, request: HTTPRequest, body: Optional[dict], url: str, content_type: str, method: str = "POST"
