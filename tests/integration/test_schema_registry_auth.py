@@ -188,16 +188,13 @@ async def test_sr_auth_forwarding(registry_async_auth_pair: List[str]) -> None:
                 raise Exception("Compat update not propagated")
             resp = requests.get(f"{primary_url}/config", auth=auth)
             if not resp.ok:
-                print(f"Invalid http status code: {resp.status_code}")
                 continue
             data = resp.json()
             if "compatibilityLevel" not in data:
-                print(f"Invalid response: {data}")
                 counter += 1
                 await asyncio.sleep(wait_time)
                 continue
             if data["compatibilityLevel"] != compat:
-                print(f"Bad compatibility: {data}")
                 counter += 1
                 await asyncio.sleep(wait_time)
                 continue
