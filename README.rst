@@ -468,18 +468,6 @@ Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or 
       "password_hash": "R6ghYSXdLGsq6hkQcg8wT4xkD4QToxBhlp7NerTnyB077M+mD2qiN7ZxXCDb4aE+5lExu5P11UpMPYAcVYxSQA=="
   }
 
-Supported resource authorization:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Resource
-     - Description
-   * - ``Subject:<subject_name>``
-     - Controls authorization to subject. The ``<subject_name>`` is a regular expression to match against the accessed subject.
-   * - ``Config:``
-     - Controls authorization to global schema registry configuration.
-
 Each access control rule contains following attributes:
 
 .. list-table::
@@ -492,7 +480,19 @@ Each access control rule contains following attributes:
    * - ``operation``
      - Exact value of ``Read`` or ``Write``. Write implies also read permissions. Write includes all mutable operations, e.g. deleting schema versions
    * - ``resource``
-     - A regular expression used to match against accessed resource. Supported resources are ``Subject:<subject_name>`` or ``Config:``. See below for example of a complete authorization file.
+     - A regular expression used to match against accessed resource.
+
+Supported resource authorization:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Resource
+     - Description
+   * - ``Config:``
+     - Controls authorization to global schema registry configuration.
+   * - ``Subject:<subject_name>``
+     - Controls authorization to subject. The ``<subject_name>`` is a regular expression to match against the accessed subject.
 
 Example of complete authorization file
 --------------------------------------
