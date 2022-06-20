@@ -64,7 +64,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         self._auth: Optional[HTTPAuthorizer] = None
         if self.config["registry_authfile"] is not None:
             self._auth = HTTPAuthorizer(str(self.config["registry_authfile"]))
-            self.app.on_startup.append(self._auth.start_refresh_task)
+            self.app.on_startup.append(self._start_authorizer)
 
         self._add_schema_registry_routes()
         self.producer = self._create_producer()
@@ -81,6 +81,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def _create_forward_client(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         """Callback for aiohttp.Application.on_startup"""
         self._forward_client = aiohttp.ClientSession(headers={"User-Agent": SERVER_NAME})
+
+    async def _start_authorizer(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        """Callback for aiohttp.Application.on_startup"""
+        await self._auth.start_refresh_task(self.stats)
 
     def _create_producer(self) -> KafkaProducer:
         while True:
