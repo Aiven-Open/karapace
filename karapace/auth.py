@@ -4,6 +4,7 @@ from enum import Enum, unique
 from hmac import compare_digest
 from karapace.config import InvalidConfiguration
 from karapace.rapu import JSON_CONTENT_TYPE
+from karapace.statsd import StatsClient
 from typing import Optional
 
 import aiohttp
@@ -76,8 +77,8 @@ class HTTPAuthorizer:
         # Once first, can raise if file not valid
         self._load_authfile()
 
-    async def start_refresh_task(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
-        """Callback for aiohttp.Application.on_startup"""
+    async def start_refresh_task(self, stats: StatsClient) -> None:
+        """Start authfile refresher task"""
 
         async def _refresh_authfile() -> None:
             """Reload authfile, but keep old auth data if loading fails"""
@@ -96,6 +97,7 @@ class HTTPAuthorizer:
                     return
                 except Exception as ex:  # pylint: disable=broad-except
                     log.fatal("Schema registry auth file could not be loaded: %s", ex)
+                    stats.unexpected_exception(ex=ex, where="schema_registry_authfile_reloader")
 
         self._refresh_auth_task = asyncio.create_task(_refresh_authfile())
 
