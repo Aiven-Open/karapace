@@ -52,8 +52,9 @@ async def test_sr_auth(registry_async_client_auth: Client) -> None:
     )
 
 
-# Test each endpoint without authorization to verify those require authentícation
 async def test_sr_auth_endpoints(registry_async_client_auth: Client) -> None:
+    """Test endpoints for authorization"""
+
     subject = new_random_name("any-")
 
     res = await registry_async_client_auth.post(
@@ -76,9 +77,11 @@ async def test_sr_auth_endpoints(registry_async_client_auth: Client) -> None:
     res = await registry_async_client_auth.get("schemas/ids/1/versions")
     assert res.status_code == 401
 
+    # This is an exception that does not require authorization
     res = await registry_async_client_auth.get("schemas/types")
     assert res.status_code == 200
 
+    # but let's verify it answers normally if sending authorization header
     res = await registry_async_client_auth.get("schemas/types", auth=admin)
     assert res.status_code == 200
 
