@@ -374,7 +374,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     ) -> None:
         """Check for schema compatibility"""
 
-        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         body = request.json
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
