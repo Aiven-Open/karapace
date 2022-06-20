@@ -504,14 +504,14 @@ Example of complete authorization file
             {
                 "username": "admin",
                 "algorithm": "scrypt",
-                "salt": "5nq6IYKAwodZEsEs4UElYw",
-                "password_hash": "1Z+NCmV6nYFfrTPugqftgP8uWGeIAFOWMpLnjVJ3kEoQdsbEgM+33jdzBF+DR6KcMDl/7RJpKz4Olh3sC5VvuA=="
+                "salt": "<put salt for randomized hashing here>",
+                "password_hash": "<put hashed password here>"
             },
             {
                 "username": "plainuser",
                 "algorithm": "sha256",
-                "salt": "ZHzHX4TlGf1Mf4NTGyVxJA",
-                "password_hash": "r7MjkGAhQCJCXqirW8FYjNqKYFL6uU2EgpG9xOoNxCk="
+                "salt": "<put salt for randomized hashing here>",
+                "password_hash": "<put hashed password here>"
             }
         ],
         "permissions": [
