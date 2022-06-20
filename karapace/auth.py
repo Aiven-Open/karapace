@@ -140,11 +140,10 @@ class HTTPAuthorizer:
             return False
 
         def check_operation(operation: Operation, aclentry: ACLEntry) -> bool:
-            if operation == Operation.Read:
-                return True
-            if aclentry.operation == Operation.Write:
-                return True
-            return False
+            """Does ACL entry allow given operation.
+
+            An entry at minimum gives Read permission. Write permission implies Read."""
+            return operation == Operation.Read or aclentry.operation == Operation.Write
 
         def check_resource(resource: str, aclentry: ACLEntry) -> bool:
             return aclentry.resource.match(resource) is not None

@@ -590,11 +590,10 @@ class KarapaceSchemaRegistry(KarapaceBase):
 
     async def subjects_list(self, content_type: str, *, user: Optional[User] = None) -> None:
         subjects = [key for key, val in self.ksr.subjects.items() if self.ksr.get_schemas(key)]
-        if self._auth:
+        if self._auth is not None:
             subjects = list(
                 filter(
-                    lambda subject: self._auth is not None
-                    and self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"),
+                    lambda subject: self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"),
                     subjects,
                 )
             )
