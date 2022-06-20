@@ -96,7 +96,7 @@ class HTTPAuthorizer:
                     log.info("Closing schema registry ACL refresh task")
                     return
                 except Exception as ex:  # pylint: disable=broad-except
-                    log.fatal("Schema registry auth file could not be loaded: %s", ex)
+                    log.exception("Schema registry auth file could not be loaded")
                     stats.unexpected_exception(ex=ex, where="schema_registry_authfile_reloader")
 
         self._refresh_auth_task = asyncio.create_task(_refresh_authfile())
@@ -135,7 +135,7 @@ class HTTPAuthorizer:
                     [(entry.username, entry.operation.value, entry.resource.pattern) for entry in permissions],
                 )
         except Exception as ex:
-            raise InvalidConfiguration("Auth configuration is not valid") from ex
+            raise InvalidConfiguration("Failed to load auth file") from ex
 
     def check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> bool:
         if user is None:
