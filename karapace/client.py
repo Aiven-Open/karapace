@@ -4,7 +4,7 @@ karapace - utils
 Copyright (c) 2022 Aiven Ltd
 See LICENSE for details
 """
-from aiohttp import ClientSession
+from aiohttp import BasicAuth, ClientSession
 from collections.abc import Mapping
 from karapace.typing import JsonData
 from typing import Awaitable, Callable, Optional, Union
@@ -19,8 +19,8 @@ Headers = dict
 LOG = logging.getLogger(__name__)
 
 
-async def _get_aiohttp_client() -> ClientSession:
-    return ClientSession()
+async def _get_aiohttp_client(*, auth: Optional[BasicAuth] = None) -> ClientSession:
+    return ClientSession(auth=auth)
 
 
 class Result:
@@ -49,10 +49,12 @@ class Client:
     def __init__(
         self,
         server_uri: Optional[str] = None,
-        client_factory: Callable[[], Awaitable[ClientSession]] = _get_aiohttp_client,
+        client_factory: Callable[..., Awaitable[ClientSession]] = _get_aiohttp_client,
         server_ca: Optional[str] = None,
+        session_auth: Optional[BasicAuth] = None,
     ) -> None:
         self.server_uri = server_uri or ""
+        self.session_auth = session_auth
         # aiohttp requires to be in the same async loop when creating its client and when using it.
         # Since karapace Client object is initialized before creating the async context, (in
         # kafka_rest_api main, when KafkaRest is created), we can't create the aiohttp here.
@@ -79,7 +81,7 @@ class Client:
 
     async def get_client(self) -> ClientSession:
         if self._client is None:
-            self._client = await self.client_factory()
+            self._client = await self.client_factory(auth=self.session_auth)
 
         return self._client
 
@@ -88,6 +90,7 @@ class Client:
         path: Path,
         json: JsonData = None,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -97,6 +100,7 @@ class Client:
             path,
             json=json,
             headers=headers,
+            auth=auth,
             ssl=self.ssl_mode,
         ) as res:
             # required for forcing the response body conversion to json despite missing valid Accept headers
@@ -107,6 +111,7 @@ class Client:
         self,
         path: Path,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -115,6 +120,7 @@ class Client:
         async with client.delete(
             path,
             headers=headers,
+            auth=auth,
             ssl=self.ssl_mode,
         ) as res:
             json_result = {} if res.status == 204 else await res.json()
@@ -125,6 +131,7 @@ class Client:
         path: Path,
         json: JsonData,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -134,6 +141,7 @@ class Client:
         async with client.post(
             path,
             headers=headers,
+            auth=auth,
             json=json,
             ssl=self.ssl_mode,
         ) as res:
@@ -145,6 +153,7 @@ class Client:
         path: Path,
         json: JsonData,
         headers: Optional[Headers] = None,
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -154,6 +163,7 @@ class Client:
         async with client.put(
             path,
             headers=headers,
+            auth=auth,
             json=json,
             ssl=self.ssl_mode,
         ) as res:
@@ -165,12 +175,14 @@ class Client:
         path: Path,
         data: JsonData,
         headers: Optional[Headers],
+        auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
         client = await self.get_client()
         async with client.put(
             path,
             headers=headers,
+            auth=auth,
             data=data,
             ssl=self.ssl_mode,
         ) as res:

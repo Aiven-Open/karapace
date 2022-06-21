@@ -5,8 +5,8 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from _pytest.fixtures import SubRequest
-from aiohttp import ClientSession
 from aiohttp.pytest_plugin import AiohttpClient
+from aiohttp.test_utils import TestClient
 from contextlib import closing, ExitStack
 from dataclasses import asdict
 from filelock import FileLock
@@ -29,6 +29,7 @@ from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
 from typing import AsyncIterator, Iterator, List, Optional
+from urllib.parse import urlparse
 
 import asyncio
 import json
@@ -258,8 +259,79 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client() -> ClientSession:
+        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
             return await aiohttp_client(rest_async.app)
+
+        client = Client(client_factory=get_client)
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "brokers",
+            json_data=None,
+            headers=None,
+            error_msg="REST API is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_registry_auth")
+async def fixture_rest_async_registry_auth(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    kafka_servers: KafkaServers,
+    registry_async_client_auth: Client,
+) -> AsyncIterator[Optional[KafkaRest]]:
+
+    # Do not start a REST api when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    rest_url = request.config.getoption("rest_url")
+    if rest_url:
+        yield None
+        return
+
+    registry = urlparse(registry_async_client_auth.server_uri)
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "admin_metadata_max_age": 2,
+            "registry_host": registry.hostname,
+            "registry_port": registry.port,
+            "registry_user": "admin",
+            "registry_password": "admin",
+        }
+    )
+    rest = KafkaRest(config=config)
+
+    try:
+        yield rest
+    finally:
+        await rest.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_registry_auth")
+async def fixture_rest_async_client_registry_auth(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    rest_async_registry_auth: KafkaRest,
+    aiohttp_client: AiohttpClient,
+) -> AsyncIterator[Client]:
+    rest_url = request.config.getoption("rest_url")
+
+    # client and server_uri are incompatible settings.
+    if rest_url:
+        client = Client(server_uri=rest_url)
+    else:
+
+        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+            return await aiohttp_client(rest_async_registry_auth.app)
 
         client = Client(client_factory=get_client)
 
@@ -286,7 +358,7 @@ async def fixture_registry_async_pair(
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
-) -> Iterator[List[str]]:
+) -> AsyncIterator[List[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
     config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
@@ -435,3 +507,86 @@ async def fixture_registry_async_client_tls(
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_http_auth_endpoint")
+async def fixture_registry_http_auth_endpoint(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+) -> AsyncIterator[str]:
+    # Do not start a registry when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    registry_url = request.config.getoption("registry_url")
+    if registry_url:
+        yield registry_url
+        return
+
+    config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "registry_authfile": "tests/integration/config/karapace.auth.json",
+    }
+    async with start_schema_registry_cluster(
+        config_templates=[config],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as servers:
+        yield servers[0].endpoint.to_url()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_auth")
+async def fixture_registry_async_client_auth(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    registry_http_auth_endpoint: str,
+) -> AsyncIterator[Client]:
+    client = Client(
+        server_uri=registry_http_auth_endpoint,
+        server_ca=request.config.getoption("server_ca"),
+    )
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "schemas/types",
+            json_data=None,
+            headers=None,
+            error_msg=f"Registry API {registry_http_auth_endpoint} is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_auth_pair")
+async def fixture_registry_async_auth_pair(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+) -> AsyncIterator[List[str]]:
+    """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
+
+    config1: Config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "registry_authfile": "tests/integration/config/karapace.auth.json",
+    }
+    config2: Config = {
+        "bootstrap_uri": kafka_servers.bootstrap_servers,
+        "registry_authfile": "tests/integration/config/karapace.auth.json",
+    }
+
+    async with start_schema_registry_cluster(
+        config_templates=[config1, config2],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+        port_range=port_range,
+    ) as endpoints:
+        yield [server.endpoint.to_url() for server in endpoints]

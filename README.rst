@@ -390,17 +390,27 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - Filename to a private key for the Karapace server in HTTPS mode.
    * - ``registry_host``
      - ``127.0.0.1``
-     - Kafka Registry host, used by Kafka Rest for Avro related requests.
+     - Schema Registry host, used by Kafka Rest for schema related requests.
        If running both in the same process, it should be left to its default value
    * - ``registry_port``
      - ``8081``
-     - Kafka Registry port, used by Kafka Rest for Avro related requests.
+     - Schema Registry port, used by Kafka Rest for schema related requests.
        If running both in the same process, it should be left to its default value
+   * - ``registry_user``
+     - ``None``
+     - Schema Registry user for authentication, used by Kafka Rest for schema related requests.
+   * - ``registry_password``
+     - ``None``
+     - Schema Registry password for authentication, used by Kafka Rest for schema related requests.
    * - ``registry_ca``
      - ``/path/to/cafile``
      - Kafka Registry CA certificate, used by Kafka Rest for Avro related requests.
        If this is set, Kafka Rest will use HTTPS to connect to the registry.
        If running both in the same process, it should be left to its default value
+   * - ``registry_authfile``
+     - ``/path/to/authfile.json``
+     - Filename to specify users and access control rules for Karapace Schema Registry.
+       If this is set, Schema Segistry requires authentication for most of the endpoints and applies per endpoint authorization rules.
    * - ``metadata_max_age_ms``
      - ``60000``
      - Period of time in milliseconds after Kafka metadata is force refreshed.
@@ -423,6 +433,105 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``master_election_strategy``
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
+
+
+Authentication and authorization of Karapace Schema Registry REST API
+=====================================================================
+
+To enable HTTP Basic Authentication and user authorization the authorization configuration file is set in the main configuration key ``registry_authfile`` of the Karapace.
+
+Karapace Schema Registry authorization file is an optional JSON configuration, which contains a list of authorized users in ``users`` and a list of access control rules in ``permissions``.
+
+Each user entry contains following attributes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Description
+   * - ``username``
+     - A string
+   * - ``algorithm``
+     - One of supported hashing algorithms, ``scrypt``, ``sha1``, ``sha256``, or ``sha512``
+   * - ``salt``
+     - Salt used for hashing the password
+   * - ``password_hash``
+     - Hash string of the password calculated using given algorithm and salt.
+
+Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or by invoking directly with ``python -m karapace.auth``. The tool generates JSON entry with these fields. ::
+
+  $ karapace_mkpasswd -u user -a sha512 secret
+  {
+      "username": "user",
+      "algorithm": "sha512",
+      "salt": "iuLouaExTeg9ypqTxqP-dw",
+      "password_hash": "R6ghYSXdLGsq6hkQcg8wT4xkD4QToxBhlp7NerTnyB077M+mD2qiN7ZxXCDb4aE+5lExu5P11UpMPYAcVYxSQA=="
+  }
+
+Each access control rule contains following attributes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Parameter
+     - Description
+   * - ``username``
+     - A string to match against authenticated user
+   * - ``operation``
+     - Exact value of ``Read`` or ``Write``. Write implies also read permissions. Write includes all mutable operations, e.g. deleting schema versions
+   * - ``resource``
+     - A regular expression used to match against accessed resource.
+
+Supported resource authorization:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Resource
+     - Description
+   * - ``Config:``
+     - Controls authorization to global schema registry configuration.
+   * - ``Subject:<subject_name>``
+     - Controls authorization to subject. The ``<subject_name>`` is a regular expression to match against the accessed subject.
+
+Example of complete authorization file
+--------------------------------------
+
+::
+
+    {
+        "users": [
+            {
+                "username": "admin",
+                "algorithm": "scrypt",
+                "salt": "<put salt for randomized hashing here>",
+                "password_hash": "<put hashed password here>"
+            },
+            {
+                "username": "plainuser",
+                "algorithm": "sha256",
+                "salt": "<put salt for randomized hashing here>",
+                "password_hash": "<put hashed password here>"
+            }
+        ],
+        "permissions": [
+            {
+                "username": "admin",
+                "operation": "Write",
+                "resource": ".*"
+            },
+            {
+                "username": "plainuser",
+                "operation": "Read",
+                "resource": "Subject:general.*"
+            },
+            {
+                "username": "plainuser",
+                "operation": "Read",
+                "resource": "Config:"
+            }
+        ]
+    }
 
 Uninstall
 =========
