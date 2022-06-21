@@ -6,12 +6,13 @@ See LICENSE for details
 """
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.schema_backup import SchemaBackup
+from karapace.schema_backup import anonymize_avro_schema_message, SchemaBackup
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from typing import Any, Dict
 
+import base64
 import json
 import os
 
@@ -52,15 +53,28 @@ EXPECTED_AVRO_SCHEMA = {
     ],
 }
 
+COMPATIBILITY_SUBJECT = "compatibility_subject"
+COMPATIBILITY_SUBJECT_HASH = "a0765805d57daad3b08200d5be1c5adb6f3cff54"
+COMPATIBILITY_CHANGE = {"compatibility": "NONE"}
+EXPECTED_COMPATIBILITY_CHANGE = {"compatibilityLevel": "NONE"}
+
 
 async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, Any]) -> None:
     schema_string = json.dumps(data)
     res = await c.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": f"{schema_string}", "schemaType": schemaType},
     )
     assert res.status_code == 200
     assert "id" in res.json()
+
+
+async def insert_compatibility_level_change(c: Client, subject: str, data: Dict[str, Any]) -> None:
+    res = await c.put(
+        f"config/{subject}",
+        json=data,
+    )
+    assert res.status_code == 200
 
 
 async def test_export_anonymized_avro_schemas(
@@ -69,8 +83,8 @@ async def test_export_anonymized_avro_schemas(
     tmp_path: Path,
     registry_cluster: RegistryDescription,
 ) -> None:
-    await insert_data(registry_async_client, "JSON", JSON_SUBJECT, JSON_SCHEMA)
     await insert_data(registry_async_client, "AVRO", AVRO_SUBJECT, AVRO_SCHEMA)
+    await insert_compatibility_level_change(registry_async_client, COMPATIBILITY_SUBJECT, COMPATIBILITY_CHANGE)
 
     # Get the backup
     export_location = tmp_path / "export.log"
@@ -81,27 +95,28 @@ async def test_export_anonymized_avro_schemas(
         }
     )
     sb = SchemaBackup(config, str(export_location))
-    sb.export_anonymized_avro_schemas()
+    sb.export(anonymize_avro_schema_message)
 
     # The export file has been created
     assert os.path.exists(export_location)
 
     expected_subject_hash_found = False
-    json_schema_subject_hash_found = False
+    compatibility_level_change_subject_hash_found = False
     with export_location.open("r") as fp:
-        exported_data = json.load(fp)
-        for msg in exported_data:
-            assert len(msg) == 2
-            key = msg[0]
+        version_identifier = fp.readline()
+        assert version_identifier.rstrip() == "/V2"
+        for item in fp:
+            hex_key, hex_value = item.strip().split("\t")
+            key = json.loads(base64.b16decode(hex_key).decode("utf8"))
+            schema_data = json.loads(base64.b16decode(hex_value).decode("utf8"))
             subject_hash = key.get("subject", None)
             if subject_hash == AVRO_SUBJECT_HASH:
                 expected_subject_hash_found = True
-                schema_data = msg[1]
-
                 assert schema_data["subject"] == AVRO_SUBJECT_HASH
                 assert schema_data["schema"] == EXPECTED_AVRO_SCHEMA
-            if subject_hash == JSON_SUBJECT_HASH:
-                json_schema_subject_hash_found = True
+            if subject_hash == COMPATIBILITY_SUBJECT_HASH:
+                compatibility_level_change_subject_hash_found = True
+                assert schema_data == EXPECTED_COMPATIBILITY_CHANGE
 
     assert expected_subject_hash_found
-    assert not json_schema_subject_hash_found
+    assert compatibility_level_change_subject_hash_found
