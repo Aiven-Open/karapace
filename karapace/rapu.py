@@ -78,7 +78,7 @@ class HTTPRequest:
         self.accepts = accepts
         self.path_for_stats = path_for_stats
         self.method = method
-        self.json = None
+        self.json: Optional[dict] = None
 
     @overload
     def get_header(self, header: str) -> Optional[str]:
@@ -255,6 +255,7 @@ class RestApp:
         callback_with_request=False,
         json_request=False,
         rest_request=False,
+        user=None,
     ):
         start_time = time.monotonic()
         resp = None
@@ -315,6 +316,9 @@ class RestApp:
             if schema_request:
                 content_type = self.check_schema_headers(rapu_request)
                 callback_kwargs["content_type"] = content_type
+
+            if user is not None:
+                callback_kwargs["user"] = user
 
             try:
                 data = await callback(**callback_kwargs)
@@ -394,7 +398,18 @@ class RestApp:
 
         return resp
 
-    def route(self, path, *, callback, method, schema_request=False, with_request=None, json_body=None, rest_request=False):
+    def route(
+        self,
+        path,
+        *,
+        callback,
+        method,
+        schema_request=False,
+        with_request=None,
+        json_body=None,
+        rest_request=False,
+        auth=None,
+    ):
         # pretty path for statsd reporting
         path_for_stats = re.sub(r"<[\w:]+>", "x", path)
 
@@ -410,6 +425,11 @@ class RestApp:
             json_body = True
 
         async def wrapped_callback(request):
+            if auth is not None:
+                user = auth.authenticate(request)
+            else:
+                user = None
+
             return await self._handle_request(
                 request=request,
                 path_for_stats=path_for_stats,
@@ -418,6 +438,7 @@ class RestApp:
                 callback_with_request=with_request,
                 json_request=json_body,
                 rest_request=rest_request,
+                user=user,
             )
 
         async def wrapped_cors(request):
