@@ -4,6 +4,7 @@ karapace - schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from enum import Enum
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
@@ -12,9 +13,11 @@ from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
-from typing import Dict, List, Optional, Tuple
+from typing import IO, Iterable, Optional, TextIO, Tuple
 
 import argparse
+import base64
+import contextlib
 import json
 import logging
 import os
@@ -23,9 +26,38 @@ import time
 
 LOG = logging.getLogger(__name__)
 
+# Schema topic has single partition.
+# Use of this in `producer.send` disables the partitioner to calculate which partition the data is sent.
+PARTITION_ZERO = 0
+BACKUP_VERSION_2_MARKER = "/V2\n"
+
+
+class BackupVersion(Enum):
+    V1 = 1
+    V2 = 2
+
 
 class BackupError(Exception):
     """Backup Error"""
+
+
+@contextlib.contextmanager
+def Writer(filename: Optional[str] = None) -> Iterable[TextIO]:
+    writer = open(filename, "w", encoding="utf8") if filename else sys.stdout
+    yield writer
+    if filename:
+        writer.close()
+
+
+def _check_backup_file_version(fp: IO) -> BackupVersion:
+    version_identifier = fp.read(4)
+    if version_identifier == BACKUP_VERSION_2_MARKER:
+        # Seek back to start, readline() to consume linefeed
+        fp.seek(0)
+        fp.readline()
+        return BackupVersion.V2
+    fp.seek(0)
+    return BackupVersion.V1
 
 
 class SchemaBackup:
@@ -38,7 +70,7 @@ class SchemaBackup:
         self.admin_client = None
         self.timeout_ms = 1000
 
-    def init_consumer(self):
+    def init_consumer(self) -> None:
         self.consumer = KafkaConsumer(
             self.topic_name,
             enable_auto_commit=False,
@@ -56,7 +88,7 @@ class SchemaBackup:
             kafka_client=KarapaceKafkaClient,
         )
 
-    def init_producer(self):
+    def init_producer(self) -> None:
         self.producer = KafkaProducer(
             bootstrap_servers=self.config["bootstrap_uri"],
             security_protocol=self.config["security_protocol"],
@@ -69,7 +101,7 @@ class SchemaBackup:
             kafka_client=KarapaceKafkaClient,
         )
 
-    def init_admin_client(self):
+    def init_admin_client(self) -> None:
         start_time = time.monotonic()
         wait_time = constants.MINUTE
         while True:
@@ -95,7 +127,7 @@ class SchemaBackup:
 
             time.sleep(2.0)
 
-    def _create_schema_topic_if_needed(self):
+    def _create_schema_topic_if_needed(self) -> None:
         if self.topic_name != self.config["topic_name"]:
             LOG.info("Topic name overridden, not creating a topic with schema configuration")
             return
@@ -123,7 +155,7 @@ class SchemaBackup:
                 )
                 time.sleep(5)
 
-    def close(self):
+    def close(self) -> None:
         LOG.info("Closing schema backup reader")
         if self.consumer:
             self.consumer.close()
@@ -135,20 +167,7 @@ class SchemaBackup:
             self.admin_client.close()
             self.admin_client = None
 
-    def request_backup(self):
-        values = self._export()
-
-        ser = json.dumps(values)
-        if self.backup_location:
-            with open(self.backup_location, mode="w", encoding="utf8") as fp:
-                fp.write(ser)
-                LOG.info("Schema backup written to %r", self.backup_location)
-        else:
-            print(ser)
-            LOG.info("Schema backup written to stdout")
-        self.close()
-
-    def restore_backup(self):
+    def restore_backup(self) -> None:
         if not os.path.exists(self.backup_location):
             raise BackupError("Backup location doesn't exist")
 
@@ -158,89 +177,95 @@ class SchemaBackup:
             self.init_producer()
         LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
-        values = None
         with open(self.backup_location, mode="r", encoding="utf8") as fp:
-            raw_msg = fp.read()
-            values = json.loads(raw_msg)
+            if _check_backup_file_version(fp) == BackupVersion.V2:
+                self._restore_backup_version_2(fp)
+            else:
+                self._restore_backup_version_1_single_array(fp)
+        self.close()
+
+    def _handle_restore_message(self, item: Tuple[str, str]) -> None:
+        key = encode_value(item[0])
+        value = encode_value(item[1])
+        self.producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
+        LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
+
+    def _restore_backup_version_1_single_array(self, fp: IO) -> None:
+        values = None
+        raw_msg = fp.read()
+        values = json.loads(raw_msg)
 
         if not values:
             return
 
         for item in values:
-            key = encode_value(item[0])
-            value = encode_value(item[1])
-            future = self.producer.send(self.topic_name, key=key, value=value)
-            self.producer.flush(timeout=self.timeout_ms)
-            msg = future.get(self.timeout_ms)
-            LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, msg.offset)
-        self.close()
+            self._handle_restore_message(item)
 
-    def export_anonymized_avro_schemas(self):
-        values = self._export()
-        anonymized_schemas = []
+    def _restore_backup_version_2(self, fp: IO) -> None:
+        for line in fp:
+            hex_key, hex_value = line.split("\t")
+            key = base64.b16decode(hex_key).decode("utf8")
+            value = base64.b16decode(hex_value.strip()).decode("utf8")  # strip to remove the linefeed
+            self._handle_restore_message((key, value))
 
-        for value in values:
-            # The schemas topic contain all changes to schema metadata.
-            # Check that the message has key `schema` and type is Avro schema.
-            # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
-            if value[1] and "schema" in value[1] and value[1].get("schemaType", "AVRO") == "AVRO":
-                original_schema = json.loads(value[1].get("schema"))
-                anonymized_schema = anonymize_avro.anonymize(original_schema)
-                if anonymized_schema:
-                    if "subject" in value[0]:
-                        value[0]["subject"] = anonymize_avro.anonymize_name(value[0]["subject"])
-                    if "subject" in value[1]:
-                        value[1]["subject"] = anonymize_avro.anonymize_name(value[1]["subject"])
-                    value[1]["schema"] = anonymized_schema
-                    anonymized_schemas.append((value[0], value[1]))
-        ser = json.dumps(anonymized_schemas)
-        if self.backup_location:
-            with open(self.backup_location, mode="w", encoding="utf8") as fp:
-                fp.write(ser)
-                LOG.info("Anonymized Avro schema export written to %r", self.backup_location)
-        else:
-            print(ser)
-            LOG.info("Anonymized Avro schema export written to stdout")
-        self.close()
-
-    def _export(self) -> List[Tuple[str, Dict[str, str]]]:
+    def export(self, export_func) -> None:
         if not self.consumer:
             self.init_consumer()
         LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
-        values = []
         topic_fully_consumed = False
 
-        while not topic_fully_consumed:
+        with Writer(self.backup_location) as fp:
+            fp.write(BACKUP_VERSION_2_MARKER)
+            while not topic_fully_consumed:
+                raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
+                topic_fully_consumed = len(raw_msg) == 0
 
-            raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms)
-            topic_fully_consumed = len(raw_msg) == 0
+                for _, messages in raw_msg.items():
+                    for message in messages:
+                        ser = export_func(key_bytes=message.key, value_bytes=message.value)
+                        if ser:
+                            fp.write(ser)
 
-            for _, messages in raw_msg.items():
-                for message in messages:
-                    key = message.key.decode("utf8")
-                    try:
-                        key = json.loads(key)
-                    except json.JSONDecodeError:
-                        LOG.debug("Invalid JSON in message.key: %r, value: %r", message.key, message.value)
-                    value = None
-                    if message.value:
-                        value = message.value.decode("utf8")
-                        try:
-                            value = json.loads(value)
-                        except json.JSONDecodeError:
-                            LOG.debug("Invalid JSON in message.value: %r, key: %r", message.value, message.key)
-                    values.append((key, value))
-
-        return values
+        if self.backup_location:
+            LOG.info("Schema export written to %r", self.backup_location)
+        else:
+            LOG.info("Schema export written to stdout")
+        self.close()
 
 
-def encode_value(value):
+def encode_value(value: str) -> bytes:
     if value == "null":
         return None
     if isinstance(value, str):
         return value.encode("utf8")
     return json_encode(value, sort_keys=False, binary=True)
+
+
+def serialize_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
+    key = base64.b16encode(key_bytes).decode("utf8")
+    value = base64.b16encode(value_bytes).decode("utf8")
+    return f"{key}\t{value}\n"
+
+
+def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
+    # Check that the message has key `schema` and type is Avro schema.
+    # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
+
+    key = json.loads(key_bytes.decode("utf8"))
+    value = json.loads(value_bytes.decode("utf8"))
+
+    if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
+        original_schema = json.loads(value.get("schema"))
+        anonymized_schema = anonymize_avro.anonymize(original_schema)
+        if anonymized_schema:
+            if "subject" in value:
+                value["subject"] = anonymize_avro.anonymize_name(value["subject"])
+            value["schema"] = anonymized_schema
+    # The schemas topic contain all changes to schema metadata.
+    if key.get("subject", None):
+        key["subject"] = anonymize_avro.anonymize_name(key["subject"])
+    return serialize_schema_message(json.dumps(key).encode("utf8"), json.dumps(value).encode("utf8"))
 
 
 def parse_args():
@@ -269,13 +294,13 @@ def main() -> int:
     sb = SchemaBackup(config, args.location, args.topic)
 
     if args.command == "get":
-        sb.request_backup()
+        sb.export(serialize_schema_message)
         return 0
     if args.command == "restore":
         sb.restore_backup()
         return 0
     if args.command == "export-anonymized-avro-schemas":
-        sb.export_anonymized_avro_schemas()
+        sb.export(anonymize_avro_schema_message)
         return 0
     return 1
 

@@ -6,15 +6,15 @@ See LICENSE for details
 """
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.schema_backup import SchemaBackup
+from karapace.schema_backup import SchemaBackup, serialize_schema_message
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 
-import json
 import os
+import pytest
 import time
 
 baseurl = "http://localhost:8081"
@@ -23,7 +23,7 @@ baseurl = "http://localhost:8081"
 async def insert_data(client: Client) -> str:
     subject = new_random_name("subject")
     res = await client.post(
-        "subjects/{}/versions".format(subject),
+        f"subjects/{subject}/versions",
         json={"schema": '{"type": "string"}'},
     )
     assert res.status_code == 200
@@ -31,56 +31,59 @@ async def insert_data(client: Client) -> str:
     return subject
 
 
-async def test_backup_get(registry_async_client, kafka_servers: KafkaServers, tmp_path: Path):
-    await insert_data(registry_async_client)
-
-    # Get the backup
-    backup_location = tmp_path / "schemas.log"
-    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
-    sb = SchemaBackup(config, str(backup_location))
-    sb.request_backup()
-
-    # The backup file has been created
-    assert os.path.exists(backup_location)
-
-
-async def test_backup_restore(
-    registry_async_client: Client,
+async def test_backup_get(
+    registry_async_client,
     kafka_servers: KafkaServers,
     tmp_path: Path,
     registry_cluster: RegistryDescription,
 ) -> None:
-    subject = new_random_name("subject")
-    restore_location = tmp_path / "restore.log"
+    await insert_data(registry_async_client)
 
-    with restore_location.open("w") as fp:
-        json.dump(
-            [
-                [
-                    {
-                        "subject": subject,
-                        "version": 1,
-                        "magic": 1,
-                        "keytype": "SCHEMA",
-                    },
-                    {
-                        "deleted": False,
-                        "id": 1,
-                        "schema": '"string"',
-                        "subject": subject,
-                        "version": 1,
-                    },
-                ]
-            ],
-            fp,
-        )
-
+    # Get the backup
+    backup_location = tmp_path / "schemas.log"
     config = set_config_defaults(
         {
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": registry_cluster.schemas_topic,
         }
     )
+    sb = SchemaBackup(config, str(backup_location))
+    sb.export(serialize_schema_message)
+
+    # The backup file has been created
+    assert os.path.exists(backup_location)
+
+    lines = 0
+    with open(backup_location, "r", encoding="utf8") as fp:
+        version_line = fp.readline()
+        assert version_line.rstrip() == "/V2"
+        for line in fp:
+            lines += 1
+            data = line.split("\t")
+            assert len(data) == 2
+
+    assert lines == 1
+
+
+@pytest.mark.parametrize("backup_file_version", ["v1", "v2"])
+async def test_backup_restore(
+    registry_async_client: Client,
+    kafka_servers: KafkaServers,
+    registry_cluster: RegistryDescription,
+    backup_file_version: str,
+) -> None:
+    subject = "subject-1"
+    test_data_path = Path("tests/integration/test_data/")
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "topic_name": registry_cluster.schemas_topic,
+        }
+    )
+
+    # Test basic restore functionality
+    restore_location = test_data_path / f"test_restore_{backup_file_version}.log"
+
     sb = SchemaBackup(config, str(restore_location))
     sb.restore_backup()
 
@@ -99,62 +102,34 @@ async def test_backup_restore(
         time.sleep(0.1)
 
     # Test a few exotic scenarios
-    subject = new_random_name("subject")
-    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
-    assert res.status_code == 200
-    assert res.json()["compatibility"] == "NONE"
 
     # Restore a compatibility config remove message
-    with open(restore_location, mode="w", encoding="utf8") as fp:
-        fp.write(
-            """
-[
-    [
-        {{
-            "subject": "{subject_value}",
-            "magic": 0,
-            "keytype": "CONFIG"
-        }},
-        null
-    ]
-]
-        """.format(
-                subject_value=subject
-            )
-        )
+    subject = "compatibility-config-remove"
+    restore_location = test_data_path / f"test_restore_compatibility_config_remove_{backup_file_version}.log"
+    sb = SchemaBackup(config, str(restore_location))
+
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "FORWARD"})
+    assert res.status_code == 200
+    assert res.json()["compatibility"] == "FORWARD"
     res = await registry_async_client.get(f"config/{subject}")
     assert res.status_code == 200
+    assert res.json()["compatibilityLevel"] == "FORWARD"
     sb.restore_backup()
     time.sleep(1.0)
     res = await registry_async_client.get(f"config/{subject}")
     assert res.status_code == 404
 
     # Restore a complete schema delete message
-    subject = new_random_name("subject")
+    subject = "complete-schema-delete-version"
+    restore_location = test_data_path / f"test_restore_complete_schema_delete_{backup_file_version}.log"
+    sb = SchemaBackup(config, str(restore_location))
+
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "int"}'})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "float"}'})
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 200
     assert res.json() == [1, 2]
-    with open(restore_location, mode="w", encoding="utf8") as fp:
-        fp.write(
-            """
-[
-    [
-        {{
-            "subject": "{subject_value}",
-            "magic": 1,
-            "keytype": "SCHEMA",
-            "version": 2
-        }},
-        null
-    ]
-]
-        """.format(
-                subject_value=subject
-            )
-        )
     sb.restore_backup()
     time.sleep(1.0)
     res = await registry_async_client.get(f"subjects/{subject}/versions")
@@ -162,26 +137,11 @@ async def test_backup_restore(
     assert res.json() == [1]
 
     # Schema delete for a nonexistent subject version is ignored
-    subject = new_random_name("subject")
+    subject = "delete-nonexistent-schema"
+    restore_location = test_data_path / f"test_restore_delete_nonexistent_schema_{backup_file_version}.log"
+    sb = SchemaBackup(config, str(restore_location))
+
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
-    with open(restore_location, mode="w", encoding="utf8") as fp:
-        fp.write(
-            """
-[
-    [
-        {{
-            "subject": "{subject_value}",
-            "magic": 1,
-            "keytype": "SCHEMA",
-            "version": 2
-        }},
-        null
-    ]
-]
-        """.format(
-                subject_value=subject
-            )
-        )
     sb.restore_backup()
     time.sleep(1.0)
     res = await registry_async_client.get(f"subjects/{subject}/versions")

@@ -1,0 +1,1 @@
+[[{"subject": "subject-1", "version": 1, "magic": 1, "keytype": "SCHEMA"}, {"deleted": false, "id": 1, "schema": "\"string\"", "subject": "subject-1", "version": 1}], [{"subject": "subject-1", "version": 2, "magic": 1, "keytype": "SCHEMA"}, {"deleted": false, "id": 2, "schema": "\"string\"", "subject": "subject-1", "version": 2}]]
