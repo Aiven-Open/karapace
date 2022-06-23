@@ -4,7 +4,7 @@ from binascii import Error as B64DecodeError
 from collections import namedtuple
 from contextlib import AsyncExitStack, closing
 from http import HTTPStatus
-from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
+from kafka.errors import NodeNotReadyError, UnknownTopicOrPartitionError
 from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
@@ -655,20 +655,10 @@ class KafkaRest(KarapaceBase):
                 produce_results.append({"error_code": 1, "error": str(result)})
 
             # Exceptions below are raised after data is sent to Kafka
-            elif isinstance(result, KafkaTimeoutError):
-                self.log.exception("Timed out waiting for publisher")
-                # timeouts are retriable
-                produce_results.append({"error_code": 1, "error": "timed out waiting to publish message"})
             elif isinstance(result, asyncio.CancelledError):
                 self.log.exception("Async task cancelled")
                 # cancel is retriable
                 produce_results.append({"error_code": 1, "error": "Publish message cancelled"})
-            elif isinstance(result, BrokerResponseError):
-                self.log.exception(result)
-                resp = {"error_code": 1, "error": result.description}
-                if hasattr(result, "retriable") and result.retriable:
-                    resp["error_code"] = 2
-                produce_results.append(resp)
             else:
                 self.log.exception("Unexpected exception")
                 produce_results.append({"error_code": 1, "error": str(result)})
