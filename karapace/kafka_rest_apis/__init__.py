@@ -736,7 +736,7 @@ class KafkaRest(KarapaceBase):
                 sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
             )
 
-    async def list_partitions(self, content_type: str, *, topic: Optional[str]):
+    async def list_partitions(self, content_type: str, *, topic: str):
         self.log.info("Retrieving partition details for topic %s", topic)
         try:
             metadata = await self.cluster_metadata([topic])
