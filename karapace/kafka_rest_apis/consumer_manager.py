@@ -7,7 +7,7 @@ from kafka.errors import IllegalStateError, KafkaConfigurationError, KafkaError
 from kafka.structs import OffsetAndMetadata, TopicPartition
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
-from karapace.serialization import InvalidMessageHeader, InvalidPayload, SchemaRegistryDeserializer
+from karapace.serialization import InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
 from karapace.utils import convert_to_int
 from struct import error as UnpackError
 from typing import Tuple
@@ -32,7 +32,7 @@ def new_name() -> str:
 
 
 class ConsumerManager:
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict, deserializer: SchemaRegistrySerializer) -> None:
         self.config = config
         if self.config["advertised_port"] is None:
             self.hostname = (
@@ -43,7 +43,7 @@ class ConsumerManager:
                 f"{self.config['advertised_protocol']}://"
                 f"{self.config['advertised_hostname']}:{self.config['advertised_port']}"
             )
-        self.deserializer = SchemaRegistryDeserializer(config=config)
+        self.deserializer = deserializer
         self.consumers = {}
         self.consumer_locks = defaultdict(Lock)
 

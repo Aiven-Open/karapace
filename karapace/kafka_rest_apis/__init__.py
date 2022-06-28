@@ -47,7 +47,7 @@ class KafkaRest(KarapaceBase):
         self.admin_lock = None
         self.metadata_cache = None
         self.schemas_cache = {}
-        self.consumer_manager = ConsumerManager(config=config)
+        self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
         self.init_admin_client()
 
         self._async_producer_lock = None
