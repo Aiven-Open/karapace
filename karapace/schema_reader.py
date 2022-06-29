@@ -10,6 +10,7 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.config import Config
+from karapace.key_format_corrector import KeyFormatCorrector
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
@@ -163,6 +164,11 @@ class KafkaSchemaReader(Thread):
         self._hash_to_schema: Dict[int, TypedSchema] = {}
         self._hash_to_schema_id_on_subject: Dict[int, SchemaId] = {}
 
+        # Correct Karapace created keys that are in different format compared to CSR.
+        # Kafka compaction compares keys as bytes and order of JSON key properties
+        # is significant.
+        self._kfc = KeyFormatCorrector(config=self.config)
+
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
             for schema_id, schema in self.schemas.items():
@@ -182,6 +188,7 @@ class KafkaSchemaReader(Thread):
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
+        self._kfc.stop()
         self._stop.set()
 
     def run(self) -> None:
@@ -254,6 +261,10 @@ class KafkaSchemaReader(Thread):
             # Also if master_eligibility is disabled by configuration, disable writes too
             if are_we_master is True:
                 watch_offsets = True
+                if self.ready and not self._kfc.key_correction_done and not self._kfc.running:
+                    LOG.info("Starting key format corrector")
+                    # Start key format corrector
+                    self._kfc.start()
 
         for _, msgs in raw_msgs.items():
             for msg in msgs:
@@ -270,7 +281,6 @@ class KafkaSchemaReader(Thread):
                     except json.JSONDecodeError:
                         LOG.exception("Invalid JSON in msg.value")
                         continue
-
                 self.handle_msg(key, value)
                 self.offset = msg.offset
                 if self.ready and watch_offsets:
@@ -385,6 +395,13 @@ class KafkaSchemaReader(Thread):
             else:
                 self._delete_from_schema_id_on_subject(subject=schema_subject, schema=typed_schema)
 
+    def _handle_msg_key_correction_done(self) -> None:
+        # Key corrector tracks state when running and marks itself done
+        # In case of standby Karapace when marker message is received
+        # the state needs to be set from here.
+        LOG.info("Key correction done marker message received.")
+        self._kfc.key_correction_done = True
+
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
             self._handle_msg_config(key, value)
@@ -392,6 +409,8 @@ class KafkaSchemaReader(Thread):
             self._handle_msg_schema(key, value)
         elif key["keytype"] == "DELETE_SUBJECT":
             self._handle_msg_delete_subject(key, value)
+        elif key["keytype"] == "KEY_CORRECTION_DONE":
+            self._handle_msg_key_correction_done()
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
 

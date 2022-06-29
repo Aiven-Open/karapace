@@ -61,7 +61,10 @@ class KarapaceSchemaRegistry:
         self.kafka_timeout = 10
 
         self.mc = MasterCoordinator(config=self.config)
-        self.schema_reader = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)
+        self.schema_reader = KafkaSchemaReader(
+            config=self.config,
+            master_coordinator=self.mc,
+        )
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -398,7 +401,17 @@ class KarapaceSchemaRegistry:
         version: int,
         deleted: bool,
     ) -> FutureRecordMetadata:
-        key = json_encode({"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}, sort_keys=False)
+        # Order of the key fields in message key are important for Kafka log compaction.
+        key = json_encode(
+            {
+                "keytype": "SCHEMA",
+                "subject": subject,
+                "version": version,
+                "magic": 1,
+            },
+            sort_keys=False,
+            compact=True,
+        )
         if schema:
             valuedict = {
                 "subject": subject,
@@ -417,14 +430,42 @@ class KarapaceSchemaRegistry:
     def send_config_message(
         self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None
     ) -> FutureRecordMetadata:
-        if subject is not None:
-            key = '{{"subject":"{}","magic":0,"keytype":"CONFIG"}}'.format(subject)
-        else:
-            key = '{"subject":null,"magic":0,"keytype":"CONFIG"}'
-        value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
+        key = json_encode(
+            {
+                "keytype": "CONFIG",
+                "subject": subject,
+                "magic": 0,
+            },
+            sort_keys=False,
+            compact=True,
+        )
+        value = json_encode(
+            {
+                "compatibilityLevel": compatibility_level.value,
+            },
+            sort_keys=False,
+            compact=True,
+        )
         return self.send_kafka_message(key, value)
 
     def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
-        key = '{{"subject":"{}","magic":0,"keytype":"DELETE_SUBJECT"}}'.format(subject)
+        key = json_encode(
+            {
+                "keytype": "DELETE_SUBJECT",
+                "subject": subject,
+                "magic": 0,
+            },
+            sort_keys=False,
+            compact=True,
+        )
+        value = json_encode(
+            {
+                "subject": subject,
+                "version": version,
+            },
+            sort_keys=False,
+            compact=True,
+        )
+
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
