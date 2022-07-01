@@ -2,6 +2,8 @@
     "access_logs_debug": false,
     "advertised_hostname": "localhost",
     "bootstrap_uri": "127.0.0.1:9092",
+    "sasl_bootstrap_uri": "127.0.0.1:9094",
+    "rest_authorization": false,
     "client_id": "sr-1",
     "compatibility": "FULL",
     "group_id": "schema-registry",
