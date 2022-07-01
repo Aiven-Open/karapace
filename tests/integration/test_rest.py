@@ -208,7 +208,8 @@ async def test_internal(rest_async, admin_client):
         [b"key", b"value", 0],
         [b"key", b"value", None],
     ]
-    results = await rest_async.produce_messages(topic=topic_name, prepared_records=prepared_records)
+    rest_async_proxy = rest_async.get_user_proxy(None)
+    results = await rest_async_proxy.produce_messages(topic=topic_name, prepared_records=prepared_records)
     assert len(results) == 2
     for result in results:
         assert "error" not in result, "Valid result should not contain 'error' key"
@@ -221,7 +222,7 @@ async def test_internal(rest_async, admin_client):
         [b"key", b"value", 100],
     ]
 
-    results = await rest_async.produce_messages(topic=topic_name, prepared_records=prepared_records)
+    results = await rest_async_proxy.produce_messages(topic=topic_name, prepared_records=prepared_records)
     assert len(results) == 1
     for result in results:
         assert "error" in result, "Invalid result missing 'error' key"
@@ -229,9 +230,9 @@ async def test_internal(rest_async, admin_client):
         assert "error_code" in result, "Invalid result missing 'error_code' key"
         assert result["error_code"] == 1
 
-    assert rest_async.all_empty({"records": [{"key": {"foo": "bar"}}]}, "key") is False
-    assert rest_async.all_empty({"records": [{"value": {"foo": "bar"}}]}, "value") is False
-    assert rest_async.all_empty({"records": [{"value": {"foo": "bar"}}]}, "key") is True
+    assert rest_async_proxy.all_empty({"records": [{"key": {"foo": "bar"}}]}, "key") is False
+    assert rest_async_proxy.all_empty({"records": [{"value": {"foo": "bar"}}]}, "value") is False
+    assert rest_async_proxy.all_empty({"records": [{"value": {"foo": "bar"}}]}, "key") is True
 
 
 async def test_topics(rest_async_client, admin_client):
