@@ -1,10 +1,11 @@
+from aiokafka import AIOKafkaConsumer
 from asyncio import Lock
 from collections import defaultdict, namedtuple
 from functools import partial
 from http import HTTPStatus
-from kafka import KafkaConsumer
-from kafka.errors import IllegalStateError, KafkaConfigurationError, KafkaError
-from kafka.structs import OffsetAndMetadata, TopicPartition
+from kafka.errors import GroupAuthorizationFailedError, IllegalStateError, KafkaConfigurationError, KafkaError
+from kafka.structs import TopicPartition
+from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
 from karapace.serialization import InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
@@ -32,7 +33,7 @@ def new_name() -> str:
 
 
 class ConsumerManager:
-    def __init__(self, config: dict, deserializer: SchemaRegistrySerializer) -> None:
+    def __init__(self, config: Config, deserializer: SchemaRegistrySerializer) -> None:
         self.config = config
         if self.config["advertised_port"] is None:
             self.hostname = (
@@ -145,19 +146,6 @@ class ConsumerManager:
             message=message,
         )
 
-    @staticmethod
-    def _update_partition_assignments(consumer: KafkaConsumer):
-        # This is (should be?) equivalent to calling poll on the consumer.
-        # which would return 0 results, since the subscription we just created will mean
-        # a rejoin is needed, which skips the actual fetching. Nevertheless, an actual call to poll is to be avoided
-        # and a better solution to this is desired (extend the consumer??)
-
-        # pylint: disable=protected-access
-        consumer._coordinator.poll()
-        if not consumer._subscription.has_all_fetch_positions():
-            consumer._update_fetch_positions(consumer._subscription.missing_fetch_positions())
-        # pylint: enable=protected-access
-
     # external api below
     # CONSUMER
     async def create_consumer(self, group_name: str, request_data: dict, content_type: str):
@@ -208,21 +196,20 @@ class ConsumerManager:
             KarapaceBase.r(content_type=content_type, body={"base_uri": base_uri, "instance_id": consumer_name})
 
     async def create_kafka_consumer(self, fetch_min_bytes, group_name, internal_name, request_data):
+        ssl_context = create_client_ssl_context(self.config)
         while True:
             try:
                 session_timeout_ms = self.config["session_timeout_ms"]
                 request_timeout_ms = max(
                     session_timeout_ms,
-                    KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"],
+                    305000,  # Copy of old default from kafka-python's request_timeout_ms (not exposed by aiokafka)
                     request_data["consumer.request.timeout.ms"],
                 )
-                c = KafkaConsumer(
+                c = AIOKafkaConsumer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     client_id=internal_name,
                     security_protocol=self.config["security_protocol"],
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
+                    ssl_context=ssl_context,
                     sasl_mechanism=self.config["sasl_mechanism"],
                     sasl_plain_username=self.config["sasl_plain_username"],
                     sasl_plain_password=self.config["sasl_plain_password"],
@@ -234,6 +221,7 @@ class ConsumerManager:
                     auto_offset_reset=request_data["auto.offset.reset"],
                     session_timeout_ms=session_timeout_ms,
                 )
+                await c.start()
                 return c
             except:  # pylint: disable=bare-except
                 LOG.exception("Unable to create consumer, retrying")
@@ -245,7 +233,7 @@ class ConsumerManager:
         async with self.consumer_locks[internal_name]:
             try:
                 c = self.consumers.pop(internal_name)
-                c.consumer.close()
+                await c.consumer.stop()
                 self.consumer_locks.pop(internal_name)
             except:  # pylint: disable=bare-except
                 LOG.exception("Unable to properly dispose of consumer")
@@ -267,13 +255,13 @@ class ConsumerManager:
             # If we commit for a partition that does not belong to this consumer, then the internal error raised
             # is marked as retriable, and thus the commit method will remain blocked in what looks like an infinite loop
             self._topic_and_partition_valid(cluster_metadata, el, content_type)
-            payload[TopicPartition(el["topic"], el["partition"])] = OffsetAndMetadata(el["offset"] + 1, None)
+            payload[TopicPartition(el["topic"], el["partition"])] = el["offset"] + 1
 
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             payload = payload or None
             try:
-                consumer.commit(offsets=payload)
+                await consumer.commit(offsets=payload)
             except KafkaError as e:
                 KarapaceBase.internal_error(message=f"error sending commit request: {e}", content_type=content_type)
         empty_response()
@@ -288,15 +276,23 @@ class ConsumerManager:
             for el in request_data["partitions"]:
                 convert_to_int(el, "partition", content_type)
                 tp = TopicPartition(el["topic"], el["partition"])
-                commit_info = consumer.committed(tp, metadata=True)
-                if not commit_info:
+                try:
+                    offset = await consumer.committed(tp)
+                except GroupAuthorizationFailedError:
+                    KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
+                except KafkaError as ex:
+                    KarapaceBase.internal_error(
+                        message=f"Failed to get offsets: {ex}",
+                        content_type=content_type,
+                    )
+                if offset is None:
                     continue
                 response["offsets"].append(
                     {
                         "topic": tp.topic,
                         "partition": tp.partition,
-                        "metadata": commit_info.metadata,
-                        "offset": commit_info.offset,
+                        "metadata": "",
+                        "offset": offset,
                     }
                 )
         KarapaceBase.r(body=response, content_type=content_type)
@@ -307,16 +303,24 @@ class ConsumerManager:
         self._assert_consumer_exists(internal_name, content_type)
         topics = request_data.get("topics", [])
         topics_pattern = request_data.get("topic_pattern")
+        if not (topics or topics_pattern):
+            self._illegal_state_fail(
+                message="Neither topic_pattern nor topics are present in request", content_type=content_type
+            )
+        if topics and topics_pattern:
+            self._illegal_state_fail(
+                message="IllegalStateError: You must choose only one way to configure your consumer: "
+                "(1) subscribe to specific topics by name, (2) subscribe to topics matching a regex pattern, "
+                "(3) assign itself specific topic-partitions.",
+                content_type=content_type,
+            )
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             try:
+                # aiokafka does not verify access to topics subscribed during this call, thus cannot get topic authorzation
+                # error immediately
                 consumer.subscribe(topics=topics, pattern=topics_pattern)
-                self._update_partition_assignments(consumer)
                 empty_response()
-            except AssertionError:
-                self._illegal_state_fail(
-                    message="Neither topic_pattern nor topics are present in request", content_type=content_type
-                )
             except IllegalStateError as e:
                 self._illegal_state_fail(str(e), content_type=content_type)
             finally:
@@ -354,7 +358,6 @@ class ConsumerManager:
             try:
                 consumer = self.consumers[internal_name].consumer
                 consumer.assign(partitions)
-                self._update_partition_assignments(consumer)
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(message=str(e), content_type=content_type)
@@ -389,7 +392,7 @@ class ConsumerManager:
             for part, offset in seeks:
                 try:
                     consumer.seek(part, offset)
-                except AssertionError:
+                except IllegalStateError:
                     self._illegal_state_fail(f"Partition {part} is unassigned", content_type)
             empty_response()
 
@@ -411,9 +414,9 @@ class ConsumerManager:
             consumer = self.consumers[internal_name].consumer
             try:
                 if beginning:
-                    consumer.seek_to_beginning(*resets)
+                    await consumer.seek_to_beginning(*resets)
                 else:
-                    consumer.seek_to_end(*resets)
+                    await consumer.seek_to_end(*resets)
                 empty_response()
             except AssertionError:
                 self._illegal_state_fail(f"Trying to reset unassigned partitions to {direction}", content_type)
@@ -424,7 +427,7 @@ class ConsumerManager:
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             serialization_format = self.consumers[internal_name].serialization_format
-            config = self.consumers[internal_name].config
+            consumer_config = self.consumers[internal_name].config
             request_format = formats["embedded_format"]
             self._assert(
                 cond=serialization_format == request_format,
@@ -436,13 +439,14 @@ class ConsumerManager:
             LOG.info("Fetch request for %s with params %r", internal_name, query_params)
             try:
                 timeout = (
-                    int(query_params["timeout"]) if "timeout" in query_params else config["consumer.request.timeout.ms"]
+                    int(query_params["timeout"])
+                    if "timeout" in query_params
+                    else consumer_config["consumer.request.timeout.ms"]
                 )
                 # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
                 # respecting the max fetch request size
-                max_bytes = (
-                    int(query_params["max_bytes"]) if "max_bytes" in query_params else consumer.config["fetch_max_bytes"]
-                )
+                # pylint: disable=protected-access
+                max_bytes = int(query_params["max_bytes"]) if "max_bytes" in query_params else consumer._fetch_max_bytes
             except ValueError:
                 KarapaceBase.internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)
             for val in [timeout, max_bytes]:
@@ -461,27 +465,43 @@ class ConsumerManager:
             start_time = time.monotonic()
             poll_data = defaultdict(list)
             message_count = 0
-            while read_bytes < max_bytes and start_time + timeout / 1000 > time.monotonic():
+            # Read buffered records with calling getmany() with possibly zero timeout and max_records=1 multiple times
+            read_buffered = True
+            while read_bytes < max_bytes and (start_time + timeout / 1000 > time.monotonic() or read_buffered):
+                read_buffered = False
                 time_left = start_time + timeout / 1000 - time.monotonic()
                 bytes_left = max_bytes - read_bytes
-                LOG.info(
+                LOG.debug(
                     "Polling with %r time left and %d bytes left, gathered %d messages so far",
                     time_left,
                     bytes_left,
                     message_count,
                 )
-                data = consumer.poll(timeout_ms=timeout, max_records=1)
+                timeout_left = max(0, (start_time - time.monotonic()) * 1000 + timeout)
+                try:
+                    data = await consumer.getmany(timeout_ms=timeout_left, max_records=1)
+                except GroupAuthorizationFailedError:
+                    KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
+                except KafkaError as ex:
+                    KarapaceBase.internal_error(
+                        message=f"Failed to fetch: {ex}",
+                        content_type=content_type,
+                    )
                 LOG.debug("Successfully polled for messages")
                 for topic, records in data.items():
                     for rec in records:
                         message_count += 1
-                        read_bytes += (
-                            max(0, rec.serialized_key_size)
-                            + max(0, rec.serialized_value_size)
-                            + max(0, rec.serialized_header_size)
+                        read_bytes += max(0, 0 if rec.key is None else len(rec.key)) + max(
+                            0, 0 if rec.value is None else len(rec.value)
                         )
                         poll_data[topic].append(rec)
-            LOG.info("Gathered %d total messages", message_count)
+                        read_buffered = True
+            LOG.info(
+                "Gathered %d total messages (%d bytes read) in %r",
+                message_count,
+                read_bytes,
+                time.monotonic() - start_time,
+            )
             for tp in poll_data:
                 for msg in poll_data[tp]:
                     try:
@@ -518,10 +538,10 @@ class ConsumerManager:
             return json.loads(bytes_.decode("utf-8"))
         return base64.b64encode(bytes_).decode("utf-8")
 
-    def close(self):
+    async def aclose(self):
         for k in list(self.consumers.keys()):
             c = self.consumers.pop(k)
             try:
-                c.consumer.close()
+                await c.consumer.stop()
             except:  # pylint: disable=bare-except
                 pass

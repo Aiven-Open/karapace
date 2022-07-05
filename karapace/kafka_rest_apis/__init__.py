@@ -563,7 +563,7 @@ class UserRestProxy:
                 stack.enter_context(closing(self.admin_client))
 
             if self.consumer_manager is not None:
-                stack.enter_context(closing(self.consumer_manager))
+                stack.push_async_callback(self.consumer_manager.aclose)
 
             self.admin_client = None
             self.consumer_manager = None
