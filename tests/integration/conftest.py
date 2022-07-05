@@ -15,7 +15,8 @@ from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from pathlib import Path
-from tests.integration.utils.cluster import RegistryDescription, start_schema_registry_cluster
+from tests.conftest import KAFKA_VERSION
+from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint, start_schema_registry_cluster
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.kafka_server import (
     configure_and_start_kafka,
@@ -82,7 +83,7 @@ def fixture_port_range() -> PortRangeInclusive:
 
 @pytest.fixture(scope="session", name="kafka_description")
 def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
-    kafka_version = request.config.getoption("kafka_version")
+    kafka_version = request.config.getoption("kafka_version") or KAFKA_VERSION
     kafka_folder = f"kafka_{KAFKA_SCALA_VERSION}-{kafka_version}"
     kafka_tgz = f"{kafka_folder}.tgz"
     kafka_url = f"https://archive.apache.org/dist/kafka/{kafka_version}/{kafka_tgz}"
@@ -386,7 +387,9 @@ async def fixture_registry_cluster(
     # won't work and will cause test failures.
     registry_url = request.config.getoption("registry_url")
     if registry_url:
-        yield registry_url
+        registry = urlparse(registry_url)
+        endpoint = RegistryEndpoint(registry.scheme, registry.hostname, registry.port)
+        yield RegistryDescription(endpoint, "_schemas")
         return
 
     config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
