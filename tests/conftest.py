@@ -58,7 +58,6 @@ def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-a
     # Configuration options for the services started by the test suite
     parser.addoption(
         KAFKA_VERION_OPT,
-        default=KAFKA_VERSION,
         help=f"Kafka version used by the test suite. (Incompatible with {KAFKA_BOOTSTRAP_SERVERS_OPT})",
     )
     parser.addoption(
@@ -105,7 +104,7 @@ def fixture_validate_options(request) -> None:
 
     has_external_registry_or_rest = registry_url or rest_url
 
-    if not re.match(VERSION_REGEX, kafka_version):
+    if kafka_version is not None and not re.match(VERSION_REGEX, kafka_version):
         msg = "Provided Kafka version has invalid format {kafka_version} should match {VERSION_REGEX}"
         raise ValueError(msg)
 
