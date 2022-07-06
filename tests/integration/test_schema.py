@@ -92,6 +92,17 @@ async def test_missing_subject_compatibility(registry_async_client: Client, trai
     assert "compatibilityLevel" in res.json(), res.json()
 
 
+async def test_subject_allowed_chars(registry_async_client: Client) -> None:
+    subject_prefix = create_subject_name_factory("test_subject_allowed_chars-")()
+
+    for suffix in ['"', "{", ":", "}", "'"]:
+        subject = f"{subject_prefix}{suffix}"
+        res = await registry_async_client.post(
+            f"subjects/{subject}/versions", json={"schema": json.dumps({"type": "string"})}
+        )
+        assert res.status_code == 200, f"{res} {subject}"
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_record_union_schema_compatibility(registry_async_client: Client, trail: str) -> None:
     subject = create_subject_name_factory(f"test_record_union_schema_compatibility-{trail}")()

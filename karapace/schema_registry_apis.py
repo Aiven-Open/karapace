@@ -344,7 +344,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
         version: int,
         deleted: bool,
     ):
-        key = '{{"subject":"{}","version":{},"magic":1,"keytype":"SCHEMA"}}'.format(subject, version)
+        key = json.dumps({"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}, separators=(",", ":"))
         if schema:
             valuedict = {
                 "subject": subject,
