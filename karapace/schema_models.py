@@ -123,7 +123,7 @@ class ValidatedTypedSchema(TypedSchema):
 
         elif schema_type is SchemaType.JSONSCHEMA:
             try:
-                parsed_schema = parse_jsonschema_definition(schema_str)
+                parsed_schema = parse_jsonschema_definition(schema_str).schema
                 # TypeError - Raised when the user forgets to encode the schema as a string.
             except (TypeError, json.JSONDecodeError, SchemaError, AssertionError) as e:
                 raise InvalidSchema from e
