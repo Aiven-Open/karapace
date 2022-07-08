@@ -187,6 +187,9 @@ class KafkaRest(KarapaceBase):
                 producer = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
+                    sasl_mechanism=self.config["sasl_mechanism"],
+                    sasl_plain_username=self.config["sasl_plain_username"],
+                    sasl_plain_password=self.config["sasl_plain_password"],
                     ssl_context=ssl_context,
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     acks=acks,
