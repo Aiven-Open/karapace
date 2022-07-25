@@ -853,7 +853,7 @@ class KarapaceSchemaRegistry(KarapaceBase):
     async def subjects_schema_post(
         self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
     ) -> None:
-        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         body = request.json
         self._validate_schema_request_body(content_type, body)
