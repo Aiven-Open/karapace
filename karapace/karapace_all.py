@@ -4,7 +4,7 @@ from karapace import version as karapace_version
 from karapace.config import read_config
 from karapace.kafka_rest_apis import KafkaRest
 from karapace.rapu import RestApp
-from karapace.schema_registry_apis import KarapaceSchemaRegistry
+from karapace.schema_registry_apis import KarapaceSchemaRegistryController
 from karapace.utils import DebugAccessLogger
 
 import argparse
@@ -12,7 +12,7 @@ import logging
 import sys
 
 
-class KarapaceAll(KafkaRest, KarapaceSchemaRegistry):
+class KarapaceAll(KafkaRest, KarapaceSchemaRegistryController):
     pass
 
 
@@ -42,7 +42,7 @@ def main() -> int:
         app = KafkaRest(config=config)
     elif config["karapace_registry"]:
         info_str = "karapace schema registry"
-        app = KarapaceSchemaRegistry(config=config)
+        app = KarapaceSchemaRegistryController(config=config)
     else:
         print("Both rest and registry options are disabled, exiting")
         return 1
