@@ -175,7 +175,7 @@ class MasterCoordinator(Thread):
         self.sc.master_eligibility = self.config["master_eligibility"]
         self.schema_coordinator_ready.set()
 
-    def get_master_info(self) -> Tuple[bool, Optional[str]]:
+    def get_master_info(self) -> Tuple[Optional[bool], Optional[str]]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
         self.schema_coordinator_ready.wait()
         return self.sc.are_we_master, self.sc.master_url
