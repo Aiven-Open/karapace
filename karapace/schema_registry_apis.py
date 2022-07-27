@@ -752,10 +752,11 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
         for schema in subject_data["schemas"].values():
             validated_typed_schema = ValidatedTypedSchema.parse(schema["schema"].schema_type, schema["schema"].schema_str)
-            if (
-                validated_typed_schema.schema_type == new_schema.schema_type
-                and validated_typed_schema.schema == new_schema.schema
-            ):
+            if schema_type is SchemaType.JSONSCHEMA:
+                schema_valid = validated_typed_schema.to_dict() == new_schema.to_dict()
+            else:
+                schema_valid = validated_typed_schema.schema == new_schema.schema
+            if validated_typed_schema.schema_type == new_schema.schema_type and schema_valid:
                 ret = {
                     "subject": subject,
                     "version": schema["version"],
