@@ -938,7 +938,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
-                    "message": f"Invalid {schema_type} schema. Error: {human_error}",
+                    "message": f"Invalid {schema_type.value} schema. Error: {human_error}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -968,7 +968,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
-                        "message": f"Invalid {schema_type} schema. Error: {str(ex)}",
+                        "message": f"Invalid {schema_type.value} schema. Error: {str(ex)}",
                     },
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
