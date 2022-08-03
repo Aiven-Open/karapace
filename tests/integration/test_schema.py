@@ -226,6 +226,55 @@ async def test_record_nested_schema_compatibility(registry_async_client: Client,
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_record_schema_subject_compatibility(registry_async_client: Client, trail: str) -> None:
+    subject = create_subject_name_factory("test_record_schema_subject_compatibility")()
+
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+    original_schema = {
+        "fields": [{"name": "name", "type": "string"}, {"name": "age", "type": "int"}],
+        "name": "user",
+        "type": "record",
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}",
+        json={"schema": json.dumps(original_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    evolved_schema = {
+        "fields": [
+            {"name": "name", "type": "string"},
+            {"name": "age", "type": "int"},
+            {"default": "green", "name": "color", "type": "string"},
+        ],
+        "name": "user",
+        "type": "record",
+    }
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}", json={"schema": json.dumps(evolved_schema)}
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    result = {"id": 1, "schema": json.dumps(original_schema), "subject": subject, "version": 1}
+
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1")
+    assert res.status_code == 200
+    assert res.json() == result
+    result = {"id": 2, "schema": json.dumps(evolved_schema), "subject": subject, "version": 2}
+
+    res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
+    assert res.status_code == 200
+    assert res.json() == result
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_compatibility_endpoint(registry_async_client: Client, trail: str) -> None:
     """
     Creates a subject with a schema.
