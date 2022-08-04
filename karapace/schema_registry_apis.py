@@ -544,6 +544,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         try:
             subject_data = await self.schema_registry.subject_version_get(subject, version)
+            if "compatibility" in subject_data:
+                del subject_data["compatibility"]
             self.r(subject_data, content_type)
         except (SubjectNotFoundException, SchemasNotFoundException):
             self.r(
