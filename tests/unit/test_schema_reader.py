@@ -21,15 +21,23 @@ def test_offset_watcher() -> None:
     assert timeout > max_sleep, "Bad configuration, test will fail."
     assert max_sleep * total_number_of_offsets < 5, "Bad configuration, test would be too slow."
 
+    consumed_cnt = 0
+
     def consume() -> None:
+        nonlocal consumed_cnt
         for offset in range(total_number_of_offsets):
             assert watcher.wait_for_offset(expected_offset=offset, timeout=timeout), "Event must be produced."
+            consumed_cnt += 1
             sleep = random.uniform(0, max_sleep)
             time.sleep(sleep)
 
+    produced_cnt = 0
+
     def produce() -> None:
+        nonlocal produced_cnt
         for offset in range(total_number_of_offsets):
             watcher.offset_seen(new_offset=offset)
+            produced_cnt += 1
             sleep = random.uniform(0, max_sleep)
             time.sleep(sleep)
 
@@ -40,5 +48,7 @@ def test_offset_watcher() -> None:
         assert producer.result() is None, "Thread should finish without errors"
 
     assert (
-        len(watcher._events) == 0  # pylint: disable=protected-access
-    ), "all events have been consumed, so the mapping must be empty"
+        watcher._greatest_offset == 99  # pylint: disable=protected-access
+    ), "Expected greatest offset is not one less than total count"
+    assert produced_cnt == 100, "Did not produce expected amount of records"
+    assert consumed_cnt == 100, "Did not consume expected amount of records"
