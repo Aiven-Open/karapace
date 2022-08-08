@@ -7,6 +7,7 @@ from http import HTTPStatus
 from kafka.errors import (
     BrokerResponseError,
     KafkaTimeoutError,
+    NoBrokersAvailable,
     NodeNotReadyError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
@@ -221,31 +222,37 @@ class KafkaRest(KarapaceBase):
 
     def get_user_proxy(self, request: HTTPRequest) -> "UserRestProxy":
         key = ""
-        if self.config.get("rest_authorization", False):
-            auth_header = request.headers.get("Authorization")
+        try:
+            if self.config.get("rest_authorization", False):
+                auth_header = request.headers.get("Authorization")
 
-            if auth_header is None:
-                raise HTTPResponse(
-                    body='{"message": "Unauthorized"}',
-                    status=HTTPStatus.UNAUTHORIZED,
-                    content_type=JSON_CONTENT_TYPE,
-                    headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
-                )
-            key = auth_header
-            if self.proxies.get(key) is None:
-                auth = aiohttp.BasicAuth.decode(auth_header)
-                config = self.config.copy()
-                config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
-                config["security_protocol"] = (
-                    "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
-                )
-                config["sasl_mechanism"] = "PLAIN"
-                config["sasl_plain_username"] = auth.login
-                config["sasl_plain_password"] = auth.password
-                self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
-        else:
-            if self.proxies.get(key) is None:
-                self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
+                if auth_header is None:
+                    raise HTTPResponse(
+                        body='{"message": "Unauthorized"}',
+                        status=HTTPStatus.UNAUTHORIZED,
+                        content_type=JSON_CONTENT_TYPE,
+                        headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
+                    )
+                key = auth_header
+                if self.proxies.get(key) is None:
+                    auth = aiohttp.BasicAuth.decode(auth_header)
+                    config = self.config.copy()
+                    config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
+                    config["security_protocol"] = (
+                        "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
+                    )
+                    config["sasl_mechanism"] = "PLAIN"
+                    config["sasl_plain_username"] = auth.login
+                    config["sasl_plain_password"] = auth.password
+                    self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
+            else:
+                if self.proxies.get(key) is None:
+                    self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
+        except NoBrokersAvailable:
+            # This can be caused also due misconfigration, but kafka-python's
+            # KafkaAdminClient cannot currently distinguish those two cases
+            log.exception("Failed to connect to Kafka with the credentials")
+            self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
         return self.proxies[key]
 
     async def list_brokers(self, content_type: str, *, request: HTTPRequest):
@@ -379,7 +386,10 @@ class UserRestProxy:
             acks = int(self.config["producer_acks"])
 
         async with self._async_producer_lock:
-            while self._async_producer is None:
+            for retry in [True, True, False]:
+                if self._async_producer is not None:
+                    break
+
                 log.info("Creating async producer")
 
                 # Don't retry if creating the SSL context fails, likely a configuration issue with
@@ -404,7 +414,11 @@ class UserRestProxy:
                 try:
                     await producer.start()
                 except KafkaConnectionError:
-                    log.exception("Unable to connect to the bootstrap servers, retrying")
+                    if retry:
+                        log.exception("Unable to connect to the bootstrap servers, retrying")
+                    else:
+                        log.exception("Giving up after trying to connect to the bootstrap servers")
+                        raise
                     await asyncio.sleep(1)
                 else:
                     self._async_producer = producer
@@ -532,7 +546,7 @@ class UserRestProxy:
             return metadata
 
     def init_admin_client(self):
-        while True:
+        for retry in [True, True, False]:
             try:
                 self.admin_client = KafkaRestAdminClient(
                     bootstrap_servers=self.config["bootstrap_uri"],
@@ -550,7 +564,11 @@ class UserRestProxy:
                 )
                 break
             except:  # pylint: disable=bare-except
-                log.exception("Unable to start admin client, retrying")
+                if retry:
+                    log.exception("Unable to start admin client, retrying")
+                else:
+                    log.exception("Giving up after failing to start admin client")
+                    raise
                 time.sleep(1)
 
     async def aclose(self) -> None:
