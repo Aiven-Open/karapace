@@ -197,7 +197,7 @@ class ConsumerManager:
 
     async def create_kafka_consumer(self, fetch_min_bytes, group_name, internal_name, request_data):
         ssl_context = create_client_ssl_context(self.config)
-        while True:
+        for retry in [True, True, False]:
             try:
                 session_timeout_ms = self.config["session_timeout_ms"]
                 request_timeout_ms = max(
@@ -224,7 +224,11 @@ class ConsumerManager:
                 await c.start()
                 return c
             except:  # pylint: disable=bare-except
-                LOG.exception("Unable to create consumer, retrying")
+                if retry:
+                    LOG.exception("Unable to create consumer, retrying")
+                else:
+                    LOG.exception("Giving up after failing to create consumer")
+                    raise
                 await asyncio.sleep(1)
 
     async def delete_consumer(self, internal_name: Tuple[str, str], content_type: str):
