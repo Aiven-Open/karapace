@@ -41,17 +41,20 @@ AVRO_SCHEMA = {
         },
     ],
 }
-EXPECTED_AVRO_SCHEMA = {
-    "type": "record",
-    "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
-    "name": "afe8733e983101f1f4ff50d24152890d0da71418",
-    "fields": [
-        {
-            "type": "string",
-            "name": "a09bb890b096f7306f688cc6d1dad34e7e52a223",
-        },
-    ],
-}
+EXPECTED_AVRO_SCHEMA = json.dumps(
+    {
+        "type": "record",
+        "namespace": "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382",
+        "name": "afe8733e983101f1f4ff50d24152890d0da71418",
+        "fields": [
+            {
+                "type": "string",
+                "name": "a09bb890b096f7306f688cc6d1dad34e7e52a223",
+            },
+        ],
+    },
+    sort_keys=False,
+)
 
 COMPATIBILITY_SUBJECT = "compatibility_subject"
 COMPATIBILITY_SUBJECT_HASH = "a0765805d57daad3b08200d5be1c5adb6f3cff54"
