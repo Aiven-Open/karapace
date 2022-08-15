@@ -261,7 +261,7 @@ def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
         if anonymized_schema:
             if "subject" in value:
                 value["subject"] = anonymize_avro.anonymize_name(value["subject"])
-            value["schema"] = anonymized_schema
+            value["schema"] = json_encode(anonymized_schema, sort_keys=False)
     # The schemas topic contain all changes to schema metadata.
     if key.get("subject", None):
         key["subject"] = anonymize_avro.anonymize_name(key["subject"])
