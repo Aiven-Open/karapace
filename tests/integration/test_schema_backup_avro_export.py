@@ -55,6 +55,14 @@ EXPECTED_AVRO_SCHEMA = json.dumps(
     },
     sort_keys=False,
 )
+AVRO_DELETE_SUBJECT = {
+    "subject": AVRO_SUBJECT,
+    "version": 1,
+}
+EXPECTED_AVRO_DELETE_SUBJECT = {
+    "subject": "a801beafef1fb8c03907b44ec7baca341a58420d-",
+    "version": 1,
+}
 
 COMPATIBILITY_SUBJECT = "compatibility_subject"
 COMPATIBILITY_SUBJECT_HASH = "a0765805d57daad3b08200d5be1c5adb6f3cff54"
@@ -80,6 +88,13 @@ async def insert_compatibility_level_change(c: Client, subject: str, data: Dict[
     assert res.status_code == 200
 
 
+async def insert_delete_subject(c: Client, subject: str) -> None:
+    res = await c.delete(
+        f"subjects/{subject}",
+    )
+    assert res.status_code == 200
+
+
 async def test_export_anonymized_avro_schemas(
     registry_async_client: Client,
     kafka_servers: KafkaServers,
@@ -88,6 +103,7 @@ async def test_export_anonymized_avro_schemas(
 ) -> None:
     await insert_data(registry_async_client, "AVRO", AVRO_SUBJECT, AVRO_SCHEMA)
     await insert_compatibility_level_change(registry_async_client, COMPATIBILITY_SUBJECT, COMPATIBILITY_CHANGE)
+    await insert_delete_subject(registry_async_client, AVRO_SUBJECT)
 
     # Get the backup
     export_location = tmp_path / "export.log"
@@ -103,7 +119,6 @@ async def test_export_anonymized_avro_schemas(
     # The export file has been created
     assert os.path.exists(export_location)
 
-    expected_subject_hash_found = False
     compatibility_level_change_subject_hash_found = False
     with export_location.open("r") as fp:
         version_identifier = fp.readline()
@@ -111,15 +126,17 @@ async def test_export_anonymized_avro_schemas(
         for item in fp:
             hex_key, hex_value = item.strip().split("\t")
             key = json.loads(base64.b16decode(hex_key).decode("utf8"))
-            schema_data = json.loads(base64.b16decode(hex_value).decode("utf8"))
-            subject_hash = key.get("subject", None)
-            if subject_hash == AVRO_SUBJECT_HASH:
-                expected_subject_hash_found = True
-                assert schema_data["subject"] == AVRO_SUBJECT_HASH
-                assert schema_data["schema"] == EXPECTED_AVRO_SCHEMA
-            if subject_hash == COMPATIBILITY_SUBJECT_HASH:
+            value_data = json.loads(base64.b16decode(hex_value).decode("utf8"))
+            if key["keytype"] == "SCHEMA":
+                assert key["subject"] == AVRO_SUBJECT_HASH
+                assert value_data["subject"] == AVRO_SUBJECT_HASH
+                assert value_data["schema"] == EXPECTED_AVRO_SCHEMA
+            if key["keytype"] == "DELETE_SUBJECT":
+                assert key["subject"] == AVRO_SUBJECT_HASH
+                assert value_data["subject"] == AVRO_SUBJECT_HASH
+            if key["keytype"] == "CONFIG":
                 compatibility_level_change_subject_hash_found = True
-                assert schema_data == EXPECTED_COMPATIBILITY_CHANGE
+                assert key["subject"] == COMPATIBILITY_SUBJECT_HASH
+                assert value_data == EXPECTED_COMPATIBILITY_CHANGE
 
-    assert expected_subject_hash_found
     assert compatibility_level_change_subject_hash_found
