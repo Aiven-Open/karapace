@@ -70,11 +70,16 @@ def default_json_serialization(  # pylint: disable=inconsistent-return-statement
     assert_never("Object of type {!r} is not JSON serializable".format(obj.__class__.__name__))
 
 
-def json_encode(obj, *, sort_keys: bool = True, binary=False):
+SEPARATORS = (",", ":")
+
+
+def json_encode(obj, *, sort_keys: bool = True, binary=False, compact=False):
+    separators = SEPARATORS if compact else None
     res = json.dumps(
         obj,
         sort_keys=sort_keys,
         default=default_json_serialization,
+        separators=separators,
     )
     return res.encode("utf-8") if binary else res
 
