@@ -648,32 +648,32 @@ class KafkaRest(KarapaceBase):
 
             # Exceptions below are raised before data is sent to Kafka
             elif isinstance(result, asyncio.TimeoutError):
-                self.log.exception("Timed out waiting for publisher buffer")
+                self.log.warning("Timed out waiting for publisher buffer", exc_info=result)
                 # timeouts are retriable
                 produce_results.append(
                     {"error_code": 1, "error": "timed out waiting to publish message, producer buffer full"}
                 )
             elif isinstance(result, AssertionError):
-                self.log.exception("Invalid data")
+                self.log.error("Invalid data", exc_info=result)
                 produce_results.append({"error_code": 1, "error": str(result)})
 
             # Exceptions below are raised after data is sent to Kafka
             elif isinstance(result, KafkaTimeoutError):
-                self.log.exception("Timed out waiting for publisher")
+                self.log.warning("Timed out waiting for publisher", exc_info=result)
                 # timeouts are retriable
                 produce_results.append({"error_code": 1, "error": "timed out waiting to publish message"})
             elif isinstance(result, asyncio.CancelledError):
-                self.log.exception("Async task cancelled")
+                self.log.warning("Async task cancelled", exc_info=result)
                 # cancel is retriable
                 produce_results.append({"error_code": 1, "error": "Publish message cancelled"})
             elif isinstance(result, BrokerResponseError):
-                self.log.exception(result)
+                self.log.error("Broker error", exc_info=result)
                 resp = {"error_code": 1, "error": result.description}
                 if hasattr(result, "retriable") and result.retriable:
                     resp["error_code"] = 2
                 produce_results.append(resp)
             else:
-                self.log.exception("Unexpected exception")
+                self.log.error("Unexpected exception", exc_info=result)
                 produce_results.append({"error_code": 1, "error": str(result)})
 
         return produce_results
