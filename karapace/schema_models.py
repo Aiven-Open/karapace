@@ -143,5 +143,5 @@ class ValidatedTypedSchema(TypedSchema):
 
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
-            return str(self.schema)
+            return self.schema.to_schema()
         return super().__str__()

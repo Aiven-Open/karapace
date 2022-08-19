@@ -393,7 +393,7 @@ class KarapaceSchemaRegistry:
         self,
         *,
         subject: Subject,
-        schema: Optional[TypedSchema],
+        schema: Optional[ValidatedTypedSchema],
         schema_id: int,
         version: int,
         deleted: bool,
@@ -409,6 +409,8 @@ class KarapaceSchemaRegistry:
             }
             if schema.schema_type is not SchemaType.AVRO:
                 valuedict["schemaType"] = schema.schema_type
+            if schema.schema_type is SchemaType.PROTOBUF:
+                valuedict["schema"] = schema.schema.to_schema()
             value = json_encode(valuedict)
         else:
             value = ""

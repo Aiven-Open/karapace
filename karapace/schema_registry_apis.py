@@ -19,6 +19,7 @@ from karapace.errors import (
     VersionNotFoundException,
 )
 from karapace.karapace import KarapaceBase
+from karapace.protobuf.compare_result import CompareResult
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_registry import KarapaceSchemaRegistry
@@ -756,6 +757,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             validated_typed_schema = ValidatedTypedSchema.parse(schema["schema"].schema_type, schema["schema"].schema_str)
             if schema_type is SchemaType.JSONSCHEMA:
                 schema_valid = validated_typed_schema.to_dict() == new_schema.to_dict()
+            elif schema_type is SchemaType.PROTOBUF:
+                result = CompareResult()
+                validated_typed_schema.schema.compare(new_schema.schema, result)
+                schema_valid = result.is_compatible()
             else:
                 schema_valid = validated_typed_schema.schema == new_schema.schema
             if validated_typed_schema.schema_type == new_schema.schema_type and schema_valid:

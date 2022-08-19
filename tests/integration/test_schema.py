@@ -8,6 +8,7 @@ from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.client import Client
 from karapace.rapu import is_success
+from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.schema_registry_apis import SchemaErrorMessages
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
@@ -1716,6 +1717,68 @@ async def test_schema_json_subject_comparison(registry_async_client: Client) -> 
         "schema": json.loads(schema_1["schema"]),
         "subject": subject,
         "schemaType": "JSON",
+        "version": 1,
+    }
+
+
+async def test_schema_protobuf_subject_comparison(registry_async_client: Client) -> None:
+    """
+    The same schema PROTOBUF should be returned when checking the same schema against the same subject
+    """
+    subject_name_factory = create_subject_name_factory("test_schema_protobuf_subject_comparison")
+
+    schema_1 = {
+        "schemaType": "PROTOBUF",
+        "schema": 'syntax = "proto3";\n\nmessage Record {\nint32 id = 1;\nstring createdAt = 2;\nstring name = 3;\n}',
+    }
+    subject = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json=schema_1,
+    )
+    assert res.status_code == 200
+    schema_id = res.json()["id"]
+
+    schema_2 = {
+        "schemaType": "PROTOBUF",
+        "schema": 'syntax = "proto3";\n\nmessage Record {\n int32 id = 1;\n   string createdAt = 2;\nstring name = 3;\n}',
+    }
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json=schema_2,
+    )
+    assert res.status_code == 200
+    assert res.json()["id"] == schema_id
+
+    schema_3 = {
+        "schemaType": "PROTOBUF",
+        "schema": 'syntax = "proto3";\n\nmessage Record {\n int32 id = 1;\nstring createdAt = 2;\nstring name = 3;\n}',
+    }
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest",
+        json=schema_3,
+    )
+    assert res.status_code == 200
+
+    schema_4 = {
+        "schemaType": "PROTOBUF",
+        "schema": 'syntax = "proto3";\n\nmessage Record {\nstring createdAt = 2;\n int32 id = 1;\nstring name = 3;\n}',
+    }
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json=schema_4,
+    )
+    assert res.status_code == 200
+    validated_typed_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, schema_1["schema"])
+
+    json_res = res.json()
+    assert json_res == {
+        "id": schema_id,
+        "schema": validated_typed_schema.schema.to_schema(),
+        "subject": subject,
+        "schemaType": "PROTOBUF",
         "version": 1,
     }
 
