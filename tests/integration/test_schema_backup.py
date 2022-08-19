@@ -4,8 +4,10 @@ karapace - test schema backup
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from kafka import KafkaConsumer
 from karapace.client import Client
 from karapace.config import set_config_defaults
+from karapace.key_format import is_key_in_canonical_format
 from karapace.schema_backup import SchemaBackup, serialize_schema_message
 from karapace.utils import Expiration
 from pathlib import Path
@@ -13,6 +15,7 @@ from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 
+import json
 import os
 import pytest
 import time
@@ -65,6 +68,31 @@ async def test_backup_get(
     assert lines == 1
 
 
+def _assert_canonical_key_format(
+    bootstrap_servers: str,
+    schemas_topic: str,
+) -> None:
+    # Consume all records and assert key order is canonical
+    consumer = KafkaConsumer(
+        schemas_topic,
+        group_id="assert-canonical-key-format-consumer",
+        enable_auto_commit=False,
+        api_version=(1, 0, 0),
+        bootstrap_servers=bootstrap_servers,
+        auto_offset_reset="earliest",
+    )
+
+    raw_msgs = consumer.poll(timeout_ms=2000)
+    while raw_msgs:
+        for _, messages in raw_msgs.items():
+            for message in messages:
+                print(message)
+                key = json.loads(message.key)
+                assert is_key_in_canonical_format(key), f"Not in canonical format: {key}"
+        raw_msgs = consumer.poll()
+    consumer.close()
+
+
 @pytest.mark.parametrize("backup_file_version", ["v1", "v2"])
 async def test_backup_restore(
     registry_async_client: Client,
@@ -78,6 +106,7 @@ async def test_backup_restore(
         {
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             "topic_name": registry_cluster.schemas_topic,
+            "force_key_correction": True,
         }
     )
 
@@ -140,10 +169,13 @@ async def test_backup_restore(
     subject = "delete-nonexistent-schema"
     restore_location = test_data_path / f"test_restore_delete_nonexistent_schema_{backup_file_version}.log"
     sb = SchemaBackup(config, str(restore_location))
-
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
     sb.restore_backup()
     time.sleep(1.0)
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 200
     assert res.json() == [1]
+
+    _assert_canonical_key_format(
+        bootstrap_servers=kafka_servers.bootstrap_servers, schemas_topic=registry_cluster.schemas_topic
+    )
