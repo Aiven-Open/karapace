@@ -39,15 +39,15 @@
 				</div>
 			</nav>
 		
-			<section class="mt-5">
+			<section>
 				<div class="container">
-					<div class="row">
+					<div class="content">
                     {% block content %}
                     {% if title=="Karapace" %}
 						<div class="col-md-6 py-6">
                             {{ body }}
 						</div>
-						<div class="col-md-6 py-6">
+						<div class="photo-front col-md-6">
 							<img class="pt-7 pt-md-0 img-fluid mt-3" src="_static/images/karapace-hero.png" />
 						</div>
                     {% else %}
@@ -55,6 +55,24 @@
                     {% endif %}
                     {% endblock %}
 					</div>
+                    <aside class="toc-drawer{% if furo_hide_toc %} no-toc{% endif %}">
+                        {% block right_sidebar %}
+                        {% if not furo_hide_toc %}
+                        <div class="toc-sticky toc-scroll">
+                            <div class="toc-title-container">
+                      <span class="toc-title">
+                        {{ _("Contents") }}
+                      </span>
+                            </div>
+                            <div class="toc-tree-container">
+                                <div class="toc-tree">
+                                    {{ toc }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endblock right_sidebar %}
+                    </aside>
 				</div>
 			</section>
             <footer class="footer mt-auto py-3 bg-white"> 
@@ -73,24 +91,6 @@
                 </div>
             </footer>
         </div>
-        <aside class="toc-drawer{% if furo_hide_toc %} no-toc{% endif %}">
-            {% block right_sidebar %}
-            {% if not furo_hide_toc %}
-            <div class="toc-sticky toc-scroll">
-                <div class="toc-title-container">
-          <span class="toc-title">
-            {{ _("Contents") }}
-          </span>
-                </div>
-                <div class="toc-tree-container">
-                    <div class="toc-tree">
-                        {{ toc }}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            {% endblock right_sidebar %}
-        </aside>
     </div>
 </div>
 {%- endblock %}

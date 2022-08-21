@@ -111,6 +111,22 @@ h3 {
 	text-align: right;
 }
 
+.container {
+    display: flex;
+}
+
+.content {
+    flex-direction: row;
+    flex: 1;
+}
+
+.toc-drawer {
+    padding: 1.5em;
+}
+
+.photo-front {
+    padding-top: 5em;
+}
 
 @media (max-width:576px) {
 	.mt-5 {
