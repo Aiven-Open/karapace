@@ -50,6 +50,13 @@ def main() -> int:
     info_str_separator = "=" * 100
     logging.log(logging.INFO, "\n%s\nStarting %s\n%s", info_str_separator, info_str, info_str_separator)
 
+    config_without_secrets = {}
+    for key, value in config.items():
+        if "password" in key:
+            value = "****"
+        config_without_secrets[key] = value
+    logging.log(logging.DEBUG, "Config %r", config_without_secrets)
+
     try:
         # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
         app.run()
