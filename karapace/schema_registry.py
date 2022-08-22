@@ -14,6 +14,7 @@ from karapace.errors import (
     SubjectNotSoftDeletedException,
     VersionNotFoundException,
 )
+from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
@@ -61,7 +62,10 @@ class KarapaceSchemaRegistry:
         self.kafka_timeout = 10
 
         self.mc = MasterCoordinator(config=self.config)
-        self.schema_reader = KafkaSchemaReader(config=self.config, master_coordinator=self.mc)
+        self.key_formatter = KeyFormatter()
+        self.schema_reader = KafkaSchemaReader(
+            config=self.config, key_formatter=self.key_formatter, master_coordinator=self.mc
+        )
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -398,7 +402,10 @@ class KarapaceSchemaRegistry:
         version: int,
         deleted: bool,
     ) -> FutureRecordMetadata:
-        key = json_encode({"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}, sort_keys=False)
+        key = self.key_formatter.format_key(
+            {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"},
+            compact=False,
+        )
         if schema:
             valuedict = {
                 "subject": subject,
@@ -417,14 +424,23 @@ class KarapaceSchemaRegistry:
     def send_config_message(
         self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None
     ) -> FutureRecordMetadata:
-        if subject is not None:
-            key = '{{"subject":"{}","magic":0,"keytype":"CONFIG"}}'.format(subject)
-        else:
-            key = '{"subject":null,"magic":0,"keytype":"CONFIG"}'
+        key = self.key_formatter.format_key(
+            {
+                "subject": subject,
+                "magic": 0,
+                "keytype": "CONFIG",
+            }
+        )
         value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
         return self.send_kafka_message(key, value)
 
     def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
-        key = '{{"subject":"{}","magic":0,"keytype":"DELETE_SUBJECT"}}'.format(subject)
+        key = self.key_formatter.format_key(
+            {
+                "subject": subject,
+                "magic": 0,
+                "keytype": "DELETE_SUBJECT",
+            }
+        )
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
