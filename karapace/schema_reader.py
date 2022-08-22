@@ -10,6 +10,7 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.config import Config
+from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
@@ -119,6 +120,7 @@ class KafkaSchemaReader(Thread):
     def __init__(
         self,
         config: Config,
+        key_formatter: KeyFormatter,
         master_coordinator: Optional[MasterCoordinator] = None,
     ) -> None:
         Thread.__init__(self, name="schema-reader")
@@ -134,7 +136,7 @@ class KafkaSchemaReader(Thread):
         self.offset_watcher = OffsetsWatcher()
         self.id_lock = Lock()
         self.stats = StatsClient(
-            sentry_config=config["sentry"],  # type: ignore[arg-type]
+            sentry_config=config.get("sentry"),  # type: ignore[arg-type]
         )
 
         # Thread synchronization objects
@@ -162,6 +164,8 @@ class KafkaSchemaReader(Thread):
         # but the schema themselves don't match)
         self._hash_to_schema: Dict[int, TypedSchema] = {}
         self._hash_to_schema_id_on_subject: Dict[int, SchemaId] = {}
+
+        self.key_formatter = key_formatter
 
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
@@ -262,6 +266,14 @@ class KafkaSchemaReader(Thread):
                 except json.JSONDecodeError:
                     LOG.exception("Invalid JSON in msg.key")
                     continue
+
+                # Key mode detection happens on startup.
+                # Default keymode is CANONICAL and preferred unless any data consumed
+                # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
+                # the subsequent keys are omitted from detection.
+                if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
+                    if not is_key_in_canonical_format(key):
+                        self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
 
                 value = None
                 if msg.value:

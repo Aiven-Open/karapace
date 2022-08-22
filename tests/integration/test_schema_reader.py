@@ -1,14 +1,19 @@
 from contextlib import closing
-from kafka import KafkaProducer
+from dataclasses import dataclass
+from kafka import KafkaAdminClient, KafkaProducer
 from karapace.config import set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.key_format import KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
+from tests.base_testcase import BaseTestCase
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.schemas.json_schemas import TRUE_SCHEMA
-from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name
+from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name, new_topic
+from typing import List, Tuple
 
+import pytest
 import time
 
 
@@ -60,7 +65,7 @@ def test_regression_soft_delete_schemas_should_be_registered(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
-    schema_reader = KafkaSchemaReader(config=config, master_coordinator=master_coordinator)
+    schema_reader = KafkaSchemaReader(config=config, key_formatter=KeyFormatter(), master_coordinator=master_coordinator)
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
@@ -138,7 +143,7 @@ def test_regression_config_for_inexisting_object_should_not_throw(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
-    schema_reader = KafkaSchemaReader(config=config, master_coordinator=master_coordinator)
+    schema_reader = KafkaSchemaReader(config=config, key_formatter=KeyFormatter(), master_coordinator=master_coordinator)
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
@@ -161,3 +166,80 @@ def test_regression_config_for_inexisting_object_should_not_throw(
 
         assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
         assert subject in schema_reader.subjects, "The above message should be handled gracefully"
+
+
+@dataclass
+class DetectKeyFormatCase(BaseTestCase):
+    raw_msgs: List[Tuple[bytes, bytes]]
+    expected: KeyMode
+
+
+@pytest.mark.parametrize(
+    "testcase",
+    [
+        # Canonical format
+        DetectKeyFormatCase(
+            test_name="Canonical format messages",
+            raw_msgs=[
+                (b'{"keytype":"CONFIG","subject":null,"magic":0}', b'{"compatibilityLevel":"BACKWARD"}'),
+                (b'{"keytype":"CONFIG","subject":null,"magic":0}', b'{"compatibilityLevel":"BACKWARD"}'),
+                (b'{"keytype":"CONFIG","subject":null,"magic":0}', b'{"compatibilityLevel":"BACKWARD"}'),
+            ],
+            expected=KeyMode.CANONICAL,
+        ),
+        DetectKeyFormatCase(
+            test_name="Mixed format messages",
+            raw_msgs=[
+                (b'{"keytype":"CONFIG","subject":null,"magic":0}', b'{"compatibilityLevel":"BACKWARD"}'),
+                (b'{"subject":null,"magic":0,"keytype":"CONFIG"}', b'{"compatibilityLevel":"BACKWARD"}'),
+                (b'{"keytype":"CONFIG","subject":null,"magic":0}', b'{"compatibilityLevel":"BACKWARD"}'),
+            ],
+            expected=KeyMode.DEPRECATED_KARAPACE,
+        ),
+        DetectKeyFormatCase(
+            test_name="Karapace format messages",
+            raw_msgs=[
+                (b'{"subject":null,"magic":0,"keytype":"CONFIG"}', b'{"compatibilityLevel":"BACKWARD"}'),
+                (b'{"subject":null,"magic":0,"keytype":"CONFIG"}', b'{"compatibilityLevel":"BACKWARD"}'),
+                (b'{"subject":null,"magic":0,"keytype":"CONFIG"}', b'{"compatibilityLevel":"BACKWARD"}'),
+            ],
+            expected=KeyMode.DEPRECATED_KARAPACE,
+        ),
+    ],
+)
+def test_key_format_detection(
+    testcase: DetectKeyFormatCase,
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+    admin_client: KafkaAdminClient,
+) -> None:
+    group_id = create_group_name_factory(testcase.test_name)()
+    test_topic = new_topic(admin_client)
+
+    for message in testcase.raw_msgs:
+        future = producer.send(
+            test_topic,
+            key=message[0],
+            value=message[1],
+        )
+        future.get()
+    producer.flush()
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "admin_metadata_max_age": 2,
+            "group_id": group_id,
+            "topic_name": test_topic,
+        }
+    )
+    master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.start()
+    key_formatter = KeyFormatter()
+    schema_reader = KafkaSchemaReader(config=config, key_formatter=key_formatter, master_coordinator=master_coordinator)
+    schema_reader.start()
+
+    with closing(master_coordinator), closing(schema_reader):
+        _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
+
+    assert key_formatter.get_keymode() == testcase.expected
