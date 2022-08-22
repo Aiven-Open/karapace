@@ -635,7 +635,7 @@ class UserRestProxy:
         publish_results = await self.produce_messages(topic=topic, prepared_records=prepared_records)
         for publish_result in publish_results:
             if "error" in publish_result and status == HTTPStatus.OK:
-                status = HTTPStatus.INTERNAL_SERVER_ERROR
+                status = HTTPStatus.UNPROCESSABLE_ENTITY
             response["offsets"].append(publish_result)
         KafkaRest.r(body=response, content_type=content_type, status=status)
 
