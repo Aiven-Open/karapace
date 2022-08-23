@@ -36,15 +36,14 @@ class StatsClient:
         self.update_sentry_config(
             {
                 "ignore_exceptions": [
-                    "ClientConnectorError",  # influxdb, aiohttp
-                    "ClientPayloadError",  # infludb (aiohttp)
-                    "ConnectionLoss",  # kazoo, zkwrap
-                    "ConnectionRefusedError",  # mostly kafka (asyncio)
-                    "ConnectionResetError",  # paramiko, kafka, requests
+                    "ClientConnectorError",  # aiohttp
+                    "ClientPayloadError",  # aiohttp
+                    "ConnectionRefusedError",  # kafka (asyncio)
+                    "ConnectionResetError",  # kafka, requests
                     "IncompleteReadError",  # kafka (asyncio)
-                    "ServerDisconnectedError",  # influxdb (aiohttp)
-                    "ServerTimeoutError",  # influxdb (aiohttp)
-                    "TimeoutError",  # kafka, redis
+                    "ServerDisconnectedError",  # aiohttp
+                    "ServerTimeoutError",  # aiohttp
+                    "TimeoutError",  # kafka
                 ]
             }
         )
