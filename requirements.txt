@@ -1,14 +1,13 @@
 # PyPI dependencies
 accept-types==0.4.1
-aiohttp-socks==0.5.5
+aiohttp==3.8.1
 aiokafka==0.7.2
-jsonschema==3.2.0
-lz4==3.0.2
-requests==2.27.1
-networkx==2.5
-python-dateutil==2.8.2
-protobuf==3.19.4
 avro==1.11.0
+jsonschema==3.2.0
+networkx==2.5
+protobuf==3.19.4
+python-dateutil==2.8.2
+
 # Patched dependencies
 #
 # Note: It is important to use commits to reference patched dependencies. This
@@ -20,19 +19,21 @@ avro==1.11.0
 git+https://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae841b79
 
 # Indirect dependencies
-aiohttp==3.8.1
-aiosignal==1.2.0
-async-timeout==4.0.2
-attrs==21.4.0
-certifi==2021.10.8
-chardet==3.0.4
-charset-normalizer==2.0.11
-decorator==5.1.1
-frozenlist==1.3.0
-idna==3.3
-multidict==6.0.2
-pyrsistent==0.18.1
-python-socks==2.0.3
-six==1.16.0
-urllib3==1.26.8
-yarl==1.7.2
+aiosignal==1.2.0 # aiohttp
+async-timeout==4.0.2 # aiohttp
+attrs==21.4.0 # jsonschema
+certifi==2021.10.8 # requests, urllib3
+chardet==3.0.4 # requests
+charset-normalizer==2.0.11 # aiohttp, requests
+decorator==5.1.1 # networkx
+frozenlist==1.3.0 # aiohttp, aiosignal
+idna==3.3 # aiohttp, requests, urllib3
+lz4==3.0.2 # kafka
+multidict==6.0.2 # aiohttp, yarl
+python-snappy==0.6.1 # kafka
+pyrsistent==0.18.1 # jsonschema
+requests==2.27.1 # jsonschema
+six==1.16.0 # dateutil
+urllib3==1.26.8 # requests
+yarl==1.7.2 # aiohttp
+zstandard==0.18.0 # kafka

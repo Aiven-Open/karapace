@@ -11,6 +11,7 @@ pytest-xdist[psutil]==2.2.1
 pytest-timeout==1.4.2
 pdbpp==0.10.2
 psutil==5.9.0
+requests==2.27.1
 
 # workflow
 pre-commit>=2.2.0
