@@ -24,14 +24,13 @@ setup(
     install_requires=[
         "accept-types",
         "aiohttp",
-        "aiohttp_socks",
         "aiokafka",
         "avro",
         "jsonschema",
         "kafka-python",
         "networkx",
         "protobuf",
-        "requests",
+        "python-dateutil",
     ],
     extras_require={
         # compression algorithms supported by AioKafka and KafkaConsumer
