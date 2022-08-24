@@ -10,9 +10,10 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.config import Config
+from karapace.errors import InvalidSchema
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
-from karapace.schema_models import SchemaType, TypedSchema
+from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.statsd import StatsClient
 from karapace.utils import KarapaceKafkaClient
 from threading import Condition, Event, Lock, Thread
@@ -355,13 +356,20 @@ class KafkaSchemaReader(Thread):
         # - Validates the schema's JSON
         # - Re-encode the schema to make sure small differences on formatting
         # won't interfere with the equality. Note: This means it is possible
-        # for the REST API to return data that is formated differently from
+        # for the REST API to return data that is formatted differently from
         # what is available in the topic.
         if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
             except json.JSONDecodeError:
-                LOG.error("Schema is not invalid JSON")
+                LOG.error("Schema is not valid JSON")
+                return
+        elif schema_type_parsed == SchemaType.PROTOBUF:
+            try:
+                parsed_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, schema_str)
+                schema_str = str(parsed_schema)
+            except InvalidSchema:
+                LOG.exception("Schema is not valid ProtoBuf definition")
                 return
 
         if schema_subject not in self.subjects:
