@@ -359,6 +359,48 @@ async def test_regression_compatibility_should_not_give_internal_server_error_on
     assert res.json()["error_code"] == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
+async def test_compatibility_to_non_existent_schema_version_returns_404(registry_async_client: Client) -> None:
+    """The subject must be found and the subject must not hold any schema versions.
+
+    First create the subject and schema version, soft delete and hard delete to empty the subject.
+    """
+    test_name = "test_compatibility_to_non_existent_schema_version_returns_404"
+    subject = create_subject_name_factory(test_name)()
+    schema_name = create_schema_name_factory(test_name)()
+
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {
+                "name": "age",
+                "type": "int",
+            },
+        ],
+    }
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(schema)},
+    )
+    assert res.status_code == 200
+
+    # Soft delete
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
+    assert res.status_code == 200
+    assert res.json() == 1
+
+    # Hard delete
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
+    assert res.status_code == 200
+
+    # Test compatibility returns 404
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/1",
+        json={"schema": json.dumps(schema), "schemaType": "AVRO"},
+    )
+    assert res.status_code == 404
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_regression_invalid_schema_type_should_not_give_internal_server_error(
     registry_async_client: Client,
