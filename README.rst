@@ -40,7 +40,9 @@ Compatibility details
 
 Karapace is compatible with Schema Registry 6.1.1 on API level. When a new version of SR is released, the goal is
 to support it in a reasonable time. Karapace supports all operations in the API.
-The goal is that even the error messages are the same as in Schema Registry, which cannot be always fully guaranteed.
+
+There are some caveats regarding the schema normalization, and the error messages being the same as in Schema Registry, which
+cannot be always fully guaranteed.
 
 Setup
 =====
