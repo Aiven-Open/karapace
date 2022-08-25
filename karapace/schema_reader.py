@@ -15,6 +15,7 @@ from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMod
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.statsd import StatsClient
+from karapace.typing import SubjectData
 from karapace.utils import KarapaceKafkaClient
 from threading import Condition, Event, Lock, Thread
 from typing import Any, Dict, Optional
@@ -26,8 +27,6 @@ Offset = int
 Subject = str
 Version = int
 Schema = Dict[str, Any]
-# Container type for a subject, with configuration settings and all the schemas
-SubjectData = Dict[str, Any]
 SchemaId = int
 
 # The value `0` is a valid offset and it represents the first message produced
@@ -435,3 +434,17 @@ class KafkaSchemaReader(Thread):
             key: val for key, val in self.subjects[subject]["schemas"].items() if val.get("deleted", False) is False
         }
         return non_deleted_schemas
+
+    def get_schemas_list(self, *, include_deleted: bool, latest_only: bool) -> Dict[Subject, SubjectData]:
+        res_schemas = {}
+        for subject, subject_data in self.subjects.items():
+            selected_schemas = []
+            schemas = list(subject_data["schemas"].values())
+            if latest_only:
+                selected_schemas = schemas[-1]
+            else:
+                selected_schemas = schemas
+            if include_deleted:
+                selected_schemas = [schema for schema in selected_schemas if schema.get("deleted", False) is False]
+            res_schemas[subject] = selected_schemas
+        return res_schemas

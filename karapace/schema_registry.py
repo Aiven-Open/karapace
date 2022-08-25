@@ -1,5 +1,5 @@
 from contextlib import AsyncExitStack, closing
-from kafka import KafkaProducer
+from kafka import errors as kafka_errors, KafkaProducer
 from kafka.producer.future import FutureRecordMetadata
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -8,10 +8,12 @@ from karapace.errors import (
     IncompatibleSchema,
     InvalidVersion,
     SchemasNotFoundException,
+    SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
     SubjectNotSoftDeletedException,
+    SubjectSoftDeletedException,
     VersionNotFoundException,
 )
 from karapace.key_format import KeyFormatter
@@ -43,7 +45,7 @@ def _resolve_version(subject_data: SubjectData, version: Version) -> ResolvedVer
     return resolved_version
 
 
-def _validate_version(version: Version) -> Version:
+def validate_version(version: Version) -> Version:
     try:
         version_number = int(version)
         if version_number > 0:
@@ -74,9 +76,12 @@ class KarapaceSchemaRegistry:
     def subjects(self) -> Dict[Subject, SubjectData]:
         return self.schema_reader.subjects
 
-    @property
-    def subjects_list(self) -> List[Subject]:
-        return [key for key, val in self.schema_reader.subjects.items() if self.schema_reader.get_schemas(key)]
+    def subjects_list(self, include_deleted: bool = False) -> List[Subject]:
+        return [
+            key
+            for key, val in self.schema_reader.subjects.items()
+            if self.schema_reader.get_schemas(key, include_deleted=include_deleted)
+        ]
 
     @property
     def compatibility(self) -> str:
@@ -137,42 +142,72 @@ class KarapaceSchemaRegistry:
             raise ValueError(f"Unknown compatibility mode {compatibility}") from e
         return compatibility_mode
 
-    def schemas_get(self, schema_id: int) -> Optional[TypedSchema]:
+    async def schemas_list(self, *, include_deleted: bool, latest_only: bool) -> Dict[Subject, SubjectData]:
+        async with self.schema_lock:
+            return self.schema_reader.get_schemas_list(include_deleted=include_deleted, latest_only=latest_only)
+
+    def schemas_get(self, schema_id: int, *, fetch_max_id: bool = False) -> Optional[TypedSchema]:
         with self.schema_reader.id_lock:
             try:
-                return self.schema_reader.schemas.get(schema_id)
+                schema = self.schema_reader.schemas.get(schema_id)
+
+                if schema and fetch_max_id:
+                    schema.max_id = self.schema_reader.global_schema_id
+
+                return schema
             except KeyError:
                 return None
 
     async def subject_delete_local(self, subject: str, permanent: bool) -> List[ResolvedVersion]:
         async with self.schema_lock:
-            subject_data = self.subject_get(subject, include_deleted=permanent)
+            subject_data_all = self.subject_get(subject, include_deleted=True)
+            subject_schemas_all = subject_data_all["schemas"]
 
-            if permanent and [
-                version for version, value in subject_data["schemas"].items() if not value.get("deleted", False)
-            ]:
+            # Subject can be permanently deleted if no schemas or all are soft deleted.
+            can_permanent_delete = not bool(
+                [version for version, value in subject_schemas_all.items() if not value.get("deleted", False)]
+            )
+            if permanent and not can_permanent_delete:
                 raise SubjectNotSoftDeletedException()
 
-            version_list = list(subject_data["schemas"])
-            if version_list:
-                latest_schema_id = version_list[-1]
-            else:
-                latest_schema_id = 0
+            # Subject is soft deleted if all schemas in subject have deleted flag
+            already_soft_deleted = len(subject_schemas_all) == len(
+                [version for version, value in subject_schemas_all.items() if value.get("deleted", False)]
+            )
 
+            if not permanent and already_soft_deleted:
+                raise SubjectSoftDeletedException()
+
+            latest_schema_id = 0
+            version_list = []
             if permanent:
-                for version, value in list(subject_data["schemas"].items()):
+                version_list = list(subject_schemas_all)
+                latest_schema_id = version_list[-1]
+                for version, value in list(subject_schemas_all.items()):
                     schema_id = value.get("id")
                     LOG.info("Permanently deleting subject '%s' version %s (schema id=%s)", subject, version, schema_id)
                     self.send_schema_message(
                         subject=subject, schema=None, schema_id=schema_id, version=version, deleted=True
                     )
             else:
+                try:
+                    subject_data_live = self.subject_get(subject, include_deleted=False)
+                    version_list = list(subject_data_live["schemas"])
+                    if version_list:
+                        latest_schema_id = version_list[-1]
+                except SchemasNotFoundException:
+                    pass
                 self.send_delete_subject_message(subject, latest_schema_id)
+
             return version_list
 
     async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> ResolvedVersion:
         async with self.schema_lock:
             subject_data = self.subject_get(subject, include_deleted=True)
+            if not permanent and isinstance(version, str) and version == "latest":
+                subject_data["schemas"] = {
+                    key: value for (key, value) in subject_data["schemas"].items() if value.get("deleted", False) is False
+                }
             resolved_version = _resolve_version(subject_data=subject_data, version=version)
             subject_schema_data = subject_data["schemas"].get(resolved_version, None)
 
@@ -209,9 +244,9 @@ class KarapaceSchemaRegistry:
         subject_data["schemas"] = schemas
         return subject_data
 
-    async def subject_version_get(self, subject: Subject, version: Version) -> SubjectData:
-        _validate_version(version)
-        subject_data = self.subject_get(subject)
+    async def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> SubjectData:
+        validate_version(version)
+        subject_data = self.subject_get(subject, include_deleted=include_deleted)
         if not subject_data:
             raise SubjectNotFoundException()
         schema_data = None
@@ -347,14 +382,14 @@ class KarapaceSchemaRegistry:
             )
             return schema_id
 
-    def get_versions(self, schema_id: int) -> List[SubjectData]:
+    def get_versions(self, schema_id: int, *, include_deleted: bool = False) -> List[SubjectData]:
         subject_versions = []
         with self.schema_reader.id_lock:
             for subject, val in self.schema_reader.subjects.items():
-                if self.schema_reader.get_schemas(subject) and "schemas" in val:
+                if self.schema_reader.get_schemas(subject, include_deleted=include_deleted) and "schemas" in val:
                     schemas = val["schemas"]
                     for version, schema in schemas.items():
-                        if int(schema["id"]) == schema_id and not schema["deleted"]:
+                        if int(schema["id"]) == schema_id and (include_deleted or not schema.get("deleted", False)):
                             subject_versions.append({"subject": subject, "version": int(version)})
         subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
         return subject_versions
@@ -367,7 +402,11 @@ class KarapaceSchemaRegistry:
 
         future = self.producer.send(self.config["topic_name"], key=key, value=value)
         self.producer.flush(timeout=self.kafka_timeout)
-        msg = future.get(self.kafka_timeout)
+        try:
+            msg = future.get(self.kafka_timeout)
+        except kafka_errors.MessageSizeTooLargeError as ex:
+            raise SchemaTooLargeException from ex
+
         sent_offset = msg.offset
 
         LOG.info(
@@ -433,6 +472,16 @@ class KarapaceSchemaRegistry:
         )
         value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
         return self.send_kafka_message(key, value)
+
+    def send_config_subject_delete_message(self, subject: Subject) -> FutureRecordMetadata:
+        key = self.key_formatter.format_key(
+            {
+                "subject": subject,
+                "magic": 0,
+                "keytype": "CONFIG",
+            }
+        )
+        return self.send_kafka_message(key, "".encode("utf-8"))
 
     def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
