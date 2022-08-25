@@ -112,6 +112,10 @@ class ProtobufSchema:
             self.cache_string = self.to_schema()
         return self.cache_string
 
+    # str() does normalization of whitespaces and element ordering
+    def __eq__(self, other) -> bool:
+        return str(self) == str(other)
+
     def to_schema(self) -> str:
         strings = []
         shm: ProtoFileElement = self.proto_file_element
