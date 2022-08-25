@@ -1172,6 +1172,57 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_delete_latest_version(registry_async_client: Client, trail: str) -> None:
+    """
+    Tests deleting schema with `latest` version.
+    """
+    subject = create_subject_name_factory(f"test_schema_delete_latest_version_{trail}")()
+    schema_name = create_schema_name_factory(f"test_schema_delete_latest_version_{trail}")()
+
+    schema_1 = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [{"name": "field_1", "type": "string"}, {"name": "field_2", "type": "string"}],
+    }
+    schema_str_1 = json.dumps(schema_1)
+    schema_2 = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {"name": "field_1", "type": "string"},
+        ],
+    }
+    schema_str_2 = json.dumps(schema_2)
+
+    schema_id_1, version_1 = await register_schema(registry_async_client, trail, subject, schema_str_1)
+    schema_1_versions = [(subject, version_1)]
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+
+    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+
+    schema_id_2, version_2 = await register_schema(registry_async_client, trail, subject, schema_str_2)
+    schema_2_versions = [(subject, version_2)]
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
+
+    # Deleting latest version, the other still found
+    res = await registry_async_client.delete("subjects/{}/versions/latest".format(subject))
+    assert res.status_code == 200
+    assert res.json() == version_2
+
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, schema_1_versions)
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
+
+    # Deleting the latest version, no schemas left
+    res = await registry_async_client.delete("subjects/{}/versions/latest".format(subject))
+    assert res.status_code == 200
+    assert res.json() == version_1
+
+    await assert_schema_versions(registry_async_client, trail, schema_id_1, [])
+    await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_types(registry_async_client: Client, trail: str) -> None:
     """
     Tests for /schemas/types endpoint.
@@ -1762,6 +1813,52 @@ async def test_schema_json_subject_comparison(registry_async_client: Client) -> 
     }
 
 
+async def test_schema_listing(registry_async_client: Client) -> None:
+    subject_name_factory = create_subject_name_factory("test_schema_listing_subject_")
+    schema_name = create_schema_name_factory("test_schema_listing_subject_")()
+
+    schema_str = json.dumps(
+        {
+            "type": "record",
+            "name": schema_name,
+            "fields": [
+                {
+                    "name": "f",
+                    "type": "string",
+                }
+            ],
+        }
+    )
+    subject_1 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+
+    subject_2 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_2}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    schema_id_2 = res.json()["id"]
+
+    # Soft delete schema 2
+    res = await registry_async_client.delete(f"subjects/{subject_2}/versions/{schema_id_2}")
+    assert res.status_code == 200
+    assert res.json() == 1
+
+    res = await registry_async_client.get("subjects/")
+    assert len(res.json()) == 1
+    assert res.json()[0] == subject_1
+
+    res = await registry_async_client.get("subjects/?deleted=true")
+    assert len(res.json()) == 2
+    assert res.json()[0] == subject_1
+    assert res.json()[1] == subject_2
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_version_number_existing_schema(registry_async_client: Client, trail: str) -> None:
     """
@@ -1880,8 +1977,10 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
 
     res = await registry_async_client.get(f"config/{subject_1}{trail}")
     assert res.status_code == 404
-    assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject_1)
+    assert res.json()["error_code"] == 40408
+    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT.value.format(
+        subject=subject_1
+    )
 
     res = await registry_async_client.put(f"config/{subject_1}{trail}", json={"compatibility": "FULL"})
     assert res.status_code == 200
@@ -1891,6 +1990,19 @@ async def test_config(registry_async_client: Client, trail: str) -> None:
     res = await registry_async_client.get(f"config/{subject_1}{trail}")
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FULL"
+
+    # Delete set compatibility on subject 1
+    res = await registry_async_client.delete(f"config/{subject_1}{trail}")
+    assert res.status_code == 200
+    assert res.json()["compatibility"] == "NONE"
+
+    # Verify compatibility not set on subject after delete
+    res = await registry_async_client.get(f"config/{subject_1}{trail}")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40408
+    assert res.json()["message"] == SchemaErrorMessages.SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT.value.format(
+        subject=subject_1
+    )
 
     # It's possible to add a config to a subject that doesn't exist yet
     subject_2 = subject_name_factory()
@@ -2102,7 +2214,7 @@ async def test_invalid_namespace(registry_async_client: Client) -> None:
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
     assert res.status_code == 422, res.json()
     json_res = res.json()
-    assert json_res["error_code"] == 44201, json_res
+    assert json_res["error_code"] == 42201, json_res
     expected_message = (
         "Invalid AVRO schema. Error: foo-bar-baz is not a valid Avro name because it does not match the pattern "
         "(?:^|\\.)[A-Za-z_][A-Za-z0-9_]*$"
@@ -2397,12 +2509,24 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 1 not found."
 
+    # Check that soft deleted is found when asking also for deleted schemas
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1?deleted=true")
+    assert res.status_code == 200
+    assert res.json()["version"] == 1
+    assert res.json()["subject"] == subject
+
     # Hard delete schema v1
     res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
     assert res.status_code == 200
 
     # Cannot hard delete twice
     res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
+    assert res.json()["message"] == "Version 1 not found."
+
+    # Check hard deleted is not found at all
+    res = await registry_async_client.get(f"subjects/{subject}/versions/1?deleted=true")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
     assert res.json()["message"] == "Version 1 not found."
@@ -2472,6 +2596,12 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
+
+    # Soft delete cannot be done twice
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40404
+    assert res.json()["message"] == f"Subject '{subject}' was soft deleted.Set permanent=true to delete permanently"
 
     # Hard delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
