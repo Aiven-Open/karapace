@@ -79,6 +79,8 @@ class TypedSchema:
         self.schema_str = schema_str
         self.max_id: Optional[int] = None
 
+        self._str_cached: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
@@ -87,12 +89,13 @@ class TypedSchema:
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
             return self.schema_str
-        return json_encode(self.to_dict())
+
+        if self._str_cached is None:
+            self._str_cached = json_encode(self.to_dict())
+        return self._str_cached
 
     def __repr__(self) -> str:
-        if self.schema_type == SchemaType.PROTOBUF:
-            return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
-        return f"TypedSchema(type={self.schema_type}, schema={json_encode(self.to_dict())})"
+        return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type
