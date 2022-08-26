@@ -364,6 +364,7 @@ class UserRestProxy:
         self.kafka_timeout = kafka_timeout
         self.serializer = serializer
         self._cluster_metadata = None
+        self._cluster_metadata_complete = False
         self._metadata_birth = None
         self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
@@ -523,16 +524,23 @@ class UserRestProxy:
             if self._metadata_birth is None or time.monotonic() - self._metadata_birth > self.metadata_max_age:
                 self._cluster_metadata = None
 
-            if self._cluster_metadata and topics is None:
-                return self._cluster_metadata
+            if self._cluster_metadata:
+                # Return from metadata only if all queried topics have cached metadata
+                if topics is None:
+                    if self._cluster_metadata_complete:
+                        return self._cluster_metadata
+                elif all(topic in self._cluster_metadata["topics"] for topic in topics):
+                    return {
+                        **self._cluster_metadata,
+                        "topics": {topic: self._cluster_metadata["topics"][topic] for topic in topics},
+                    }
 
             try:
                 metadata_birth = time.monotonic()
                 metadata = self.admin_client.cluster_metadata(topics)
-                # Only store cache if fetched full metadata
-                if topics is None:
-                    self._metadata_birth = metadata_birth
-                    self._cluster_metadata = metadata
+                self._metadata_birth = metadata_birth
+                self._cluster_metadata = metadata
+                self._cluster_metadata_complete = topics is None
             except NodeNotReadyError:
                 log.exception("Could not refresh cluster metadata")
                 KafkaRest.r(
@@ -750,13 +758,7 @@ class UserRestProxy:
                 content_type=content_type,
                 sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
             )
-        except (UnknownTopicOrPartitionError, TopicAuthorizationFailedError):
-            KafkaRest.not_found(
-                message=f"Partition {partition} not found",
-                content_type=content_type,
-                sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
-            )
-        except KeyError:
+        except (KeyError, UnknownTopicOrPartitionError, TopicAuthorizationFailedError):
             KafkaRest.not_found(
                 message=f"Topic {topic} not found",
                 content_type=content_type,
@@ -765,14 +767,15 @@ class UserRestProxy:
         return {}
 
     async def get_topic_info(self, topic: str, content_type: str) -> dict:
-        metadata = await self.cluster_metadata()
-        if topic not in metadata["topics"]:
+        try:
+            metadata = await self.cluster_metadata([topic])
+            return metadata["topics"][topic]
+        except (KeyError, UnknownTopicOrPartitionError, TopicAuthorizationFailedError):
             KafkaRest.not_found(
-                message=f"Topic {topic} not found in {list(metadata['topics'].keys())}",
+                message=f"Topic {topic} not found",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
             )
-        return metadata["topics"][topic]
 
     @staticmethod
     def all_empty(data: dict, key: str) -> bool:

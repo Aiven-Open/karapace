@@ -1,6 +1,7 @@
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
 from tests.utils import (
+    new_random_name,
     new_topic,
     REST_HEADERS,
     schema_avro_json,
@@ -331,6 +332,19 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         assert res.status_code == 422
 
 
+async def test_publish_to_nonexisting_topic(rest_async_client):
+    tn = new_random_name("topic-that-should-not-exist")
+    header = REST_HEADERS["avro"]
+    # check succeeds with 1 record and brand new schema
+    urls = [f"/topics/{tn}", f"/topics/{tn}/partitions/0"]
+    for url in urls:
+        for pl_type in ["key", "value"]:
+            correct_payload = {f"{pl_type}_schema": schema_avro_json, "records": [{pl_type: o} for o in test_objects_avro]}
+            res = await rest_async_client.post(url, correct_payload, headers=header)
+            assert res.status_code == 404
+            assert res.json()["error_code"] == 40401, "Error code should be for topic not found"
+
+
 async def test_publish_incompatible_schema(rest_async_client, admin_client):
     topic_name = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
@@ -403,6 +417,17 @@ async def test_partitions(rest_async_client, admin_client, producer):
     res = await rest_async_client.get("/topics/fooo/partitions")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
+
+    # Fill cache
+    res = await rest_async_client.get("/brokers")
+    assert res.ok
+
+    res = await rest_async_client.get("/topics/fooo/partitions/0")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+
+    # Clear cache
+    await asyncio.sleep(3)
     res = await rest_async_client.get("/topics/fooo/partitions/0")
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401
