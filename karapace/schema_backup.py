@@ -11,9 +11,11 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExis
 from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
+from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
+from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
-from typing import IO, Iterable, Optional, TextIO, Tuple
+from typing import IO, Iterable, Optional, TextIO, Tuple, Union
 
 import argparse
 import base64
@@ -69,6 +71,11 @@ class SchemaBackup:
         self.producer = None
         self.admin_client = None
         self.timeout_ms = 1000
+
+        # Schema key formatter
+        self.key_formatter = None
+        if self.topic_name == constants.DEFAULT_SCHEMA_TOPIC or self.config.get("force_key_correction", False):
+            self.key_formatter = KeyFormatter()
 
     def init_consumer(self) -> None:
         self.consumer = KafkaConsumer(
@@ -185,7 +192,7 @@ class SchemaBackup:
         self.close()
 
     def _handle_restore_message(self, item: Tuple[str, str]) -> None:
-        key = encode_value(item[0])
+        key = self.encode_key(item[0])
         value = encode_value(item[1])
         self.producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
         LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
@@ -233,8 +240,17 @@ class SchemaBackup:
             LOG.info("Schema export written to stdout")
         self.close()
 
+    def encode_key(self, key: Union[JsonData, str]) -> bytes:
+        if not self.key_formatter:
+            if isinstance(key, str):
+                return key.encode("utf8")
+            return json_encode(key, sort_keys=False, binary=True, compact=False)
+        if isinstance(key, str):
+            key = json.loads(key)
+        return self.key_formatter.format_key(key)
 
-def encode_value(value: str) -> bytes:
+
+def encode_value(value: Union[JsonData, str]) -> Optional[bytes]:
     if value == "null":
         return None
     if isinstance(value, str):
