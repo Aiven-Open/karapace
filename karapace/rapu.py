@@ -165,8 +165,7 @@ class RestApp:
         self.app_request_metric = "{}_request".format(app_name)
         self.app = aiohttp.web.Application()
         self.log = logging.getLogger(self.app_name)
-        self.stats = StatsClient(sentry_config=config["sentry"])
-        self.raven_client = self.stats.raven_client
+        self.stats = StatsClient(config=config)
         self.app.on_cleanup.append(self.close_by_app)
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument

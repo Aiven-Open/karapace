@@ -143,9 +143,7 @@ class KafkaSchemaReader(Thread):
         self.consumer: Optional[KafkaConsumer] = None
         self.offset_watcher = OffsetsWatcher()
         self.id_lock = Lock()
-        self.stats = StatsClient(
-            sentry_config=config.get("sentry"),  # type: ignore[arg-type]
-        )
+        self.stats = StatsClient(config=config)
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
