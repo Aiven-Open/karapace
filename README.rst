@@ -332,6 +332,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``consumer_request_max_bytes``
      - ``67108864``
      - Rest proxy consumers maximum bytes to be fetched per request
+   * - ``consumer_idle_disconnect_timeout``
+     - ``0``
+     - Disconnect idle consumers after timeout seconds if not used.  Inactivity leads to consumer leaving consumer group and consumer state.  0 (default) means no auto-disconnect.
    * - ``fetch_min_bytes``
      - ``-1``
      - Rest proxy consumers minimum bytes to be fetched per request. ``-1`` means no limit

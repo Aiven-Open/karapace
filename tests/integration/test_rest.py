@@ -209,7 +209,7 @@ async def test_internal(rest_async, admin_client):
         [b"key", b"value", 0],
         [b"key", b"value", None],
     ]
-    rest_async_proxy = rest_async.get_user_proxy(None)
+    rest_async_proxy = await rest_async.get_user_proxy(None)
     results = await rest_async_proxy.produce_messages(topic=topic_name, prepared_records=prepared_records)
     assert len(results) == 2
     for result in results:
