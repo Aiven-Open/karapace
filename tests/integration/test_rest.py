@@ -191,12 +191,10 @@ async def test_admin_client(admin_client, producer):
     assert offsets["beginning_offset"] == 0, f"Start offset should be 0 for {topic_names[0]}, partition 0"
     assert offsets["end_offset"] == 5, f"End offset should be 0 for {topic_names[0]}, partition 0"
     # invalid requests
-    off = admin_client.get_offsets("invalid_topic", 0)
-    assert off["beginning_offset"] == -1
-    assert off["end_offset"] == -1
-    off = admin_client.get_offsets(topic_names[0], 10)
-    assert off["beginning_offset"] == -1
-    assert off["end_offset"] == -1
+    with raises(UnknownTopicOrPartitionError):
+        admin_client.get_offsets("invalid_topic", 0)
+    with raises(UnknownTopicOrPartitionError):
+        admin_client.get_offsets(topic_names[0], 10)
     with raises(UnknownTopicOrPartitionError):
         admin_client.get_topic_config("another_invalid_name")
     with raises(UnknownTopicOrPartitionError):
@@ -442,7 +440,9 @@ async def test_partitions(rest_async_client, admin_client, producer):
     data = offset_res.json()
     assert data == {"beginning_offset": 0, "end_offset": 5}, "Unexpected offsets for topic %r: %r" % (topic_name, data)
     res = await rest_async_client.get("/topics/fooo/partitions/0/offsets", headers=header)
-    assert res.json() == {"beginning_offset": -1, "end_offset": -1}
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert "Topic fooo not found" in res.json()["message"]
     res = await rest_async_client.get(f"/topics/{topic_name}/partitions/foo/offsets", headers=header)
     assert res.status_code == 404
     assert res.json()["error_code"] == 404

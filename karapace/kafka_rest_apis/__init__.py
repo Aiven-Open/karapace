@@ -1050,6 +1050,8 @@ class UserRestProxy:
         partition_id = self.validate_partition_id(partition_id, content_type)
         try:
             KafkaRest.r(await self.get_offsets(topic, partition_id), content_type)
+        except TopicAuthorizationFailedError:
+            KafkaRest.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
         except UnknownTopicOrPartitionError as e:
             # Do a topics request on failure, figure out faster ways once we get correctness down
             metadata = await self.cluster_metadata()
