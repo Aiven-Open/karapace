@@ -27,7 +27,9 @@ def get_project_version(version_file: str) -> str:
 
     os.chdir(os.path.dirname(__file__) or ".")
     try:
-        git_out = subprocess.check_output(["git", "describe", "--always"], stderr=getattr(subprocess, "DEVNULL", None))
+        git_out = subprocess.check_output(
+            ["git", "describe", "--always", "--tags"], stderr=getattr(subprocess, "DEVNULL", None)
+        )
     except (OSError, subprocess.CalledProcessError):
         pass
     else:
