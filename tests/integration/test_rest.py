@@ -109,6 +109,28 @@ async def test_content_types(rest_async_client, admin_client):
         assert not res.ok
 
 
+async def test_avro_publish_primitive_schema(rest_async_client, admin_client):
+    topic_str = new_topic(admin_client)
+    topic_int = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_str, topic_int], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    for topic, value_schema, records in [
+        (topic_str, '"string"', [{"value": "foobar"}]),
+        (topic_str, '{"type":"string"}', [{"value": "foobar2"}]),
+        (topic_int, '"int"', [{"value": 1}]),
+        (topic_int, '{"type":"int"}', [{"value": 2}]),
+    ]:
+        url = f"/topics/{topic}"
+        res = await rest_async_client.post(
+            url, json={"value_schema": value_schema, "records": records}, headers=REST_HEADERS["avro"]
+        )
+        res_json = res.json()
+        assert res.ok
+        assert "offsets" in res_json
+        if "partition" in url:
+            for o in res_json["offsets"]:
+                assert "partition" in o
+
+
 async def test_avro_publish(rest_async_client, registry_async_client, admin_client):
     tn = new_topic(admin_client)
     other_tn = new_topic(admin_client)
