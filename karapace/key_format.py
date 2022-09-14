@@ -7,6 +7,7 @@ See LICENSE for details
 from enum import Enum
 from karapace.typing import JsonData
 from karapace.utils import json_encode
+from typing import Optional
 
 SCHEMA_KEY_ORDER = ["keytype", "subject", "version", "magic"]
 CONFIG_KEY_ORDER = ["keytype", "subject", "magic"]
@@ -47,7 +48,7 @@ class KeyFormatter:
     def get_keymode(self) -> KeyMode:
         return self._keymode
 
-    def format_key(self, key: JsonData, keymode: KeyMode = KeyMode.CANONICAL, compact: bool = True) -> bytes:
+    def format_key(self, key: JsonData, keymode: Optional[KeyMode] = None, compact: bool = True) -> bytes:
         """Format key by the given keymode.
 
         :param key Key data as JsonData dict
