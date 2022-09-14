@@ -149,7 +149,8 @@ class SchemaRegistrySerializerDeserializer:
         schema_typed = ValidatedTypedSchema.parse(schema_type, schema)
         namespace = "dummy"
         if schema_type is SchemaType.AVRO:
-            namespace = schema_typed.schema.namespace
+            if isinstance(schema_typed.schema, avro.schema.NamedSchema):
+                namespace = schema_typed.schema.namespace
         if schema_type is SchemaType.JSONSCHEMA:
             namespace = schema_typed.to_dict().get("namespace", "dummy")
         #  Protobuf does not use namespaces in terms of AVRO
