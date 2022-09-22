@@ -48,7 +48,7 @@ class KeyFormatter:
     def get_keymode(self) -> KeyMode:
         return self._keymode
 
-    def format_key(self, key: JsonData, keymode: Optional[KeyMode] = None, compact: bool = True) -> bytes:
+    def format_key(self, key: JsonData, keymode: Optional[KeyMode] = None) -> bytes:
         """Format key by the given keymode.
 
         :param key Key data as JsonData dict
@@ -57,7 +57,7 @@ class KeyFormatter:
         keymode = keymode or self._keymode
         if keymode == KeyMode.DEPRECATED_KARAPACE:
             # No alterations
-            return json_encode(key, sort_keys=False, binary=True, compact=compact)
+            return json_encode(key, sort_keys=False, binary=True, compact=True)
         corrected_key = {
             "keytype": key["keytype"],
         }
