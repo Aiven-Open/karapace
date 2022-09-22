@@ -443,7 +443,6 @@ class KarapaceSchemaRegistry:
     ) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
             {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"},
-            compact=False,
         )
         if schema:
             valuedict = {
