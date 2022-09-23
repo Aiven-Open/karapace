@@ -310,8 +310,24 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
         assert res_json["error_code"] == 42201
         res = await rest_async_client.post(url, json={"records": [{"value": "not base64"}]}, headers=REST_HEADERS["binary"])
         res_json = res.json()
+        assert res.status_code == 400
+        assert res_json["error_code"] == 400
+
+        res = await rest_async_client.post(url, json={"records": "should be an array"}, headers=REST_HEADERS["binary"])
+        assert res.status_code == 400
+
+        res = await rest_async_client.post(url, json={"records": ["object with value"]}, headers=REST_HEADERS["binary"])
+        assert res.status_code == 400
+
+        # Binary format excepts base64 encoded string as value
+        res = await rest_async_client.post(url, json={"records": [{"value": {"a": 1}}]}, headers=REST_HEADERS["binary"])
+        assert res.status_code == 400
+
+        res = await rest_async_client.post(url, json={"records": [{"value": "YmFzZTY0"}]}, headers=REST_HEADERS["avro"])
         assert res.status_code == 422
-        assert res_json["error_code"] == 42205
+
+        res = await rest_async_client.post(url, json={"records": [{"value": "not b64"}]}, headers=REST_HEADERS["avro"])
+        assert res.status_code == 422
 
 
 async def test_publish_incompatible_schema(rest_async_client, admin_client):
