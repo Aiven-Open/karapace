@@ -9,3 +9,5 @@ SubjectData = Dict[str, Any]
 
 Version = Union[int, str]
 ResolvedVersion = int
+
+SchemaId = int

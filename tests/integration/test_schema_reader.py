@@ -5,7 +5,9 @@ from karapace.config import set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
+from karapace.offsets_watcher import OffsetsWatcher
 from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_record_producer import SchemaRecordProducer
 from karapace.utils import json_encode
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.kafka_server import KafkaServers
@@ -65,7 +67,18 @@ def test_regression_soft_delete_schemas_should_be_registered(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
-    schema_reader = KafkaSchemaReader(config=config, key_formatter=KeyFormatter(), master_coordinator=master_coordinator)
+    offsets_watcher = OffsetsWatcher()
+    key_formatter = KeyFormatter()
+    schema_record_producer = SchemaRecordProducer(
+        config=config, key_formatter=key_formatter, offsets_watcher=offsets_watcher
+    )
+    schema_reader = KafkaSchemaReader(
+        config=config,
+        key_formatter=key_formatter,
+        master_coordinator=master_coordinator,
+        schema_record_producer=schema_record_producer,
+        offsets_watcher=offsets_watcher,
+    )
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
@@ -92,7 +105,7 @@ def test_regression_soft_delete_schemas_should_be_registered(
         )
         msg = future.get()
 
-        schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5)
+        offsets_watcher.wait_for_offset(msg.offset, timeout=5)
 
         schemas = schema_reader.get_schemas(subject=subject, include_deleted=True)
         assert len(schemas) == 1, "Deleted schemas must have been registered"
@@ -119,7 +132,7 @@ def test_regression_soft_delete_schemas_should_be_registered(
         )
         msg = future.get()
 
-        assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
+        assert offsets_watcher.wait_for_offset(msg.offset, timeout=5) is True
         assert schema_reader.global_schema_id == test_global_schema_id
 
         schemas = schema_reader.get_schemas(subject=subject, include_deleted=True)
@@ -143,7 +156,18 @@ def test_regression_config_for_inexisting_object_should_not_throw(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
-    schema_reader = KafkaSchemaReader(config=config, key_formatter=KeyFormatter(), master_coordinator=master_coordinator)
+    offsets_watcher = OffsetsWatcher()
+    key_formatter = KeyFormatter()
+    schema_record_producer = SchemaRecordProducer(
+        config=config, key_formatter=key_formatter, offsets_watcher=offsets_watcher
+    )
+    schema_reader = KafkaSchemaReader(
+        config=config,
+        key_formatter=key_formatter,
+        master_coordinator=master_coordinator,
+        schema_record_producer=schema_record_producer,
+        offsets_watcher=offsets_watcher,
+    )
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
@@ -164,7 +188,7 @@ def test_regression_config_for_inexisting_object_should_not_throw(
         )
         msg = future.get()
 
-        assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
+        assert offsets_watcher.wait_for_offset(msg.offset, timeout=5) is True
         assert subject in schema_reader.subjects, "The above message should be handled gracefully"
 
 
@@ -235,8 +259,18 @@ def test_key_format_detection(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
+    offsets_watcher = OffsetsWatcher()
     key_formatter = KeyFormatter()
-    schema_reader = KafkaSchemaReader(config=config, key_formatter=key_formatter, master_coordinator=master_coordinator)
+    schema_record_producer = SchemaRecordProducer(
+        config=config, key_formatter=key_formatter, offsets_watcher=offsets_watcher
+    )
+    schema_reader = KafkaSchemaReader(
+        config=config,
+        key_formatter=key_formatter,
+        master_coordinator=master_coordinator,
+        schema_record_producer=schema_record_producer,
+        offsets_watcher=offsets_watcher,
+    )
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):

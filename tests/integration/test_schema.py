@@ -4,26 +4,34 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from _pytest.fixtures import SubRequest
 from http import HTTPStatus
-from kafka import KafkaProducer
+from kafka import KafkaConsumer, KafkaProducer
+from kafka.admin import KafkaAdminClient, NewTopic
 from karapace.client import Client
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import SchemaErrorMessages
 from karapace.utils import json_encode
-from tests.integration.utils.cluster import RegistryDescription
+from pathlib import Path
+from tests.integration.utils.cluster import RegistryDescription, start_schema_registry_cluster
 from tests.integration.utils.kafka_server import KafkaServers
+from tests.integration.utils.network import PortRangeInclusive
 from tests.utils import (
     create_field_name_factory,
     create_schema_name_factory,
     create_subject_name_factory,
+    new_random_name,
     repeat_until_successful_request,
 )
 from typing import List, Tuple
 
+import asyncio
 import json
 import os
 import pytest
+import re
 import requests
+import time
 
 baseurl = "http://localhost:8081"
 
@@ -937,7 +945,7 @@ async def test_union_comparing_to_other_types(registry_async_client: Client) -> 
         assert res.status_code == 200
 
         # Union vs non-union with the same schema
-        schema = [{"type": "array", "name": "listofstrings", "items": "string"}, "string"]
+        schema = [{"type": "array", "name": f"listofstrings-{compatibility}", "items": "string"}, "string"]
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
         assert res.status_code == 200
         plain_schema = {"type": "string"}
@@ -1785,7 +1793,8 @@ async def test_schema_same_subject(registry_async_client: Client, trail: str) ->
 
 async def test_schema_same_subject_unnamed(registry_async_client: Client) -> None:
     """
-    The same schema JSON should be returned when checking the same schema str against the same subject
+    Schema is not found as schema str is different as schema is missing the name element.
+    Schemas are compatible but not the same.
     """
     subject_name_factory = create_subject_name_factory("test_schema_same_subject_unnamed")
     schema_name = create_schema_name_factory("test_schema_same_subject_unnamed")()
@@ -1809,6 +1818,41 @@ async def test_schema_same_subject_unnamed(registry_async_client: Client) -> Non
     res = await registry_async_client.post(
         f"subjects/{subject}",
         json={"schema": unnamed_schema_str},
+    )
+    assert res.status_code == 200
+
+    # Switch the str schema to a dict for comparison
+    json_res = res.json()
+    json_res["schema"] = json.loads(json_res["schema"])
+    assert json_res == {"id": schema_id, "subject": subject, "schema": json.loads(schema_str), "version": 1}
+
+
+async def test_schema_same_subject_primitive(registry_async_client: Client) -> None:
+    """
+    Schema is not found as schema str is different as schema is missing the name element.
+    Schemas are compatible but not the same.
+    """
+    subject_name_factory = create_subject_name_factory("test_schema_same_subject_unnamed")
+    schema_name = create_schema_name_factory("test_schema_same_subject_unnamed")()
+
+    schema_str = json.dumps(
+        {
+            "doc": "Document this",
+            "type": "int",
+            "name": schema_name,
+        }
+    )
+    subject = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    schema_id = res.json()["id"]
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json={"schema": schema_str},
     )
     assert res.status_code == 200
 
@@ -2903,3 +2947,266 @@ async def test_invalid_schema_should_provide_good_error_messages(registry_async_
         json={"schema": schema_str},
     )
     assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
+
+
+async def test_duplicate_id(
+    request: SubRequest,
+    kafka_servers: KafkaServers,
+    session_logdir: Path,
+    port_range: PortRangeInclusive,
+) -> None:
+    """Test ID reuse with data that previous Karapace versions may have written.
+
+    Previous Karapace version compared Avro schemas by using the parsed objects instead of plain schema strings.
+    For example the schemas `"string"` and `{"type":"string"}` are equivalent although using different
+    string representation. As these were treated as same schema the ID has been reused and it is possible to have
+    latter schemas in the main schema dictionary in Karapace that have overwritten the former.
+
+    Later versions of Karapace have quick lookup by hashing (`subject`, `schema`). This data is build sequentially and
+    contains hashes that are calculated from the first schema string.
+
+    The original issue was that second schema is not found from the lookup hashes for first subject and Karapace
+    progresses to write new version of schema. When getting the ID for the schema the full dictionary of schemas
+    was iterated and match found and reused schema id returned. Version is incremented.
+
+    Test needs to inject the invalid data to schemas topic and start Karapace for startup data ingestion. The duplicate
+    ids are checked only on startup.
+
+    Before the fix the full list of schemas after receiving all records from schemas topic:
+     * id: 2, schema: {"type":"string"}
+    After duplicate id skipping the full list of schemas after receiving all records from schemas topic:
+     * id: 2, schema: "string"
+
+    The resulting state in SchemaReader after the test is:
+    * Schemas:
+      * id: 2, schema: "string"
+    * Subjects:
+      * subject_first_subject_record_with_good_id
+        * id: 2, ver: 1, schema: "string"
+      * subject_second_subject_record_with_good_id
+        * id: 2, ver: 1, schema: "string"
+      * subject_third_subject_record_with_duplicate_id
+        * id: 2, ver: 1, schema: "string"
+
+    * Hash pointers to id (key is subject/schema):
+      * id: subject_first_subject_record_with_good_id/"string", id: 2
+      * id: subject_second_subject_record_with_good_id/"string", id: 2
+      * id: subject_first_subject_record_with_good_id/{"type": "string"}, id: 2
+      * id: subject_third_subject_record_with_duplicate_id/"string", id: 2
+    """
+
+    def _clear_test_name(name: str) -> str:
+        # Based on:
+        # https://github.com/pytest-dev/pytest/blob/238b25ffa9d4acbc7072ac3dd6d8240765643aed/src/_pytest/tmpdir.py#L189-L194
+        # The purpose is to return a similar name to make finding matching logs easier
+        return re.sub(r"[\W]", "_", name)[:30]
+
+    # If registry_url is defined the test is run to external registry.
+    # Implies also the use of external Kafka by kafka-bootstrap-servers test parameter.
+    registry_url = request.config.getoption("registry_url")
+    schemas_topic = new_random_name("_schemas") if not registry_url else "_schemas"
+    config = {"bootstrap_uri": kafka_servers.bootstrap_servers, "topic_name": schemas_topic}
+
+    if not registry_url:
+        admin_client = KafkaAdminClient(
+            bootstrap_servers=kafka_servers.bootstrap_servers,
+        )
+        admin_client.create_topics(
+            [
+                NewTopic(
+                    name=schemas_topic,
+                    num_partitions=1,
+                    replication_factor=1,
+                    topic_configs={"cleanup.policy": "compact"},
+                )
+            ],
+            timeout_ms=1000,
+        )
+        admin_client.close()
+
+    first_schema_primitive = '"string"'
+    second_schema_with_type = '{"type": "string"}'
+
+    first_subject = create_subject_name_factory("first_subject_record_with_good_id")()
+    first_message_key = {
+        "keytype": "SCHEMA",
+        "subject": first_subject,
+        "version": 1,
+        "magic": 1,
+    }
+    # First schema with primitive format, has the id 2.
+    first_schema_record = json.dumps(
+        {
+            "subject": first_subject,
+            "id": 2,
+            "version": 1,
+            "schema": f"{first_schema_primitive}",
+            "deleted": False,
+        }
+    )
+
+    # This record in schemas is good, this shall not receive rollback record.
+    second_subject = create_subject_name_factory("second_subject_record_with_good_id")()
+    second_message_key = {
+        "keytype": "SCHEMA",
+        "subject": second_subject,
+        "version": 1,
+        "magic": 1,
+    }
+    # Second schema with type format, has the id 2 and has the first schema string
+    second_schema_record = json.dumps(
+        {
+            "subject": second_subject,
+            "id": 2,
+            "version": 1,
+            "schema": f"{first_schema_primitive}",
+            "deleted": False,
+        }
+    )
+
+    third_subject = create_subject_name_factory("third_subject_record_with_duplicate_id")()
+    third_message_key = {
+        "keytype": "SCHEMA",
+        "subject": third_subject,
+        "version": 1,
+        "magic": 1,
+    }
+    # Third schema with type format, has the id 2.
+    third_schema_record = json.dumps(
+        {
+            "subject": third_subject,
+            "id": 2,
+            "version": 1,
+            "schema": f"{second_schema_with_type}",
+            "deleted": False,
+        }
+    )
+
+    producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
+
+    # Send the first schema, primitive format. This will get replaced with subsequent schema with type format.
+    producer.send(
+        schemas_topic,
+        key=json.dumps(first_message_key, sort_keys=False, separators=(",", ":")).encode(),
+        value=first_schema_record.encode(),
+    ).get()
+
+    # Send the second schema, primitive format. This shall not receive rollback record
+    producer.send(
+        schemas_topic,
+        key=json.dumps(second_message_key, sort_keys=False, separators=(",", ":")).encode(),
+        value=second_schema_record.encode(),
+    ).get()
+
+    # Send the third schema, type format.
+    # This has replaced the primitive schema in karapace.schema_reader.SchemaReader.schemas.
+    producer.send(
+        schemas_topic,
+        key=json.dumps(third_message_key, sort_keys=False, separators=(",", ":")).encode(),
+        value=third_schema_record.encode(),
+    ).get()
+    producer.flush()
+    producer.close()
+
+    # All data must be consumable before Karapace starts, duplicate id check is done on startup
+    def wait_for_records() -> int:
+        consumer = KafkaConsumer(
+            schemas_topic, bootstrap_servers=kafka_servers.bootstrap_servers, auto_offset_reset="earliest"
+        )
+        try:
+            rmsgs = consumer.poll(timeout_ms=1000)
+            for _, msgs in rmsgs.items():
+                return len(msgs)
+        finally:
+            consumer.close()
+
+    start_time = time.monotonic()
+    while (time.monotonic() - start_time) < 5.0:
+        if wait_for_records() == 3:
+            break
+        await asyncio.sleep(0.5)
+
+    async def do_test(registry_async_client: Client) -> None:
+        rollback_key = f'{{"keytype":"SCHEMA","subject":"{third_subject}","version":1,"magic":1}}'
+
+        def match_rollback_record() -> (bool, int):
+            consumer = KafkaConsumer(
+                schemas_topic, bootstrap_servers=kafka_servers.bootstrap_servers, auto_offset_reset="earliest"
+            )
+            rollback_record_found = False
+            try:
+                rmsgs = consumer.poll(timeout_ms=1000)
+                for _, msgs in rmsgs.items():
+                    for msg in msgs:
+                        if msg.value is None and msg.key == rollback_key.encode("utf8"):
+                            rollback_record_found = True
+            finally:
+                consumer.close()
+            return rollback_record_found
+
+        start_time = time.monotonic()
+        rollback_record_found = False
+        while (time.monotonic() - start_time) < 5.0:
+            rollback_record_found = match_rollback_record()
+            if rollback_record_found:
+                break
+            await asyncio.sleep(0.5)
+        assert rollback_record_found, "Rollback record not found."
+
+        # Simulate the producer and consumers that access schema registry.
+        # Register the schema with type to first subject via REST API when producer publishes new message to first subject.
+        existing_schema_id, existing_version = await register_schema(
+            registry_async_client, "", first_subject, second_schema_with_type
+        )
+        assert existing_version == 1, "Should get existing version 1"
+        assert existing_schema_id == 2, "Should get existing id 2"
+
+        # Consumer requests the schema with id 2
+        res = await registry_async_client.get("/schemas/ids/2")
+        schema_res = res.json().get("schema")
+        assert schema_res == first_schema_primitive
+
+        # Register the first schema to third subject to get distinct identifier for the first schema.
+        existing_schema_id, existing_version = await register_schema(
+            registry_async_client, "", third_subject, first_schema_primitive
+        )
+        assert existing_version == 1, "Should get existing version 1 "
+        assert existing_schema_id == 2, "Should get existing id 2"
+
+        # Consumer of the third subject requests the schema with id 2
+        res = await registry_async_client.get("/schemas/ids/2")
+        schema_res = res.json().get("schema")
+        assert schema_res == first_schema_primitive
+
+        # Register/retrieve with schema having type of third subject and get existing schema id and version.
+        existing_schema_id, existing_version = await register_schema(
+            registry_async_client, "", third_subject, second_schema_with_type
+        )
+        assert existing_version == 1, "Should get existing version 1"
+        assert existing_schema_id == 2, "Should get existing id 2"
+
+        # Register/retrieve with first schema of first subject and get existing schema id and version.
+        existing_schema_id, existing_version = await register_schema(
+            registry_async_client, "", first_subject, first_schema_primitive
+        )
+        assert existing_version == 1, "Should get existing version 1"
+        assert existing_schema_id == 2, "Should get existing id 2"
+
+    if not registry_url:
+        async with start_schema_registry_cluster(
+            config_templates=[config],
+            data_dir=session_logdir / _clear_test_name(request.node.name),
+            port_range=port_range,
+        ) as servers:
+            registry_cluster = servers[0]
+            registry_async_client = Client(
+                server_uri=registry_cluster.endpoint.to_url(),
+                server_ca=request.config.getoption("server_ca"),
+            )
+            await do_test(registry_async_client)
+    else:
+        registry_async_client = Client(
+            server_uri=registry_url,
+            server_ca=request.config.getoption("server_ca"),
+        )
+        await do_test(registry_async_client)

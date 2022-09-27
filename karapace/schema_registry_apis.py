@@ -22,9 +22,9 @@ from karapace.errors import (
 )
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
-from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData
+from karapace.typing import JsonData, SchemaId
 from typing import Any, Dict, Optional, Union
 
 import aiohttp
@@ -944,9 +944,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-        schema_id = self.get_schema_id_if_exists(subject=subject, schema=new_schema)
+        schema_id = await self.get_schema_id_if_exists(subject=subject, schema=new_schema)
         if schema_id is not None:
-            # Return existing id only if it has not been deleted in this subject
+            # Return existing id only if it exist in this subject and has not been deleted in this subject
             subject_data = self.schema_registry.subjects.get(subject)
             if subject_data:
                 if any(
@@ -998,8 +998,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
 
-    def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema) -> Optional[int]:
-        return self.schema_registry.schema_reader.get_schema_id_if_exists(subject=subject, schema=schema)
+    async def get_schema_id_if_exists(self, *, subject: str, schema: ValidatedTypedSchema) -> Optional[SchemaId]:
+        maybe_schema_id = await self.schema_registry.get_schema_id_if_exists(subject=subject, schema=schema)
+        return maybe_schema_id
 
     async def _forward_request_remote(
         self, *, request: HTTPRequest, body: Optional[dict], url: str, content_type: str, method: str = "POST"

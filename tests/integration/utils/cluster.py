@@ -88,7 +88,7 @@ async def start_schema_registry_cluster(
 
             protocol = "http" if config.get("server_tls_keyfile") is None else "https"
             endpoint = RegistryEndpoint(protocol, host, port)
-            description = RegistryDescription(endpoint, schemas_topic)
+            description = RegistryDescription(endpoint, config.get("topic_name"))
             all_registries.append(description)
 
         for process in all_processes:

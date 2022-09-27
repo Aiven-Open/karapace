@@ -17,6 +17,9 @@ from karapace.utils import json_encode
 from typing import Any, Dict, Optional, Union
 
 import json
+import logging
+
+LOG = logging.getLogger(__name__)
 
 
 def parse_avro_schema_definition(s: str) -> AvroSchema:
@@ -86,12 +89,24 @@ class TypedSchema:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
         return json.loads(self.schema_str)
 
-    def __str__(self) -> str:
-        if self.schema_type == SchemaType.PROTOBUF:
-            return self.schema_str
+    def normalize_schema_str(self) -> str:
+        if self.schema_type in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
+            try:
+                schema_str = json_encode(json.loads(self.schema_str), sort_keys=True)
+            except json.JSONDecodeError as e:
+                LOG.error("Schema is not valid JSON")
+                raise e
+        elif self.schema_type == SchemaType.PROTOBUF:
+            try:
+                schema_str = str(parse_protobuf_schema_definition(self.schema_str))
+            except InvalidSchema as e:
+                LOG.exception("Schema is not valid ProtoBuf definition")
+                raise e
+        return schema_str
 
+    def __str__(self) -> str:
         if self._str_cached is None:
-            self._str_cached = json_encode(self.to_dict())
+            self._str_cached = self.normalize_schema_str()
         return self._str_cached
 
     def __repr__(self) -> str:
@@ -105,6 +120,10 @@ class ValidatedTypedSchema(TypedSchema):
     def __init__(self, schema_type: SchemaType, schema_str: str, schema: Union[Draft7Validator, AvroSchema, ProtobufSchema]):
         super().__init__(schema_type=schema_type, schema_str=schema_str)
         self.schema = schema
+
+    @staticmethod
+    def of(schema: TypedSchema) -> "ValidatedTypedSchema":
+        return ValidatedTypedSchema.parse(schema.schema_type, schema.schema_str)
 
     @staticmethod
     def parse(schema_type: SchemaType, schema_str: str) -> "ValidatedTypedSchema":
@@ -144,8 +163,3 @@ class ValidatedTypedSchema(TypedSchema):
             raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
         return ValidatedTypedSchema(schema_type=schema_type, schema_str=schema_str, schema=parsed_schema)
-
-    def __str__(self) -> str:
-        if self.schema_type == SchemaType.PROTOBUF:
-            return str(self.schema)
-        return super().__str__()

@@ -1,5 +1,4 @@
 from contextlib import AsyncExitStack, closing
-from kafka import errors as kafka_errors, KafkaProducer
 from kafka.producer.future import FutureRecordMetadata
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -8,7 +7,6 @@ from karapace.errors import (
     IncompatibleSchema,
     InvalidVersion,
     SchemasNotFoundException,
-    SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
@@ -18,15 +16,15 @@ from karapace.errors import (
 )
 from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
+from karapace.offsets_watcher import OffsetsWatcher
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.typing import ResolvedVersion, Subject, SubjectData, Version
-from karapace.utils import json_encode, KarapaceKafkaClient
-from typing import Dict, List, Optional, Tuple, Union
+from karapace.schema_record_producer import SchemaRecordProducer
+from karapace.typing import ResolvedVersion, SchemaId, Subject, SubjectData, Version
+from typing import Dict, List, Optional, Tuple
 
 import asyncio
 import logging
-import time
 
 LOG = logging.getLogger(__name__)
 
@@ -60,13 +58,19 @@ def validate_version(version: Version) -> Version:
 class KarapaceSchemaRegistry:
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.producer = self._create_producer()
-        self.kafka_timeout = 10
+        key_formatter = KeyFormatter()
+        offsets_watcher = OffsetsWatcher()
+        self.schema_record_producer = SchemaRecordProducer(
+            config=self.config, key_formatter=key_formatter, offsets_watcher=offsets_watcher
+        )
 
         self.mc = MasterCoordinator(config=self.config)
-        self.key_formatter = KeyFormatter()
         self.schema_reader = KafkaSchemaReader(
-            config=self.config, key_formatter=self.key_formatter, master_coordinator=self.mc
+            config=self.config,
+            key_formatter=key_formatter,
+            master_coordinator=self.mc,
+            schema_record_producer=self.schema_record_producer,
+            offsets_watcher=offsets_watcher,
         )
 
         self.schema_lock = asyncio.Lock()
@@ -98,29 +102,7 @@ class KarapaceSchemaRegistry:
         async with AsyncExitStack() as stack:
             stack.enter_context(closing(self.mc))
             stack.enter_context(closing(self.schema_reader))
-            stack.enter_context(closing(self.producer))
-
-    def _create_producer(self) -> KafkaProducer:
-        while True:
-            try:
-                return KafkaProducer(
-                    bootstrap_servers=self.config["bootstrap_uri"],
-                    security_protocol=self.config["security_protocol"],
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
-                    api_version=(1, 0, 0),
-                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],  # helps through cluster upgrades ??
-                    kafka_client=KarapaceKafkaClient,
-                )
-            except:  # pylint: disable=bare-except
-                LOG.exception("Unable to create producer, retrying")
-                time.sleep(1)
+            stack.enter_context(closing(self.schema_record_producer))
 
     async def get_master(self) -> Tuple[bool, Optional[str]]:
         async with self._master_lock:
@@ -186,7 +168,7 @@ class KarapaceSchemaRegistry:
                 for version, value in list(subject_schemas_all.items()):
                     schema_id = value.get("id")
                     LOG.info("Permanently deleting subject '%s' version %s (schema id=%s)", subject, version, schema_id)
-                    self.send_schema_message(
+                    self.schema_record_producer.send_schema_message(
                         subject=subject, schema=None, schema_id=schema_id, version=version, deleted=True
                     )
             else:
@@ -197,7 +179,7 @@ class KarapaceSchemaRegistry:
                         latest_schema_id = version_list[-1]
                 except SchemasNotFoundException:
                     pass
-                self.send_delete_subject_message(subject, latest_schema_id)
+                self.schema_record_producer.send_delete_subject_message(subject, latest_schema_id)
 
             return version_list
 
@@ -222,7 +204,7 @@ class KarapaceSchemaRegistry:
 
             schema_id = subject_schema_data["id"]
             schema = subject_schema_data["schema"]
-            self.send_schema_message(
+            self.schema_record_producer.send_schema_message(
                 subject=subject,
                 schema=None if permanent else schema,
                 schema_id=schema_id,
@@ -309,7 +291,7 @@ class KarapaceSchemaRegistry:
                         new_schema.schema_str,
                         schema_id,
                     )
-                    self.send_schema_message(
+                    self.schema_record_producer.send_schema_message(
                         subject=subject,
                         schema=new_schema,
                         schema_id=schema_id,
@@ -318,6 +300,7 @@ class KarapaceSchemaRegistry:
                     )
                     return schema_id
 
+                # Progress to write if schema id is not found on the subject
                 maybe_schema_id = self.schema_reader.get_schema_id_if_exists(subject=subject, schema=new_schema)
                 if maybe_schema_id is not None:
                     LOG.debug("Schema id %r found from subject+schema cache", maybe_schema_id)
@@ -346,7 +329,7 @@ class KarapaceSchemaRegistry:
                     )
                     if is_incompatible(result):
                         message = set(result.messages).pop() if result.messages else ""
-                        LOG.warning("Incompatible schema: %s", result)
+                        LOG.warning("Incompatible schema: %s", result.__dict__)
                         raise IncompatibleSchema(
                             f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}"
                         )
@@ -373,7 +356,7 @@ class KarapaceSchemaRegistry:
                         schema_id,
                     )
 
-            self.send_schema_message(
+            self.schema_record_producer.send_schema_message(
                 subject=subject,
                 schema=new_schema,
                 schema_id=schema_id,
@@ -394,101 +377,13 @@ class KarapaceSchemaRegistry:
         subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
         return subject_versions
 
-    def send_kafka_message(self, key: Union[bytes, str], value: Union[bytes, str]) -> FutureRecordMetadata:
-        if isinstance(key, str):
-            key = key.encode("utf8")
-        if isinstance(value, str):
-            value = value.encode("utf8")
-
-        future = self.producer.send(self.config["topic_name"], key=key, value=value)
-        self.producer.flush(timeout=self.kafka_timeout)
-        try:
-            msg = future.get(self.kafka_timeout)
-        except kafka_errors.MessageSizeTooLargeError as ex:
-            raise SchemaTooLargeException from ex
-
-        sent_offset = msg.offset
-
-        LOG.info(
-            "Waiting for schema reader to caught up. key: %r, value: %r, offset: %r",
-            key,
-            value,
-            sent_offset,
-        )
-
-        if self.schema_reader.offset_watcher.wait_for_offset(sent_offset, timeout=60) is True:
-            LOG.info(
-                "Schema reader has found key. key: %r, value: %r, offset: %r",
-                key,
-                value,
-                sent_offset,
-            )
-        else:
-            raise RuntimeError(
-                "Schema reader timed out while looking for key. key: {!r}, value: {!r}, offset: {}".format(
-                    key, value, sent_offset
-                )
-            )
-
-        return future
-
-    def send_schema_message(
-        self,
-        *,
-        subject: Subject,
-        schema: Optional[TypedSchema],
-        schema_id: int,
-        version: int,
-        deleted: bool,
-    ) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"},
-        )
-        if schema:
-            valuedict = {
-                "subject": subject,
-                "version": version,
-                "id": schema_id,
-                "schema": schema.schema_str,
-                "deleted": deleted,
-            }
-            if schema.schema_type is not SchemaType.AVRO:
-                valuedict["schemaType"] = schema.schema_type
-            value = json_encode(valuedict)
-        else:
-            value = ""
-        return self.send_kafka_message(key, value)
-
     def send_config_message(
         self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None
     ) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {
-                "subject": subject,
-                "magic": 0,
-                "keytype": "CONFIG",
-            }
-        )
-        value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
-        return self.send_kafka_message(key, value)
+        return self.schema_record_producer.send_config_message(compatibility_level=compatibility_level, subject=subject)
 
     def send_config_subject_delete_message(self, subject: Subject) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {
-                "subject": subject,
-                "magic": 0,
-                "keytype": "CONFIG",
-            }
-        )
-        return self.send_kafka_message(key, "".encode("utf-8"))
+        return self.schema_record_producer.send_config_subject_delete_message(subject=subject)
 
-    def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {
-                "subject": subject,
-                "magic": 0,
-                "keytype": "DELETE_SUBJECT",
-            }
-        )
-        value = '{{"subject":"{}","version":{}}}'.format(subject, version)
-        return self.send_kafka_message(key, value)
+    async def get_schema_id_if_exists(self, *, subject: Subject, schema: ValidatedTypedSchema) -> Optional[SchemaId]:
+        return self.schema_reader.get_schema_id_if_exists(subject=subject, schema=schema)
