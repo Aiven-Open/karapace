@@ -9,6 +9,7 @@ from kafka import KafkaProducer
 from karapace.client import Client
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import SchemaErrorMessages
+from karapace.utils import json_encode
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import (
@@ -2675,6 +2676,123 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     assert res.status_code == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"], "after permanent deleted the same schema registered, the same identifier"
+
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert res.status_code == 200
+
+    # After recreated, subject again registered
+    res = await registry_async_client.get("subjects")
+    assert res.status_code == 200
+    assert subject in res.json()
+
+
+# This test starts with a state that a buggy old Karapace created, but is no longer producible.
+# However Karapace should tolerate and fix the situation
+async def test_schema_recreate_after_odd_hard_delete(
+    kafka_servers: KafkaServers,
+    registry_cluster: RegistryDescription,
+    registry_async_client: Client,
+) -> None:
+    subject = create_subject_name_factory("test_schema_recreate_after_odd_hard_delete")()
+    schema_name = create_schema_name_factory("test_schema_recreate_after_odd_hard_delete")()
+
+    schema = {
+        "type": "record",
+        "name": schema_name,
+        "fields": [
+            {
+                "type": {
+                    "type": "enum",
+                    "name": "enumtest",
+                    "symbols": ["first", "second"],
+                },
+                "name": "faa",
+            }
+        ],
+    }
+
+    producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
+    message_key = json_encode(
+        {"subject": subject, "version": 1, "magic": 1, "keytype": "SCHEMA"}, sort_keys=False, compact=True, binary=True
+    )
+    import random
+
+    schema_id = random.randint(20000, 30000)
+    message_value = {"deleted": False, "id": schema_id, "subject": subject, "version": 1, "schema": json.dumps(schema)}
+    producer.send(
+        registry_cluster.schemas_topic,
+        key=message_key,
+        value=json_encode(message_value, sort_keys=False, compact=True, binary=True),
+    ).get()
+    # Produce manual hard delete without soft delete first
+    producer.send(registry_cluster.schemas_topic, key=message_key, value=None).get()
+
+    res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+
+    # Initially no subject registered
+    res = await registry_async_client.get("subjects")
+    assert res.status_code == 200
+    assert subject not in res.json()
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    # Now subject is listed
+    res = await registry_async_client.get("subjects")
+    assert res.status_code == 200
+    assert subject in res.json()
+
+    # Also newly registed schema can be fetched
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert res.status_code == 200
+
+    # Soft delete whole schema
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 200
+
+    # Recreate with same subject after soft delete
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"], "after soft delete the same schema registered, the same identifier"
+
+    # Soft delete whole schema
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 200
+    # Hard delete whole schema
+    res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
+    assert res.status_code == 200
+
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
+    # Recreate with same subject after hard delete
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"], "after permanent deleted the same schema registered, the same identifier"
+
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert res.status_code == 200
+
+    # After recreated, subject again registered
+    res = await registry_async_client.get("subjects")
+    assert res.status_code == 200
+    assert subject in res.json()
 
 
 async def test_invalid_schema_should_provide_good_error_messages(registry_async_client: Client) -> None:
