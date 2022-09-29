@@ -13,7 +13,7 @@ from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
-from karapace.utils import convert_to_int, KarapaceKafkaClient
+from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
 from typing import List, Optional, Tuple
 
 import aiohttp.web
@@ -371,6 +371,7 @@ class KafkaRest(KarapaceBase):
         prepared_records = []
         try:
             prepared_records = await self._prepare_records(
+                content_type=content_type,
                 data=data,
                 ser_format=ser_format,
                 key_schema_id=data.get("key_schema_id"),
@@ -492,6 +493,7 @@ class KafkaRest(KarapaceBase):
 
     async def _prepare_records(
         self,
+        content_type: str,
         data: dict,
         ser_format: str,
         key_schema_id: Optional[int],
@@ -502,8 +504,8 @@ class KafkaRest(KarapaceBase):
         for record in data["records"]:
             key = record.get("key")
             value = record.get("value")
-            key = await self.serialize(key, ser_format, key_schema_id)
-            value = await self.serialize(value, ser_format, value_schema_id)
+            key = await self.serialize(content_type, key, ser_format, key_schema_id)
+            value = await self.serialize(content_type, value, ser_format, value_schema_id)
             prepared_records.append((key, value, record.get("partition", default_partition)))
         return prepared_records
 
@@ -550,6 +552,7 @@ class KafkaRest(KarapaceBase):
 
     async def serialize(
         self,
+        content_type: str,
         obj=None,
         ser_format: Optional[str] = None,
         schema_id: Optional[int] = None,
@@ -561,7 +564,17 @@ class KafkaRest(KarapaceBase):
             # TODO -> get encoding from headers
             return json.dumps(obj).encode("utf8")
         if ser_format == "binary":
-            return base64.b64decode(obj)
+            try:
+                return base64.b64decode(obj)
+            except:  # pylint: disable=bare-except
+                self.r(
+                    body={
+                        "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
+                        "message": f"data={json_encode(obj, sort_keys=False, compact=True)}  is not a base64 string.",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.BAD_REQUEST,
+                )
         if ser_format in {"avro", "jsonschema", "protobuf"}:
             return await self.schema_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
@@ -582,7 +595,25 @@ class KafkaRest(KarapaceBase):
                 content_type=content_type,
                 sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
             )
+        if not isinstance(data["records"], list):
+            self.r(
+                body={
+                    "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
+                    "message": "'records' must be an array",
+                },
+                content_type=content_type,
+                status=HTTPStatus.BAD_REQUEST,
+            )
         for r in data["records"]:
+            if not isinstance(r, dict):
+                self.r(
+                    body={
+                        "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
+                        "message": "Produce record must be an object",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.BAD_REQUEST,
+                )
             convert_to_int(r, "partition", content_type)
             if set(r.keys()).difference(RECORD_KEYS):
                 self.unprocessable_entity(
