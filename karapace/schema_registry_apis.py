@@ -938,7 +938,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         schema_id = self.get_schema_id_if_exists(subject=subject, schema=new_schema)
         if schema_id is not None:
-            self.r({"id": schema_id}, content_type)
+            # Return existing id only if it has not been deleted in this subject
+            subject_data = self.schema_registry.subjects.get(subject)
+            if subject_data:
+                if any(
+                    True
+                    for schema in subject_data["schemas"].values()
+                    if schema.get("deleted", False) is False and schema.get("id") is schema_id
+                ):
+                    self.r({"id": schema_id}, content_type)
 
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
