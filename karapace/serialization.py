@@ -222,6 +222,8 @@ class SchemaRegistrySerializer:
                 raise InvalidPayload("Data does not contain a valid message") from e
             except avro.errors.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
+            except avro.errors.InvalidAvroBinaryEncoding as e:
+                raise InvalidPayload("Data is not a valid Avro binary representation") from e
 
 
 def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
