@@ -129,6 +129,11 @@ class KafkaRestAdminClient(KafkaAdminClient):
                 "end_offset": end_partitions[0][2][0],
             }
         else:
+            start_err = beginning_partitions[0][1]
+            end_err = beginning_partitions[0][1]
+            for e in [start_err, end_err]:
+                if e != 0:
+                    raise for_code(e)
             rv = {
                 "beginning_offset": beginning_partitions[0][3],
                 "end_offset": end_partitions[0][3],

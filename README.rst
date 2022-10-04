@@ -314,6 +314,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``localhost:9092``
      - The URI to the Kafka service where to store the schemas and to run
        coordination among the Karapace instances.
+   * - ``sasl_bootstrap_uri``
+     - ``None``
+     - The URI to the Kafka service to use with the Kafka REST API when SASL authorization with REST is used.
    * - ``client_id``
      - ``sr-1``
      - The ``client_id`` Karapace will use when coordinating with
@@ -329,6 +332,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``consumer_request_max_bytes``
      - ``67108864``
      - Rest proxy consumers maximum bytes to be fetched per request
+   * - ``consumer_idle_disconnect_timeout``
+     - ``0``
+     - Disconnect idle consumers after timeout seconds if not used.  Inactivity leads to consumer leaving consumer group and consumer state.  0 (default) means no auto-disconnect.
    * - ``fetch_min_bytes``
      - ``-1``
      - Rest proxy consumers minimum bytes to be fetched per request. ``-1`` means no limit
@@ -413,6 +419,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``/path/to/authfile.json``
      - Filename to specify users and access control rules for Karapace Schema Registry.
        If this is set, Schema Segistry requires authentication for most of the endpoints and applies per endpoint authorization rules.
+   * - ``rest_authorization``
+     - ``false``
+     - Use REST API's calling authorization credentials to invoke Kafka operations over SASL authentication of ``sasl_bootstrap_uri`` to delegate REST proxy authorization to Kafka.  If false, then use configured common credentials for all Kafka connections of REST proxy operations.
    * - ``metadata_max_age_ms``
      - ``60000``
      - Period of time in milliseconds after Kafka metadata is force refreshed.

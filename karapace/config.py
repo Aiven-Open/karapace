@@ -27,12 +27,14 @@ DEFAULTS = {
     "advertised_port": None,
     "advertised_protocol": "http",
     "bootstrap_uri": "127.0.0.1:9092",
+    "sasl_bootstrap_uri": None,
     "client_id": "sr-1",
     "compatibility": "BACKWARD",
     "connections_max_idle_ms": 15000,
     "consumer_enable_auto_commit": True,
     "consumer_request_timeout_ms": 11000,
     "consumer_request_max_bytes": 67108864,
+    "consumer_idle_disconnect_timeout": 0,
     "fetch_min_bytes": -1,
     "group_id": "schema-registry",
     "host": "127.0.0.1",
@@ -45,6 +47,7 @@ DEFAULTS = {
     "registry_password": None,
     "registry_ca": None,
     "registry_authfile": None,
+    "rest_authorization": False,
     "log_level": "DEBUG",
     "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
     "master_eligibility": True,
@@ -155,6 +158,11 @@ def validate_config(config: Config) -> None:
             f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
         ) from None
 
+    if config["rest_authorization"] and config["sasl_bootstrap_uri"] is None:
+        raise InvalidConfiguration(
+            "Using 'rest_authorization' requires configuration value for 'sasl_bootstrap_uri' to be set"
+        )
+
 
 def write_config(config_path: Path, custom_values: Config) -> None:
     config_path.write_text(json.dumps(custom_values))
@@ -171,7 +179,7 @@ def read_config(config_handler: IO) -> Config:
 
 def create_client_ssl_context(config: Config) -> Optional[ssl.SSLContext]:
     # taken from conn.py, as it adds a lot more logic to the context configuration than the initial version
-    if config["security_protocol"] == "PLAINTEXT":
+    if config["security_protocol"] in ("PLAINTEXT", "SASL_PLAINTEXT"):
         return None
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
     ssl_context.options |= ssl.OP_NO_SSLv2

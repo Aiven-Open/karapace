@@ -6,7 +6,6 @@ from karapace.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
-    SchemaRegistryDeserializer,
     SchemaRegistrySerializer,
     START_BYTE,
     write_value,
@@ -24,28 +23,23 @@ import struct
 log = logging.getLogger(__name__)
 
 
-async def make_ser_deser(config_path, mock_client):
+async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySerializer:
     with open(config_path, encoding="utf8") as handler:
         config = read_config(handler)
     serializer = SchemaRegistrySerializer(config_path=config_path, config=config)
-    deserializer = SchemaRegistryDeserializer(config_path=config_path, config=config)
     await serializer.registry_client.close()
-    await deserializer.registry_client.close()
     serializer.registry_client = mock_client
-    deserializer.registry_client = mock_client
-    return serializer, deserializer
+    return serializer
 
 
-async def test_happy_flow(default_config_path, mock_registry_client):
-    serializer, deserializer = await make_ser_deser(default_config_path, mock_registry_client)
-    for o in serializer, deserializer:
-        assert len(o.ids_to_schemas) == 0
+async def test_happy_flow(default_config_path: str, mock_registry_client) -> None:
+    serializer = await make_ser_deser(default_config_path, mock_registry_client)
+    assert len(serializer.ids_to_schemas) == 0
     schema = await serializer.get_schema_for_subject("top")
     for o in test_objects_avro:
-        assert o == await deserializer.deserialize(await serializer.serialize(schema, o))
-    for o in serializer, deserializer:
-        assert len(o.ids_to_schemas) == 1
-        assert 1 in o.ids_to_schemas
+        assert o == await serializer.deserialize(await serializer.serialize(schema, o))
+    assert len(serializer.ids_to_schemas) == 1
+    assert 1 in serializer.ids_to_schemas
 
 
 def test_flatten_unions_record() -> None:
@@ -235,15 +229,15 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
 
-async def test_serialization_fails(default_config_path, mock_registry_client):
-    serializer, _ = await make_ser_deser(default_config_path, mock_registry_client)
+async def test_serialization_fails(default_config_path: str, mock_registry_client) -> None:
+    serializer = await make_ser_deser(default_config_path, mock_registry_client)
     with pytest.raises(InvalidMessageSchema):
         schema = await serializer.get_schema_for_subject("topic")
         await serializer.serialize(schema, {"foo": "bar"})
 
 
-async def test_deserialization_fails(default_config_path, mock_registry_client):
-    _, deserializer = await make_ser_deser(default_config_path, mock_registry_client)
+async def test_deserialization_fails(default_config_path: str, mock_registry_client) -> None:
+    deserializer = await make_ser_deser(default_config_path, mock_registry_client)
     invalid_header_payload = struct.pack(">bII", 1, 500, 500)
     with pytest.raises(InvalidMessageHeader):
         await deserializer.deserialize(invalid_header_payload)

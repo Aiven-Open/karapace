@@ -13,6 +13,7 @@ import copy
 import json
 import pytest
 import random
+import time
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -143,6 +144,12 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     assert res.status_code == 409, f"Invalid state error expected: {res.status_code}"
     data = res.json()
     assert data["error_code"] == 40903, f"Invalid state error expected: {data}"
+    assert (
+        str(data)
+        == "{'error_code': 40903, 'message': 'IllegalStateError: You must choose only one way to configure your consumer:"
+        " (1) subscribe to specific topics by name, (2) subscribe to topics matching a regex pattern,"
+        " (3) assign itself specific topic-partitions.'}"
+    )
     # assign after subscribe will fail
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
@@ -267,6 +274,60 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
             assert deserializers[fmt](data[i]["value"]) == values[fmt][i], (
                 f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {values[fmt][i]} for format {fmt}"
             )
+
+
+async def test_consume_timeout(rest_async_client, admin_client, producer):
+    values = {
+        "json": [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
+        "binary": [f"val{i}".encode("utf-8") for i in range(3)],
+    }
+    deserializers = {"binary": base64.b64decode, "json": lambda x: json.dumps(x).encode("utf-8")}
+    group_name = "consume_group"
+    for fmt in ["binary", "json"]:
+        header = copy.deepcopy(REST_HEADERS[fmt])
+        instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+        assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+        seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
+        consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+        topic_name = new_topic(admin_client)
+        assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+        res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
+        assert res.ok
+        for i in range(len(values[fmt])):
+            producer.send(topic_name, value=values[fmt][i]).get()
+        seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+        resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
+        assert resp.ok
+        header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
+        resp = await rest_async_client.get(consume_path, headers=header)
+        assert resp.ok, f"Expected a successful response: {resp}"
+        data = resp.json()
+        assert len(data) == len(values[fmt]), f"Expected {len(values[fmt])} element in response: {resp}"
+        for i in range(len(values[fmt])):
+            assert deserializers[fmt](data[i]["value"]) == values[fmt][i], (
+                f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {values[fmt][i]} for format {fmt}"
+            )
+
+        # Now read more using explicit 5s timeout
+        start_time = time.monotonic()
+        resp = await rest_async_client.get(
+            f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000", headers=header
+        )
+        duration = time.monotonic() - start_time
+        assert resp.ok, f"Expected a successful response: {resp}"
+        data = resp.json()
+        assert len(data) == 0, f"Expected zero elements now in response: {resp}"
+        assert 5.0 <= duration < 10.0, f"Expected duration {duration} roughly aligned with requested timeout"
+
+        # Now read more (expect using service configure timeout)
+        start_time = time.monotonic()
+        resp = await rest_async_client.get(f"/consumers/{group_name}/instances/{instance_id}/records", headers=header)
+        duration = time.monotonic() - start_time
+        assert resp.ok, f"Expected a successful response: {resp}"
+        data = resp.json()
+        assert len(data) == 0, f"Expected zero elements now in response: {resp}"
+        # Default consumer_request_timeout_ms is 11000 milliseconds
+        assert 11.0 <= duration < 16.0, f"Expected duration {duration} roughly aligned with configured timeout"
 
 
 @pytest.mark.parametrize("schema_type", ["avro"])
