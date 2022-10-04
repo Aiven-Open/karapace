@@ -4,22 +4,30 @@ from binascii import Error as B64DecodeError
 from collections import namedtuple
 from contextlib import AsyncExitStack, closing
 from http import HTTPStatus
-from kafka.errors import BrokerResponseError, KafkaTimeoutError, NodeNotReadyError, UnknownTopicOrPartitionError
+from kafka.errors import (
+    BrokerResponseError,
+    KafkaTimeoutError,
+    NoBrokersAvailable,
+    NodeNotReadyError,
+    TopicAuthorizationFailedError,
+    UnknownTopicOrPartitionError,
+)
 from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest
+from karapace.rapu import HTTPRequest, HTTPResponse, JSON_CONTENT_TYPE
 from karapace.schema_reader import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
 from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import aiohttp.web
 import asyncio
 import base64
 import json
+import logging
 import time
 
 RECORD_KEYS = ["key", "value", "partition"]
@@ -29,6 +37,9 @@ KNOWN_FORMATS = {"json", "avro", "protobuf", "binary"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 SCHEMA_MAPPINGS = {"avro": SchemaType.AVRO, "jsonschema": SchemaType.JSONSCHEMA, "protobuf": SchemaType.PROTOBUF}
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
+IDLE_PROXY_TIMEOUT = 5 * 60
+
+log = logging.getLogger(__name__)
 
 
 class FormatError(Exception):
@@ -40,29 +51,65 @@ class KafkaRest(KarapaceBase):
         super().__init__(config=config)
         self._add_kafka_rest_routes()
         self.serializer = SchemaRegistrySerializer(config=config)
-        self._cluster_metadata = None
-        self._metadata_birth = None
-        self.metadata_max_age = self.config["admin_metadata_max_age"]
-        self.admin_client = None
-        self.admin_lock = None
-        self.metadata_cache = None
-        self.schemas_cache = {}
-        self.consumer_manager = ConsumerManager(config=config)
-        self.init_admin_client()
+        self.proxies: Dict[str, "UserRestProxy"] = {}
+        self._proxy_lock = asyncio.Lock()
+        log.info("REST proxy starting with (delegated authorization=%s)", self.config.get("rest_authorization", False))
+        self._idle_proxy_janitor_task: Optional[asyncio.Task] = None
 
-        self._async_producer_lock = None
-        self._async_producer: Optional[AIOKafkaProducer] = None
+    async def close(self) -> None:
+        if self._idle_proxy_janitor_task is not None:
+            self._idle_proxy_janitor_task.cancel()
+            self._idle_proxy_janitor_task = None
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(super().close)
+            stack.push_async_callback(self.serializer.close)
 
-        self.app.on_startup.append(self.initialize_asyncio_locks)
+            for proxy in self.proxies.values():
+                stack.push_async_callback(proxy.aclose)
 
-    async def initialize_asyncio_locks(self, app: aiohttp.web.Application):  # pylint: disable=unused-argument
-        """The locks can be initialized when asyncio loop is available"""
-        self.admin_lock = asyncio.Lock()
-        self._async_producer_lock = asyncio.Lock()
+    async def _idle_proxy_janitor(self) -> None:
+        while True:
+            await asyncio.sleep(IDLE_PROXY_TIMEOUT / 2)
+
+            try:
+                await self._disconnect_idle_proxy_if_any()
+            except:  # pylint: disable=bare-except
+                log.exception("Disconnecting idle proxy failure")
+
+    async def _disconnect_idle_proxy_if_any(self) -> None:
+        idle_consumer_timeout = self.config.get("consumer_idle_disconnect_timeout", 0)
+
+        key, proxy = None, None
+        async with self._proxy_lock:
+            # Always clean one at time, don't mutate dict while iterating
+            for _key, _proxy in self.proxies.items():
+                # If UserRestProxy has consumers with state, disconnecting loses state
+                if _proxy.num_consumers() > 0:
+                    if idle_consumer_timeout > 0 and _proxy.last_used + idle_consumer_timeout < time.monotonic():
+                        key, proxy = _key, _proxy
+                        log.warning("Disconnecting idle consumers for %s", _proxy)
+                        break
+                # If there are no consumers, connection can be recreated without losing any state
+                else:
+                    if _proxy.last_used + IDLE_PROXY_TIMEOUT < time.monotonic():
+                        key, proxy = _key, _proxy
+                        log.info("Releasing unused connection for %s", _proxy)
+                        break
+            if key is not None:
+                del self.proxies[key]
+        if proxy is not None:
+            await proxy.aclose()
 
     def _add_kafka_rest_routes(self) -> None:
         # Brokers
-        self.route("/brokers", callback=self.list_brokers, method="GET", rest_request=True)
+        self.route(
+            "/brokers",
+            callback=self.list_brokers,
+            method="GET",
+            rest_request=True,
+            with_request=True,
+            json_body=False,
+        )
 
         # Consumers
         self.route(
@@ -70,6 +117,7 @@ class KafkaRest(KarapaceBase):
             callback=self.commit_consumer_offsets,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/offsets",
@@ -83,48 +131,59 @@ class KafkaRest(KarapaceBase):
             callback=self.update_consumer_subscription,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
             callback=self.get_consumer_subscription,
             method="GET",
             rest_request=True,
+            with_request=True,
+            json_body=False,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/subscription",
             callback=self.delete_consumer_subscription,
             method="DELETE",
             rest_request=True,
+            with_request=True,
+            json_body=False,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/assignments",
             callback=self.update_consumer_assignment,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/assignments",
             callback=self.get_consumer_assignment,
             method="GET",
             rest_request=True,
+            with_request=True,
+            json_body=False,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/beginning",
             callback=self.seek_beginning_consumer_offsets,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions/end",
             callback=self.seek_end_consumer_offsets,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/positions",
             callback=self.update_consumer_offsets,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>/records",
@@ -134,12 +193,20 @@ class KafkaRest(KarapaceBase):
             with_request=True,
             json_body=False,
         )
-        self.route("/consumers/<group_name:path>", callback=self.create_consumer, method="POST", rest_request=True)
+        self.route(
+            "/consumers/<group_name:path>",
+            callback=self.create_consumer,
+            method="POST",
+            rest_request=True,
+            with_request=True,
+        )
         self.route(
             "/consumers/<group_name:path>/instances/<instance:path>",
             callback=self.delete_consumer,
             method="DELETE",
             rest_request=True,
+            with_request=True,
+            json_body=False,
         )
         # Partitions
         self.route(
@@ -147,24 +214,227 @@ class KafkaRest(KarapaceBase):
             callback=self.partition_offsets,
             method="GET",
             rest_request=True,
+            with_request=True,
+            json_body=False,
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
             callback=self.partition_details,
             method="GET",
             rest_request=True,
+            with_request=True,
+            json_body=False,
         )
         self.route(
             "/topics/<topic:path>/partitions/<partition_id:path>",
             callback=self.partition_publish,
             method="POST",
             rest_request=True,
+            with_request=True,
         )
-        self.route("/topics/<topic:path>/partitions", callback=self.list_partitions, method="GET", rest_request=True)
+        self.route(
+            "/topics/<topic:path>/partitions",
+            callback=self.list_partitions,
+            method="GET",
+            rest_request=True,
+            with_request=True,
+            json_body=False,
+        )
         # Topics
-        self.route("/topics", callback=self.list_topics, method="GET", rest_request=True)
-        self.route("/topics/<topic:path>", callback=self.topic_details, method="GET", rest_request=True)
-        self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True)
+        self.route(
+            "/topics",
+            callback=self.list_topics,
+            method="GET",
+            rest_request=True,
+            with_request=True,
+            json_body=False,
+        )
+        self.route(
+            "/topics/<topic:path>",
+            callback=self.topic_details,
+            method="GET",
+            rest_request=True,
+            with_request=True,
+            json_body=False,
+        )
+        self.route("/topics/<topic:path>", callback=self.topic_publish, method="POST", rest_request=True, with_request=True)
+
+    async def get_user_proxy(self, request: HTTPRequest) -> "UserRestProxy":
+        key = ""
+        async with self._proxy_lock:
+            if self._idle_proxy_janitor_task is None:
+                self._idle_proxy_janitor_task = asyncio.create_task(self._idle_proxy_janitor())
+
+            try:
+                if self.config.get("rest_authorization", False):
+                    auth_header = request.headers.get("Authorization")
+
+                    if auth_header is None:
+                        raise HTTPResponse(
+                            body='{"message": "Unauthorized"}',
+                            status=HTTPStatus.UNAUTHORIZED,
+                            content_type=JSON_CONTENT_TYPE,
+                            headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
+                        )
+                    key = auth_header
+                    if self.proxies.get(key) is None:
+                        auth = aiohttp.BasicAuth.decode(auth_header)
+                        config = self.config.copy()
+                        config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
+                        config["security_protocol"] = (
+                            "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
+                        )
+                        config["sasl_mechanism"] = "PLAIN"
+                        config["sasl_plain_username"] = auth.login
+                        config["sasl_plain_password"] = auth.password
+                        self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
+                else:
+                    if self.proxies.get(key) is None:
+                        self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
+            except NoBrokersAvailable:
+                # This can be caused also due misconfigration, but kafka-python's
+                # KafkaAdminClient cannot currently distinguish those two cases
+                log.exception("Failed to connect to Kafka with the credentials")
+                self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
+            proxy = self.proxies[key]
+            proxy.mark_used()
+            return proxy
+
+    async def list_brokers(self, content_type: str, *, request: HTTPRequest):
+        proxy = await self.get_user_proxy(request)
+        await proxy.list_brokers(content_type)
+
+    async def commit_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.commit_consumer_offsets(group_name, instance, content_type, request=request)
+
+    async def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.get_consumer_offsets(group_name, instance, content_type, request=request)
+
+    async def update_consumer_subscription(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.update_consumer_subscription(group_name, instance, content_type, request=request)
+
+    async def get_consumer_subscription(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.get_consumer_subscription(group_name, instance, content_type)
+
+    async def delete_consumer_subscription(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.delete_consumer_subscription(group_name, instance, content_type)
+
+    async def update_consumer_assignment(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.update_consumer_assignment(group_name, instance, content_type, request=request)
+
+    async def get_consumer_assignment(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.get_consumer_assignment(group_name, instance, content_type)
+
+    async def seek_beginning_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.seek_beginning_consumer_offsets(group_name, instance, content_type, request=request)
+
+    async def seek_end_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.seek_end_consumer_offsets(group_name, instance, content_type, request=request)
+
+    async def update_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.update_consumer_offsets(group_name, instance, content_type, request=request)
+
+    async def fetch(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.fetch(group_name, instance, content_type, request=request)
+
+    async def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.create_consumer(group_name, content_type, request=request)
+
+    async def delete_consumer(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.delete_consumer(group_name, instance, content_type)
+
+    async def partition_offsets(self, content_type: str, *, topic: str, partition_id: str, request: HTTPRequest):
+        proxy = await self.get_user_proxy(request)
+        await proxy.partition_offsets(content_type, topic=topic, partition_id=partition_id)
+
+    async def partition_details(self, content_type: str, *, topic: str, partition_id: str, request: HTTPRequest):
+        proxy = await self.get_user_proxy(request)
+        await proxy.partition_details(content_type, topic=topic, partition_id=partition_id)
+
+    async def partition_publish(self, topic: str, partition_id: str, content_type: str, *, request: HTTPRequest) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.partition_publish(topic, partition_id, content_type, request=request)
+
+    async def list_partitions(self, content_type: str, *, topic: str, request: HTTPRequest):
+        proxy = await self.get_user_proxy(request)
+        await proxy.list_partitions(content_type, topic=topic)
+
+    async def list_topics(self, content_type: str, *, request: HTTPRequest):
+        proxy = await self.get_user_proxy(request)
+        await proxy.list_topics(content_type)
+
+    async def topic_details(self, content_type: str, *, topic: str, request: HTTPRequest):
+        proxy = await self.get_user_proxy(request)
+        await proxy.topic_details(content_type, topic=topic)
+
+    async def topic_publish(self, topic: str, content_type: str, *, request: HTTPRequest) -> None:
+        proxy = await self.get_user_proxy(request)
+        await proxy.topic_publish(topic, content_type, request=request)
+
+
+class UserRestProxy:
+    def __init__(self, config: Config, kafka_timeout: int, serializer):
+        self.config = config
+        self.kafka_timeout = kafka_timeout
+        self.serializer = serializer
+        self._cluster_metadata = None
+        self._cluster_metadata_complete = False
+        self._metadata_birth = None
+        self.metadata_max_age = self.config["admin_metadata_max_age"]
+        self.admin_client = None
+        self.admin_lock = asyncio.Lock()
+        self.metadata_cache = None
+        self.schemas_cache = {}
+        self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
+        self.init_admin_client()
+        self._last_used = time.monotonic()
+
+        self._async_producer_lock = asyncio.Lock()
+        self._async_producer: Optional[AIOKafkaProducer] = None
+
+    def __str__(self) -> str:
+        return f"UserRestProxy(username={self.config['sasl_plain_username']})"
+
+    @property
+    def last_used(self) -> int:
+        return self._last_used
+
+    def mark_used(self) -> None:
+        self._last_used = time.monotonic()
+
+    def num_consumers(self) -> int:
+        return len(self.consumer_manager.consumers)
 
     async def _maybe_create_async_producer(self) -> AIOKafkaProducer:
         if self._async_producer is not None:
@@ -176,8 +446,11 @@ class KafkaRest(KarapaceBase):
             acks = int(self.config["producer_acks"])
 
         async with self._async_producer_lock:
-            while self._async_producer is None:
-                self.log.info("Creating async producer")
+            for retry in [True, True, False]:
+                if self._async_producer is not None:
+                    break
+
+                log.info("Creating async producer")
 
                 # Don't retry if creating the SSL context fails, likely a configuration issue with
                 # ciphers or certificate chains
@@ -187,10 +460,10 @@ class KafkaRest(KarapaceBase):
                 producer = AIOKafkaProducer(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
+                    ssl_context=ssl_context,
                     sasl_mechanism=self.config["sasl_mechanism"],
                     sasl_plain_username=self.config["sasl_plain_username"],
                     sasl_plain_password=self.config["sasl_plain_password"],
-                    ssl_context=ssl_context,
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     acks=acks,
                     compression_type=self.config["producer_compression_type"],
@@ -201,21 +474,26 @@ class KafkaRest(KarapaceBase):
                 try:
                     await producer.start()
                 except KafkaConnectionError:
-                    self.log.exception("Unable to connect to the bootstrap servers, retrying")
+                    if retry:
+                        log.exception("Unable to connect to the bootstrap servers, retrying")
+                    else:
+                        log.exception("Giving up after trying to connect to the bootstrap servers")
+                        raise
                     await asyncio.sleep(1)
                 else:
                     self._async_producer = producer
 
         return self._async_producer
 
-    # CONSUMERS
-    async def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest):
+    async def create_consumer(self, group_name: str, content_type: str, *, request: HTTPRequest) -> None:
         await self.consumer_manager.create_consumer(group_name, request.json, content_type)
 
-    async def delete_consumer(self, group_name: str, instance: str, content_type: str):
+    async def delete_consumer(self, group_name: str, instance: str, content_type: str) -> None:
         await self.consumer_manager.delete_consumer(ConsumerManager.create_internal_name(group_name, instance), content_type)
 
-    async def commit_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def commit_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
         await self.consumer_manager.commit_offsets(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
@@ -223,59 +501,67 @@ class KafkaRest(KarapaceBase):
             await self.cluster_metadata(),
         )
 
-    async def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def get_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
         await self.consumer_manager.get_offsets(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    async def update_consumer_subscription(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def update_consumer_subscription(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
         await self.consumer_manager.set_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
             request.json,
         )
 
-    async def get_consumer_subscription(self, group_name: str, instance: str, content_type: str):
+    async def get_consumer_subscription(self, group_name: str, instance: str, content_type: str) -> None:
         await self.consumer_manager.get_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    async def delete_consumer_subscription(self, group_name: str, instance: str, content_type: str):
+    async def delete_consumer_subscription(self, group_name: str, instance: str, content_type: str) -> None:
         await self.consumer_manager.delete_subscription(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    async def update_consumer_assignment(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def update_consumer_assignment(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
         await self.consumer_manager.set_assignments(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    async def get_consumer_assignment(self, group_name: str, instance: str, content_type: str):
+    async def get_consumer_assignment(self, group_name: str, instance: str, content_type: str) -> None:
         await self.consumer_manager.get_assignments(
             ConsumerManager.create_internal_name(group_name, instance),
             content_type,
         )
 
-    async def update_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def update_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
         await self.consumer_manager.seek_to(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json
         )
 
-    async def seek_end_consumer_offsets(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def seek_end_consumer_offsets(
+        self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
+    ) -> None:
         await self.consumer_manager.seek_limit(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=False
         )
 
     async def seek_beginning_consumer_offsets(
         self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest
-    ):
+    ) -> None:
         await self.consumer_manager.seek_limit(
             ConsumerManager.create_internal_name(group_name, instance), content_type, request.json, beginning=True
         )
 
-    async def fetch(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest):
+    async def fetch(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
         await self.consumer_manager.fetch(
             internal_name=ConsumerManager.create_internal_name(group_name, instance),
             content_type=content_type,
@@ -297,19 +583,26 @@ class KafkaRest(KarapaceBase):
             if self._metadata_birth is None or time.monotonic() - self._metadata_birth > self.metadata_max_age:
                 self._cluster_metadata = None
 
-            if self._cluster_metadata and topics is None:
-                return self._cluster_metadata
+            if self._cluster_metadata:
+                # Return from metadata only if all queried topics have cached metadata
+                if topics is None:
+                    if self._cluster_metadata_complete:
+                        return self._cluster_metadata
+                elif all(topic in self._cluster_metadata["topics"] for topic in topics):
+                    return {
+                        **self._cluster_metadata,
+                        "topics": {topic: self._cluster_metadata["topics"][topic] for topic in topics},
+                    }
 
             try:
                 metadata_birth = time.monotonic()
                 metadata = self.admin_client.cluster_metadata(topics)
-                # Only store cache if fetched full metadata
-                if topics is None:
-                    self._metadata_birth = metadata_birth
-                    self._cluster_metadata = metadata
+                self._metadata_birth = metadata_birth
+                self._cluster_metadata = metadata
+                self._cluster_metadata_complete = topics is None
             except NodeNotReadyError:
-                self.log.exception("Could not refresh cluster metadata")
-                self.r(
+                log.exception("Could not refresh cluster metadata")
+                KafkaRest.r(
                     body={
                         "message": "Kafka node not ready",
                         "code": RESTErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
@@ -320,7 +613,7 @@ class KafkaRest(KarapaceBase):
             return metadata
 
     def init_admin_client(self):
-        while True:
+        for retry in [True, True, False]:
             try:
                 self.admin_client = KafkaRestAdminClient(
                     bootstrap_servers=self.config["bootstrap_uri"],
@@ -338,27 +631,31 @@ class KafkaRest(KarapaceBase):
                 )
                 break
             except:  # pylint: disable=bare-except
-                self.log.exception("Unable to start admin client, retrying")
+                if retry:
+                    log.exception("Unable to start admin client, retrying")
+                else:
+                    log.exception("Giving up after failing to start admin client")
+                    raise
                 time.sleep(1)
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         async with AsyncExitStack() as stack, self._async_producer_lock:
-            stack.push_async_callback(super().close)
-
             if self._async_producer is not None:
-                self.log.info("Disposing async producer")
+                log.info("Disposing async producer")
                 stack.push_async_callback(self._async_producer.stop)
 
             if self.admin_client is not None:
                 stack.enter_context(closing(self.admin_client))
 
             if self.consumer_manager is not None:
-                stack.enter_context(closing(self.consumer_manager))
+                stack.push_async_callback(self.consumer_manager.aclose)
 
             self.admin_client = None
             self.consumer_manager = None
 
-    async def publish(self, topic: str, partition_id: Optional[str], content_type: str, formats: dict, data: dict):
+    async def publish(self, topic: str, partition_id: Optional[str], content_type: str, request: HTTPRequest) -> None:
+        formats: dict = request.content_type
+        data: dict = request.json
         _ = await self.get_topic_info(topic, content_type)
         if partition_id is not None:
             _ = await self.get_partition_info(topic, partition_id, content_type)
@@ -379,19 +676,19 @@ class KafkaRest(KarapaceBase):
                 default_partition=partition_id,
             )
         except (FormatError, B64DecodeError):
-            self.unprocessable_entity(
+            KafkaRest.unprocessable_entity(
                 message=f"Request includes data improperly formatted given the format {ser_format}",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.INVALID_DATA.value,
             )
         except InvalidMessageSchema as e:
-            self.r(
+            KafkaRest.r(
                 body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": str(e)},
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         except SchemaRetrievalError as e:
-            self.r(
+            KafkaRest.r(
                 body={"error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value, "message": str(e)},
                 content_type=content_type,
                 status=HTTPStatus.REQUEST_TIMEOUT,
@@ -405,17 +702,17 @@ class KafkaRest(KarapaceBase):
         publish_results = await self.produce_messages(topic=topic, prepared_records=prepared_records)
         for publish_result in publish_results:
             if "error" in publish_result and status == HTTPStatus.OK:
-                status = HTTPStatus.INTERNAL_SERVER_ERROR
+                status = HTTPStatus.UNPROCESSABLE_ENTITY
             response["offsets"].append(publish_result)
-        self.r(body=response, content_type=content_type, status=status)
+        KafkaRest.r(body=response, content_type=content_type, status=status)
 
-    async def partition_publish(self, topic, partition_id, content_type, *, request):
-        self.log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
-        await self.publish(topic, partition_id, content_type, request.content_type, request.json)
+    async def partition_publish(self, topic: str, partition_id: str, content_type: str, *, request: HTTPRequest) -> None:
+        log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
+        await self.publish(topic, partition_id, content_type, request)
 
-    async def topic_publish(self, topic: str, content_type: str, *, request):
-        self.log.debug("Executing topic publish on topic %s", topic)
-        await self.publish(topic, None, content_type, request.content_type, request.json)
+    async def topic_publish(self, topic: str, content_type: str, *, request: HTTPRequest) -> None:
+        log.debug("Executing topic publish on topic %s", topic)
+        await self.publish(topic, None, content_type, request)
 
     @staticmethod
     def validate_partition_id(partition_id: str, content_type: str) -> int:  # pylint: disable=inconsistent-return-statements
@@ -441,14 +738,12 @@ class KafkaRest(KarapaceBase):
         return isinstance(schema, str)
 
     async def get_schema_id(self, data: dict, topic: str, prefix: str, schema_type: SchemaType) -> int:
-        self.log.debug("Retrieving schema id for %r", data)
+        log.debug("Retrieving schema id for %r", data)
         if f"{prefix}_schema_id" in data and data[f"{prefix}_schema_id"] is not None:
-            self.log.debug(
-                "Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic
-            )
+            log.debug("Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic)
             return int(data[f"{prefix}_schema_id"])
         schema_str = data[f"{prefix}_schema"]
-        self.log.debug("Registering / Retrieving ID for schema %s", schema_str)
+        log.debug("Registering / Retrieving ID for schema %s", schema_str)
         if schema_str not in self.schemas_cache:
             subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix, schema_type)
             schema_id = await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name, schema_type)
@@ -459,7 +754,7 @@ class KafkaRest(KarapaceBase):
         try:
             schema_type = SCHEMA_MAPPINGS[schema_type]
         except KeyError:
-            self.r(
+            KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_NOT_FOUND.value,
                     "message": f"Unknown schema type {schema_type}",
@@ -472,8 +767,8 @@ class KafkaRest(KarapaceBase):
         try:
             data[f"{prefix}_schema_id"] = await self.get_schema_id(data, topic, prefix, schema_type)
         except InvalidPayload:
-            self.log.exception("Unable to retrieve schema id")
-            self.r(
+            log.exception("Unable to retrieve schema id")
+            KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
                     "message": "Invalid schema string",
@@ -482,7 +777,7 @@ class KafkaRest(KarapaceBase):
                 status=HTTPStatus.BAD_REQUEST,
             )
         except SchemaRetrievalError:
-            self.r(
+            KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
                     "message": f"Error when registering schema. format = {schema_type}, subject = {topic}-{prefix}",
@@ -517,19 +812,13 @@ class KafkaRest(KarapaceBase):
             for p in partitions:
                 if p["partition"] == partition:
                     return p
-            self.not_found(
+            KafkaRest.not_found(
                 message=f"Partition {partition} not found",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
             )
-        except UnknownTopicOrPartitionError:
-            self.not_found(
-                message=f"Partition {partition} not found",
-                content_type=content_type,
-                sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
-            )
-        except KeyError:
-            self.not_found(
+        except (KeyError, UnknownTopicOrPartitionError, TopicAuthorizationFailedError):
+            KafkaRest.not_found(
                 message=f"Topic {topic} not found",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
@@ -537,14 +826,15 @@ class KafkaRest(KarapaceBase):
         return {}
 
     async def get_topic_info(self, topic: str, content_type: str) -> dict:
-        metadata = await self.cluster_metadata()
-        if topic not in metadata["topics"]:
-            self.not_found(
-                message=f"Topic {topic} not found in {list(metadata.keys())}",
+        try:
+            metadata = await self.cluster_metadata([topic])
+            return metadata["topics"][topic]
+        except (KeyError, UnknownTopicOrPartitionError, TopicAuthorizationFailedError):
+            KafkaRest.not_found(
+                message=f"Topic {topic} not found",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
             )
-        return metadata["topics"][topic]
 
     @staticmethod
     def all_empty(data: dict, key: str) -> bool:
@@ -567,7 +857,7 @@ class KafkaRest(KarapaceBase):
             try:
                 return base64.b64decode(obj)
             except:  # pylint: disable=bare-except
-                self.r(
+                KafkaRest.r(
                     body={
                         "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
                         "message": f"data={json_encode(obj, sort_keys=False, compact=True)}  is not a base64 string.",
@@ -590,13 +880,13 @@ class KafkaRest(KarapaceBase):
 
         # disallow missing or non empty 'records' key , plus any other keys
         if "records" not in data or set(data.keys()).difference(PUBLISH_KEYS) or not data["records"]:
-            self.unprocessable_entity(
+            KafkaRest.unprocessable_entity(
                 message="Invalid request format",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
             )
         if not isinstance(data["records"], list):
-            self.r(
+            KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
                     "message": "'records' must be an array",
@@ -606,7 +896,7 @@ class KafkaRest(KarapaceBase):
             )
         for r in data["records"]:
             if not isinstance(r, dict):
-                self.r(
+                KafkaRest.r(
                     body={
                         "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
                         "message": "Produce record must be an object",
@@ -616,7 +906,7 @@ class KafkaRest(KarapaceBase):
                 )
             convert_to_int(r, "partition", content_type)
             if set(r.keys()).difference(RECORD_KEYS):
-                self.unprocessable_entity(
+                KafkaRest.unprocessable_entity(
                     message="Invalid request format",
                     content_type=content_type,
                     sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
@@ -627,7 +917,7 @@ class KafkaRest(KarapaceBase):
                 if self.all_empty(data, prefix):
                     continue
                 if not self.is_valid_schema_request(data, prefix):
-                    self.unprocessable_entity(
+                    KafkaRest.unprocessable_entity(
                         message=f"Request includes {prefix}s and uses a format that requires schemas "
                         f"but does not include the {prefix}_schema or {prefix}_schema_id fields",
                         content_type=content_type,
@@ -636,7 +926,7 @@ class KafkaRest(KarapaceBase):
                 try:
                     await self.validate_schema_info(data, prefix, content_type, topic, formats["embedded_format"])
                 except InvalidMessageSchema as e:
-                    self.unprocessable_entity(
+                    KafkaRest.unprocessable_entity(
                         message=str(e),
                         content_type=content_type,
                         sub_code=RESTErrorCodes.INVALID_DATA.value,
@@ -652,7 +942,7 @@ class KafkaRest(KarapaceBase):
             coroutine = producer.send(topic, key=key, value=value, partition=partition)
 
             # Schedule the co-routine, it will be cancelled if is not complete in
-            # `self.kafka_timeout` seconds.
+            # `kafka_timeout` seconds.
             future = asyncio.wait_for(fut=coroutine, timeout=self.kafka_timeout)
             produce_futures.append(future)
 
@@ -679,32 +969,32 @@ class KafkaRest(KarapaceBase):
 
             # Exceptions below are raised before data is sent to Kafka
             elif isinstance(result, asyncio.TimeoutError):
-                self.log.warning("Timed out waiting for publisher buffer", exc_info=result)
+                log.warning("Timed out waiting for publisher buffer", exc_info=result)
                 # timeouts are retriable
                 produce_results.append(
                     {"error_code": 1, "error": "timed out waiting to publish message, producer buffer full"}
                 )
             elif isinstance(result, AssertionError):
-                self.log.error("Invalid data", exc_info=result)
+                log.error("Invalid data", exc_info=result)
                 produce_results.append({"error_code": 1, "error": str(result)})
 
             # Exceptions below are raised after data is sent to Kafka
             elif isinstance(result, KafkaTimeoutError):
-                self.log.warning("Timed out waiting for publisher", exc_info=result)
+                log.warning("Timed out waiting for publisher", exc_info=result)
                 # timeouts are retriable
                 produce_results.append({"error_code": 1, "error": "timed out waiting to publish message"})
             elif isinstance(result, asyncio.CancelledError):
-                self.log.warning("Async task cancelled", exc_info=result)
+                log.warning("Async task cancelled", exc_info=result)
                 # cancel is retriable
                 produce_results.append({"error_code": 1, "error": "Publish message cancelled"})
             elif isinstance(result, BrokerResponseError):
-                self.log.error("Broker error", exc_info=result)
+                log.error("Broker error", exc_info=result)
                 resp = {"error_code": 1, "error": result.description}
                 if hasattr(result, "retriable") and result.retriable:
                     resp["error_code"] = 2
                 produce_results.append(resp)
             else:
-                self.log.error("Unexpected exception", exc_info=result)
+                log.error("Unexpected exception", exc_info=result)
                 produce_results.append({"error_code": 1, "error": str(result)})
 
         return produce_results
@@ -712,15 +1002,15 @@ class KafkaRest(KarapaceBase):
     async def list_topics(self, content_type: str):
         metadata = await self.cluster_metadata()
         topics = list(metadata["topics"].keys())
-        self.r(topics, content_type)
+        KafkaRest.r(topics, content_type)
 
     async def topic_details(self, content_type: str, *, topic: str):
-        self.log.info("Retrieving topic details for %s", topic)
+        log.info("Retrieving topic details for %s", topic)
         try:
             metadata = await self.cluster_metadata([topic])
             config = await self.get_topic_config(topic)
             if topic not in metadata["topics"]:
-                self.not_found(
+                KafkaRest.not_found(
                     message=f"Topic {topic} not found",
                     content_type=content_type,
                     sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
@@ -728,47 +1018,50 @@ class KafkaRest(KarapaceBase):
             data = metadata["topics"][topic]
             data["name"] = topic
             data["configs"] = config
-            self.r(data, content_type)
-        except UnknownTopicOrPartitionError:
-            self.not_found(
+            KafkaRest.r(data, content_type)
+        except (UnknownTopicOrPartitionError, TopicAuthorizationFailedError):
+            # Respond 'not found' to TopicAuthorizationFailedError to avoid leaking information of topics
+            KafkaRest.not_found(
                 message=f"Topic {topic} not found",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
             )
 
-    async def list_partitions(self, content_type: str, *, topic: Optional[str]):
-        self.log.info("Retrieving partition details for topic %s", topic)
+    async def list_partitions(self, content_type: str, *, topic: str):
+        log.info("Retrieving partition details for topic %s", topic)
         try:
             metadata = await self.cluster_metadata([topic])
             topic_details = metadata["topics"]
-            self.r(topic_details[topic]["partitions"], content_type)
-        except (UnknownTopicOrPartitionError, KeyError):
-            self.not_found(
+            KafkaRest.r(topic_details[topic]["partitions"], content_type)
+        except (UnknownTopicOrPartitionError, TopicAuthorizationFailedError, KeyError):
+            KafkaRest.not_found(
                 message=f"Topic {topic} not found",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
             )
 
     async def partition_details(self, content_type: str, *, topic: str, partition_id: str):
-        self.log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
+        log.info("Retrieving partition details for topic %s and partition %s", topic, partition_id)
         p = await self.get_partition_info(topic, partition_id, content_type)
-        self.r(p, content_type)
+        KafkaRest.r(p, content_type)
 
     async def partition_offsets(self, content_type: str, *, topic: str, partition_id: str):
-        self.log.info("Retrieving partition offsets for topic %s and partition %s", topic, partition_id)
+        log.info("Retrieving partition offsets for topic %s and partition %s", topic, partition_id)
         partition_id = self.validate_partition_id(partition_id, content_type)
         try:
-            self.r(await self.get_offsets(topic, partition_id), content_type)
+            KafkaRest.r(await self.get_offsets(topic, partition_id), content_type)
+        except TopicAuthorizationFailedError:
+            KafkaRest.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
         except UnknownTopicOrPartitionError as e:
             # Do a topics request on failure, figure out faster ways once we get correctness down
             metadata = await self.cluster_metadata()
             if topic not in metadata["topics"]:
-                self.not_found(
+                KafkaRest.not_found(
                     message=f"Topic {topic} not found: {e}",
                     content_type=content_type,
                     sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value,
                 )
-            self.not_found(
+            KafkaRest.not_found(
                 message=f"Partition {partition_id} not found: {e}",
                 content_type=content_type,
                 sub_code=RESTErrorCodes.PARTITION_NOT_FOUND.value,
@@ -778,4 +1071,4 @@ class KafkaRest(KarapaceBase):
         metadata = await self.cluster_metadata()
         metadata = metadata.copy()  # shallow copy as we want to mutate it
         metadata.pop("topics")
-        self.r(metadata, content_type)
+        KafkaRest.r(metadata, content_type)

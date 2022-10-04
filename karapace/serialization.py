@@ -115,7 +115,7 @@ class SchemaRegistryClient:
         await self.client.close()
 
 
-class SchemaRegistrySerializerDeserializer:
+class SchemaRegistrySerializer:
     def __init__(
         self,
         config: dict,
@@ -192,6 +192,36 @@ class SchemaRegistrySerializerDeserializer:
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema_typed
         return schema_typed
+
+    async def serialize(self, schema: TypedSchema, value: dict) -> bytes:
+        schema_id = self.schemas_to_ids[schema.__str__()]
+        with io.BytesIO() as bio:
+            bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
+            try:
+                write_value(self.config, schema, bio, value)
+                return bio.getvalue()
+            except ProtobufTypeException as e:
+                raise InvalidMessageSchema("Object does not fit to stored schema") from e
+            except avro.errors.AvroTypeException as e:
+                raise InvalidMessageSchema("Object does not fit to stored schema") from e
+
+    async def deserialize(self, bytes_: bytes) -> dict:
+        with io.BytesIO(bytes_) as bio:
+            byte_arr = bio.read(HEADER_SIZE)
+            # we should probably check for compatibility here
+            start_byte, schema_id = struct.unpack(HEADER_FORMAT, byte_arr)
+            if start_byte != START_BYTE:
+                raise InvalidMessageHeader("Start byte is %x and should be %x" % (start_byte, START_BYTE))
+            try:
+                schema = await self.get_schema_for_id(schema_id)
+                if schema is None:
+                    raise InvalidPayload("No schema with ID from payload")
+                ret_val = read_value(self.config, schema, bio)
+                return ret_val
+            except (UnicodeDecodeError, TypeError) as e:
+                raise InvalidPayload("Data does not contain a valid message") from e
+            except avro.errors.SchemaResolutionException as e:
+                raise InvalidPayload("Data cannot be decoded with provided schema") from e
 
 
 def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
@@ -302,37 +332,3 @@ def write_value(config: dict, schema: TypedSchema, bio: io.BytesIO, value: dict)
 
     else:
         raise ValueError("Unknown schema type")
-
-
-class SchemaRegistrySerializer(SchemaRegistrySerializerDeserializer):
-    async def serialize(self, schema: TypedSchema, value: dict) -> bytes:
-        schema_id = self.schemas_to_ids[schema.__str__()]
-        with io.BytesIO() as bio:
-            bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
-            try:
-                write_value(self.config, schema, bio, value)
-                return bio.getvalue()
-            except ProtobufTypeException as e:
-                raise InvalidMessageSchema("Object does not fit to stored schema") from e
-            except avro.errors.AvroTypeException as e:
-                raise InvalidMessageSchema("Object does not fit to stored schema") from e
-
-
-class SchemaRegistryDeserializer(SchemaRegistrySerializerDeserializer):
-    async def deserialize(self, bytes_: bytes) -> dict:
-        with io.BytesIO(bytes_) as bio:
-            byte_arr = bio.read(HEADER_SIZE)
-            # we should probably check for compatibility here
-            start_byte, schema_id = struct.unpack(HEADER_FORMAT, byte_arr)
-            if start_byte != START_BYTE:
-                raise InvalidMessageHeader("Start byte is %x and should be %x" % (start_byte, START_BYTE))
-            try:
-                schema = await self.get_schema_for_id(schema_id)
-                if schema is None:
-                    raise InvalidPayload("No schema with ID from payload")
-                ret_val = read_value(self.config, schema, bio)
-                return ret_val
-            except (UnicodeDecodeError, TypeError) as e:
-                raise InvalidPayload("Data does not contain a valid message") from e
-            except avro.errors.SchemaResolutionException as e:
-                raise InvalidPayload("Data cannot be decoded with provided schema") from e
