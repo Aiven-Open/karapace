@@ -2619,6 +2619,17 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     subject = create_subject_name_factory("test_schema_hard_delete_and_recreate")()
     schema_name = create_schema_name_factory("test_schema_hard_delete_and_recreate")()
 
+    # Deleting non-existing gives valid error message
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
     res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
     schema = {
@@ -2662,6 +2673,17 @@ async def test_schema_hard_delete_and_recreate(registry_async_client: Client) ->
     # Hard delete whole schema
     res = await registry_async_client.delete(f"subjects/{subject}?permanent=true")
     assert res.status_code == 200
+
+    # Deleting non-existing gives valid error message
+    res = await registry_async_client.delete(f"subjects/{subject}")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
 
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 404
