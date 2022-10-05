@@ -9,23 +9,24 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
+from typing import List, Optional
 
 
 class ProtoFileElement:
     def __init__(
         self,
         location: Location,
-        package_name: str = None,
-        syntax: Syntax = None,
-        imports: list = None,
-        public_imports: list = None,
-        types=None,
-        services: list = None,
-        extend_declarations: list = None,
-        options: list = None,
+        package_name: Optional[str] = None,
+        syntax: Optional[Syntax] = None,
+        imports: Optional[list] = None,
+        public_imports: Optional[list] = None,
+        types: Optional[List[TypeElement]] = None,
+        services: Optional[list] = None,
+        extend_declarations: Optional[list] = None,
+        options: Optional[list] = None,
     ) -> None:
         if types is None:
-            types = []
+            types = list()
         self.location = location
         self.package_name = package_name
         self.syntax = syntax
