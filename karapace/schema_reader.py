@@ -10,15 +10,17 @@ from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.config import Config
-from karapace.errors import InvalidSchema
+from karapace.dependency import Dependency
+from karapace.errors import InvalidReferences, InvalidSchema, ReferencesNotSupportedException
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_references import References
 from karapace.statsd import StatsClient
 from karapace.typing import SubjectData
-from karapace.utils import KarapaceKafkaClient
+from karapace.utils import KarapaceKafkaClient, reference_key
 from threading import Condition, Event, Lock, Thread
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import json
 import logging
@@ -27,6 +29,7 @@ Offset = int
 Subject = str
 Version = int
 Schema = Dict[str, Any]
+Referents = List
 SchemaId = int
 
 # The value `0` is a valid offset and it represents the first message produced
@@ -36,7 +39,6 @@ LOG = logging.getLogger(__name__)
 
 KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS = 2.0
 SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS = 5.0
-
 
 # Metric names
 METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT = "karapace_schema_reader_records_processed"
@@ -137,6 +139,7 @@ class KafkaSchemaReader(Thread):
         self.config = config
         self.subjects: Dict[Subject, SubjectData] = {}
         self.schemas: Dict[int, TypedSchema] = {}
+        self.referenced_by: Dict[str, Referents] = {}
         self.global_schema_id = 0
         self.admin_client: Optional[KafkaAdminClient] = None
         self.topic_replication_factor = self.config["replication_factor"]
@@ -375,7 +378,6 @@ class KafkaSchemaReader(Thread):
             if subject not in self.subjects:
                 LOG.info("Adding first version of subject: %r with no schemas", subject)
                 self.subjects[subject] = {"schemas": {}}
-
             if not value:
                 LOG.info("Deleting compatibility config completely for subject: %r", subject)
                 self.subjects[subject].pop("compatibility", None)
@@ -428,6 +430,7 @@ class KafkaSchemaReader(Thread):
         schema_id = value["id"]
         schema_version = value["version"]
         schema_deleted = value.get("deleted", False)
+        schema_references = value.get("references", None)
 
         try:
             schema_type_parsed = SchemaType(schema_type)
@@ -449,7 +452,10 @@ class KafkaSchemaReader(Thread):
                 return
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
-                parsed_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, schema_str)
+                resolved_references, resolved_dependencies = self.resolve_schema_references(value)
+                parsed_schema = ValidatedTypedSchema.parse(
+                    SchemaType.PROTOBUF, schema_str, resolved_references, resolved_dependencies
+                )
                 schema_str = str(parsed_schema)
             except InvalidSchema:
                 LOG.exception("Schema is not valid ProtoBuf definition")
@@ -465,21 +471,34 @@ class KafkaSchemaReader(Thread):
             # dedup schemas to reduce memory pressure
             schema_str = self._hash_to_schema.setdefault(hash(schema_str), schema_str)
 
-            if schema_version in subjects_schemas:
-                LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-            else:
-                LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-
             typed_schema = TypedSchema(
                 schema_type=schema_type_parsed,
                 schema_str=schema_str,
+                references=schema_references,
             )
-            subjects_schemas[schema_version] = {
+            schema = {
                 "schema": typed_schema,
                 "version": schema_version,
                 "id": schema_id,
                 "deleted": schema_deleted,
             }
+            if schema_references:
+                schema["references"] = schema_references
+
+            if schema_version in subjects_schemas:
+                LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+            else:
+                LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+
+            subjects_schemas[schema_version] = schema
+            if schema_references:
+                for ref in schema_references:
+                    ref_str = reference_key(ref["subject"], ref["version"])
+                    referents = self.referenced_by.get(ref_str, None)
+                    if referents:
+                        referents.append(schema_id)
+                    else:
+                        self.referenced_by[ref_str] = [schema_id]
 
             self.schemas[schema_id] = typed_schema
             self.global_schema_id = max(self.global_schema_id, schema_id)
@@ -532,3 +551,62 @@ class KafkaSchemaReader(Thread):
                 selected_schemas = [schema for schema in selected_schemas if schema.get("deleted", False) is False]
             res_schemas[subject] = selected_schemas
         return res_schemas
+
+    def remove_referenced_by(self, schema_id: SchemaId, references: List):
+        for ref in references:
+            key = reference_key(ref["subject"], ref["version"])
+            if self.referenced_by.get(key, None) and schema_id in self.referenced_by[key]:
+                self.referenced_by[key].remove(schema_id)
+
+    def resolve_references(self, references: Optional["References"] = None) -> Optional[Dict[str, Dependency]]:
+        if references is None:
+            return None
+        dependencies = dict()
+
+        for r in references.val():
+            subject = r["subject"]
+            version = r["version"]
+            name = r["name"]
+            subject_data = self.subjects.get(subject)
+            if subject_data is not None:
+                schema_data = subject_data["schemas"][version]
+                schema_references, schema_dependencies = self.resolve_schema_references(schema_data)
+            else:
+                raise InvalidReferences
+
+            parsed_schema = ValidatedTypedSchema.parse(
+                schema_type=schema_data["schema"].schema_type,
+                schema_str=schema_data["schema"].schema_str,
+                references=schema_references,
+                dependencies=schema_dependencies,
+            )
+            dependencies[name] = Dependency(name, subject, version, parsed_schema)
+        return dependencies
+
+    def resolve_schema_references(
+        self, schema_data: Optional[dict]
+    ) -> Tuple[Optional[References], Optional[Dict[str, Dependency]]]:
+
+        if schema_data is None:
+            raise InvalidSchema
+
+        schema_references = schema_data.get("references")
+        if schema_references is None:
+            return None, None
+
+        schema_type = schema_data.get("schemaType")
+        if schema_type is None:
+            schema = schema_data.get("schema")
+            if schema is None:
+                raise InvalidReferences
+            if isinstance(schema, TypedSchema):
+                schema_type = schema.schema_type
+            else:
+                schema_type = None
+        if schema_type != SchemaType.PROTOBUF:
+            raise ReferencesNotSupportedException
+
+        schema_references = References(schema_type, schema_references)
+        schema_dependencies = self.resolve_references(schema_references)
+
+        return schema_references, schema_dependencies

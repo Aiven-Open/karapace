@@ -25,6 +25,10 @@ class ProtobufTypeException(Error):
     """Generic Protobuf type error."""
 
 
+class ProtobufUnresolvedDependencyException(ProtobufException):
+    """a Protobuf schema has unresolved dependency"""
+
+
 class SchemaParseException(ProtobufException):
     """Error while parsing a Protobuf schema descriptor."""
 

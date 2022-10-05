@@ -1434,6 +1434,17 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject_3}' not found."
 
+    schema_str = json.dumps({"type": "string"})
+    # Create the subject
+    subject_1 = subject_name_factory()
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}/versions",
+        json={"schema": schema_str, "references": [{"name": "Customer.avro", "subject": "customer", "version": 1}]},
+    )
+    assert res.status_code == 422
+    assert res.json()["error_code"] == 44302
+    assert res.json()["message"] == "Schema references are not supported for 'AVRO' schema type"
+
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> None:

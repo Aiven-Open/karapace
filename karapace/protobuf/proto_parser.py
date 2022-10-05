@@ -25,7 +25,7 @@ from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.syntax_reader import SyntaxReader
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import MAX_TAG_VALUE
-from typing import List, Union
+from typing import List, Optional, Union
 
 
 class Context(Enum):
@@ -71,13 +71,13 @@ class ProtoParser:
     def __init__(self, location: Location, data: str) -> None:
         self.location = location
         self.imports: List[str] = []
-        self.nested_types: List[str] = []
+        self.nested_types: List[TypeElement] = []
         self.services: List[str] = []
         self.extends_list: List[str] = []
         self.options: List[str] = []
         self.declaration_count = 0
-        self.syntax: Union[Syntax, None] = None
-        self.package_name: Union[str, None] = None
+        self.syntax: Optional[Syntax] = None
+        self.package_name: Optional[str] = None
         self.prefix = ""
         self.data = data
         self.public_imports: List[str] = []
@@ -176,7 +176,6 @@ class ProtoParser:
             import_string = self.reader.read_string()
             if import_string == "public":
                 self.public_imports.append(self.reader.read_string())
-
             else:
                 self.imports.append(import_string)
             self.reader.require(";")
