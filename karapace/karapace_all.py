@@ -60,9 +60,8 @@ def main() -> int:
     try:
         # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
         app.run()
-    except Exception:  # pylint: disable-broad-except
-        if app.raven_client:
-            app.raven_client.captureException(tags={"where": "karapace"})
+    except Exception as ex:  # pylint: disable-broad-except
+        app.stats.unexpected_exception(ex=ex, where="karapace")
         raise
     return 0
 
