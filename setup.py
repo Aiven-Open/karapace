@@ -38,6 +38,7 @@ setup(
         # compression algorithms supported by KafkaConsumer
         "lz4": ["lz4"],
         "zstd": ["python-zstandard"],
+        "sentry-sdk": ["sentry-sdk>=1.6.0"],
     },
     dependency_links=[],
     package_data={},

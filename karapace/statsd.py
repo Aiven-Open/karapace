@@ -9,11 +9,11 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from contextlib import contextmanager
+from karapace.sentry import get_sentry_client
 from typing import Any, Dict, Iterator, Optional
 
 import datetime
 import logging
-import os
 import socket
 import time
 
@@ -23,58 +23,17 @@ LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
-    def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, sentry_config: Dict = None) -> None:
-        self.sentry_config: Dict
-
-        if sentry_config is None:
-            self.sentry_config = {
-                "dsn": os.environ.get("SENTRY_DSN"),
-                "tags": {},
-            }
-        else:
-            self.sentry_config = sentry_config.copy()
-        self.update_sentry_config(
-            {
-                "ignore_exceptions": [
-                    "ClientConnectorError",  # aiohttp
-                    "ClientPayloadError",  # aiohttp
-                    "ConnectionRefusedError",  # kafka (asyncio)
-                    "ConnectionResetError",  # kafka, requests
-                    "IncompleteReadError",  # kafka (asyncio)
-                    "ServerDisconnectedError",  # aiohttp
-                    "ServerTimeoutError",  # aiohttp
-                    "TimeoutError",  # kafka
-                ]
-            }
-        )
+    def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, config: Optional[Dict[str, str]] = None) -> None:
         self._dest_addr = (host, port)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags = self.sentry_config.get("tags", {})
+        self._tags = config.get("tags", {})
+        self.sentry_client = get_sentry_client(sentry_config=config.get("sentry", None))
 
     @contextmanager
     def timing_manager(self, metric: str, tags: Optional[Dict] = None) -> Iterator[None]:
         start_time = time.monotonic()
         yield
         self.timing(metric, time.monotonic() - start_time, tags)
-
-    def update_sentry_config(self, config: Dict) -> None:
-        new_config = self.sentry_config.copy()
-        new_config.update(config)
-        if new_config == self.sentry_config:
-            return
-
-        self.sentry_config = new_config
-        if self.sentry_config.get("dsn"):
-            try:
-                # Lazy-load raven as this file is loaded by a lot of tools
-                import raven  # pylint: disable=import-outside-toplevel
-
-                self.raven_client = raven.Client(**self.sentry_config)
-            except ImportError:
-                self.raven_client = None
-                LOG.warning("Cannot enable Sentry.io sending: importing 'raven' failed")
-        else:
-            self.raven_client = None
 
     def gauge(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
         self._send(metric, b"g", value, tags)
@@ -85,18 +44,15 @@ class StatsClient:
     def timing(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
         self._send(metric, b"ms", value, tags)
 
-    def unexpected_exception(
-        self, ex: Exception, where: str, tags: Optional[Dict] = None, *, elapsed: Optional[float] = None
-    ) -> None:
+    def unexpected_exception(self, ex: Exception, where: str, tags: Optional[Dict] = None) -> None:
         all_tags = {
             "exception": ex.__class__.__name__,
             "where": where,
         }
         all_tags.update(tags or {})
         self.increase("exception", tags=all_tags)
-        if self.raven_client:
-            raven_tags = {**(tags or {}), "where": where}
-            self.raven_client.captureException(tags=raven_tags, time_spent=elapsed)
+        scope_args = {**(tags or {}), "where": where}
+        self.sentry_client.unexpected_exception(error=ex, where=where, tags=scope_args)
 
     def _send(self, metric: str, metric_type: bytes, value: Any, tags: Optional[Dict]) -> None:
         if None in self._dest_addr:
@@ -129,3 +85,4 @@ class StatsClient:
 
     def close(self) -> None:
         self._socket.close()
+        self.sentry_client.close()
