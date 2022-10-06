@@ -379,6 +379,15 @@ async def test_compatibility_to_non_existent_schema_version_returns_404(registry
             },
         ],
     }
+
+    # Test compatibility returns 404 not found for non-existing subject
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/1",
+        json={"schema": json.dumps(schema), "schemaType": "AVRO"},
+    )
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
+
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
         json={"schema": json.dumps(schema)},
@@ -390,16 +399,25 @@ async def test_compatibility_to_non_existent_schema_version_returns_404(registry
     assert res.status_code == 200
     assert res.json() == 1
 
-    # Hard delete
-    res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
-    assert res.status_code == 200
-
-    # Test compatibility returns 404
+    # Check compatibility after subject has only soft-deleted version schemas
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/1",
         json={"schema": json.dumps(schema), "schemaType": "AVRO"},
     )
     assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
+
+    # Hard delete
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/1?permanent=true")
+    assert res.status_code == 200
+
+    # Test compatibility returns 404 again
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/1",
+        json={"schema": json.dumps(schema), "schemaType": "AVRO"},
+    )
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40402
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
