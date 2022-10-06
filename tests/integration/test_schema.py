@@ -1256,6 +1256,33 @@ async def test_schema_types(registry_async_client: Client, trail: str) -> None:
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_schema_list_endpoint(registry_async_client: Client, trail: str) -> None:
+    """Test schema endpoint list"""
+    subject = create_subject_name_factory(f"test_schema_subject_list_endpoint-{trail}")()
+    unique_field_factory = create_field_name_factory(trail)
+
+    unique = unique_field_factory()
+    schema_str = json.dumps({"type": "string", "unique": unique})
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    res = await registry_async_client.get("schemas")
+    assert res.status_code == 200
+    result_json = res.json()
+    assert len(result_json) == 1
+    schema_data = result_json[0]
+    assert schema_data.get("id") == schema_id
+    assert schema_data.get("subject") == subject
+    assert schema_data.get("version") == 1
+    assert schema_data.get("schema") == schema_str
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
     """ "
     Repost same schema again to see that a new id is not generated but an old one is given back
