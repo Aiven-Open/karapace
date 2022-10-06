@@ -362,18 +362,20 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         schemas = await self.schema_registry.schemas_list(include_deleted=deleted, latest_only=latest_only)
         response_schemas = []
-        for subject, schema in schemas.items():
+        for subject, schema_data in schemas.items():
             if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue
-            response_schemas.append(
-                {
-                    "subject": subject,
-                    "version": schema["version"],
-                    "id": schema["id"],
-                    "schemaType": schema.get("schemaType", "AVRO"),
-                    "schema": schema["schema"].schema_str,
-                }
-            )
+            for schema in schema_data:
+                response_schemas.append(
+                    {
+                        "subject": subject,
+                        "version": schema["version"],
+                        "id": schema["id"],
+                        "schemaType": schema.get("schemaType", "AVRO"),
+                        "schema": schema["schema"].schema_str,
+                    }
+                )
+
         self.r(
             body=response_schemas,
             content_type=content_type,
