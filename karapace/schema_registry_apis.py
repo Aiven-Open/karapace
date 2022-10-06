@@ -310,10 +310,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             old = await self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
             self._invalid_version(content_type, version)
-        except SubjectNotFoundException:
-            # If subject is not found there is no previous schema. New schema is compatible.
-            self.r({"is_compatible": True}, content_type)
-        except (VersionNotFoundException, SchemasNotFoundException):
+        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,

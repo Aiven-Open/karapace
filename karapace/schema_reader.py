@@ -413,6 +413,9 @@ class KafkaSchemaReader(Thread):
         else:
             LOG.info("Hard delete: subject: %r version: %r", subject, version)
             self.subjects[subject]["schemas"].pop(version, None)
+            if not self.subjects[subject]["schemas"]:
+                LOG.info("Hard delete last version, subject %r is gone", subject)
+                del self.subjects[subject]
 
     def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
         if not value:
