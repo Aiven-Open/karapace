@@ -310,10 +310,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             old = await self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
             self._invalid_version(content_type, version)
-        except SubjectNotFoundException:
-            # If subject is not found there is no previous schema. New schema is compatible.
-            self.r({"is_compatible": True}, content_type)
-        except (VersionNotFoundException, SchemasNotFoundException):
+        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
@@ -613,6 +610,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             try:
                 version_list = await self.schema_registry.subject_delete_local(subject=subject, permanent=permanent)
                 self.r(version_list, content_type, status=HTTPStatus.OK)
+            except (SubjectNotFoundException, SchemasNotFoundException):
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                        "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
             except SubjectNotSoftDeletedException:
                 self.r(
                     body={
@@ -681,7 +687,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             try:
                 resolved_version = await self.schema_registry.subject_version_delete_local(subject, version, permanent)
                 self.r(str(resolved_version), content_type, status=HTTPStatus.OK)
-            except SubjectNotFoundException:
+            except (SubjectNotFoundException, SchemasNotFoundException):
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
