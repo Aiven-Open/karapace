@@ -71,24 +71,6 @@ schema_protobuf = """
 """
 schema_protobuf = trim_margin(schema_protobuf)
 
-schema_protobuf2 = """
-|syntax = "proto3";
-|
-|option java_package = "com.codingharbour.protobuf";
-|option java_outer_classname = "TestEnumOrder";
-|
-|message Message {
-|  int32 query = 1;
-|}
-|enum Enum {
-|  HIGH = 0;
-|  MIDDLE = 1;
-|  LOW = 2;
-|}
-|
-"""
-schema_protobuf2 = trim_margin(schema_protobuf2)
-
 test_objects_protobuf = [
     {"query": 5, "speed": "HIGH"},
     {"query": 10, "speed": "MIDDLE"},
