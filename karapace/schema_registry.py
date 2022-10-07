@@ -294,7 +294,8 @@ class KarapaceSchemaRegistry:
             "id": schema_id,
             "schema": schema.schema_str,
         }
-
+        if schema.references is not None:
+            ret["references"] = schema.references
         if schema.schema_type is not SchemaType.AVRO:
             ret["schemaType"] = schema.schema_type
         # Return also compatibility information to compatibility check

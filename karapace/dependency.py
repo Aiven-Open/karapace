@@ -11,6 +11,9 @@ class Dependency:
         self.version = version
         self.schema = schema
 
+    def get_schema(self) -> "ValidatedTypedSchema":
+        return self.schema
+
     def identifier(self) -> str:
         return self.name + "_" + self.subject + "_" + str(self.version)
 
