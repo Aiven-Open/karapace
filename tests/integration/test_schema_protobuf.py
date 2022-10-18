@@ -170,16 +170,19 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
 
 
 async def test_protobuf_schema_references(registry_async_client: Client) -> None:
-
     customer_schema = """
                 |syntax = "proto3";
                 |package a1;
                 |import "Place.proto";
+                |import "google/protobuf/duration.proto";
+                |import "google/type/color.proto";
                 |message Customer {
                 |        string name = 1;
                 |        int32 code = 2;
                 |        Place place = 3;
-                |}
+                |        google.protobuf.Duration dur = 4;
+                |        google.type.Color color = 5;
+                |}                
                 |"""
 
     customer_schema = trim_margin(customer_schema)
@@ -258,7 +261,6 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     res = await registry_async_client.get("subjects/place/versions/latest/referencedby", json={})
     assert res.status_code == 200
 
-    myjson = res.json()
     res = await registry_async_client.delete("subjects/customer/versions/1")
     assert res.status_code == 404
 
@@ -271,6 +273,119 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
 
     res = await registry_async_client.delete("subjects/customer/versions/1")
     assert res.status_code == 200
+
+
+async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> None:
+    no_ref = """
+             |syntax = "proto3";
+             |
+             |message NoReference {
+             |    string name = 1;
+             |}
+             |"""
+
+    no_ref = trim_margin(no_ref)
+    res = await registry_async_client.post("subjects/sub1/versions", json={"schemaType": "PROTOBUF", "schema": no_ref})
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+
+    with_first_ref = """
+                |syntax = "proto3";
+                |
+                |import "NoReference.proto";
+                |
+                |message WithReference {
+                |    string name = 1;
+                |    NoReference ref = 2;
+                |}"""
+
+    with_first_ref = trim_margin(with_first_ref)
+    references = [{"name": "NoReference.proto", "subject": "sub1", "version": 1}]
+
+    res = await registry_async_client.post(
+        "subjects/sub2/versions",
+        json={"schemaType": "PROTOBUF", "schema": with_first_ref, "references": references},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    no_ref_second = """
+                    |syntax = "proto3";
+                    |
+                    |message NoReferenceTwo {
+                    |    string name = 1;
+                    |}
+                    |"""
+
+    no_ref_second = trim_margin(no_ref_second)
+    res = await registry_async_client.post(
+        "subjects/sub3/versions", json={"schemaType": "PROTOBUF", "schema": no_ref_second}
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    add_new_ref_in_sub2 = """
+                             |syntax = "proto3";
+                             |import "NoReference.proto";
+                             |import "NoReferenceTwo.proto";
+                             |message WithReference {
+                             |    string name = 1;
+                             |    NoReference ref = 2;
+                             |    NoReferenceTwo refTwo = 3;
+                             |}
+                             |"""
+
+    add_new_ref_in_sub2 = trim_margin(add_new_ref_in_sub2)
+
+    references = [
+        {"name": "NoReference.proto", "subject": "sub1", "version": 1},
+        {"name": "NoReferenceTwo.proto", "subject": "sub3", "version": 1},
+    ]
+
+    res = await registry_async_client.post(
+        "subjects/sub2/versions",
+        json={"schemaType": "PROTOBUF", "schema": add_new_ref_in_sub2, "references": references},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+
+async def test_protobuf_schema_jjaakola_two(registry_async_client: Client) -> None:
+    no_ref = """
+             |syntax = "proto3";
+             |
+             |message NoReference {
+             |    string name = 1;
+             |}
+             |"""
+
+    no_ref = trim_margin(no_ref)
+    res = await registry_async_client.post("subjects/sub1/versions", json={"schemaType": "PROTOBUF", "schema": no_ref})
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    with_first_ref = """
+                |syntax = "proto3";
+                |
+                |import "NoReference.proto";
+                |
+                |message WithReference {
+                |    string name = 1;
+                |    NoReference ref = 2;
+                |}"""
+
+    with_first_ref = trim_margin(with_first_ref)
+    references = [{"name": "NoReference.proto", "subject": "sub1", "version": 1}]
+    res = await registry_async_client.post(
+        "subjects/sub2/versions",
+        json={"schemaType": "PROTOBUF", "schema": with_first_ref, "references": references},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    res = await registry_async_client.delete("subjects/subject2/versions/1")
+    assert res.status_code == 404
 
 
 async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:

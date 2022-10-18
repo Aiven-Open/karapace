@@ -1,5 +1,4 @@
 # Ported from square/wire:
-# Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Schema.kt
 # Ported partially for required functionality.
 from karapace.dependency import Dependency, DependencyVerifierResult
