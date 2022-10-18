@@ -127,6 +127,8 @@ class KnownDependency:
                 cls.index[item] = key
                 dot = item.rfind(".")
                 cls.index_simple[item[dot + 1 :]] = key
+                cls.index_simple[item] = key
+                cls.index_simple[item[1:]] = key
 
 
 @static_init

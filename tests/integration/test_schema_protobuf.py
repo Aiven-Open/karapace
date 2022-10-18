@@ -182,7 +182,7 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
                 |        Place place = 3;
                 |        google.protobuf.Duration dur = 4;
                 |        google.type.Color color = 5;
-                |}                
+                |}
                 |"""
 
     customer_schema = trim_margin(customer_schema)
@@ -289,7 +289,6 @@ async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> No
     assert res.status_code == 200
     assert "id" in res.json()
 
-
     with_first_ref = """
                 |syntax = "proto3";
                 |
@@ -384,7 +383,11 @@ async def test_protobuf_schema_jjaakola_two(registry_async_client: Client) -> No
     assert res.status_code == 200
     assert "id" in res.json()
 
-    res = await registry_async_client.delete("subjects/subject2/versions/1")
+    res = await registry_async_client.delete("subjects/sub2/versions/1")
+    assert res.status_code == 200
+    res = await registry_async_client.get("subjects/sub2/versions/1")
+    assert res.status_code == 404
+    res = await registry_async_client.delete("subjects/sub2/versions/1")
     assert res.status_code == 404
 
 

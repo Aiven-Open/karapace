@@ -222,12 +222,14 @@ class KarapaceSchemaRegistry:
 
             return version_list
 
-    async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> ResolvedVersion:
+    async def subject_version_delete_local(self, subject: Subject, version: Version,
+                                           permanent: bool) -> ResolvedVersion:
         async with self.schema_lock:
             subject_data = self.subject_get(subject, include_deleted=True)
             if not permanent and isinstance(version, str) and version == "latest":
                 subject_data["schemas"] = {
-                    key: value for (key, value) in subject_data["schemas"].items() if value.get("deleted", False) is False
+                    key: value for (key, value) in subject_data["schemas"].items() if
+                    value.get("deleted", False) is False
                 }
             resolved_version = _resolve_version(subject_data=subject_data, version=version)
             subject_schema_data = subject_data["schemas"].get(resolved_version, None)
@@ -247,17 +249,20 @@ class KarapaceSchemaRegistry:
 
             schema_id = subject_schema_data["id"]
             schema = subject_schema_data["schema"]
-            references = subject_schema_data.get("references", None)
+            references_list = subject_schema_data.get("references", None)
+            references = None
+            if references_list:
+                references = References(schema.schema_type, references_list)
             self.send_schema_message(
                 subject=subject,
                 schema=None if permanent else schema,
                 schema_id=schema_id,
                 version=resolved_version,
                 deleted=True,
-                references=None,
+                references=references
             )
-            if references and len(references) > 0:
-                self.schema_reader.remove_referenced_by(schema_id, references)
+            if references_list and len(references_list) > 0:
+                self.schema_reader.remove_referenced_by(schema_id, references_list)
             return resolved_version
 
     def subject_get(self, subject: Subject, include_deleted: bool = False) -> SubjectData:
@@ -273,7 +278,8 @@ class KarapaceSchemaRegistry:
         subject_data["schemas"] = schemas
         return subject_data
 
-    async def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> SubjectData:
+    async def subject_version_get(self, subject: Subject, version: Version, *,
+                                  include_deleted: bool = False) -> SubjectData:
         validate_version(version)
         subject_data = self.subject_get(subject, include_deleted=include_deleted)
         if not subject_data:
@@ -304,10 +310,10 @@ class KarapaceSchemaRegistry:
         return ret
 
     async def write_new_schema_local(
-        self,
-        subject: Subject,
-        new_schema: ValidatedTypedSchema,
-        new_schema_references: Optional[References],
+            self,
+            subject: Subject,
+            new_schema: ValidatedTypedSchema,
+            new_schema_references: Optional[References],
     ) -> int:
         """Write new schema and return new id or return id of matching existing schema
 
@@ -474,14 +480,14 @@ class KarapaceSchemaRegistry:
         return future
 
     def send_schema_message(
-        self,
-        *,
-        subject: Subject,
-        schema: Optional[TypedSchema],
-        schema_id: int,
-        version: int,
-        deleted: bool,
-        references: Optional[References],
+            self,
+            *,
+            subject: Subject,
+            schema: Optional[TypedSchema],
+            schema_id: int,
+            version: int,
+            deleted: bool,
+            references: Optional[References],
     ) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
             {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"},
@@ -504,7 +510,7 @@ class KarapaceSchemaRegistry:
         return self.send_kafka_message(key, value)
 
     def send_config_message(
-        self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None
+            self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None
     ) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
             {
@@ -541,6 +547,6 @@ class KarapaceSchemaRegistry:
         return self.schema_reader.resolve_references(references)
 
     def resolve_schema_references(
-        self, schema_data: Optional[dict]
+            self, schema_data: Optional[dict]
     ) -> Tuple[Optional[References], Optional[Dict[str, Dependency]]]:
         return self.schema_reader.resolve_schema_references(schema_data)

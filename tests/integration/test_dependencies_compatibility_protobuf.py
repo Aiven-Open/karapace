@@ -4,13 +4,11 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
-from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.client import Client
+from karapace.protobuf.kotlin_wrapper import trim_margin
 from tests.utils import create_subject_name_factory
 
-import logging
 import pytest
-
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -20,8 +18,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
-
-    original_dependencies ="""
+    original_dependencies = """
             |syntax = "proto3";
             |package a1;
             |message container {
@@ -73,11 +70,8 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
 
     original_references = [{"name": "container1.proto", "subject": "container1", "version": 1}]
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": original_schema,
-            "references": original_references
-        },
+        f"subjects/{subject}/versions{trail}",
+        json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -99,11 +93,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     evolved_references = [{"name": "container2.proto", "subject": "container2", "version": 1}]
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
-        json={
-            "schemaType": "PROTOBUF",
-            "schema": evolved_schema,
-            "references": evolved_references
-        },
+        json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
     assert res.json() == {"is_compatible": True}
@@ -116,8 +106,7 @@ async def test_protobuf_schema_compatibility2(registry_async_client: Client, tra
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
-
-    original_dependencies ="""
+    original_dependencies = """
             |syntax = "proto3";
             |package a1;
             |message container {
@@ -169,11 +158,8 @@ async def test_protobuf_schema_compatibility2(registry_async_client: Client, tra
 
     original_references = [{"name": "container1.proto", "subject": "container1", "version": 1}]
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={
-            "schemaType": "PROTOBUF",
-            "schema": original_schema,
-            "references": original_references
-        },
+        f"subjects/{subject}/versions{trail}",
+        json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -195,17 +181,7 @@ async def test_protobuf_schema_compatibility2(registry_async_client: Client, tra
     evolved_references = [{"name": "container2.proto", "subject": "container2", "version": 1}]
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest{trail}",
-        json={
-            "schemaType": "PROTOBUF",
-            "schema": evolved_schema,
-            "references": evolved_references
-        },
+        json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
-    assert res.json() == {
-        "is_compatible": False
-    }
-
-
-
-
+    assert res.json() == {"is_compatible": False}
