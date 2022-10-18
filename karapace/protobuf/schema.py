@@ -222,4 +222,9 @@ class ProtobufSchema:
         return "".join(strings)
 
     def compare(self, other: "ProtobufSchema", result: CompareResult) -> CompareResult:
-        self.proto_file_element.compare(other.proto_file_element, result)
+        return self.proto_file_element.compare(
+            other.proto_file_element,
+            result,
+            self.dependencies,
+            other.dependencies,
+        )

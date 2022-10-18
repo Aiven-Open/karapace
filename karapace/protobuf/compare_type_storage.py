@@ -2,12 +2,12 @@ from dataclasses import dataclass
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.proto_type import ProtoType
-from karapace.protobuf.type_element import TypeElement
 from typing import Dict, List, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from karapace.protobuf.field_element import FieldElement
     from karapace.protobuf.message_element import MessageElement
+    from karapace.protobuf.type_element import TypeElement
 
 
 def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
@@ -35,15 +35,15 @@ def compute_name(t: ProtoType, result_path: List[str], package_name: str, types:
 class CompareTypes:
     def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult) -> None:
 
-        self.self_package_name = self_package_name
-        self.other_package_name = other_package_name
+        self.self_package_name = self_package_name or ""
+        self.other_package_name = other_package_name or ""
         self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.locked_messages: List["MessageElement"] = []
         self.environment: List["MessageElement"] = []
         self.result = result
 
-    def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict) -> None:
+    def add_a_type(self, prefix: str, package_name: str, type_element: "TypeElement", types: dict) -> None:
         name: str
         if prefix:
             name = prefix + "." + type_element.name
@@ -65,10 +65,10 @@ class CompareTypes:
         for t in type_element.nested_types:
             self.add_a_type(name, package_name, t, types)
 
-    def add_self_type(self, package_name: str, type_element: TypeElement) -> None:
+    def add_self_type(self, package_name: str, type_element: "TypeElement") -> None:
         self.add_a_type(package_name, package_name, type_element, self.self_types)
 
-    def add_other_type(self, package_name: str, type_element: TypeElement) -> None:
+    def add_other_type(self, package_name: str, type_element: "TypeElement") -> None:
         self.add_a_type(package_name, package_name, type_element, self.other_types)
 
     def get_self_type(self, t: ProtoType) -> Union[None, "TypeRecord", "TypeRecordMap"]:
@@ -119,12 +119,12 @@ class CompareTypes:
 @dataclass
 class TypeRecord:
     package_name: str
-    type_element: TypeElement
+    type_element: "TypeElement"
 
 
 class TypeRecordMap(TypeRecord):
     def __init__(
-        self, package_name: str, type_element: TypeElement, key: Optional["FieldElement"], value: Optional["FieldElement"]
+        self, package_name: str, type_element: "TypeElement", key: Optional["FieldElement"], value: Optional["FieldElement"]
     ) -> None:
         super().__init__(package_name, type_element)
         self.key = key
