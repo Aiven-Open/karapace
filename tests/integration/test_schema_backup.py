@@ -8,7 +8,7 @@ from kafka import KafkaConsumer
 from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.key_format import is_key_in_canonical_format
-from karapace.schema_backup import SchemaBackup, serialize_schema_message
+from karapace.schema_backup import SchemaBackup, serialize_record
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
@@ -51,7 +51,7 @@ async def test_backup_get(
         }
     )
     sb = SchemaBackup(config, str(backup_location))
-    sb.export(serialize_schema_message)
+    sb.export(serialize_record)
 
     # The backup file has been created
     assert os.path.exists(backup_location)
@@ -66,6 +66,43 @@ async def test_backup_get(
             assert len(data) == 2
 
     assert lines == 1
+
+
+async def test_backup_restore_and_get_non_schema_topic(
+    kafka_servers: KafkaServers,
+    tmp_path: Path,
+) -> None:
+    test_topic_name = new_random_name("non-schemas")
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "topic_name": test_topic_name,
+        }
+    )
+
+    # Restore from backup
+    test_data_path = Path("tests/integration/test_data/")
+    restore_location = test_data_path / "test_restore_non_schema_topic_v2.log"
+    sb = SchemaBackup(config, str(restore_location))
+    sb.restore_backup()
+
+    # Get the backup
+    backup_location = tmp_path / "non_schemas_topic.log"
+    sb = SchemaBackup(config, str(backup_location))
+    sb.export(serialize_record)
+    # The backup file has been created
+    assert os.path.exists(backup_location)
+
+    restore_file_content = None
+    with open(restore_location, "r", encoding="utf8") as fp:
+        restore_file_content = fp.read()
+    backup_file_content = None
+    with open(backup_location, "r", encoding="utf8") as fp:
+        backup_file_content = fp.read()
+    assert restore_file_content is not None
+    assert backup_file_content is not None
+    assert restore_file_content == backup_file_content
 
 
 def _assert_canonical_key_format(
@@ -86,7 +123,6 @@ def _assert_canonical_key_format(
     while raw_msgs:
         for _, messages in raw_msgs.items():
             for message in messages:
-                print(message)
                 key = json.loads(message.key)
                 assert is_key_in_canonical_format(key), f"Not in canonical format: {key}"
         raw_msgs = consumer.poll()
