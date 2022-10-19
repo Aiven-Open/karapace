@@ -40,9 +40,9 @@ repos:
     rev: v4.1.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^vendor/|^tests/.*/fixtures/.*
+        exclude: ^vendor/|^tests/.*/fixtures/.*|^tests/integration/test_data/.*
       - id: end-of-file-fixer
-        exclude: ^vendor/|^tests/.*/fixtures/.*
+        exclude: ^vendor/|^tests/.*/fixtures/.*|^tests/integration/test_data/.*
       - id: debug-statements
 
   # https://pre-commit.com/#repository-local-hooks
