@@ -99,8 +99,13 @@ class ProtoFileElement:
     def __repr__(self) -> str:
         return self.to_schema()
 
-    def compare(self, other: "ProtoFileElement", result: CompareResult) -> CompareResult:
-
+    def compare(
+        self,
+        other: "ProtoFileElement",
+        result: CompareResult,
+        self_dependency_types: Optional[List[TypeElement]] = None,
+        other_dependency_types: Optional[List[TypeElement]] = None,
+    ) -> CompareResult:
         if self.package_name != other.package_name:
             result.add_modification(Modification.PACKAGE_ALTER)
         # TODO: do we need syntax check?
@@ -124,6 +129,22 @@ class ProtoFileElement:
             other_indexes[type_.name] = i
             package_name = other.package_name or ""
             compare_types.add_other_type(package_name, type_)
+
+        # If there are dependencies declared, add the types for both.
+        if self_dependency_types:
+            for i, type_ in enumerate(self_dependency_types):
+                package_name = ""
+
+                self_types[type_.name] = type_
+                self_indexes[type_.name] = i
+                compare_types.add_self_type(package_name, type_)
+
+        if other_dependency_types:
+            for i, type_ in enumerate(other_dependency_types):
+                package_name = ""
+                other_types[type_.name] = type_
+                other_indexes[type_.name] = i
+                compare_types.add_other_type(package_name, type_)
 
         for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
 

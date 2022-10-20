@@ -3,11 +3,12 @@ from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
+from karapace.dependency import Dependency
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
-from karapace.schema_models import InvalidSchema, References, SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import InvalidSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.utils import json_encode
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 import asyncio
@@ -76,7 +77,7 @@ class SchemaRegistryClient:
         self.base_url = schema_registry_url
 
     async def post_new_schema(
-        self, subject: str, schema: ValidatedTypedSchema, references: Optional[References] = None
+        self, subject: str, schema: ValidatedTypedSchema, references: Optional[Dependency] = None
     ) -> int:
         if schema.schema_type is SchemaType.PROTOBUF:
             if references:
@@ -105,7 +106,7 @@ class SchemaRegistryClient:
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
-    async def get_schema_for_id(self, schema_id: int) -> Tuple[ValidatedTypedSchema, Optional[References]]:
+    async def get_schema_for_id(self, schema_id: int) -> Tuple[ValidatedTypedSchema, Optional[List[Dependency]]]:
         result = await self.client.get(f"schemas/ids/{schema_id}")
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
@@ -116,6 +117,7 @@ class SchemaRegistryClient:
             schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
             references_str = json_result.get("references")
             if references_str:
+                # FIXME: Way to resolve the references?
                 references = References(schema_type, references_str)
             else:
                 references = None

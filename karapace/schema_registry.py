@@ -22,7 +22,7 @@ from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.schema_references import References
+from karapace.schema_references import Reference
 from karapace.typing import ResolvedVersion, Subject, SubjectData, Version
 from karapace.utils import json_encode, KarapaceKafkaClient, reference_key
 from typing import Dict, List, Optional, Tuple, Union
@@ -306,7 +306,7 @@ class KarapaceSchemaRegistry:
         self,
         subject: Subject,
         new_schema: ValidatedTypedSchema,
-        new_schema_references: Optional[References],
+        new_schema_references: Optional[List[Dependency]],
     ) -> int:
         """Write new schema and return new id or return id of matching existing schema
 
@@ -368,18 +368,8 @@ class KarapaceSchemaRegistry:
 
                 for old_version in check_against:
                     old_schema = subject_data["schemas"][old_version]["schema"]
-                    old_schema_references, old_schema_dependencies = self.resolve_schema_references(
-                        subject_data["schemas"][old_version],
-                    )
-
-                    validated_old_schema = ValidatedTypedSchema.parse(
-                        schema_type=old_schema.schema_type,
-                        schema_str=old_schema.schema_str,
-                        references=old_schema_references,
-                        dependencies=old_schema_dependencies,
-                    )
                     result = check_compatibility(
-                        old_schema=validated_old_schema,
+                        old_schema=old_schema,
                         new_schema=new_schema,
                         compatibility_mode=compatibility_mode,
                     )
@@ -480,7 +470,7 @@ class KarapaceSchemaRegistry:
         schema_id: int,
         version: int,
         deleted: bool,
-        references: Optional[References],
+        references: Optional[List[Dependency]],
     ) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
             {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"},
@@ -494,7 +484,7 @@ class KarapaceSchemaRegistry:
                 "deleted": deleted,
             }
             if references:
-                valuedict["references"] = references.val()
+                valuedict["references"] = [reference.to_dict() for reference in references]
             if schema.schema_type is not SchemaType.AVRO:
                 valuedict["schemaType"] = schema.schema_type
             value = json_encode(valuedict)
@@ -536,10 +526,19 @@ class KarapaceSchemaRegistry:
         value = '{{"subject":"{}","version":{}}}'.format(subject, version)
         return self.send_kafka_message(key, value)
 
-    def resolve_references(self, references: Optional["References"] = None) -> Optional[Dict[str, Dependency]]:
-        return self.schema_reader.resolve_references(references)
+    def resolve_references(self, references: Optional[List[Reference]]) -> Optional[List[Dependency]]:
+        if references:
+            return self.schema_reader.resolve_references(references)
+        return None
 
-    def resolve_schema_references(
-        self, schema_data: Optional[dict]
-    ) -> Tuple[Optional[References], Optional[Dict[str, Dependency]]]:
-        return self.schema_reader.resolve_schema_references(schema_data)
+
+#    def resolve_references(self, references: Optional["References"] = None) -> Optional[Dict[str, Dependency]]:
+#        return self.schema_reader.resolve_references(references)
+
+#    def resolve_schema_references(
+#        self, schema_data: Optional[dict]
+#    ) -> Tuple[Optional[References], Optional[Dict[str, Dependency]]]:
+#        LOG.error("FROM REGISTRY", stack_info=True)
+#        res = self.schema_reader.resolve_schema_references(schema_data)
+#        LOG.error("FROM REGISTRY DONE")
+#        return res

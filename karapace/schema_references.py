@@ -1,27 +1,30 @@
-from karapace.schema_type import SchemaType
-from karapace.typing import JsonData
-from karapace.utils import json_encode
+from karapace.typing import JsonData, Subject, Version
 from typing import Any
 
 
-class References:
-    def __init__(self, schema_type: SchemaType, references: JsonData):
-        """Schema with type information
+class Reference:
+    def __init__(self, name: str, subject: Subject, version: Version):
+        self.name = name
+        self.subject = subject
+        self.version = version
 
-        Args:
-            schema_type (SchemaType): The type of the schema
-            references (str): The original schema string
-        """
-        self.schema_type = schema_type
-        self.references = references
+    def identifier(self) -> str:
+        return self.name + "_" + self.subject + "_" + str(self.version)
 
-    def val(self) -> JsonData:
-        return self.references
+    def to_dict(self) -> JsonData:
+        return {
+            "name": self.name,
+            "subject": self.subject,
+            "version": self.version,
+        }
 
-    def json(self) -> str:
-        return str(json_encode(self.references, sort_keys=True))
+    def __repr__(self) -> str:
+        return f"{{name='{self.name}', subject='{self.subject}', version={self.version}}}"
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.subject, self.version))
 
     def __eq__(self, other: Any) -> bool:
-        if other is None or not isinstance(other, References):
+        if other is None or not isinstance(other, Reference):
             return False
-        return self.json() == other.json()
+        return self.name == other.name and self.subject == other.subject and self.version == other.version

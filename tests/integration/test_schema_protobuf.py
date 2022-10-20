@@ -4,9 +4,14 @@ karapace - schema tests
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from dataclasses import dataclass
 from karapace.client import Client
 from karapace.protobuf.kotlin_wrapper import trim_margin
+from karapace.schema_type import SchemaType
+from karapace.typing import JsonData
+from tests.base_testcase import BaseTestCase
 from tests.utils import create_subject_name_factory
+from typing import List, Optional, Union
 
 import logging
 import pytest
@@ -175,10 +180,14 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
                 |syntax = "proto3";
                 |package a1;
                 |import "Place.proto";
+                |import "google/protobuf/duration.proto";
+                |import "google/type/color.proto";
                 |message Customer {
                 |        string name = 1;
                 |        int32 code = 2;
                 |        Place place = 3;
+                |        google.protobuf.Duration dur = 4;
+                |        google.type.Color color = 5;
                 |}
                 |"""
 
@@ -260,9 +269,9 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
 
     myjson = res.json()
     res = await registry_async_client.delete("subjects/customer/versions/1")
-    assert res.status_code == 404
+    assert res.status_code == 422
 
-    match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}"
+    match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}."
     myjson = res.json()
     assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
 
@@ -334,8 +343,8 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
     assert not any(x != y for x, y in zip(myjson, referents))
 
     res = await registry_async_client.delete("subjects/customer/versions/1")
-    assert res.status_code == 404
-    match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}"
+    assert res.status_code == 422
+    match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}."
     myjson = res.json()
     assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
 
@@ -344,3 +353,500 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
 
     res = await registry_async_client.delete("subjects/customer/versions/1")
     assert res.status_code == 200
+
+
+@dataclass
+class TestCaseSchema:
+    schema_type: SchemaType
+    schema_str: str
+    subject: str
+    references: Optional[List[JsonData]] = None
+    expected: int = 200
+    expected_msg: str = ""
+    expected_error_code: Optional[int] = None
+
+
+TestCaseSchema.__test__ = False
+
+
+@dataclass
+class TestCaseDeleteSchema:
+    subject: str
+    version: int
+    schema_id: int
+    expected: int = 200
+    expected_msg: str = ""
+    expected_error_code: Optional[int] = None
+
+
+TestCaseDeleteSchema.__test__ = False
+
+
+@dataclass
+class ReferenceTestCase(BaseTestCase):
+    schemas: List[Union[TestCaseSchema, TestCaseDeleteSchema]]
+
+
+# Base case
+SCHEMA_NO_REF = """\
+syntax = "proto3";
+
+message NoReference {
+  string name = 1;
+}
+"""
+
+SCHEMA_NO_REF_TWO = """\
+syntax = "proto3";
+
+message NoReferenceTwo {
+  string name = 1;
+}
+"""
+
+SCHEMA_WITH_REF = """\
+syntax = "proto3";
+
+import "NoReference.proto";
+
+message WithReference {
+  string name = 1;
+  NoReference ref = 2;
+}
+"""
+
+SCHEMA_WITH_2ND_LEVEL_REF = """\
+syntax = "proto3";
+
+import "WithReference.proto";
+
+message With2ndLevelReference {
+  string name = 1;
+  WithReference ref = 2;
+}
+"""
+
+SCHEMA_REMOVES_REFERENCED_FIELD_INCOMPATIBLE = """\
+syntax = "proto3";
+
+message WithReference {
+  string name = 1;
+}
+"""
+
+SCHEMA_ADDS_NEW_REFERENCE = """\
+syntax = "proto3";
+
+import "NoReference.proto";
+import "NoReferenceTwo.proto";
+
+message WithReference {
+  string name = 1;
+  NoReference ref = 2;
+  NoReferenceTwo refTwo = 3;
+}
+"""
+
+# Invalid schema
+SCHEMA_INVALID_MISSING_CLOSING_BRACE = """\
+syntax = "proto3";
+
+import "NoReference.proto";
+
+message SchemaMissingClosingBrace {
+  string name = 1;
+  NoReference ref = 2;
+
+"""
+
+# Schema having multiple messages
+SCHEMA_NO_REF_TWO_MESSAGES = """\
+syntax = "proto3";
+
+message NoReferenceOne {
+  string nameOne = 1;
+}
+
+message NoReferenceTwo {
+  string nameTwo = 1;
+}
+"""
+
+SCHEMA_WITH_REF_TO_NO_REFERENCE_TWO = """\
+syntax = "proto3";
+
+import "NoReferenceTwo.proto";
+
+message WithReference {
+  string name = 1;
+  NoReferenceTwo ref = 2;
+}
+"""
+
+
+# Nested references
+SCHEMA_NO_REF_NESTED_MESSAGE = """\
+syntax = "proto3";
+
+message NoReference {
+  message NoReferenceNested {
+    string nameNested = 1;
+  }
+  string name = 1;
+  NoReferenceNested ref = 2;
+}
+"""
+
+SCHEMA_WITH_REF_TO_NESTED = """\
+syntax = "proto3";
+
+import "NoReferenceNested.proto";
+
+message WithReference {
+  string name = 1;
+  NoReference.NoReferenceNested ref = 2;
+}
+"""
+
+
+@pytest.mark.parametrize(
+    "testcase",
+    [
+        ReferenceTestCase(
+            test_name="No references",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="nr_s1",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="nr_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=200,
+                ),
+            ],
+        ),
+        # Better error message should be given back, now it is only InvalidSchema
+        ReferenceTestCase(
+            test_name="With reference, ref schema does not exist",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_nonexisting_s1",
+                    references=[{"name": "NoReference.proto", "subject": "wr_not_found", "version": 1}],
+                    expected=422,
+                    expected_msg=(
+                        f"Invalid schema {SCHEMA_WITH_REF} "
+                        "with refs [{name='NoReference.proto', subject='wr_not_found', version=1}] of type PROTOBUF"
+                    ),
+                    expected_error_code=42201,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference, references not given",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_nonexisting_s1_missing_references",
+                    references=[],
+                    expected=422,
+                    expected_msg=f"Invalid schema {SCHEMA_WITH_REF} with refs [] of type PROTOBUF",
+                    expected_error_code=42201,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_s1",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_s2",
+                    references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=422,
+                    expected_msg=(
+                        "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=wr_s1,version=1}."
+                    ),
+                    expected_error_code=42206,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=200,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference, remove referenced field causes incompatible schema",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_s1_test_incompatible_change",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_s2_test_incompatible_change",
+                    references=[{"name": "NoReference.proto", "subject": "wr_s1_test_incompatible_change", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_REMOVES_REFERENCED_FIELD_INCOMPATIBLE,
+                    subject="wr_s2_test_incompatible_change",
+                    references=[],
+                    expected=409,
+                    expected_msg=(
+                        "Incompatible schema, compatibility_mode=BACKWARD "
+                        "Incompatible modification Modification.MESSAGE_DROP found"
+                    ),
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference, add new referenced field",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_s1_add_new_reference",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_s2_add_new_reference",
+                    references=[{"name": "NoReference.proto", "subject": "wr_s1_add_new_reference", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF_TWO,
+                    subject="wr_s3_the_new_reference",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_ADDS_NEW_REFERENCE,
+                    subject="wr_s2_add_new_reference",
+                    references=[
+                        {"name": "NoReference.proto", "subject": "wr_s1_add_new_reference", "version": 1},
+                        {"name": "NoReferenceTwo.proto", "subject": "wr_s3_the_new_reference", "version": 1},
+                    ],
+                    expected=200,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference chain, nonexisting schema",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_chain_s1",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_chain_s2",
+                    references=[
+                        {"name": "NoReference.proto", "subject": "wr_chain_s1", "version": 1},
+                        {"name": "NotFoundReference.proto", "subject": "wr_chain_nonexisting", "version": 1},
+                    ],
+                    expected=422,
+                    expected_msg=(
+                        f"Invalid schema {SCHEMA_WITH_REF} "
+                        "with refs [{name='NoReference.proto', subject='wr_chain_s1', version=1}, "
+                        "{name='NotFoundReference.proto', subject='wr_chain_nonexisting', version=1}] "
+                        "of type PROTOBUF"
+                    ),
+                    expected_error_code=42201,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference chain",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_chain_s1",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_chain_s2",
+                    references=[{"name": "NoReference.proto", "subject": "wr_chain_s1", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_2ND_LEVEL_REF,
+                    subject="wr_chain_s3",
+                    references=[{"name": "WithReference.proto", "subject": "wr_chain_s2", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_chain_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=422,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_chain_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=422,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_chain_s3",
+                    schema_id=3,
+                    version=1,
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_chain_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_chain_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=200,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="Invalid schema missing closing brace",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_invalid_reference_ok_schema",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_INVALID_MISSING_CLOSING_BRACE,
+                    subject="wr_invalid_missing_closing_brace",
+                    references=[{"name": "NoReference.proto", "subject": "wr_invalid_reference_ok_schema", "version": 1}],
+                    expected=422,
+                    expected_msg=(
+                        f"Invalid schema {SCHEMA_INVALID_MISSING_CLOSING_BRACE} "
+                        "with refs [{name='NoReference.proto', subject='wr_invalid_reference_ok_schema', version=1}] "
+                        "of type PROTOBUF"
+                    ),
+                    expected_error_code=42201,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference to message from schema file defining two messages",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF_TWO_MESSAGES,
+                    subject="wr_s1_two_messages",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF_TO_NO_REFERENCE_TWO,
+                    subject="wr_s2_referencing_message_two",
+                    references=[{"name": "NoReferenceTwo.proto", "subject": "wr_s1_two_messages", "version": 1}],
+                    expected=200,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="With reference to nested message",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF_NESTED_MESSAGE,
+                    subject="wr_s1_with_nested_message",
+                    references=[],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF_TO_NESTED,
+                    subject="wr_s2_referencing_nested_message",
+                    references=[{"name": "NoReference.proto", "subject": "wr_s1_with_nested_message", "version": 1}],
+                    expected=200,
+                ),
+            ],
+        ),
+    ],
+    ids=str,
+)
+async def test_references(testcase: ReferenceTestCase, registry_async_client: Client):
+    for testdata in testcase.schemas:
+        if isinstance(testdata, TestCaseSchema):
+            print(f"Adding new schema, subject: '{testdata.subject}'\n{testdata.schema_str}")
+            body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
+            if testdata.references:
+                body["references"] = testdata.references
+            res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+        elif isinstance(testdata, TestCaseDeleteSchema):
+            print(f"Deleting schema, subject: '{testdata.subject}', version: {testdata.version}")
+            res = await registry_async_client.delete(f"subjects/{testdata.subject}/versions/{testdata.version}")
+        else:
+            raise Exception("Unknown test case.")
+        assert res.status_code == testdata.expected
+        if testdata.expected_msg:
+            assert res.json_result.get("message", None) == testdata.expected_msg
+        if testdata.expected_error_code:
+            assert res.json_result.get("error_code") == testdata.expected_error_code
+        if isinstance(testdata, TestCaseSchema):
+            if testdata.expected == 200:
+                schema_id = res.json().get("id")
+                fetch_schema_res = await registry_async_client.get(f"/schemas/ids/{schema_id}")
+                assert fetch_schema_res.status_code == 200
+        if isinstance(testdata, TestCaseDeleteSchema):
+            if testdata.expected == 200:
+                fetch_res = await registry_async_client.get(f"/subjects/{testdata.subject}/versions/{testdata.version}")
+                assert fetch_res.status_code == 404
+            else:
+                fetch_schema_res = await registry_async_client.get(f"/schemas/ids/{testdata.schema_id}")
+                assert fetch_schema_res.status_code == 200
