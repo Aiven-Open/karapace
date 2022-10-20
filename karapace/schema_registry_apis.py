@@ -8,9 +8,12 @@ from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import Config
 from karapace.errors import (
     IncompatibleSchema,
+    InvalidReferences,
     InvalidSchema,
     InvalidSchemaType,
     InvalidVersion,
+    ReferenceExistsException,
+    ReferencesNotSupportedException,
     SchemasNotFoundException,
     SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
@@ -25,6 +28,7 @@ from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
 from karapace.typing import JsonData
+from karapace.utils import reference_key
 from typing import Any, Dict, Optional, Union
 
 import aiohttp
@@ -51,6 +55,9 @@ class SchemaErrorCodes(Enum):
     INVALID_SCHEMA = 42201
     INVALID_SUBJECT = 42208
     SCHEMA_TOO_LARGE_ERROR_CODE = 42209
+    INVALID_REFERENCES = 44301
+    REFERENCES_SUPPORT_NOT_IMPLEMENTED = 44302
+    REFERENCE_EXISTS = 42206
     NO_MASTER_ERROR = 50003
 
 
@@ -63,6 +70,7 @@ class SchemaErrorMessages(Enum):
         "full_transitive"
     )
     SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT = "Subject '%s' does not have subject-level compatibility configured"
+    REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
 
 
 class KarapaceSchemaRegistryController(KarapaceBase):
@@ -227,6 +235,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             auth=self._auth,
         )
         self.route(
+            "/subjects/<subject:path>/versions/<version>/referencedby",
+            callback=self.subject_version_referencedby_get,
+            method="GET",
+            schema_request=True,
+        )
+        self.route(
             "/subjects/<subject:path>",
             callback=self.subject_delete,
             method="DELETE",
@@ -296,7 +310,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         body = request.json
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         try:
-            new_schema = ValidatedTypedSchema.parse(schema_type, body["schema"])
+            new_schema_references, new_schema_dependencies = self.schema_registry.resolve_schema_references(body)
+            new_schema = ValidatedTypedSchema.parse(
+                schema_type=schema_type,
+                schema_str=body["schema"],
+                references=new_schema_references,
+                dependencies=new_schema_dependencies,
+            )
         except InvalidSchema:
             self.r(
                 body={
@@ -322,7 +342,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
         try:
-            old_schema = ValidatedTypedSchema.parse(old_schema_type, old["schema"])
+            old_schema_references, old_schema_dependencies = self.schema_registry.resolve_schema_references(old)
+            old_schema = ValidatedTypedSchema.parse(
+                schema_type=old_schema_type,
+                schema_str=old["schema"],
+                references=old_schema_references,
+                dependencies=old_schema_dependencies,
+            )
         except InvalidSchema:
             self.r(
                 body={
@@ -639,6 +665,19 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     content_type=content_type,
                     status=HTTPStatus.NOT_FOUND,
                 )
+
+            except ReferenceExistsException as arg:
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.REFERENCE_EXISTS.value,
+                        "message": (
+                            f"One or more references exist to the schema "
+                            f"{{magic=1,keytype=SCHEMA,subject={subject},version={arg.version}}}"
+                        ),
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
         elif not master_url:
             self.no_master_error(content_type)
         else:
@@ -730,6 +769,18 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     content_type=content_type,
                     status=HTTPStatus.NOT_FOUND,
                 )
+            except ReferenceExistsException as arg:
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.REFERENCE_EXISTS.value,
+                        "message": (
+                            f"One or more references exist to the schema "
+                            f"{{magic=1,keytype=SCHEMA,subject={subject},version={arg.version}}}"
+                        ),
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
         elif not master_url:
             self.no_master_error(content_type)
         else:
@@ -765,9 +816,41 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
+    async def subject_version_referencedby_get(self, content_type, *, subject, version, user: Optional[User] = None):
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
+
+        try:
+            subject_data = await self.schema_registry.subject_version_get(subject, version)
+        except (SubjectNotFoundException, SchemasNotFoundException):
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+        except VersionNotFoundException:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
+                    "message": f"Version {version} not found.",
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+        except InvalidVersion:
+            self._invalid_version(content_type, version)
+
+        referenced_by = self.schema_registry.schema_reader.referenced_by.get(
+            reference_key(subject_data["subject"], subject_data["version"]), []
+        )
+        self.r(list(referenced_by), content_type, status=HTTPStatus.OK)
+
     async def subject_versions_list(
         self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
     ) -> None:
+
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:
@@ -806,12 +889,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
-        for attr in body:
-            if attr not in {"schema", "schemaType"}:
+        for field in body:
+            if field not in {"schema", "schemaType", "references"}:
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                        "message": f"Unrecognized field: {attr}",
+                        "message": f"Unrecognized field: {field}",
                     },
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -862,7 +945,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
-        new_schema = None
+
         if "schema" not in body:
             self.r(
                 body={
@@ -874,8 +957,39 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
         schema_str = body["schema"]
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
+
         try:
-            new_schema = ValidatedTypedSchema.parse(schema_type, schema_str)
+            new_schema_references, new_schema_dependencies = self.schema_registry.resolve_schema_references(body)
+            new_schema = ValidatedTypedSchema.parse(
+                schema_type=schema_type,
+                schema_str=schema_str,
+                references=new_schema_references,
+                dependencies=new_schema_dependencies,
+            )
+            for schema in subject_data["schemas"].values():
+                validated_typed_schema = ValidatedTypedSchema.parse(
+                    schema["schema"].schema_type, schema["schema"].schema_str
+                )
+                if schema_type is SchemaType.JSONSCHEMA:
+                    schema_valid = validated_typed_schema.to_dict() == new_schema.to_dict()
+                else:
+                    schema_valid = validated_typed_schema.schema == new_schema.schema
+                if (
+                    validated_typed_schema.schema_type == new_schema.schema_type
+                    and schema_valid
+                    and schema.get("references", None) == new_schema_references
+                ):
+                    ret = {
+                        "subject": subject,
+                        "version": schema["version"],
+                        "id": schema["id"],
+                        "schema": validated_typed_schema.schema_str,
+                    }
+                    if schema_type is not SchemaType.AVRO:
+                        ret["schemaType"] = schema_type
+                    self.r(ret, content_type)
+                else:
+                    self.log.debug("Schema %r did not match %r", schema, validated_typed_schema)
         except InvalidSchema:
             self.log.exception("No proper parser found")
             self.r(
@@ -885,6 +999,27 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 },
                 content_type=content_type,
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+        except ReferencesNotSupportedException:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value,
+                    "message": SchemaErrorMessages.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value.format(
+                        schema_type=schema_type.value
+                    ),
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        except InvalidReferences:
+            human_error = "Provided references is not valid"
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_REFERENCES.value,
+                    "message": f"Invalid {schema_type} references. Error: {human_error}",
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
         # Match schemas based on version from latest to oldest
@@ -906,6 +1041,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 self.r(ret, content_type)
             else:
                 self.log.debug("Schema %r did not match %r", schema, validated_typed_schema)
+
         self.r(
             body={
                 "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
@@ -928,7 +1064,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._validate_schema_key(content_type, body)
 
         try:
-            new_schema = ValidatedTypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
+            new_schema_references, new_schema_dependencies = self.schema_registry.resolve_schema_references(body)
+            new_schema = ValidatedTypedSchema.parse(
+                schema_type=schema_type,
+                schema_str=body["schema"],
+                references=new_schema_references,
+                dependencies=new_schema_dependencies,
+            )
         except (InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
             if isinstance(e.__cause__, (SchemaParseException, json.JSONDecodeError)):
@@ -939,6 +1081,27 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 body={
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Invalid {schema_type} schema. Error: {human_error}",
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        except ReferencesNotSupportedException:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value,
+                    "message": SchemaErrorMessages.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value.format(
+                        schema_type=schema_type.value
+                    ),
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        except InvalidReferences:
+            human_error = "Provided references is not valid"
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_REFERENCES.value,
+                    "message": f"Invalid {schema_type} references. Error: {human_error}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -959,7 +1122,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
             try:
-                schema_id = await self.schema_registry.write_new_schema_local(subject, new_schema)
+                schema_id = await self.schema_registry.write_new_schema_local(subject, new_schema, new_schema_references)
                 self.r(
                     body={"id": schema_id},
                     content_type=content_type,

@@ -1,6 +1,5 @@
 from avro.errors import SchemaParseException
 from avro.schema import parse as avro_parse, Schema as AvroSchema
-from enum import Enum, unique
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
 from karapace.errors import InvalidSchema
@@ -10,9 +9,12 @@ from karapace.protobuf.exception import (
     IllegalStateException,
     ProtobufException,
     ProtobufParserRuntimeException,
+    ProtobufUnresolvedDependencyException,
     SchemaParseException as ProtobufSchemaParseException,
 )
-from karapace.protobuf.schema import ProtobufSchema
+from karapace.protobuf.schema import Dependency, ProtobufSchema
+from karapace.schema_references import References
+from karapace.schema_type import SchemaType
 from karapace.utils import json_encode
 from typing import Any, Dict, Optional, Union
 
@@ -49,36 +51,42 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     return Draft7Validator(schema)
 
 
-def parse_protobuf_schema_definition(schema_definition: str) -> ProtobufSchema:
+def parse_protobuf_schema_definition(
+    schema_definition: str, references: Optional[References] = None, dependencies: Optional[Dict[str, Dependency]] = None
+) -> ProtobufSchema:
     """Parses and validates `schema_definition`.
 
     Raises:
         Nothing yet.
 
     """
-
-    return ProtobufSchema(schema_definition)
-
-
-@unique
-class SchemaType(str, Enum):
-    AVRO = "AVRO"
-    JSONSCHEMA = "JSON"
-    PROTOBUF = "PROTOBUF"
+    protobuf_schema = ProtobufSchema(schema_definition, references, dependencies)
+    result = protobuf_schema.verify_schema_dependencies()
+    if not result.result:
+        raise ProtobufUnresolvedDependencyException(f"{result.message}")
+    return protobuf_schema
 
 
 class TypedSchema:
-    def __init__(self, schema_type: SchemaType, schema_str: str):
+    def __init__(
+        self,
+        schema_type: SchemaType,
+        schema_str: str,
+        references: Optional[References] = None,
+        dependencies: Optional[Dict[str, Dependency]] = None,
+    ):
         """Schema with type information
 
         Args:
             schema_type (SchemaType): The type of the schema
             schema_str (str): The original schema string
+            references(References): The references of schema
         """
         self.schema_type = schema_type
         self.schema_str = schema_str
+        self.references = references
+        self.dependencies = dependencies
         self.max_id: Optional[int] = None
-
         self._str_cached: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -97,17 +105,39 @@ class TypedSchema:
     def __repr__(self) -> str:
         return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
 
+    def get_references(self) -> Optional["References"]:
+        return self.references
+
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type
+        schema_is_equal = (
+            isinstance(other, TypedSchema) and self.schema_type is other.schema_type and self.__str__() == other.__str__()
+        )
+        if not schema_is_equal:
+            return False
+        if self.references is not None:
+            return self.references == other.references
+        return other.references is None
 
 
 class ValidatedTypedSchema(TypedSchema):
-    def __init__(self, schema_type: SchemaType, schema_str: str, schema: Union[Draft7Validator, AvroSchema, ProtobufSchema]):
-        super().__init__(schema_type=schema_type, schema_str=schema_str)
+    def __init__(
+        self,
+        schema_type: SchemaType,
+        schema_str: str,
+        schema: Union[Draft7Validator, AvroSchema, ProtobufSchema],
+        references: Optional["References"] = None,
+        dependencies: Optional[Dict[str, Dependency]] = None,
+    ):
+        super().__init__(schema_type=schema_type, schema_str=schema_str, references=references, dependencies=dependencies)
         self.schema = schema
 
     @staticmethod
-    def parse(schema_type: SchemaType, schema_str: str) -> "ValidatedTypedSchema":
+    def parse(
+        schema_type: SchemaType,
+        schema_str: str,
+        references: Optional["References"] = None,
+        dependencies: Optional[Dict[str, Dependency]] = None,
+    ) -> "ValidatedTypedSchema":
         if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
             raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
@@ -127,7 +157,7 @@ class ValidatedTypedSchema(TypedSchema):
 
         elif schema_type is SchemaType.PROTOBUF:
             try:
-                parsed_schema = parse_protobuf_schema_definition(schema_str)
+                parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies)
             except (
                 TypeError,
                 SchemaError,
@@ -143,7 +173,13 @@ class ValidatedTypedSchema(TypedSchema):
         else:
             raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
-        return ValidatedTypedSchema(schema_type=schema_type, schema_str=schema_str, schema=parsed_schema)
+        return ValidatedTypedSchema(
+            schema_type=schema_type,
+            schema_str=schema_str,
+            schema=parsed_schema,
+            references=references,
+            dependencies=dependencies,
+        )
 
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
