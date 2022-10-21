@@ -19,5 +19,8 @@ pre-commit>=2.2.0
 # performance test
 locust==2.9.0
 
+# Sentry SDK
+sentry-sdk==1.6.0
+
 # runtime requirements
 -r requirements.txt

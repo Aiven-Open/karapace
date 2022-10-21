@@ -240,7 +240,9 @@ class SchemaBackup:
             LOG.info("Schema export written to stdout")
         self.close()
 
-    def encode_key(self, key: Union[JsonData, str]) -> bytes:
+    def encode_key(self, key: Optional[Union[JsonData, str]]) -> bytes:
+        if not key:
+            return b""
         if not self.key_formatter:
             if isinstance(key, str):
                 return key.encode("utf8")
@@ -258,9 +260,13 @@ def encode_value(value: Union[JsonData, str]) -> Optional[bytes]:
     return json_encode(value, sort_keys=False, binary=True)
 
 
-def serialize_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
-    key = base64.b16encode(key_bytes).decode("utf8")
-    value = base64.b16encode(value_bytes).decode("utf8")
+def serialize_record(key_bytes: Optional[bytes], value_bytes: Optional[bytes]) -> str:
+    key = b""
+    if key_bytes is not None:
+        key = base64.b16encode(key_bytes).decode("utf8")
+    value = b""
+    if value_bytes is not None:
+        value = base64.b16encode(value_bytes).decode("utf8")
     return f"{key}\t{value}\n"
 
 
@@ -281,7 +287,7 @@ def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
     # The schemas topic contain all changes to schema metadata.
     if key.get("subject", None):
         key["subject"] = anonymize_avro.anonymize_name(key["subject"])
-    return serialize_schema_message(json.dumps(key).encode("utf8"), json.dumps(value).encode("utf8"))
+    return serialize_record(json.dumps(key).encode("utf8"), json.dumps(value).encode("utf8"))
 
 
 def parse_args():
@@ -310,7 +316,7 @@ def main() -> int:
     sb = SchemaBackup(config, args.location, args.topic)
 
     if args.command == "get":
-        sb.export(serialize_schema_message)
+        sb.export(serialize_record)
         return 0
     if args.command == "restore":
         sb.restore_backup()

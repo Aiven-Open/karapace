@@ -146,9 +146,7 @@ class KafkaSchemaReader(Thread):
         self.consumer: Optional[KafkaConsumer] = None
         self.offset_watcher = OffsetsWatcher()
         self.id_lock = Lock()
-        self.stats = StatsClient(
-            sentry_config=config.get("sentry"),  # type: ignore[arg-type]
-        )
+        self.stats = StatsClient(config=config)
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
@@ -417,6 +415,9 @@ class KafkaSchemaReader(Thread):
         else:
             LOG.info("Hard delete: subject: %r version: %r", subject, version)
             self.subjects[subject]["schemas"].pop(version, None)
+            if not self.subjects[subject]["schemas"]:
+                LOG.info("Hard delete last version, subject %r is gone", subject)
+                del self.subjects[subject]
 
     def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
         if not value:
