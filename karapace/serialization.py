@@ -4,11 +4,13 @@ from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
 from karapace.dependency import Dependency
+from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_models import InvalidSchema, SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_references import Reference
 from karapace.utils import json_encode
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
 import asyncio
@@ -106,7 +108,7 @@ class SchemaRegistryClient:
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
-    async def get_schema_for_id(self, schema_id: int) -> Tuple[ValidatedTypedSchema, Optional[List[Dependency]]]:
+    async def get_schema_for_id(self, schema_id: int) -> ValidatedTypedSchema:
         result = await self.client.get(f"schemas/ids/{schema_id}")
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
@@ -115,14 +117,18 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
             schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
-            references_str = json_result.get("references")
-            if references_str:
-                # FIXME: Way to resolve the references?
-                references = References(schema_type, references_str)
-            else:
-                references = None
+            references = json_result.get("references")
+            validated_references = None
             if references:
-                return ValidatedTypedSchema.parse(schema_type, json_result["schema"]), references
+                validated_references = []
+                for reference in references:
+                    if ["name", "subject", "version"] != sorted(reference.keys()):
+                        raise InvalidReferences()
+                    validated_references.append(
+                        Reference(name=reference["name"], subject=reference["subject"], version=reference["version"])
+                    )
+            if validated_references:
+                return ValidatedTypedSchema.parse(schema_type, json_result["schema"], references=validated_references)
             return ValidatedTypedSchema.parse(schema_type, json_result["schema"])
 
         except InvalidSchema as e:
