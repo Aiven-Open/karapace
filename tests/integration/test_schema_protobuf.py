@@ -271,6 +271,21 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     res = await registry_async_client.delete("subjects/test_schema/versions/1")
     assert res.status_code == 200
 
+    res = await registry_async_client.delete("subjects/test_schema/versions/1")
+    myjson = res.json()
+    match_msg = "Subject 'test_schema' Version 1 was soft deleted.Set permanent=true to delete permanently"
+    assert res.status_code == 404
+    assert myjson["error_code"] == 40406 and myjson["message"] == match_msg
+
+    res = await registry_async_client.delete("subjects/customer/versions/1")
+    myjson = res.json()
+    match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}"
+    assert res.status_code == 404
+    assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
+
+    res = await registry_async_client.delete("subjects/test_schema/versions/1?permanent=true")
+    assert res.status_code == 200
+
     res = await registry_async_client.delete("subjects/customer/versions/1")
     assert res.status_code == 200
 
@@ -458,6 +473,12 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
     assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
 
     res = await registry_async_client.delete("subjects/test_schema/versions/1")
+    assert res.status_code == 200
+
+    res = await registry_async_client.delete("subjects/customer/versions/1")
+    assert res.status_code == 404
+
+    res = await registry_async_client.delete("subjects/test_schema/versions/1?permanent=true")
     assert res.status_code == 200
 
     res = await registry_async_client.delete("subjects/customer/versions/1")
