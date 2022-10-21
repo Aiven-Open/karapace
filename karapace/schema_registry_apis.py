@@ -330,10 +330,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             old = await self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
             self._invalid_version(content_type, version)
-        except SubjectNotFoundException:
-            # If subject is not found there is no previous schema. New schema is compatible.
-            self.r({"is_compatible": True}, content_type)
-        except (VersionNotFoundException, SchemasNotFoundException):
+        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
@@ -391,18 +388,20 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         schemas = await self.schema_registry.schemas_list(include_deleted=deleted, latest_only=latest_only)
         response_schemas = []
-        for subject, schema in schemas.items():
+        for subject, schema_data in schemas.items():
             if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue
-            response_schemas.append(
-                {
-                    "subject": subject,
-                    "version": schema["version"],
-                    "id": schema["id"],
-                    "schemaType": schema.get("schemaType", "AVRO"),
-                    "schema": schema["schema"].schema_str,
-                }
-            )
+            for schema in schema_data:
+                response_schemas.append(
+                    {
+                        "subject": subject,
+                        "version": schema["version"],
+                        "id": schema["id"],
+                        "schemaType": schema.get("schemaType", "AVRO"),
+                        "schema": schema["schema"].schema_str,
+                    }
+                )
+
         self.r(
             body=response_schemas,
             content_type=content_type,
@@ -639,6 +638,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             try:
                 version_list = await self.schema_registry.subject_delete_local(subject=subject, permanent=permanent)
                 self.r(version_list, content_type, status=HTTPStatus.OK)
+            except (SubjectNotFoundException, SchemasNotFoundException):
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                        "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
             except SubjectNotSoftDeletedException:
                 self.r(
                     body={
@@ -720,7 +728,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             try:
                 resolved_version = await self.schema_registry.subject_version_delete_local(subject, version, permanent)
                 self.r(str(resolved_version), content_type, status=HTTPStatus.OK)
-            except SubjectNotFoundException:
+            except (SubjectNotFoundException, SchemasNotFoundException):
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
