@@ -254,7 +254,7 @@ class KarapaceSchemaRegistry:
                 schema_id=schema_id,
                 version=resolved_version,
                 deleted=True,
-                references=None,
+                references=references,
             )
             if references and len(references) > 0:
                 self.schema_reader.remove_referenced_by(schema_id, references)
@@ -530,15 +530,3 @@ class KarapaceSchemaRegistry:
         if references:
             return self.schema_reader.resolve_references(references)
         return None
-
-
-#    def resolve_references(self, references: Optional["References"] = None) -> Optional[Dict[str, Dependency]]:
-#        return self.schema_reader.resolve_references(references)
-
-#    def resolve_schema_references(
-#        self, schema_data: Optional[dict]
-#    ) -> Tuple[Optional[References], Optional[Dict[str, Dependency]]]:
-#        LOG.error("FROM REGISTRY", stack_info=True)
-#        res = self.schema_reader.resolve_schema_references(schema_data)
-#        LOG.error("FROM REGISTRY DONE")
-#        return res

@@ -278,6 +278,9 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     res = await registry_async_client.delete("subjects/test_schema/versions/1")
     assert res.status_code == 200
 
+    res = await registry_async_client.delete("subjects/test_schema/versions/1?permanent=true")
+    assert res.status_code == 200
+
     res = await registry_async_client.delete("subjects/customer/versions/1")
     assert res.status_code == 200
 
@@ -351,6 +354,9 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
     res = await registry_async_client.delete("subjects/test_schema/versions/1")
     assert res.status_code == 200
 
+    res = await registry_async_client.delete("subjects/test_schema/versions/1?permanent=true")
+    assert res.status_code == 200
+
     res = await registry_async_client.delete("subjects/customer/versions/1")
     assert res.status_code == 200
 
@@ -380,6 +386,11 @@ class TestCaseDeleteSchema:
 
 
 TestCaseDeleteSchema.__test__ = False
+
+
+@dataclass
+class TestCaseHardDeleteSchema(TestCaseDeleteSchema):
+    pass
 
 
 @dataclass
@@ -595,6 +606,12 @@ message WithReference {
                     version=1,
                     expected=200,
                 ),
+                TestCaseHardDeleteSchema(
+                    subject="wr_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=200,
+                ),
                 TestCaseDeleteSchema(
                     subject="wr_s1",
                     schema_id=1,
@@ -740,7 +757,19 @@ message WithReference {
                     version=1,
                     expected=200,
                 ),
+                TestCaseHardDeleteSchema(
+                    subject="wr_chain_s3",
+                    schema_id=3,
+                    version=1,
+                    expected=200,
+                ),
                 TestCaseDeleteSchema(
+                    subject="wr_chain_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=200,
+                ),
+                TestCaseHardDeleteSchema(
                     subject="wr_chain_s2",
                     schema_id=2,
                     version=1,
@@ -828,8 +857,18 @@ async def test_references(testcase: ReferenceTestCase, registry_async_client: Cl
             if testdata.references:
                 body["references"] = testdata.references
             res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+        elif isinstance(testdata, TestCaseHardDeleteSchema):
+            print(
+                f"Permanently deleting schema, subject: '{testdata.subject}, "
+                f"schema: {testdata.schema_id}, version: {testdata.version}' "
+            )
+            res = await registry_async_client.delete(
+                f"subjects/{testdata.subject}/versions/{testdata.version}?permanent=true"
+            )
         elif isinstance(testdata, TestCaseDeleteSchema):
-            print(f"Deleting schema, subject: '{testdata.subject}', version: {testdata.version}")
+            print(
+                f"Deleting schema, subject: '{testdata.subject}, schema: {testdata.schema_id}, version: {testdata.version}' "
+            )
             res = await registry_async_client.delete(f"subjects/{testdata.subject}/versions/{testdata.version}")
         else:
             raise Exception("Unknown test case.")

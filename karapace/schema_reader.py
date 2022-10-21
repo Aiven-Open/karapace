@@ -433,8 +433,7 @@ class KafkaSchemaReader(Thread):
         schema_version = value["version"]
         schema_deleted = value.get("deleted", False)
         schema_references = value.get("references", None)
-
-        resolved_references = None
+        resolved_references: Optional[List[Dependency]] = None
 
         try:
             schema_type_parsed = SchemaType(schema_type)
@@ -456,13 +455,11 @@ class KafkaSchemaReader(Thread):
                 return
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
-                references = None
                 if schema_references:
                     references = [
                         Reference(reference["name"], reference["subject"], reference["version"])
                         for reference in schema_references
                     ]
-                if references:
                     resolved_references = self.resolve_references(references)
                 parsed_schema = parse_protobuf_schema_definition(schema_str, resolved_references, validate_references=False)
                 schema_str = str(parsed_schema)
@@ -491,8 +488,8 @@ class KafkaSchemaReader(Thread):
                 "id": schema_id,
                 "deleted": schema_deleted,
             }
-            if schema_references:
-                schema["references"] = schema_references
+            if resolved_references:
+                schema["references"] = resolved_references
 
             if schema_version in subjects_schemas:
                 LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
@@ -500,9 +497,9 @@ class KafkaSchemaReader(Thread):
                 LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
 
             subjects_schemas[schema_version] = schema
-            if schema_references:
-                for ref in schema_references:
-                    ref_str = reference_key(ref["subject"], ref["version"])
+            if resolved_references:
+                for ref in resolved_references:
+                    ref_str = reference_key(ref.subject, ref.version)
                     referents = self.referenced_by.get(ref_str, None)
                     if referents:
                         referents.append(schema_id)
@@ -562,9 +559,9 @@ class KafkaSchemaReader(Thread):
             res_schemas[subject] = selected_schemas
         return res_schemas
 
-    def remove_referenced_by(self, schema_id: SchemaId, references: List):
+    def remove_referenced_by(self, schema_id: SchemaId, references: List[Reference]):
         for ref in references:
-            key = reference_key(ref["subject"], ref["version"])
+            key = reference_key(ref.subject, ref.version)
             if self.referenced_by.get(key, None) and schema_id in self.referenced_by[key]:
                 self.referenced_by[key].remove(schema_id)
 
@@ -612,12 +609,17 @@ class KafkaSchemaReader(Thread):
                 else:
                     schema_str = schema.get("schema").schema_str
                 schema_hash = hashlib.sha1(schema_str.encode("utf8")).hexdigest()
+                references = schema.get("references", None)
+                references_list = None
+                if references:
+                    references_list = [reference.to_dict() for reference in schema["references"]]
                 subject_state.append(
                     {
                         "id": schema_id,
                         "version": version,
                         "schema_hash": schema_hash,
-                        "references": schema.get("references"),
+                        "references": references_list,
+                        "deleted": schema.get("deleted", False),
                     }
                 )
         return json.dumps(state, sort_keys=True, indent=2)
