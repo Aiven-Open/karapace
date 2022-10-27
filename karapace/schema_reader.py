@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional
 
 import json
 import logging
+import time
 
 Offset = int
 Subject = str
@@ -176,6 +177,8 @@ class KafkaSchemaReader(Thread):
         # Metrics
         self.processed_canonical_keys_total = 0
         self.processed_deprecated_karapace_keys_total = 0
+        self.processed_messages = 0
+        self.processed_messages_since = time.monotonic()
 
     def get_schema_id(self, new_schema: TypedSchema) -> int:
         with self.id_lock:
@@ -273,6 +276,7 @@ class KafkaSchemaReader(Thread):
             schema_records_processed_keymode_canonical = 0
             schema_records_processed_keymode_deprecated_karapace = 0
             for msg in msgs:
+                self.processed_messages += 1
                 try:
                     key = json.loads(msg.key.decode("utf8"))
                 except json.JSONDecodeError:
@@ -306,6 +310,14 @@ class KafkaSchemaReader(Thread):
 
                 if self.ready and watch_offsets:
                     self.offset_watcher.offset_seen(self.offset)
+
+                now = time.monotonic()
+                if now - self.processed_messages_since > 30:
+                    LOG.info(
+                        "Processed %d messages in %f seconds", self.processed_messages, now - self.processed_messages_since
+                    )
+                    self.processed_messages = 0
+                    self.processed_messages_since = now
 
             self._report_schema_metrics(
                 schema_records_processed_keymode_canonical,
