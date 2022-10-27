@@ -67,7 +67,7 @@ class SchemaErrorMessages(Enum):
 
 class KarapaceSchemaRegistryController(KarapaceBase):
     def __init__(self, config: Config) -> None:
-        super().__init__(config=config)
+        super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
 
         self._auth: Optional[HTTPAuthorizer] = None
         if self.config["registry_authfile"] is not None:
@@ -93,6 +93,32 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if self._auth:
             if not self._auth.check_authorization(user, operation, resource):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
+
+    async def _forward_if_not_ready_to_serve(self, request: HTTPRequest) -> None:
+        if self.schema_registry.schema_reader.ready:
+            pass
+        else:
+            # Not ready, still loading the state.
+            # Needs only the master_url
+            _, master_url = await self.schema_registry.get_master(ignore_readiness=True)
+            if not master_url:
+                self.no_master_error(request.content_type)
+            elif f"{self.config['advertised_hostname']}:{self.config['port']}" in master_url:
+                # If master url is the same as the url of this Karapace respond 503.
+                self.r(
+                    body="",
+                    content_type=request.get_header("Content-Type"),
+                    status=HTTPStatus.SERVICE_UNAVAILABLE,
+                )
+            else:
+                url = f"{master_url}{request.url.path}"
+                await self._forward_request_remote(
+                    request=request,
+                    body=request.json,
+                    url=url,
+                    content_type=request.get_header("Content-Type"),
+                    method=request.method,
+                )
 
     def _add_schema_registry_routes(self) -> None:
         self.route(
