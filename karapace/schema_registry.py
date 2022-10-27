@@ -127,13 +127,19 @@ class KarapaceSchemaRegistry:
                 LOG.exception("Unable to create producer, retrying")
                 time.sleep(1)
 
-    async def get_master(self) -> Tuple[bool, Optional[str]]:
+    async def get_master(self, ignore_readiness: bool = False) -> Tuple[bool, Optional[str]]:
+        """Resolve if current node is the primary and the primary node address.
+
+        :param bool ignore_readiness: Ignore waiting to become ready and return
+                                      follower/primary state and primary url.
+        :return (bool, Optional[str]): returns the primary/follower state and primary url
+        """
         async with self._master_lock:
             while True:
                 are_we_master, master_url = self.mc.get_master_info()
                 if are_we_master is None:
                     LOG.info("No master set: %r, url: %r", are_we_master, master_url)
-                elif self.schema_reader.ready is False:
+                elif not ignore_readiness and self.schema_reader.ready is False:
                     LOG.info("Schema reader isn't ready yet: %r", self.schema_reader.ready)
                 else:
                     return are_we_master, master_url
