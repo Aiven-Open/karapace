@@ -296,7 +296,7 @@ class KafkaSchemaReader(Thread):
                         LOG.exception("Invalid JSON in msg.value")
                         continue
 
-                self.handle_msg(key, value)
+                self._handle_msg(key, value)
                 self.offset = msg.offset
 
                 if msg_keymode == KeyMode.CANONICAL:
@@ -488,7 +488,7 @@ class KafkaSchemaReader(Thread):
             else:
                 self._delete_from_schema_id_on_subject(subject=schema_subject, schema=typed_schema)
 
-    def handle_msg(self, key: dict, value: Optional[dict]) -> None:
+    def _handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
             self._handle_msg_config(key, value)
         elif key["keytype"] == "SCHEMA":
