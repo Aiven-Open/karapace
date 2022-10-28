@@ -269,43 +269,44 @@ class KafkaSchemaReader(Thread):
             if are_we_master is True:
                 watch_offsets = True
 
-        for _, msgs in raw_msgs.items():
-            schema_records_processed_keymode_canonical = 0
-            schema_records_processed_keymode_deprecated_karapace = 0
-            for msg in msgs:
-                try:
-                    key = json.loads(msg.key.decode("utf8"))
-                except json.JSONDecodeError:
-                    LOG.exception("Invalid JSON in msg.key")
-                    continue
-
-                msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
-                # Key mode detection happens on startup.
-                # Default keymode is CANONICAL and preferred unless any data consumed
-                # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
-                # the subsequent keys are omitted from detection.
-                if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
-                    if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
-                        self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
-
-                value = None
-                if msg.value:
+        with self.id_lock:
+            for _, msgs in raw_msgs.items():
+                schema_records_processed_keymode_canonical = 0
+                schema_records_processed_keymode_deprecated_karapace = 0
+                for msg in msgs:
                     try:
-                        value = json.loads(msg.value.decode("utf8"))
+                        key = json.loads(msg.key.decode("utf8"))
                     except json.JSONDecodeError:
-                        LOG.exception("Invalid JSON in msg.value")
+                        LOG.exception("Invalid JSON in msg.key")
                         continue
 
-                self._handle_msg(key, value)
-                self.offset = msg.offset
+                    msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
+                    # Key mode detection happens on startup.
+                    # Default keymode is CANONICAL and preferred unless any data consumed
+                    # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
+                    # the subsequent keys are omitted from detection.
+                    if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
+                        if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
+                            self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
 
-                if msg_keymode == KeyMode.CANONICAL:
-                    schema_records_processed_keymode_canonical += 1
-                else:
-                    schema_records_processed_keymode_deprecated_karapace += 1
+                    value = None
+                    if msg.value:
+                        try:
+                            value = json.loads(msg.value.decode("utf8"))
+                        except json.JSONDecodeError:
+                            LOG.exception("Invalid JSON in msg.value")
+                            continue
 
-                if self.ready and watch_offsets:
-                    self.offset_watcher.offset_seen(self.offset)
+                    self._handle_msg(key, value)
+                    self.offset = msg.offset
+
+                    if msg_keymode == KeyMode.CANONICAL:
+                        schema_records_processed_keymode_canonical += 1
+                    else:
+                        schema_records_processed_keymode_deprecated_karapace += 1
+
+                    if self.ready and watch_offsets:
+                        self.offset_watcher.offset_seen(self.offset)
 
             self._report_schema_metrics(
                 schema_records_processed_keymode_canonical,
@@ -461,32 +462,31 @@ class KafkaSchemaReader(Thread):
 
         subjects_schemas = self.subjects[schema_subject]["schemas"]
 
-        with self.id_lock:
-            # dedup schemas to reduce memory pressure
-            schema_str = self._hash_to_schema.setdefault(hash(schema_str), schema_str)
+        # dedup schemas to reduce memory pressure
+        schema_str = self._hash_to_schema.setdefault(hash(schema_str), schema_str)
 
-            if schema_version in subjects_schemas:
-                LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-            else:
-                LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+        if schema_version in subjects_schemas:
+            LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
+        else:
+            LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
 
-            typed_schema = TypedSchema(
-                schema_type=schema_type_parsed,
-                schema_str=schema_str,
-            )
-            subjects_schemas[schema_version] = {
-                "schema": typed_schema,
-                "version": schema_version,
-                "id": schema_id,
-                "deleted": schema_deleted,
-            }
-
-            self.schemas[schema_id] = typed_schema
-            self.global_schema_id = max(self.global_schema_id, schema_id)
-            if not schema_deleted:
-                self._set_schema_id_on_subject(subject=schema_subject, schema=typed_schema, schema_id=schema_id)
-            else:
-                self._delete_from_schema_id_on_subject(subject=schema_subject, schema=typed_schema)
+        typed_schema = TypedSchema(
+            schema_type=schema_type_parsed,
+            schema_str=schema_str,
+        )
+        subjects_schemas[schema_version] = {
+            "schema": typed_schema,
+            "version": schema_version,
+            "id": schema_id,
+            "deleted": schema_deleted,
+        }
+        # self.id_lock must have been acquired before calling
+        self.schemas[schema_id] = typed_schema
+        self.global_schema_id = max(self.global_schema_id, schema_id)
+        if not schema_deleted:
+            self._set_schema_id_on_subject(subject=schema_subject, schema=typed_schema, schema_id=schema_id)
+        else:
+            self._delete_from_schema_id_on_subject(subject=schema_subject, schema=typed_schema)
 
     def _handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
