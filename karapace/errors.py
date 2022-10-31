@@ -1,4 +1,5 @@
-from typing import List, Union
+from karapace.typing import Version
+from typing import List
 
 
 class VersionNotFoundException(Exception):
@@ -25,10 +26,6 @@ class InvalidReferences(Exception):
     pass
 
 
-class ReferencesNotSupportedException(Exception):
-    pass
-
-
 class SchemasNotFoundException(Exception):
     pass
 
@@ -50,7 +47,7 @@ class SubjectNotSoftDeletedException(Exception):
 
 
 class ReferenceExistsException(Exception):
-    def __init__(self, referenced_by: List, version: Union[int, str]):
+    def __init__(self, referenced_by: List, version: Version):
         super().__init__()
         self.version = version
         self.referenced_by = referenced_by

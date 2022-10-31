@@ -1,8 +1,6 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
 from dataclasses import dataclass
-from karapace.protobuf.compare_result import CompareResult
-from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.location import Location
 from typing import List, TYPE_CHECKING
 
@@ -32,6 +30,3 @@ class TypeElement:
     def __str__(self) -> str:
         mytype = type(self)
         return f"{mytype}({self.to_schema()})"
-
-    def compare(self, other: "TypeElement", result: CompareResult, types: CompareTypes) -> None:
-        pass

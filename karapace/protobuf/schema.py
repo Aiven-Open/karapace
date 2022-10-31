@@ -1,4 +1,5 @@
 # Ported from square/wire:
+# Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Schema.kt
 # Ported partially for required functionality.
 from karapace.dependency import Dependency, DependencyVerifierResult
@@ -13,8 +14,7 @@ from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from karapace.schema_references import References
-from typing import Dict, Optional
+from typing import List, Optional
 
 
 def add_slashes(text: str) -> str:
@@ -105,15 +105,12 @@ def option_element_string(option: OptionElement) -> str:
 class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
-    def __init__(
-        self, schema: str, references: Optional[References] = None, dependencies: Optional[Dict[str, Dependency]] = None
-    ) -> None:
+    def __init__(self, schema: str, dependencies: Optional[List[Dependency]] = None) -> None:
         if type(schema).__name__ != "str":
             raise IllegalArgumentException("Non str type of schema string")
         self.dirty = schema
         self.cache_string = ""
         self.proto_file_element = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
-        self.references = references
         self.dependencies = dependencies
 
     def gather_deps(self) -> ProtobufDependencyVerifier:
@@ -127,10 +124,9 @@ class ProtobufSchema:
         return verifier.verify()
 
     def collect_dependencies(self, verifier: ProtobufDependencyVerifier):
-
         if self.dependencies:
-            for key in self.dependencies:
-                self.dependencies[key].schema.schema.collect_dependencies(verifier)
+            for dependency in self.dependencies:
+                dependency.schema.schema.collect_dependencies(verifier)
         # verifier.add_import?? we have no access to own Kafka structure from this class...
         # but we need data to analyse imports to avoid ciclyc dependencies...
 
@@ -222,9 +218,21 @@ class ProtobufSchema:
         return "".join(strings)
 
     def compare(self, other: "ProtobufSchema", result: CompareResult) -> CompareResult:
-        return self.proto_file_element.compare(
+        self_dependency_types: List[TypeElement] = []
+        other_dependency_types: List[TypeElement] = []
+        if self.dependencies:
+            for dependency in self.dependencies:
+                schema = dependency.schema.schema
+                if schema.proto_file_element.types:
+                    self_dependency_types += schema.proto_file_element.types
+        if other.dependencies:
+            for dependency in other.dependencies:
+                schema = dependency.schema.schema
+                if schema.proto_file_element.types:
+                    other_dependency_types += schema.proto_file_element.types
+        self.proto_file_element.compare(
             other.proto_file_element,
             result,
-            self.dependencies,
-            other.dependencies,
+            self_dependency_types=self_dependency_types,
+            other_dependency_types=other_dependency_types,
         )

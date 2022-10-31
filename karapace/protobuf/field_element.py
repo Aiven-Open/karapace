@@ -1,6 +1,5 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/FieldElement.kt
-from karapace.errors import InvalidSchema
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import TypeRecordMap
 from karapace.protobuf.field import Field
@@ -144,10 +143,6 @@ class FieldElement:
 
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)
-        if self_type_record is None:
-            raise InvalidSchema(f"Cannot resolve type {self_type}")
-        if other_type_record is None:
-            raise InvalidSchema(f"Cannot resolve type {other_type}")
 
         self_type_element: MessageElement = self_type_record.type_element
         other_type_element: MessageElement = other_type_record.type_element
@@ -156,3 +151,9 @@ class FieldElement:
             result.add_modification(Modification.FIELD_NAME_ALTER)
         else:
             self_type_element.compare(other_type_element, result, types)
+
+    def __repr__(self):
+        return f"{self.element_type} {self.name} = {self.tag}"
+
+    def __str__(self):
+        return f"{self.element_type} {self.name} = {self.tag}"
