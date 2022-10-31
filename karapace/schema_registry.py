@@ -22,13 +22,15 @@ from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.typing import ResolvedVersion, Subject, SubjectData, Version
 from karapace.utils import json_encode, KarapaceKafkaClient
-from typing import Dict, List, Optional, Tuple, Union
+from karapace.version import __version__
+from typing import cast, Dict, List, Optional, Tuple, Union
 
 import asyncio
 import logging
 import time
 
 LOG = logging.getLogger(__name__)
+X_REGISTRY_VERSION_HEADER = ("X-Registry-Version", f"karapace-{__version__}".encode("utf8"))
 
 
 def _resolve_version(subject_data: SubjectData, version: Version) -> ResolvedVersion:
@@ -60,6 +62,9 @@ def validate_version(version: Version) -> Version:
 class KarapaceSchemaRegistry:
     def __init__(self, config: Config) -> None:
         self.config = config
+        host: str = cast(str, self.config["host"])
+        self.x_origin_host_header: Tuple[str, bytes] = ("X-Origin-Host", host.encode("utf8"))
+
         self.producer = self._create_producer()
         self.kafka_timeout = 10
 
@@ -400,7 +405,12 @@ class KarapaceSchemaRegistry:
         if isinstance(value, str):
             value = value.encode("utf8")
 
-        future = self.producer.send(self.config["topic_name"], key=key, value=value)
+        future = self.producer.send(
+            self.config["topic_name"],
+            key=key,
+            value=value,
+            headers=[X_REGISTRY_VERSION_HEADER, self.x_origin_host_header],
+        )
         self.producer.flush(timeout=self.kafka_timeout)
         try:
             msg = future.get(self.kafka_timeout)
