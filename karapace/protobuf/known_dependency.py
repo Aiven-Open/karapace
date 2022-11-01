@@ -116,8 +116,9 @@ class KnownDependency:
         "google/type/postal_address.proto": ["google.type.PostalAddress"],
         "google/type/quaternion.proto": ["google.type.Quaternion"],
         "google/type/timeofday.proto": ["google.type.TimeOfDay"],
-        "confluent/meta.proto": [".confluent.Meta"],
-        "confluent/type/decimal.proto": [".confluent.type.Decimal"],
+        "confluent/meta.proto": ["confluent.Meta"],
+        "confluent/type/decimal.proto": ["confluent.type.Decimal"],
+
     }
 
     @classmethod
@@ -125,8 +126,10 @@ class KnownDependency:
         for key, value in cls.map.items():
             for item in value:
                 cls.index[item] = key
+                cls.index["." + item] = key
                 dot = item.rfind(".")
                 cls.index_simple[item[dot + 1 :]] = key
+                cls.index_simple[item] = key
 
 
 @static_init
