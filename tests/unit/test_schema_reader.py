@@ -1,6 +1,17 @@
-from concurrent.futures import ThreadPoolExecutor
-from karapace.schema_reader import OffsetsWatcher
+"""
+karapace - Test schema reader
+Copyright (c) 2022 Aiven Ltd
+See LICENSE for details
+"""
 
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from karapace.config import DEFAULTS
+from karapace.schema_reader import KafkaSchemaReader, OFFSET_EMPTY, OFFSET_UNINITIALIZED, OffsetsWatcher
+from tests.base_testcase import BaseTestCase
+from unittest.mock import Mock
+
+import pytest
 import random
 import time
 
@@ -52,3 +63,84 @@ def test_offset_watcher() -> None:
     ), "Expected greatest offset is not one less than total count"
     assert produced_cnt == 100, "Did not produce expected amount of records"
     assert consumed_cnt == 100, "Did not consume expected amount of records"
+
+
+@dataclass
+class ReadinessTestCase(BaseTestCase):
+    cur_offset: int
+    end_offset: int
+    expected: bool
+
+
+@pytest.mark.parametrize(
+    "testcase",
+    [
+        ReadinessTestCase(
+            test_name="Empty schemas topic",
+            cur_offset=OFFSET_EMPTY,
+            end_offset=0,
+            expected=True,
+        ),
+        ReadinessTestCase(
+            test_name="Schema topic with data, beginning offset is 0",
+            cur_offset=OFFSET_EMPTY,
+            end_offset=100,
+            expected=False,
+        ),
+        ReadinessTestCase(
+            test_name="Schema topic with single record",
+            cur_offset=OFFSET_EMPTY,
+            end_offset=1,
+            expected=False,
+        ),
+        ReadinessTestCase(
+            test_name="Beginning offset cannot be resolved.",
+            cur_offset=OFFSET_UNINITIALIZED,
+            end_offset=0,
+            expected=False,
+        ),
+        ReadinessTestCase(
+            test_name="Purged/compacted schemas topic, begin offset n > 0, end offset n+1",
+            cur_offset=90,
+            end_offset=91,
+            expected=True,
+        ),
+        ReadinessTestCase(
+            test_name="Schema topic with single record and replayed",
+            cur_offset=0,
+            end_offset=0,
+            expected=True,
+        ),
+        ReadinessTestCase(
+            test_name="Schema topic with data but compacted or purged, cur offset 10",
+            cur_offset=10,
+            end_offset=100,
+            expected=False,
+        ),
+        ReadinessTestCase(
+            test_name="Schema topic with data, cur offset is highest",
+            cur_offset=99,
+            end_offset=100,
+            expected=True,
+        ),
+        ReadinessTestCase(
+            test_name="Schema topic with data, cur offset is greater than highest",
+            cur_offset=101,
+            end_offset=100,
+            expected=True,
+        ),
+    ],
+)
+def test_readiness_check(testcase: ReadinessTestCase) -> None:
+    key_formatter_mock = Mock()
+    consumer_mock = Mock()
+    consumer_mock.poll.return_value = {}
+    # Return dict {partition: offsets}, end offset is the next upcoming record offset
+    consumer_mock.end_offsets.return_value = {0: testcase.end_offset}
+
+    schema_reader = KafkaSchemaReader(config=DEFAULTS, key_formatter=key_formatter_mock, master_coordinator=None)
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = testcase.cur_offset
+
+    schema_reader.handle_messages()
+    assert schema_reader.ready is testcase.expected
