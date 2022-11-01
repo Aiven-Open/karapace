@@ -118,7 +118,6 @@ class KnownDependency:
         "google/type/timeofday.proto": ["google.type.TimeOfDay"],
         "confluent/meta.proto": ["confluent.Meta"],
         "confluent/type/decimal.proto": ["confluent.type.Decimal"],
-
     }
 
     @classmethod
@@ -130,7 +129,6 @@ class KnownDependency:
                 dot = item.rfind(".")
                 cls.index_simple[item[dot + 1 :]] = key
                 cls.index_simple[item] = key
-
 
 @static_init
 class DependenciesHardcoded:

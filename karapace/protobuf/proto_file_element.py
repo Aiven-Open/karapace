@@ -102,6 +102,7 @@ class ProtoFileElement:
         self_dependency_types: Optional[List[TypeElement]] = None,
         other_dependency_types: Optional[List[TypeElement]] = None,
     ) -> CompareResult:
+
         from karapace.protobuf.compare_type_lists import compare_type_lists
         if self.package_name != other.package_name:
             result.add_modification(Modification.PACKAGE_ALTER)

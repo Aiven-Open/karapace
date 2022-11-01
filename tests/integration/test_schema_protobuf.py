@@ -297,6 +297,7 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     assert res.status_code == 200
 
 
+
 async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> None:
     no_ref = """
              |syntax = "proto3";
