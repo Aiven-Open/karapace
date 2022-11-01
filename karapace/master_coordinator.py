@@ -10,6 +10,7 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.utils import KarapaceKafkaClient
+from karapace.version import __version__
 from threading import Event, Thread
 from typing import Optional, Tuple
 
@@ -40,7 +41,14 @@ class SchemaCoordinator(BaseCoordinator):
         return "sr"
 
     def get_identity(self, *, host, port, scheme, json_encode=True):
-        res = {"version": 1, "host": host, "port": port, "scheme": scheme, "master_eligibility": self.master_eligibility}
+        res = {
+            "version": 2,
+            "karapace_version": __version__,
+            "host": host,
+            "port": port,
+            "scheme": scheme,
+            "master_eligibility": self.master_eligibility,
+        }
         if json_encode:
             return json.dumps(res)
         return res
