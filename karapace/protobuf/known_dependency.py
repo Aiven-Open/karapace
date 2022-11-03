@@ -118,7 +118,6 @@ class KnownDependency:
         "google/type/timeofday.proto": ["google.type.TimeOfDay"],
         "confluent/meta.proto": ["confluent.Meta"],
         "confluent/type/decimal.proto": ["confluent.type.Decimal"],
-
     }
 
     @classmethod

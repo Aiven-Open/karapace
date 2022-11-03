@@ -1,14 +1,13 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
 from dataclasses import dataclass
-
 from karapace.protobuf.location import Location
 from typing import List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from karapace.protobuf.option_element import OptionElement
-    from karapace.protobuf.compare_type_storage import CompareTypes
     from karapace.protobuf.compare_result import CompareResult
+    from karapace.protobuf.compare_type_storage import CompareTypes
+    from karapace.protobuf.option_element import OptionElement
 
 
 @dataclass

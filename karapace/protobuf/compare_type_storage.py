@@ -94,7 +94,7 @@ class CompareTypes:
         if package_name is None:
             package_name = ""
         if name.startswith(package_name):
-            return name[(len(package_name) + 1):]
+            return name[(len(package_name) + 1) :]
 
         return name
 
@@ -107,7 +107,7 @@ class CompareTypes:
         if package_name is None:
             package_name = ""
         if name.startswith(package_name):
-            return name[(len(package_name) + 1):]
+            return name[(len(package_name) + 1) :]
         return name
 
     def lock_message(self, message: "MessageElement") -> bool:

@@ -81,6 +81,7 @@ class MessageElement(TypeElement):
 
     def compare(self, other: "MessageElement", result: CompareResult, types: CompareTypes) -> None:
         from karapace.protobuf.compare_type_lists import compare_type_lists
+
         if types.lock_message(self):
             field: FieldElement
             subfield: FieldElement
