@@ -140,7 +140,6 @@ class SchemaBackup:
             return
 
         self.init_admin_client()
-
         start_time = time.monotonic()
         wait_time = constants.MINUTE
         while True:
@@ -210,9 +209,10 @@ class SchemaBackup:
 
     def _restore_backup_version_2(self, fp: IO) -> None:
         for line in fp:
-            hex_key, hex_value = line.split("\t")
-            key = base64.b16decode(hex_key).decode("utf8")
-            value = base64.b16decode(hex_value.strip()).decode("utf8")  # strip to remove the linefeed
+            hex_key, hex_value = [val.strip() for val in line.split("\t")]  # strip to remove the linefeed
+
+            key = base64.b16decode(hex_key).decode("utf8") if hex_key != "null" else hex_key
+            value = base64.b16decode(hex_value.strip()).decode("utf8") if hex_value != "null" else hex_value
             self._handle_restore_message((key, value))
 
     def export(self, export_func) -> None:
@@ -240,9 +240,9 @@ class SchemaBackup:
             LOG.info("Schema export written to stdout")
         self.close()
 
-    def encode_key(self, key: Optional[Union[JsonData, str]]) -> bytes:
-        if not key:
-            return b""
+    def encode_key(self, key: Optional[Union[JsonData, str]]) -> Optional[bytes]:
+        if key == "null":
+            return None
         if not self.key_formatter:
             if isinstance(key, str):
                 return key.encode("utf8")
@@ -261,12 +261,8 @@ def encode_value(value: Union[JsonData, str]) -> Optional[bytes]:
 
 
 def serialize_record(key_bytes: Optional[bytes], value_bytes: Optional[bytes]) -> str:
-    key = b""
-    if key_bytes is not None:
-        key = base64.b16encode(key_bytes).decode("utf8")
-    value = b""
-    if value_bytes is not None:
-        value = base64.b16encode(value_bytes).decode("utf8")
+    key = base64.b16encode(key_bytes).decode("utf8") if key_bytes is not None else "null"
+    value = base64.b16encode(value_bytes).decode("utf8") if value_bytes is not None else "null"
     return f"{key}\t{value}\n"
 
 
