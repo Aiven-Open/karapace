@@ -7,6 +7,7 @@ See LICENSE for details
 from kafka import KafkaConsumer
 from karapace.client import Client
 from karapace.config import set_config_defaults
+from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.key_format import is_key_in_canonical_format
 from karapace.schema_backup import SchemaBackup, serialize_record
 from karapace.utils import Expiration
@@ -69,27 +70,26 @@ async def test_backup_get(
 
 
 async def test_backup_restore_and_get_non_schema_topic(
-    kafka_servers: KafkaServers,
-    tmp_path: Path,
+    kafka_servers: KafkaServers, tmp_path: Path, admin_client: KafkaRestAdminClient
 ) -> None:
     test_topic_name = new_random_name("non-schemas")
 
     config = set_config_defaults(
         {
             "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": test_topic_name,
         }
     )
+    admin_client.new_topic(name=test_topic_name)
 
     # Restore from backup
     test_data_path = Path("tests/integration/test_data/")
     restore_location = test_data_path / "test_restore_non_schema_topic_v2.log"
-    sb = SchemaBackup(config, str(restore_location))
+    sb = SchemaBackup(config, str(restore_location), topic_option=test_topic_name)
     sb.restore_backup()
 
     # Get the backup
     backup_location = tmp_path / "non_schemas_topic.log"
-    sb = SchemaBackup(config, str(backup_location))
+    sb = SchemaBackup(config, str(backup_location), topic_option=test_topic_name)
     sb.export(serialize_record)
     # The backup file has been created
     assert os.path.exists(backup_location)
