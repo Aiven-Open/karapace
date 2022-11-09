@@ -22,7 +22,7 @@ class MessageElement(TypeElement):
         location: Location,
         name: str,
         documentation: str = "",
-        nested_types: List[str] = None,
+        nested_types: List[TypeElement] = None,
         options: List[OptionElement] = None,
         reserveds: List[ReservedElement] = None,
         fields: List[FieldElement] = None,

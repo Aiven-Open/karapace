@@ -130,6 +130,7 @@ class KnownDependency:
                 cls.index_simple[item[dot + 1 :]] = key
                 cls.index_simple[item] = key
 
+
 @static_init
 class DependenciesHardcoded:
     index: Set = set()

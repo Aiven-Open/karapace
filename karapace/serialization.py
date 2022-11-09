@@ -3,7 +3,6 @@ from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
-from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
@@ -79,7 +78,7 @@ class SchemaRegistryClient:
         self.base_url = schema_registry_url
 
     async def post_new_schema(
-        self, subject: str, schema: ValidatedTypedSchema, references: Optional[Dependency] = None
+        self, subject: str, schema: ValidatedTypedSchema, references: Optional[Reference] = None
     ) -> int:
         if schema.schema_type is SchemaType.PROTOBUF:
             if references:

@@ -72,6 +72,13 @@ class SchemaErrorMessages(Enum):
     REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
 
 
+def references_list(references: Optional[Dict]) -> Optional[List[Reference]]:
+    _references: Optional[List[Reference]] = None
+    if references:
+        _references = [Reference(reference["name"], reference["subject"], reference["version"]) for reference in references]
+    return _references
+
+
 class KarapaceSchemaRegistryController(KarapaceBase):
     def __init__(self, config: Config) -> None:
         super().__init__(config=config)
@@ -310,11 +317,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         references = self._validate_references(content_type, schema_type, body)
         try:
-            new_schema_references = self.schema_registry.resolve_references(references)
+            new_schema_dependencies = self.schema_registry.resolve_references(references)
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_type,
                 schema_str=body["schema"],
-                references=new_schema_references,
+                references=references,
+                dependencies=new_schema_dependencies,
             )
         except InvalidSchema:
             self.r(
@@ -907,7 +915,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-    def _validate_references(self, content_type: str, schema_type: SchemaType, body: JsonData) -> List[Reference]:
+    def _validate_references(self, content_type: str, schema_type: SchemaType, body: JsonData) -> Optional[List[Reference]]:
         references = body.get("references", [])
         if references and schema_type != SchemaType.PROTOBUF:
             self.r(
@@ -928,7 +936,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             validated_references.append(
                 Reference(name=reference["name"], subject=reference["subject"], version=reference["version"])
             )
-        return validated_references
+        if validated_references:
+            return validated_references
+        return None
 
     async def subjects_schema_post(
         self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
@@ -964,11 +974,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         references = self._validate_references(content_type, schema_type, body)
 
         try:
-            new_schema_references = self.schema_registry.resolve_references(references)
+            new_schema_dependencies = self.schema_registry.resolve_references(references)
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_type,
                 schema_str=schema_str,
-                references=new_schema_references,
+                references=references,
+                dependencies=new_schema_dependencies,
             )
             for schema in subject_data["schemas"].values():
                 validated_typed_schema = ValidatedTypedSchema.parse(
@@ -981,7 +992,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 if (
                     validated_typed_schema.schema_type == new_schema.schema_type
                     and schema_valid
-                    and schema.get("references", None) == new_schema_references
+                    and references_list(schema.get("references", None)) == references
                 ):
                     ret = {
                         "subject": subject,
@@ -1058,11 +1069,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         references = self._validate_references(content_type, schema_type, body)
 
         try:
-            resolved_references = self.schema_registry.resolve_references(references)
+            resolved_dependencies = self.schema_registry.resolve_references(references)
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_type,
                 schema_str=body["schema"],
-                references=resolved_references,
+                references=references,
+                dependencies=resolved_dependencies,
             )
         except (InvalidReferences, InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
@@ -1095,7 +1107,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
             try:
-                schema_id = await self.schema_registry.write_new_schema_local(subject, new_schema, resolved_references)
+                schema_id = await self.schema_registry.write_new_schema_local(subject, new_schema, references)
                 self.r(
                     body={"id": schema_id},
                     content_type=content_type,

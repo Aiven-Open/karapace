@@ -19,6 +19,9 @@ class Dependency:
         self.version = version
         self.schema = target_schema
 
+    def get_schema(self) -> "ValidatedTypedSchema":
+        return self.schema
+
     @staticmethod
     def of(reference: Reference, target_schema: "ValidatedTypedSchema") -> "Dependency":
         return Dependency(reference.name, reference.subject, reference.version, target_schema)

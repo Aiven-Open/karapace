@@ -4,7 +4,9 @@ karapace - Kafka schema reader
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+from avro.schema import Schema as AvroSchema
 from contextlib import closing, ExitStack
+from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import KafkaConfigurationError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
@@ -14,13 +16,14 @@ from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema
 from karapace.schema_references import Reference
 from karapace.statsd import StatsClient
 from karapace.typing import JsonData, SubjectData
 from karapace.utils import KarapaceKafkaClient, reference_key
 from threading import Condition, Event, Lock, Thread
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import hashlib
 import json
@@ -433,7 +436,8 @@ class KafkaSchemaReader(Thread):
         schema_version = value["version"]
         schema_deleted = value.get("deleted", False)
         schema_references = value.get("references", None)
-        resolved_references: Optional[List[Dependency]] = None
+        resolved_references: Optional[List[Reference]] = None
+        resolved_dependencies: Optional[Dict[str, Dependency]] = None
 
         try:
             schema_type_parsed = SchemaType(schema_type)
@@ -447,6 +451,8 @@ class KafkaSchemaReader(Thread):
         # won't interfere with the equality. Note: This means it is possible
         # for the REST API to return data that is formatted differently from
         # what is available in the topic.
+        parsed_schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None
+        resolved_dependencies: Dict[str, Dependency] = None
         if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
@@ -456,12 +462,17 @@ class KafkaSchemaReader(Thread):
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
                 if schema_references:
-                    references = [
+                    resolved_references = [
                         Reference(reference["name"], reference["subject"], reference["version"])
                         for reference in schema_references
                     ]
-                    resolved_references = self.resolve_references(references)
-                parsed_schema = parse_protobuf_schema_definition(schema_str, resolved_references, validate_references=False)
+                    resolved_dependencies = self.resolve_references(resolved_references)
+                parsed_schema = parse_protobuf_schema_definition(
+                    schema_str,
+                    resolved_references,
+                    resolved_dependencies,
+                    validate_references=False,
+                )
                 schema_str = str(parsed_schema)
             except InvalidSchema:
                 LOG.exception("Schema is not valid ProtoBuf definition")
@@ -481,6 +492,8 @@ class KafkaSchemaReader(Thread):
                 schema_type=schema_type_parsed,
                 schema_str=schema_str,
                 references=resolved_references,
+                dependencies=resolved_dependencies,
+                schema=parsed_schema,
             )
             schema = {
                 "schema": typed_schema,
@@ -565,24 +578,24 @@ class KafkaSchemaReader(Thread):
             if self.referenced_by.get(key, None) and schema_id in self.referenced_by[key]:
                 self.referenced_by[key].remove(schema_id)
 
-    def _resolve_reference(self, reference: Reference) -> List[Dependency]:
+    def _resolve_reference(self, reference: Reference) -> Dependency:
         subject_data = self.subjects.get(reference.subject)
         if not subject_data:
             raise InvalidReferences(f"Subject not found {reference.subject}.")
-        schema = subject_data["schemas"].get(reference.version, {}).get("schema", None)
+        schema: TypedSchema = subject_data["schemas"].get(reference.version, {}).get("schema", None)
         if not schema:
             raise InvalidReferences(f"No schema in {reference.subject} with version {reference.version}.")
-
-        resolved_references = [Dependency.of(reference, schema)]
         if schema.references:
-            resolved_references += self.resolve_references(schema.references)
-        return resolved_references
+            schema_dependencies = self.resolve_references(schema.references)
+            if schema.dependencies is None:
+                schema.dependencies = schema_dependencies
+        return Dependency.of(reference, schema)
 
-    def resolve_references(self, references: List[Reference]) -> List[Dependency]:
-        resolved_references = []
+    def resolve_references(self, references: List[Reference]) -> Dict[str, Dependency]:
+        dependencies: Dict[str, Dependency] = dict()
         for reference in references:
-            resolved_references += self._resolve_reference(reference)
-        return resolved_references
+            dependencies[reference.name] = self._resolve_reference(reference)
+        return dependencies
 
     def _build_state_dict(self) -> JsonData:
         state = {"schemas": [], "subjects": {}}

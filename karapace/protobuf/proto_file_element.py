@@ -1,11 +1,28 @@
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
+from karapace.dependency import Dependency
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.location import Location
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+
+def collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
+    for dep in dependencies.values():
+        types: List[TypeElement] = dep.schema.schema.proto_file_element.types
+        sub_deps = dep.schema.schema.dependencies
+        package_name = dep.schema.schema.proto_file_element.package_name
+        type_: TypeElement
+        for type_ in types:
+            if is_self:
+                compare_types.add_self_type(package_name, type_)
+            else:
+                compare_types.add_other_type(package_name, type_)
+        if sub_deps is None:
+            return
+        collect_dependencies_types(compare_types, sub_deps, is_self)
 
 
 class ProtoFileElement:
@@ -99,8 +116,8 @@ class ProtoFileElement:
         self,
         other: "ProtoFileElement",
         result: CompareResult,
-        self_dependency_types: Optional[List[TypeElement]] = None,
-        other_dependency_types: Optional[List[TypeElement]] = None,
+        self_dependencies: Optional[Dict[str, Dependency]] = None,
+        other_dependencies: Optional[Dict[str, Dependency]] = None,
     ) -> CompareResult:
 
         from karapace.protobuf.compare_type_lists import compare_type_lists
@@ -112,17 +129,9 @@ class ProtoFileElement:
             result.add_modification(Modification.SYNTAX_ALTER)
 
         compare_types = CompareTypes(self.package_name, other.package_name, result)
-        type_: TypeElement
+        if self_dependencies:
+            collect_dependencies_types(compare_types, self_dependencies, True)
 
-        # If there are dependencies declared, add the types for both.
-        if self_dependency_types:
-            for type_ in self_dependency_types:
-                package_name = ""
-                compare_types.add_self_type(package_name, type_)
-
-        if other_dependency_types:
-            for type_ in other_dependency_types:
-                package_name = ""
-                compare_types.add_other_type(package_name, type_)
-
+        if other_dependencies:
+            collect_dependencies_types(compare_types, other_dependencies, False)
         return compare_type_lists(self.types, other.types, result, compare_types)
