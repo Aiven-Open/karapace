@@ -30,7 +30,7 @@ def get_member_url(scheme: str, host: str, port: str) -> str:
     return "{}://{}:{}".format(scheme, host, port)
 
 
-def get_member_configuration(*, host: str, port: int, scheme: str, master_eligibility: bool) -> JsonData:
+def get_member_configuration(*, host: str, port: int, scheme: str, master_eligibility: bool, ready: bool) -> JsonData:
     return {
         "version": 2,
         "karapace_version": __version__,
@@ -38,6 +38,7 @@ def get_member_configuration(*, host: str, port: int, scheme: str, master_eligib
         "port": port,
         "scheme": scheme,
         "master_eligibility": master_eligibility,
+        "ready": ready,
     }
 
 
@@ -62,6 +63,7 @@ class SchemaCoordinator(BaseCoordinator):
         self.port = port
         self.scheme = scheme
         self.master_eligibility = master_eligibility
+        self.schema_reader_ready = False
 
     def protocol_type(self) -> str:
         return "sr"
@@ -77,6 +79,7 @@ class SchemaCoordinator(BaseCoordinator):
                         port=self.port,
                         scheme=self.scheme,
                         master_eligibility=self.master_eligibility,
+                        ready=self.schema_reader_ready,
                     ),
                     compact=True,
                 ),
@@ -87,12 +90,22 @@ class SchemaCoordinator(BaseCoordinator):
         LOG.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
         self.are_we_master = None
         error = NO_ERROR
-        urls = {}
+        master_eligible_ready_urls = {}
+        master_eligible_not_ready_urls = {}
         fallback_urls = {}
         for member_id, member_data in members:
             member_identity = json.loads(member_data.decode("utf8"))
-            if member_identity["master_eligibility"] is True:
-                urls[get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
+            if member_identity["master_eligibility"] is True and member_identity.get("ready", False) is True:
+                master_eligible_ready_urls[
+                    get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
+                ] = (
+                    member_id,
+                    member_data,
+                )
+            elif member_identity["master_eligibility"] is True:
+                master_eligible_not_ready_urls[
+                    get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
+                ] = (
                     member_id,
                     member_data,
                 )
@@ -100,9 +113,13 @@ class SchemaCoordinator(BaseCoordinator):
                 fallback_urls[
                     get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
                 ] = (member_id, member_data)
-        if len(urls) > 0:
-            chosen_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
-            schema_master_id, member_data = urls[chosen_url]
+
+        if len(master_eligible_ready_urls) > 0:
+            chosen_url = sorted(master_eligible_ready_urls, reverse=self.election_strategy.lower() == "highest")[0]
+            schema_master_id, member_data = master_eligible_ready_urls[chosen_url]
+        elif len(master_eligible_not_ready_urls) > 0:
+            chosen_url = sorted(master_eligible_not_ready_urls, reverse=self.election_strategy.lower() == "highest")[0]
+            schema_master_id, member_data = master_eligible_not_ready_urls[chosen_url]
         else:
             # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
             chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
@@ -113,6 +130,7 @@ class SchemaCoordinator(BaseCoordinator):
             port=member_identity["port"],
             scheme=member_identity["scheme"],
             master_eligibility=member_identity["master_eligibility"],
+            ready=member_identity.get("ready", False),
         )
         LOG.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
 
@@ -220,6 +238,10 @@ class MasterCoordinator(Thread):
     def close(self) -> None:
         LOG.info("Closing master_coordinator")
         self.running = False
+
+    def ready(self, ready: bool) -> None:
+        assert self.sc is not None
+        self.sc.schema_reader_ready = ready
 
     def run(self) -> None:
         _hb_interval = 3.0

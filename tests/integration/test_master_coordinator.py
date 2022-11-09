@@ -5,8 +5,10 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 from contextlib import closing
+from dataclasses import dataclass
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
+from tests.base_testcase import BaseTestCase
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import PortRangeInclusive
 from tests.utils import new_random_name
@@ -38,44 +40,138 @@ def has_master(mc: MasterCoordinator) -> bool:
     return bool(mc.sc and not mc.sc.are_we_master and mc.sc.master_url)
 
 
-@pytest.mark.timeout(60)  # Github workflows need a bit of extra time
-@pytest.mark.parametrize("strategy", ["lowest", "highest"])
-def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaServers, strategy: str) -> None:
+@dataclass
+class MasterSelectionTestCase(BaseTestCase):
+    strategy: str
+    lowest_schema_reader_ready: bool
+    highest_schema_reader_ready: bool
+    master: str
+    lowest_master_eligible: bool = True
+    highest_master_eligible: bool = True
+
+
+@pytest.mark.timeout(20)  # Github workflows need a bit of extra time
+@pytest.mark.parametrize(
+    "testcase",
+    [
+        MasterSelectionTestCase(
+            test_name="Lowest is master when all nodes ready and strategy lowest",
+            strategy="lowest",
+            lowest_schema_reader_ready=True,
+            highest_schema_reader_ready=True,
+            master="lowest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Highest is master when all nodes ready and strategy highest",
+            strategy="highest",
+            lowest_schema_reader_ready=True,
+            highest_schema_reader_ready=True,
+            master="highest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Highest is master when lowest is not ready and strategy lowest",
+            strategy="lowest",
+            lowest_schema_reader_ready=False,
+            highest_schema_reader_ready=True,
+            master="highest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Lowest is master when highest is not ready and strategy highest",
+            strategy="highest",
+            lowest_schema_reader_ready=True,
+            highest_schema_reader_ready=False,
+            master="lowest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Lowest is master when all nodes are not ready and strategy lowest",
+            strategy="lowest",
+            lowest_schema_reader_ready=False,
+            highest_schema_reader_ready=False,
+            master="lowest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Highest is master when all nodes are not ready and strategy highest",
+            strategy="highest",
+            lowest_schema_reader_ready=False,
+            highest_schema_reader_ready=False,
+            master="highest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Lowest is master when all nodes are not ready and strategy highest and highest not master eligible",
+            strategy="highest",
+            lowest_schema_reader_ready=False,
+            highest_schema_reader_ready=False,
+            highest_master_eligible=False,
+            master="lowest",
+        ),
+        MasterSelectionTestCase(
+            test_name="Highest is master when all nodes are not ready and strategy lowest and lowest not master eligible",
+            strategy="lowest",
+            lowest_schema_reader_ready=False,
+            highest_schema_reader_ready=False,
+            lowest_master_eligible=False,
+            master="highest",
+        ),
+    ],
+    ids=str,
+)
+def test_master_selection(
+    testcase: MasterSelectionTestCase, port_range: PortRangeInclusive, kafka_servers: KafkaServers
+) -> None:
     # Use random port to allow for parallel runs.
     with port_range.allocate_port() as port1, port_range.allocate_port() as port2:
-        port_aa, port_bb = sorted((port1, port2))
-        client_id_aa = new_random_name("master_selection_aa_")
-        client_id_bb = new_random_name("master_selection_bb_")
+        port_lowest, port_highest = sorted((port1, port2))
+        client_id_lowest = new_random_name("master_selection_lowest_")
+        client_id_highest = new_random_name("master_selection_highest_")
         group_id = new_random_name("group_id")
 
-        config_aa = set_config_defaults(
+        config_lowest = set_config_defaults(
             {
                 "advertised_hostname": "127.0.0.1",
                 "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id_aa,
+                "client_id": client_id_lowest,
                 "group_id": group_id,
-                "port": port_aa,
-                "master_election_strategy": strategy,
+                "port": port_lowest,
+                "master_election_strategy": testcase.strategy,
+                "master_eligibility": testcase.lowest_master_eligible,
             }
         )
-        config_bb = set_config_defaults(
+        config_highest = set_config_defaults(
             {
                 "advertised_hostname": "127.0.0.1",
                 "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id_bb,
+                "client_id": client_id_highest,
                 "group_id": group_id,
-                "port": port_bb,
-                "master_election_strategy": strategy,
+                "port": port_highest,
+                "master_election_strategy": testcase.strategy,
+                "master_eligibility": testcase.highest_master_eligible,
             }
         )
 
-        with closing(init_admin(config_aa)) as mc_aa, closing(init_admin(config_bb)) as mc_bb:
-            if strategy == "lowest":
-                master = mc_aa
-                slave = mc_bb
+        mc_lowest = MasterCoordinator(config=config_lowest)
+        mc_highest = MasterCoordinator(config=config_highest)
+
+        try:
+            if testcase.strategy == "lowest":
+                # Start highest first
+                mc_highest.start()
+                mc_highest.schema_coordinator_ready.wait()
+                mc_highest.ready(testcase.highest_schema_reader_ready)
+                mc_lowest.start()
+                mc_lowest.schema_coordinator_ready.wait()
+                mc_lowest.ready(testcase.lowest_schema_reader_ready)
+
+                master = mc_lowest if testcase.master == "lowest" else mc_highest
+                slave = mc_highest if master == mc_lowest else mc_lowest
             else:
-                master = mc_bb
-                slave = mc_aa
+                mc_lowest.start()
+                mc_lowest.schema_coordinator_ready.wait()
+                mc_lowest.ready(testcase.lowest_schema_reader_ready)
+                mc_highest.start()
+                mc_highest.schema_coordinator_ready.wait()
+                mc_highest.ready(testcase.highest_schema_reader_ready)
+                master = mc_highest if testcase.master == "highest" else mc_lowest
+                slave = mc_lowest if master == mc_highest else mc_highest
 
             # Wait for the election to happen
             while not is_master(master):
@@ -86,10 +182,13 @@ def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaSe
 
             # Make sure the end configuration is as expected
             master_url = f'http://{master.config["host"]}:{master.config["port"]}'
-            assert master.sc.election_strategy == strategy
-            assert slave.sc.election_strategy == strategy
+            assert master.sc.election_strategy == testcase.strategy
+            assert slave.sc.election_strategy == testcase.strategy
             assert master.sc.master_url == master_url
             assert slave.sc.master_url == master_url
+        finally:
+            mc_lowest.close()
+            mc_highest.close()
 
 
 def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
@@ -168,6 +267,7 @@ def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeIn
                 "group_id": group_id,
                 "port": port,
                 "master_eligibility": False,
+                "ready": True,
             }
         )
 
