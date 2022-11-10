@@ -32,6 +32,14 @@ class SentryClient(SentryClientAPI):
         # the Sentry client does not send any events.
         sentry_sdk.init(**sentry_config)
 
+        # Don't send library logged errors to Sentry as there is also proper return value or raised exception to calling code
+        from sentry_sdk.integrations.logging import ignore_logger
+
+        ignore_logger("aiokafka")
+        ignore_logger("aiokafka.*")
+        ignore_logger("kafka")
+        ignore_logger("kafka.*")
+
     def unexpected_exception(self, error: Exception, where: str, tags: Optional[Dict] = None) -> None:
         scope_args = {"tags": {"where": where, **(tags or {})}}
         sentry_sdk.Hub.current.capture_exception(error=error, scope=None, **scope_args)
