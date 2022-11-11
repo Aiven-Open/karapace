@@ -12,7 +12,7 @@ from karapace.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Dict, NoReturn, Optional, overload, Union
+from typing import Callable, Dict, NoReturn, Optional, overload, Union
 
 import aiohttp
 import aiohttp.web
@@ -159,7 +159,9 @@ def http_error(message, content_type: str, code: HTTPStatus) -> NoReturn:
 
 
 class RestApp:
-    def __init__(self, *, app_name: str, config: Config) -> None:
+    def __init__(
+        self, *, app_name: str, config: Config, not_ready_handler: Optional[Callable[[HTTPRequest], None]] = None
+    ) -> None:
         self.app_name = app_name
         self.config = config
         self.app_request_metric = "{}_request".format(app_name)
@@ -167,6 +169,7 @@ class RestApp:
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(config=config)
         self.app.on_cleanup.append(self.close_by_app)
+        self.not_ready_handler = not_ready_handler
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         await self.close()
@@ -320,6 +323,8 @@ class RestApp:
                 callback_kwargs["user"] = user
 
             try:
+                if self.not_ready_handler is not None:
+                    await self.not_ready_handler(rapu_request)
                 data = await callback(**callback_kwargs)
                 status = HTTPStatus.OK
                 headers = {}

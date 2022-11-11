@@ -8,13 +8,13 @@ See LICENSE for details
 from functools import partial
 from http import HTTPStatus
 from karapace.config import Config
-from karapace.rapu import HTTPResponse, RestApp
-from typing import NoReturn, Union
+from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
+from typing import Callable, NoReturn, Optional, Union
 
 
 class KarapaceBase(RestApp):
-    def __init__(self, config: Config) -> None:
-        super().__init__(app_name="karapace", config=config)
+    def __init__(self, config: Config, not_ready_handler: Optional[Callable[[HTTPRequest], None]] = None) -> None:
+        super().__init__(app_name="karapace", config=config, not_ready_handler=not_ready_handler)
 
         self.kafka_timeout = 10
         self.route("/", callback=self.root_get, method="GET")
