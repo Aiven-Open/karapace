@@ -18,23 +18,22 @@ from kafka.errors import (
 from karapace import constants
 from karapace.config import Config
 from karapace.errors import InvalidSchema
+from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
-from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
-from karapace.typing import SubjectData
 from karapace.utils import KarapaceKafkaClient
-from threading import Condition, Event, Lock, Thread
-from typing import Any, Dict, Optional
+from threading import Condition, Event, Thread
+from typing import Optional
 
 import json
 import logging
+import time
 
 Offset = int
 Subject = str
 Version = int
-Schema = Dict[str, Any]
-SchemaId = int
 
 # The value `0` is a valid offset and it represents the first message produced
 # to a topic, therefore it can not be used.
@@ -64,6 +63,7 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         api_version=(1, 0, 0),
         bootstrap_servers=config["bootstrap_uri"],
         client_id=config["client_id"],
+        fetch_max_wait_ms=50,
         security_protocol=config["security_protocol"],
         ssl_cafile=config["ssl_cafile"],
         ssl_certfile=config["ssl_certfile"],
@@ -137,20 +137,18 @@ class KafkaSchemaReader(Thread):
         self,
         config: Config,
         key_formatter: KeyFormatter,
+        database: InMemoryDatabase,
         master_coordinator: Optional[MasterCoordinator] = None,
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
         self.timeout_ms = 200
         self.config = config
-        self.subjects: Dict[Subject, SubjectData] = {}
-        self.schemas: Dict[int, TypedSchema] = {}
-        self.global_schema_id = 0
+        self.database = database
         self.admin_client: Optional[KafkaAdminClient] = None
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer: Optional[KafkaConsumer] = None
         self.offset_watcher = OffsetsWatcher()
-        self.id_lock = Lock()
         self.stats = StatsClient(config=config)
 
         # Thread synchronization objects
@@ -171,45 +169,12 @@ class KafkaSchemaReader(Thread):
         # set by another thread (e.g. `KarapaceSchemaRegistry`)
         self._stop = Event()
 
-        # Content based deduplication of schemas. This is used to reduce memory
-        # usage when the same schema is produce multiple times to the same or
-        # different subjects. The deduplication is based on the schema content
-        # instead of the ids to handle corrupt data (where the ids are equal
-        # but the schema themselves don't match)
-        self._hash_to_schema: Dict[int, TypedSchema] = {}
-        self._hash_to_schema_id_on_subject: Dict[int, SchemaId] = {}
-
         self.key_formatter = key_formatter
 
         # Metrics
         self.processed_canonical_keys_total = 0
         self.processed_deprecated_karapace_keys_total = 0
-
-    def get_schema_id(self, new_schema: TypedSchema) -> int:
-        with self.id_lock:
-            for schema_id, schema in self.schemas.items():
-                if schema == new_schema:
-                    return schema_id
-            self.global_schema_id += 1
-            return self.global_schema_id
-
-    def get_schema_id_if_exists(self, *, subject: Subject, schema: TypedSchema) -> Optional[SchemaId]:
-        return self._hash_to_schema_id_on_subject.get(
-            hash((subject, str(schema))),
-            None,
-        )
-
-    def _set_schema_id_on_subject(self, *, subject: Subject, schema: TypedSchema, schema_id: SchemaId) -> None:
-        self._hash_to_schema_id_on_subject.setdefault(
-            hash((subject, str(schema))),
-            schema_id,
-        )
-
-    def _delete_from_schema_id_on_subject(self, *, subject: Subject, schema: TypedSchema) -> None:
-        self._hash_to_schema_id_on_subject.pop(
-            hash((subject, str(schema))),
-            None,
-        )
+        self.last_check = time.monotonic()
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
@@ -297,13 +262,8 @@ class KafkaSchemaReader(Thread):
     def _is_ready(self) -> bool:
         if self.ready:
             return True
-
         try:
             offsets = self.consumer.end_offsets([TopicPartition(self.config["topic_name"], 0)])
-            # Offset in the response is the offset for the next upcoming message.
-            # Reduce by one for actual highest offset.
-            highest_offset = list(offsets.values())[0] - 1
-            return self.offset >= highest_offset
         except KafkaTimeoutError:
             LOG.exception("Reading end offsets timed out.")
             return False
@@ -311,6 +271,21 @@ class KafkaSchemaReader(Thread):
             self.stats.unexpected_exception(ex=e, where="_is_ready")
             LOG.exception("Unexpected exception when reading end offsets.")
             return False
+        # Offset in the response is the offset for the next upcoming message.
+        # Reduce by one for actual highest offset.
+        highest_offset = list(offsets.values())[0] - 1
+        cur_time = time.monotonic()
+        time_from_last_check = cur_time - self.last_check
+        progress_pct = 0 if not highest_offset else round((self.offset / highest_offset) * 100, 2)
+        LOG.info(
+            "Replay progress (%s): %s/%s (%s %%)",
+            round(time_from_last_check, 2),
+            self.offset,
+            highest_offset,
+            progress_pct,
+        )
+        self.last_check = cur_time
+        return self.offset >= highest_offset
 
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
@@ -406,21 +381,14 @@ class KafkaSchemaReader(Thread):
                 value=self.processed_deprecated_karapace_keys_total,
                 tags={"keymode": KeyMode.DEPRECATED_KARAPACE},
             )
-
-            self.stats.gauge(metric=METRIC_SCHEMAS_GAUGE, value=len(self.schemas))
-            self.stats.gauge(metric=METRIC_SUBJECTS_GAUGE, value=len(self.subjects))
-            versions = 0
-            soft_deleted_versions = 0
-            for _, subject_data in self.subjects.items():
-                schema_data = subject_data.get("schemas", {})
-                for version in schema_data.values():
-                    if not version.get("deleted", False):
-                        versions += 1
-                    else:
-                        soft_deleted_versions += 1
+            num_schemas = self.database.num_schemas()
+            num_subjects = self.database.num_subjects()
+            self.stats.gauge(metric=METRIC_SCHEMAS_GAUGE, value=num_schemas)
+            self.stats.gauge(metric=METRIC_SUBJECTS_GAUGE, value=num_subjects)
+            live_versions, soft_deleted_versions = self.database.num_schema_versions()
             self.stats.gauge(
                 metric=METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE,
-                value=versions,
+                value=live_versions,
                 tags={"state": "live"},
             )
             self.stats.gauge(
@@ -432,16 +400,16 @@ class KafkaSchemaReader(Thread):
     def _handle_msg_config(self, key: dict, value: Optional[dict]) -> None:
         subject = key.get("subject")
         if subject is not None:
-            if subject not in self.subjects:
+            if self.database.find_subject(subject=subject) is None:
                 LOG.info("Adding first version of subject: %r with no schemas", subject)
-                self.subjects[subject] = {"schemas": {}}
+                self.database.insert_subject(subject=subject)
 
             if not value:
                 LOG.info("Deleting compatibility config completely for subject: %r", subject)
-                self.subjects[subject].pop("compatibility", None)
+                self.database.delete_subject_compatibility(subject=subject)
             else:
                 LOG.info("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
-                self.subjects[subject]["compatibility"] = value["compatibilityLevel"]
+                self.database.set_subject_compatibility(subject=subject, compatibility=value["compatibilityLevel"])
         elif value is not None:
             LOG.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
             self.config["compatibility"] = value["compatibilityLevel"]
@@ -452,30 +420,26 @@ class KafkaSchemaReader(Thread):
             return
 
         subject = value["subject"]
-        if subject not in self.subjects:
+        version = value["version"]
+        if self.database.find_subject(subject=subject) is None:
             LOG.error("Subject: %r did not exist, should have", subject)
         else:
             LOG.info("Deleting subject: %r, value: %r", subject, value)
-
-            updated_schemas: Dict[int, Schema] = {}
-            for schema_key, schema in self.subjects[subject]["schemas"].items():
-                updated_schemas[schema_key] = self._delete_schema_below_version(schema, value["version"])
-                self._delete_from_schema_id_on_subject(subject=subject, schema=schema["schema"])
-            self.subjects[value["subject"]]["schemas"] = updated_schemas
+            self.database.delete_subject(subject=subject, version=version)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
         subject, version = key["subject"], key["version"]
 
-        if subject not in self.subjects:
+        if self.database.find_subject(subject=subject) is None:
             LOG.error("Hard delete: Subject %s did not exist, should have", subject)
-        elif version not in self.subjects[subject]["schemas"]:
+        elif version not in self.database.find_subject_schemas(subject=subject, include_deleted=True):
             LOG.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
         else:
             LOG.info("Hard delete: subject: %r version: %r", subject, version)
-            self.subjects[subject]["schemas"].pop(version, None)
-            if not self.subjects[subject]["schemas"]:
+            self.database.delete_subject_schema(subject=subject, version=version)
+            if not self.database.find_subject_schemas(subject=subject, include_deleted=True):
                 LOG.info("Hard delete last version, subject %r is gone", subject)
-                del self.subjects[subject]
+                self.database.delete_subject_hard(subject=subject)
 
     def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
         if not value:
@@ -501,52 +465,20 @@ class KafkaSchemaReader(Thread):
         # won't interfere with the equality. Note: This means it is possible
         # for the REST API to return data that is formatted differently from
         # what is available in the topic.
-        if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
-            try:
-                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
-            except json.JSONDecodeError:
-                LOG.error("Schema is not valid JSON")
-                return
-        elif schema_type_parsed == SchemaType.PROTOBUF:
-            try:
-                parsed_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, schema_str)
-                schema_str = str(parsed_schema)
-            except InvalidSchema:
-                LOG.exception("Schema is not valid ProtoBuf definition")
-                return
-
-        if schema_subject not in self.subjects:
-            LOG.info("Adding first version of subject: %r with no schemas", schema_subject)
-            self.subjects[schema_subject] = {"schemas": {}}
-
-        subjects_schemas = self.subjects[schema_subject]["schemas"]
-
-        with self.id_lock:
-            # dedup schemas to reduce memory pressure
-            schema_str = self._hash_to_schema.setdefault(hash(schema_str), schema_str)
-
-            if schema_version in subjects_schemas:
-                LOG.info("Updating entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-            else:
-                LOG.info("Adding entry subject: %r version: %r id: %r", schema_subject, schema_version, schema_id)
-
+        try:
             typed_schema = TypedSchema(
                 schema_type=schema_type_parsed,
                 schema_str=schema_str,
             )
-            subjects_schemas[schema_version] = {
-                "schema": typed_schema,
-                "version": schema_version,
-                "id": schema_id,
-                "deleted": schema_deleted,
-            }
-
-            self.schemas[schema_id] = typed_schema
-            self.global_schema_id = max(self.global_schema_id, schema_id)
-            if not schema_deleted:
-                self._set_schema_id_on_subject(subject=schema_subject, schema=typed_schema, schema_id=schema_id)
-            else:
-                self._delete_from_schema_id_on_subject(subject=schema_subject, schema=typed_schema)
+        except (InvalidSchema, json.JSONDecodeError):
+            return
+        self.database.insert_schema_version(
+            subject=schema_subject,
+            schema_id=schema_id,
+            version=schema_version,
+            deleted=schema_deleted,
+            schema=typed_schema,
+        )
 
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
@@ -557,38 +489,3 @@ class KafkaSchemaReader(Thread):
             self._handle_msg_delete_subject(key, value)
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
-
-    @staticmethod
-    def _delete_schema_below_version(schema: Schema, version: Version) -> Schema:
-        if schema["version"] <= version:
-            schema["deleted"] = True
-        return schema
-
-    def get_schemas(
-        self,
-        subject: Subject,
-        *,
-        include_deleted: bool = False,
-    ) -> Dict:
-        if subject not in self.subjects:
-            return {}
-        if include_deleted:
-            return self.subjects[subject]["schemas"]
-        non_deleted_schemas = {
-            key: val for key, val in self.subjects[subject]["schemas"].items() if val.get("deleted", False) is False
-        }
-        return non_deleted_schemas
-
-    def get_schemas_list(self, *, include_deleted: bool, latest_only: bool) -> Dict[Subject, SubjectData]:
-        res_schemas = {}
-        for subject, subject_data in self.subjects.items():
-            selected_schemas = []
-            schemas = list(subject_data["schemas"].values())
-            if latest_only:
-                selected_schemas = schemas[-1]
-            else:
-                selected_schemas = schemas
-            if include_deleted:
-                selected_schemas = [schema for schema in selected_schemas if schema.get("deleted", False) is False]
-            res_schemas[subject] = selected_schemas
-        return res_schemas
