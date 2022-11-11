@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from avro.errors import SchemaParseException
 from avro.schema import parse as avro_parse, Schema as AvroSchema
+from dataclasses import dataclass
 from enum import Enum, unique
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
@@ -17,10 +18,15 @@ from karapace.protobuf.exception import (
     SchemaParseException as ProtobufSchemaParseException,
 )
 from karapace.protobuf.schema import ProtobufSchema
+from karapace.typing import ResolvedVersion, SchemaId, Subject
 from karapace.utils import json_encode
-from typing import Any, cast, Dict, Optional, Union
+from typing import Any, cast, Dict, NoReturn, Optional, Union
 
+import hashlib
 import json
+import logging
+
+LOG = logging.getLogger(__name__)
 
 
 def parse_avro_schema_definition(s: str, validate_enum_symbols: bool = True, validate_names: bool = True) -> AvroSchema:
@@ -71,6 +77,10 @@ class SchemaType(str, Enum):
     PROTOBUF = "PROTOBUF"
 
 
+def _assert_never(no_return: NoReturn) -> NoReturn:
+    raise AssertionError(f"Expected to be unreachable {no_return}")
+
+
 class TypedSchema:
     def __init__(self, schema_type: SchemaType, schema_str: str):
         """Schema with type information
@@ -80,29 +90,47 @@ class TypedSchema:
             schema_str (str): The original schema string
         """
         self.schema_type = schema_type
-        self.schema_str = schema_str
-        self.max_id: Optional[int] = None
+        self.schema_str = TypedSchema.normalize_schema_str(schema_str, schema_type)
+        self.max_id: Optional[SchemaId] = None
 
-        self._str_cached: Optional[str] = None
+        self._fingerprint_cached: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
         return json.loads(self.schema_str)
 
-    def __str__(self) -> str:
-        if self.schema_type == SchemaType.PROTOBUF:
-            return self.schema_str
+    def fingerprint(self) -> str:
+        if self._fingerprint_cached is None:
+            self._fingerprint_cached = hashlib.sha1(str(self).encode("utf8")).hexdigest()
+        return self._fingerprint_cached
 
-        if self._str_cached is None:
-            self._str_cached = json_encode(self.to_dict())
-        return self._str_cached
+    @staticmethod
+    def normalize_schema_str(schema_str: str, schema_type: SchemaType) -> str:
+        if schema_type is SchemaType.AVRO or schema_type is SchemaType.JSONSCHEMA:
+            try:
+                schema_str = json_encode(json.loads(schema_str), sort_keys=True)
+            except json.JSONDecodeError as e:
+                LOG.error("Schema is not valid JSON")
+                raise e
+        elif schema_type == SchemaType.PROTOBUF:
+            try:
+                schema_str = str(parse_protobuf_schema_definition(schema_str))
+            except InvalidSchema as e:
+                LOG.exception("Schema is not valid ProtoBuf definition")
+                raise e
+        else:
+            _assert_never(schema_type)
+        return schema_str
+
+    def __str__(self) -> str:
+        return self.schema_str
 
     def __repr__(self) -> str:
         return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, TypedSchema) and self.__str__() == other.__str__() and self.schema_type is other.schema_type
+        return isinstance(other, TypedSchema) and str(self) == str(other) and self.schema_type is other.schema_type
 
 
 def parse(
@@ -217,3 +245,12 @@ class ValidatedTypedSchema(ParsedTypedSchema):
             validate_avro_names=True,
         )
         return cast(ValidatedTypedSchema, parsed_schema)
+
+
+@dataclass
+class SchemaVersion:
+    subject: Subject
+    version: ResolvedVersion
+    deleted: bool
+    schema_id: SchemaId
+    schema: TypedSchema

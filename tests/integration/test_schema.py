@@ -1902,9 +1902,10 @@ async def test_schema_listing(registry_async_client: Client) -> None:
     assert res.json()[0] == subject_1
 
     res = await registry_async_client.get("subjects/?deleted=true")
-    assert len(res.json()) == 2
-    assert res.json()[0] == subject_1
-    assert res.json()[1] == subject_2
+    result = res.json()
+    assert len(result) == 2
+    assert subject_1 in result
+    assert subject_2 in result
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
