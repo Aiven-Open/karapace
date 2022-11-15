@@ -7,6 +7,7 @@ from karapace.config import Config
 from karapace.errors import (
     IncompatibleSchema,
     InvalidVersion,
+    KafkaTimeoutException,
     SchemasNotFoundException,
     SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
@@ -411,12 +412,15 @@ class KarapaceSchemaRegistry:
         if isinstance(value, str):
             value = value.encode("utf8")
 
-        future = self.producer.send(
-            self.config["topic_name"],
-            key=key,
-            value=value,
-            headers=[X_REGISTRY_VERSION_HEADER, self.x_origin_host_header],
-        )
+        try:
+            future = self.producer.send(
+                self.config["topic_name"],
+                key=key,
+                value=value,
+                headers=[X_REGISTRY_VERSION_HEADER, self.x_origin_host_header],
+            )
+        except kafka_errors.KafkaTimeoutError as ex:
+            raise KafkaTimeoutException from ex
         self.producer.flush(timeout=self.kafka_timeout)
         try:
             msg = future.get(self.kafka_timeout)

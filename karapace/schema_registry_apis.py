@@ -11,6 +11,7 @@ from karapace.errors import (
     InvalidSchema,
     InvalidSchemaType,
     InvalidVersion,
+    KafkaTimeoutException,
     SchemasNotFoundException,
     SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
@@ -52,6 +53,7 @@ class SchemaErrorCodes(Enum):
     INVALID_SUBJECT = 42208
     SCHEMA_TOO_LARGE_ERROR_CODE = 42209
     NO_MASTER_ERROR = 50003
+    KAFKA_TIMEOUT_ERROR_CODE = 50004
 
 
 @unique
@@ -1016,6 +1018,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     },
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
+                )
+            except KafkaTimeoutException:
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.KAFKA_TIMEOUT_ERROR_CODE.value,
+                        "message": "Kafka timeout",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.GATEWAY_TIMEOUT,
                 )
 
         elif not master_url:
