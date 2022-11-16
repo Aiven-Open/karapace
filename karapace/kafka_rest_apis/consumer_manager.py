@@ -491,6 +491,9 @@ class ConsumerManager:
                         message=f"Failed to fetch: {ex}",
                         content_type=content_type,
                     )
+                except Exception:
+                    LOG.info("The data received: %r", data)
+                    LOG.exception("Unexpected error")
                 LOG.debug("Successfully polled for messages")
                 for topic, records in data.items():
                     for rec in records:
