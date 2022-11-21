@@ -336,8 +336,8 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``0``
      - Disconnect idle consumers after timeout seconds if not used.  Inactivity leads to consumer leaving consumer group and consumer state.  0 (default) means no auto-disconnect.
    * - ``fetch_min_bytes``
-     - ``-1``
-     - Rest proxy consumers minimum bytes to be fetched per request. ``-1`` means no limit
+     - ``1``
+     - Rest proxy consumers minimum bytes to be fetched per request.
    * - ``group_id``
      - ``schema-registry``
      - The Kafka group name used for selecting a master service to coordinate the storing of Schemas.

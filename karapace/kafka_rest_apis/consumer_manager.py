@@ -214,8 +214,11 @@ class ConsumerManager:
                     sasl_plain_username=self.config["sasl_plain_username"],
                     sasl_plain_password=self.config["sasl_plain_password"],
                     group_id=group_name,
-                    fetch_min_bytes=fetch_min_bytes,
+                    fetch_min_bytes=max(1, fetch_min_bytes),  # Discard earlier negative values
                     fetch_max_bytes=self.config["consumer_request_max_bytes"],
+                    fetch_max_wait_ms=self.config.get("consumer_fetch_max_wait_ms", 500),  # Copy aiokafka default 500 ms
+                    # This will cause delay if subscription is changed.
+                    consumer_timeout_ms=self.config.get("consumer_timeout_ms", 200),  # Copy aiokafka default 200 ms
                     request_timeout_ms=request_timeout_ms,
                     enable_auto_commit=request_data["auto.commit.enable"],
                     auto_offset_reset=request_data["auto.offset.reset"],

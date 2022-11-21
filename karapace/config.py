@@ -35,7 +35,7 @@ DEFAULTS = {
     "consumer_request_timeout_ms": 11000,
     "consumer_request_max_bytes": 67108864,
     "consumer_idle_disconnect_timeout": 0,
-    "fetch_min_bytes": -1,
+    "fetch_min_bytes": 1,
     "group_id": "schema-registry",
     "host": "127.0.0.1",
     "port": 8081,
