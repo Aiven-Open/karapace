@@ -25,19 +25,23 @@ def get_project_version(version_file: str) -> str:
     module = importlib.util.module_from_spec(module_spec)
     file_ver = getattr(module, "__version__", None)
 
-    os.chdir(os.path.dirname(__file__) or ".")
-    try:
-        git_out = subprocess.check_output(
-            ["git", "describe", "--always", "--tags"], stderr=getattr(subprocess, "DEVNULL", None)
-        )
-    except (OSError, subprocess.CalledProcessError):
-        pass
-    else:
-        git_ver = git_out.splitlines()[0].strip().decode("utf-8")
-        if "." not in git_ver:
-            git_ver = "0.0.1-0-unknown-{}".format(git_ver)
-        if save_version(git_ver, file_ver, version_file):
-            return git_ver
+    version = os.getenv("KARAPACE_VERSION")
+    if version is None:
+        os.chdir(os.path.dirname(__file__) or ".")
+        try:
+            git_out = subprocess.check_output(
+                ["git", "describe", "--always", "--tags"], stderr=getattr(subprocess, "DEVNULL", None)
+            )
+        except (OSError, subprocess.CalledProcessError):
+            pass
+        else:
+            git_ver = git_out.splitlines()[0].strip().decode("utf-8")
+            if "." not in git_ver:
+                git_ver = "0.0.1-0-unknown-{}".format(git_ver)
+            version = git_ver
+
+    if save_version(version, file_ver, version_file):
+        return version
 
     if not file_ver:
         raise Exception("version not available from git or from file {!r}".format(version_file))
