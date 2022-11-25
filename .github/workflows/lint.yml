@@ -11,12 +11,28 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Set up Python 3.7
-        uses: actions/setup-python@v1
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.11
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+          check-latest: true
+
+      - name: Cache pre-commit
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pre-commit
+          key: >-
+            ${{ runner.os }}
+            -pre-commit
+            -${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # https://github.com/andrix/python-snappy/issues/124
+      - name: Install libsnappy-dev (python-snappy legacy-install-failure on Python 3.11)
+        run: sudo apt install libsnappy-dev
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt

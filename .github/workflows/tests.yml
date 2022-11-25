@@ -22,6 +22,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    # https://github.com/andrix/python-snappy/issues/124
     - name: Install libsnappy-dev (python-snappy legacy-install-failure on Python 3.11)
       run: sudo apt install libsnappy-dev
 
