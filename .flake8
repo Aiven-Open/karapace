@@ -1,10 +1,13 @@
 [flake8]
 max-line-length = 125
 
-# E203,W503: incompatibilities with black
-# E722: also signaled by pylint (disabling here globally and on case-by-case basis with pylint)
+# E203: whitespace before ':', incompatible with black
+# W503: line break before binary operator, incompatible with black
+# E722: do not use bare 'except', also signaled by pylint (disabling here globally and
+#       on case-by-case basis with pylint)
+# E501: ignore line-length
 ignore =
-  E501,  # line length
-  E203,  # whitespace before ':'
-  W503,  # line break before binary operator
-  E722,  # do not use bare 'except'
+  E501,
+  E203,
+  W503,
+  E722,
