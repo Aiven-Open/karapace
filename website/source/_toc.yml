@@ -1,0 +1,8 @@
+root: index
+options:
+  maxdepth: 1
+
+entries:
+  - file: install
+  - file: quickstart
+  - file: about

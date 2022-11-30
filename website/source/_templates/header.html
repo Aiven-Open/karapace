@@ -1,0 +1,12 @@
+<header>
+  <div
+    class="container max-w-6xl flex justify-between items-center py-8 w-auto"
+  >
+    <a href="{{ pathto('index') }}"> {% include 'logo.html' %} </a>
+    <nav class="items-center gap-8 hidden md:flex">
+      {% if pagename == "index" %} {% include "header-links.html" %} {% else %}
+      {% include 'sidebar/search.html' %} {% endif %}
+    </nav>
+    {% include "hamburger-menu.html" %}
+  </div>
+</header>
