@@ -12,6 +12,7 @@ import importlib
 import importlib.util
 import os
 import subprocess
+import sys
 
 
 def calculate_class_name(name: str) -> str:
@@ -45,29 +46,57 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
     return ".".join(result)
 
 
+def crawl_dependencies_(schema: ProtobufSchema, deps_list: Dict[str, str]):
+    if schema.dependencies:
+        for name, dependency in schema.dependencies.items():
+            crawl_dependencies_(dependency.schema, deps_list)
+            deps_list[name] = str(dependency.schema)
+
+
+def crawl_dependencies(schema: ProtobufSchema) -> Dict[str, str]:
+    deps_list: Dict[str, str] = {}
+    crawl_dependencies_(schema, deps_list)
+    return deps_list
+
+
 def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Dict) -> Any:
     directory = cfg["protobuf_runtime_directory"]
     proto_name = calculate_class_name(str(schema))
     proto_path = f"{proto_name}.proto"
-    class_path = f"{directory}/{proto_name}_pb2.py"
-    if not os.path.isfile(proto_path):
-        with open(f"{directory}/{proto_name}.proto", mode="w", encoding="utf8") as proto_text:
-            proto_text.write(str(schema))
+    work_dir = f"{directory}/{proto_name}"
+
+    if not os.path.isdir(work_dir):
+        os.mkdir(work_dir)
+    class_path = f"{directory}/{proto_name}/{proto_name}_pb2.py"
+    with open(f"{directory}/{proto_name}/{proto_name}.proto", mode="w", encoding="utf8") as proto_text:
+        proto_text.write(str(schema))
+    deps_list = crawl_dependencies(schema)
+    protoc_arguments = [
+        "protoc",
+        "--python_out=./",
+        proto_path,
+    ]
+    for name, dependency_str in deps_list.items():
+        dependency_path = f"{directory}/{proto_name}/{name}"
+        protoc_arguments.append(name)
+        with open(dependency_path, mode="w", encoding="utf8") as proto_text:
+            proto_text.write(dependency_str)
 
     if not os.path.isfile(class_path):
         subprocess.run(
-            [
-                "protoc",
-                "--python_out=./",
-                proto_path,
-            ],
+            protoc_arguments,
             check=True,
-            cwd=directory,
+            cwd=work_dir,
         )
 
-    spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
+    sys.path.append(f"./runtime/{proto_name}")
+    spec = importlib.util.spec_from_file_location(
+        f"{proto_name}_pb2",
+        class_path,
+    )
     tmp_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tmp_module)
+    sys.path.pop()
     class_to_call = getattr(tmp_module, class_name)
     return class_to_call()
 
