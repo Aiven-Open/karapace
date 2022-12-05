@@ -5,7 +5,7 @@ from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dict
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.type_element import TypeElement
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import hashlib
 import importlib
@@ -46,48 +46,68 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
     return ".".join(result)
 
 
-def crawl_dependencies_(schema: ProtobufSchema, deps_list: Dict[str, str]):
+def crawl_dependencies_(schema: ProtobufSchema, deps_list: Dict[str, Dict[str, str]]):
     if schema.dependencies:
         for name, dependency in schema.dependencies.items():
             crawl_dependencies_(dependency.schema, deps_list)
-            deps_list[name] = str(dependency.schema)
+            deps_list[name] = {
+                "schema": str(dependency.schema),
+                "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
+            }
 
 
-def crawl_dependencies(schema: ProtobufSchema) -> Dict[str, str]:
-    deps_list: Dict[str, str] = {}
+def crawl_dependencies(schema: ProtobufSchema) -> Dict[str, Dict[str, str]]:
+    deps_list: Dict[str, Dict[str, str]] = {}
     crawl_dependencies_(schema, deps_list)
     return deps_list
 
 
+def replace_imports(string: str, deps_list: Optional[Dict[str, Dict[str, str]]]) -> str:
+    if deps_list is None:
+        return string
+    for key, value in deps_list.items():
+        unique_class_name = value["unique_class_name"] + ".proto"
+        string = string.replace('"' + key + '"', f'"{unique_class_name}"')
+    return string
+
+
 def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Dict) -> Any:
     directory = cfg["protobuf_runtime_directory"]
-    proto_name = calculate_class_name(str(schema))
+    deps_list = crawl_dependencies(schema)
+    root_class_name = ""
+    for value in deps_list.values():
+        root_class_name = root_class_name + value["unique_class_name"]
+    root_class_name = root_class_name + str(schema)
+    proto_name = calculate_class_name(root_class_name)
+
     proto_path = f"{proto_name}.proto"
     work_dir = f"{directory}/{proto_name}"
 
     if not os.path.isdir(work_dir):
         os.mkdir(work_dir)
     class_path = f"{directory}/{proto_name}/{proto_name}_pb2.py"
-    with open(f"{directory}/{proto_name}/{proto_name}.proto", mode="w", encoding="utf8") as proto_text:
-        proto_text.write(str(schema))
-    deps_list = crawl_dependencies(schema)
-    protoc_arguments = [
-        "protoc",
-        "--python_out=./",
-        proto_path,
-    ]
-    for name, dependency_str in deps_list.items():
-        dependency_path = f"{directory}/{proto_name}/{name}"
-        protoc_arguments.append(name)
-        with open(dependency_path, mode="w", encoding="utf8") as proto_text:
-            proto_text.write(dependency_str)
+    if not os.path.exists(class_path):
+        with open(f"{directory}/{proto_name}/{proto_name}.proto", mode="w", encoding="utf8") as proto_text:
+            proto_text.write(replace_imports(str(schema), deps_list))
 
-    if not os.path.isfile(class_path):
-        subprocess.run(
-            protoc_arguments,
-            check=True,
-            cwd=work_dir,
-        )
+        protoc_arguments = [
+            "protoc",
+            "--python_out=./",
+            proto_path,
+        ]
+        for value in deps_list.values():
+            proto_file_name = value["unique_class_name"] + ".proto"
+            dependency_path = f"{directory}/{proto_name}/{proto_file_name}"
+            protoc_arguments.append(proto_file_name)
+            with open(dependency_path, mode="w", encoding="utf8") as proto_text:
+                proto_text.write(replace_imports(value["schema"], deps_list))
+
+        if not os.path.isfile(class_path):
+            subprocess.run(
+                protoc_arguments,
+                check=True,
+                cwd=work_dir,
+            )
 
     sys.path.append(f"./runtime/{proto_name}")
     spec = importlib.util.spec_from_file_location(
