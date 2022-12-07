@@ -17,7 +17,7 @@ from jsonschema import Draft7Validator
 from karapace.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility, incompatible_schema
 from karapace.compatibility.protobuf.checks import check_protobuf_schema_compatibility
 from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import ValidatedTypedSchema
+from karapace.schema_models import ParsedTypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import SchemaType
 from karapace.utils import assert_never
 
@@ -76,7 +76,7 @@ def check_protobuf_compatibility(reader: ProtobufSchema, writer: ProtobufSchema)
 
 
 def check_compatibility(
-    old_schema: ValidatedTypedSchema, new_schema: ValidatedTypedSchema, compatibility_mode: CompatibilityModes
+    old_schema: ParsedTypedSchema, new_schema: ValidatedTypedSchema, compatibility_mode: CompatibilityModes
 ) -> SchemaCompatibilityResult:
     """Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`."""
     if compatibility_mode is CompatibilityModes.NONE:
