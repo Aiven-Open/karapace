@@ -5,7 +5,7 @@ from jsonschema import ValidationError
 from karapace.client import Client
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
-from karapace.schema_models import InvalidSchema, SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.utils import json_encode
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
@@ -85,7 +85,7 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(result.json())
         return result.json()["id"]
 
-    async def get_latest_schema(self, subject: str) -> Tuple[int, ValidatedTypedSchema]:
+    async def get_latest_schema(self, subject: str) -> Tuple[int, ParsedTypedSchema]:
         result = await self.client.get(f"subjects/{quote(subject)}/versions/latest")
         if not result.ok:
             raise SchemaRetrievalError(result.json())
@@ -94,11 +94,11 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
             schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
-            return json_result["id"], ValidatedTypedSchema.parse(schema_type, json_result["schema"])
+            return json_result["id"], ParsedTypedSchema.parse(schema_type, json_result["schema"])
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
-    async def get_schema_for_id(self, schema_id: int) -> ValidatedTypedSchema:
+    async def get_schema_for_id(self, schema_id: int) -> ParsedTypedSchema:
         result = await self.client.get(f"schemas/ids/{schema_id}")
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
@@ -107,7 +107,7 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
         try:
             schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
-            return ValidatedTypedSchema.parse(schema_type, json_result["schema"])
+            return ParsedTypedSchema.parse(schema_type, json_result["schema"])
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
@@ -146,7 +146,7 @@ class SchemaRegistrySerializer:
             self.registry_client = None
 
     def get_subject_name(self, topic_name: str, schema: str, subject_type: str, schema_type: SchemaType) -> str:
-        schema_typed = ValidatedTypedSchema.parse(schema_type, schema)
+        schema_typed = ParsedTypedSchema.parse(schema_type, schema)
         namespace = "dummy"
         if schema_type is SchemaType.AVRO:
             if isinstance(schema_typed.schema, avro.schema.NamedSchema):
@@ -170,7 +170,7 @@ class SchemaRegistrySerializer:
     async def get_id_for_schema(self, schema: str, subject: str, schema_type: SchemaType) -> int:
         assert self.registry_client, "must not call this method after the object is closed."
         try:
-            schema_typed = ValidatedTypedSchema.parse(schema_type, schema)
+            schema_typed = ParsedTypedSchema.parse(schema_type, schema)
         except InvalidSchema as e:
             raise InvalidPayload(f"Schema string {schema} is invalid") from e
         schema_ser = schema_typed.__str__()
