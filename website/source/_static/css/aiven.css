@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: Inter;
+  src: url(../fonts/Inter/Inter-Regular.ttf);
+}
+
+@font-face {
+  font-family: Inter-Medium;
+  src: url(../fonts/Inter/Inter-Medium.ttf);
+}
+
+@font-face {
+  font-family: Inter-SemiBold;
+  src: url(../fonts/Inter/Inter-SemiBold.ttf);
+}
+
+@font-face {
+  font-family: Inter-Bold;
+  src: url(../fonts/Inter/Inter-Bold.ttf);
+}
+
+@font-face {
+  font-family: Ubuntu;
+  src: url(../fonts/Ubuntu/Ubuntu-Regular.ttf);
+}
+
+@font-face {
+  font-family: Ubuntu-Medium;
+  src: url(../fonts/Ubuntu/Ubuntu-Medium.ttf);
+}
+
+@font-face {
+  font-family: Ubuntu-SemiBold;
+  src: url(../fonts/Ubuntu/Ubuntu-SemiBold.ttf);
+}
+
+@font-face {
+  font-family: Ubuntu-Bold;
+  src: url(../fonts/Ubuntu/Ubuntu-Bold.ttf);
+}
+
+/* Furo theme overrides */
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  @apply flex flex-col;
+}
+
+a {
+  @apply no-underline font-medium;
+}
+
+/* End Furo theme overrides. */
+
+@layer utilities {
+  button,
+  a.button {
+    @apply flex items-center py-2 px-4 rounded no-underline cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply bg-black text-white hover:bg-grey-80 hover:text-white border-0;
+  }
+
+  .gh-ribbon {
+    font-family: Helvetica, Arial, sans-serif;
+    width: 600px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.8em;
+    padding: 10px;
+    text-decoration: none;
+    position: fixed;
+    text-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    z-index: 1000;
+    margin-top: 35px;
+  }
+
+  .gh-ribbon:after {
+    content: "";
+    position: relative;
+    display: block;
+    top: 8px;
+    left: 0;
+    width: 600px;
+    border: 1px dashed rgba(255, 255, 255, 0.4);
+  }
+
+  .gh-ribbon:before {
+    content: "";
+    position: relative;
+    display: block;
+    bottom: 8px;
+    left: 0;
+    width: 600px;
+    border: 1px dashed rgba(255, 255, 255, 0.4);
+  }
+
+  .gh-ribbon.right {
+    top: 15px;
+    right: -285px;
+    transform: rotate(50deg) translateY(100%);
+  }
+
+  .gh-ribbon.gray {
+    background-color: var(--color-background-primary);
+    color: var(--primaryColor);
+  }
+}

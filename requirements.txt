@@ -8,6 +8,10 @@ networkx==2.5
 protobuf==3.19.5
 python-dateutil==2.8.2
 
+# Using 0.15.0 until following issue gets fixed.
+# https://github.com/samuelcolvin/watchfiles/issues/200
+watchfiles==0.15.0
+
 # Patched dependencies
 #
 # Note: It is important to use commits to reference patched dependencies. This
