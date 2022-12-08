@@ -171,6 +171,7 @@ class KarapaceKafkaClient(KafkaClient):
         except Exception as e:  # pylint: disable=broad-except
             LOG.error("Error closing invalid connections: %r", e)
 
+
 class KarapaceBrokerConnection(BrokerConnection):
     def __init__(self, host, port, afi, **configs):
         super().__init__(host, port, afi, **configs)
