@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from http import HTTPStatus
-from kafka.client_async import BrokerConnection, KafkaClient, MetadataRequest
+from kafka.client_async import BrokerConnection, KafkaClient
 from types import MappingProxyType
 from typing import NoReturn, overload, Union
 
