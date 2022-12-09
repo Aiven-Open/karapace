@@ -9,7 +9,8 @@ from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
-from karapace.utils import KarapaceKafkaClient
+from karapace.typing import JsonData
+from karapace.utils import json_encode, KarapaceKafkaClient
 from karapace.version import __version__
 from threading import Event, Thread
 from typing import Optional, Tuple
@@ -24,8 +25,19 @@ DUPLICATE_URLS = 1
 LOG = logging.getLogger(__name__)
 
 
-def get_identity_url(scheme, host, port):
+def get_member_url(scheme, host, port) -> str:
     return "{}://{}:{}".format(scheme, host, port)
+
+
+def get_member_configuration(*, host: str, port: str, scheme: str, master_eligibility: bool) -> JsonData:
+    return {
+        "version": 2,
+        "karapace_version": __version__,
+        "host": host,
+        "port": port,
+        "scheme": scheme,
+        "master_eligibility": master_eligibility,
+    }
 
 
 class SchemaCoordinator(BaseCoordinator):
@@ -40,21 +52,21 @@ class SchemaCoordinator(BaseCoordinator):
     def protocol_type(self):
         return "sr"
 
-    def get_identity(self, *, host, port, scheme, json_encode=True):
-        res = {
-            "version": 2,
-            "karapace_version": __version__,
-            "host": host,
-            "port": port,
-            "scheme": scheme,
-            "master_eligibility": self.master_eligibility,
-        }
-        if json_encode:
-            return json.dumps(res)
-        return res
-
     def group_protocols(self):
-        return [("v0", self.get_identity(host=self.hostname, port=self.port, scheme=self.scheme))]
+        return [
+            (
+                "v0",
+                json_encode(
+                    get_member_configuration(
+                        host=self.hostname,
+                        port=self.port,
+                        scheme=self.scheme,
+                        master_eligibility=self.master_eligibility,
+                    ),
+                    compact=True,
+                ),
+            )
+        ]
 
     def _perform_assignment(self, leader_id, protocol, members):
         LOG.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
@@ -65,13 +77,13 @@ class SchemaCoordinator(BaseCoordinator):
         for member_id, member_data in members:
             member_identity = json.loads(member_data.decode("utf8"))
             if member_identity["master_eligibility"] is True:
-                urls[get_identity_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
+                urls[get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
                     member_id,
                     member_data,
                 )
             else:
                 fallback_urls[
-                    get_identity_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
+                    get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
                 ] = (member_id, member_data)
         if len(urls) > 0:
             chosen_url = sorted(urls, reverse=self.election_strategy.lower() == "highest")[0]
@@ -81,11 +93,11 @@ class SchemaCoordinator(BaseCoordinator):
             chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
             schema_master_id, member_data = fallback_urls[chosen_url]
         member_identity = json.loads(member_data.decode("utf8"))
-        identity = self.get_identity(
+        identity = get_member_configuration(
             host=member_identity["host"],
             port=member_identity["port"],
             scheme=member_identity["scheme"],
-            json_encode=False,
+            master_eligibility=member_identity["master_eligibility"],
         )
         LOG.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
 
@@ -109,7 +121,7 @@ class SchemaCoordinator(BaseCoordinator):
         member_assignment = json.loads(member_assignment_bytes.decode("utf8"))
         member_identity = member_assignment["master_identity"]
 
-        master_url = get_identity_url(
+        master_url = get_member_url(
             scheme=member_identity["scheme"],
             host=member_identity["host"],
             port=member_identity["port"],
