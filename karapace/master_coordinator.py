@@ -9,11 +9,12 @@ from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
+from karapace.config import Config
 from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient
 from karapace.version import __version__
 from threading import Event, Thread
-from typing import Optional, Tuple
+from typing import Any, cast, List, Optional, Tuple
 
 import json
 import logging
@@ -25,11 +26,11 @@ DUPLICATE_URLS = 1
 LOG = logging.getLogger(__name__)
 
 
-def get_member_url(scheme, host, port) -> str:
+def get_member_url(scheme: str, host: str, port: str) -> str:
     return "{}://{}:{}".format(scheme, host, port)
 
 
-def get_member_configuration(*, host: str, port: str, scheme: str, master_eligibility: bool) -> JsonData:
+def get_member_configuration(*, host: str, port: int, scheme: str, master_eligibility: bool) -> JsonData:
     return {
         "version": 2,
         "karapace_version": __version__,
@@ -41,18 +42,32 @@ def get_member_configuration(*, host: str, port: str, scheme: str, master_eligib
 
 
 class SchemaCoordinator(BaseCoordinator):
-    election_strategy = "lowest"
-    hostname = None
-    port = None
-    scheme = None
-    are_we_master = None
-    master_url = None
-    master_eligibility = True
+    are_we_master: Optional[bool] = None
+    master_url: Optional[str] = None
 
-    def protocol_type(self):
+    def __init__(
+        self,
+        client: KarapaceKafkaClient,
+        metrics: Metrics,
+        hostname: str,
+        port: int,
+        scheme: str,
+        master_eligibility: bool,
+        election_strategy: str,
+        **configs: Any,
+    ) -> None:
+        super().__init__(client=client, metrics=metrics, **configs)
+        self.election_strategy = election_strategy
+        self.hostname = hostname
+        self.port = port
+        self.scheme = scheme
+        self.master_eligibility = master_eligibility
+
+    def protocol_type(self) -> str:
         return "sr"
 
-    def group_protocols(self):
+    def group_protocols(self) -> List[Tuple[str, str]]:
+        assert self.scheme is not None
         return [
             (
                 "v0",
@@ -68,7 +83,7 @@ class SchemaCoordinator(BaseCoordinator):
             )
         ]
 
-    def _perform_assignment(self, leader_id, protocol, members):
+    def _perform_assignment(self, leader_id: str, protocol: str, members: JsonData) -> JsonData:
         LOG.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
         self.are_we_master = None
         error = NO_ERROR
@@ -106,11 +121,11 @@ class SchemaCoordinator(BaseCoordinator):
             assignments[member_id] = json.dumps({"master": schema_master_id, "master_identity": identity, "error": error})
         return assignments
 
-    def _on_join_prepare(self, generation, member_id):
+    def _on_join_prepare(self, generation: str, member_id: str) -> None:
         """Invoked prior to each group join or rejoin."""
         # needs to be implemented in our class for pylint to be satisfied
 
-    def _on_join_complete(self, generation, member_id, protocol, member_assignment_bytes):
+    def _on_join_complete(self, generation: str, member_id: str, protocol: str, member_assignment_bytes: bytes) -> None:
         LOG.info(
             "Join complete, generation %r, member_id: %r, protocol: %r, member_assignment_bytes: %r",
             generation,
@@ -146,19 +161,19 @@ class SchemaCoordinator(BaseCoordinator):
 class MasterCoordinator(Thread):
     """Handles schema topic creation and master election"""
 
-    def __init__(self, config):
+    def __init__(self, config: Config) -> None:
         super().__init__()
         self.config = config
         self.timeout_ms = 10000
-        self.kafka_client = None
+        self.kafka_client: Optional[KarapaceKafkaClient] = None
         self.running = True
-        self.sc = None
+        self.sc: Optional[SchemaCoordinator] = None
         metrics_tags = {"client-id": self.config["client_id"]}
         metric_config = MetricConfig(samples=2, time_window_ms=30000, tags=metrics_tags)
         self._metrics = Metrics(metric_config, reporters=[])
         self.schema_coordinator_ready = Event()
 
-    def init_kafka_client(self):
+    def init_kafka_client(self) -> bool:
         try:
             self.kafka_client = KarapaceKafkaClient(
                 api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
@@ -179,32 +194,34 @@ class MasterCoordinator(Thread):
             time.sleep(2.0)
         return False
 
-    def init_schema_coordinator(self):
+    def init_schema_coordinator(self) -> None:
         session_timeout_ms = self.config["session_timeout_ms"]
+        assert self.kafka_client is not None
         self.sc = SchemaCoordinator(
             client=self.kafka_client,
             metrics=self._metrics,
-            group_id=self.config["group_id"],
+            hostname=cast(str, self.config["advertised_hostname"]),
+            port=cast(int, self.config["port"]),
+            scheme="http",
+            master_eligibility=cast(bool, self.config["master_eligibility"]),
+            election_strategy=cast(str, self.config.get("master_election_strategy", "lowest")),
+            group_id=cast(str, self.config["group_id"]),
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]),
         )
-        self.sc.election_strategy = self.config["master_election_strategy"]
-        self.sc.hostname = self.config["advertised_hostname"]
-        self.sc.port = self.config["port"]
-        self.sc.scheme = "http"
-        self.sc.master_eligibility = self.config["master_eligibility"]
         self.schema_coordinator_ready.set()
 
     def get_master_info(self) -> Tuple[Optional[bool], Optional[str]]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
         self.schema_coordinator_ready.wait()
+        assert self.sc is not None
         return self.sc.are_we_master, self.sc.master_url
 
-    def close(self):
+    def close(self) -> None:
         LOG.info("Closing master_coordinator")
         self.running = False
 
-    def run(self):
+    def run(self) -> None:
         _hb_interval = 3.0
         while self.running:
             try:
@@ -213,6 +230,7 @@ class MasterCoordinator(Thread):
                         continue
                 if not self.sc:
                     self.init_schema_coordinator()
+                    assert self.sc is not None
                     _hb_interval = self.sc.config["heartbeat_interval_ms"] / 1000
 
                 self.sc.ensure_active_group()
