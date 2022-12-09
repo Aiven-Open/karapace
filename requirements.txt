@@ -26,7 +26,7 @@ git+https://github.com/aiven/kafka-python.git@b9f2f78377d56392f61cba8856dc6c02ae
 aiosignal==1.2.0 # aiohttp
 async-timeout==4.0.2 # aiohttp
 attrs==21.4.0 # jsonschema
-certifi==2021.10.8 # requests, urllib3
+certifi==2022.12.7 # requests, urllib3
 chardet==3.0.4 # requests
 charset-normalizer==2.0.11 # aiohttp, requests
 decorator==5.1.1 # networkx
