@@ -92,6 +92,69 @@ def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaSe
             assert slave.sc.master_url == master_url
 
 
+def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+    """Test that primary selection works when mixed set of roles is configured for Karapace instances.
+
+    The Kafka group coordinator leader can be any node, it has no relation to Karapace primary role eligibility.
+    This tests may select the primary eligible instance to be the group coordinator leader, in this case test does not
+    test the scenario fully. The intent is that group leader is from non-primary node.
+    """
+    client_id = new_random_name("master_selection_")
+    group_id = new_random_name("group_id")
+
+    with port_range.allocate_port() as port1, port_range.allocate_port() as port2, port_range.allocate_port() as port3:
+        config_primary = set_config_defaults(
+            {
+                "advertised_hostname": "127.0.0.1",
+                "bootstrap_uri": kafka_servers.bootstrap_servers,
+                "client_id": client_id,
+                "group_id": group_id,
+                "port": port1,
+                "master_eligibility": True,
+            }
+        )
+        config_non_primary_1 = set_config_defaults(
+            {
+                "advertised_hostname": "127.0.0.1",
+                "bootstrap_uri": kafka_servers.bootstrap_servers,
+                "client_id": client_id,
+                "group_id": group_id,
+                "port": port2,
+                "master_eligibility": False,
+            }
+        )
+        config_non_primary_2 = set_config_defaults(
+            {
+                "advertised_hostname": "127.0.0.1",
+                "bootstrap_uri": kafka_servers.bootstrap_servers,
+                "client_id": client_id,
+                "group_id": group_id,
+                "port": port3,
+                "master_eligibility": False,
+            }
+        )
+
+        with closing(init_admin(config_non_primary_1)) as non_primary_1, closing(
+            init_admin(config_non_primary_2)
+        ) as non_primary_2, closing(init_admin(config_primary)) as primary:
+
+            # Wait for the election to happen
+            while not is_master(primary):
+                time.sleep(0.3)
+
+            while not has_master(non_primary_1):
+                time.sleep(0.3)
+
+            while not has_master(non_primary_2):
+                time.sleep(0.3)
+
+            # Make sure the end configuration is as expected
+            primary_url = f'http://{primary.config["host"]}:{primary.config["port"]}'
+            assert primary.sc.master_url == primary_url
+            assert non_primary_1.sc.master_url == primary_url
+            assert non_primary_2.sc.master_url == primary_url
+
+
 def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
