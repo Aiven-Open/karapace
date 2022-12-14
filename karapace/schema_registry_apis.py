@@ -103,7 +103,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             _, master_url = await self.schema_registry.get_master(ignore_readiness=True)
             if not master_url:
                 self.no_master_error(request.content_type)
-            elif f"{self.config['advertised_hostname']}:{self.config['port']}" in master_url:
+            elif f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in master_url:
                 # If master url is the same as the url of this Karapace respond 503.
                 self.r(
                     body="",

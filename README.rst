@@ -307,9 +307,15 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - Parameter
      - Default Value
      - Description
+   * - ``advertised_protocol``
+     - ``http``
+     - The protocol being advertised to other instances of Karapace that are attached to the same Kafka group.
    * - ``advertised_hostname``
      - ``socket.gethostname()``
      - The hostname being advertised to other instances of Karapace that are attached to the same Kafka group.  All nodes within the cluster need to have their ``advertised_hostname``'s set so that they can all reach each other.
+   * - ``advertised_port``
+     - ``None``
+     - The port being advertised to other instances of Karapace that are attached to the same Kafka group.  Fallbacks to ``port`` if not set.
    * - ``bootstrap_uri``
      - ``localhost:9092``
      - The URI to the Kafka service where to store the schemas and to run

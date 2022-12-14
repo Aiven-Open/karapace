@@ -105,6 +105,10 @@ def set_config_defaults(config: Config) -> Config:
     new_config = DEFAULTS.copy()
     new_config.update(config)
 
+    # Fallback to default port if `advertised_port` is not set
+    if new_config["advertised_port"] is None:
+        new_config["advertised_port"] = new_config["port"]
+
     # Tag app should always be karapace
     new_config.setdefault("tags", {})
     new_config["tags"]["app"] = "Karapace"
