@@ -8,6 +8,7 @@ from contextlib import closing, ExitStack
 from kafka import KafkaConsumer, TopicPartition
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import (
+    InvalidReplicationFactorError,
     KafkaConfigurationError,
     KafkaTimeoutError,
     NoBrokersAvailable,
@@ -249,6 +250,12 @@ class KafkaSchemaReader(Thread):
                 except TopicAlreadyExistsError:
                     LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
                     schema_topic_exists = True
+                except InvalidReplicationFactorError:
+                    LOG.info(
+                        "[Schema Topic] Failed to create topic %r, not enough Kafka brokers ready yet, retrying",
+                        schema_topic.name,
+                    )
+                    self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
                 except:  # pylint: disable=bare-except
                     LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
                     self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
