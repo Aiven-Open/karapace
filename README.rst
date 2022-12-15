@@ -428,6 +428,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``rest_authorization``
      - ``false``
      - Use REST API's calling authorization credentials to invoke Kafka operations over SASL authentication of ``sasl_bootstrap_uri`` to delegate REST proxy authorization to Kafka.  If false, then use configured common credentials for all Kafka connections of REST proxy operations.
+   * - ``rest_base_uri``
+     - ``None``
+     - Publicly available URI of this instance advertised to the clients using stateful operations such as creating consumers.  If not set, then construct URI using ``advertised_protocol``, ``advertised_hostname``, and ``advertised_port``.
    * - ``metadata_max_age_ms``
      - ``60000``
      - Period of time in milliseconds after Kafka metadata is force refreshed.

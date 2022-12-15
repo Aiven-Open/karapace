@@ -48,6 +48,7 @@ DEFAULTS = {
     "registry_ca": None,
     "registry_authfile": None,
     "rest_authorization": False,
+    "rest_base_uri": None,
     "log_level": "DEBUG",
     "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
     "master_eligibility": True,
@@ -108,6 +109,12 @@ def set_config_defaults(config: Config) -> Config:
     # Fallback to default port if `advertised_port` is not set
     if new_config["advertised_port"] is None:
         new_config["advertised_port"] = new_config["port"]
+
+    # Fallback to `advertised_*` constructed URI if not set
+    if new_config["rest_base_uri"] is None:
+        new_config[
+            "rest_base_uri"
+        ] = f"{new_config['advertised_protocol']}://{new_config['advertised_hostname']}:{new_config['advertised_port']}"
 
     # Tag app should always be karapace
     new_config.setdefault("tags", {})
