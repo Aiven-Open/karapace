@@ -2898,14 +2898,6 @@ async def test_invalid_schema_should_provide_good_error_messages(registry_async_
         == "Invalid AVRO schema. Error: Enum symbols must be a sequence of strings, but it is <class 'dict'>"
     )
 
-    # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
-    schema_str = json.dumps({"type": "enum", "name": "error", "symbols": ["A", "B"]})
-    res = await registry_async_client.post(
-        f"subjects/{test_subject}/versions",
-        json={"schema": schema_str},
-    )
-    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
-
 
 async def test_schema_non_compliant_namespace_in_existing(
     kafka_servers: KafkaServers,
