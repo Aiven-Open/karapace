@@ -218,7 +218,7 @@ class SchemaRegistrySerializer:
                     raise InvalidPayload("No schema with ID from payload")
                 ret_val = read_value(self.config, schema, bio)
                 return ret_val
-            except (UnicodeDecodeError, TypeError) as e:
+            except (UnicodeDecodeError, TypeError, avro.errors.InvalidAvroBinaryEncoding) as e:
                 raise InvalidPayload("Data does not contain a valid message") from e
             except avro.errors.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
