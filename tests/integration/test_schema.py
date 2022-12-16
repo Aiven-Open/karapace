@@ -2965,12 +2965,22 @@ async def test_schema_non_compliant_namespace_in_existing(
             break
         await asyncio.sleep(0.5)
 
-    # Compatibility check
+    # Compatibility check, is expected to be compatible, namespace is not important.
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest",
         json={"schema": json.dumps(evolved_schema)},
     )
     assert res.status_code == 200
+
+    # Post evolved new schema
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 2
 
     # Check non-compliant schema is registered
     res = await registry_async_client.post(
@@ -2982,9 +2992,9 @@ async def test_schema_non_compliant_namespace_in_existing(
     schema_id = res.json()["id"]
     assert schema_id == 1
 
-    # Post new schema
+    # Check evolved schema is registered
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions",
+        f"subjects/{subject}",
         json={"schema": json.dumps(evolved_schema)},
     )
     assert res.status_code == 200
@@ -3051,21 +3061,40 @@ async def test_schema_non_compliant_name_in_existing(
             break
         await asyncio.sleep(0.5)
 
-    # Compatibility check, should not be compatible.
+    # Compatibility check, should not be compatible, name is important.
     # Test that no parsing error is given as name in the existing schema is non-compliant.
     res = await registry_async_client.post(
         f"compatibility/subjects/{subject}/versions/latest",
         json={"schema": json.dumps(evolved_schema)},
     )
     assert res.status_code == 200
+    assert not res.json().get("is_compatible")
+
+    # Post evolved schema, should not be compatible and rejected.
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 409
+    assert res.json() == {
+        "error_code": 409,
+        "message": "Incompatible schema, compatibility_mode=BACKWARD expected: compliant_name_test.test-schema",
+    }
 
     # Send compatibility configuration for subject that disabled backwards compatibility.
     # The name cannot be changed if backward compatibility is required.
-    producer.send(
-        registry_cluster.schemas_topic,
-        key=json_encode({"keytype": "CONFIG", "subject": subject, "magic": 0}, sort_keys=False, compact=True, binary=True),
-        value=json_encode({"compatibilityLevel": "NONE"}, sort_keys=False, compact=True, binary=True),
-    ).get()
+    res = await registry_async_client.put(f"/config/{subject}", json={"compatibility": "NONE"})
+    assert res.status_code == 200
+
+    # Post evolved schema and expectation is gets registered as no compatiblity is enforced.
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 2
 
     # Check non-compliant schema is registered
     res = await registry_async_client.post(
@@ -3077,9 +3106,9 @@ async def test_schema_non_compliant_name_in_existing(
     schema_id = res.json()["id"]
     assert schema_id == 1
 
-    # Post new schema
+    # Check evolved schema is registered
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions",
+        f"subjects/{subject}",
         json={"schema": json.dumps(evolved_schema)},
     )
     assert res.status_code == 200
