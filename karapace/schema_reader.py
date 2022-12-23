@@ -309,8 +309,8 @@ class KafkaSchemaReader(Thread):
         raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False:
             self.ready = self._is_ready()
-            if self.master_coordinator:
-                self.master_coordinator.ready(self.ready)
+            if self.ready and self.master_coordinator is not None:
+                self.master_coordinator.ready(True)
 
         watch_offsets = False
         if self.master_coordinator is not None:

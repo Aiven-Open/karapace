@@ -26,6 +26,12 @@ def init_admin(config):
     return mc
 
 
+def set_ready(mc: MasterCoordinator) -> None:
+    while mc.sc is None:
+        time.sleep(0.3)
+    mc.ready(True)
+
+
 def is_master(mc: MasterCoordinator) -> bool:
     """True if `mc` is the master.
 
@@ -81,36 +87,6 @@ class MasterSelectionTestCase(BaseTestCase):
             lowest_schema_reader_ready=True,
             highest_schema_reader_ready=False,
             master="lowest",
-        ),
-        MasterSelectionTestCase(
-            test_name="Lowest is master when all nodes are not ready and strategy lowest",
-            strategy="lowest",
-            lowest_schema_reader_ready=False,
-            highest_schema_reader_ready=False,
-            master="lowest",
-        ),
-        MasterSelectionTestCase(
-            test_name="Highest is master when all nodes are not ready and strategy highest",
-            strategy="highest",
-            lowest_schema_reader_ready=False,
-            highest_schema_reader_ready=False,
-            master="highest",
-        ),
-        MasterSelectionTestCase(
-            test_name="Lowest is master when all nodes are not ready and strategy highest and highest not master eligible",
-            strategy="highest",
-            lowest_schema_reader_ready=False,
-            highest_schema_reader_ready=False,
-            highest_master_eligible=False,
-            master="lowest",
-        ),
-        MasterSelectionTestCase(
-            test_name="Highest is master when all nodes are not ready and strategy lowest and lowest not master eligible",
-            strategy="lowest",
-            lowest_schema_reader_ready=False,
-            highest_schema_reader_ready=False,
-            lowest_master_eligible=False,
-            master="highest",
         ),
     ],
     ids=str,
@@ -237,6 +213,10 @@ def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_ra
             init_admin(config_non_primary_2)
         ) as non_primary_2, closing(init_admin(config_primary)) as primary:
 
+            set_ready(non_primary_1)
+            set_ready(non_primary_2)
+            set_ready(primary)
+
             # Wait for the election to happen
             while not is_master(primary):
                 time.sleep(0.3)
@@ -267,7 +247,6 @@ def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeIn
                 "group_id": group_id,
                 "port": port,
                 "master_eligibility": False,
-                "ready": True,
             }
         )
 

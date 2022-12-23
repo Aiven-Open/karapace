@@ -30,7 +30,7 @@ def get_member_url(scheme: str, host: str, port: str) -> str:
     return "{}://{}:{}".format(scheme, host, port)
 
 
-def get_member_configuration(*, host: str, port: int, scheme: str, master_eligibility: bool, ready: bool) -> JsonData:
+def get_member_configuration(*, host: str, port: int, scheme: str, master_eligibility: bool) -> JsonData:
     return {
         "version": 2,
         "karapace_version": __version__,
@@ -38,7 +38,6 @@ def get_member_configuration(*, host: str, port: int, scheme: str, master_eligib
         "port": port,
         "scheme": scheme,
         "master_eligibility": master_eligibility,
-        "ready": ready,
     }
 
 
@@ -63,7 +62,17 @@ class SchemaCoordinator(BaseCoordinator):
         self.port = port
         self.scheme = scheme
         self.master_eligibility = master_eligibility
-        self.schema_reader_ready = False
+        self._schema_reader_ready = False
+        self._need_rejoin = False
+
+    def schema_reader_ready(self, ready: bool) -> None:
+        self._schema_reader_ready = ready
+        if self.rejoining:
+            LOG.debug("Rejoin ongoing, mark needing rejoin.")
+            self._need_rejoin = True
+        else:
+            LOG.debug("Rejoin requested based on readiness change.")
+            self.request_rejoin()
 
     def protocol_type(self) -> str:
         return "sr"
@@ -78,8 +87,7 @@ class SchemaCoordinator(BaseCoordinator):
                         host=self.hostname,
                         port=self.port,
                         scheme=self.scheme,
-                        master_eligibility=self.master_eligibility,
-                        ready=self.schema_reader_ready,
+                        master_eligibility=self.master_eligibility and self._schema_reader_ready,
                     ),
                     compact=True,
                 ),
@@ -91,19 +99,11 @@ class SchemaCoordinator(BaseCoordinator):
         self.are_we_master = None
         error = NO_ERROR
         master_eligible_ready_urls = {}
-        master_eligible_not_ready_urls = {}
         fallback_urls = {}
         for member_id, member_data in members:
             member_identity = json.loads(member_data.decode("utf8"))
-            if member_identity["master_eligibility"] is True and member_identity.get("ready", False) is True:
+            if member_identity["master_eligibility"] is True:
                 master_eligible_ready_urls[
-                    get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
-                ] = (
-                    member_id,
-                    member_data,
-                )
-            elif member_identity["master_eligibility"] is True:
-                master_eligible_not_ready_urls[
                     get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])
                 ] = (
                     member_id,
@@ -117,9 +117,6 @@ class SchemaCoordinator(BaseCoordinator):
         if len(master_eligible_ready_urls) > 0:
             chosen_url = sorted(master_eligible_ready_urls, reverse=self.election_strategy.lower() == "highest")[0]
             schema_master_id, member_data = master_eligible_ready_urls[chosen_url]
-        elif len(master_eligible_not_ready_urls) > 0:
-            chosen_url = sorted(master_eligible_not_ready_urls, reverse=self.election_strategy.lower() == "highest")[0]
-            schema_master_id, member_data = master_eligible_not_ready_urls[chosen_url]
         else:
             # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
             chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
@@ -130,7 +127,6 @@ class SchemaCoordinator(BaseCoordinator):
             port=member_identity["port"],
             scheme=member_identity["scheme"],
             master_eligibility=member_identity["master_eligibility"],
-            ready=member_identity.get("ready", False),
         )
         LOG.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
 
@@ -169,6 +165,10 @@ class SchemaCoordinator(BaseCoordinator):
         else:
             self.master_url = master_url
             self.are_we_master = False
+        if self._need_rejoin:
+            self.request_rejoin()
+            self._need_rejoin = False
+            LOG.debug("Rejoin requested, based on the internal flag.")
         return super()._on_join_complete(generation, member_id, protocol, member_assignment_bytes)
 
     def _on_join_follower(self) -> None:
@@ -241,7 +241,7 @@ class MasterCoordinator(Thread):
 
     def ready(self, ready: bool) -> None:
         assert self.sc is not None
-        self.sc.schema_reader_ready = ready
+        self.sc.schema_reader_ready(ready)
 
     def run(self) -> None:
         _hb_interval = 3.0

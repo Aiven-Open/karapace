@@ -101,7 +101,15 @@ async def test_export_anonymized_avro_schemas(
     tmp_path: Path,
     registry_cluster: RegistryDescription,
 ) -> None:
-    await insert_data(registry_async_client, "AVRO", AVRO_SUBJECT, AVRO_SCHEMA)
+    tries = 0
+    while tries < 3:
+        try:
+            await insert_data(registry_async_client, "AVRO", AVRO_SUBJECT, AVRO_SCHEMA)
+            break
+        except Exception:  # pylint: disable=broad-except
+            tries += 1
+            continue
+
     await insert_compatibility_level_change(registry_async_client, COMPATIBILITY_SUBJECT, COMPATIBILITY_CHANGE)
     await insert_delete_subject(registry_async_client, AVRO_SUBJECT)
 
