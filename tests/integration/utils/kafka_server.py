@@ -73,10 +73,37 @@ def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
     """If necessary download kafka to run the tests."""
     if not os.path.exists(kafka_description.install_dir):
         log.info("Downloading Kafka '%s'", kafka_description.download_url)
-
         download = requests.get(kafka_description.download_url, stream=True)
-        with tarfile.open(mode="r:gz", fileobj=download.raw) as file:
-            file.extractall(str(kafka_description.install_dir.parent))
+        with open(kafka_description.kafka_tgz, "wb") as fd:
+            for chunk in download.iter_content(chunk_size=None):
+                fd.write(chunk)
+
+    if os.path.exists(kafka_description.install_dir):
+        return
+
+    log.info("Extracting Kafka '%s'", kafka_description.kafka_tgz)
+    with open(kafka_description.kafka_tgz, "rb") as kafkatgz:
+        with tarfile.open(mode="r:gz", fileobj=kafkatgz) as file:
+
+            def is_within_directory(directory, target):
+
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+
+                return prefix == abs_directory
+
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+
+                tar.extractall(path, members, numeric_owner=numeric_owner)
+
+            safe_extract(file, str(kafka_description.install_dir.parent))
 
 
 def kafka_java_args(
