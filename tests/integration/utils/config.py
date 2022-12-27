@@ -24,6 +24,7 @@ class ZKConfig:
 @dataclass(frozen=True)
 class KafkaDescription:
     version: str
+    kafka_tgz: str
     install_dir: Path
     download_url: str
     protocol_version: str
