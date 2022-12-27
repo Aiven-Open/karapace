@@ -32,6 +32,7 @@ jobs:
       uses: arduino/setup-protoc@v1
       with:
          version: '3.13.0'
+         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
     # needed by both unit and integation tests
     - name: Generate version.py
