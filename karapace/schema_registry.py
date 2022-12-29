@@ -18,7 +18,7 @@ from karapace.errors import (
 )
 from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
-from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.typing import ResolvedVersion, Subject, SubjectData, Version
 from karapace.utils import json_encode, KarapaceKafkaClient
@@ -347,11 +347,11 @@ class KarapaceSchemaRegistry:
 
                 for old_version in check_against:
                     old_schema = subject_data["schemas"][old_version]["schema"]
-                    validated_old_schema = ValidatedTypedSchema.parse(
+                    parsed_old_schema = ParsedTypedSchema.parse(
                         schema_type=old_schema.schema_type, schema_str=old_schema.schema_str
                     )
                     result = check_compatibility(
-                        old_schema=validated_old_schema,
+                        old_schema=parsed_old_schema,
                         new_schema=new_schema,
                         compatibility_mode=compatibility_mode,
                     )
