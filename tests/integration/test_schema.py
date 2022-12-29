@@ -20,10 +20,12 @@ from tests.utils import (
 )
 from typing import List, Tuple
 
+import asyncio
 import json
 import os
 import pytest
 import requests
+import time
 
 baseurl = "http://localhost:8081"
 
@@ -2896,10 +2898,212 @@ async def test_invalid_schema_should_provide_good_error_messages(registry_async_
         == "Invalid AVRO schema. Error: Enum symbols must be a sequence of strings, but it is <class 'dict'>"
     )
 
-    # This is an upstream bug in the python AVRO library, until the bug is fixed we should at least have a nice error message
-    schema_str = json.dumps({"type": "enum", "name": "error", "symbols": ["A", "B"]})
-    res = await registry_async_client.post(
-        f"subjects/{test_subject}/versions",
-        json={"schema": schema_str},
+
+async def test_schema_non_compliant_namespace_in_existing(
+    kafka_servers: KafkaServers,
+    registry_cluster: RegistryDescription,
+    registry_async_client: Client,
+) -> None:
+    """Test non compliant namespace in existing schema
+    This test starts with a state where existing schemas have invalid names per Avro specification.
+    Schemas that have e.g. a dash character in the are accepted by Avro Java SDK although it does
+    not comply with the Avro specification.
+    Karapace shall read the data and disable validation when parsing existing schemas.
+    """
+
+    subject = create_subject_name_factory("test_schema_non_compliant_name_in_existing")()
+
+    schema = {
+        "type": "record",
+        "namespace": "compliant-namespace-test",
+        "name": "test_schema",
+        "fields": [
+            {
+                "type": "string",
+                "name": "test-field",
+            }
+        ],
+    }
+
+    producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
+    message_key = json_encode(
+        {"keytype": "SCHEMA", "subject": subject, "version": 1, "magic": 1}, sort_keys=False, compact=True, binary=True
     )
-    assert res.json()["message"] == "Invalid AVRO schema. Error: error is a reserved type name."
+    message_value = {"deleted": False, "id": 1, "subject": subject, "version": 1, "schema": json.dumps(schema)}
+    producer.send(
+        registry_cluster.schemas_topic,
+        key=message_key,
+        value=json_encode(message_value, sort_keys=False, compact=True, binary=True),
+    ).get()
+
+    evolved_schema = {
+        "type": "record",
+        "namespace": "compliant_namespace_test",
+        "name": "test_schema",
+        "fields": [
+            {
+                "type": "string",
+                "name": "test-field",
+            },
+            {"type": "string", "name": "test-field-2", "default": "default-value"},
+        ],
+    }
+
+    # Wait until the schema is available
+    do_until_time = time.monotonic() + 5
+    while do_until_time > time.monotonic():
+        res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
+        if res.status_code == 200:
+            break
+        await asyncio.sleep(0.5)
+
+    # Compatibility check, is expected to be compatible, namespace is not important.
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+
+    # Post evolved new schema
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 2
+
+    # Check non-compliant schema is registered
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json={"schema": json.dumps(schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 1
+
+    # Check evolved schema is registered
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 2
+
+
+async def test_schema_non_compliant_name_in_existing(
+    kafka_servers: KafkaServers,
+    registry_cluster: RegistryDescription,
+    registry_async_client: Client,
+) -> None:
+    """Test non compliant name in existing schema
+    This test starts with a state where existing schemas have invalid names per Avro specification.
+    Schemas that have e.g. a dash character in the are accepted by Avro Java SDK although it does
+    not comply with the Avro specification.
+    Karapace shall read the data and disable validation when parsing existing schemas.
+    """
+
+    subject = create_subject_name_factory("test_schema_non_compliant_name_in_existing")()
+
+    schema = {
+        "type": "record",
+        "namespace": "compliant_name_test",
+        "name": "test-schema",
+        "fields": [
+            {
+                "type": "string",
+                "name": "test-field",
+            }
+        ],
+    }
+
+    producer = KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
+    message_key = json_encode(
+        {"keytype": "SCHEMA", "subject": subject, "version": 1, "magic": 1}, sort_keys=False, compact=True, binary=True
+    )
+    message_value = {"deleted": False, "id": 1, "subject": subject, "version": 1, "schema": json.dumps(schema)}
+    producer.send(
+        registry_cluster.schemas_topic,
+        key=message_key,
+        value=json_encode(message_value, sort_keys=False, compact=True, binary=True),
+    ).get()
+
+    evolved_schema = {
+        "type": "record",
+        "namespace": "compliant_name_test",
+        "name": "test_schema",
+        "fields": [
+            {
+                "type": "string",
+                "name": "test-field",
+            },
+            {"type": "string", "name": "test-field-2", "default": "default-value"},
+        ],
+    }
+
+    # Wait until the schema is available
+    do_until_time = time.monotonic() + 5
+    while do_until_time > time.monotonic():
+        res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
+        if res.status_code == 200:
+            break
+        await asyncio.sleep(0.5)
+
+    # Compatibility check, should not be compatible, name is important.
+    # Test that no parsing error is given as name in the existing schema is non-compliant.
+    res = await registry_async_client.post(
+        f"compatibility/subjects/{subject}/versions/latest",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert not res.json().get("is_compatible")
+
+    # Post evolved schema, should not be compatible and rejected.
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 409
+    assert res.json() == {
+        "error_code": 409,
+        "message": "Incompatible schema, compatibility_mode=BACKWARD expected: compliant_name_test.test-schema",
+    }
+
+    # Send compatibility configuration for subject that disabled backwards compatibility.
+    # The name cannot be changed if backward compatibility is required.
+    res = await registry_async_client.put(f"/config/{subject}", json={"compatibility": "NONE"})
+    assert res.status_code == 200
+
+    # Post evolved schema and expectation is gets registered as no compatiblity is enforced.
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 2
+
+    # Check non-compliant schema is registered
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json={"schema": json.dumps(schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 1
+
+    # Check evolved schema is registered
+    res = await registry_async_client.post(
+        f"subjects/{subject}",
+        json={"schema": json.dumps(evolved_schema)},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+    assert schema_id == 2

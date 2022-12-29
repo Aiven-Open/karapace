@@ -37,7 +37,8 @@ badDefaultNullString = parse_avro_schema_definition(
     '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
 )
 invalidEnumDefaultValue = parse_avro_schema_definition(
-    '{"type": "enum", "name": "test_default", "symbols": ["A"], "default": "B"}'
+    '{"type": "enum", "name": "test_default", "symbols": ["A"], "default": "B"}',
+    validate_enum_symbols=False,
 )
 correctEnumDefaultValue = parse_avro_schema_definition(
     '{"type": "enum", "name": "test_default", "symbols": ["A"], "default": "A"}'

@@ -2,7 +2,6 @@
 accept-types==0.4.1
 aiohttp==3.8.3
 aiokafka==0.7.2
-avro==1.11.0
 jsonschema==3.2.0
 networkx==2.5
 protobuf==3.19.5
@@ -21,6 +20,9 @@ watchfiles==0.15.0
 #   images and forces a new image generation.
 #
 git+https://github.com/aiven/kafka-python.git@1b95333c9628152066fb8b1092de9da0433401fd
+
+git+https://github.com/aiven/avro.git@f37a4ea69560d798cc718fccd7f75223527f5ebb#subdirectory=lang/py
+
 
 # Indirect dependencies
 aiosignal==1.2.0 # aiohttp

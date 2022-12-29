@@ -22,7 +22,7 @@ from karapace.errors import (
 )
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
-from karapace.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
 from karapace.typing import JsonData
 from typing import Any, Dict, Optional, Union
@@ -348,7 +348,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
         try:
-            old_schema = ValidatedTypedSchema.parse(old_schema_type, old["schema"])
+            old_schema = ParsedTypedSchema.parse(old_schema_type, old["schema"])
         except InvalidSchema:
             self.r(
                 body={
@@ -901,7 +901,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         schema_str = body["schema"]
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         try:
-            new_schema = ValidatedTypedSchema.parse(schema_type, schema_str)
+            # When checking if schema is already registered, allow unvalidated schema in as
+            # there might be stored schemas that are non-compliant from the past.
+            new_schema = ParsedTypedSchema.parse(schema_type, schema_str)
         except InvalidSchema:
             self.log.exception("No proper parser found")
             self.r(
@@ -915,23 +917,39 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         # Match schemas based on version from latest to oldest
         for schema in sorted(subject_data["schemas"].values(), key=lambda item: item["version"], reverse=True):
-            validated_typed_schema = ValidatedTypedSchema.parse(schema["schema"].schema_type, schema["schema"].schema_str)
+            try:
+                parsed_typed_schema = ParsedTypedSchema.parse(schema["schema"].schema_type, schema["schema"].schema_str)
+            except InvalidSchema as e:
+                failed_schema_id = schema["id"]
+                self.log.exception("Existing schema failed to parse. Id: %s", failed_schema_id)
+                self.stats.unexpected_exception(
+                    ex=e, where="Matching existing schemas to posted. Failed schema id: {failed_schema_id}"
+                )
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                        "message": f"Error while looking up schema under subject {subject}",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
+
             if schema_type is SchemaType.JSONSCHEMA:
-                schema_valid = validated_typed_schema.to_dict() == new_schema.to_dict()
+                schema_valid = parsed_typed_schema.to_dict() == new_schema.to_dict()
             else:
-                schema_valid = validated_typed_schema.schema == new_schema.schema
-            if validated_typed_schema.schema_type == new_schema.schema_type and schema_valid:
+                schema_valid = parsed_typed_schema.schema == new_schema.schema
+            if parsed_typed_schema.schema_type == new_schema.schema_type and schema_valid:
                 ret = {
                     "subject": subject,
                     "version": schema["version"],
                     "id": schema["id"],
-                    "schema": validated_typed_schema.schema_str,
+                    "schema": parsed_typed_schema.schema_str,
                 }
                 if schema_type is not SchemaType.AVRO:
                     ret["schemaType"] = schema_type
                 self.r(ret, content_type)
             else:
-                self.log.debug("Schema %r did not match %r", schema, validated_typed_schema)
+                self.log.debug("Schema %r did not match %r", schema, parsed_typed_schema)
         self.r(
             body={
                 "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
