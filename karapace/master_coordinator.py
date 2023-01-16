@@ -227,6 +227,8 @@ class MasterCoordinator(Thread):
             try:
                 if not self.kafka_client:
                     if self.init_kafka_client() is False:
+                        # If Kafka client is not initialized sleep a bit
+                        time.sleep(0.5)
                         continue
                 if not self.sc:
                     self.init_schema_coordinator()
@@ -236,7 +238,13 @@ class MasterCoordinator(Thread):
                 self.sc.ensure_active_group()
                 self.sc.poll_heartbeat()
                 LOG.debug("We're master: %r: master_uri: %r", self.sc.are_we_master, self.sc.master_url)
-                time.sleep(min(_hb_interval, self.sc.time_to_next_heartbeat()))
+                # In cases when heartbeat is missed the sleep min sleep time would be 0
+                # from `time_to_next_heartbeat`. In that case halve the heartbeat interval for
+                # some sane sleep instead of running the loop without sleep for a while.
+                sleep_time = min(_hb_interval, self.sc.time_to_next_heartbeat())
+                if not sleep_time:
+                    sleep_time = _hb_interval / 2
+                time.sleep(sleep_time)
             except:  # pylint: disable=bare-except
                 LOG.exception("Exception in master_coordinator")
                 time.sleep(1.0)
