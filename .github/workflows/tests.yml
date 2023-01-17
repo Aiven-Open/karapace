@@ -15,10 +15,10 @@ jobs:
       matrix:
         python-version: [3.7, 3.8, 3.9, "3.10", "3.11"]
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -47,7 +47,7 @@ jobs:
       run: python3 -m pytest -s -vvv tests/integration/ --log-dir=/tmp/ci-logs --log-file=/tmp/ci-logs/pytest.log
 
     - name: Archive logs
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       if: ${{ always() }}
       with:
           name: logs  ${{ matrix.python-version }}
