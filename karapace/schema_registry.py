@@ -84,7 +84,7 @@ class KarapaceSchemaRegistry:
     def subjects_list(self, include_deleted: bool = False) -> List[Subject]:
         return [
             key
-            for key, val in self.schema_reader.subjects.items()
+            for key in list(self.schema_reader.subjects.keys())
             if self.schema_reader.get_schemas(key, include_deleted=include_deleted)
         ]
 
