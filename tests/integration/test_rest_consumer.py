@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from tests.utils import (
     consumer_valid_payload,
     new_consumer,

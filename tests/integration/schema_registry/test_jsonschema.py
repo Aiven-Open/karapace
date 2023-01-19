@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from jsonschema import Draft7Validator
 from karapace.client import Client
 from karapace.compatibility import CompatibilityModes

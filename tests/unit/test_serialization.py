@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from karapace.config import DEFAULTS, read_config
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.serialization import (

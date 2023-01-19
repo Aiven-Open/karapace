@@ -1,7 +1,7 @@
 """
 karapace - schema backup
 
-Copyright (c) 2019 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from enum import Enum

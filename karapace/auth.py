@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from base64 import b64encode
 from dataclasses import dataclass, field
 from enum import Enum, unique

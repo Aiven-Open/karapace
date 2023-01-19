@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from kafka import KafkaAdminClient
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.errors import Cancelled, for_code, UnrecognizedBrokerVersion

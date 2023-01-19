@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
 from tests.utils import (

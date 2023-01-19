@@ -1,7 +1,7 @@
 """
 karapace - website configuration
 
-Copyright (c) 2020 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
