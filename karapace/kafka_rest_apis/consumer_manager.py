@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from aiokafka import AIOKafkaConsumer
 from asyncio import Lock
 from collections import defaultdict, namedtuple

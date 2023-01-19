@@ -1,7 +1,7 @@
 """
 karapace - schema registry authentication and authorization tests
 
-Copyright (c) 2022 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.client import Client

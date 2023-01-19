@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 # Workaround to encode/decode indexes in protobuf messages
 # Based on https://developers.google.com/protocol-buffers/docs/encoding#varints
 

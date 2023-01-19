@@ -1,6 +1,9 @@
 """
-    These are duplicates of other test_schema.py tests, but do not make use of the registry client fixture
-    and are here for debugging and speed, and as an initial sanity check
+These are duplicates of other test_schema.py tests, but do not make use of the registry client fixture and are here for
+debugging and speed, and as an initial sanity check
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
 """
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 from avro.name import Names

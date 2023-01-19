@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from contextlib import ExitStack
 from karapace.config import set_config_defaults
 from pathlib import Path

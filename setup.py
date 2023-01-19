@@ -1,7 +1,7 @@
 """
 karapace - setup
 
-Copyright (c) 2019 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from setuptools import find_packages, setup

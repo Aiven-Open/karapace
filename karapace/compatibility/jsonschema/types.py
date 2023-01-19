@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Callable, Generic, TypeVar

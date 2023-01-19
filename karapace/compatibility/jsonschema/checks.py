@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from avro.compatibility import merge, SchemaCompatibilityResult, SchemaCompatibilityType, SchemaIncompatibilityType
 from dataclasses import dataclass
 from itertools import product

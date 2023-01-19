@@ -1,3 +1,9 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
+
+
 class VersionNotFoundException(Exception):
     pass
 

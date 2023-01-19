@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 schema_protobuf_plain = """syntax = "proto3";
 package com.codingharbour.protobuf;
 

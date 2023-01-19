@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from karapace.sentry.sentry_client_api import SentryClientAPI
 from typing import Dict, Optional
 

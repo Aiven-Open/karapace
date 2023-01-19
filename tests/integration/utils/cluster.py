@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from contextlib import asynccontextmanager, ExitStack
 from dataclasses import dataclass
 from karapace.config import Config, set_config_defaults, write_config

@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from aiohttp.web_log import AccessLogger
 from contextlib import closing
 from karapace import version as karapace_version

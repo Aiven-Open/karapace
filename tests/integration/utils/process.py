@@ -1,5 +1,5 @@
 """
-Copyright (c) 2022 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.utils import Expiration

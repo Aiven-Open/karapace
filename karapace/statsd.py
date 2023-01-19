@@ -5,7 +5,7 @@ Supports telegraf's statsd protocol extension for 'key=value' tags:
 
   https://github.com/influxdata/telegraf/tree/master/plugins/inputs/statsd
 
-Copyright (c) 2019 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from contextlib import contextmanager
