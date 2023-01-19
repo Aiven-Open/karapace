@@ -2,17 +2,14 @@ from contextlib import ExitStack
 from karapace.config import set_config_defaults
 from pathlib import Path
 from subprocess import Popen
-from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.network import inet_port
 from tests.integration.utils.process import stop_process
 
 import json
 import socket
 
 
-def test_regression_server_must_exit_on_exception(
-    port_range: PortRangeInclusive,
-    tmp_path: Path,
-) -> None:
+def test_regression_server_must_exit_on_exception(tmp_path: Path) -> None:
     """Regression test for Karapace properly exiting.
 
     Karapace was not closing all its background threads, so when an exception
@@ -20,7 +17,7 @@ def test_regression_server_must_exit_on_exception(
     be stopped but the threads would keep the server running.
     """
     with ExitStack() as stack:
-        port = stack.enter_context(port_range.allocate_port())
+        port = inet_port()
         sock = stack.enter_context(socket.socket())
 
         config = set_config_defaults(

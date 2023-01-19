@@ -8,7 +8,7 @@ from contextlib import closing
 from karapace.config import set_config_defaults
 from karapace.master_coordinator import MasterCoordinator
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.network import inet_port
 from tests.utils import new_random_name
 
 import asyncio
@@ -40,59 +40,61 @@ def has_master(mc: MasterCoordinator) -> bool:
 
 @pytest.mark.timeout(60)  # Github workflows need a bit of extra time
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
-def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaServers, strategy: str) -> None:
+def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> None:
     # Use random port to allow for parallel runs.
-    with port_range.allocate_port() as port1, port_range.allocate_port() as port2:
-        port_aa, port_bb = sorted((port1, port2))
-        client_id_aa = new_random_name("master_selection_aa_")
-        client_id_bb = new_random_name("master_selection_bb_")
-        group_id = new_random_name("group_id")
+    port1 = inet_port()
+    port2 = inet_port()
 
-        config_aa = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id_aa,
-                "group_id": group_id,
-                "port": port_aa,
-                "master_election_strategy": strategy,
-            }
-        )
-        config_bb = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id_bb,
-                "group_id": group_id,
-                "port": port_bb,
-                "master_election_strategy": strategy,
-            }
-        )
+    port_aa, port_bb = sorted((port1, port2))
+    client_id_aa = new_random_name("master_selection_aa_")
+    client_id_bb = new_random_name("master_selection_bb_")
+    group_id = new_random_name("group_id")
 
-        with closing(init_admin(config_aa)) as mc_aa, closing(init_admin(config_bb)) as mc_bb:
-            if strategy == "lowest":
-                master = mc_aa
-                slave = mc_bb
-            else:
-                master = mc_bb
-                slave = mc_aa
+    config_aa = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id_aa,
+            "group_id": group_id,
+            "port": port_aa,
+            "master_election_strategy": strategy,
+        }
+    )
+    config_bb = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id_bb,
+            "group_id": group_id,
+            "port": port_bb,
+            "master_election_strategy": strategy,
+        }
+    )
 
-            # Wait for the election to happen
-            while not is_master(master):
-                time.sleep(0.3)
+    with closing(init_admin(config_aa)) as mc_aa, closing(init_admin(config_bb)) as mc_bb:
+        if strategy == "lowest":
+            master = mc_aa
+            slave = mc_bb
+        else:
+            master = mc_bb
+            slave = mc_aa
 
-            while not has_master(slave):
-                time.sleep(0.3)
+        # Wait for the election to happen
+        while not is_master(master):
+            time.sleep(0.3)
 
-            # Make sure the end configuration is as expected
-            master_url = f'http://{master.config["host"]}:{master.config["port"]}'
-            assert master.sc.election_strategy == strategy
-            assert slave.sc.election_strategy == strategy
-            assert master.sc.master_url == master_url
-            assert slave.sc.master_url == master_url
+        while not has_master(slave):
+            time.sleep(0.3)
+
+        # Make sure the end configuration is as expected
+        master_url = f'http://{master.config["host"]}:{master.config["port"]}'
+        assert master.sc.election_strategy == strategy
+        assert slave.sc.election_strategy == strategy
+        assert master.sc.master_url == master_url
+        assert slave.sc.master_url == master_url
 
 
-def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers) -> None:
     """Test that primary selection works when mixed set of roles is configured for Karapace instances.
 
     The Kafka group coordinator leader can be any node, it has no relation to Karapace primary role eligibility.
@@ -102,83 +104,86 @@ def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_ra
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
 
-    with port_range.allocate_port() as port1, port_range.allocate_port() as port2, port_range.allocate_port() as port3:
-        config_primary = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port1,
-                "master_eligibility": True,
-            }
-        )
-        config_non_primary_1 = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port2,
-                "master_eligibility": False,
-            }
-        )
-        config_non_primary_2 = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port3,
-                "master_eligibility": False,
-            }
-        )
+    port1 = inet_port()
+    port2 = inet_port()
+    port3 = inet_port()
 
-        with closing(init_admin(config_non_primary_1)) as non_primary_1, closing(
-            init_admin(config_non_primary_2)
-        ) as non_primary_2, closing(init_admin(config_primary)) as primary:
+    config_primary = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id,
+            "group_id": group_id,
+            "port": port1,
+            "master_eligibility": True,
+        }
+    )
+    config_non_primary_1 = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id,
+            "group_id": group_id,
+            "port": port2,
+            "master_eligibility": False,
+        }
+    )
+    config_non_primary_2 = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id,
+            "group_id": group_id,
+            "port": port3,
+            "master_eligibility": False,
+        }
+    )
 
-            # Wait for the election to happen
-            while not is_master(primary):
-                time.sleep(0.3)
+    with closing(init_admin(config_non_primary_1)) as non_primary_1, closing(
+        init_admin(config_non_primary_2)
+    ) as non_primary_2, closing(init_admin(config_primary)) as primary:
 
-            while not has_master(non_primary_1):
-                time.sleep(0.3)
+        # Wait for the election to happen
+        while not is_master(primary):
+            time.sleep(0.3)
 
-            while not has_master(non_primary_2):
-                time.sleep(0.3)
+        while not has_master(non_primary_1):
+            time.sleep(0.3)
 
-            # Make sure the end configuration is as expected
-            primary_url = f'http://{primary.config["host"]}:{primary.config["port"]}'
-            assert primary.sc.master_url == primary_url
-            assert non_primary_1.sc.master_url == primary_url
-            assert non_primary_2.sc.master_url == primary_url
+        while not has_master(non_primary_2):
+            time.sleep(0.3)
+
+        # Make sure the end configuration is as expected
+        primary_url = f'http://{primary.config["host"]}:{primary.config["port"]}'
+        assert primary.sc.master_url == primary_url
+        assert non_primary_1.sc.master_url == primary_url
+        assert non_primary_2.sc.master_url == primary_url
 
 
-def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
 
-    with port_range.allocate_port() as port:
-        config_aa = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port,
-                "master_eligibility": False,
-            }
-        )
+    port = inet_port()
+    config_aa = set_config_defaults(
+        {
+            "advertised_hostname": "127.0.0.1",
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "client_id": client_id,
+            "group_id": group_id,
+            "port": port,
+            "master_eligibility": False,
+        }
+    )
 
-        with closing(init_admin(config_aa)) as mc:
-            # Wait for the election to happen, ie. flag is not None
-            while not mc.sc or mc.sc.are_we_master is None:
-                time.sleep(0.3)
+    with closing(init_admin(config_aa)) as mc:
+        # Wait for the election to happen, ie. flag is not None
+        while not mc.sc or mc.sc.are_we_master is None:
+            time.sleep(0.3)
 
-            # Make sure the end configuration is as expected
-            assert mc.sc.are_we_master is False
-            assert mc.sc.master_url is None
+        # Make sure the end configuration is as expected
+        assert mc.sc.are_we_master is False
+        assert mc.sc.master_url is None
 
 
 async def test_schema_request_forwarding(registry_async_pair):

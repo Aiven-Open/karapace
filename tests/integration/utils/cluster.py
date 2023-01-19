@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from karapace.config import Config, set_config_defaults, write_config
 from pathlib import Path
 from subprocess import Popen
-from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.network import inet_port
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.utils import new_random_name
 from typing import AsyncIterator, List
@@ -29,7 +29,6 @@ class RegistryDescription:
 async def start_schema_registry_cluster(
     config_templates: List[Config],
     data_dir: Path,
-    port_range: PortRangeInclusive,
 ) -> AsyncIterator[List[RegistryDescription]]:
     """Start a cluster of schema registries, one process per `config_templates`."""
     for template in config_templates:
@@ -64,7 +63,7 @@ async def start_schema_registry_cluster(
             )
             actual_group_id = config.setdefault("group_id", group_id)
 
-            port = config.setdefault("port", stack.enter_context(port_range.allocate_port()))
+            port = config.setdefault("port", inet_port())
             assert isinstance(port, int), "Port must be an integer"
 
             group_dir = data_dir / str(actual_group_id)

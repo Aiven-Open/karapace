@@ -4,12 +4,11 @@ See LICENSE for details
 """
 from karapace.utils import Expiration
 from subprocess import Popen
-from tests.integration.utils.network import port_is_listening
 from typing import List, Optional
 
 import os
 import signal
-import time
+import socket
 
 
 def wait_for_port_subprocess(
@@ -17,22 +16,28 @@ def wait_for_port_subprocess(
     process: Popen,
     *,
     hostname: str = "127.0.0.1",
-    wait_time: float = 20.0,
-    ipv6: bool = False,
+    wait_time: float = 10.0,
 ) -> None:
     expiration = Expiration.from_timeout(wait_time)
 
-    while not port_is_listening(hostname, port, ipv6):
-        expiration.raise_timeout_if_expired(
-            msg_format="Timeout waiting for `{hostname}:{port}`",
-            hostname=hostname,
-            port=port,
-        )
-        assert process.poll() is None, f"Process no longer running, exit_code: {process.returncode}"
-        time.sleep(2.0)
+    while True:
+        try:
+            sock = socket.socket()
+            sock.settimeout(0.5)
+            try:
+                sock.connect((hostname, port))
+            finally:
+                sock.close()
+            break
+        except OSError:
+            expiration.raise_timeout_if_expired(
+                msg_format="Timeout waiting for `{hostname}:{port}`",
+                hostname=hostname,
+                port=port,
+            )
+            assert process.poll() is None, f"Process no longer running, exit_code: {process.returncode}"
 
-    elapsed = expiration.elapsed
-    print(f"Server `{hostname}:{port}` listening after {elapsed} seconds")
+    print(f"Server `{hostname}:{port}` listening after {expiration.elapsed} seconds")
 
 
 def stop_process(proc: Optional[Popen]) -> None:
