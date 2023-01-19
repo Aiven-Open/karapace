@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 # Ported from square/wire:
 # wire-library/wire-runtime/src/commonMain/kotlin/com/squareup/wire/Syntax.kt
 

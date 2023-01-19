@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from contextlib import closing
 from dataclasses import dataclass
 from kafka import KafkaAdminClient, KafkaProducer

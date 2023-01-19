@@ -3,6 +3,9 @@ This module provide a small Python library for creating dicts from protocol buff
 Module based on code :
 https://github.com/wearefair/protobuf-to-dict
 LICENSE: https://github.com/wearefair/protobuf-to-dict/blob/master/LICENSE
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
 """
 from dateutil.parser import parse as date_parser
 from google.protobuf.descriptor import FieldDescriptor

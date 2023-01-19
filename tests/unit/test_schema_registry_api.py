@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from aiohttp.test_utils import TestClient, TestServer
 from karapace.config import DEFAULTS
 from karapace.rapu import HTTPResponse

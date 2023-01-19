@@ -3,7 +3,7 @@ karapace -
 Custom middleware system on top of `aiohttp` implementing HTTP server and
 client components for use in Aiven's REST applications.
 
-Copyright (c) 2019 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from accept_types import get_best_match

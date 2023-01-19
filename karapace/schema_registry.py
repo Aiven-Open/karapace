@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from contextlib import AsyncExitStack, closing
 from kafka import errors as kafka_errors, KafkaProducer
 from kafka.producer.future import FutureRecordMetadata
