@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from dataclasses import dataclass
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.exception import IllegalArgumentException

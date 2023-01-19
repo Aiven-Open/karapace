@@ -1,4 +1,8 @@
 # pylint: disable=protected-access
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from karapace.config import set_config_defaults
 from karapace.kafka_rest_apis import KafkaRest
 from unittest.mock import call, Mock

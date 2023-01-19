@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from avro.compatibility import SchemaCompatibilityType
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.schema_models import SchemaType, ValidatedTypedSchema

@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from enum import Enum
 from http import HTTPStatus
 

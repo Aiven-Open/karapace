@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from avro.errors import SchemaParseException
 from avro.schema import parse as avro_parse, Schema as AvroSchema
 from enum import Enum, unique

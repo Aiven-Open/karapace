@@ -1,7 +1,7 @@
 """
 karapace - configuration validation
 
-Copyright (c) 2019 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from aiohttp.web_log import AccessLogger

@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from jsonschema import Draft7Validator
 from karapace.compatibility.jsonschema.checks import compatibility

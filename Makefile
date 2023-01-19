@@ -16,6 +16,8 @@ clean:
 karapace/version.py: version.py
 	$(PYTHON) $^ $@
 
+# Lists the Python files that do not have an Aiven copyright. Exits with a
+# non-zero exit code if any are found.
 .PHONY: copyright
 copyright:
-	grep -EL "Copyright \(c\) 20.* Aiven" $(shell git ls-files "*.py" | grep -v __init__.py)
+	! git grep --untracked -ELm1 'Copyright \(c\) 20[0-9]{2} Aiven' -- '*.py' ':!*__init__.py'

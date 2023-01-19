@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from avro.compatibility import SchemaCompatibilityResult
 from pathlib import Path
 from typing import List, Optional
