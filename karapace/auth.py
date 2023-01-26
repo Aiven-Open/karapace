@@ -3,7 +3,6 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from base64 import b64encode
-from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from hmac import compare_digest
@@ -91,24 +90,17 @@ class HTTPAuthorizer:
             while True:
                 try:
                     async for changes in awatch(self._auth_filename, stop_event=self._refresh_auth_awatch_stop_event):
-                        changes_by_filename = defaultdict(set)
-                        for change, filename in changes:
-                            changes_by_filename[filename].add(change)
-                        for filename in changes_by_filename.copy():
-                            if self._auth_filename in filename:
-                                try:
-                                    self._load_authfile()
-                                except InvalidConfiguration as e:
-                                    log.warning("Could not load authentication file: %s", e)
-                                finally:
-                                    if Change.deleted in changes_by_filename[self._auth_filename]:
-                                        raise StopIteration
+                        try:
+                            self._load_authfile()
+                        except InvalidConfiguration as e:
+                            log.warning("Could not load authentication file: %s", e)
+
+                        if Change.deleted in {change for change, _ in changes}:
+                            # Reset watch after delete event (e.g. file is replaced)
+                            break
                 except asyncio.CancelledError:
                     log.info("Closing schema registry ACL refresh task")
                     return
-                except StopIteration:
-                    # Reset watch after delete event (e.g. file is replaced)
-                    pass
                 except Exception as ex:  # pylint: disable=broad-except
                     log.exception("Schema registry auth file could not be loaded")
                     stats.unexpected_exception(ex=ex, where="schema_registry_authfile_reloader")
