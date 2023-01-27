@@ -28,7 +28,7 @@ language of the WEB.
 Features
 ========
 
-* Drop in replacement both on pre-existing Schema Registry / Kafka Rest Proxy client and
+* Drop-in replacement both on pre-existing Schema Registry / Kafka Rest Proxy client and
   server-sides
 * Moderate memory consumption
 * Asynchronous architecture based on aiohttp
