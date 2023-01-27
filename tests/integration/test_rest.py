@@ -171,7 +171,9 @@ async def test_admin_client(admin_client, producer):
     topic_names = [new_topic(admin_client) for i in range(10, 13)]
     topic_info = admin_client.cluster_metadata()
     retrieved_names = list(topic_info["topics"].keys())
-    assert set(topic_names).difference(set(retrieved_names)) == set(), "Returned value %r differs from written one %r" % (
+    assert (
+        set(topic_names).difference(set(retrieved_names)) == set()
+    ), "Returned value {!r} differs from written one {!r}".format(
         retrieved_names,
         topic_names,
     )
@@ -440,9 +442,11 @@ async def test_partitions(rest_async_client, admin_client, producer):
     for _ in range(5):
         producer.send(topic_name, value=b"foo_val").get()
     offset_res = await rest_async_client.get(f"/topics/{topic_name}/partitions/0/offsets", headers=header)
-    assert offset_res.ok, "Status code %r is not expected: %r" % (offset_res.status_code, offset_res.json())
+    assert offset_res.ok, f"Status code {offset_res.status_code!r} is not expected: {offset_res.json()!r}"
     data = offset_res.json()
-    assert data == {"beginning_offset": 0, "end_offset": 5}, "Unexpected offsets for topic %r: %r" % (topic_name, data)
+    assert data == {"beginning_offset": 0, "end_offset": 5}, "Unexpected offsets for topic {!r}: {!r}".format(
+        topic_name, data
+    )
     res = await rest_async_client.get("/topics/fooo/partitions/0/offsets", headers=header)
     assert res.status_code == 404
     assert res.json()["error_code"] == 40401

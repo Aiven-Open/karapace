@@ -15,7 +15,7 @@ def save_version(new_ver, old_ver, version_file):
     version_file = os.path.join(os.path.dirname(__file__), version_file)
     if not old_ver or new_ver != old_ver:
         with open(version_file, mode="w", encoding="utf8") as fp:
-            fp.write('"""{}"""\n__version__ = "{}"\n'.format(__doc__, new_ver))
+            fp.write(f'"""{__doc__}"""\n__version__ = "{new_ver}"\n')
     return True
 
 
@@ -37,14 +37,14 @@ def get_project_version(version_file: str) -> str:
         else:
             git_ver = git_out.splitlines()[0].strip().decode("utf-8")
             if "." not in git_ver:
-                git_ver = "0.0.1-0-unknown-{}".format(git_ver)
+                git_ver = f"0.0.1-0-unknown-{git_ver}"
             version = git_ver
 
     if save_version(version, file_ver, version_file):
         return version
 
     if not file_ver:
-        raise Exception("version not available from git or from file {!r}".format(version_file))
+        raise Exception(f"version not available from git or from file {version_file!r}")
 
     return file_ver
 
