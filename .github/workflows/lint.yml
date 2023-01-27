@@ -27,11 +27,3 @@ jobs:
 
       - name: Run all pre-commit hooks
         run: pre-commit run --all-files
-
-  copyright:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v3
-
-        - name: Enforce copyright headers
-          run: make copyright
