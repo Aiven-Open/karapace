@@ -183,7 +183,7 @@ class SchemaBackup:
             self.init_producer()
         LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
-        with open(self.backup_location, mode="r", encoding="utf8") as fp:
+        with open(self.backup_location, encoding="utf8") as fp:
             if _check_backup_file_version(fp) == BackupVersion.V2:
                 self._restore_backup_version_2(fp)
             else:
@@ -209,7 +209,7 @@ class SchemaBackup:
 
     def _restore_backup_version_2(self, fp: IO) -> None:
         for line in fp:
-            hex_key, hex_value = [val.strip() for val in line.split("\t")]  # strip to remove the linefeed
+            hex_key, hex_value = (val.strip() for val in line.split("\t"))  # strip to remove the linefeed
 
             key = base64.b16decode(hex_key).decode("utf8") if hex_key != "null" else hex_key
             value = base64.b16decode(hex_value.strip()).decode("utf8") if hex_value != "null" else hex_value

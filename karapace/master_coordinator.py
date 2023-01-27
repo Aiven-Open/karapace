@@ -27,7 +27,7 @@ LOG = logging.getLogger(__name__)
 
 
 def get_member_url(scheme: str, host: str, port: str) -> str:
-    return "{}://{}:{}".format(scheme, host, port)
+    return f"{scheme}://{host}:{port}"
 
 
 def get_member_configuration(*, host: str, port: int, scheme: str, master_eligibility: bool) -> JsonData:

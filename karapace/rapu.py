@@ -25,7 +25,7 @@ import logging
 import re
 import time
 
-SERVER_NAME = "Karapace/{}".format(__version__)
+SERVER_NAME = f"Karapace/{__version__}"
 JSON_CONTENT_TYPE = "application/json"
 
 SCHEMA_CONTENT_TYPES = [
@@ -105,7 +105,7 @@ class HTTPRequest:
         return self._header_cache[upper_cased]
 
     def __repr__(self):
-        return "HTTPRequest(url=%s query=%s method=%s json=%r)" % (self.url, self.query, self.method, self.json)
+        return f"HTTPRequest(url={self.url} query={self.query} method={self.method} json={self.json!r})"
 
 
 class HTTPResponse(Exception):
@@ -164,7 +164,7 @@ class RestApp:
     ) -> None:
         self.app_name = app_name
         self.config = config
-        self.app_request_metric = "{}_request".format(app_name)
+        self.app_request_metric = f"{app_name}_request"
         self.app = aiohttp.web.Application()
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(config=config)
@@ -351,7 +351,7 @@ class RestApp:
             # On 204 - NO CONTENT there is no point of calculating cache headers
             if is_success(status):
                 if resp_bytes:
-                    etag = '"{}"'.format(hashlib.md5(resp_bytes).hexdigest())
+                    etag = f'"{hashlib.md5(resp_bytes).hexdigest()}"'
                 else:
                     etag = '""'
                 if_none_match = request.headers.get("if-none-match")

@@ -1176,7 +1176,7 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
     # Deleting one version, the other still found
-    res = await registry_async_client.delete("subjects/{}/versions/{}".format(subject, version_1))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/{version_1}")
     assert res.status_code == 200
     assert res.json() == version_1
 
@@ -1184,7 +1184,7 @@ async def test_schema_versions_deleting(registry_async_client: Client, trail: st
     await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
     # Deleting the subject, the schema version 2 cannot be found anymore
-    res = await registry_async_client.delete("subjects/{}".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 200
     assert res.json() == [version_2]
 
@@ -1227,7 +1227,7 @@ async def test_schema_delete_latest_version(registry_async_client: Client, trail
     await assert_schema_versions(registry_async_client, trail, schema_id_2, schema_2_versions)
 
     # Deleting latest version, the other still found
-    res = await registry_async_client.delete("subjects/{}/versions/latest".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/latest")
     assert res.status_code == 200
     assert res.json() == version_2
 
@@ -1235,7 +1235,7 @@ async def test_schema_delete_latest_version(registry_async_client: Client, trail
     await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
 
     # Deleting the latest version, no schemas left
-    res = await registry_async_client.delete("subjects/{}/versions/latest".format(subject))
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/latest")
     assert res.status_code == 200
     assert res.json() == version_1
 

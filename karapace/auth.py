@@ -116,7 +116,7 @@ class HTTPAuthorizer:
 
     def _load_authfile(self) -> None:
         try:
-            with open(self._auth_filename, "r") as authfile:
+            with open(self._auth_filename) as authfile:
                 authdata = json.load(authfile)
 
                 users = {
