@@ -166,7 +166,7 @@ class SchemaRegistrySerializer:
         assert self.registry_client, "must not call this method after the object is closed."
         schema_id, schema = await self.registry_client.get_latest_schema(subject)
         async with self.state_lock:
-            schema_ser = schema.__str__()
+            schema_ser = str(schema)
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema
         return schema
@@ -177,7 +177,7 @@ class SchemaRegistrySerializer:
             schema_typed = ParsedTypedSchema.parse(schema_type, schema)
         except InvalidSchema as e:
             raise InvalidPayload(f"Schema string {schema} is invalid") from e
-        schema_ser = schema_typed.__str__()
+        schema_ser = str(schema_typed)
         if schema_ser in self.schemas_to_ids:
             return self.schemas_to_ids[schema_ser]
         schema_id = await self.registry_client.post_new_schema(subject, schema_typed)
@@ -191,14 +191,14 @@ class SchemaRegistrySerializer:
         if schema_id in self.ids_to_schemas:
             return self.ids_to_schemas[schema_id]
         schema_typed = await self.registry_client.get_schema_for_id(schema_id)
-        schema_ser = schema_typed.__str__()
+        schema_ser = str(schema_typed)
         async with self.state_lock:
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema_typed
         return schema_typed
 
     async def serialize(self, schema: TypedSchema, value: dict) -> bytes:
-        schema_id = self.schemas_to_ids[schema.__str__()]
+        schema_id = self.schemas_to_ids[str(schema)]
         with io.BytesIO() as bio:
             bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
             try:

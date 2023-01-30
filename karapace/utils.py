@@ -55,7 +55,7 @@ def default_json_serialization(obj: MappingProxyType) -> dict:
     ...
 
 
-def default_json_serialization(  # pylint: disable=inconsistent-return-statements
+def default_json_serialization(
     obj: Union[datetime, timedelta, Decimal, MappingProxyType],
 ) -> Union[str, float, dict]:
     if isinstance(obj, datetime):

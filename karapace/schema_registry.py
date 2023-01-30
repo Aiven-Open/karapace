@@ -375,7 +375,7 @@ class KarapaceSchemaRegistry:
                         subject,
                         schema_id,
                         version,
-                        new_schema.__str__(),
+                        str(new_schema),
                         schema_id,
                     )
                 else:

@@ -6,7 +6,7 @@ from karapace.sentry.sentry_client_api import SentryClientAPI
 from typing import Dict, Optional
 
 # The Sentry SDK is optional, omit pylint import error
-import sentry_sdk  # pylint: disable=import-error
+import sentry_sdk
 
 
 class SentryClient(SentryClientAPI):

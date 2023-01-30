@@ -18,7 +18,7 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi
+import cgi  # pylint: disable=deprecated-module
 import hashlib
 import json
 import logging
@@ -192,7 +192,7 @@ class RestApp:
             "Server": SERVER_NAME,
         }
 
-    def check_rest_headers(self, request: HTTPRequest) -> dict:  # pylint:disable=inconsistent-return-statements
+    def check_rest_headers(self, request: HTTPRequest) -> dict:
         method = request.method
         default_content = "application/vnd.kafka.json.v2+json"
         default_accept = "*/*"
