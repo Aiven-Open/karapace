@@ -194,13 +194,22 @@ class KafkaSchemaReader(Thread):
             return self.global_schema_id
 
     def get_schema_id_if_exists(self, *, subject: Subject, schema: TypedSchema) -> Optional[SchemaId]:
-        return self._hash_to_schema_id_on_subject.get(hash((subject, schema.__str__())), None)
+        return self._hash_to_schema_id_on_subject.get(
+            hash((subject, str(schema))),
+            None,
+        )
 
     def _set_schema_id_on_subject(self, *, subject: Subject, schema: TypedSchema, schema_id: SchemaId) -> None:
-        self._hash_to_schema_id_on_subject.setdefault(hash((subject, schema.__str__())), schema_id)
+        self._hash_to_schema_id_on_subject.setdefault(
+            hash((subject, str(schema))),
+            schema_id,
+        )
 
     def _delete_from_schema_id_on_subject(self, *, subject: Subject, schema: TypedSchema) -> None:
-        self._hash_to_schema_id_on_subject.pop(hash((subject, schema.__str__())), None)
+        self._hash_to_schema_id_on_subject.pop(
+            hash((subject, str(schema))),
+            None,
+        )
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")

@@ -715,7 +715,7 @@ class UserRestProxy:
         await self.publish(topic, None, content_type, request)
 
     @staticmethod
-    def validate_partition_id(partition_id: str, content_type: str) -> int:  # pylint: disable=inconsistent-return-statements
+    def validate_partition_id(partition_id: str, content_type: str) -> int:
         try:
             return int(partition_id)
         except ValueError:
