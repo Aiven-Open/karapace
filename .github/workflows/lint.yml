@@ -7,16 +7,35 @@ on:
     branches:
       - main
 
+env:
+  python-version: "3.11"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ python-version }}
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: ${{ python-version }}
+          cache: pip
+          cache-dependency-path: .pre-commit-config.yaml
+          check-latest: true
+
+      - name: pre-commit cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pre-commit
+          key: >-
+            ${{ runner.os }}
+            -pre-commit
+            -${{ python-version }}
+            -${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pre-commit-${{ python-version }}
+            ${{ runner.os }}-pre-commit
 
       - name: Install dependencies
         run: pip install 'pre-commit>=2.2.0'
