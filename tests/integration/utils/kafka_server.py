@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from contextlib import contextmanager
 from dataclasses import dataclass
 from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
 from karapace.kafka_rest_apis import KafkaRestAdminClient
@@ -11,7 +12,7 @@ from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
-from typing import Dict, List
+from typing import Iterator, List
 
 import logging
 import os
@@ -128,12 +129,13 @@ def kafka_java_args(
     return java_args
 
 
+@contextmanager
 def configure_and_start_kafka(
     zk_config: ZKConfig,
     kafka_config: KafkaConfig,
     kafka_description: KafkaDescription,
     log4j_config: str,
-) -> Popen:
+) -> Iterator[Popen]:
     config_path = Path(kafka_config.logdir) / "server.properties"
 
     advertised_listeners = ",".join(
@@ -191,6 +193,6 @@ def configure_and_start_kafka(
             kafka_description=kafka_description,
         ),
     )
-    env: Dict[bytes, bytes] = {}
-    proc = Popen(kafka_cmd, env=env)  # pylint: disable=consider-using-with
-    return proc
+
+    with Popen(kafka_cmd, env={}) as proc:
+        yield proc

@@ -25,7 +25,6 @@ from tests.integration.utils.kafka_server import (
     wait_for_kafka,
 )
 from tests.integration.utils.network import PortRangeInclusive
-from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
@@ -142,11 +141,13 @@ def fixture_kafka_server(
                     path=str(zk_dir),
                 )
 
-                zk_proc = configure_and_start_zk(zk_config, kafka_description)
-                stack.callback(stop_process, zk_proc)
-
-                # Make sure zookeeper is running before trying to start Kafka
-                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
+                stack.enter_context(
+                    configure_and_start_zk(
+                        config=zk_config,
+                        kafka_description=kafka_description,
+                        wait_for_port_seconds=20,
+                    )
+                )
 
                 data_dir = session_datadir / "kafka"
                 log_dir = session_logdir / "kafka"
@@ -157,13 +158,14 @@ def fixture_kafka_server(
                     logdir=str(log_dir),
                     plaintext_port=kafka_plaintext_port,
                 )
-                kafka_proc = configure_and_start_kafka(
-                    zk_config=zk_config,
-                    kafka_config=kafka_config,
-                    kafka_description=kafka_description,
-                    log4j_config=KAFKA_LOG4J,
+                stack.enter_context(
+                    configure_and_start_kafka(
+                        zk_config=zk_config,
+                        kafka_config=kafka_config,
+                        kafka_description=kafka_description,
+                        log4j_config=KAFKA_LOG4J,
+                    )
                 )
-                stack.callback(stop_process, kafka_proc)
 
                 config_data = {
                     "zookeeper": asdict(zk_config),

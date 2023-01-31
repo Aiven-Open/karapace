@@ -2,12 +2,13 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from contextlib import contextmanager
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaDescription, ZKConfig
-from tests.integration.utils.process import get_java_process_configuration
+from tests.integration.utils.process import get_java_process_configuration, wait_for_port_subprocess
 from tests.utils import write_ini
-from typing import List
+from typing import Iterator, List
 
 
 def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[str]:
@@ -22,7 +23,12 @@ def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[st
     return java_args
 
 
-def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription) -> Popen:
+@contextmanager
+def configure_and_start_zk(
+    config: ZKConfig,
+    kafka_description: KafkaDescription,
+    wait_for_port_seconds: int,
+) -> Iterator[Popen]:
     zk_dir = Path(config.path)
     cfg_path = zk_dir / "zoo.cfg"
     logs_dir = zk_dir / "logs"
@@ -59,5 +65,13 @@ def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription
             kafka_description,
         )
     )
-    proc = Popen(java_args, env=env)  # pylint: disable=consider-using-with
-    return proc
+
+    with Popen(java_args, env=env) as proc:
+        if wait_for_port_seconds:
+            # Wait for ZK to listen on the port before yielding.
+            wait_for_port_subprocess(
+                port=config.client_port,
+                process=proc,
+                wait_time=wait_for_port_seconds,
+            )
+        yield proc
