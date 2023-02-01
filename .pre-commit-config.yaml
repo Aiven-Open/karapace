@@ -1,14 +1,32 @@
 ---
 minimum_pre_commit_version: 2.9.2
 repos:
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
+      - id: check-case-conflict
+      - id: check-merge-conflict
       - id: trailing-whitespace
-        exclude: ^vendor/|^tests/.*/fixtures/.*|^tests/integration/test_data/.*
       - id: end-of-file-fixer
-        exclude: ^vendor/|^tests/.*/fixtures/.*|^tests/integration/test_data/.*
       - id: debug-statements
+      - id: detect-private-key
+        exclude: ^tests/integration/credentials/serverkey.pem$
+
+  - repo: local
+    hooks:
+      - id: copyright
+        name: copyright
+        language: system
+        types: [python]
+        pass_filenames: false
+        # Lists the Python files that do not have an Aiven copyright. Exits with a
+        # non-zero exit code if any are found.
+        entry: bash -c "! git grep --untracked -ELm1 'Copyright \(c\) 20[0-9]{2} Aiven' -- '*.py' ':!*__init__.py'"
 
   - repo: https://github.com/asottile/pyupgrade
     rev: "v3.3.1"
@@ -16,14 +34,22 @@ repos:
       - id: pyupgrade
         args: ["--py37-plus"]
 
+  - repo: https://github.com/PyCQA/autoflake
+    rev: "v2.0.1"
+    hooks:
+      - id: autoflake
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --ignore-init-module-imports
+
   - repo: https://github.com/PyCQA/isort
     rev: 5.12.0
     hooks:
       - id: isort
-        name: isort (python)
 
   - repo: https://github.com/psf/black
-    rev: 22.12.0
+    rev: 23.1.0
     hooks:
       - id: black
 
@@ -36,14 +62,14 @@ repos:
     rev: v0.991
     hooks:
       - id: mypy
-        name: Mypy Karapace
         pass_filenames: false
 
-  # https://pre-commit.com/#repository-local-hooks
   - repo: https://github.com/PyCQA/pylint
-    rev: v2.15.10
+    rev: v2.16.0
     hooks:
       - id: pylint
-        exclude: ^vendor/
-        args:
-          - --rcfile=.pylintrc
+
+exclude: |
+  (?x)(
+    tests/integration/test_data/.*
+  )
