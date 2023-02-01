@@ -67,7 +67,7 @@ def default_json_serialization(
     if isinstance(obj, MappingProxyType):
         return dict(obj)
 
-    assert_never("Object of type {!r} is not JSON serializable".format(obj.__class__.__name__))
+    assert_never(f"Object of type {obj.__class__.__name__!r} is not JSON serializable")
 
 
 SEPARATORS = (",", ":")

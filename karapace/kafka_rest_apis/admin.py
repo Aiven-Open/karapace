@@ -43,7 +43,7 @@ class KafkaRestAdminClient(KafkaAdminClient):
         metadata_version = self._matching_api_version(MetadataRequest)
         if metadata_version > 6 or metadata_version < 1:
             raise UnrecognizedBrokerVersion(
-                "Kafka Admin interface cannot determine the controller using MetadataRequest_v{}.".format(metadata_version)
+                f"Kafka Admin interface cannot determine the controller using MetadataRequest_v{metadata_version}."
             )
         request = MetadataRequest[1](topics=topics)
         future = self._send_request_to_least_loaded_node(request)

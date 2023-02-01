@@ -250,7 +250,7 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
     # avro to be handled in a separate testcase ??
     values = {
         "json": [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
-        "binary": [f"val{i}".encode("utf-8") for i in range(3)],
+        "binary": [f"val{i}".encode() for i in range(3)],
     }
     deserializers = {"binary": base64.b64decode, "json": lambda x: json.dumps(x).encode("utf-8")}
     group_name = "consume_group"
@@ -283,7 +283,7 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
 async def test_consume_timeout(rest_async_client, admin_client, producer):
     values = {
         "json": [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
-        "binary": [f"val{i}".encode("utf-8") for i in range(3)],
+        "binary": [f"val{i}".encode() for i in range(3)],
     }
     deserializers = {"binary": base64.b64decode, "json": lambda x: json.dumps(x).encode("utf-8")}
     group_name = "consume_group"

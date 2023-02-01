@@ -34,7 +34,7 @@ import logging
 import time
 
 LOG = logging.getLogger(__name__)
-X_REGISTRY_VERSION_HEADER = ("X-Registry-Version", f"karapace-{__version__}".encode("utf8"))
+X_REGISTRY_VERSION_HEADER = ("X-Registry-Version", f"karapace-{__version__}".encode())
 
 
 def _resolve_version(subject_data: SubjectData, version: Version) -> ResolvedVersion:
@@ -489,7 +489,7 @@ class KarapaceSchemaRegistry:
                 "keytype": "CONFIG",
             }
         )
-        value = '{{"compatibilityLevel":"{}"}}'.format(compatibility_level.value)
+        value = f'{{"compatibilityLevel":"{compatibility_level.value}"}}'
         return self.send_kafka_message(key, value)
 
     def send_config_subject_delete_message(self, subject: Subject) -> FutureRecordMetadata:
@@ -500,7 +500,7 @@ class KarapaceSchemaRegistry:
                 "keytype": "CONFIG",
             }
         )
-        return self.send_kafka_message(key, "".encode("utf-8"))
+        return self.send_kafka_message(key, b"")
 
     def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
         key = self.key_formatter.format_key(
@@ -510,5 +510,5 @@ class KarapaceSchemaRegistry:
                 "keytype": "DELETE_SUBJECT",
             }
         )
-        value = '{{"subject":"{}","version":{}}}'.format(subject, version)
+        value = f'{{"subject":"{subject}","version":{version}}}'
         return self.send_kafka_message(key, value)
