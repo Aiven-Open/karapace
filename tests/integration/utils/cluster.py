@@ -41,7 +41,7 @@ async def start_schema_registry_cluster(
 
     # None is considered a valid value, and it represents the lack of user
     # configuration, so this will generate one for the cluster
-    group_ids = set(config.get("group_id") for config in config_templates)
+    group_ids = {config.get("group_id") for config in config_templates}
     assert len(group_ids) == 1, f"All configurations entries must have the same group_id value, got: {group_ids}"
 
     group_id = new_random_name("group_id")

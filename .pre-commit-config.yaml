@@ -10,6 +10,12 @@ repos:
         exclude: ^vendor/|^tests/.*/fixtures/.*|^tests/integration/test_data/.*
       - id: debug-statements
 
+  - repo: https://github.com/asottile/pyupgrade
+    rev: "v3.3.1"
+    hooks:
+      - id: pyupgrade
+        args: ["--py37-plus"]
+
   - repo: https://github.com/PyCQA/isort
     rev: 5.12.0
     hooks:

@@ -215,7 +215,7 @@ class SchemaRegistrySerializer:
             # we should probably check for compatibility here
             start_byte, schema_id = struct.unpack(HEADER_FORMAT, byte_arr)
             if start_byte != START_BYTE:
-                raise InvalidMessageHeader("Start byte is %x and should be %x" % (start_byte, START_BYTE))
+                raise InvalidMessageHeader(f"Start byte is {start_byte:x} and should be {START_BYTE:x}")
             try:
                 schema = await self.get_schema_for_id(schema_id)
                 if schema is None:

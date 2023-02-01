@@ -58,7 +58,7 @@ async def test_backup_get(
     assert os.path.exists(backup_location)
 
     lines = 0
-    with open(backup_location, "r", encoding="utf8") as fp:
+    with open(backup_location, encoding="utf8") as fp:
         version_line = fp.readline()
         assert version_line.rstrip() == "/V2"
         for line in fp:
@@ -95,10 +95,10 @@ async def test_backup_restore_and_get_non_schema_topic(
     assert os.path.exists(backup_location)
 
     restore_file_content = None
-    with open(restore_location, "r", encoding="utf8") as fp:
+    with open(restore_location, encoding="utf8") as fp:
         restore_file_content = fp.read()
     backup_file_content = None
-    with open(backup_location, "r", encoding="utf8") as fp:
+    with open(backup_location, encoding="utf8") as fp:
         backup_file_content = fp.read()
     assert restore_file_content is not None
     assert backup_file_content is not None

@@ -116,10 +116,10 @@ def kafka_java_args(
     msg = f"Couldn't find kafka installation at {kafka_description.install_dir} to run integration tests."
     assert kafka_description.install_dir.exists(), msg
     java_args = [
-        "-Xmx{}M".format(heap_mb),
-        "-Xms{}M".format(heap_mb),
-        "-Dkafka.logs.dir={}/logs".format(logs_dir),
-        "-Dlog4j.configuration=file:{}".format(log4j_properties_path),
+        f"-Xmx{heap_mb}M",
+        f"-Xms{heap_mb}M",
+        f"-Dkafka.logs.dir={logs_dir}/logs",
+        f"-Dlog4j.configuration=file:{log4j_properties_path}",
         "-cp",
         str(kafka_description.install_dir / "libs" / "*"),
         "kafka.Kafka",
