@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from kafka import KafkaAdminClient, KafkaProducer
 from karapace.config import set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.schemas.json_schemas import TRUE_SCHEMA
+from tests.schemas.json_schemas import FALSE_SCHEMA, TRUE_SCHEMA
 from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name, new_topic
 from typing import List, Tuple
 
@@ -69,7 +70,13 @@ def test_regression_soft_delete_schemas_should_be_registered(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
-    schema_reader = KafkaSchemaReader(config=config, key_formatter=KeyFormatter(), master_coordinator=master_coordinator)
+    database = InMemoryDatabase()
+    schema_reader = KafkaSchemaReader(
+        config=config,
+        key_formatter=KeyFormatter(),
+        master_coordinator=master_coordinator,
+        database=database,
+    )
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
@@ -98,7 +105,7 @@ def test_regression_soft_delete_schemas_should_be_registered(
 
         schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5)
 
-        schemas = schema_reader.get_schemas(subject=subject, include_deleted=True)
+        schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
         assert len(schemas) == 1, "Deleted schemas must have been registered"
 
         # Produce a soft deleted schema, this is the regression test
@@ -114,7 +121,7 @@ def test_regression_soft_delete_schemas_should_be_registered(
             "id": test_global_schema_id,
             "subject": subject,
             "version": 2,
-            "schema": json_encode(TRUE_SCHEMA.schema),
+            "schema": json_encode(FALSE_SCHEMA.schema),
         }
         future = producer.send(
             topic_name,
@@ -124,9 +131,9 @@ def test_regression_soft_delete_schemas_should_be_registered(
         msg = future.get()
 
         assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
-        assert schema_reader.global_schema_id == test_global_schema_id
+        assert database.global_schema_id == test_global_schema_id
 
-        schemas = schema_reader.get_schemas(subject=subject, include_deleted=True)
+        schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
         assert len(schemas) == 2, "Deleted schemas must have been registered"
 
 
@@ -147,7 +154,13 @@ def test_regression_config_for_inexisting_object_should_not_throw(
     )
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
-    schema_reader = KafkaSchemaReader(config=config, key_formatter=KeyFormatter(), master_coordinator=master_coordinator)
+    database = InMemoryDatabase()
+    schema_reader = KafkaSchemaReader(
+        config=config,
+        key_formatter=KeyFormatter(),
+        master_coordinator=master_coordinator,
+        database=database,
+    )
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
@@ -169,7 +182,7 @@ def test_regression_config_for_inexisting_object_should_not_throw(
         msg = future.get()
 
         assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
-        assert subject in schema_reader.subjects, "The above message should be handled gracefully"
+        assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
 
 
 @dataclass
@@ -240,7 +253,13 @@ def test_key_format_detection(
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
     key_formatter = KeyFormatter()
-    schema_reader = KafkaSchemaReader(config=config, key_formatter=key_formatter, master_coordinator=master_coordinator)
+    database = InMemoryDatabase()
+    schema_reader = KafkaSchemaReader(
+        config=config,
+        key_formatter=key_formatter,
+        master_coordinator=master_coordinator,
+        database=database,
+    )
     schema_reader.start()
 
     with closing(master_coordinator), closing(schema_reader):
