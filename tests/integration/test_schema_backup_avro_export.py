@@ -53,7 +53,7 @@ EXPECTED_AVRO_SCHEMA = json.dumps(
             },
         ],
     },
-    sort_keys=False,
+    sort_keys=True,
 )
 AVRO_DELETE_SUBJECT = {
     "subject": AVRO_SUBJECT,
