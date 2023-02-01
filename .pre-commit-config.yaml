@@ -10,6 +10,18 @@ repos:
         exclude: ^vendor/|^tests/.*/fixtures/.*|^tests/integration/test_data/.*
       - id: debug-statements
 
+  - repo: local
+    hooks:
+      - id: copyright
+        name: copyright
+        language: system
+        types: [python]
+        exclude: ^vendor/
+        pass_filenames: false
+        # Lists the Python files that do not have an Aiven copyright. Exits with a
+        # non-zero exit code if any are found.
+        entry: bash -c "! git grep --untracked -ELm1 'Copyright \(c\) 20[0-9]{2} Aiven' -- '*.py' ':!*__init__.py'"
+
   - repo: https://github.com/asottile/pyupgrade
     rev: "v3.3.1"
     hooks:
