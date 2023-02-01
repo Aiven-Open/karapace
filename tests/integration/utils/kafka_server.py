@@ -192,5 +192,5 @@ def configure_and_start_kafka(
         ),
     )
     env: Dict[bytes, bytes] = {}
-    proc = Popen(kafka_cmd, env=env)
+    proc = Popen(kafka_cmd, env=env)  # pylint: disable=consider-using-with
     return proc

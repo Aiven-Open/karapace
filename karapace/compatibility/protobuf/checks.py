@@ -18,7 +18,7 @@ def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: Protobuf
     messages = set()
     for record in result.result:
         if not record.modification.is_compatible():
-            incompatibilities.append(record.modification.__str__())
+            incompatibilities.append(str(record.modification))
             locations.add(record.path)
             messages.add(record.message)
 

@@ -39,7 +39,7 @@ def test_regression_server_must_exit_on_exception(
         errfile = stack.enter_context((tmp_path / "karapace.err").open("w"))
         config_path.write_text(json.dumps(config))
         sock.bind(("127.0.0.1", port))
-        process = Popen(
+        process = Popen(  # pylint: disable=consider-using-with
             args=["python", "-m", "karapace.karapace_all", str(config_path)],
             stdout=logfile,
             stderr=errfile,

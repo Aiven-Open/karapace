@@ -19,8 +19,6 @@ __all__ = ["protobuf_to_dict", "TYPE_CALLABLE_MAP", "dict_to_protobuf", "REVERSE
 
 Timestamp_type_name = "Timestamp"
 
-# pylint: disable=no-member
-
 
 def datetime_to_timestamp(dt):
     ts = Timestamp()
