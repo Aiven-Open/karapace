@@ -15,9 +15,9 @@ if [ ! -z $LOCUST_GUI ]; then
 fi
 
 TOPIC="${TOPIC}" locust "${GUI_PARAMS}" \
-     --run-time "${DURATION}" \
-     --users "${CONCURRENCY}" \
-     -H "${BASE_URL}" \
-     --spawn-rate 0.50 \
-     --stop-timeout 5 \
-     --locustfile "${LOCUST_FILE}"
+    --run-time "${DURATION}" \
+    --users "${CONCURRENCY}" \
+    -H "${BASE_URL}" \
+    --spawn-rate 0.50 \
+    --stop-timeout 5 \
+    --locustfile "${LOCUST_FILE}"

@@ -1,0 +1,21 @@
+root = True
+
+[*]
+end_of_line = lf
+insert_final_newline = True
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = True
+
+[*.py]
+charset = utf-8
+
+[*.{yml,yaml,md,toml,html,js,css,json}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[*.bat]
+indent_style = tab
+end_of_line = crlf
