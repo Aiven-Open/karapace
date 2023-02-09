@@ -703,7 +703,7 @@ async def test_record_schema_compatibility_backward(registry_async_client: Clien
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_enum_schema_field_add_compatibility(registry_async_client: Client, trail: str) -> None:
     subject_name_factory = create_subject_name_factory(f"test_enum_schema_field_add_compatibility-{trail}")
-    expected_results = [("BACKWARD", 200), ("FORWARD", 200), ("FULL", 200)]
+    expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
         subject = subject_name_factory()
         res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": compatibility})
@@ -800,22 +800,25 @@ async def test_map_schema_field_add_compatibility(
 
 async def test_enum_schema(registry_async_client: Client) -> None:
     subject_name_factory = create_subject_name_factory("test_enum_schema")
-    for compatibility in ["BACKWARD", "FORWARD", "FULL"]:
+    expected_results = [("BACKWARD", 200, 409), ("FORWARD", 409, 200), ("FULL", 409, 409)]
+    for compatibility, status_code_add, status_code_remove in expected_results:
         subject = subject_name_factory()
         res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
         assert res.status_code == 200
-        schema = {"type": "enum", "name": "testenum", "symbols": ["first"]}
+        schema = {"type": "enum", "name": "testenum", "symbols": ["first", "second"]}
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
 
         # Add a symbol.
-        schema["symbols"].append("second")
+        schema["symbols"].append("third")
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
-        assert res.status_code == 200
+        assert res.status_code == status_code_add
 
         # Remove a symbol
         schema["symbols"].pop(1)
+        if res.status_code != 200:
+            schema["symbols"].pop(1)
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
-        assert res.status_code == 200
+        assert res.status_code == status_code_remove
 
         # Change the name
         schema["name"] = "another"
@@ -824,22 +827,26 @@ async def test_enum_schema(registry_async_client: Client) -> None:
 
         # Inside record
         subject = subject_name_factory()
+        res = await registry_async_client.put(f"config/{subject}", json={"compatibility": compatibility})
+        assert res.status_code == 200
         schema = {
             "type": "record",
             "name": "object",
-            "fields": [{"name": "enumkey", "type": {"type": "enum", "name": "testenum", "symbols": ["first"]}}],
+            "fields": [{"name": "enumkey", "type": {"type": "enum", "name": "testenum", "symbols": ["first", "second"]}}],
         }
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
 
         # Add a symbol.
-        schema["fields"][0]["type"]["symbols"].append("second")
+        schema["fields"][0]["type"]["symbols"].append("third")
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
-        assert res.status_code == 200
+        assert res.status_code == status_code_add
 
         # Remove a symbol
         schema["fields"][0]["type"]["symbols"].pop(1)
+        if res.status_code != 200:
+            schema["fields"][0]["type"]["symbols"].pop(1)
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
-        assert res.status_code == 200
+        assert res.status_code == status_code_remove
 
         # Change the name
         schema["fields"][0]["type"]["name"] = "another"

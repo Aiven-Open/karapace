@@ -57,14 +57,7 @@ class CompatibilityModes(Enum):
 
 
 def check_avro_compatibility(reader_schema: AvroSchema, writer_schema: AvroSchema) -> SchemaCompatibilityResult:
-    result = AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
-    if (
-        result.compatibility is SchemaCompatibilityType.incompatible
-        and [SchemaIncompatibilityType.missing_enum_symbols] != result.incompatibilities
-    ):
-        return result
-
-    return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
+    return AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
 
 
 def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
