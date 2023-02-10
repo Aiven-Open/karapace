@@ -15,7 +15,9 @@ from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
-from typing import IO, Iterable, Optional, TextIO, Tuple, Union
+from pathlib import Path
+from tempfile import mkstemp
+from typing import IO, Optional, TextIO, Tuple, Union
 
 import argparse
 import base64
@@ -44,11 +46,59 @@ class BackupError(Exception):
 
 
 @contextlib.contextmanager
-def Writer(filename: Optional[str] = None) -> Iterable[TextIO]:
-    writer = open(filename, "w", encoding="utf8") if filename else sys.stdout
-    yield writer
-    if filename:
-        writer.close()
+def _writer(file: Union[str, Path], *, overwrite: Optional[bool] = None) -> TextIO:
+    """Opens the given file for writing.
+
+    This function uses a safe temporary file to collect all written data, followed by a final rename. On most systems
+    the final rename is atomic under most conditions, but there are no guarantees. The temporary file is always created
+    next to the given file, to ensure that the temporary file is on the same physical volume as the target file, and
+    avoid issues that might arise when moving data between physical volumes.
+
+    :param file: to open for writing, both the empty string and the conventional single dash ``-`` will yield
+        ``sys.stdout`` instead of actually creating a file for writing.
+    :param overwrite: may be set to ``True`` to overwrite an existing file at the same location.
+    :raises FileExistsError: if ``overwrite`` is not ``True`` and the file already exists, or if the parent directory of
+        the file is not a directory.
+    :raises OSError: if writing fails or if the file already exists and is not actually a file.
+    """
+    if file in ("", "-"):
+        yield sys.stdout
+    else:
+        if not isinstance(file, Path):
+            file = Path(file)
+        dst = file.absolute()
+
+        def check_dst() -> None:
+            nonlocal overwrite, dst
+            if dst.exists():
+                if overwrite is not True:
+                    raise FileExistsError(f"--location already exists at {dst}, use --overwrite to replace the file.")
+                if not dst.is_file():
+                    raise FileExistsError(
+                        f"--location already exists at {dst}, but is not a file and thus cannot be overwritten."
+                    )
+
+        check_dst()
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        fd, path = mkstemp(dir=dst.parent, prefix=dst.name)
+        src = Path(path)
+        try:
+            fp = open(fd, "w", encoding="utf8")
+            try:
+                yield fp
+                fp.flush()
+                os.fsync(fd)
+            finally:
+                fp.close()
+            check_dst()
+            # This might still fail despite all checks, because there is a time window in which other processes can make
+            # changes to the filesystem while our program is advancing. However, we have done the best we can.
+            src.replace(dst)
+        finally:
+            try:
+                src.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _check_backup_file_version(fp: IO) -> BackupVersion:
@@ -215,14 +265,14 @@ class SchemaBackup:
             value = base64.b16decode(hex_value.strip()).decode("utf8") if hex_value != "null" else hex_value
             self._handle_restore_message((key, value))
 
-    def export(self, export_func) -> None:
-        if not self.consumer:
-            self.init_consumer()
-        LOG.info("Starting schema backup read for topic: %r", self.topic_name)
+    def export(self, export_func, *, overwrite: Optional[bool] = None) -> None:
+        with _writer(self.backup_location, overwrite=overwrite) as fp:
+            if not self.consumer:
+                self.init_consumer()
+            LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
-        topic_fully_consumed = False
+            topic_fully_consumed = False
 
-        with Writer(self.backup_location) as fp:
             fp.write(BACKUP_VERSION_2_MARKER)
             while not topic_fully_consumed:
                 raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
@@ -234,10 +284,7 @@ class SchemaBackup:
                         if ser:
                             fp.write(ser)
 
-        if self.backup_location:
-            LOG.info("Schema export written to %r", self.backup_location)
-        else:
-            LOG.info("Schema export written to stdout")
+            LOG.info("Schema export written to %r", "stdout" if fp is sys.stdout else self.backup_location)
         self.close()
 
     def encode_key(self, key: Optional[Union[JsonData, str]]) -> Optional[bytes]:
@@ -299,6 +346,8 @@ def parse_args():
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--location", default="", help="File path for the backup file")
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)
+    for p in [parser_get, parser_export_anonymized_avro_schemas]:
+        p.add_argument("--overwrite", action="store_true", help="Overwrite --location even if it exists.")
 
     return parser.parse_args()
 
@@ -312,13 +361,13 @@ def main() -> int:
     sb = SchemaBackup(config, args.location, args.topic)
 
     if args.command == "get":
-        sb.export(serialize_record)
+        sb.export(serialize_record, overwrite=args.overwrite)
         return 0
     if args.command == "restore":
         sb.restore_backup()
         return 0
     if args.command == "export-anonymized-avro-schemas":
-        sb.export(anonymize_avro_schema_message)
+        sb.export(anonymize_avro_schema_message, overwrite=args.overwrite)
         return 0
     return 1
 
