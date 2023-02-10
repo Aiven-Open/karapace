@@ -12,8 +12,8 @@ from kafka.structs import TopicPartition
 from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
-from karapace.serialization import InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
-from karapace.utils import convert_to_int, json_decode
+from karapace.serialization import DeserializationError, InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
+from karapace.utils import convert_to_int, json_decode, JSONDecodeError
 from struct import error as UnpackError
 from typing import Tuple
 from urllib.parse import urljoin
@@ -508,16 +508,18 @@ class ConsumerManager:
                 for msg in poll_data[tp]:
                     try:
                         key = await self.deserialize(msg.key, request_format) if msg.key else None
-                    except (UnpackError, InvalidMessageHeader, InvalidPayload) as e:
-                        KarapaceBase.internal_error(
+                    except DeserializationError as e:
+                        KarapaceBase.unprocessable_entity(
                             message=f"key deserialization error for format {request_format}: {e}",
+                            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                             content_type=content_type,
                         )
                     try:
                         value = await self.deserialize(msg.value, request_format) if msg.value else None
-                    except (UnpackError, InvalidMessageHeader, InvalidPayload) as e:
-                        KarapaceBase.internal_error(
+                    except DeserializationError as e:
+                        KarapaceBase.unprocessable_entity(
                             message=f"value deserialization error for format {request_format}: {e}",
+                            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                             content_type=content_type,
                         )
                     element = {
@@ -532,13 +534,16 @@ class ConsumerManager:
             KarapaceBase.r(content_type=content_type, body=response)
 
     async def deserialize(self, bytes_: bytes, fmt: str):
-        if not bytes_:
-            return None
-        if fmt in {"avro", "jsonschema", "protobuf"}:
-            return await self.deserializer.deserialize(bytes_)
-        if fmt == "json":
-            return json_decode(bytes_)
-        return base64.b64encode(bytes_).decode("utf-8")
+        try:
+            if not bytes_:
+                return None
+            if fmt in {"avro", "jsonschema", "protobuf"}:
+                return await self.deserializer.deserialize(bytes_)
+            if fmt == "json":
+                return json_decode(bytes_)
+            return base64.b64encode(bytes_).decode("utf-8")
+        except (UnpackError, InvalidMessageHeader, InvalidPayload, JSONDecodeError, UnicodeDecodeError) as e:
+            raise DeserializationError(e) from e
 
     async def aclose(self):
         for k in list(self.consumers.keys()):
