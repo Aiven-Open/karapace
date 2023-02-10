@@ -8,6 +8,7 @@ from enum import Enum
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from kafka.structs import PartitionMetadata
 from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.config import Config, read_config
@@ -17,7 +18,7 @@ from karapace.typing import JsonData
 from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
 from pathlib import Path
 from tempfile import mkstemp
-from typing import IO, Optional, TextIO, Tuple, Union
+from typing import AbstractSet, Callable, IO, Optional, TextIO, Tuple, Union
 
 import argparse
 import base64
@@ -43,6 +44,84 @@ class BackupVersion(Enum):
 
 class BackupError(Exception):
     """Backup Error"""
+
+
+class PartitionCountError(BackupError):
+    pass
+
+
+def __check_partition_count(topic: str, supplier: Callable[[str], AbstractSet[PartitionMetadata]]) -> None:
+    """Checks that the given topic has exactly one partition.
+
+    :param topic: to check.
+    :param supplier: of topic partition metadata.
+    :raises PartitionCountError: if the topic does not have exactly one partition.
+    """
+    partition_count = len(supplier(topic))
+    if partition_count != 1:
+        raise PartitionCountError(
+            f"Topic {topic!r} has {partition_count} partitions, but only topics with exactly 1 partition can be backed "
+            "up. The schemas topic MUST have exactly 1 partition to ensure perfect ordering of schema updates."
+        )
+
+
+@contextlib.contextmanager
+def _consumer(config: Config, topic: str) -> KafkaConsumer:
+    """Creates an automatically closing Kafka consumer client.
+
+    :param config: for the client.
+    :param topic: to consume from.
+    :raises PartitionCountError: if the topic does not have exactly one partition.
+    :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
+    """
+    consumer = KafkaConsumer(
+        topic,
+        enable_auto_commit=False,
+        bootstrap_servers=config["bootstrap_uri"],
+        client_id=config["client_id"],
+        security_protocol=config["security_protocol"],
+        ssl_cafile=config["ssl_cafile"],
+        ssl_certfile=config["ssl_certfile"],
+        ssl_keyfile=config["ssl_keyfile"],
+        sasl_mechanism=config["sasl_mechanism"],
+        sasl_plain_username=config["sasl_plain_username"],
+        sasl_plain_password=config["sasl_plain_password"],
+        auto_offset_reset="earliest",
+        metadata_max_age_ms=config["metadata_max_age_ms"],
+        kafka_client=KarapaceKafkaClient,
+    )
+    try:
+        __check_partition_count(topic, consumer.partitions_for_topic)
+        yield consumer
+    finally:
+        consumer.close()
+
+
+@contextlib.contextmanager
+def _producer(config: Config, topic: str) -> KafkaProducer:
+    """Creates an automatically closing Kafka producer client.
+
+    :param config: for the client.
+    :param topic: to produce to.
+    :raises PartitionCountError: if the topic does not have exactly one partition.
+    :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
+    """
+    producer = KafkaProducer(
+        bootstrap_servers=config["bootstrap_uri"],
+        security_protocol=config["security_protocol"],
+        ssl_cafile=config["ssl_cafile"],
+        ssl_certfile=config["ssl_certfile"],
+        ssl_keyfile=config["ssl_keyfile"],
+        sasl_mechanism=config["sasl_mechanism"],
+        sasl_plain_username=config["sasl_plain_username"],
+        sasl_plain_password=config["sasl_plain_password"],
+        kafka_client=KarapaceKafkaClient,
+    )
+    try:
+        __check_partition_count(topic, producer.partitions_for)
+        yield producer
+    finally:
+        producer.close()
 
 
 @contextlib.contextmanager
@@ -117,8 +196,6 @@ class SchemaBackup:
         self.config = config
         self.backup_location = backup_path
         self.topic_name = topic_option or self.config["topic_name"]
-        self.consumer = None
-        self.producer = None
         self.admin_client = None
         self.timeout_ms = 1000
 
@@ -126,37 +203,6 @@ class SchemaBackup:
         self.key_formatter = None
         if self.topic_name == constants.DEFAULT_SCHEMA_TOPIC or self.config.get("force_key_correction", False):
             self.key_formatter = KeyFormatter()
-
-    def init_consumer(self) -> None:
-        self.consumer = KafkaConsumer(
-            self.topic_name,
-            enable_auto_commit=False,
-            bootstrap_servers=self.config["bootstrap_uri"],
-            client_id=self.config["client_id"],
-            security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            sasl_mechanism=self.config["sasl_mechanism"],
-            sasl_plain_username=self.config["sasl_plain_username"],
-            sasl_plain_password=self.config["sasl_plain_password"],
-            auto_offset_reset="earliest",
-            metadata_max_age_ms=self.config["metadata_max_age_ms"],
-            kafka_client=KarapaceKafkaClient,
-        )
-
-    def init_producer(self) -> None:
-        self.producer = KafkaProducer(
-            bootstrap_servers=self.config["bootstrap_uri"],
-            security_protocol=self.config["security_protocol"],
-            ssl_cafile=self.config["ssl_cafile"],
-            ssl_certfile=self.config["ssl_certfile"],
-            ssl_keyfile=self.config["ssl_keyfile"],
-            sasl_mechanism=self.config["sasl_mechanism"],
-            sasl_plain_username=self.config["sasl_plain_username"],
-            sasl_plain_password=self.config["sasl_plain_password"],
-            kafka_client=KarapaceKafkaClient,
-        )
 
     def init_admin_client(self) -> None:
         start_time = time.monotonic()
@@ -213,12 +259,6 @@ class SchemaBackup:
 
     def close(self) -> None:
         LOG.info("Closing schema backup reader")
-        if self.consumer:
-            self.consumer.close()
-            self.consumer = None
-        if self.producer:
-            self.producer.close()
-            self.producer = None
         if self.admin_client:
             self.admin_client.close()
             self.admin_client = None
@@ -229,25 +269,23 @@ class SchemaBackup:
 
         self._create_schema_topic_if_needed()
 
-        if not self.producer:
-            self.init_producer()
-        LOG.info("Starting backup restore for topic: %r", self.topic_name)
+        with _producer(self.config, self.topic_name) as producer:
+            LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
-        with open(self.backup_location, encoding="utf8") as fp:
-            if _check_backup_file_version(fp) == BackupVersion.V2:
-                self._restore_backup_version_2(fp)
-            else:
-                self._restore_backup_version_1_single_array(fp)
-        self.close()
+            with open(self.backup_location, encoding="utf8") as fp:
+                if _check_backup_file_version(fp) == BackupVersion.V2:
+                    self._restore_backup_version_2(producer, fp)
+                else:
+                    self._restore_backup_version_1_single_array(producer, fp)
+            self.close()
 
-    def _handle_restore_message(self, item: Tuple[str, str]) -> None:
+    def _handle_restore_message(self, producer: KafkaProducer, item: Tuple[str, str]) -> None:
         key = self.encode_key(item[0])
         value = encode_value(item[1])
-        self.producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
+        producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
         LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
 
-    def _restore_backup_version_1_single_array(self, fp: IO) -> None:
-        values = None
+    def _restore_backup_version_1_single_array(self, producer: KafkaProducer, fp: IO) -> None:
         raw_msg = fp.read()
         values = json.loads(raw_msg)
 
@@ -255,36 +293,35 @@ class SchemaBackup:
             return
 
         for item in values:
-            self._handle_restore_message(item)
+            self._handle_restore_message(producer, item)
 
-    def _restore_backup_version_2(self, fp: IO) -> None:
+    def _restore_backup_version_2(self, producer: KafkaProducer, fp: IO) -> None:
         for line in fp:
             hex_key, hex_value = (val.strip() for val in line.split("\t"))  # strip to remove the linefeed
 
             key = base64.b16decode(hex_key).decode("utf8") if hex_key != "null" else hex_key
             value = base64.b16decode(hex_value.strip()).decode("utf8") if hex_value != "null" else hex_value
-            self._handle_restore_message((key, value))
+            self._handle_restore_message(producer, (key, value))
 
     def export(self, export_func, *, overwrite: Optional[bool] = None) -> None:
         with _writer(self.backup_location, overwrite=overwrite) as fp:
-            if not self.consumer:
-                self.init_consumer()
-            LOG.info("Starting schema backup read for topic: %r", self.topic_name)
+            with _consumer(self.config, self.topic_name) as consumer:
+                LOG.info("Starting schema backup read for topic: %r", self.topic_name)
 
-            topic_fully_consumed = False
+                topic_fully_consumed = False
 
-            fp.write(BACKUP_VERSION_2_MARKER)
-            while not topic_fully_consumed:
-                raw_msg = self.consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
-                topic_fully_consumed = len(raw_msg) == 0
+                fp.write(BACKUP_VERSION_2_MARKER)
+                while not topic_fully_consumed:
+                    raw_msg = consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
+                    topic_fully_consumed = len(raw_msg) == 0
 
-                for _, messages in raw_msg.items():
-                    for message in messages:
-                        ser = export_func(key_bytes=message.key, value_bytes=message.value)
-                        if ser:
-                            fp.write(ser)
+                    for _, messages in raw_msg.items():
+                        for message in messages:
+                            ser = export_func(key_bytes=message.key, value_bytes=message.value)
+                            if ser:
+                                fp.write(ser)
 
-            LOG.info("Schema export written to %r", "stdout" if fp is sys.stdout else self.backup_location)
+                LOG.info("Schema export written to %r", "stdout" if fp is sys.stdout else self.backup_location)
         self.close()
 
     def encode_key(self, key: Optional[Union[JsonData, str]]) -> Optional[bytes]:
