@@ -368,7 +368,9 @@ class KarapaceSchemaRegistry:
                     )
                     if is_incompatible(result):
                         message = set(result.messages).pop() if result.messages else ""
-                        LOG.warning("Incompatible schema: %s", result)
+                        LOG.warning(
+                            "Incompatible schema: %s, incompatibilities: %s", result.compatibility, result.incompatibilities
+                        )
                         raise IncompatibleSchema(
                             f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}"
                         )
