@@ -121,6 +121,7 @@ class SchemaBackup:
         self.producer = None
         self.admin_client = None
         self.timeout_ms = 1000
+        LOG.setLevel(config["log_level"])
 
         # Schema key formatter
         self.key_formatter = None
@@ -358,6 +359,7 @@ def main() -> int:
     with open(args.config, encoding="utf8") as handler:
         config = read_config(handler)
 
+    logging.basicConfig(level=logging.INFO, format=config["log_format"])
     sb = SchemaBackup(config, args.location, args.topic)
 
     if args.command == "get":
