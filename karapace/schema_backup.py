@@ -7,7 +7,7 @@ See LICENSE for details
 from enum import Enum
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
-from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
+from kafka.errors import KafkaError, NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 from kafka.structs import PartitionMetadata
 from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
@@ -197,6 +197,7 @@ class SchemaBackup:
         self.topic_name = topic_option or self.config["topic_name"]
         self.admin_client = None
         self.timeout_ms = 1000
+        self.timeout_kafka_producer = 5
 
         # Schema key formatter
         self.key_formatter = None
@@ -281,8 +282,15 @@ class SchemaBackup:
     def _handle_restore_message(self, producer: KafkaProducer, item: Tuple[str, str]) -> None:
         key = self.encode_key(item[0])
         value = encode_value(item[1])
-        producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
-        LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
+        LOG.debug("Trying to send kafka msg key: %r, value: %r", key, value)
+        try:
+            msg = producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
+            producer.flush(timeout=self.timeout_kafka_producer)
+            metadata = msg.get(timeout=self.timeout_kafka_producer)
+        except KafkaError as ex:
+            raise BackupError("Error while producing restored message") from ex
+        else:
+            LOG.debug("Sent kafka msg key: %r, value: %r, offset: %r", key, value, metadata.offset)
 
     def _restore_backup_version_1_single_array(self, producer: KafkaProducer, fp: IO) -> None:
         raw_msg = fp.read()
