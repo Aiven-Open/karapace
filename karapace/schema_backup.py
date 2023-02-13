@@ -14,7 +14,7 @@ from karapace.config import Config, read_config
 from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.typing import JsonData
-from karapace.utils import json_encode, KarapaceKafkaClient, Timeout
+from karapace.utils import json_decode, json_encode, KarapaceKafkaClient, Timeout
 from pathlib import Path
 from tempfile import mkstemp
 from typing import IO, Optional, TextIO, Tuple, Union
@@ -22,7 +22,6 @@ from typing import IO, Optional, TextIO, Tuple, Union
 import argparse
 import base64
 import contextlib
-import json
 import logging
 import os
 import sys
@@ -249,7 +248,7 @@ class SchemaBackup:
     def _restore_backup_version_1_single_array(self, fp: IO) -> None:
         values = None
         raw_msg = fp.read()
-        values = json.loads(raw_msg)
+        values = json_decode(raw_msg)
 
         if not values:
             return
@@ -295,7 +294,7 @@ class SchemaBackup:
                 return key.encode("utf8")
             return json_encode(key, sort_keys=False, binary=True, compact=False)
         if isinstance(key, str):
-            key = json.loads(key)
+            key = json_decode(key)
         return self.key_formatter.format_key(key)
 
 
@@ -304,7 +303,7 @@ def encode_value(value: Union[JsonData, str]) -> Optional[bytes]:
         return None
     if isinstance(value, str):
         return value.encode("utf8")
-    return json_encode(value, sort_keys=False, binary=True)
+    return json_encode(value, compact=True, sort_keys=False, binary=True)
 
 
 def serialize_record(key_bytes: Optional[bytes], value_bytes: Optional[bytes]) -> str:
@@ -317,20 +316,20 @@ def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
     # Check that the message has key `schema` and type is Avro schema.
     # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
 
-    key = json.loads(key_bytes.decode("utf8"))
-    value = json.loads(value_bytes.decode("utf8"))
+    key = json_decode(key_bytes)
+    value = json_decode(value_bytes)
 
     if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
-        original_schema = json.loads(value.get("schema"))
+        original_schema = json_decode(value.get("schema"))
         anonymized_schema = anonymize_avro.anonymize(original_schema)
         if anonymized_schema:
-            value["schema"] = json_encode(anonymized_schema, sort_keys=False)
+            value["schema"] = json_encode(anonymized_schema, compact=True, sort_keys=False)
     if value and "subject" in value:
         value["subject"] = anonymize_avro.anonymize_name(value["subject"])
     # The schemas topic contain all changes to schema metadata.
     if key.get("subject", None):
         key["subject"] = anonymize_avro.anonymize_name(key["subject"])
-    return serialize_record(json.dumps(key).encode("utf8"), json.dumps(value).encode("utf8"))
+    return serialize_record(json_encode(key, compact=True).encode("utf8"), json_encode(value, compact=True).encode("utf8"))
 
 
 def parse_args():

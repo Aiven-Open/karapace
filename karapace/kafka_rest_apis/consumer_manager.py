@@ -13,14 +13,13 @@ from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
 from karapace.serialization import InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
-from karapace.utils import convert_to_int
+from karapace.utils import convert_to_int, json_decode
 from struct import error as UnpackError
 from typing import Tuple
 from urllib.parse import urljoin
 
 import asyncio
 import base64
-import json
 import logging
 import time
 import uuid
@@ -538,7 +537,7 @@ class ConsumerManager:
         if fmt in {"avro", "jsonschema", "protobuf"}:
             return await self.deserializer.deserialize(bytes_)
         if fmt == "json":
-            return json.loads(bytes_.decode("utf-8"))
+            return json_decode(bytes_)
         return base64.b64encode(bytes_).decode("utf-8")
 
     async def aclose(self):

@@ -9,6 +9,7 @@ from hmac import compare_digest
 from karapace.config import InvalidConfiguration
 from karapace.rapu import JSON_CONTENT_TYPE
 from karapace.statsd import StatsClient
+from karapace.utils import json_decode, json_encode
 from typing import Optional
 from watchfiles import awatch, Change
 
@@ -18,7 +19,6 @@ import argparse
 import asyncio
 import base64
 import hashlib
-import json
 import logging
 import re
 import secrets
@@ -117,7 +117,7 @@ class HTTPAuthorizer:
     def _load_authfile(self) -> None:
         try:
             with open(self._auth_filename) as authfile:
-                authdata = json.load(authfile)
+                authdata = json_decode(authfile)
 
                 users = {
                     user["username"]: User(
@@ -211,7 +211,8 @@ def main() -> int:
     result["algorithm"] = args.algorithm
     result["salt"] = salt
     result["password_hash"] = hash_password(HashAlgorithm(args.algorithm), salt, args.plaintext_password)
-    print(json.dumps(result, indent=4))
+
+    print(json_encode(result, compact=False, indent=4))
     return 0
 
 

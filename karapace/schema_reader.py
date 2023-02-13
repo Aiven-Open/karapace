@@ -23,11 +23,10 @@ from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMod
 from karapace.master_coordinator import MasterCoordinator
 from karapace.schema_models import SchemaType, TypedSchema
 from karapace.statsd import StatsClient
-from karapace.utils import KarapaceKafkaClient
+from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Condition, Event, Thread
 from typing import Optional
 
-import json
 import logging
 import time
 
@@ -309,8 +308,8 @@ class KafkaSchemaReader(Thread):
             schema_records_processed_keymode_deprecated_karapace = 0
             for msg in msgs:
                 try:
-                    key = json.loads(msg.key.decode("utf8"))
-                except json.JSONDecodeError:
+                    key = json_decode(msg.key)
+                except JSONDecodeError:
                     LOG.exception("Invalid JSON in msg.key")
                     continue
 
@@ -326,8 +325,8 @@ class KafkaSchemaReader(Thread):
                 value = None
                 if msg.value:
                     try:
-                        value = json.loads(msg.value.decode("utf8"))
-                    except json.JSONDecodeError:
+                        value = json_decode(msg.value)
+                    except JSONDecodeError:
                         LOG.exception("Invalid JSON in msg.value")
                         continue
 
@@ -470,7 +469,7 @@ class KafkaSchemaReader(Thread):
                 schema_type=schema_type_parsed,
                 schema_str=schema_str,
             )
-        except (InvalidSchema, json.JSONDecodeError):
+        except (InvalidSchema, JSONDecodeError):
             return
         self.database.insert_schema_version(
             subject=schema_subject,
