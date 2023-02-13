@@ -156,6 +156,7 @@ class SchemaBackup:
             sasl_mechanism=self.config["sasl_mechanism"],
             sasl_plain_username=self.config["sasl_plain_username"],
             sasl_plain_password=self.config["sasl_plain_password"],
+            acks="all",
             kafka_client=KarapaceKafkaClient,
         )
 
@@ -245,6 +246,7 @@ class SchemaBackup:
         key = self.encode_key(item[0])
         value = encode_value(item[1])
         self.producer.send(self.topic_name, key=key, value=value, partition=PARTITION_ZERO)
+        self.producer.flush()
         LOG.debug("Sent kafka msg key: %r, value: %r", key, value)
 
     def _restore_backup_version_1_single_array(self, fp: IO) -> None:
