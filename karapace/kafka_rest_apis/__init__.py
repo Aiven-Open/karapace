@@ -26,7 +26,6 @@ from typing import Dict, List, Optional, Tuple
 import aiohttp.web
 import asyncio
 import base64
-import json
 import logging
 import time
 
@@ -852,7 +851,7 @@ class UserRestProxy:
         # not pretty
         if ser_format == "json":
             # TODO -> get encoding from headers
-            return json.dumps(obj).encode("utf8")
+            return json_encode(obj, binary=True, compact=True)
         if ser_format == "binary":
             try:
                 return base64.b64decode(obj)

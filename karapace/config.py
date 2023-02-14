@@ -7,10 +7,10 @@ See LICENSE for details
 from aiohttp.web_log import AccessLogger
 from enum import Enum, unique
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
 from typing import Dict, IO, List, Optional, Union
 
-import json
 import logging
 import os
 import socket
@@ -176,13 +176,13 @@ def validate_config(config: Config) -> None:
 
 
 def write_config(config_path: Path, custom_values: Config) -> None:
-    config_path.write_text(json.dumps(custom_values))
+    config_path.write_text(json_encode(custom_values))
 
 
 def read_config(config_handler: IO) -> Config:
     try:
-        config = json.load(config_handler)
-    except json.JSONDecodeError as ex:
+        config = json_decode(config_handler)
+    except JSONDecodeError as ex:
         raise InvalidConfiguration("Configuration is not a valid JSON") from ex
 
     return set_config_defaults(config)

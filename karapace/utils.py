@@ -12,13 +12,23 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient
+from karapace.typing import JsonData
 from types import MappingProxyType
-from typing import NoReturn, overload, Union
+from typing import Any, AnyStr, IO, NoReturn, Optional, overload, Union
 
-import json
+import importlib
 import kafka.client_async
 import logging
 import time
+
+if importlib.util.find_spec("ujson"):
+    from ujson import JSONDecodeError  # noqa: F401 pylint: disable=unused-import, useless-suppression
+
+    import ujson as json
+else:
+    from json import JSONDecodeError  # noqa: F401 pylint: disable=unused-import, useless-suppression
+
+    import json
 
 NS_BLACKOUT_DURATION_SECONDS = 120
 LOG = logging.getLogger(__name__)
@@ -70,18 +80,53 @@ def default_json_serialization(
     assert_never(f"Object of type {obj.__class__.__name__!r} is not JSON serializable")
 
 
-SEPARATORS = (",", ":")
+@overload
+def json_encode(
+    obj: Any,
+    *,
+    binary: bool = False,
+    sort_keys: Optional[bool] = None,
+    compact: Optional[bool] = None,
+    indent: Optional[int] = None,
+) -> str:
+    ...
 
 
-def json_encode(obj, *, sort_keys: bool = True, binary=False, compact=False):
-    separators = SEPARATORS if compact else None
-    res = json.dumps(
-        obj,
-        sort_keys=sort_keys,
-        default=default_json_serialization,
-        separators=separators,
-    )
-    return res.encode("utf-8") if binary else res
+@overload
+def json_encode(
+    obj: Any,
+    *,
+    binary: bool = True,
+    sort_keys: Optional[bool] = None,
+    compact: Optional[bool] = None,
+    indent: Optional[int] = None,
+) -> bytes:
+    ...
+
+
+def json_encode(
+    obj: Any,
+    *,
+    binary: bool = False,
+    sort_keys: Optional[bool] = None,
+    compact: Optional[bool] = None,
+    indent: Optional[int] = None,
+) -> AnyStr:
+    kwargs = {}
+    if indent is not None:
+        kwargs["indent"] = indent
+    if compact is not False and indent is None:
+        kwargs["separators"] = (",", ":")
+    if sort_keys is True:
+        kwargs["sort_keys"] = True
+    result = json.dumps(obj, default=default_json_serialization, **kwargs)
+    return result.encode("utf8") if binary is True else result
+
+
+def json_decode(content: [AnyStr, IO[AnyStr]]) -> JsonData:
+    if isinstance(content, str) or isinstance(content, bytes):  # pylint: disable=consider-merging-isinstance
+        return json.loads(content)
+    return json.load(content)
 
 
 def assert_never(value: NoReturn) -> NoReturn:

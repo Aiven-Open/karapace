@@ -11,12 +11,11 @@ from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.config import Config
 from karapace.typing import JsonData
-from karapace.utils import json_encode, KarapaceKafkaClient
+from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from karapace.version import __version__
 from threading import Event, Thread
 from typing import Any, cast, List, Optional, Tuple
 
-import json
 import logging
 import time
 
@@ -90,7 +89,7 @@ class SchemaCoordinator(BaseCoordinator):
         urls = {}
         fallback_urls = {}
         for member_id, member_data in members:
-            member_identity = json.loads(member_data.decode("utf8"))
+            member_identity = json_decode(member_data)
             if member_identity["master_eligibility"] is True:
                 urls[get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
                     member_id,
@@ -107,7 +106,7 @@ class SchemaCoordinator(BaseCoordinator):
             # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
             chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
             schema_master_id, member_data = fallback_urls[chosen_url]
-        member_identity = json.loads(member_data.decode("utf8"))
+        member_identity = json_decode(member_data)
         identity = get_member_configuration(
             host=member_identity["host"],
             port=member_identity["port"],
@@ -118,7 +117,9 @@ class SchemaCoordinator(BaseCoordinator):
 
         assignments = {}
         for member_id, member_data in members:
-            assignments[member_id] = json.dumps({"master": schema_master_id, "master_identity": identity, "error": error})
+            assignments[member_id] = json_encode(
+                {"master": schema_master_id, "master_identity": identity, "error": error}, compact=True
+            )
         return assignments
 
     def _on_join_prepare(self, generation: str, member_id: str) -> None:
@@ -133,7 +134,7 @@ class SchemaCoordinator(BaseCoordinator):
             protocol,
             member_assignment_bytes,
         )
-        member_assignment = json.loads(member_assignment_bytes.decode("utf8"))
+        member_assignment = json_decode(member_assignment_bytes)
         member_identity = member_assignment["master_identity"]
 
         master_url = get_member_url(

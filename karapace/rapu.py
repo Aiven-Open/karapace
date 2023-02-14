@@ -10,7 +10,7 @@ from accept_types import get_best_match
 from http import HTTPStatus
 from karapace.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
-from karapace.utils import json_encode
+from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
 from typing import Callable, Dict, NoReturn, Optional, overload, Union
 
@@ -20,7 +20,6 @@ import aiohttp.web_exceptions
 import asyncio
 import cgi  # pylint: disable=deprecated-module
 import hashlib
-import json
 import logging
 import re
 import time
@@ -284,7 +283,7 @@ class RestApp:
                     _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
                     charset = options.get("charset", "utf-8")
                     body_string = body.decode(charset)
-                    rapu_request.json = json.loads(body_string)
+                    rapu_request.json = json_decode(body_string)
                 except UnicodeDecodeError:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST
@@ -340,7 +339,7 @@ class RestApp:
             headers.update(self.cors_and_server_headers_for_request(request=rapu_request))
 
             if isinstance(data, (dict, list)):
-                resp_bytes = json_encode(data, binary=True)
+                resp_bytes = json_encode(data, sort_keys=True, binary=True)
             elif isinstance(data, str):
                 if "Content-Type" not in headers:
                     headers["Content-Type"] = "text/plain; charset=utf-8"

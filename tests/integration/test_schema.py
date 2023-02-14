@@ -265,12 +265,12 @@ async def test_record_schema_subject_compatibility(registry_async_client: Client
     )
     assert res.status_code == 200
     assert "id" in res.json()
-    result = {"id": 1, "schema": json.dumps(original_schema), "subject": subject, "version": 1}
+    result = {"id": 1, "schema": json_encode(original_schema, compact=True), "subject": subject, "version": 1}
 
     res = await registry_async_client.get(f"subjects/{subject}/versions/1")
     assert res.status_code == 200
     assert res.json() == result
-    result = {"id": 2, "schema": json.dumps(evolved_schema), "subject": subject, "version": 2}
+    result = {"id": 2, "schema": json_encode(evolved_schema, compact=True), "subject": subject, "version": 2}
 
     res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
     assert res.status_code == 200
@@ -1288,7 +1288,8 @@ async def test_schema_list_endpoint(registry_async_client: Client, trail: str) -
     assert schema_data.get("id") == schema_id
     assert schema_data.get("subject") == subject
     assert schema_data.get("version") == 1
-    assert schema_data.get("schema") == schema_str
+    expected_schema_str = json_encode({"type": "string", "unique": unique}, compact=True)
+    assert schema_data.get("schema") == expected_schema_str
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -2326,7 +2327,8 @@ async def test_malformed_kafka_message(
         sleep=1,
     )
     res_data = res.json()
-    assert res_data == payload, res_data
+    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True)}
+    assert res_data == expected_payload, res_data
 
 
 async def test_inner_type_compat_failure(registry_async_client: Client) -> None:
@@ -2882,7 +2884,7 @@ async def test_invalid_schema_should_provide_good_error_messages(registry_async_
         f"subjects/{test_subject}/versions",
         json={"schema": schema_str[:-1]},
     )
-    assert res.json()["message"] == "Invalid AVRO schema. Error: Expecting ',' delimiter: line 1 column 18 (char 17)"
+    assert res.json()["message"].startswith("Invalid AVRO schema. Error: ")
 
     # Unfortunately the AVRO library doesn't provide a good error message, it just raises an TypeError
     schema_str = json.dumps({"type": "enum", "name": "error"})
