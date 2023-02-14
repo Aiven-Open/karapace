@@ -29,11 +29,11 @@ from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
 from karapace.typing import JsonData, ResolvedVersion, SchemaId
+from karapace.utils import JSONDecodeError
 from typing import Any, Dict, Optional, Union
 
 import aiohttp
 import async_timeout
-import json
 
 
 @unique
@@ -977,7 +977,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             new_schema = ValidatedTypedSchema.parse(schema_type=schema_type, schema_str=body["schema"])
         except (InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
-            if isinstance(e.__cause__, (SchemaParseException, json.JSONDecodeError)):
+            if isinstance(e.__cause__, (SchemaParseException, JSONDecodeError)):
                 human_error = f"{e.__cause__.args[0]}"  # pylint: disable=no-member
             else:
                 human_error = "Provided schema is not valid"

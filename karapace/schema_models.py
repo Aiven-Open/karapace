@@ -19,11 +19,10 @@ from karapace.protobuf.exception import (
 )
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.typing import ResolvedVersion, SchemaId, Subject
-from karapace.utils import json_encode
+from karapace.utils import json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Dict, NoReturn, Optional, Union
 
 import hashlib
-import json
 import logging
 
 LOG = logging.getLogger(__name__)
@@ -37,15 +36,8 @@ def parse_avro_schema_definition(s: str, validate_enum_symbols: bool = True, val
     parsing fails because of it, the extra data can be removed and parsed
     again.
     """
-    try:
-        json_data = json.loads(s)
-    except json.JSONDecodeError as e:
-        if e.msg != "Extra data":
-            raise
-
-        json_data = json.loads(s[: e.pos])
-
-    return avro_parse(json.dumps(json_data), validate_enum_symbols=validate_enum_symbols, validate_names=validate_names)
+    json_data = json_decode(s)
+    return avro_parse(json_encode(json_data), validate_enum_symbols=validate_enum_symbols, validate_names=validate_names)
 
 
 def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
@@ -54,7 +46,7 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
     """
-    schema = json.loads(schema_definition)
+    schema = json_decode(schema_definition)
     Draft7Validator.check_schema(schema)
     return Draft7Validator(schema)
 
@@ -98,7 +90,7 @@ class TypedSchema:
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
-        return json.loads(self.schema_str)
+        return json_decode(self.schema_str)
 
     def fingerprint(self) -> str:
         if self._fingerprint_cached is None:
@@ -109,8 +101,8 @@ class TypedSchema:
     def normalize_schema_str(schema_str: str, schema_type: SchemaType) -> str:
         if schema_type is SchemaType.AVRO or schema_type is SchemaType.JSONSCHEMA:
             try:
-                schema_str = json_encode(json.loads(schema_str), sort_keys=True)
-            except json.JSONDecodeError as e:
+                schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
+            except JSONDecodeError as e:
                 LOG.error("Schema is not valid JSON")
                 raise e
         elif schema_type == SchemaType.PROTOBUF:
@@ -150,14 +142,14 @@ def parse(
                 validate_enum_symbols=validate_avro_enum_symbols,
                 validate_names=validate_avro_names,
             )
-        except (SchemaParseException, json.JSONDecodeError, TypeError) as e:
+        except (SchemaParseException, JSONDecodeError, TypeError) as e:
             raise InvalidSchema from e
 
     elif schema_type is SchemaType.JSONSCHEMA:
         try:
             parsed_schema = parse_jsonschema_definition(schema_str)
             # TypeError - Raised when the user forgets to encode the schema as a string.
-        except (TypeError, json.JSONDecodeError, SchemaError, AssertionError) as e:
+        except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
             raise InvalidSchema from e
 
     elif schema_type is SchemaType.PROTOBUF:

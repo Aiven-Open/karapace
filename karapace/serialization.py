@@ -10,7 +10,7 @@ from karapace.client import Client
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.utils import json_encode
+from karapace.utils import json_decode, json_encode
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
@@ -18,7 +18,6 @@ import asyncio
 import avro
 import avro.schema
 import io
-import json
 import struct
 
 START_BYTE = 0x0
@@ -293,7 +292,7 @@ def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
         reader = DatumReader(writers_schema=schema.schema)
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
-        value = json.load(bio)
+        value = json_decode(bio)
         try:
             schema.schema.validate(value)
         except ValidationError as e:

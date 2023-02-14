@@ -33,8 +33,9 @@ schema7 = parse_avro_schema_definition(
 )
 schema8 = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"},{"type":"string",'
-    '"name":"f2","default":"foo"}]},{"type":"string","name":"f3","default":"bar"}]}'
+    '"name":"f2","default":"foo"}]}'
 )
+
 badDefaultNullString = parse_avro_schema_definition(
     '{"type":"record","name":"myrecord","fields":[{"type":["null","string"],"name":"f1","default":'
     '"null"},{"type":"string","name":"f2","default":"foo"},{"type":"string","name":"f3","default":"bar"}]}'
