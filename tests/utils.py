@@ -132,7 +132,7 @@ second_obj = [{"name": "doe"}, {"name": "john"}]
 REST_HEADERS = {
     "json": {
         "Content-Type": "application/vnd.kafka.json.v2+json",
-        "Accept": "*/*",
+        "Accept": "application/vnd.kafka.json.v2+json, application/vnd.kafka.v2+json, application/json, */*",
     },
     "jsonschema": {
         "Content-Type": "application/vnd.kafka.jsonschema.v2+json",

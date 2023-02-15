@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.utils import (
     consumer_valid_payload,
     new_consumer,
@@ -363,3 +364,33 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
     data_values = [x["value"] for x in data]
     for expected, actual in zip(publish_payload, data_values):
         assert expected == actual, f"Expecting {actual} to be {expected}"
+
+
+@pytest.mark.parametrize("fmt", sorted(KNOWN_FORMATS))
+async def test_consume_grafecul_deserialization_error_handling(rest_async_client, admin_client, fmt):
+
+    topic_name = new_topic(admin_client, prefix=f"{fmt}_")
+
+    # Produce binary record
+    headers = REST_HEADERS["binary"]
+    resp = await rest_async_client.post(f"topics/{topic_name}", json={"records": [{"value": "dGVzdA=="}]}, headers=headers)
+    assert resp.ok, f"Expected a successful response: {resp}"
+
+    # Test consuming records with different formats
+    headers = REST_HEADERS[fmt]
+    group_name = f"e2e_group_{fmt}"
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=headers)
+    assert res.ok
+
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    resp = await rest_async_client.get(consume_path, headers=headers)
+    if fmt == "binary":
+        assert resp.status_code == 200, f"Expected 200 response: {resp}"
+    else:
+        # Consuming records should fail gracefully if record can not be deserialized to the selected format
+        assert resp.status_code == 422, f"Expected 422 response: {resp}"
+        assert f"value deserialization error for format {fmt}" in resp.json()["message"]
