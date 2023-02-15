@@ -314,7 +314,7 @@ class SchemaBackup:
                 else:
                     self._restore_backup_version_1_single_array(producer, fp)
             producer.flush(timeout=self.timeout_kafka_producer)
-            if self.producer_exception:
+            if self.producer_exception is not None:
                 raise BackupError("Error while producing restored messages") from self.producer_exception
 
     def producer_error_callback(self, exception: Exception):
