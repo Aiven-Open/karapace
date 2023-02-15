@@ -5,7 +5,6 @@ on:
     # Publish main branch as `develop` image
     branches:
       - main
-      - master
 
     # Publish tags as versioned release and `latest` image
     tags:
@@ -24,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Log in to registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
