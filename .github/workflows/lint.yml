@@ -2,24 +2,24 @@ name: Lint
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
-      - main
+      - master
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v1
         with:
-          python-version: 3.11
+          python-version: 3.7
 
       - name: Install dependencies
-        run: pip install 'pre-commit>=2.2.0'
+        run: pip install -r requirements-dev.txt
 
       # required for pylint
       - name: Generate version.py
@@ -27,3 +27,11 @@ jobs:
 
       - name: Run all pre-commit hooks
         run: pre-commit run --all-files
+
+  copyright:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@master
+
+        - name: Enforce copyright headers
+          run: make copyright

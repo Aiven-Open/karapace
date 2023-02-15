@@ -1,3 +1,10 @@
+# linters and formatters
+isort==5.10.1
+pylint==2.7.4
+flake8==4.0.1
+mypy==0.942
+black==22.3.0
+
 # testing
 pytest==6.2.5
 pytest-xdist[psutil]==2.2.1
@@ -6,11 +13,11 @@ pdbpp==0.10.2
 psutil==5.9.0
 requests==2.27.1
 
-# linting
+# workflow
 pre-commit>=2.2.0
 
 # performance test
-locust==2.13.0
+locust==2.9.0
 
 # Sentry SDK
 sentry-sdk==1.6.0
