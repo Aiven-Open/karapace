@@ -15,7 +15,3 @@ clean:
 
 karapace/version.py: version.py
 	$(PYTHON) $^ $@
-
-.PHONY: copyright
-copyright:
-	grep -EL "Copyright \(c\) 20.* Aiven" $(shell git ls-files "*.py" | grep -v __init__.py)

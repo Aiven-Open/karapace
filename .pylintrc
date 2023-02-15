@@ -7,7 +7,6 @@ enable=
   useless-suppression,
 
 disable=
-  bad-continuation,
   duplicate-code,
   fixme,
   import-outside-toplevel,
@@ -22,8 +21,15 @@ disable=
   too-many-nested-blocks,
   too-many-public-methods,
   too-many-statements,
-  too-public-methods,
   wrong-import-order,
+  import-error,
+  consider-using-f-string,
+  use-implicit-booleaness-not-comparison,
+  unspecified-encoding,
+  no-name-in-module,
+  use-list-literal,
+  use-dict-literal,
+
 
 [FORMAT]
 max-line-length=125

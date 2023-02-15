@@ -1,7 +1,7 @@
 """
 karapace - setup
 
-Copyright (c) 2019 Aiven Ltd
+Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from setuptools import find_packages, setup
@@ -10,7 +10,7 @@ import os
 import version
 
 readme_path = os.path.join(os.path.dirname(__file__), "README.rst")
-with open(readme_path, mode="r", encoding="utf8") as fp:
+with open(readme_path, encoding="utf8") as fp:
     readme_text = fp.read()
 
 version_for_setup_py = version.get_project_version("karapace/version.py")
@@ -33,12 +33,13 @@ setup(
         "python-dateutil",
     ],
     extras_require={
-        # compression algorithms supported by AioKafka and KafkaConsumer
-        "snappy": ["python-snappy"],
         # compression algorithms supported by KafkaConsumer
         "lz4": ["lz4"],
-        "zstd": ["python-zstandard"],
         "sentry-sdk": ["sentry-sdk>=1.6.0"],
+        # compression algorithms supported by AioKafka and KafkaConsumer
+        "snappy": ["python-snappy"],
+        "ujson": ["ujson"],
+        "zstd": ["python-zstandard"],
     },
     dependency_links=[],
     package_data={},
@@ -67,6 +68,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Database :: Database Engines/Servers",
         "Topic :: Software Development :: Libraries",
     ],
