@@ -116,7 +116,7 @@ async def test_export_anonymized_avro_schemas(
         }
     )
     sb = SchemaBackup(config, str(export_location))
-    sb.export(anonymize_avro_schema_message)
+    sb.create(anonymize_avro_schema_message)
 
     # The export file has been created
     assert os.path.exists(export_location)
