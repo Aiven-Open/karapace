@@ -4,17 +4,20 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from datetime import timedelta
 from kafka import KafkaConsumer
+from karapace.backup.errors import StaleConsumerError
 from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.key_format import is_key_in_canonical_format
-from karapace.schema_backup import SchemaBackup, serialize_record
+from karapace.schema_backup import PollTimeout, SchemaBackup, serialize_record
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
+from unittest import mock
 
 import json
 import os
@@ -36,7 +39,7 @@ async def insert_data(client: Client) -> str:
 
 
 async def test_backup_get(
-    registry_async_client,
+    registry_async_client: Client,
     kafka_servers: KafkaServers,
     tmp_path: Path,
     registry_cluster: RegistryDescription,
@@ -52,7 +55,7 @@ async def test_backup_get(
         }
     )
     sb = SchemaBackup(config, str(backup_location))
-    sb.export(serialize_record)
+    sb.create(serialize_record)
 
     # The backup file has been created
     assert os.path.exists(backup_location)
@@ -90,7 +93,7 @@ async def test_backup_restore_and_get_non_schema_topic(
     # Get the backup
     backup_location = tmp_path / "non_schemas_topic.log"
     sb = SchemaBackup(config, str(backup_location), topic_option=test_topic_name)
-    sb.export(serialize_record)
+    sb.create(serialize_record)
     # The backup file has been created
     assert os.path.exists(backup_location)
 
@@ -215,3 +218,26 @@ async def test_backup_restore(
     _assert_canonical_key_format(
         bootstrap_servers=kafka_servers.bootstrap_servers, schemas_topic=registry_cluster.schemas_topic
     )
+
+
+async def test_stale_consumer(
+    kafka_servers: KafkaServers,
+    registry_async_client: Client,
+    registry_cluster: RegistryDescription,
+    tmp_path: Path,
+) -> None:
+    await insert_data(registry_async_client)
+    config = set_config_defaults(
+        {"bootstrap_uri": kafka_servers.bootstrap_servers, "topic_name": registry_cluster.schemas_topic}
+    )
+    with pytest.raises(StaleConsumerError) as e:
+        # The proper way to test this would be with quotas by throttling our client to death while using a very short
+        # poll timeout. However, we have no way to set up quotas because all Kafka clients available to us do not
+        # implement the necessary APIs.
+        with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}._poll_once") as poll_once_mock:
+            poll_once_mock.return_value = {}
+            SchemaBackup(config, str(tmp_path / "backup")).create(
+                serialize_record,
+                poll_timeout=PollTimeout(timedelta(seconds=1)),
+            )
+    assert str(e.value) == f"{registry_cluster.schemas_topic}:0#0 (0,0) after PT1S"

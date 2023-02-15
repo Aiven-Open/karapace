@@ -7,10 +7,13 @@ See LICENSE for details
 from enum import Enum
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
+from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import TopicAlreadyExistsError
-from kafka.structs import PartitionMetadata
+from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
 from karapace.anonymize_schemas import anonymize_avro
+from karapace.backup.consumer import PollTimeout
+from karapace.backup.errors import BackupError, PartitionCountError, StaleConsumerError
 from karapace.config import Config, read_config
 from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
@@ -19,7 +22,7 @@ from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from pathlib import Path
 from tempfile import mkstemp
 from tenacity import retry, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, IO, Optional, TextIO, Tuple, Union
+from typing import AbstractSet, Callable, Collection, IO, Optional, TextIO, Tuple, Union
 
 import argparse
 import base64
@@ -39,14 +42,6 @@ BACKUP_VERSION_2_MARKER = "/V2\n"
 class BackupVersion(Enum):
     V1 = 1
     V2 = 2
-
-
-class BackupError(Exception):
-    """Backup Error"""
-
-
-class PartitionCountError(BackupError):
-    pass
 
 
 def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
@@ -349,25 +344,72 @@ class SchemaBackup:
             value = base64.b16decode(hex_value.strip()).decode("utf8") if hex_value != "null" else hex_value
             self._handle_restore_message(producer, (key, value))
 
-    def export(self, export_func, *, overwrite: Optional[bool] = None) -> None:
-        with _writer(self.backup_location, overwrite=overwrite) as fp:
-            with _consumer(self.config, self.topic_name) as consumer:
-                LOG.info("Starting schema backup read for topic: %r", self.topic_name)
+    def create(
+        self,
+        serialize: Callable[[Optional[bytes], Optional[bytes]], str],
+        *,
+        poll_timeout: Optional[PollTimeout] = None,
+        overwrite: Optional[bool] = None,
+    ) -> None:
+        """Creates a backup of the configured topic.
 
-                topic_fully_consumed = False
+        FIXME the serialize callback is obviously dangerous as part of the public API, since it cannot be guaranteed
+            that it produces a string that is actually version 2 compatible. We anyway have to introduce a version 3,
+            and this public API can be fixed along with the introduction of it.
 
-                fp.write(BACKUP_VERSION_2_MARKER)
-                while not topic_fully_consumed:
-                    raw_msg = consumer.poll(timeout_ms=self.timeout_ms, max_records=1000)
-                    topic_fully_consumed = len(raw_msg) == 0
+        :param serialize: callback that encodes the consumer record into the target backup format.
+        :param poll_timeout: specifies the maximum time to wait for receiving records, if not records are received
+            within that time and the target offset has not been reached an exception is raised. Defaults to one minute.
+        :param overwrite: the output file if it exists.
+        :raises Exception: if consumption fails, concrete exception types are unknown, see Kafka implementation.
+        :raises FileExistsError: if ``overwrite`` is not ``True`` and the file already exists, or if the parent
+            directory of the file is not a directory.
+        :raises OSError: if writing fails or if the file already exists and is not actually a file.
+        :raises StaleConsumerError: if no records are received within the given ``poll_timeout`` and the target offset
+            has not been reached yet.
+        """
+        if poll_timeout is None:
+            poll_timeout = PollTimeout.default()
+        poll_timeout_ms = poll_timeout.to_milliseconds()
+        topic = self.topic_name
+        with _writer(self.backup_location, overwrite=overwrite) as fp, _consumer(self.config, topic) as consumer:
+            (partition,) = consumer.partitions_for_topic(self.topic_name)
+            topic_partition = TopicPartition(self.topic_name, partition)
+            start_offset: int = consumer.beginning_offsets([topic_partition])[topic_partition]
+            end_offset: int = consumer.end_offsets([topic_partition])[topic_partition]
+            last_offset = start_offset
+            record_count = 0
 
-                    for _, messages in raw_msg.items():
-                        for message in messages:
-                            ser = export_func(key_bytes=message.key, value_bytes=message.value)
-                            if ser:
-                                fp.write(ser)
-
-                LOG.info("Schema export written to %r", "stdout" if fp is sys.stdout else self.backup_location)
+            fp.write(BACKUP_VERSION_2_MARKER)
+            if start_offset < end_offset:  # non-empty topic
+                end_offset -= 1  # high watermark to actual end offset
+                print(
+                    "Started backup of %s:%s (offset %s to %s)...",
+                    topic,
+                    partition,
+                    f"{start_offset:,}",
+                    f"{end_offset:,}",
+                    file=sys.stderr,
+                )
+                while True:
+                    records: Collection[ConsumerRecord] = consumer.poll(poll_timeout_ms).get(topic_partition, [])
+                    if len(records) == 0:
+                        raise StaleConsumerError(topic_partition, start_offset, end_offset, last_offset, poll_timeout)
+                    record: ConsumerRecord
+                    for record in records:
+                        fp.write(serialize(record.key, record.value))
+                        record_count += 1
+                    last_offset = record.offset
+                    if last_offset >= end_offset:
+                        break
+            print(
+                "Finished backup of %s:%s to %r (backed up %s records).",
+                topic,
+                partition,
+                "stdout" if fp is sys.stdout else self.backup_location,
+                f"{record_count:,}",
+                file=sys.stderr,
+            )
 
     def encode_key(self, key: Optional[Union[JsonData, str]]) -> Optional[bytes]:
         if key == "null":
@@ -424,12 +466,14 @@ def parse_args():
     parser_export_anonymized_avro_schemas = subparsers.add_parser(
         "export-anonymized-avro-schemas", help="Export anonymized Avro schemas into a file"
     )
-    for p in [parser_get, parser_restore, parser_export_anonymized_avro_schemas]:
+    for p in (parser_get, parser_restore, parser_export_anonymized_avro_schemas):
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--location", default="", help="File path for the backup file")
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)
-    for p in [parser_get, parser_export_anonymized_avro_schemas]:
+
+    for p in (parser_get, parser_export_anonymized_avro_schemas):
         p.add_argument("--overwrite", action="store_true", help="Overwrite --location even if it exists.")
+        p.add_argument("--poll-timeout", help=PollTimeout.__doc__, type=PollTimeout)
 
     return parser.parse_args()
 
@@ -443,18 +487,29 @@ def main() -> None:
 
         sb = SchemaBackup(config, args.location, args.topic)
 
-        if args.command == "get":
-            sb.export(serialize_record, overwrite=args.overwrite)
-        elif args.command == "restore":
-            sb.restore_backup()
-        elif args.command == "export-anonymized-avro-schemas":
-            sb.export(anonymize_avro_schema_message, overwrite=args.overwrite)
-        else:
-            # Only reachable if a new subcommand was added that is not mapped above. There are other ways with argparse
-            # to handle this, but all rely on the programmer doing exactly the right thing. Only switching to another
-            # CLI framework would provide the ability to not handle this situation manually while ensuring that it is
-            # not possible to add a new subcommand without also providing a handler for it.
-            raise SystemExit(f"Entered unreachable code, unknown command: {args.command!r}")
+        try:
+            if args.command == "get":
+                sb.create(serialize_record, poll_timeout=args.poll_timeout, overwrite=args.overwrite)
+            elif args.command == "restore":
+                sb.restore_backup()
+            elif args.command == "export-anonymized-avro-schemas":
+                sb.create(anonymize_avro_schema_message, poll_timeout=args.poll_timeout, overwrite=args.overwrite)
+            else:
+                # Only reachable if a new subcommand was added that is not mapped above. There are other ways with
+                # argparse to handle this, but all rely on the programmer doing exactly the right thing. Only switching
+                # to another CLI framework would provide the ability to not handle this situation manually while
+                # ensuring that it is not possible to add a new subcommand without also providing a handler for it.
+                raise SystemExit(f"Entered unreachable code, unknown command: {args.command!r}")
+        except StaleConsumerError as e:
+            print(
+                f"The Kafka consumer did not receive any records for partition {e.partition} of topic {e.topic!r} "
+                f"within the poll timeout ({e.poll_timeout} seconds) while trying to reach offset {e.end_offset:,} "
+                f"(start was {e.start_offset:,} and the last seen offset was {e.last_offset:,}).\n"
+                "\n"
+                "Try increasing --poll-timeout to give the broker more time.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from e
     except KeyboardInterrupt as e:
         # Not an error -- user choice -- and thus should not end up in a Python stacktrace.
         raise SystemExit(2) from e
