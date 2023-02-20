@@ -6,10 +6,9 @@ from contextlib import asynccontextmanager, ExitStack
 from dataclasses import dataclass
 from karapace.config import Config, set_config_defaults, write_config
 from pathlib import Path
-from subprocess import Popen
 from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
-from tests.utils import new_random_name
+from tests.utils import new_random_name, popen_karapace_all
 from typing import AsyncIterator, List
 
 
@@ -82,11 +81,7 @@ async def start_schema_registry_cluster(
 
             logfile = stack.enter_context(open(log_path, "w"))
             errfile = stack.enter_context(open(error_path, "w"))
-            process = Popen(
-                args=["python", "-m", "karapace.karapace_all", str(config_path)],
-                stdout=logfile,
-                stderr=errfile,
-            )
+            process = popen_karapace_all(config_path, logfile, errfile)
             stack.callback(stop_process, process)
             all_processes.append(process)
 
