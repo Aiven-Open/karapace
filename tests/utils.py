@@ -8,13 +8,16 @@ from karapace.client import Client
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
-from typing import Callable, List
+from subprocess import Popen
+from typing import Callable, IO, List, Union
 from urllib.parse import quote
 
 import asyncio
 import copy
 import json
+import os
 import ssl
+import sys
 import uuid
 
 consumer_valid_payload = {
@@ -268,3 +271,16 @@ def write_ini(file_path: Path, ini_data: dict) -> None:
 
     with file_path.open("w") as fp:
         fp.write(file_contents)
+
+
+def python_exe() -> str:
+    python = sys.executable
+    if python is None:
+        python = os.environ.get("PYTHON", "python3")
+    return python
+
+
+def popen_karapace_all(config_path: Union[Path, str], stdout: IO, stderr: IO, **kwargs) -> Popen:
+    kwargs["stdout"] = stdout
+    kwargs["stderr"] = stderr
+    return Popen([python_exe(), "-m", "karapace.karapace_all", str(config_path)], **kwargs)
