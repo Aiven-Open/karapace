@@ -5,9 +5,9 @@ See LICENSE for details
 from contextlib import ExitStack
 from karapace.config import set_config_defaults
 from pathlib import Path
-from subprocess import Popen
 from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process
+from tests.utils import popen_karapace_all
 
 import json
 import socket
@@ -39,10 +39,6 @@ def test_regression_server_must_exit_on_exception(
         errfile = stack.enter_context((tmp_path / "karapace.err").open("w"))
         config_path.write_text(json.dumps(config))
         sock.bind(("127.0.0.1", port))
-        process = Popen(  # pylint: disable=consider-using-with
-            args=["python", "-m", "karapace.karapace_all", str(config_path)],
-            stdout=logfile,
-            stderr=errfile,
-        )
+        process = popen_karapace_all(config_path, logfile, errfile)
         stack.callback(stop_process, process)  # make sure to stop the process if the test fails
         assert process.wait(timeout=10) != 0, "Process should have exited with an error, port is already is use"
