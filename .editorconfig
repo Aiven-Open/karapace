@@ -1,0 +1,21 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+tab_width = 4
+trim_trailing_whitespace = true
+
+ij_yaml_indent_sequence_value = false
+
+[*.{json,md,proto,rst,yaml,yml}]
+indent_size = 2
+tab_width = 2
+
+# This MUST be a dedicated section, or shfmt is not going to pick it up.
+# noinspection EditorConfigOptionRedundancy
+[*.sh]
+indent_size = 4
