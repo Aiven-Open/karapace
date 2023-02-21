@@ -1,0 +1,147 @@
+// The version 3 backup format of Karapace uses Protobuf serialization. This
+// data exchange format makes it possible to verify backward and forward
+// compatibility statically, and compared to a custom format enables us to add
+// new fields without introducing a new version.
+//
+// The backup file format itself is as follows:
+//
+// 1. The first byte is the “magic” marker, the NUL byte (`\x00`). This ensures
+//    that other tools reading the file know that this is a binary file (e.g.
+//    the `file` utility).[^1]
+// 2. The second byte is the backup format version, an unsigned 8-bit integer.
+//    This is always `\x03` for the backup format 3.[^1][^2]
+// 3. The next 4 bytes contain the byte count of the `Metadata` message that
+//    follows. The length is an unsigned 32-bit little-endian integer.[^3]
+// 4. The `Metadata` message.
+// 5. Zero or more records follow:
+//    1. 4 bytes containing the unsigned 32-bit little-endian integer byte count
+//       of the `Envelope` message that follows.[^3]
+//    2. The `Envelope` message.
+//
+// [^1]: The combination of these is referred to as the “magic marker version”.
+// [^2]: Endianness is irrelevant for a single byte integer.
+// [^3]: We are not using _varint_ encoding for the message framing, because it
+//   would require additional bound checks and logic to ensure that it actually
+//   is only a 32-bit value. Using fixed 4 bytes means that we can just read.
+//   Compression of the backups is used to reduce size, and we are not worried
+//   about the additional bytes required for encoding the framing bytes.
+syntax = "proto3";
+
+package karapace.backup.v3;
+
+// The metadata directly follows the magic marker version bytes. It contains
+// additional information regarding the backup.
+message Metadata {
+  // The version of the backup, this **MUST** be the same as the version that
+  // follows the magic marker byte. This is included here so that it can be
+  // passed around as part of the metadata to other parts of the application.
+  // The range of the allowed values for this is 1–255, to comply with the
+  // possible values that can be encoded in the “magic marker version” bytes.
+  // Restoration fails if the version found in the “magic marker version” and
+  // this field differ.
+  uint32 version = 1;
+
+  // The name of the tool that created the backup. The name is intended for
+  // humans, as such it **MUST** consist of printable NFC UTF-8 codepoints only.
+  // The length **MUST NOT** exceed 64 bytes.
+  //
+  // Always `Karapace` for backups created by Karapace.
+  optional string tool_name = 2;
+
+  // The version of the tool that created the backup. The version is intended
+  // for humans, as such it **MUST** consist of printable NFC UTF-8 codepoints
+  // only. The length **MUST NOT** exceed 64 bytes. The version **SHOULD** be
+  // [PEP440](https://peps.python.org/pep-0440/) or [SemVer](https://semver.org/)
+  // compatible.
+  optional string tool_version = 3;
+
+  // The UNIX time in seconds the backup creation started.
+  optional int64 create_time = 4;
+
+  // The estimated record count included in this backup. This is just an
+  // estimate, because it is not possible to determine the actual record count
+  // upfront when consuming from a topic based just on the start and end
+  // offsets. The estimation is still useful for getting an idea how many
+  // records there are, e.g. to create a progress bar.
+  optional uint64 estimated_record_count = 5;
+
+  // The name of the topic that was backed up.
+  optional string topic_name = 6;
+
+  // The partition count of the topic that was backed up.
+  optional uint32 partition_count = 7;
+
+  optional ChecksumAlgorithm checksum_algorithm = 8;
+}
+
+// Available checksum algorithms for the `Record.checksum` field. The checksum
+// is used to ensure integrity of the included records, it does not provide any
+// security.
+//
+// The suffix `BE` stands for big endian, and `LE` for little endian. This is
+// important for comparing the raw checksum bytes.
+enum ChecksumAlgorithm {
+  CHECKSUM_ALGORITHM_UNSPECIFIED = 0;
+  CHECKSUM_ALGORITHM_XXHASH3_64_BE = 1;
+}
+
+// Each record is wrapped in an envelope in the backup file that contains the
+// checksum of the serialized record. This is used during backup restoration to
+// verify the integrity of each record as it is read.
+message Envelope {
+  Record record = 1;
+
+  // Checksum of the Protobuf serialized record in field 1. The algorithm is
+  // specified in the backup metadata, and a checksum mismatch is going to fail
+  // a backup restoration attempt. Note that this field uses `bytes`, this means
+  // that the algorithm that is used **MUST** produce values with a fixed
+  // endianness across all systems.
+  //
+  // The standard algorithm used by Karapace is xxHash3 64 which always produces
+  // its digest in big endian.
+  bytes checksum = 2;
+}
+
+// The record contains all information that can be retrieved with a standard
+// Kafka consumer. However, all fields are optional, this explicitly includes
+// records without key and value. Everything will be restored as-is.
+message Record {
+  // The key that uniquely identifies this record. This is JSON for all schema
+  // records and always present. However, keys are optional in Apache Kafka
+  // records.
+  optional bytes key = 1;
+
+  // The value of this record. This is JSON for all schema records and always
+  // present except for tombstones, hence, this is optional.
+  optional bytes value = 2;
+
+  // Optional headers for this record. This contains additional metadata for all
+  // schema records.
+  repeated Header headers = 3;
+
+  // The partition the record originated from.
+  optional uint32 partition = 4;
+
+  // The offset the record had in the backed up topic. This is purely
+  // informational, the record is going to have a new offset after restoration.
+  optional uint64 offset = 5;
+
+  // The UNIX time in milliseconds the record had in the backed up topic.
+  optional int64 timestamp_ms = 6;
+}
+
+// Record headers are not maps, instead they are sequences of key–value pairs
+// that allow duplicates. This is why we are using a repeated field and a
+// dedicated message. Note that this is actually how maps are implemented in
+// Protobuf, but we want to make it explicit. We also want to avoid reordering
+// of headers in generated code – which might happen if we advertise them as a
+// map – because order is important with duplicates allowed.
+message Header {
+  // A header without a key is invalid.
+  string key = 1;
+
+  // The Apache Kafka Java implementation treats header values as non-nullable,
+  // but the Apache Kafka protocol defines them as nullable. Hence, values are
+  // optional.
+  optional bytes value = 2;
+}
