@@ -65,6 +65,8 @@ repos:
   hooks:
   - id: mypy
     pass_filenames: false
+    additional_dependencies:
+    - types-protobuf
 
 - repo: https://github.com/PyCQA/pylint
   # Note: pre-commit autoupdate changes to an alpha version. Instead, manually find the
