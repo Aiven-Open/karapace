@@ -2,6 +2,7 @@
 accept-types==0.4.1
 aiohttp==3.8.3
 aiokafka==0.7.2
+isodate==0.6.1
 jsonschema==3.2.0
 networkx==2.5
 protobuf==3.19.5
