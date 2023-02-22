@@ -404,7 +404,7 @@ async def fixture_registry_async_client(
     request: SubRequest,
     registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-) -> AsyncIterator[Client]:
+) -> Client:
 
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),
