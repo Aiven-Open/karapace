@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import json
+import os
 import pytest
 import re
 
@@ -160,5 +161,12 @@ def fixture_session_logdir(request, tmp_path_factory, worker_id) -> Path:
 @pytest.fixture(scope="session", name="default_config_path")
 def fixture_default_config(session_logdir: Path) -> str:
     path = session_logdir / "karapace_config.json"
-    path.write_text(json.dumps({"registry_host": "localhost", "registry_port": 8081}))
+    content = json.dumps({"registry_host": "localhost", "registry_port": 8081}).encode()
+    content_len = len(content)
+    with path.open("wb") as fp:
+        written = fp.write(content)
+        if written != content_len:
+            raise OSError(f"Writing config failed, tried to write {content_len} bytes, but only {written} were written")
+        fp.flush()
+        os.fsync(fp)
     return str(path)
