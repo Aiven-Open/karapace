@@ -1,8 +1,8 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 #
 # Helper script to publish an existing image to hub.docker.com
 #
-set -e
 
 COLOR_RED=$(tput setaf 1)
 COLOR_RESET=$(tput setaf reset)
@@ -34,16 +34,16 @@ HUB_REPO=karapace
 DRY_RUN_FLAG=0
 
 if [[ $DRY_RUN_FLAG -eq 1 ]]; then
-    DRY_RUN=echo
+    DRY_RUN='echo'
 else
     DRY_RUN=sudo
 fi
 
-object_type=$(git cat-file -t $IMAGE_TAG)
-if [[ "${object_type}" == commit ]]; then
+object_type=$(git cat-file -t "$IMAGE_TAG")
+if [[ ${object_type} == commit ]]; then
     # make sure we are using the full commit
     IMAGE_TAG=$(git rev-parse --verify "${IMAGE_TAG}")
-elif [[ "${object_type}" == tag ]]; then
+elif [[ ${object_type} == tag ]]; then
     git verify-tag "${IMAGE_TAG}" || die "The git tag '${IMAGE_TAG}' is not signed or the signature could not be validated"
 else
     # Only release from commit or tags
@@ -59,11 +59,11 @@ HUB_IMAGE="${HUB_USER_REPO}:${IMAGE_TAG}"
 
 sudo docker pull ${HUB_USER_REPO}
 
-sudo docker image inspect "${IMAGE_NAME_TAG}" &> /dev/null || die "image '${IMAGE_NAME_TAG}' doesn't exist."
+sudo docker image inspect "${IMAGE_NAME_TAG}" &>/dev/null || die "image '${IMAGE_NAME_TAG}' doesn't exist."
 $DRY_RUN docker tag "${IMAGE_NAME_TAG}" "${HUB_IMAGE}" || die "retagging '${IMAGE_NAME_TAG}' to '${HUB_IMAGE}' failed"
 
 FIRST_IMAGE=0
-sudo docker image inspect "${HUB_IMAGE_LATEST}" &> /dev/null || FIRST_IMAGE=1
+sudo docker image inspect "${HUB_IMAGE_LATEST}" &>/dev/null || FIRST_IMAGE=1
 
 if [[ $FIRST_IMAGE -eq 1 ]]; then
     PUSH_LATEST=1
@@ -76,12 +76,12 @@ else
     latest_published_commit=$(sudo docker image inspect "${HUB_IMAGE_LATEST}" | jq -r '.[].ContainerConfig.Labels["org.opencontainers.image.version"]')
 
     # List the commits that are in $IMAGE_TAG but not in $latest_published_commit
-    extra_commits_local=$(git rev-list ${latest_published_commit}..${IMAGE_TAG} | wc --lines)
+    extra_commits_local=$(git rev-list "${latest_published_commit}..${IMAGE_TAG}" | wc --lines)
     # the opposite
-    extra_commits_remote=$(git rev-list ${IMAGE_TAG}..${latest_published_commit} | wc --lines)
+    extra_commits_remote=$(git rev-list "${IMAGE_TAG}..${latest_published_commit}" | wc --lines)
 
     if [[ $extra_commits_local -gt 0 && $extra_commits_remote -gt 0 ]]; then
-        error "The published '${HUB_IMAGE_LATEST}' image and the new image are from diferrent branches."
+        error "The published '${HUB_IMAGE_LATEST}' image and the new image are from different branches."
         echo
         error "'${HUB_IMAGE_LATEST}' is based on '${latest_published_commit}'"
         error "it has ${extra_commits_remote} additional commits"

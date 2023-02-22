@@ -1,4 +1,6 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
 # Helper script to generate a karapace image.
 #
 # Notes:
@@ -23,7 +25,7 @@ COMMIT=$(git rev-parse -q --verify "${ARG_COMMIT}^{commit}")
 # this is useful if the commit is qualified with the repo name, e.g. aiven/master
 TAG_NAME=${ARG_TAG_NAME////-}
 
-if [[ -z "${COMMIT}" ]]; then
+if [[ -z ${COMMIT} ]]; then
     echo "Invalid commit provided '${ARG_COMMIT}'"
     echo ""
     echo "$0 <commitish_object> [:tag]"
@@ -31,17 +33,20 @@ if [[ -z "${COMMIT}" ]]; then
 fi
 
 code_checkout=$(mktemp --directory --suffix=-karapace-image)
-trap "rm -rf ${code_checkout}" EXIT
+trap 'rm -rf "$code_checkout"' EXIT
 
-git clone $(dirname $0)/.. "${code_checkout}"
+git clone "$(dirname "$0")"/.. "${code_checkout}"
 
-pushd ${code_checkout}
-git checkout $COMMIT
+pushd "${code_checkout}"
+git checkout "$COMMIT"
+
+created=$(date --rfc-3339=seconds)
+version=$(git describe --always)
 
 sudo docker build \
-    --build-arg "CREATED=$(date --rfc-3339=seconds)" \
-    --build-arg "VERSION=$(git describe --always)" \
+    --build-arg "CREATED=$created" \
+    --build-arg "VERSION=$version" \
     --build-arg "COMMIT=$COMMIT" \
     --tag "karapace:${TAG_NAME}" \
     --file container/Dockerfile \
-    ${code_checkout}
+    "${code_checkout}"

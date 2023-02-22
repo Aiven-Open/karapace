@@ -1,13 +1,11 @@
 # testing
+filelock==3.9.0
 pytest==6.2.5
 pytest-xdist[psutil]==2.2.1
 pytest-timeout==1.4.2
 pdbpp==0.10.2
 psutil==5.9.0
 requests==2.27.1
-
-# linting
-pre-commit>=2.2.0
 
 # performance test
 locust==2.13.0
