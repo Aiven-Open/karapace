@@ -36,7 +36,7 @@ jobs:
           # Strip git ref prefix from version
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           # If not tag, then use `develop` as image tag
-          [ "$VERSION" == main -o "$VERSION" == master ] && VERSION=develop
+          [ "$VERSION" == main ] && VERSION=develop
 
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
