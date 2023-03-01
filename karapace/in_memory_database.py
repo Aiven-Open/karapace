@@ -137,13 +137,17 @@ class InMemoryDatabase:
         self.subjects.setdefault(subject, SubjectData())
 
     def get_subject_compatibility(self, *, subject: Subject) -> Optional[str]:
-        return self.subjects[subject].compatibility
+        if subject in self.subjects:
+            return self.subjects[subject].compatibility
+        return None
 
     def delete_subject_compatibility(self, *, subject: Subject) -> None:
-        self.subjects[subject].compatibility = None
+        if subject in self.subjects:
+            self.subjects[subject].compatibility = None
 
     def set_subject_compatibility(self, *, subject: Subject, compatibility: str) -> None:
-        self.subjects[subject].compatibility = compatibility
+        if subject in self.subjects:
+            self.subjects[subject].compatibility = compatibility
 
     def find_schema(self, *, schema_id: SchemaId) -> Optional[TypedSchema]:
         return self.schemas[schema_id]

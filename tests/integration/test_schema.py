@@ -1998,6 +1998,19 @@ async def test_schema_version_number_existing_schema(registry_async_client: Clie
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_get_config_unknown_subject(registry_async_client: Client, trail: str) -> None:
+    res = await registry_async_client.get(f"config/unknown-subject{trail}")
+    assert res.status_code == 404, f"{res} - Should return 404 for unknown subject"
+
+    # Set global config, see that unknown subject is still returns correct 404 and does not fallback to global config
+    res = await registry_async_client.put(f"config{trail}", json={"compatibility": "FULL"})
+    assert res.status_code == 200
+
+    res = await registry_async_client.get(f"config/unknown-subject{trail}")
+    assert res.status_code == 404, f"{res} - Should return 404 for unknown subject also when global config set"
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_config(registry_async_client: Client, trail: str) -> None:
     subject_name_factory = create_subject_name_factory(f"test_config-{trail}")
 
