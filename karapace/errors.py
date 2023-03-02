@@ -50,3 +50,7 @@ class SubjectSoftDeletedException(Exception):
 
 class SchemaTooLargeException(Exception):
     pass
+
+
+class KafkaTimeoutException(Exception):
+    pass
