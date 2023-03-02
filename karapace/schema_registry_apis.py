@@ -533,8 +533,17 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         # Config for a subject can exist without schemas so no need to check for their existence
         assert self.schema_registry.schema_reader, "KarapaceSchemaRegistry not initialized. Missing call to _init"
-        compatibility = self.schema_registry.database.get_subject_compatibility(subject=subject)
+        if self.schema_registry.database.find_subject(subject=subject) is None:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
 
+        compatibility = self.schema_registry.database.get_subject_compatibility(subject=subject)
         default_to_global = request.query.get("defaultToGlobal", "false").lower() == "true"
         if not compatibility and default_to_global:
             compatibility = self.schema_registry.compatibility
