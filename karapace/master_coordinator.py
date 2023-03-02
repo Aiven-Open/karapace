@@ -4,6 +4,7 @@ karapace - master coordinator
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from dataclasses import dataclass
 from kafka import KafkaConsumer
 from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
@@ -38,6 +39,15 @@ def get_member_configuration(*, host: str, port: int, scheme: str, master_eligib
         "scheme": scheme,
         "master_eligibility": master_eligibility,
     }
+
+
+@dataclass
+class SchemaCoordinatorStatus:
+    is_primary: Optional[bool]
+    is_primary_eligible: bool
+    primary_url: Optional[str]
+    is_running: bool
+    group_generation_id: int
 
 
 class SchemaCoordinator(BaseCoordinator):
@@ -211,6 +221,16 @@ class MasterCoordinator(Thread):
             request_timeout_ms=max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]),
         )
         self.schema_coordinator_ready.set()
+
+    def get_coordinator_status(self) -> SchemaCoordinatorStatus:
+        generation = self.sc.generation() if self.sc is not None else None
+        return SchemaCoordinatorStatus(
+            is_primary=self.sc.are_we_master if self.sc is not None else None,
+            is_primary_eligible=cast(bool, self.config["master_eligibility"]),
+            primary_url=self.sc.master_url if self.sc is not None else None,
+            is_running=self.is_alive(),
+            group_generation_id=generation.generation_id if generation is not None else -1,
+        )
 
     def get_master_info(self) -> Tuple[Optional[bool], Optional[str]]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""

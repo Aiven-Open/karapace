@@ -115,6 +115,9 @@ class OffsetsWatcher:
         self._condition = Condition()
         self._greatest_offset = -1  # Would fail if initially this is 0 as it will be first offset ever.
 
+    def greatest_offset(self) -> int:
+        return self._greatest_offset
+
     def offset_seen(self, new_offset: int) -> None:
         with self._condition:
             self._greatest_offset = max(self._greatest_offset, new_offset)
@@ -155,6 +158,8 @@ class KafkaSchemaReader(Thread):
         # consumed the produced messages. This makes the REST APIs more
         # consistent (e.g. a request to a schema that was just produced will
         # return the correct data.)
+        # - highest_offset's last seen value is stored by the REST API to
+        # expose reader loading progress for health status endpoint.
         # - ready is used by the REST API to wait until this thread has
         # synchronized with data in the schema topic. This prevents the server
         # from returning stale data (e.g. a schemas has been soft deleted, but
@@ -162,6 +167,7 @@ class KafkaSchemaReader(Thread):
         # the soft delete message and return the correct data instead of the
         # old stale version that has not been deleted yet.)
         self.offset = OFFSET_UNINITIALIZED
+        self._highest_offset = OFFSET_UNINITIALIZED
         self.ready = False
 
         # This event controls when the Reader should stop running, it will be
@@ -216,7 +222,7 @@ class KafkaSchemaReader(Thread):
             schema_topic_create = [schema_topic]
             while not self._stop.is_set() and not schema_topic_exists:
                 try:
-                    LOG.info("[Schema Topic] Creating %r", schema_topic)
+                    LOG.info("[Schema Topic] Creating %r", schema_topic.name)
                     self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
                     LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
                     schema_topic_exists = True
@@ -272,19 +278,22 @@ class KafkaSchemaReader(Thread):
             return False
         # Offset in the response is the offset for the next upcoming message.
         # Reduce by one for actual highest offset.
-        highest_offset = list(offsets.values())[0] - 1
+        self._highest_offset = list(offsets.values())[0] - 1
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
-        progress_pct = 0 if not highest_offset else round((self.offset / highest_offset) * 100, 2)
+        progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
         LOG.info(
             "Replay progress (%s): %s/%s (%s %%)",
             round(time_from_last_check, 2),
             self.offset,
-            highest_offset,
+            self._highest_offset,
             progress_pct,
         )
         self.last_check = cur_time
-        return self.offset >= highest_offset
+        return self.offset >= self._highest_offset
+
+    def highest_offset(self) -> int:
+        return max(self._highest_offset, self.offset_watcher.greatest_offset())
 
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
