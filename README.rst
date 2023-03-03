@@ -585,6 +585,52 @@ If you installed Karapace from the sources via ``python setup.py install``, it c
 
     pip uninstall karapace
 
+Development
+===========
+
+Execute ``make`` (GNU, usually ``gmake`` on BSD and Mac) to set up a ``venv``
+and install the required software for development. Use ``make unit-tests`` and
+``make integration-tests`` to execute the respective test suite, or simply
+``make test`` to execute both. You can set ``PYTEST_ARGS`` to customize the
+execution (e.g. ``PYTEST_ARGS=--maxfail=1 make test``).
+
+By default ``pyenv`` is expected to be installed and in ``PATH``. This ensures
+on all platforms that arbitrary Python versions can be used for development. It
+is possible to overwrite this by setting ``PYENV`` to something else (e.g.
+``PYENV=python3 make venv`` to simply use the global Python executable). The
+default Python version is defined in ``.python-version``.
+
+Karapace currently depends on various system software to be installed. The
+installation of these is automated for some operation systems, but not all. At
+the time of writing Java, the Protobuf Compiler, and the Snappy shared library
+are required to work with Karapace. You need to install them manually if your
+operating system is not supported by the automatic installation scripts. Note
+that the scripts are going to ask before installing any of these on your system.
+
+Note that Karapace requires a Protobuf Compiler older than 3.20.0, because
+3.20.0 introduces various breaking changes. The tests are going to fail if the
+Protobuf Compiler is newer than that. However, you can work around this locally
+by running ``pip install --upgrade protobuf`` in your venv. We are going to fix
+this soon.
+
+Note that the integration tests are currently not working on Mac. You can use
+Docker, just be sure to set ``VENV_DIR`` to a directory outside the working
+directory so that the container is not overwriting files from the host (e.g.
+``docker run --env VENV_DIR=/tmp/venv ...``).
+
+Note that the ``runtime`` directory **MUST** exist and that Karapace is going to
+fail if it does not. The ``runtime`` directory is also not cleaned between test
+runs, and left over data might result in failing tests. Use the ``make`` test
+targets that correctly clean the ``runtime`` directory without deleting it, but
+keep this in mind whenever you are not using ``make`` (e.g. running tests from
+your IDE).
+
+Note that the pre-commit checks are currently not working with the default
+Python version. This is because isort dropped Python 3.7 support. You have to
+use at least Python 3.8 for the pre-commit checks. Use ``pipx`` or ``brew`` or
+… to install pre-commit and use the global installation, there is also no
+dependency on it.
+
 License
 =======
 
