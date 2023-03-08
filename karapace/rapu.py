@@ -213,7 +213,6 @@ class RestApp:
             result["requests"] = header_info
             result["accepts"] = accept_matcher.groupdict()
             return result
-        self.log.error("Not acceptable: %r", request.get_header("accept"))
         http_error(
             message="HTTP 406 Not Acceptable",
             content_type=result["content_type"],
