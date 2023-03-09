@@ -13,6 +13,7 @@ from kafka.errors import (
     UnknownTopicOrPartitionError,
 )
 from karapace.config import Config, create_client_ssl_context
+from karapace.errors import InvalidSchema
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
@@ -779,10 +780,19 @@ class UserRestProxy:
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
-                    "message": f"Error when registering schema. format = {schema_type}, subject = {topic}-{prefix}",
+                    "message": f"Error when registering schema. format = {schema_type.value}, subject = {topic}-{prefix}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.REQUEST_TIMEOUT,
+            )
+        except InvalidSchema:
+            KafkaRest.r(
+                body={
+                    "error_code": RESTErrorCodes.INVALID_DATA.value,
+                    "message": f'Invalid schema. format = {schema_type.value}, schema = {data[f"{prefix}_schema"]}',
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
     async def _prepare_records(
