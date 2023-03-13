@@ -213,7 +213,6 @@ class RestApp:
             result["requests"] = header_info
             result["accepts"] = accept_matcher.groupdict()
             return result
-        self.log.error("Not acceptable: %r", request.get_header("accept"))
         http_error(
             message="HTTP 406 Not Acceptable",
             content_type=result["content_type"],
@@ -331,6 +330,9 @@ class RestApp:
                 data = ex.body
                 status = ex.status
                 headers = ex.headers
+            except asyncio.CancelledError:
+                # Re-raise if aiohttp cancelled the task (e.g. client disconnected) without internal server error
+                raise
             except:  # pylint: disable=bare-except
                 self.log.exception("Internal server error")
                 headers = {"Content-Type": "application/json"}

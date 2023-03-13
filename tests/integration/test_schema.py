@@ -288,6 +288,12 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
     subject = create_subject_name_factory(f"test_compatibility_endpoint-{trail}")()
     schema_name = create_schema_name_factory(f"test_compatibility_endpoint_{trail}")()
 
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions{trail}",
+        json=-1,
+    )
+    assert res.status_code == 400
+
     schema = {
         "type": "record",
         "name": schema_name,
@@ -2220,9 +2226,9 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
         assert res.json()["message"] == "Unrecognized field: invalid_field"
         # Invalid body type
         res = await registry_async_client.post(endpoint, json="invalid")
-        assert res.status_code == 500
-        assert res.json()["error_code"] == 500
-        assert res.json()["message"] == "Internal Server Error"
+        assert res.status_code == 400
+        assert res.json()["error_code"] == 400
+        assert res.json()["message"] == "Malformed request"
 
 
 async def test_version_number_validation(registry_async_client: Client) -> None:
