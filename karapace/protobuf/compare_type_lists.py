@@ -1,3 +1,9 @@
+"""
+karapace - compare_type_lists
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes

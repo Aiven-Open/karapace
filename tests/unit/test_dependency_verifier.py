@@ -1,3 +1,10 @@
+"""
+karapace - tests_dependency_verifier
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
+
 from karapace.protobuf.dependency import ProtobufDependencyVerifier
 
 import logging

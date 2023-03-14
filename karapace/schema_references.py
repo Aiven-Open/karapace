@@ -1,3 +1,10 @@
+"""
+karapace schema_references
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
+
 from karapace.typing import JsonData, ResolvedVersion, Subject
 from typing import Any, List
 

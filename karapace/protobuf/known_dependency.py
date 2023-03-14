@@ -1,3 +1,10 @@
+"""
+karapace - known_dependency
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
+
 # Support of known dependencies
 
 from enum import Enum
