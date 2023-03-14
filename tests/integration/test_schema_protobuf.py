@@ -640,7 +640,8 @@ message WithReference {
                     expected=422,
                     expected_msg=(
                         f"Invalid PROTOBUF schema. Error: Invalid schema {SCHEMA_WITH_REF} "
-                        "with refs [{name='NoReference.proto', subject='wr_not_found', version=1}] of type PROTOBUF"
+                        "with refs [{name='NoReference.proto', subject='wr_not_found', version=1}]"
+                        f" of type {SchemaType.PROTOBUF}"
                     ),
                     expected_error_code=42201,
                 ),
@@ -656,7 +657,7 @@ message WithReference {
                     references=None,
                     expected=422,
                     expected_msg=f"Invalid PROTOBUF schema. Error: Invalid schema {SCHEMA_WITH_REF} "
-                    "with refs None of type PROTOBUF",
+                    f"with refs None of type {SchemaType.PROTOBUF}",
                     expected_error_code=42201,
                 ),
             ],
@@ -799,7 +800,7 @@ message WithReference {
                         f"Invalid PROTOBUF schema. Error: Invalid schema {SCHEMA_WITH_REF} "
                         "with refs [{name='NoReference.proto', subject='wr_chain_s1', version=1}, "
                         "{name='NotFoundReference.proto', subject='wr_chain_nonexisting', version=1}] "
-                        "of type PROTOBUF"
+                        f"of type {SchemaType.PROTOBUF}"
                     ),
                     expected_error_code=42201,
                 ),
@@ -892,7 +893,7 @@ message WithReference {
                     expected_msg=(
                         f"Invalid PROTOBUF schema. Error: Invalid schema {SCHEMA_INVALID_MISSING_CLOSING_BRACE} "
                         "with refs [{name='NoReference.proto', subject='wr_invalid_reference_ok_schema', version=1}] "
-                        "of type PROTOBUF"
+                        f"of type {SchemaType.PROTOBUF}"
                     ),
                     expected_error_code=42201,
                 ),
