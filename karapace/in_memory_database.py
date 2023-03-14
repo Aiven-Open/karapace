@@ -6,7 +6,9 @@ See LICENSE for details
 """
 from dataclasses import dataclass, field
 from karapace.schema_models import SchemaVersion, TypedSchema
+from karapace.schema_references import Reference, Referents
 from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.utils import reference_key
 from threading import Lock, RLock
 from typing import Dict, List, Optional, Tuple
 
@@ -28,6 +30,7 @@ class InMemoryDatabase:
         self.subjects: Dict[Subject, SubjectData] = {}
         self.schemas: Dict[SchemaId, TypedSchema] = {}
         self.schema_lock_thread = RLock()
+        self.referenced_by: Dict[str, Referents] = {}
 
         # Content based deduplication of schemas. This is used to reduce memory
         # usage when the same schema is produce multiple times to the same or
@@ -96,7 +99,14 @@ class InMemoryDatabase:
         return max(self.subjects[subject].schemas) + 1
 
     def insert_schema_version(
-        self, *, subject: Subject, schema_id: SchemaId, version: ResolvedVersion, deleted: bool, schema: TypedSchema
+        self,
+        *,
+        subject: Subject,
+        schema_id: SchemaId,
+        version: ResolvedVersion,
+        deleted: bool,
+        schema: TypedSchema,
+        references: List[Reference],
     ) -> None:
         with self.schema_lock_thread:
             self.global_schema_id = max(self.global_schema_id, schema_id)
@@ -119,6 +129,7 @@ class InMemoryDatabase:
                 deleted=deleted,
                 schema_id=schema_id,
                 schema=schema,
+                references=references,
             )
 
             if not deleted:
@@ -235,3 +246,36 @@ class InMemoryDatabase:
                     else:
                         soft_deleted_versions += 1
         return (live_versions, soft_deleted_versions)
+
+    def insert_referenced_by(self, *, subject: Subject, version: ResolvedVersion, schema_id: SchemaId) -> None:
+        with self.schema_lock_thread:
+            ref_str = reference_key(subject, version)
+            referents = self.referenced_by.get(ref_str, None)
+            if referents:
+                referents.append(schema_id)
+            else:
+                self.referenced_by[ref_str] = [schema_id]
+
+    def get_referenced_by(self, subject: Subject, version: ResolvedVersion) -> Optional[Referents]:
+        with self.schema_lock_thread:
+            ref_str = reference_key(subject, version)
+            return self.referenced_by.get(ref_str, None)
+
+    def remove_referenced_by(self, schema_id: SchemaId, references: List[Reference]) -> None:
+        with self.schema_lock_thread:
+            for ref in references:
+                key = reference_key(ref.subject, ref.version)
+                if self.referenced_by.get(key, None) and schema_id in self.referenced_by[key]:
+                    self.referenced_by[key].remove(schema_id)
+
+    def find_all_schemas(self, *, subject: Subject, include_deleted: bool) -> Dict[ResolvedVersion, SchemaVersion]:
+        if subject not in self.subjects:
+            return {}
+        if include_deleted:
+            return self.subjects[subject].schemas
+        with self.schema_lock_thread:
+            return {
+                version_id: schema_version
+                for version_id, schema_version in self.subjects[subject].schemas.items()
+                if schema_version.deleted is False
+            }

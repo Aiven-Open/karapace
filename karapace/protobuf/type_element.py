@@ -9,6 +9,8 @@ from karapace.protobuf.location import Location
 from typing import List, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from karapace.protobuf.compare_result import CompareResult
+    from karapace.protobuf.compare_type_storage import CompareTypes
     from karapace.protobuf.option_element import OptionElement
 
 
@@ -34,3 +36,6 @@ class TypeElement:
     def __str__(self) -> str:
         mytype = type(self)
         return f"{mytype}({self.to_schema()})"
+
+    def compare(self, other: "TypeElement", result: "CompareResult", types: "CompareTypes") -> None:
+        pass
