@@ -529,7 +529,6 @@ class KafkaSchemaReader(Thread):
         if key["keytype"] == "CONFIG":
             self._handle_msg_config(key, value)
         elif key["keytype"] == "SCHEMA":
-            LOG.error("HANDLING SCHEMA MESSAGE")
             self._handle_msg_schema(key, value)
         elif key["keytype"] == "DELETE_SUBJECT":
             self._handle_msg_delete_subject(key, value)
