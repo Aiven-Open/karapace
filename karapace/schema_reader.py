@@ -500,6 +500,9 @@ class KafkaSchemaReader(Thread):
             except InvalidSchema:
                 LOG.exception("Schema is not valid ProtoBuf definition")
                 return
+            except InvalidReferences:
+                LOG.exception("Invalid Protobuf references")
+                return
 
         try:
             typed_schema = TypedSchema(

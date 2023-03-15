@@ -225,7 +225,7 @@ class TypedSchema:
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, (TypedSchema, ValidatedTypedSchema))
+            isinstance(other, (TypedSchema))
             and self.schema_type is other.schema_type
             and str(self) == str(other)
             and self.references == other.references

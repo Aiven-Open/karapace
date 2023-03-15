@@ -17,9 +17,6 @@ class Reference:
         self.subject = subject
         self.version = version
 
-    def identifier(self) -> str:
-        return self.name + "_" + self.subject + "_" + str(self.version)
-
     def to_dict(self) -> JsonData:
         return {
             "name": self.name,
