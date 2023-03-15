@@ -26,7 +26,6 @@ from karapace.utils import json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Dict, List, NoReturn, Optional, Union
 
 import hashlib
-import json
 import logging
 
 LOG = logging.getLogger(__name__)
@@ -77,6 +76,62 @@ def parse_protobuf_schema_definition(
 
 def _assert_never(no_return: NoReturn) -> NoReturn:
     raise AssertionError(f"Expected to be unreachable {no_return}")
+
+
+def parse(
+    schema_type: SchemaType,
+    schema_str: str,
+    validate_avro_enum_symbols: bool,
+    validate_avro_names: bool,
+    references: Optional[List[Reference]] = None,
+    dependencies: Optional[Dict[str, Dependency]] = None,
+) -> "ParsedTypedSchema":
+    if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
+        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
+
+    parsed_schema: Union[Draft7Validator, AvroSchema, ProtobufSchema]
+    if schema_type is SchemaType.AVRO:
+        try:
+            parsed_schema = parse_avro_schema_definition(
+                schema_str,
+                validate_enum_symbols=validate_avro_enum_symbols,
+                validate_names=validate_avro_names,
+            )
+        except (SchemaParseException, JSONDecodeError, TypeError) as e:
+            raise InvalidSchema from e
+
+    elif schema_type is SchemaType.JSONSCHEMA:
+        try:
+            parsed_schema = parse_jsonschema_definition(schema_str)
+            # TypeError - Raised when the user forgets to encode the schema as a string.
+        except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
+            raise InvalidSchema from e
+
+    elif schema_type is SchemaType.PROTOBUF:
+        try:
+            parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies)
+        except (
+            TypeError,
+            SchemaError,
+            AssertionError,
+            ProtobufParserRuntimeException,
+            IllegalStateException,
+            IllegalArgumentException,
+            ProtobufError,
+            ProtobufException,
+            ProtobufSchemaParseException,
+        ) as e:
+            raise InvalidSchema from e
+    else:
+        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
+
+    return ParsedTypedSchema(
+        schema_type=schema_type,
+        schema_str=schema_str,
+        schema=parsed_schema,
+        references=references,
+        dependencies=dependencies,
+    )
 
 
 class TypedSchema:
@@ -154,36 +209,15 @@ class TypedSchema:
     def schema(self) -> Union[Draft7Validator, AvroSchema, ProtobufSchema]:
         if self._schema_cached is not None:
             return self._schema_cached
-        if self.schema_type is SchemaType.AVRO:
-            try:
-                self._schema_cached = parse_avro_schema_definition(self.schema_str)
-            except (SchemaParseException, json.JSONDecodeError, TypeError) as e:
-                raise InvalidSchema from e
-
-        elif self.schema_type is SchemaType.JSONSCHEMA:
-            try:
-                self._schema_cached = parse_jsonschema_definition(self.schema_str)
-                # TypeError - Raised when the user forgets to encode the schema as a string.
-            except (TypeError, json.JSONDecodeError, SchemaError, AssertionError) as e:
-                raise InvalidSchema from e
-
-        elif self.schema_type is SchemaType.PROTOBUF:
-            try:
-                self._schema_cached = parse_protobuf_schema_definition(self.schema_str, self.references, self.dependencies)
-            except (
-                TypeError,
-                SchemaError,
-                AssertionError,
-                ProtobufParserRuntimeException,
-                IllegalStateException,
-                IllegalArgumentException,
-                ProtobufError,
-                ProtobufException,
-                ProtobufSchemaParseException,
-            ) as e:
-                raise InvalidSchema from e
-        else:
-            raise InvalidSchema(f"Unknown parser {self.schema_type} for {self.schema_str}")
+        parsed_typed_schema = parse(
+            schema_type=self.schema_type,
+            schema_str=self.schema_str,
+            validate_avro_names=True,
+            validate_avro_enum_symbols=True,
+            references=self.references,
+            dependencies=self.dependencies,
+        )
+        self._schema_cached = parsed_typed_schema.schema
         return self._schema_cached
 
     def get_references(self) -> Optional[List[Reference]]:
@@ -196,62 +230,6 @@ class TypedSchema:
             and str(self) == str(other)
             and self.references == other.references
         )
-
-
-def parse(
-    schema_type: SchemaType,
-    schema_str: str,
-    validate_avro_enum_symbols: bool,
-    validate_avro_names: bool,
-    references: Optional[List[Reference]] = None,
-    dependencies: Optional[Dict[str, Dependency]] = None,
-) -> "ParsedTypedSchema":
-    if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
-        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
-
-    parsed_schema: Union[Draft7Validator, AvroSchema, ProtobufSchema]
-    if schema_type is SchemaType.AVRO:
-        try:
-            parsed_schema = parse_avro_schema_definition(
-                schema_str,
-                validate_enum_symbols=validate_avro_enum_symbols,
-                validate_names=validate_avro_names,
-            )
-        except (SchemaParseException, JSONDecodeError, TypeError) as e:
-            raise InvalidSchema from e
-
-    elif schema_type is SchemaType.JSONSCHEMA:
-        try:
-            parsed_schema = parse_jsonschema_definition(schema_str)
-            # TypeError - Raised when the user forgets to encode the schema as a string.
-        except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
-            raise InvalidSchema from e
-
-    elif schema_type is SchemaType.PROTOBUF:
-        try:
-            parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies)
-        except (
-            TypeError,
-            SchemaError,
-            AssertionError,
-            ProtobufParserRuntimeException,
-            IllegalStateException,
-            IllegalArgumentException,
-            ProtobufError,
-            ProtobufException,
-            ProtobufSchemaParseException,
-        ) as e:
-            raise InvalidSchema from e
-    else:
-        raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
-
-    return ParsedTypedSchema(
-        schema_type=schema_type,
-        schema_str=schema_str,
-        schema=parsed_schema,
-        references=references,
-        dependencies=dependencies,
-    )
 
 
 class ParsedTypedSchema(TypedSchema):
@@ -281,8 +259,9 @@ class ParsedTypedSchema(TypedSchema):
         references: Optional[List[Reference]] = None,
         dependencies: Optional[Dict[str, Dependency]] = None,
     ):
-        super().__init__(schema_type=schema_type, schema_str=schema_str, references=references, dependencies=dependencies)
-        self._schema_cached = schema
+        super().__init__(
+            schema_type=schema_type, schema_str=schema_str, references=references, dependencies=dependencies, schema=schema
+        )
 
     @staticmethod
     def parse(

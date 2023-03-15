@@ -28,10 +28,10 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, SchemaVersion, TypedSchema
 from karapace.schema_references import Reference, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import ResolvedVersion
+from karapace.typing import ResolvedVersion, SchemaId
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Condition, Event, Thread
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import json
 import logging
@@ -40,9 +40,6 @@ import time
 Offset = int
 Subject = str
 Version = int
-
-Schema = Dict[str, Any]
-SchemaId = int
 
 # The value `0` is a valid offset and it represents the first message produced
 # to a topic, therefore it can not be used.
@@ -549,7 +546,7 @@ class KafkaSchemaReader(Thread):
         subject_data = self.database.find_subject_schemas(subject=reference.subject, include_deleted=False)
         if not subject_data:
             raise InvalidReferences(f"Subject not found {reference.subject}.")
-        schema_version: SchemaVersion = subject_data.get(reference.version, {})
+        schema_version: SchemaVersion = subject_data.get(reference.version, None)
         if schema_version is None:
             raise InvalidReferences(f"Subject {reference.subject} has no such schema version")
         schema: TypedSchema = schema_version.schema
