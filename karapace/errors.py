@@ -2,8 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.schema_references import Referents
 from karapace.typing import Version
-from typing import List
 
 
 class VersionNotFoundException(Exception):
