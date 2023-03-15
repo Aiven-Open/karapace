@@ -51,7 +51,7 @@ class SubjectNotSoftDeletedException(Exception):
 
 
 class ReferenceExistsException(Exception):
-    def __init__(self, referenced_by: List, version: Version):
+    def __init__(self, referenced_by: Referents, version: Version):
         super().__init__()
         self.version = version
         self.referenced_by = referenced_by
