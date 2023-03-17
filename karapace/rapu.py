@@ -476,6 +476,3 @@ class RestApp:
             access_log_class=self.config["access_log_class"],
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )
-
-    def add_routes(self):
-        pass  # Override in sub-classes

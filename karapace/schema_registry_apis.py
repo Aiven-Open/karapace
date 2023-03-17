@@ -85,6 +85,26 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self._forward_client = None
         self.app.on_startup.append(self._create_forward_client)
+        self.health_hooks.append(self.schema_registry_health)
+
+    async def schema_registry_health(self) -> dict:
+        resp = {}
+        if self._auth is not None:
+            resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
+        resp["schema_registry_ready"] = self.schema_registry.schema_reader.ready
+        if self.schema_registry.schema_reader.ready:
+            resp["schema_registry_startup_time_sec"] = (
+                self.schema_registry.schema_reader.last_check - self._process_start_time
+            )
+        resp["schema_registry_reader_current_offset"] = self.schema_registry.schema_reader.offset
+        resp["schema_registry_reader_highest_offset"] = self.schema_registry.schema_reader.highest_offset()
+        cs = self.schema_registry.mc.get_coordinator_status()
+        resp["schema_registry_is_primary"] = cs.is_primary
+        resp["schema_registry_is_primary_eligible"] = cs.is_primary_eligible
+        resp["schema_registry_primary_url"] = cs.primary_url
+        resp["schema_registry_coordinator_running"] = cs.is_running
+        resp["schema_registry_coordinator_generation_id"] = cs.group_generation_id
+        return resp
 
     async def _create_forward_client(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         """Callback for aiohttp.Application.on_startup"""

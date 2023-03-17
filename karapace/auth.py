@@ -20,6 +20,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import os
 import re
 import secrets
 import sys
@@ -77,10 +78,15 @@ class ACLEntry:
 class HTTPAuthorizer:
     def __init__(self, filename: str) -> None:
         self._auth_filename: str = filename
+        self._auth_mtime: float = -1
         self._refresh_auth_task: Optional[asyncio.Task] = None
         self._refresh_auth_awatch_stop_event = asyncio.Event()
         # Once first, can raise if file not valid
         self._load_authfile()
+
+    @property
+    def authfile_last_modified(self) -> float:
+        return self._auth_mtime
 
     async def start_refresh_task(self, stats: StatsClient) -> None:
         """Start authfile refresher task"""
@@ -116,6 +122,7 @@ class HTTPAuthorizer:
 
     def _load_authfile(self) -> None:
         try:
+            statinfo = os.stat(self._auth_filename)
             with open(self._auth_filename) as authfile:
                 authdata = json_decode(authfile)
 
@@ -142,6 +149,7 @@ class HTTPAuthorizer:
                     "Loaded schema registry access control rules: %s",
                     [(entry.username, entry.operation.value, entry.resource.pattern) for entry in permissions],
                 )
+            self._auth_mtime = statinfo.st_mtime
         except Exception as ex:
             raise InvalidConfiguration("Failed to load auth file") from ex
 
