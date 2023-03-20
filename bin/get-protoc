@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if ! command -v protoc; then
+    exists() { command -v "$1" &>/dev/null; }
+    update=()
+    install=()
+
+    if exists brew; then
+        install+=(brew install protobuf)
+    else
+        if ((EUID != 0)) && exists sudo; then
+            update+=(sudo)
+            install+=(sudo)
+        fi
+
+        if exists apt-get; then
+            update+=(apt-get update)
+            install+=(apt-get install -y protobuf-compiler)
+        elif exists dnf; then
+            install+=(dnf install -y protobuf-compiler)
+        elif exists apk; then
+            install+=(apk add protoc)
+        else
+            printf '\e[0m\e[31mUnsupported system, install \e[1mprotoc\e[22m and make sure it is in your \e[1mPATH\e[22m.\e[0m\n' >&2
+            exit 1
+        fi
+    fi
+
+    if [[ ${CI:-false} != true ]]; then
+        cmd=
+        ((${#update[@]} < 2)) || cmd="${update[*]} && "
+        cmd+=${install[*]}
+        read -ern1 -p "$cmd [Yn] "
+        if [[ $REPLY == [Nn]* ]]; then
+            exit 0
+        fi
+    fi
+
+    ((${#update[@]} < 2)) || "${update[@]}"
+    "${install[@]}"
+fi
