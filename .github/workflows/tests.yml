@@ -2,56 +2,43 @@ name: Test Suite
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: 1
+  PIP_PROGRESS_BAR: off
+  PYTHONUNBUFFERED: 1
 
 jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: [ '3.7', '3.8', '3.9', '3.10', '3.11' ]
     steps:
     - uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
+        cache: pip
         python-version: ${{ matrix.python-version }}
 
-    - name: Install libsnappy-dev (python-snappy legacy-install-failure on Python 3.11)
-      run: sudo apt install libsnappy-dev
-
-    - name: Install dependencies
-      run: python -m pip install -r requirements-dev.txt
-
-    - name: Extract Protobuf Version
-      id: protoc
-      run: pip freeze | grep -m1 '^protobuf==' | cut -d= -f3 | xargs printf 'version=%s' >>"$GITHUB_OUTPUT"
-
-    - name: Install Protobuf Compiler
-      uses: arduino/setup-protoc@v1
-      with:
-         version: ${{ steps.protoc.outputs.version }}
-         repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-    # needed by both unit and integration tests
-    - name: Generate version.py
-      run: make karapace/version.py
-
-    - name: Execute unit-tests
-      timeout-minutes: 2
-      run: python3 -m pytest -s -vvv tests/unit/
-
-    - name: Execute integration-tests
-      timeout-minutes: 30
-      run: python3 -m pytest -s -vvv tests/integration/ --log-dir=/tmp/ci-logs --log-file=/tmp/ci-logs/pytest.log
+    - run: make install version
+    - run: make unit-tests
+    - run: make integration-tests
+      env:
+        PYTEST_ARGS: --log-dir=/tmp/ci-logs --log-file=/tmp/ci-logs/pytest.log
 
     - name: Archive logs
       uses: actions/upload-artifact@v3
       if: ${{ always() }}
       with:
-          name: logs  ${{ matrix.python-version }}
-          path: /tmp/ci-logs
+        name: karapace-integration-test-logs-${{ matrix.python-version }}
+        path: /tmp/ci-logs

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+exists() { command -v "$1" &>/dev/null; }
+update=()
+install=()
+
+ask() {
+    if [[ ${CI:-false} != true ]]; then
+        cmd=
+        ((${#update[@]} < 2)) || cmd="${update[*]} && "
+        cmd+=${install[*]}
+        read -ern1 -p "$cmd [Yn] "
+        if [[ $REPLY == [Nn]* ]]; then
+            return 1
+        fi
+    fi
+}
+
+if exists brew; then
+    snappy_prefix() { brew --prefix snappy 2>/dev/null; }
+
+    # brew might return a path even though it does not exist
+    if ! prefix=$(snappy_prefix) || [[ ! -d $prefix ]]; then
+        install+=(brew install snappy)
+        if ask; then
+            "${install[@]}"
+            prefix=$(snappy_prefix)
+        else
+            exit 0
+        fi
+    fi
+
+    # https://stackoverflow.com/a/41707800/1251219
+    export CPPFLAGS="'-I$prefix/include' '-L$prefix/lib'"
+elif ! ldconfig -p | grep -F 'libsnappy.so '; then
+    if ((EUID != 0)) && exists sudo; then
+        update+=(sudo)
+        install+=(sudo)
+    fi
+
+    if exists apt-get; then
+        update+=(apt-get update -y)
+        install+=(apt-get install -y libsnappy-dev)
+    elif exists dnf; then
+        install+=(dnf install -y csnappy-devel)
+    elif exists apk; then
+        install+=(apk add --no-cache snappy-dev g++)
+    else
+        printf '\e[0m\e[33mUnsupported system, not installing \e[1msnappy\e[22m but carrying on in case pip is able to find the required libraries.\e[0m\n' >&2
+        exit 0
+    fi
+
+    if ask; then
+        ((${#update[@]} < 2)) || "${update[@]}"
+        "${install[@]}"
+    fi
+fi
