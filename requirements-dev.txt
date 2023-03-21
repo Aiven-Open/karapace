@@ -11,7 +11,7 @@ requests==2.27.1
 locust==2.13.0
 
 # Sentry SDK
-sentry-sdk==1.6.0
+sentry-sdk==1.14.0
 
 # runtime requirements
 -r requirements.txt
