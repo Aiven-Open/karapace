@@ -9,7 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from karapace.config import DEFAULTS
 from karapace.in_memory_database import InMemoryDatabase
-from karapace.schema_reader import KafkaSchemaReader, OFFSET_EMPTY, OFFSET_UNINITIALIZED, OffsetsWatcher
+from karapace.offset_watcher import OffsetWatcher
+from karapace.schema_reader import KafkaSchemaReader, OFFSET_EMPTY, OFFSET_UNINITIALIZED
 from tests.base_testcase import BaseTestCase
 from unittest.mock import Mock
 
@@ -19,7 +20,7 @@ import time
 
 
 def test_offset_watcher() -> None:
-    watcher = OffsetsWatcher()
+    watcher = OffsetWatcher()
     timeout = 0.5
 
     # A largish number of iteration useful to stress the code
@@ -140,8 +141,10 @@ def test_readiness_check(testcase: ReadinessTestCase) -> None:
     # Return dict {partition: offsets}, end offset is the next upcoming record offset
     consumer_mock.end_offsets.return_value = {0: testcase.end_offset}
 
+    offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
         config=DEFAULTS,
+        offset_watcher=offset_watcher,
         key_formatter=key_formatter_mock,
         master_coordinator=None,
         database=InMemoryDatabase(),
