@@ -5,10 +5,6 @@ See LICENSE for details
 import json
 
 
-class ProtobufParserRuntimeException(Exception):
-    pass
-
-
 class IllegalStateException(Exception):
     pass
 
