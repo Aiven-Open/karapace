@@ -10,6 +10,7 @@ from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
+from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
 from tests.base_testcase import BaseTestCase
@@ -71,8 +72,10 @@ def test_regression_soft_delete_schemas_should_be_registered(
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
     database = InMemoryDatabase()
+    offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
         config=config,
+        offset_watcher=offset_watcher,
         key_formatter=KeyFormatter(),
         master_coordinator=master_coordinator,
         database=database,
@@ -103,7 +106,7 @@ def test_regression_soft_delete_schemas_should_be_registered(
         )
         msg = future.get()
 
-        schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5)
+        schema_reader._offset_watcher.wait_for_offset(msg.offset, timeout=5)  # pylint: disable=protected-access
 
         schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
         assert len(schemas) == 1, "Deleted schemas must have been registered"
@@ -130,7 +133,9 @@ def test_regression_soft_delete_schemas_should_be_registered(
         )
         msg = future.get()
 
-        assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
+        assert (
+            schema_reader._offset_watcher.wait_for_offset(msg.offset, timeout=5) is True  # pylint: disable=protected-access
+        )
         assert database.global_schema_id == test_global_schema_id
 
         schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
@@ -155,8 +160,10 @@ def test_regression_config_for_inexisting_object_should_not_throw(
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.start()
     database = InMemoryDatabase()
+    offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
         config=config,
+        offset_watcher=offset_watcher,
         key_formatter=KeyFormatter(),
         master_coordinator=master_coordinator,
         database=database,
@@ -181,7 +188,9 @@ def test_regression_config_for_inexisting_object_should_not_throw(
         )
         msg = future.get()
 
-        assert schema_reader.offset_watcher.wait_for_offset(msg.offset, timeout=5) is True
+        assert (
+            schema_reader._offset_watcher.wait_for_offset(msg.offset, timeout=5) is True  # pylint: disable=protected-access
+        )
         assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
 
 
@@ -254,8 +263,10 @@ def test_key_format_detection(
     master_coordinator.start()
     key_formatter = KeyFormatter()
     database = InMemoryDatabase()
+    offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
         config=config,
+        offset_watcher=offset_watcher,
         key_formatter=key_formatter,
         master_coordinator=master_coordinator,
         database=database,
