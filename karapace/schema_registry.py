@@ -3,8 +3,6 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from contextlib import AsyncExitStack, closing
-from kafka import errors as kafka_errors, KafkaProducer
-from kafka.producer.future import FutureRecordMetadata
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import Config
@@ -14,7 +12,6 @@ from karapace.errors import (
     InvalidVersion,
     ReferenceExistsException,
     SchemasNotFoundException,
-    SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
     SubjectNotFoundException,
@@ -25,20 +22,18 @@ from karapace.errors import (
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
+from karapace.messaging import KarapaceProducer
+from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import Reference
 from karapace.typing import JsonData, ResolvedVersion, Subject, Version
-from karapace.utils import json_encode, KarapaceKafkaClient
-from karapace.version import __version__
 from typing import cast, Dict, List, Optional, Tuple, Union
 
 import asyncio
 import logging
-import time
 
 LOG = logging.getLogger(__name__)
-X_REGISTRY_VERSION_HEADER = ("X-Registry-Version", f"karapace-{__version__}".encode())
 
 
 def _resolve_version(schema_versions: Dict[ResolvedVersion, SchemaVersion], version: Version) -> ResolvedVersion:
@@ -70,18 +65,19 @@ def validate_version(version: Version) -> Version:
 class KarapaceSchemaRegistry:
     def __init__(self, config: Config) -> None:
         self.config = config
-        host: str = cast(str, self.config["host"])
-        self.x_origin_host_header: Tuple[str, bytes] = ("X-Origin-Host", host.encode("utf8"))
+        self._key_formatter = KeyFormatter()
 
-        self.producer = self._create_producer()
-        self.kafka_timeout = 10
+        offset_watcher = OffsetWatcher()
+        self.producer = KarapaceProducer(
+            config=self.config, offset_watcher=offset_watcher, key_formatter=self._key_formatter
+        )
 
         self.mc = MasterCoordinator(config=self.config)
-        self.key_formatter = KeyFormatter()
         self.database = InMemoryDatabase()
         self.schema_reader = KafkaSchemaReader(
             config=self.config,
-            key_formatter=self.key_formatter,
+            offset_watcher=offset_watcher,
+            key_formatter=self._key_formatter,
             master_coordinator=self.mc,
             database=self.database,
         )
@@ -103,34 +99,13 @@ class KarapaceSchemaRegistry:
     def start(self) -> None:
         self.mc.start()
         self.schema_reader.start()
+        self.producer.initialize_karapace_producer()
 
     async def close(self) -> None:
         async with AsyncExitStack() as stack:
             stack.enter_context(closing(self.mc))
             stack.enter_context(closing(self.schema_reader))
             stack.enter_context(closing(self.producer))
-
-    def _create_producer(self) -> KafkaProducer:
-        while True:
-            try:
-                return KafkaProducer(
-                    bootstrap_servers=self.config["bootstrap_uri"],
-                    security_protocol=self.config["security_protocol"],
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
-                    api_version=(1, 0, 0),
-                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],  # helps through cluster upgrades ??
-                    kafka_client=KarapaceKafkaClient,
-                )
-            except:  # pylint: disable=bare-except
-                LOG.exception("Unable to create producer, retrying")
-                time.sleep(1)
 
     async def get_master(self, ignore_readiness: bool = False) -> Tuple[bool, Optional[str]]:
         """Resolve if current node is the primary and the primary node address.
@@ -463,49 +438,6 @@ class KarapaceSchemaRegistry:
         subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
         return subject_versions
 
-    def send_kafka_message(self, key: Union[bytes, str], value: Union[bytes, str]) -> FutureRecordMetadata:
-        if isinstance(key, str):
-            key = key.encode("utf8")
-        if isinstance(value, str):
-            value = value.encode("utf8")
-
-        future = self.producer.send(
-            self.config["topic_name"],
-            key=key,
-            value=value,
-            headers=[X_REGISTRY_VERSION_HEADER, self.x_origin_host_header],
-        )
-        self.producer.flush(timeout=self.kafka_timeout)
-        try:
-            msg = future.get(self.kafka_timeout)
-        except kafka_errors.MessageSizeTooLargeError as ex:
-            raise SchemaTooLargeException from ex
-
-        sent_offset = msg.offset
-
-        LOG.info(
-            "Waiting for schema reader to caught up. key: %r, value: %r, offset: %r",
-            key,
-            value,
-            sent_offset,
-        )
-
-        if self.schema_reader.offset_watcher.wait_for_offset(sent_offset, timeout=60) is True:
-            LOG.info(
-                "Schema reader has found key. key: %r, value: %r, offset: %r",
-                key,
-                value,
-                sent_offset,
-            )
-        else:
-            raise RuntimeError(
-                "Schema reader timed out while looking for key. key: {!r}, value: {!r}, offset: {}".format(
-                    key, value, sent_offset
-                )
-            )
-
-        return future
-
     def send_schema_message(
         self,
         *,
@@ -515,12 +447,10 @@ class KarapaceSchemaRegistry:
         version: int,
         deleted: bool,
         references: Optional[List[Reference]],
-    ) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"},
-        )
+    ) -> None:
+        key = {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}
         if schema:
-            valuedict = {
+            value = {
                 "subject": subject,
                 "version": version,
                 "id": schema_id,
@@ -528,49 +458,29 @@ class KarapaceSchemaRegistry:
                 "deleted": deleted,
             }
             if references:
-                valuedict["references"] = [reference.to_dict() for reference in references]
+                value["references"] = [reference.to_dict() for reference in references]
             if schema.schema_type is not SchemaType.AVRO:
-                valuedict["schemaType"] = schema.schema_type
-            value = json_encode(valuedict)
+                value["schemaType"] = schema.schema_type
         else:
-            value = ""
-        return self.send_kafka_message(key, value)
+            value = None
+        self.producer.send_message(key=key, value=value)
 
-    def send_config_message(
-        self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None
-    ) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {
-                "subject": subject,
-                "magic": 0,
-                "keytype": "CONFIG",
-            }
-        )
-        value = f'{{"compatibilityLevel":"{compatibility_level.value}"}}'
-        return self.send_kafka_message(key, value)
+    def send_config_message(self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None) -> None:
+        key = {"subject": subject, "magic": 0, "keytype": "CONFIG"}
+        value = {"compatibilityLevel": compatibility_level.value}
+        self.producer.send_message(key=key, value=value)
 
-    def send_config_subject_delete_message(self, subject: Subject) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {
-                "subject": subject,
-                "magic": 0,
-                "keytype": "CONFIG",
-            }
-        )
-        return self.send_kafka_message(key, b"")
-
-    def send_delete_subject_message(self, subject: Subject, version: Version) -> FutureRecordMetadata:
-        key = self.key_formatter.format_key(
-            {
-                "subject": subject,
-                "magic": 0,
-                "keytype": "DELETE_SUBJECT",
-            }
-        )
-        value = f'{{"subject":"{subject}","version":{version}}}'
-        return self.send_kafka_message(key, value)
+    def send_config_subject_delete_message(self, subject: Subject) -> None:
+        key = {"subject": subject, "magic": 0, "keytype": "CONFIG"}
+        self.producer.send_message(key=key, value=None)
 
     def resolve_references(self, references: Optional[List[Reference]]) -> Optional[Dict[str, Dependency]]:
         if references:
             return self.schema_reader.resolve_references(references)
         return None
+
+    def send_delete_subject_message(self, subject: Subject, version: Version) -> None:
+        key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}
+        value = {"subject": subject, "version": version}
+        self.producer.send_message(key=key, value=value)
+
