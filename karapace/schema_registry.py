@@ -483,4 +483,3 @@ class KarapaceSchemaRegistry:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}
         value = {"subject": subject, "version": version}
         self.producer.send_message(key=key, value=value)
-

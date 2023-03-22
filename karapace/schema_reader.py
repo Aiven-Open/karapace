@@ -24,18 +24,15 @@ from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
-
-from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import parse_protobuf_schema_definition, SchemaVersion
-from karapace.schema_references import Reference, Referents
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_models import SchemaType, TypedSchema
+from karapace.protobuf.schema import ProtobufSchema
+from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, SchemaVersion, TypedSchema
+from karapace.schema_references import Reference, Referents
 from karapace.statsd import StatsClient
 from karapace.typing import ResolvedVersion, SchemaId
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
-from typing import Dict, List, Union
 from threading import Event, Thread
-from typing import Optional
+from typing import Dict, List, Optional, Union
 
 import json
 import logging
