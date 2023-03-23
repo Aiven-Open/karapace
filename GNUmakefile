@@ -7,6 +7,8 @@ else
 PYENV    ?= pyenv exec python
 endif
 
+PYTHON_VERSION ?= 3.7
+
 export PATH   := $(VENV_DIR)/bin:$(PATH)
 export PS4    := \e[0m\e[32m==> \e[0m
 export LC_ALL := C
