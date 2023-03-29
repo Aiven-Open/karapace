@@ -7,7 +7,7 @@ See LICENSE for details
 # Ported partially for required functionality.
 from karapace.dependency import Dependency, DependencyVerifierResult
 from karapace.protobuf.compare_result import CompareResult
-from karapace.protobuf.dependency import _process_one_of, ProtobufDependencyVerifier
+from karapace.protobuf.dependency import process_one_of, ProtobufDependencyVerifier
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
@@ -120,11 +120,6 @@ class ProtobufSchema:
         self.references = references
         self.dependencies = dependencies
 
-    def gather_deps(self) -> ProtobufDependencyVerifier:
-        verifier = ProtobufDependencyVerifier()
-        self.collect_dependencies(verifier)
-        return verifier
-
     def verify_schema_dependencies(self) -> DependencyVerifierResult:
         verifier = ProtobufDependencyVerifier()
         self.collect_dependencies(verifier)
@@ -150,7 +145,7 @@ class ProtobufSchema:
             verifier.add_declared_type(type_name)
             if isinstance(element_type, MessageElement):
                 for one_of in element_type.one_ofs:
-                    _process_one_of(verifier, package_name, type_name, one_of)
+                    process_one_of(verifier, package_name, type_name, one_of)
                 for field in element_type.fields:
                     verifier.add_used_type(full_name, field.element_type)
             for nested_type in element_type.nested_types:
@@ -165,7 +160,7 @@ class ProtobufSchema:
 
         if isinstance(element_type, MessageElement):
             for one_of in element_type.one_ofs:
-                _process_one_of(verifier, package_name, parent_name, one_of)
+                process_one_of(verifier, package_name, parent_name, one_of)
             for field in element_type.fields:
                 verifier.add_used_type(parent_name, field.element_type)
         for nested_type in element_type.nested_types:

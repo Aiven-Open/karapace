@@ -13,7 +13,7 @@ from karapace.protobuf.type_element import TypeElement
 from typing import Dict, List, Optional
 
 
-def collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
+def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
     for dep in dependencies.values():
         types: List[TypeElement] = dep.schema.schema.proto_file_element.types
         sub_deps = dep.schema.schema.dependencies
@@ -26,7 +26,7 @@ def collect_dependencies_types(compare_types: CompareTypes, dependencies: Option
                 compare_types.add_other_type(package_name, type_)
         if sub_deps is None:
             return
-        collect_dependencies_types(compare_types, sub_deps, is_self)
+        _collect_dependencies_types(compare_types, sub_deps, is_self)
 
 
 class ProtoFileElement:
@@ -134,8 +134,8 @@ class ProtoFileElement:
 
         compare_types = CompareTypes(self.package_name, other.package_name, result)
         if self_dependencies:
-            collect_dependencies_types(compare_types, self_dependencies, True)
+            _collect_dependencies_types(compare_types, self_dependencies, True)
 
         if other_dependencies:
-            collect_dependencies_types(compare_types, other_dependencies, False)
+            _collect_dependencies_types(compare_types, other_dependencies, False)
         return compare_type_lists(self.types, other.types, result, compare_types)

@@ -19,8 +19,6 @@ import os
 import subprocess
 import sys
 
-_module_cache: Dict[str, Any] = dict()
-
 
 def calculate_class_name(name: str) -> str:
     return "c_" + hashlib.md5(name.encode("utf-8")).hexdigest()
@@ -56,9 +54,9 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
 def crawl_dependencies_(schema: ProtobufSchema, deps_list: Dict[str, Dict[str, str]]):
     if schema.dependencies:
         for name, dependency in schema.dependencies.items():
-            crawl_dependencies_(dependency.schema, deps_list)
+            crawl_dependencies_(dependency.schema.schema, deps_list)
             deps_list[name] = {
-                "schema": str(dependency.schema),
+                "schema": str(dependency.schema.schema),
                 "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
             }
 

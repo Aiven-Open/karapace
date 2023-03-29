@@ -57,7 +57,7 @@ class ProtobufDependencyVerifier:
         return DependencyVerifierResult(True)
 
 
-def _process_one_of(verifier: ProtobufDependencyVerifier, package_name: str, parent_name: str, one_of: OneOfElement) -> None:
+def process_one_of(verifier: ProtobufDependencyVerifier, package_name: str, parent_name: str, one_of: OneOfElement) -> None:
     parent = package_name + "." + parent_name
     for field in one_of.fields:
         verifier.add_used_type(parent, field.element_type)

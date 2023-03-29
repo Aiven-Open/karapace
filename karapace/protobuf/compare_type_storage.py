@@ -97,10 +97,9 @@ class CompareTypes:
         type_record: TypeRecord = self.self_types.get(name)
         package_name = type_record.package_name
         if package_name is None:
-            package_name = ""
+            return name
         if name.startswith(package_name):
             return name[(len(package_name) + 1) :]
-
         return name
 
     def other_type_short_name(self, t: ProtoType) -> Optional[str]:
@@ -110,7 +109,7 @@ class CompareTypes:
         type_record: TypeRecord = self.other_types.get(name)
         package_name = type_record.package_name
         if package_name is None:
-            package_name = ""
+            return name
         if name.startswith(package_name):
             return name[(len(package_name) + 1) :]
         return name
