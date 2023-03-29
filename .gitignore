@@ -17,3 +17,4 @@ __pycache__/
 venv
 /karapace/version.py
 .run
+.python-version
