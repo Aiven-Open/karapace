@@ -130,7 +130,7 @@ class ProtobufSchema:
         self.collect_dependencies(verifier)
         return verifier.verify()
 
-    def collect_dependencies(self, verifier: ProtobufDependencyVerifier):
+    def collect_dependencies(self, verifier: ProtobufDependencyVerifier) -> None:
         if self.dependencies:
             for key in self.dependencies:
                 self.dependencies[key].schema.schema.collect_dependencies(verifier)
