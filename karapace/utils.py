@@ -16,7 +16,7 @@ from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient
 from karapace.typing import ArgJsonData, JsonData
 from types import MappingProxyType
-from typing import AnyStr, cast, IO, NoReturn, overload, TypeVar
+from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
 
 import importlib
 import kafka.client_async
@@ -86,10 +86,9 @@ def default_json_serialization(
 def json_encode(
     obj: ArgJsonData,
     *,
-    binary: bool = False,
-    sort_keys: bool | None = None,
-    compact: bool | None = None,
-    indent: int | None = None,
+    sort_keys: bool | None = ...,
+    compact: bool | None = ...,
+    indent: int | None = ...,
 ) -> str:
     ...
 
@@ -98,10 +97,10 @@ def json_encode(
 def json_encode(
     obj: ArgJsonData,
     *,
-    binary: bool = True,
-    sort_keys: bool | None = None,
-    compact: bool | None = None,
-    indent: int | None = None,
+    binary: Literal[True] = ...,
+    sort_keys: bool | None = ...,
+    compact: bool | None = ...,
+    indent: int | None = ...,
 ) -> bytes:
     ...
 

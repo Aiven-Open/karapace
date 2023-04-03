@@ -5,6 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from typing import Any, Dict, List, Union
+from typing_extensions import TypeAlias
 
 import hashlib
 import re
@@ -94,7 +95,7 @@ def anonymize_name(name: str) -> str:
     return NAME_ANONYMIZABLE_PATTERN.sub(anonymize_element, name)
 
 
-Schema = Union[str, Dict[str, Any], List[Any]]
+Schema: TypeAlias = Union[str, Dict[str, Any], List[Any]]
 
 
 def anonymize(input_schema: Schema) -> Schema:
