@@ -833,7 +833,7 @@ def test_schema_compatibility():
         (NS_RECORD1, NS_RECORD2),
     ]
 
-    for (reader, writer) in compatible_reader_writer_test_cases:
+    for reader, writer in compatible_reader_writer_test_cases:
         assert are_compatible(reader, writer)
 
 
@@ -844,7 +844,7 @@ def test_schema_compatibility_fixed_size_mismatch():
         (A_DINT_B_DFIXED_8_BYTES_RECORD1, A_DINT_B_DFIXED_4_BYTES_RECORD1, "expected: 4, found: 8", "/fields/1/type/size"),
         (A_DINT_B_DFIXED_4_BYTES_RECORD1, A_DINT_B_DFIXED_8_BYTES_RECORD1, "expected: 8, found: 4", "/fields/1/type/size"),
     ]
-    for (reader, writer, message, location) in incompatible_fixed_pairs:
+    for reader, writer, message, location in incompatible_fixed_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
         assert location in result.locations, f"expected {location}, found {result.location}"
@@ -858,7 +858,7 @@ def test_schema_compatibility_missing_enum_symbols():
         (ENUM1_BC_SCHEMA, ENUM1_ABC_SCHEMA, "{'A'}", "/symbols"),
         (RECORD1_WITH_ENUM_AB, RECORD1_WITH_ENUM_ABC, "{'C'}", "/fields/0/type/symbols"),
     ]
-    for (reader, writer, message, location) in incompatible_pairs:
+    for reader, writer, message, location in incompatible_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
         assert message in result.messages
@@ -900,7 +900,7 @@ def test_schema_compatibility_missing_union_branch():
         ),
     ]
 
-    for (reader, writer, message, location) in incompatible_pairs:
+    for reader, writer, message, location in incompatible_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
         assert result.messages == message
@@ -915,7 +915,7 @@ def test_schema_compatibility_name_mismatch():
         (A_DINT_B_DENUM_1_RECORD1, A_DINT_B_DENUM_2_RECORD1, "expected: Enum2", "/fields/1/type/name"),
     ]
 
-    for (reader, writer, message, location) in incompatible_pairs:
+    for reader, writer, message, location in incompatible_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
         assert message in result.messages
@@ -927,7 +927,7 @@ def test_schema_compatibility_reader_field_missing_default_value():
         (A_INT_RECORD1, EMPTY_RECORD1, "a", "/fields/0"),
         (A_INT_B_DINT_RECORD1, EMPTY_RECORD1, "a", "/fields/0"),
     ]
-    for (reader, writer, message, location) in incompatible_pairs:
+    for reader, writer, message, location in incompatible_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
         assert len(result.messages) == 1 and len(result.locations) == 1
@@ -972,7 +972,7 @@ def test_schema_compatibility_type_mismatch():
         (INT_LIST_RECORD, LONG_LIST_RECORD, "reader type: int not compatible with writer type: long", "/fields/0/type"),
         (NULL_SCHEMA, INT_SCHEMA, "reader type: null not compatible with writer type: int", "/"),
     ]
-    for (reader, writer, message, location) in incompatible_pairs:
+    for reader, writer, message, location in incompatible_pairs:
         result = ReaderWriterCompatibilityChecker().get_compatibility(reader, writer)
         assert result.compatibility is SchemaCompatibilityType.incompatible
         assert message in result.messages
