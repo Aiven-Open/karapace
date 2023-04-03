@@ -187,8 +187,7 @@ async def test_sr_auth_forwarding(registry_async_auth_pair: List[str]) -> None:
         resp = requests.put(f"{replica_url}/config", json={"compatibility": compat}, auth=auth)
         assert resp.ok
         while True:
-            if counter >= max_tries:
-                raise Exception("Compat update not propagated")
+            assert counter < max_tries, "Compat update not propagated"
             resp = requests.get(f"{primary_url}/config", auth=auth)
             if not resp.ok:
                 continue

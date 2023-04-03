@@ -84,7 +84,6 @@ class MessageElement(TypeElement):
         return "".join(result)
 
     def compare(self, other: "MessageElement", result: CompareResult, types: CompareTypes) -> None:
-
         if types.lock_message(self):
             field: FieldElement
             subfield: FieldElement

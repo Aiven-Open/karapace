@@ -220,7 +220,6 @@ async def fixture_rest_async(
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[Optional[KafkaRest]]:
-
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -286,7 +285,6 @@ async def fixture_rest_async_registry_auth(
     kafka_servers: KafkaServers,
     registry_async_client_auth: Client,
 ) -> AsyncIterator[Optional[KafkaRest]]:
-
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -405,7 +403,6 @@ async def fixture_registry_async_client(
     registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
 ) -> Client:
-
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),

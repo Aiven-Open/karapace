@@ -103,7 +103,6 @@ class ProtoFileElement:
         return self.to_schema()
 
     def compare(self, other: "ProtoFileElement", result: CompareResult) -> CompareResult:
-
         if self.package_name != other.package_name:
             result.add_modification(Modification.PACKAGE_ALTER)
         # TODO: do we need syntax check?
@@ -129,7 +128,6 @@ class ProtoFileElement:
             compare_types.add_other_type(package_name, type_)
 
         for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
-
             result.push_path(str(name), True)
 
             if self_types.get(name) is None and other_types.get(name) is not None:
