@@ -12,7 +12,7 @@ from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
 from karapace.utils import json_encode, KarapaceKafkaClient
 from karapace.version import __version__
-from typing import Any, cast, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Final, Optional, Union
 
 import logging
 import time
@@ -29,9 +29,7 @@ class KarapaceProducer:
         self._key_formatter = key_formatter
         self._kafka_timeout = 10
         self._schemas_topic = self._config["topic_name"]
-
-        host: str = cast(str, self._config["host"])
-        self.x_origin_host_header: Tuple[str, bytes] = ("X-Origin-Host", host.encode("utf8"))
+        self._x_origin_host_header: Final = ("X-Origin-Host", self._config["host"].encode())
 
     def initialize_karapace_producer(
         self,
@@ -74,7 +72,7 @@ class KarapaceProducer:
             self._schemas_topic,
             key=key,
             value=value,
-            headers=[X_REGISTRY_VERSION_HEADER, self.x_origin_host_header],
+            headers=[X_REGISTRY_VERSION_HEADER, self._x_origin_host_header],
         )
         self._producer.flush(timeout=self._kafka_timeout)
         try:

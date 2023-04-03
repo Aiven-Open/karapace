@@ -25,7 +25,7 @@ from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.typing import JsonObject, ResolvedVersion, Subject, Version
-from typing import cast, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import asyncio
 import logging
@@ -126,7 +126,7 @@ class KarapaceSchemaRegistry:
         compatibility = self.database.get_subject_compatibility(subject=subject)
         if compatibility is None:
             # If no subject compatiblity found, use global compatibility
-            compatibility = cast(str, self.config["compatibility"])
+            compatibility = self.config["compatibility"]
         try:
             compatibility_mode = CompatibilityModes(compatibility)
         except ValueError as e:

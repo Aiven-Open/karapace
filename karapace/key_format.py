@@ -62,7 +62,7 @@ class KeyFormatter:
         keymode = keymode or self._keymode
         if keymode == KeyMode.DEPRECATED_KARAPACE:
             # No alterations
-            return json_encode(key, binary=True, sort_keys=False, compact=True)  # type: ignore[return-value]
+            return json_encode(key, binary=True, sort_keys=False, compact=True)
         corrected_key = {
             "keytype": key["keytype"],
         }
@@ -72,7 +72,7 @@ class KeyFormatter:
             corrected_key["version"] = key["version"]
         # Magic is the last element
         corrected_key["magic"] = key["magic"]
-        return json_encode(corrected_key, binary=True, sort_keys=False, compact=True)  # type: ignore[return-value]
+        return json_encode(corrected_key, binary=True, sort_keys=False, compact=True)
 
 
 def is_key_in_canonical_format(key: ArgJsonObject) -> bool:
