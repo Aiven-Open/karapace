@@ -19,7 +19,7 @@ There is very little you need to get started coding for Karapace:
 ```python
 python -m venv <path_to_venv>
 source <path_to_venv>/bin/activate
-pip install -r ./requirements-dev.txt
+pip install -r ./requirements/requirements-dev.txt
 pip install -e .
 ```
 
@@ -71,9 +71,11 @@ Other options can be seen with `pytest test/integration --help`
 
 ## Static checking and Linting
 
-The code is statically checked and formatted using [a few
-tools](https://github.com/aiven/karapace/blob/master/requirements-dev.txt). To run these
-automatically on each commit please enable the [pre-commit](https://pre-commit.com) hooks.
+The code is statically checked and formatted using [a few tools][requirements-dev].
+To run these automatically on each commit please enable the [pre-commit](https://pre-commit.com)
+hooks.
+
+[requirements-dev]: https://github.com/aiven/karapace/blob/master/requirements/requirements-dev.txt
 
 ## Manual testing
 

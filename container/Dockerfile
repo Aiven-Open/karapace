@@ -30,7 +30,7 @@ RUN apt-get update && \
 # the cache will be invalidated and the image regenerated, which is the
 # intended behavior.
 #
-COPY ./requirements.txt /build/
+COPY ./requirements/requirements.txt /build/
 RUN pip3 wheel --requirement /build/requirements.txt --wheel-dir /build/dependencies-wheels
 
 COPY . /build/karapace-repo
