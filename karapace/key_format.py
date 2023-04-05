@@ -6,7 +6,7 @@ See LICENSE for details
 """
 
 from enum import Enum
-from karapace.typing import JsonData
+from karapace.typing import ArgJsonObject
 from karapace.utils import json_encode
 from typing import Optional
 
@@ -49,7 +49,11 @@ class KeyFormatter:
     def get_keymode(self) -> KeyMode:
         return self._keymode
 
-    def format_key(self, key: JsonData, keymode: Optional[KeyMode] = None) -> bytes:
+    def format_key(
+        self,
+        key: ArgJsonObject,
+        keymode: Optional[KeyMode] = None,
+    ) -> bytes:
         """Format key by the given keymode.
 
         :param key Key data as JsonData dict
@@ -71,5 +75,5 @@ class KeyFormatter:
         return json_encode(corrected_key, binary=True, sort_keys=False, compact=True)  # type: ignore[return-value]
 
 
-def is_key_in_canonical_format(key: JsonData) -> bool:
+def is_key_in_canonical_format(key: ArgJsonObject) -> bool:
     return list(key.keys()) in CANONICAL_KEY_ORDERS
