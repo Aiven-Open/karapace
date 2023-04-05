@@ -11,22 +11,37 @@ from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.config import Config
-from karapace.typing import JsonData
+from karapace.typing import JsonData, JsonObject
 from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from karapace.version import __version__
 from threading import Event, Thread
-from typing import Any, cast, List, Optional, Tuple
+from typing import Any, cast, List, Optional, Sequence, Tuple
+from typing_extensions import Final, TypedDict
 
 import logging
 import time
 
+__all__ = ("MasterCoordinator",)
+
 # SR group errors
-NO_ERROR = 0
-DUPLICATE_URLS = 1
+NO_ERROR: Final = 0
+DUPLICATE_URLS: Final = 1
 LOG = logging.getLogger(__name__)
 
 
-def get_member_url(scheme: str, host: str, port: str) -> str:
+class MemberIdentity(TypedDict):
+    host: str
+    port: int
+    scheme: str
+    master_eligibility: bool
+
+
+class MemberAssignment(TypedDict):
+    master: str
+    master_identity: MemberIdentity
+
+
+def get_member_url(scheme: str, host: str, port: int) -> str:
     return f"{scheme}://{host}:{port}"
 
 
@@ -92,14 +107,19 @@ class SchemaCoordinator(BaseCoordinator):
             )
         ]
 
-    def _perform_assignment(self, leader_id: str, protocol: str, members: JsonData) -> JsonData:
+    def _perform_assignment(
+        self,
+        leader_id: str,
+        protocol: str,
+        members: Sequence[Tuple[str, str]],
+    ) -> JsonObject:
         LOG.info("Creating assignment: %r, protocol: %r, members: %r", leader_id, protocol, members)
         self.are_we_master = None
         error = NO_ERROR
         urls = {}
         fallback_urls = {}
         for member_id, member_data in members:
-            member_identity = json_decode(member_data)
+            member_identity = json_decode(member_data, MemberIdentity)
             if member_identity["master_eligibility"] is True:
                 urls[get_member_url(member_identity["scheme"], member_identity["host"], member_identity["port"])] = (
                     member_id,
@@ -116,7 +136,7 @@ class SchemaCoordinator(BaseCoordinator):
             # Protocol guarantees there is at least one member thus if urls is empty, fallback_urls cannot be
             chosen_url = sorted(fallback_urls, reverse=self.election_strategy.lower() == "highest")[0]
             schema_master_id, member_data = fallback_urls[chosen_url]
-        member_identity = json_decode(member_data)
+        member_identity = json_decode(member_data, MemberIdentity)
         identity = get_member_configuration(
             host=member_identity["host"],
             port=member_identity["port"],
@@ -125,7 +145,7 @@ class SchemaCoordinator(BaseCoordinator):
         )
         LOG.info("Chose: %r with url: %r as the master", schema_master_id, chosen_url)
 
-        assignments = {}
+        assignments: JsonObject = {}
         for member_id, member_data in members:
             assignments[member_id] = json_encode(
                 {"master": schema_master_id, "master_identity": identity, "error": error}, compact=True
@@ -144,7 +164,7 @@ class SchemaCoordinator(BaseCoordinator):
             protocol,
             member_assignment_bytes,
         )
-        member_assignment = json_decode(member_assignment_bytes)
+        member_assignment = json_decode(member_assignment_bytes, MemberAssignment)
         member_identity = member_assignment["master_identity"]
 
         master_url = get_member_url(

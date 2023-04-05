@@ -4,6 +4,8 @@ karapace - utils
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from aiohttp.web_log import AccessLogger
 from aiohttp.web_request import BaseRequest
 from aiohttp.web_response import StreamResponse
@@ -12,9 +14,9 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient
-from karapace.typing import JsonData
+from karapace.typing import ArgJsonData, JsonData
 from types import MappingProxyType
-from typing import Any, AnyStr, IO, NoReturn, Optional, overload, Union
+from typing import AnyStr, cast, IO, NoReturn, overload, TypeVar
 
 import importlib
 import kafka.client_async
@@ -66,8 +68,8 @@ def default_json_serialization(obj: MappingProxyType) -> dict:
 
 
 def default_json_serialization(
-    obj: Union[datetime, timedelta, Decimal, MappingProxyType],
-) -> Union[str, float, dict]:
+    obj: datetime | timedelta | Decimal | MappingProxyType,
+) -> str | float | dict:
     if isinstance(obj, datetime):
         return _isoformat(obj)
     if isinstance(obj, timedelta):
@@ -82,35 +84,35 @@ def default_json_serialization(
 
 @overload
 def json_encode(
-    obj: Any,
+    obj: ArgJsonData,
     *,
     binary: bool = False,
-    sort_keys: Optional[bool] = None,
-    compact: Optional[bool] = None,
-    indent: Optional[int] = None,
+    sort_keys: bool | None = None,
+    compact: bool | None = None,
+    indent: int | None = None,
 ) -> str:
     ...
 
 
 @overload
 def json_encode(
-    obj: Any,
+    obj: ArgJsonData,
     *,
     binary: bool = True,
-    sort_keys: Optional[bool] = None,
-    compact: Optional[bool] = None,
-    indent: Optional[int] = None,
+    sort_keys: bool | None = None,
+    compact: bool | None = None,
+    indent: int | None = None,
 ) -> bytes:
     ...
 
 
 def json_encode(
-    obj: Any,
+    obj: ArgJsonData,
     *,
     binary: bool = False,
-    sort_keys: Optional[bool] = None,
-    compact: Optional[bool] = None,
-    indent: Optional[int] = None,
+    sort_keys: bool | None = None,
+    compact: bool | None = None,
+    indent: int | None = None,
 ) -> AnyStr:
     kwargs = {}
     if indent is not None:
@@ -123,10 +125,28 @@ def json_encode(
     return result.encode("utf8") if binary is True else result
 
 
-def json_decode(content: [AnyStr, IO[AnyStr]]) -> JsonData:
-    if isinstance(content, str) or isinstance(content, bytes):  # pylint: disable=consider-merging-isinstance
-        return json.loads(content)
-    return json.load(content)
+T = TypeVar("T")
+
+
+@overload
+def json_decode(content: AnyStr | IO[AnyStr]) -> JsonData:
+    ...
+
+
+@overload
+def json_decode(content: AnyStr | IO[AnyStr], assume_type: type[T]) -> T:
+    ...
+
+
+def json_decode(
+    content: AnyStr | IO[AnyStr],
+    # This argument is only used to pass onto cast() via a type var, it has no runtime
+    # usage.
+    assume_type: type[T] | None = None,  # pylint: disable=unused-argument
+) -> JsonData | T:
+    if isinstance(content, (str, bytes)):
+        return cast("T | None", json.loads(content))
+    return cast("T | None", json.load(content))
 
 
 def assert_never(value: NoReturn) -> NoReturn:
@@ -143,7 +163,7 @@ class Expiration:
     deadline: float
 
     @classmethod
-    def from_timeout(cls, timeout: float) -> "Expiration":
+    def from_timeout(cls, timeout: float) -> Expiration:
         start_time = time.monotonic()
         deadline = start_time + timeout
         return cls(start_time, deadline)

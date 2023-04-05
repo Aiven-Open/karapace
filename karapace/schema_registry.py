@@ -24,7 +24,7 @@ from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.typing import JsonData, ResolvedVersion, Subject, Version
+from karapace.typing import JsonObject, ResolvedVersion, Subject, Version
 from typing import cast, Dict, List, Optional, Tuple, Union
 
 import asyncio
@@ -234,7 +234,7 @@ class KarapaceSchemaRegistry:
             raise SchemasNotFoundException
         return schemas
 
-    def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> JsonData:
+    def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> JsonObject:
         validate_version(version)
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
@@ -247,7 +247,7 @@ class KarapaceSchemaRegistry:
         schema_id = schema_data.schema_id
         schema = schema_data.schema
 
-        ret = {
+        ret: JsonObject = {
             "subject": subject,
             "version": resolved_version,
             "id": schema_id,
