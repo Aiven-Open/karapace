@@ -4,21 +4,23 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ReservedElement.kt
+from __future__ import annotations
+
 from dataclasses import dataclass
 from karapace.protobuf.kotlin_wrapper import KotlinRange
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation
+from karapace.utils import assert_never
 
 
 @dataclass
 class ReservedElement:
     location: Location
+    values: list[str | int | KotlinRange]
     documentation: str = ""
-    """ A [String] name or [Int] or [IntRange] tag. """
-    values: list = None
 
     def to_schema(self) -> str:
-        result = []
+        result: list[str] = []
         append_documentation(result, self.documentation)
         result.append("reserved ")
 
@@ -33,6 +35,6 @@ class ReservedElement:
             elif isinstance(value, KotlinRange):
                 result.append(f"{value.minimum} to {value.maximum}")
             else:
-                raise AssertionError()
+                assert_never(value)
         result.append(";\n")
         return "".join(result)
