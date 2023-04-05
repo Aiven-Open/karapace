@@ -15,8 +15,8 @@ from karapace.typing import JsonData, JsonObject
 from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from karapace.version import __version__
 from threading import Event, Thread
-from typing import Any, cast, List, Optional, Sequence, Tuple
-from typing_extensions import Final, TypedDict
+from typing import Any, cast, Final, List, Optional, Sequence, Tuple
+from typing_extensions import TypedDict
 
 import logging
 import time
