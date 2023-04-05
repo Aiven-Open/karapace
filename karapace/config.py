@@ -4,27 +4,89 @@ karapace - configuration validation
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from aiohttp.web_log import AccessLogger
+from __future__ import annotations
+
 from enum import Enum, unique
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
-from typing import Dict, IO, List, Optional, Union
+from typing import IO
+from typing_extensions import TypedDict
 
 import logging
 import os
 import socket
 import ssl
 
-Config = Dict[str, Union[None, str, int, bool, List[str], AccessLogger]]
+
+class Config(TypedDict):
+    access_logs_debug: bool
+    access_log_class: str | None
+    advertised_hostname: str
+    advertised_port: int
+    advertised_protocol: str
+    bootstrap_uri: str
+    sasl_bootstrap_uri: str | None
+    client_id: str
+    compatibility: str
+    connections_max_idle_ms: int
+    consumer_enable_auto_commit: bool
+    consumer_request_timeout_ms: int
+    consumer_request_max_bytes: int
+    consumer_idle_disconnect_timeout: int
+    fetch_min_bytes: int
+    group_id: str
+    host: str
+    port: int
+    server_tls_certfile: str | None
+    server_tls_keyfile: str | None
+    registry_host: str
+    registry_port: int
+    registry_user: str | None
+    registry_password: str | None
+    registry_ca: str | None
+    registry_authfile: str | None
+    rest_authorization: bool
+    rest_base_uri: str | None
+    log_level: str
+    log_format: str
+    master_eligibility: bool
+    replication_factor: int
+    security_protocol: str
+    ssl_cafile: str | None
+    ssl_certfile: str | None
+    ssl_keyfile: str | None
+    ssl_check_hostname: bool
+    ssl_crlfile: str | None
+    ssl_password: str | None
+    sasl_mechanism: str | None
+    sasl_plain_username: str | None
+    sasl_plain_password: str | None
+    topic_name: str
+    metadata_max_age_ms: int
+    admin_metadata_max_age: int
+    producer_acks: int
+    producer_compression_type: str | None
+    producer_count: int
+    producer_linger_ms: int
+    session_timeout_ms: int
+    karapace_rest: bool
+    karapace_registry: bool
+    master_election_strategy: str
+    protobuf_runtime_directory: str
+
+
+class ConfigDefaults(Config, total=False):
+    ...
+
+
 LOG = logging.getLogger(__name__)
 HOSTNAME = socket.gethostname()
 SASL_PLAIN_PASSWORD = "sasl_plain_password"
-DEFAULTS = {
+DEFAULTS: ConfigDefaults = {
     "access_logs_debug": False,
     "access_log_class": None,
     "advertised_hostname": HOSTNAME,
-    "advertised_port": None,
     "advertised_protocol": "http",
     "bootstrap_uri": "127.0.0.1:9092",
     "sasl_bootstrap_uri": None,
@@ -89,7 +151,7 @@ class ElectionStrategy(Enum):
     lowest = "lowest"
 
 
-def parse_env_value(value: str) -> Union[str, int, bool]:
+def parse_env_value(value: str) -> str | int | bool:
     # we only have ints, strings and bools in the config
     try:
         return int(value)
@@ -107,8 +169,7 @@ def set_config_defaults(config: Config) -> Config:
     new_config.update(config)
 
     # Fallback to default port if `advertised_port` is not set
-    if new_config["advertised_port"] is None:
-        new_config["advertised_port"] = new_config["port"]
+    new_config.setdefault("advertised_port", new_config["port"])
 
     # Fallback to `advertised_*` constructed URI if not set
     if new_config["rest_base_uri"] is None:
@@ -188,7 +249,7 @@ def read_config(config_handler: IO) -> Config:
     return set_config_defaults(config)
 
 
-def create_client_ssl_context(config: Config) -> Optional[ssl.SSLContext]:
+def create_client_ssl_context(config: Config) -> ssl.SSLContext | None:
     # taken from conn.py, as it adds a lot more logic to the context configuration than the initial version
     if config["security_protocol"] in ("PLAINTEXT", "SASL_PLAINTEXT"):
         return None
@@ -219,7 +280,7 @@ def create_client_ssl_context(config: Config) -> Optional[ssl.SSLContext]:
     return ssl_context
 
 
-def create_server_ssl_context(config: Config) -> Optional[ssl.SSLContext]:
+def create_server_ssl_context(config: Config) -> ssl.SSLContext | None:
     tls_certfile = config["server_tls_certfile"]
     tls_keyfile = config["server_tls_keyfile"]
     if tls_certfile is None:
