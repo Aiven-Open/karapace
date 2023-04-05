@@ -157,7 +157,6 @@ class ProtoType:
         return None if self.is_scalar or self.is_map else f"type.googleapis.com/{self.string}"
 
     def nested_type(self, name: str) -> "ProtoType":
-
         if self.is_scalar:
             raise IllegalStateException("scalar cannot have a nested type")
 

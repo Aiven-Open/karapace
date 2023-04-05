@@ -86,7 +86,6 @@ def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
         with tarfile.open(mode="r:gz", fileobj=kafkatgz) as file:
 
             def is_within_directory(directory, target):
-
                 abs_directory = os.path.abspath(directory)
                 abs_target = os.path.abspath(target)
 
@@ -95,11 +94,10 @@ def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
                 return prefix == abs_directory
 
             def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-
                 for member in tar.getmembers():
                     member_path = os.path.join(path, member.name)
                     if not is_within_directory(path, member_path):
-                        raise Exception("Attempted Path Traversal in Tar File")
+                        raise RuntimeError("Attempted Path Traversal in Tar File")
 
                 tar.extractall(path, members, numeric_owner=numeric_owner)
 
