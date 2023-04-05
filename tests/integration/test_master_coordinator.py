@@ -137,7 +137,6 @@ def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_ra
         with closing(init_admin(config_non_primary_1)) as non_primary_1, closing(
             init_admin(config_non_primary_2)
         ) as non_primary_2, closing(init_admin(config_primary)) as primary:
-
             # Wait for the election to happen
             while not is_master(primary):
                 time.sleep(0.3)
@@ -198,8 +197,7 @@ async def test_schema_request_forwarding(registry_async_pair):
             resp = requests.put(f"{slave_url}/{path}", json={"compatibility": compat})
             assert resp.ok
             while True:
-                if counter >= max_tries:
-                    raise Exception("Compat update not propagated")
+                assert counter < max_tries, "Compat update not propagated"
                 resp = requests.get(f"{master_url}/{path}")
                 if not resp.ok:
                     print(f"Invalid http status code: {resp.status_code}")
@@ -225,8 +223,7 @@ async def test_schema_request_forwarding(registry_async_pair):
     assert "id" in data, data
     counter = 0
     while True:
-        if counter >= max_tries:
-            raise Exception("Subject schema data not propagated yet")
+        assert counter < max_tries, "Subject schema data not propagated yet"
         resp = requests.get(f"{master_url}/subjects/{subject}/versions")
         if not resp.ok:
             print(f"Invalid http status code: {resp.status_code}")
@@ -247,8 +244,7 @@ async def test_schema_request_forwarding(registry_async_pair):
     assert resp.ok
     counter = 0
     while True:
-        if counter >= max_tries:
-            raise Exception("Subject version deletion not propagated yet")
+        assert counter < max_tries, "Subject version deletion not propagated yet"
         resp = requests.get(f"{master_url}/subjects/{subject}/versions/1")
         if resp.ok:
             print(f"Subject {subject} still has version 1 on master")
@@ -267,8 +263,7 @@ async def test_schema_request_forwarding(registry_async_pair):
     assert resp.ok
     counter = 0
     while True:
-        if counter >= max_tries:
-            raise Exception("Subject deletion not propagated yet")
+        assert counter < max_tries, "Subject deletion not propagated yet"
         resp = requests.get(f"{master_url}/subjects/")
         if not resp.ok:
             print("Could not retrieve subject list on master")
