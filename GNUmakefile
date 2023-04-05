@@ -7,7 +7,7 @@ else
 PYENV    ?= pyenv exec python
 endif
 
-PYTHON_VERSION ?= 3.7
+PYTHON_VERSION ?= 3.8
 
 export PATH   := $(VENV_DIR)/bin:$(PATH)
 export PS4    := \e[0m\e[32m==> \e[0m
