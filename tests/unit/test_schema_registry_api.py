@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from aiohttp.test_utils import TestClient, TestServer
-from karapace.config import DEFAULTS
+from karapace.config import DEFAULTS, set_config_defaults
 from karapace.rapu import HTTPResponse
 from karapace.schema_registry_apis import KarapaceSchemaRegistryController
 from unittest.mock import ANY, Mock, patch, PropertyMock
@@ -36,7 +36,7 @@ async def test_forward_when_not_ready():
         schema_registry.close = close_func
         client_session.close = close_func
 
-        controller = KarapaceSchemaRegistryController(config=DEFAULTS)
+        controller = KarapaceSchemaRegistryController(config=set_config_defaults(DEFAULTS))
         mock_forward_func_future = asyncio.Future()
         mock_forward_func_future.set_exception(HTTPResponse({"mock": "response"}))
         mock_forward_func = Mock()

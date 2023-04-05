@@ -15,7 +15,7 @@ from karapace.typing import JsonData, JsonObject
 from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from karapace.version import __version__
 from threading import Event, Thread
-from typing import Any, cast, Final, List, Optional, Sequence, Tuple
+from typing import Any, Final, List, Optional, Sequence, Tuple
 from typing_extensions import TypedDict
 
 import logging
@@ -231,12 +231,12 @@ class MasterCoordinator(Thread):
         self.sc = SchemaCoordinator(
             client=self.kafka_client,
             metrics=self._metrics,
-            hostname=cast(str, self.config["advertised_hostname"]),
-            port=cast(int, self.config["advertised_port"]),
-            scheme=cast(str, self.config["advertised_protocol"]),
-            master_eligibility=cast(bool, self.config["master_eligibility"]),
-            election_strategy=cast(str, self.config.get("master_election_strategy", "lowest")),
-            group_id=cast(str, self.config["group_id"]),
+            hostname=self.config["advertised_hostname"],
+            port=self.config["advertised_port"],
+            scheme=self.config["advertised_protocol"],
+            master_eligibility=self.config["master_eligibility"],
+            election_strategy=self.config.get("master_election_strategy", "lowest"),
+            group_id=self.config["group_id"],
             session_timeout_ms=session_timeout_ms,
             request_timeout_ms=max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]),
         )
@@ -246,7 +246,7 @@ class MasterCoordinator(Thread):
         generation = self.sc.generation() if self.sc is not None else None
         return SchemaCoordinatorStatus(
             is_primary=self.sc.are_we_master if self.sc is not None else None,
-            is_primary_eligible=cast(bool, self.config["master_eligibility"]),
+            is_primary_eligible=self.config["master_eligibility"],
             primary_url=self.sc.master_url if self.sc is not None else None,
             is_running=self.is_alive(),
             group_generation_id=generation.generation_id if generation is not None else -1,
