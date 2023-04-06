@@ -75,7 +75,6 @@ class FieldElement:
     # Only non-repeated scalar types and Enums support default values.
 
     def compare(self, other: "FieldElement", result: CompareResult, types: CompareTypes) -> None:
-
         if self.name != other.name:
             result.add_modification(Modification.FIELD_NAME_ALTER)
 

@@ -245,5 +245,4 @@ class ProtobufDatumWriter:
         write_indexes(writer, [self._message_index])
 
     def write(self, datum: dict, writer: BytesIO) -> None:
-
         writer.write(writer_mp(self.config, self._writer_schema, self._message_name, datum))

@@ -78,7 +78,6 @@ class OptionElement:
         return value
 
     def format_list_map_value(self, value) -> str:
-
         last_index = len(value) - 1
         result = []
         for index, elm in enumerate(value):

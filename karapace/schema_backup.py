@@ -4,6 +4,8 @@ karapace - schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from enum import Enum
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
@@ -17,12 +19,12 @@ from karapace.backup.errors import BackupError, PartitionCountError, StaleConsum
 from karapace.config import Config, read_config
 from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
-from karapace.typing import JsonData
+from karapace.typing import JsonData, JsonObject
 from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from pathlib import Path
 from tempfile import mkstemp
 from tenacity import retry, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, IO, Optional, TextIO, Tuple, Union
+from typing import AbstractSet, Any, Callable, Collection, Dict, Generator, IO, List, TextIO, Tuple
 
 import argparse
 import base64
@@ -119,7 +121,7 @@ def _admin(config: Config) -> KafkaAdminClient:
     stop=stop_after_delay(60),  # seconds
     wait=wait_fixed(1),  # seconds
 )
-def _maybe_create_topic(config: Config, name: Optional[str] = None) -> Optional[bool]:
+def _maybe_create_topic(config: Config, name: str | None = None) -> bool | None:
     """Creates the topic if the given name and the one in the config are the same.
 
     :param config: for the admin client.
@@ -214,7 +216,11 @@ def _producer(config: Config, topic: str) -> KafkaProducer:
 
 
 @contextlib.contextmanager
-def _writer(file: Union[str, Path], *, overwrite: Optional[bool] = None) -> TextIO:
+def _writer(
+    file: str | Path,
+    *,
+    overwrite: bool | None = None,
+) -> Generator[TextIO, None, None]:
     """Opens the given file for writing.
 
     This function uses a safe temporary file to collect all written data, followed by a final rename. On most systems
@@ -280,14 +286,14 @@ def _check_backup_file_version(fp: IO) -> BackupVersion:
 
 
 class SchemaBackup:
-    def __init__(self, config: Config, backup_path: str, topic_option: Optional[str] = None) -> None:
+    def __init__(self, config: Config, backup_path: str, topic_option: str | None = None) -> None:
         self.config = config
         self.backup_location = backup_path
-        self.topic_name = topic_option or self.config["topic_name"]
+        self.topic_name: str = topic_option or self.config["topic_name"]
         self.timeout_ms = 1000
         self.timeout_kafka_producer = 5
 
-        self.producer_exception: Optional[Exception] = None
+        self.producer_exception: Exception | None = None
 
         # Schema key formatter
         self.key_formatter = None
@@ -312,10 +318,10 @@ class SchemaBackup:
             if self.producer_exception is not None:
                 raise BackupError("Error while producing restored messages") from self.producer_exception
 
-    def producer_error_callback(self, exception: Exception):
+    def producer_error_callback(self, exception: Exception) -> None:
         self.producer_exception = exception
 
-    def _handle_restore_message(self, producer: KafkaProducer, item: Tuple[str, str]) -> None:
+    def _handle_restore_message(self, producer: KafkaProducer, item: tuple[str, str]) -> None:
         key = self.encode_key(item[0])
         value = encode_value(item[1])
         LOG.debug("Sending kafka msg key: %r, value: %r", key, value)
@@ -328,7 +334,10 @@ class SchemaBackup:
 
     def _restore_backup_version_1_single_array(self, producer: KafkaProducer, fp: IO) -> None:
         raw_msg = fp.read()
-        values = json_decode(raw_msg)
+        # json_decode cannot really produce tuples. Typing was added in hindsight here,
+        # and it looks like _handle_restore_message has been lying about the type of
+        # item for some time already.
+        values = json_decode(raw_msg, List[Tuple[str, str]])
 
         if not values:
             return
@@ -346,10 +355,10 @@ class SchemaBackup:
 
     def create(
         self,
-        serialize: Callable[[Optional[bytes], Optional[bytes]], str],
+        serialize: Callable[[bytes | None, bytes | None], str],
         *,
-        poll_timeout: Optional[PollTimeout] = None,
-        overwrite: Optional[bool] = None,
+        poll_timeout: PollTimeout | None = None,
+        overwrite: bool | None = None,
     ) -> None:
         """Creates a backup of the configured topic.
 
@@ -411,7 +420,7 @@ class SchemaBackup:
                 file=sys.stderr,
             )
 
-    def encode_key(self, key: Optional[Union[JsonData, str]]) -> Optional[bytes]:
+    def encode_key(self, key: JsonObject | str) -> bytes | None:
         if key == "null":
             return None
         if not self.key_formatter:
@@ -419,11 +428,11 @@ class SchemaBackup:
                 return key.encode("utf8")
             return json_encode(key, sort_keys=False, binary=True, compact=False)
         if isinstance(key, str):
-            key = json_decode(key)
+            key = json_decode(key, JsonObject)
         return self.key_formatter.format_key(key)
 
 
-def encode_value(value: Union[JsonData, str]) -> Optional[bytes]:
+def encode_value(value: JsonData | str) -> bytes | None:
     if value == "null":
         return None
     if isinstance(value, str):
@@ -431,21 +440,25 @@ def encode_value(value: Union[JsonData, str]) -> Optional[bytes]:
     return json_encode(value, compact=True, sort_keys=False, binary=True)
 
 
-def serialize_record(key_bytes: Optional[bytes], value_bytes: Optional[bytes]) -> str:
+def serialize_record(key_bytes: bytes | None, value_bytes: bytes | None) -> str:
     key = base64.b16encode(key_bytes).decode("utf8") if key_bytes is not None else "null"
     value = base64.b16encode(value_bytes).decode("utf8") if value_bytes is not None else "null"
     return f"{key}\t{value}\n"
 
 
-def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
+def anonymize_avro_schema_message(key_bytes: bytes | None, value_bytes: bytes | None) -> str:
+    if key_bytes is None:
+        raise RuntimeError("Cannot Avro-encode message with key_bytes=None")
+    if value_bytes is None:
+        raise RuntimeError("Cannot Avro-encode message with value_bytes=None")
     # Check that the message has key `schema` and type is Avro schema.
     # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
 
-    key = json_decode(key_bytes)
-    value = json_decode(value_bytes)
+    key = json_decode(key_bytes, Dict[str, str])
+    value = json_decode(value_bytes, Dict[str, str])
 
     if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
-        original_schema = json_decode(value.get("schema"))
+        original_schema: Any = json_decode(value["schema"])
         anonymized_schema = anonymize_avro.anonymize(original_schema)
         if anonymized_schema:
             value["schema"] = json_encode(anonymized_schema, compact=True, sort_keys=False)
@@ -454,10 +467,13 @@ def anonymize_avro_schema_message(key_bytes: bytes, value_bytes: bytes) -> str:
     # The schemas topic contain all changes to schema metadata.
     if key.get("subject", None):
         key["subject"] = anonymize_avro.anonymize_name(key["subject"])
-    return serialize_record(json_encode(key, compact=True).encode("utf8"), json_encode(value, compact=True).encode("utf8"))
+    return serialize_record(
+        json_encode(key, compact=True, binary=True),
+        json_encode(value, compact=True, binary=True),
+    )
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Karapace schema backup tool")
     subparsers = parser.add_subparsers(help="Schema backup command", dest="command", required=True)
 

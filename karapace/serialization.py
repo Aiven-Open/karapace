@@ -337,7 +337,6 @@ def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
 
 def write_value(config: dict, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
-
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
         if avro.io.validate(schema.schema, value):
             data = value

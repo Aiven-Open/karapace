@@ -38,7 +38,6 @@ def compute_name(t: ProtoType, result_path: List[str], package_name: str, types:
 
 class CompareTypes:
     def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult) -> None:
-
         self.self_package_name = self_package_name or ""
         self.other_package_name = other_package_name or ""
 

@@ -368,7 +368,6 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
 
 @pytest.mark.parametrize("fmt", sorted(KNOWN_FORMATS))
 async def test_consume_grafecul_deserialization_error_handling(rest_async_client, admin_client, fmt):
-
     topic_name = new_topic(admin_client, prefix=f"{fmt}_")
 
     # Produce binary record

@@ -2,14 +2,22 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from typing import Any, Dict, Union
+from typing import Dict, List, Mapping, Sequence, Union, Any
+from typing_extensions import TypeAlias
 
-JsonData = Any  # Data that will be encoded to or has been parsed from JSON
+JsonArray: TypeAlias = List["JsonData"]
+JsonObject: TypeAlias = Dict[str, "JsonData"]
+JsonScalar: TypeAlias = Union[str, int, float, None]
+JsonData: TypeAlias = Union[JsonScalar, JsonObject, JsonArray]
 
-Subject = str
+# JSON types suitable as arguments, i.e. using abstract types that don't allow mutation.
+ArgJsonArray: TypeAlias = Sequence["ArgJsonData"]
+ArgJsonObject: TypeAlias = Mapping[str, "ArgJsonData"]
+ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 
-Version = Union[int, str]
-ResolvedVersion = int
-
+Subject: TypeAlias = str
+Version: TypeAlias = Union[int, str]
+ResolvedVersion: TypeAlias = int
+SchemaId: TypeAlias = int
 Schema = Dict[str, Any]
-SchemaId = int
+

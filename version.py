@@ -44,7 +44,7 @@ def get_project_version(version_file: str) -> str:
         return version
 
     if not file_ver:
-        raise Exception(f"version not available from git or from file {version_file!r}")
+        raise RuntimeError(f"version not available from git or from file {version_file!r}")
 
     return file_ver
 

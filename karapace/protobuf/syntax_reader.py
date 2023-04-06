@@ -345,7 +345,7 @@ class SyntaxReader:
             elif skip_comments and c == "/":
                 self.read_comment()
             else:
-                return None
+                return
 
     def newline(self) -> None:
         """Call this every time a '\n' is encountered."""

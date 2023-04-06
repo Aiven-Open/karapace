@@ -123,7 +123,6 @@ class ProtoFileElement:
         self_dependencies: Optional[Dict[str, Dependency]] = None,
         other_dependencies: Optional[Dict[str, Dependency]] = None,
     ) -> CompareResult:
-
         from karapace.protobuf.compare_type_lists import compare_type_lists
 
         if self.package_name != other.package_name:

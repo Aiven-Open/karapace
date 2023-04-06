@@ -10,7 +10,8 @@ from karapace.config import InvalidConfiguration
 from karapace.rapu import JSON_CONTENT_TYPE
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
-from typing import Optional
+from typing import List, Optional
+from typing_extensions import TypedDict
 from watchfiles import awatch, Change
 
 import aiohttp
@@ -75,6 +76,24 @@ class ACLEntry:
     resource: re.Pattern
 
 
+class UserData(TypedDict):
+    username: str
+    algorithm: str
+    salt: str
+    password_hash: str
+
+
+class ACLEntryData(TypedDict):
+    username: str
+    operation: str
+    resource: str
+
+
+class AuthData(TypedDict):
+    users: List[UserData]
+    permissions: List[ACLEntryData]
+
+
 class HTTPAuthorizer:
     def __init__(self, filename: str) -> None:
         self._auth_filename: str = filename
@@ -124,7 +143,7 @@ class HTTPAuthorizer:
         try:
             statinfo = os.stat(self._auth_filename)
             with open(self._auth_filename) as authfile:
-                authdata = json_decode(authfile)
+                authdata = json_decode(authfile, AuthData)
 
                 users = {
                     user["username"]: User(
