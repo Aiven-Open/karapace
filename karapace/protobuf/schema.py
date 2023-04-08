@@ -154,7 +154,6 @@ class ProtobufSchema:
     def _process_nested_type(
         self, verifier: ProtobufDependencyVerifier, package_name: str, parent_name, element_type: TypeElement
     ):
-
         verifier.add_declared_type(package_name + "." + parent_name + "." + element_type.name)
         verifier.add_declared_type(parent_name + "." + element_type.name)
 

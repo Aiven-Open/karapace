@@ -37,7 +37,6 @@ def compare_type_lists(
         compare_types.add_other_type(compare_types.other_package_name, type_)
 
     for name in chain(self_types.keys(), other_types.keys() - self_types.keys()):
-
         result.push_path(str(name), True)
 
         if self_types.get(name) is None and other_types.get(name) is not None:

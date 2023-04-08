@@ -77,7 +77,6 @@ def _assert_never(no_return: NoReturn) -> NoReturn:
     raise AssertionError(f"Expected to be unreachable {no_return}")
 
 
-
 class TypedSchema:
     def __init__(
         self,
@@ -107,7 +106,7 @@ class TypedSchema:
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
-        return json_decode(self.schema_str, Dict)
+        return json_decode(self.schema_str, Dict[str, Any])
 
     def fingerprint(self) -> str:
         if self._fingerprint_cached is None:

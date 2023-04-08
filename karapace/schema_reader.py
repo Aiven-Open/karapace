@@ -542,5 +542,10 @@ class KafkaSchemaReader(Thread):
     def resolve_references(self, references: List[Reference]) -> Dict[str, Dependency]:
         dependencies: Dict[str, Dependency] = dict()
         for reference in references:
-            dependencies[reference.name] = self._resolve_reference(reference)
+            if isinstance(reference, Reference):
+                dependencies[reference.name] = self._resolve_reference(reference)
+            else:
+                dependencies[reference["name"]] = self._resolve_reference(
+                    Reference(reference["name"], reference["subject"], reference["version"])
+                )
         return dependencies

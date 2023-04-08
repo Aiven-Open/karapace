@@ -22,6 +22,10 @@ class InvalidSchema(Exception):
     pass
 
 
+class InvalidTest(Exception):
+    pass
+
+
 class InvalidSchemaType(Exception):
     pass
 

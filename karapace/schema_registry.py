@@ -279,13 +279,14 @@ class KarapaceSchemaRegistry:
             "schema": schema.schema_str,
         }
         if schema.references is not None:
-            ret["references"] = schema.references
+            ret["references"] = [reference.to_dict() for reference in schema.references]
         if schema.schema_type is not SchemaType.AVRO:
             ret["schemaType"] = schema.schema_type
         # Return also compatibility information to compatibility check
         compatibility = self.database.get_subject_compatibility(subject=subject)
         if compatibility:
             ret["compatibility"] = compatibility
+
         return ret
 
     async def subject_version_referencedby_get(

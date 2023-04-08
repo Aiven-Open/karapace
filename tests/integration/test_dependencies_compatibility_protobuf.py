@@ -14,7 +14,6 @@ import pytest
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_protobuf_schema_compatibility(registry_async_client: Client, trail: str) -> None:
     subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
-
     res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 

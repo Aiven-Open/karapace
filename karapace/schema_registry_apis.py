@@ -907,7 +907,6 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     async def subject_versions_list(
         self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
     ) -> None:
-
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:

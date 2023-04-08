@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from dataclasses import dataclass
 from karapace.client import Client
+from karapace.errors import InvalidTest
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonData
@@ -942,7 +943,6 @@ message WithReference {
 )
 async def test_references(testcase: ReferenceTestCase, registry_async_client: Client):
     for testdata in testcase.schemas:
-
         if isinstance(testdata, TestCaseSchema):
             print(f"Adding new schema, subject: '{testdata.subject}'\n{testdata.schema_str}")
             body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
@@ -963,7 +963,7 @@ async def test_references(testcase: ReferenceTestCase, registry_async_client: Cl
             )
             res = await registry_async_client.delete(f"subjects/{testdata.subject}/versions/{testdata.version}")
         else:
-            raise Exception("Unknown test case.")
+            raise InvalidTest("Unknown test case.")
 
         assert res.status_code == testdata.expected
         if testdata.expected_msg:

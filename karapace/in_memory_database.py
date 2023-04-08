@@ -248,7 +248,6 @@ class InMemoryDatabase:
 
     def insert_referenced_by(self, *, subject: Subject, version: ResolvedVersion, schema_id: SchemaId) -> None:
         with self.schema_lock_thread:
-
             referents = self.referenced_by.get((subject, version), None)
             if referents:
                 referents.append(schema_id)
