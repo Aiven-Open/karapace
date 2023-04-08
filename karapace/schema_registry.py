@@ -475,7 +475,9 @@ class KarapaceSchemaRegistry:
         key = {"subject": subject, "magic": 0, "keytype": "CONFIG"}
         self.producer.send_message(key=key, value=None)
 
-    def resolve_references(self, references: Optional[List[Reference]]) -> Optional[Dict[str, Dependency]]:
+    def resolve_references(
+        self, references: Optional[Union[List[Reference], JsonObject]]
+    ) -> Optional[Dict[str, Dependency]]:
         if references:
             return self.schema_reader.resolve_references(references)
         return None

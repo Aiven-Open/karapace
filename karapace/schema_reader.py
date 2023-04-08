@@ -29,7 +29,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, SchemaVersion, TypedSchema
 from karapace.schema_references import Reference, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import ResolvedVersion, SchemaId
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
 from typing import Dict, List, Optional, Union
@@ -539,7 +539,7 @@ class KafkaSchemaReader(Thread):
                 schema.dependencies = schema_dependencies
         return Dependency.of(reference, schema)
 
-    def resolve_references(self, references: List[Reference]) -> Dict[str, Dependency]:
+    def resolve_references(self, references: Union[List[Reference], JsonObject]) -> Dict[str, Dependency]:
         dependencies: Dict[str, Dependency] = dict()
         for reference in references:
             if isinstance(reference, Reference):
