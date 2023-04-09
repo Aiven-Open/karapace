@@ -4,26 +4,35 @@ karapace - version
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-import importlib.util
+from __future__ import annotations
+
+from typing import Final
+
 import os
+import pathlib
 import subprocess
 
+version_file: Final = pathlib.Path(__file__).parent.resolve() / "karapace/version.py"
 
-def save_version(new_ver, old_ver, version_file):
+
+def save_version(new_ver, old_ver):
     if not new_ver:
         return False
-    version_file = os.path.join(os.path.dirname(__file__), version_file)
     if not old_ver or new_ver != old_ver:
-        with open(version_file, mode="w", encoding="utf8") as fp:
-            fp.write(f'"""{__doc__}"""\n__version__ = "{new_ver}"\n')
+        version_file.write_text(f'"""{__doc__}"""\n__version__ = "{new_ver}"\n')
     return True
 
 
-def get_project_version(version_file: str) -> str:
-    version_file_full_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), version_file)
-    module_spec = importlib.util.spec_from_file_location("verfile", version_file_full_path)
-    module = importlib.util.module_from_spec(module_spec)
-    file_ver = getattr(module, "__version__", None)
+def from_version_file() -> str | None:
+    try:
+        import karapace.version
+    except ImportError:
+        return None
+    return karapace.version.__version__
+
+
+def get_project_version() -> str:
+    file_ver = from_version_file()
 
     version = os.getenv("KARAPACE_VERSION")
     if version is None:
@@ -40,16 +49,14 @@ def get_project_version(version_file: str) -> str:
                 git_ver = f"0.0.1-0-unknown-{git_ver}"
             version = git_ver
 
-    if save_version(version, file_ver, version_file):
+    if save_version(version, file_ver):
         return version
 
     if not file_ver:
-        raise RuntimeError(f"version not available from git or from file {version_file!r}")
+        raise RuntimeError(f"version not available from git or from file {str(version_file)!r}")
 
     return file_ver
 
 
 if __name__ == "__main__":
-    import sys
-
-    get_project_version(sys.argv[1])
+    get_project_version()
