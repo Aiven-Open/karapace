@@ -1,11 +1,19 @@
-# Ignoring files that are specific to a given checkout, these change based on
-# the user commands and not on the repository history. They are not important
-# to determine the state of the repository and would invalidate the cache
-# layer.
-#
-# - .git/logs/HEAD - command history
-# - .git/index - binary file for the current index, very important for a
-#    working repository, not interesting for our image
-#
-.git/logs/HEAD
-.git/index
+# Ignore everything by default. Making as few files as possible part of default context
+# ensures only relevant changes will evict layer cache.
+*
+
+# Include source directories and files required for building.
+!karapace
+!requirements/*.txt
+!setup.py
+!version.py
+!README.rst
+!container/start.sh
+!container/healthcheck.py
+
+# Ignore some files in source directories.
+**/.DS_Store
+**/Thumbs.db
+**/*.pyc
+**/*.pyo
+**/__pycache__
