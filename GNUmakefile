@@ -75,3 +75,19 @@ cleaner: clean
 .PHONY: cleanest
 cleanest: cleaner
 	rm -fr '$(VENV_DIR)'
+
+BUF := buf
+
+ifeq (, $(shell which $(BUF)))
+	BUF := docker run --volume "$$(pwd):/workspace" --workdir /workspace bufbuild/buf
+endif
+
+.PHONY: proto
+protoc:
+	$(BUF) generate
+	$(BUF) format -w
+	$(BUF) lint
+
+.PHONY: proto-breaking
+proto-breaking:
+	$(BUF) breaking --against '.git#branch=main'

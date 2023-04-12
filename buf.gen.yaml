@@ -1,0 +1,8 @@
+version: v1
+managed:
+  enabled: true
+plugins:
+  - plugin: buf.build/protocolbuffers/python:v22.2
+    out: .
+  - plugin: buf.build/protocolbuffers/pyi:v22.2
+    out: .

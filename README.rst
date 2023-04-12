@@ -631,6 +631,30 @@ use at least Python 3.8 for the pre-commit checks. Use ``pipx`` or ``brew`` or
 … to install pre-commit and use the global installation, there is also no
 dependency on it.
 
+Generating from protobuf schema
+-------------------------------
+
+`Install buf <https://buf.build/docs/installation>`_ in your environment, or use
+a Docker alias like this:
+
+.. code-block:: bash
+
+    $ alias buf='docker run --volume "$(pwd):/workspace" --workdir /workspace bufbuild/buf'
+
+Makefile is configured to default to a Docker invocation if there is no `buf`
+command available. You can use the `proto` make target to format, lint, and
+generate Python files from protocol buffers.
+
+.. code-block:: bash
+
+    $ make proto
+
+To check compatibility of schema changes with `main`:
+
+.. code-block:: bash
+
+    $ make proto-breaking
+
 License
 =======
 

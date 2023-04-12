@@ -1,0 +1,29 @@
+name: Check generated protocol buffers
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  check-protobuf-schema:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: bufbuild/buf-setup-action@v1.17.0
+    - run: buf --version
+    - run: buf generate
+    - run: buf format -w
+    - run: |
+        diff=$(git --no-pager diff)
+        if [[ ! -z "$diff" ]]; then
+          echo '💥 Non-empty output from git diff, please run buf generate and format.'
+          echo
+          echo "$diff"
+          exit 1
+        fi
+        echo '✅ Generated schema is identical to default branch.'
+    - uses: bufbuild/buf-lint-action@v1
+    - uses: bufbuild/buf-breaking-action@v1
+      with:
+        against: https://github.com/aiven/karapace.git#branch=main
