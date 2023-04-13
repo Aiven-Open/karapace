@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from avro.errors import SchemaParseException
 from contextlib import AsyncExitStack
 from enum import Enum, unique
@@ -31,9 +33,9 @@ from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import Reference
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData, ResolvedVersion, SchemaId
+from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId
 from karapace.utils import JSONDecodeError
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import aiohttp
 import async_timeout
@@ -76,8 +78,8 @@ class SchemaErrorMessages(Enum):
     REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
 
 
-def references_list(references: Optional[Dict]) -> Optional[List[Reference]]:
-    _references: Optional[List[Reference]] = None
+def references_list(references: dict | None) -> list[Reference] | None:
+    _references: list[Reference] | None = None
     if references:
         _references = [Reference(reference["name"], reference["subject"], reference["version"]) for reference in references]
     return _references
@@ -87,7 +89,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     def __init__(self, config: Config) -> None:
         super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
 
-        self._auth: Optional[HTTPAuthorizer] = None
+        self._auth: HTTPAuthorizer | None = None
         if self.config["registry_authfile"] is not None:
             self._auth = HTTPAuthorizer(str(self.config["registry_authfile"]))
             self.app.on_startup.append(self._start_authorizer)
@@ -100,7 +102,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.app.on_startup.append(self._create_forward_client)
         self.health_hooks.append(self.schema_registry_health)
 
-    async def schema_registry_health(self) -> dict:
+    async def schema_registry_health(self) -> JsonObject:
         resp = {}
         if self._auth is not None:
             resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
@@ -127,7 +129,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         """Callback for aiohttp.Application.on_startup"""
         await self._auth.start_refresh_task(self.stats)
 
-    def _check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> None:
+    def _check_authorization(self, user: User | None, operation: Operation, resource: str) -> None:
         if self._auth:
             if not self._auth.check_authorization(user, operation, resource):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
@@ -317,7 +319,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
     def _subject_get(
         self, subject: str, content_type: str, include_deleted: bool = False
-    ) -> Dict[ResolvedVersion, SchemaVersion]:
+    ) -> dict[ResolvedVersion, SchemaVersion]:
         try:
             schema_versions = self.schema_registry.subject_get(subject, include_deleted)
         except SubjectNotFoundException:
@@ -355,7 +357,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def compatibility_check(
-        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         """Check for schema compatibility"""
 
@@ -434,7 +436,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
 
-    async def schemas_list(self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None):
+    async def schemas_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None):
         deleted = request.query.get("deleted", "false").lower() == "true"
         latest_only = request.query.get("latestOnly", "false").lower() == "true"
 
@@ -461,7 +463,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def schemas_get(
-        self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None, schema_id: str
+        self, content_type: str, *, request: HTTPRequest, user: User | None = None, schema_id: str
     ) -> None:
         try:
             schema_id_int = int(schema_id)
@@ -515,7 +517,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.r(response_body, content_type)
 
     async def schemas_get_versions(
-        self, content_type: str, *, schema_id: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, schema_id: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         try:
             schema_id_int = int(schema_id)
@@ -541,14 +543,14 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     async def schemas_types(self, content_type: str) -> None:
         self.r(["JSON", "AVRO", "PROTOBUF"], content_type)
 
-    async def config_get(self, content_type: str, *, user: Optional[User] = None) -> None:
+    async def config_get(self, content_type: str, *, user: User | None = None) -> None:
         self._check_authorization(user, Operation.Read, "Config:")
 
         # Note: The format sent by the user differs from the return value, this
         # is for compatibility reasons.
         self.r({"compatibilityLevel": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
 
-    async def config_set(self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None) -> None:
+    async def config_set(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
         self._check_authorization(user, Operation.Write, "Config:")
 
         body = request.json
@@ -577,7 +579,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
 
     async def config_subject_get(
-        self, content_type: str, subject: str, *, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, subject: str, *, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
@@ -620,7 +622,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         *,
         subject: str,
         request: HTTPRequest,
-        user: Optional[User] = None,
+        user: User | None = None,
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
 
@@ -655,7 +657,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         *,
         subject: str,
         request: HTTPRequest,
-        user: Optional[User] = None,
+        user: User | None = None,
     ) -> None:
         if self._auth:
             if not self._auth.check_authorization(user, Operation.Write, f"Subject:{subject}"):
@@ -674,7 +676,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
 
-    async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: Optional[User] = None) -> None:
+    async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
         deleted = request.query.get("deleted", "false").lower() == "true"
         subjects = self.schema_registry.database.find_subjects(include_deleted=deleted)
         if self._auth is not None:
@@ -687,7 +689,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.r(subjects, content_type, status=HTTPStatus.OK)
 
     async def subject_delete(
-        self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, subject: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
 
@@ -745,7 +747,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_get(
-        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
@@ -777,7 +779,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             self._invalid_version(content_type, version)
 
     async def subject_version_delete(
-        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
         version = validate_version(version)
@@ -848,7 +850,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(
-        self, content_type: str, *, subject: str, version: str, user: Optional[User] = None
+        self, content_type: str, *, subject: str, version: str, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
@@ -876,7 +878,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-    async def subject_version_referencedby_get(self, content_type, *, subject, version, user: Optional[User] = None):
+    async def subject_version_referencedby_get(self, content_type, *, subject, version, user: User | None = None):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
@@ -905,7 +907,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.r(referenced_by, content_type, status=HTTPStatus.OK)
 
     async def subject_versions_list(
-        self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, subject: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
         deleted = request.query.get("deleted", "false").lower() == "true"
@@ -934,7 +936,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-    def _validate_schema_request_body(self, content_type: str, body: Union[dict, Any]) -> None:
+    def _validate_schema_request_body(self, content_type: str, body: dict | Any) -> None:
         if not isinstance(body, dict):
             self.r(
                 body={
@@ -990,7 +992,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-    def _validate_references(self, content_type: str, schema_type: SchemaType, body: JsonData) -> Optional[List[Reference]]:
+    def _validate_references(self, content_type: str, schema_type: SchemaType, body: JsonData) -> list[Reference] | None:
         references = body.get("references", [])
         if references and schema_type != SchemaType.PROTOBUF:
             self.r(
@@ -1016,7 +1018,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         return None
 
     async def subjects_schema_post(
-        self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
+        self, content_type: str, *, subject: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
@@ -1123,7 +1125,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def subject_post(
-        self, content_type: str, *, subject: str, request: HTTPRequest, user: Optional[User] = None
+        self,
+        content_type: str,
+        *,
+        subject: str,
+        request: HTTPRequest,
+        user: User | None = None,
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
 
@@ -1207,14 +1214,14 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
 
-    def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema, include_deleted: bool) -> Optional[SchemaId]:
+    def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema, include_deleted: bool) -> SchemaId | None:
         schema_id = self.schema_registry.database.get_schema_id_if_exists(
             subject=subject, schema=schema, include_deleted=include_deleted
         )
         return schema_id
 
     async def _forward_request_remote(
-        self, *, request: HTTPRequest, body: Optional[dict], url: str, content_type: str, method: str = "POST"
+        self, *, request: HTTPRequest, body: dict | None, url: str, content_type: str, method: str = "POST"
     ) -> None:
         assert self._forward_client is not None, "Server must be initialized"
 
