@@ -36,6 +36,15 @@ repos:
   - id: pyupgrade
     args: [ --py38-plus ]
 
+- repo: https://github.com/pycqa/autoflake
+  rev: v2.0.2
+  hooks:
+    - id: autoflake
+      args:
+        - --in-place
+        - --remove-all-unused-imports
+        - --ignore-init-module-imports
+
 - repo: https://github.com/PyCQA/isort
   rev: 5.12.0
   hooks:
