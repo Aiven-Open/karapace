@@ -30,6 +30,7 @@ disable=
   use-list-literal,
   use-dict-literal,
   no-value-for-parameter,
+  relative-beyond-top-level,
 
 
 [FORMAT]

@@ -86,3 +86,8 @@ requirements:
 	pip install --upgrade pip setuptools pip-tools
 	cd requirements && pip-compile --upgrade --resolver=backtracking requirements.in
 	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-dev.in
+
+.PHONY: schema
+schema: against := main
+schema:
+	python3 -m karapace.backup.backends.v3.schema_tool --against=$(against)

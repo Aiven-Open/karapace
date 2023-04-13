@@ -1,0 +1,56 @@
+{
+  "fields": [
+    {
+      "name": "key",
+      "type": [
+        "bytes",
+        "null"
+      ]
+    },
+    {
+      "name": "value",
+      "type": [
+        "bytes",
+        "null"
+      ]
+    },
+    {
+      "name": "headers",
+      "type": {
+        "items": {
+          "fields": [
+            {
+              "name": "key",
+              "type": "bytes"
+            },
+            {
+              "name": "value",
+              "type": "bytes"
+            }
+          ],
+          "name": "Header",
+          "type": "record"
+        },
+        "name": "header",
+        "type": "array"
+      }
+    },
+    {
+      "name": "offset",
+      "type": "long"
+    },
+    {
+      "name": "timestamp",
+      "type": "long"
+    },
+    {
+      "name": "checksum_checkpoint",
+      "type": [
+        "bytes",
+        "null"
+      ]
+    }
+  ],
+  "name": "Record",
+  "type": "record"
+}

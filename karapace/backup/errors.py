@@ -3,13 +3,17 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from kafka.structs import TopicPartition
-from karapace.backup.consumer import PollTimeout
+from karapace.backup.poll_timeout import PollTimeout
 
 __all__ = ["BackupError", "PartitionCountError", "StaleConsumerError"]
 
 
 class BackupError(Exception):
     """Baseclass for all backup errors."""
+
+
+class EmptyPartition(BackupError):
+    ...
 
 
 class PartitionCountError(BackupError):

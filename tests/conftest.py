@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from avro.compatibility import SchemaCompatibilityResult
 from pathlib import Path
+from tempfile import mkstemp
 from typing import List, Optional
 
 import json
@@ -170,3 +171,11 @@ def fixture_default_config(session_logdir: Path) -> str:
         fp.flush()
         os.fsync(fp)
     return str(path)
+
+
+@pytest.fixture(name="tmp_file", scope="function")
+def fixture_tmp_file():
+    _, str_path = mkstemp()
+    path = Path(str_path)
+    yield path
+    path.unlink()
