@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.schema_references import Referents
+from karapace.typing import Version
 
 
 class VersionNotFoundException(Exception):
@@ -20,7 +22,15 @@ class InvalidSchema(Exception):
     pass
 
 
+class InvalidTest(Exception):
+    pass
+
+
 class InvalidSchemaType(Exception):
+    pass
+
+
+class InvalidReferences(Exception):
     pass
 
 
@@ -42,6 +52,13 @@ class SubjectNotFoundException(Exception):
 
 class SubjectNotSoftDeletedException(Exception):
     pass
+
+
+class ReferenceExistsException(Exception):
+    def __init__(self, referenced_by: Referents, version: Version):
+        super().__init__()
+        self.version = version
+        self.referenced_by = referenced_by
 
 
 class SubjectSoftDeletedException(Exception):

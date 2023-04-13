@@ -38,8 +38,9 @@ def compute_name(t: ProtoType, result_path: List[str], package_name: str, types:
 
 class CompareTypes:
     def __init__(self, self_package_name: str, other_package_name: str, result: CompareResult) -> None:
-        self.self_package_name = self_package_name
-        self.other_package_name = other_package_name
+        self.self_package_name = self_package_name or ""
+        self.other_package_name = other_package_name or ""
+
         self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
         self.locked_messages: List["MessageElement"] = []
@@ -93,8 +94,11 @@ class CompareTypes:
         if name is None:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
         type_record: TypeRecord = self.self_types.get(name)
-        if name.startswith(type_record.package_name):
-            return name[(len(type_record.package_name) + 1) :]
+        package_name = type_record.package_name
+        if package_name is None:
+            return name
+        if name.startswith(package_name):
+            return name[(len(package_name) + 1) :]
         return name
 
     def other_type_short_name(self, t: ProtoType) -> Optional[str]:
@@ -102,8 +106,11 @@ class CompareTypes:
         if name is None:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
         type_record: TypeRecord = self.other_types.get(name)
-        if name.startswith(type_record.package_name):
-            return name[(len(type_record.package_name) + 1) :]
+        package_name = type_record.package_name
+        if package_name is None:
+            return name
+        if name.startswith(package_name):
+            return name[(len(package_name) + 1) :]
         return name
 
     def lock_message(self, message: "MessageElement") -> bool:

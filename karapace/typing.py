@@ -2,7 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from typing import Dict, List, Mapping, Sequence, Union
+from typing import Any, Dict, List, Mapping, Sequence, Union
 from typing_extensions import TypeAlias
 
 JsonArray: TypeAlias = List["JsonData"]
@@ -16,8 +16,7 @@ ArgJsonObject: TypeAlias = Mapping[str, "ArgJsonData"]
 ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 
 Subject: TypeAlias = str
-
 Version: TypeAlias = Union[int, str]
 ResolvedVersion: TypeAlias = int
-
 SchemaId: TypeAlias = int
+Schema = Dict[str, Any]

@@ -6,9 +6,11 @@ from contextlib import AsyncExitStack, closing
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import Config
+from karapace.dependency import Dependency
 from karapace.errors import (
     IncompatibleSchema,
     InvalidVersion,
+    ReferenceExistsException,
     SchemasNotFoundException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
@@ -24,6 +26,7 @@ from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_references import Reference
 from karapace.typing import JsonObject, ResolvedVersion, Subject, Version
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -171,7 +174,11 @@ class KarapaceSchemaRegistry:
             version_list = []
             if permanent:
                 version_list = list(schema_versions)
-                latest_version_id = version_list[-1]
+                for version_id, schema_version in list(schema_versions.items()):
+                    referenced_by = self.schema_reader.get_referenced_by(subject, schema_version.version)
+                    if referenced_by and len(referenced_by) > 0:
+                        raise ReferenceExistsException(referenced_by, version_id)
+
                 for version_id, schema_version in list(schema_versions.items()):
                     LOG.info(
                         "Permanently deleting subject '%s' version %s (schema id=%s)",
@@ -180,8 +187,15 @@ class KarapaceSchemaRegistry:
                         schema_version.schema_id,
                     )
                     self.send_schema_message(
-                        subject=subject, schema=None, schema_id=schema_version.schema_id, version=version_id, deleted=True
+                        subject=subject,
+                        schema=None,
+                        schema_id=schema_version.schema_id,
+                        version=version_id,
+                        deleted=True,
+                        references=schema_version.references,
                     )
+                    if schema_version.references and len(schema_version.references) > 0:
+                        self.schema_reader.remove_referenced_by(schema_version.schema_id, schema_version.references)
             else:
                 try:
                     schema_versions_live = self.subject_get(subject, include_deleted=False)
@@ -190,6 +204,10 @@ class KarapaceSchemaRegistry:
                         latest_version_id = version_list[-1]
                 except SchemasNotFoundException:
                     pass
+
+                referenced_by = self.schema_reader.get_referenced_by(subject, latest_version_id)
+                if referenced_by and len(referenced_by) > 0:
+                    raise ReferenceExistsException(referenced_by, latest_version_id)
                 self.send_delete_subject_message(subject, latest_version_id)
 
             return version_list
@@ -215,13 +233,20 @@ class KarapaceSchemaRegistry:
             if permanent and not schema_version.deleted:
                 raise SchemaVersionNotSoftDeletedException()
 
+            referenced_by = self.schema_reader.get_referenced_by(subject, resolved_version)
+            if referenced_by and len(referenced_by) > 0:
+                raise ReferenceExistsException(referenced_by, version)
+
             self.send_schema_message(
                 subject=subject,
                 schema=None if permanent else schema_version.schema,
                 schema_id=schema_version.schema_id,
                 version=resolved_version,
                 deleted=True,
+                references=schema_version.references,
             )
+            if schema_version.references and len(schema_version.references) > 0:
+                self.schema_reader.remove_referenced_by(schema_version.schema_id, schema_version.references)
             return resolved_version
 
     def subject_get(self, subject: Subject, include_deleted: bool = False) -> Dict[ResolvedVersion, SchemaVersion]:
@@ -253,18 +278,39 @@ class KarapaceSchemaRegistry:
             "id": schema_id,
             "schema": schema.schema_str,
         }
+        if schema.references is not None:
+            ret["references"] = [reference.to_dict() for reference in schema.references]
         if schema.schema_type is not SchemaType.AVRO:
             ret["schemaType"] = schema.schema_type
         # Return also compatibility information to compatibility check
         compatibility = self.database.get_subject_compatibility(subject=subject)
         if compatibility:
             ret["compatibility"] = compatibility
+
         return ret
+
+    async def subject_version_referencedby_get(
+        self, subject: Subject, version: Version, *, include_deleted: bool = False
+    ) -> List:
+        validate_version(version)
+        schema_versions = self.subject_get(subject, include_deleted=include_deleted)
+        if not schema_versions:
+            raise SubjectNotFoundException()
+        resolved_version = _resolve_version(schema_versions=schema_versions, version=version)
+        schema_data: Optional[SchemaVersion] = schema_versions.get(resolved_version, None)
+        if not schema_data:
+            raise VersionNotFoundException()
+        referenced_by = self.schema_reader.get_referenced_by(schema_data.subject, schema_data.version)
+
+        if referenced_by and len(referenced_by) > 0:
+            return list(referenced_by)
+        return []
 
     async def write_new_schema_local(
         self,
         subject: Subject,
         new_schema: ValidatedTypedSchema,
+        new_schema_references: Optional[List[Reference]],
     ) -> int:
         """Write new schema and return new id or return id of matching existing schema
 
@@ -317,6 +363,7 @@ class KarapaceSchemaRegistry:
                         schema_id=schema_id,
                         version=version,
                         deleted=False,
+                        references=new_schema_references,
                     )
                     return schema_id
 
@@ -333,8 +380,15 @@ class KarapaceSchemaRegistry:
 
                 for old_version in check_against:
                     old_schema = all_schema_versions[old_version].schema
+                    old_schema_dependencies: Optional[Dict[str, Dependency]] = None
+                    old_schema_references: Optional[List[Reference]] = old_schema.references
+                    if old_schema_references:
+                        old_schema_dependencies = self.resolve_references(old_schema_references)
                     parsed_old_schema = ParsedTypedSchema.parse(
-                        schema_type=old_schema.schema_type, schema_str=old_schema.schema_str
+                        schema_type=old_schema.schema_type,
+                        schema_str=old_schema.schema_str,
+                        references=old_schema_references,
+                        dependencies=old_schema_dependencies,
                     )
                     result = check_compatibility(
                         old_schema=parsed_old_schema,
@@ -369,6 +423,7 @@ class KarapaceSchemaRegistry:
                 schema_id=schema_id,
                 version=version,
                 deleted=False,
+                references=new_schema_references,
             )
             return schema_id
 
@@ -392,6 +447,7 @@ class KarapaceSchemaRegistry:
         schema_id: int,
         version: int,
         deleted: bool,
+        references: Optional[List[Reference]],
     ) -> None:
         key = {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}
         if schema:
@@ -402,6 +458,8 @@ class KarapaceSchemaRegistry:
                 "schema": str(schema),
                 "deleted": deleted,
             }
+            if references:
+                value["references"] = [reference.to_dict() for reference in references]
             if schema.schema_type is not SchemaType.AVRO:
                 value["schemaType"] = schema.schema_type
         else:
@@ -416,6 +474,13 @@ class KarapaceSchemaRegistry:
     def send_config_subject_delete_message(self, subject: Subject) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "CONFIG"}
         self.producer.send_message(key=key, value=None)
+
+    def resolve_references(
+        self, references: Optional[Union[List[Reference], JsonObject]]
+    ) -> Optional[Dict[str, Dependency]]:
+        if references:
+            return self.schema_reader.resolve_references(references)
+        return None
 
     def send_delete_subject_message(self, subject: Subject, version: Version) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}

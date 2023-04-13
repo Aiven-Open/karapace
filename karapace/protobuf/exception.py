@@ -5,10 +5,6 @@ See LICENSE for details
 import json
 
 
-class ProtobufParserRuntimeException(Exception):
-    pass
-
-
 class IllegalStateException(Exception):
     pass
 
@@ -27,6 +23,10 @@ class ProtobufException(Error):
 
 class ProtobufTypeException(Error):
     """Generic Protobuf type error."""
+
+
+class ProtobufUnresolvedDependencyException(ProtobufException):
+    """a Protobuf schema has unresolved dependency"""
 
 
 class SchemaParseException(ProtobufException):

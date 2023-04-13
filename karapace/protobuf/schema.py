@@ -5,7 +5,9 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Schema.kt
 # Ported partially for required functionality.
+from karapace.dependency import Dependency, DependencyVerifierResult
 from karapace.protobuf.compare_result import CompareResult
+from karapace.protobuf.dependency import process_one_of, ProtobufDependencyVerifier
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.location import Location
@@ -13,7 +15,10 @@ from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
+from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from karapace.schema_references import Reference
+from typing import Dict, List, Optional
 
 
 def add_slashes(text: str) -> str:
@@ -104,12 +109,61 @@ def option_element_string(option: OptionElement) -> str:
 class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
-    def __init__(self, schema: str) -> None:
+    def __init__(
+        self, schema: str, references: Optional[List[Reference]] = None, dependencies: Optional[Dict[str, Dependency]] = None
+    ) -> None:
         if type(schema).__name__ != "str":
             raise IllegalArgumentException("Non str type of schema string")
         self.dirty = schema
         self.cache_string = ""
         self.proto_file_element = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
+        self.references = references
+        self.dependencies = dependencies
+
+    def verify_schema_dependencies(self) -> DependencyVerifierResult:
+        verifier = ProtobufDependencyVerifier()
+        self.collect_dependencies(verifier)
+        return verifier.verify()
+
+    def collect_dependencies(self, verifier: ProtobufDependencyVerifier) -> None:
+        if self.dependencies:
+            for key in self.dependencies:
+                self.dependencies[key].schema.schema.collect_dependencies(verifier)
+
+        # verifier.add_import?? we have no access to own Kafka structure from this class...
+        # but we need data to analyse imports to avoid cyclic dependencies...
+
+        package_name = self.proto_file_element.package_name
+        if package_name is None:
+            package_name = ""
+        else:
+            package_name = "." + package_name
+        for element_type in self.proto_file_element.types:
+            type_name = element_type.name
+            full_name = package_name + "." + type_name
+            verifier.add_declared_type(full_name)
+            verifier.add_declared_type(type_name)
+            if isinstance(element_type, MessageElement):
+                for one_of in element_type.one_ofs:
+                    process_one_of(verifier, package_name, type_name, one_of)
+                for field in element_type.fields:
+                    verifier.add_used_type(full_name, field.element_type)
+            for nested_type in element_type.nested_types:
+                self._process_nested_type(verifier, package_name, type_name, nested_type)
+
+    def _process_nested_type(
+        self, verifier: ProtobufDependencyVerifier, package_name: str, parent_name, element_type: TypeElement
+    ):
+        verifier.add_declared_type(package_name + "." + parent_name + "." + element_type.name)
+        verifier.add_declared_type(parent_name + "." + element_type.name)
+
+        if isinstance(element_type, MessageElement):
+            for one_of in element_type.one_ofs:
+                process_one_of(verifier, package_name, parent_name, one_of)
+            for field in element_type.fields:
+                verifier.add_used_type(parent_name, field.element_type)
+        for nested_type in element_type.nested_types:
+            self._process_nested_type(verifier, package_name, parent_name + "." + element_type.name, nested_type)
 
     def __str__(self) -> str:
         if not self.cache_string:
@@ -166,4 +220,9 @@ class ProtobufSchema:
         return "".join(strings)
 
     def compare(self, other: "ProtobufSchema", result: CompareResult) -> CompareResult:
-        self.proto_file_element.compare(other.proto_file_element, result)
+        return self.proto_file_element.compare(
+            other.proto_file_element,
+            result,
+            self_dependencies=self.dependencies,
+            other_dependencies=other.dependencies,
+        )

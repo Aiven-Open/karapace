@@ -26,7 +26,7 @@ class MessageElement(TypeElement):
         location: Location,
         name: str,
         documentation: str = "",
-        nested_types: List[str] = None,
+        nested_types: List[TypeElement] = None,
         options: List[OptionElement] = None,
         reserveds: List[ReservedElement] = None,
         fields: List[FieldElement] = None,
@@ -84,6 +84,8 @@ class MessageElement(TypeElement):
         return "".join(result)
 
     def compare(self, other: "MessageElement", result: CompareResult, types: CompareTypes) -> None:
+        from karapace.protobuf.compare_type_lists import compare_type_lists
+
         if types.lock_message(self):
             field: FieldElement
             subfield: FieldElement
@@ -141,5 +143,5 @@ class MessageElement(TypeElement):
                     self_one_ofs[name].compare(other_one_ofs[name], result, types)
 
                 result.pop_path()
-
+            compare_type_lists(self.nested_types, other.nested_types, result, types)
             types.unlock_message(self)
