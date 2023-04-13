@@ -1,0 +1,14 @@
+{
+  "fields": [
+    {
+      "name": "key",
+      "type": "bytes"
+    },
+    {
+      "name": "value",
+      "type": "bytes"
+    }
+  ],
+  "name": "Header",
+  "type": "record"
+}

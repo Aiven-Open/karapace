@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from datetime import timedelta
-from karapace.backup.consumer import PollTimeout
+from karapace.backup.poll_timeout import PollTimeout
 from typing import Union
 
 import pytest
@@ -26,5 +26,5 @@ class TestPollTimeout:
     def test__repr__(self) -> None:
         assert repr(PollTimeout.of(seconds=1, milliseconds=500)) == "PollTimeout(value='PT1.5S')"
 
-    def test_to_milliseconds(self) -> None:
-        assert PollTimeout(timedelta(milliseconds=1000.5)).to_milliseconds() == 1000
+    def test_milliseconds(self) -> None:
+        assert PollTimeout(timedelta(milliseconds=1000.5)).milliseconds == 1000

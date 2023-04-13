@@ -2,6 +2,7 @@
 accept-types<1
 aiohttp<4
 aiokafka<1
+dataclasses-avroschema<1
 isodate<1
 jsonschema<4
 networkx<3
@@ -11,6 +12,7 @@ tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
+xxhash~=3.0
 
 # Patched dependencies
 #

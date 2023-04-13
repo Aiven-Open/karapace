@@ -5,6 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from datetime import timedelta
+from functools import cached_property
 from isodate import duration_isoformat, parse_duration
 
 __all__ = ["PollTimeout"]
@@ -16,8 +17,6 @@ class PollTimeout:
     It may be necessary to adjust this value in case the cluster is slow. The value must be given in ISO8601 duration
     format (e.g. `PT1.5S` for 1,500 milliseconds) and must be at least on second. Defaults to one minute.
     """
-
-    __slots__ = ("__value",)
 
     def __init__(self, value: str | timedelta) -> None:
         self.__value = value if isinstance(value, timedelta) else parse_duration(value)
@@ -40,6 +39,7 @@ class PollTimeout:
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(value='{self}')"
 
-    def to_milliseconds(self) -> int:
+    @cached_property
+    def milliseconds(self) -> int:
         """Returns this poll timeout in milliseconds, anything smaller than a milliseconds is ignored (no rounding)."""
         return self.__value // timedelta(milliseconds=1)
