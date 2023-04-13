@@ -5,23 +5,29 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+from __future__ import annotations
+
 from functools import partial
 from http import HTTPStatus
 from karapace.config import Config
 from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
+from karapace.typing import JsonObject
 from karapace.utils import json_encode
-from typing import Callable, NoReturn, Optional, Union
+from typing import Awaitable, Callable, NoReturn
+from typing_extensions import TypeAlias
 
 import aiohttp.web
 import time
 
+HealthHook: TypeAlias = Callable[[], Awaitable[JsonObject]]
+
 
 class KarapaceBase(RestApp):
-    def __init__(self, config: Config, not_ready_handler: Optional[Callable[[HTTPRequest], None]] = None) -> None:
+    def __init__(self, config: Config, not_ready_handler: Callable[[HTTPRequest], None] | None = None) -> None:
         super().__init__(app_name="karapace", config=config, not_ready_handler=not_ready_handler)
 
         self._process_start_time = time.monotonic()
-        self.health_hooks = []
+        self.health_hooks: list[HealthHook] = []
         # Do not use rapu's etag, readiness and other wrapping
         self.app.router.add_route("GET", "/_health", self.health)
 
@@ -30,7 +36,7 @@ class KarapaceBase(RestApp):
         self.log.info("Karapace initialized")
 
     @staticmethod
-    def r(body: Union[dict, list], content_type: str, status: HTTPStatus = HTTPStatus.OK) -> NoReturn:
+    def r(body: dict | list, content_type: str, status: HTTPStatus = HTTPStatus.OK) -> NoReturn:
         raise HTTPResponse(
             body=body,
             status=status,
@@ -71,8 +77,8 @@ class KarapaceBase(RestApp):
     async def root_get(self) -> NoReturn:
         self.r({}, "application/json")
 
-    async def health(self, _request) -> aiohttp.web.Response:
-        resp = {"process_uptime_sec": int(time.monotonic() - self._process_start_time)}
+    async def health(self, _request: HTTPRequest) -> aiohttp.web.Response:
+        resp: JsonObject = {"process_uptime_sec": int(time.monotonic() - self._process_start_time)}
         for hook in self.health_hooks:
             resp.update(await hook())
         return aiohttp.web.Response(
