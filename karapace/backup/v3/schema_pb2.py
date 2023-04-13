@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fkarapace/backup/v3/schema.proto\x12\x12karapace.backup.v3\"\x80\x04\n\x08Metadata\x12\x18\n\x07version\x18\x01 \x01(\rR\x07version\x12 \n\ttool_name\x18\x02 \x01(\tH\x00R\x08toolName\x88\x01\x01\x12&\n\x0ctool_version\x18\x03 \x01(\tH\x01R\x0btoolVersion\x88\x01\x01\x12$\n\x0b\x63reate_time\x18\x04 \x01(\x03H\x02R\ncreateTime\x88\x01\x01\x12\x39\n\x16\x65stimated_record_count\x18\x05 \x01(\x04H\x03R\x14\x65stimatedRecordCount\x88\x01\x01\x12\"\n\ntopic_name\x18\x06 \x01(\tH\x04R\ttopicName\x88\x01\x01\x12,\n\x0fpartition_count\x18\x07 \x01(\rH\x05R\x0epartitionCount\x88\x01\x01\x12Y\n\x12\x63hecksum_algorithm\x18\x08 \x01(\x0e\x32%.karapace.backup.v3.ChecksumAlgorithmH\x06R\x11\x63hecksumAlgorithm\x88\x01\x01\x42\x0c\n\n_tool_nameB\x0f\n\r_tool_versionB\x0e\n\x0c_create_timeB\x19\n\x17_estimated_record_countB\r\n\x0b_topic_nameB\x12\n\x10_partition_countB\x15\n\x13_checksum_algorithm\"Z\n\x08\x45nvelope\x12\x32\n\x06record\x18\x01 \x01(\x0b\x32\x1a.karapace.backup.v3.RecordR\x06record\x12\x1a\n\x08\x63hecksum\x18\x02 \x01(\x0cR\x08\x63hecksum\"\x94\x02\n\x06Record\x12\x15\n\x03key\x18\x01 \x01(\x0cH\x00R\x03key\x88\x01\x01\x12\x19\n\x05value\x18\x02 \x01(\x0cH\x01R\x05value\x88\x01\x01\x12\x34\n\x07headers\x18\x03 \x03(\x0b\x32\x1a.karapace.backup.v3.HeaderR\x07headers\x12!\n\tpartition\x18\x04 \x01(\rH\x02R\tpartition\x88\x01\x01\x12\x1b\n\x06offset\x18\x05 \x01(\x04H\x03R\x06offset\x88\x01\x01\x12&\n\x0ctimestamp_ms\x18\x06 \x01(\x03H\x04R\x0btimestampMs\x88\x01\x01\x42\x06\n\x04_keyB\x08\n\x06_valueB\x0c\n\n_partitionB\t\n\x07_offsetB\x0f\n\r_timestamp_ms\"?\n\x06Header\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x19\n\x05value\x18\x02 \x01(\x0cH\x00R\x05value\x88\x01\x01\x42\x08\n\x06_value*]\n\x11\x43hecksumAlgorithm\x12\"\n\x1e\x43HECKSUM_ALGORITHM_UNSPECIFIED\x10\x00\x12$\n CHECKSUM_ALGORITHM_XXHASH3_64_BE\x10\x01\x42\x8f\x01\n\x16\x63om.karapace.backup.v3B\x0bSchemaProtoP\x01\xa2\x02\x03KBX\xaa\x02\x12Karapace.Backup.V3\xca\x02\x12Karapace\\Backup\\V3\xe2\x02\x1eKarapace\\Backup\\V3\\GPBMetadata\xea\x02\x14Karapace::Backup::V3b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fkarapace/backup/v3/schema.proto\x12\x12karapace.backup.v3\"\x80\x04\n\x08Metadata\x12\x18\n\x07version\x18\x01 \x01(\rR\x07version\x12 \n\ttool_name\x18\x02 \x01(\tH\x00R\x08toolName\x88\x01\x01\x12&\n\x0ctool_version\x18\x03 \x01(\tH\x01R\x0btoolVersion\x88\x01\x01\x12$\n\x0b\x63reate_time\x18\x04 \x01(\x03H\x02R\ncreateTime\x88\x01\x01\x12\x39\n\x16\x65stimated_record_count\x18\x05 \x01(\x04H\x03R\x14\x65stimatedRecordCount\x88\x01\x01\x12\"\n\ntopic_name\x18\x06 \x01(\tH\x04R\ttopicName\x88\x01\x01\x12,\n\x0fpartition_count\x18\x07 \x01(\rH\x05R\x0epartitionCount\x88\x01\x01\x12Y\n\x12\x63hecksum_algorithm\x18\x08 \x01(\x0e\x32%.karapace.backup.v3.ChecksumAlgorithmH\x06R\x11\x63hecksumAlgorithm\x88\x01\x01\x42\x0c\n\n_tool_nameB\x0f\n\r_tool_versionB\x0e\n\x0c_create_timeB\x19\n\x17_estimated_record_countB\r\n\x0b_topic_nameB\x12\n\x10_partition_countB\x15\n\x13_checksum_algorithm\">\n\x08\x45nvelope\x12\x16\n\x06record\x18\x01 \x01(\x0cR\x06record\x12\x1a\n\x08\x63hecksum\x18\x02 \x01(\x03R\x08\x63hecksum\"\x94\x02\n\x06Record\x12\x15\n\x03key\x18\x01 \x01(\x0cH\x00R\x03key\x88\x01\x01\x12\x19\n\x05value\x18\x02 \x01(\x0cH\x01R\x05value\x88\x01\x01\x12\x34\n\x07headers\x18\x03 \x03(\x0b\x32\x1a.karapace.backup.v3.HeaderR\x07headers\x12!\n\tpartition\x18\x04 \x01(\rH\x02R\tpartition\x88\x01\x01\x12\x1b\n\x06offset\x18\x05 \x01(\x04H\x03R\x06offset\x88\x01\x01\x12&\n\x0ctimestamp_ms\x18\x06 \x01(\x03H\x04R\x0btimestampMs\x88\x01\x01\x42\x06\n\x04_keyB\x08\n\x06_valueB\x0c\n\n_partitionB\t\n\x07_offsetB\x0f\n\r_timestamp_ms\"?\n\x06Header\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x19\n\x05value\x18\x02 \x01(\x0cH\x00R\x05value\x88\x01\x01\x42\x08\n\x06_value*]\n\x11\x43hecksumAlgorithm\x12\"\n\x1e\x43HECKSUM_ALGORITHM_UNSPECIFIED\x10\x00\x12$\n CHECKSUM_ALGORITHM_XXHASH3_64_BE\x10\x01\x42\x8f\x01\n\x16\x63om.karapace.backup.v3B\x0bSchemaProtoP\x01\xa2\x02\x03KBX\xaa\x02\x12Karapace.Backup.V3\xca\x02\x12Karapace\\Backup\\V3\xe2\x02\x1eKarapace\\Backup\\V3\\GPBMetadata\xea\x02\x14Karapace::Backup::V3b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,14 +22,14 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\026com.karapace.backup.v3B\013SchemaProtoP\001\242\002\003KBX\252\002\022Karapace.Backup.V3\312\002\022Karapace\\Backup\\V3\342\002\036Karapace\\Backup\\V3\\GPBMetadata\352\002\024Karapace::Backup::V3'
-  _globals['_CHECKSUMALGORITHM']._serialized_start=1006
-  _globals['_CHECKSUMALGORITHM']._serialized_end=1099
+  _globals['_CHECKSUMALGORITHM']._serialized_start=978
+  _globals['_CHECKSUMALGORITHM']._serialized_end=1071
   _globals['_METADATA']._serialized_start=56
   _globals['_METADATA']._serialized_end=568
   _globals['_ENVELOPE']._serialized_start=570
-  _globals['_ENVELOPE']._serialized_end=660
-  _globals['_RECORD']._serialized_start=663
-  _globals['_RECORD']._serialized_end=939
-  _globals['_HEADER']._serialized_start=941
-  _globals['_HEADER']._serialized_end=1004
+  _globals['_ENVELOPE']._serialized_end=632
+  _globals['_RECORD']._serialized_start=635
+  _globals['_RECORD']._serialized_end=911
+  _globals['_HEADER']._serialized_start=913
+  _globals['_HEADER']._serialized_end=976
 # @@protoc_insertion_point(module_scope)

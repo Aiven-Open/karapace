@@ -11,10 +11,10 @@
 // 2. The second byte is the backup format version, an unsigned 8-bit integer.
 //    This is always `\x03` for the backup format 3.[^1][^2]
 // 3. The next 4 bytes contain the byte count of the `Metadata` message that
-//    follows. The length is an unsigned 32-bit little-endian integer.[^3]
+//    follows. The length is an unsigned 32-bit big-endian integer.[^3]
 // 4. The `Metadata` message.
 // 5. Zero or more records follow:
-//    1. 4 bytes containing the unsigned 32-bit little-endian integer byte count
+//    1. 4 bytes containing the unsigned 32-bit big-endian integer byte count
 //       of the `Envelope` message that follows.[^3]
 //    2. The `Envelope` message.
 //
@@ -89,7 +89,7 @@ enum ChecksumAlgorithm {
 // checksum of the serialized record. This is used during backup restoration to
 // verify the integrity of each record as it is read.
 message Envelope {
-  Record record = 1;
+  bytes record = 1;
 
   // Checksum of the Protobuf serialized record in field 1. The algorithm is
   // specified in the backup metadata, and a checksum mismatch is going to fail
@@ -99,7 +99,7 @@ message Envelope {
   //
   // The standard algorithm used by Karapace is xxHash3 64 which always produces
   // its digest in big endian.
-  bytes checksum = 2;
+  int64 checksum = 2;
 }
 
 // The record contains all information that can be retrieved with a standard

@@ -37,9 +37,9 @@ class Envelope(_message.Message):
     __slots__ = ["record", "checksum"]
     RECORD_FIELD_NUMBER: _ClassVar[int]
     CHECKSUM_FIELD_NUMBER: _ClassVar[int]
-    record: Record
-    checksum: bytes
-    def __init__(self, record: _Optional[_Union[Record, _Mapping]] = ..., checksum: _Optional[bytes] = ...) -> None: ...
+    record: bytes
+    checksum: int
+    def __init__(self, record: _Optional[bytes] = ..., checksum: _Optional[int] = ...) -> None: ...
 
 class Record(_message.Message):
     __slots__ = ["key", "value", "headers", "partition", "offset", "timestamp_ms"]
