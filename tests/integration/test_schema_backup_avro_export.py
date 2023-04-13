@@ -6,7 +6,7 @@ See LICENSE for details
 """
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.schema_backup import anonymize_avro_schema_message, SchemaBackup
+from karapace.schema_backup import BackupVersion, SchemaBackup
 from karapace.utils import json_encode
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
@@ -116,7 +116,7 @@ async def test_export_anonymized_avro_schemas(
         }
     )
     sb = SchemaBackup(config, str(export_location))
-    sb.create(anonymize_avro_schema_message)
+    sb.create(BackupVersion.ANONYMIZE_AVRO)
 
     # The export file has been created
     assert os.path.exists(export_location)
