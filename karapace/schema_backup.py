@@ -1,5 +1,8 @@
 """
-karapace - schema backup
+karapace - schema backup frontend
+
+This is the frontend for schema backups, exposing a CLI and interacting with the various
+backup backends that implement the different schema format versions.
 
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
@@ -13,22 +16,23 @@ from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import TopicAlreadyExistsError
 from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
-from karapace.anonymize_schemas import anonymize_avro
 from karapace.backup.consumer import PollTimeout
 from karapace.backup.errors import BackupError, PartitionCountError, StaleConsumerError
 from karapace.config import Config, read_config
 from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.typing import JsonData, JsonObject
-from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
+from karapace.utils import assert_never, json_decode, json_encode, KarapaceKafkaClient
 from pathlib import Path
 from tempfile import mkstemp
 from tenacity import retry, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Any, Callable, Collection, Dict, Generator, IO, List, TextIO, Tuple
+from typing import AbstractSet, Callable, Collection, Final, Generator, IO, Iterable, Literal, TextIO
+from typing_extensions import TypeAlias
 
 import argparse
-import base64
 import contextlib
+import karapace.backup.v1.disk_format
+import karapace.backup.v2.disk_format
 import logging
 import os
 import sys
@@ -37,13 +41,38 @@ LOG = logging.getLogger(__name__)
 
 # Schema topic has single partition.
 # Use of this in `producer.send` disables the partitioner to calculate which partition the data is sent.
-PARTITION_ZERO = 0
-BACKUP_VERSION_2_MARKER = "/V2\n"
+PARTITION_ZERO: Final = 0
 
 
 class BackupVersion(Enum):
+    ANONYMIZE_AVRO = -1
     V1 = 1
     V2 = 2
+
+    @property
+    def marker(self) -> str:
+        if self is BackupVersion.V2 or self is BackupVersion.ANONYMIZE_AVRO:
+            return "/V2\n"
+        raise AttributeError(f"{self} has no marker")
+
+    @classmethod
+    def by_marker(cls, marker: str) -> BackupVersion:
+        for version in cls:
+            if version is BackupVersion.ANONYMIZE_AVRO:
+                continue
+            try:
+                version_marker = version.marker
+            except AttributeError:
+                continue
+            if marker == version_marker:
+                return version
+        raise ValueError("No BackupVersion matches the given marker")
+
+
+ValidCreateBackupVersion: TypeAlias = Literal[
+    BackupVersion.V2,
+    BackupVersion.ANONYMIZE_AVRO,
+]
 
 
 def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
@@ -274,15 +303,17 @@ def _writer(
                 pass
 
 
-def _check_backup_file_version(fp: IO) -> BackupVersion:
-    version_identifier = fp.read(4)
-    if version_identifier == BACKUP_VERSION_2_MARKER:
-        # Seek back to start, readline() to consume linefeed
+def _read_backup_file_version(fp: IO[str]) -> BackupVersion:
+    try:
+        version = BackupVersion.by_marker(fp.read(4))
+    except ValueError:
+        return BackupVersion.V1
+    finally:
+        # Seek back to start.
         fp.seek(0)
-        fp.readline()
-        return BackupVersion.V2
-    fp.seek(0)
-    return BackupVersion.V1
+    # Consume until linefeed.
+    fp.readline()
+    return version
 
 
 class SchemaBackup:
@@ -300,6 +331,10 @@ class SchemaBackup:
         if self.topic_name == constants.DEFAULT_SCHEMA_TOPIC or self.config.get("force_key_correction", False):
             self.key_formatter = KeyFormatter()
 
+    def _restore_items(self, producer: KafkaProducer, items: Iterable[tuple[str, str]]) -> None:
+        for item in items:
+            self._handle_restore_message(producer, item)
+
     def restore_backup(self) -> None:
         if not os.path.exists(self.backup_location):
             raise BackupError("Backup location doesn't exist")
@@ -310,10 +345,16 @@ class SchemaBackup:
             LOG.info("Starting backup restore for topic: %r", self.topic_name)
 
             with open(self.backup_location, encoding="utf8") as fp:
-                if _check_backup_file_version(fp) == BackupVersion.V2:
-                    self._restore_backup_version_2(producer, fp)
+                version = _read_backup_file_version(fp)
+                LOG.info("Identified backup format version: %s", version.name)
+                if version is BackupVersion.V2:
+                    items = karapace.backup.v2.disk_format.items_from_file(fp)
+                elif version is BackupVersion.V1:
+                    items = karapace.backup.v1.disk_format.items_from_file(fp)
                 else:
-                    self._restore_backup_version_1_single_array(producer, fp)
+                    assert version is not BackupVersion.ANONYMIZE_AVRO
+                    assert_never(version)
+                self._restore_items(producer, items)
             producer.flush(timeout=self.timeout_kafka_producer)
             if self.producer_exception is not None:
                 raise BackupError("Error while producing restored messages") from self.producer_exception
@@ -332,41 +373,16 @@ class SchemaBackup:
             partition=PARTITION_ZERO,
         ).add_errback(self.producer_error_callback)
 
-    def _restore_backup_version_1_single_array(self, producer: KafkaProducer, fp: IO) -> None:
-        raw_msg = fp.read()
-        # json_decode cannot really produce tuples. Typing was added in hindsight here,
-        # and it looks like _handle_restore_message has been lying about the type of
-        # item for some time already.
-        values = json_decode(raw_msg, List[Tuple[str, str]])
-
-        if not values:
-            return
-
-        for item in values:
-            self._handle_restore_message(producer, item)
-
-    def _restore_backup_version_2(self, producer: KafkaProducer, fp: IO) -> None:
-        for line in fp:
-            hex_key, hex_value = (val.strip() for val in line.split("\t"))  # strip to remove the linefeed
-
-            key = base64.b16decode(hex_key).decode("utf8") if hex_key != "null" else hex_key
-            value = base64.b16decode(hex_value.strip()).decode("utf8") if hex_value != "null" else hex_value
-            self._handle_restore_message(producer, (key, value))
-
     def create(
         self,
-        serialize: Callable[[bytes | None, bytes | None], str],
+        version: ValidCreateBackupVersion,
         *,
         poll_timeout: PollTimeout | None = None,
         overwrite: bool | None = None,
     ) -> None:
         """Creates a backup of the configured topic.
 
-        FIXME the serialize callback is obviously dangerous as part of the public API, since it cannot be guaranteed
-            that it produces a string that is actually version 2 compatible. We anyway have to introduce a version 3,
-            and this public API can be fixed along with the introduction of it.
-
-        :param serialize: callback that encodes the consumer record into the target backup format.
+        :param version: Specifies which format version to use for the backup.
         :param poll_timeout: specifies the maximum time to wait for receiving records, if not records are received
             within that time and the target offset has not been reached an exception is raised. Defaults to one minute.
         :param overwrite: the output file if it exists.
@@ -377,6 +393,13 @@ class SchemaBackup:
         :raises StaleConsumerError: if no records are received within the given ``poll_timeout`` and the target offset
             has not been reached yet.
         """
+        if version is BackupVersion.V2:
+            serialize_record = karapace.backup.v2.disk_format.serialize_record
+        elif version is BackupVersion.ANONYMIZE_AVRO:
+            serialize_record = karapace.backup.v2.disk_format.anonymize_avro_schema_message
+        else:
+            assert_never(version)
+
         if poll_timeout is None:
             poll_timeout = PollTimeout.default()
         poll_timeout_ms = poll_timeout.to_milliseconds()
@@ -389,34 +412,34 @@ class SchemaBackup:
             last_offset = start_offset
             record_count = 0
 
-            fp.write(BACKUP_VERSION_2_MARKER)
+            fp.write(version.marker)
             if start_offset < end_offset:  # non-empty topic
                 end_offset -= 1  # high watermark to actual end offset
                 print(
-                    "Started backup of %s:%s (offset %s to %s)...",
-                    topic,
-                    partition,
-                    f"{start_offset:,}",
-                    f"{end_offset:,}",
+                    (
+                        f"Started backup in format {version.name} of "
+                        f"{topic}:{partition} "
+                        f"(offset {start_offset:,} to {end_offset:,}) ..."
+                    ),
                     file=sys.stderr,
                 )
                 while True:
                     records: Collection[ConsumerRecord] = consumer.poll(poll_timeout_ms).get(topic_partition, [])
                     if len(records) == 0:
                         raise StaleConsumerError(topic_partition, start_offset, end_offset, last_offset, poll_timeout)
-                    record: ConsumerRecord
                     for record in records:
-                        fp.write(serialize(record.key, record.value))
+                        fp.write(serialize_record(record.key, record.value))
                         record_count += 1
-                    last_offset = record.offset
+                    last_offset = record.offset  # pylint: disable=undefined-loop-variable
                     if last_offset >= end_offset:
                         break
+
+            destination = "stdout" if fp is sys.stdout else self.backup_location
             print(
-                "Finished backup of %s:%s to %r (backed up %s records).",
-                topic,
-                partition,
-                "stdout" if fp is sys.stdout else self.backup_location,
-                f"{record_count:,}",
+                (
+                    f"Finished backup in format {version.name} of {topic}:{partition} "
+                    f"to {destination!r} (backed up {record_count:,} records)."
+                ),
                 file=sys.stderr,
             )
 
@@ -432,45 +455,12 @@ class SchemaBackup:
         return self.key_formatter.format_key(key)
 
 
-def encode_value(value: JsonData | str) -> bytes | None:
+def encode_value(value: JsonData) -> bytes | None:
     if value == "null":
         return None
     if isinstance(value, str):
         return value.encode("utf8")
     return json_encode(value, compact=True, sort_keys=False, binary=True)
-
-
-def serialize_record(key_bytes: bytes | None, value_bytes: bytes | None) -> str:
-    key = base64.b16encode(key_bytes).decode("utf8") if key_bytes is not None else "null"
-    value = base64.b16encode(value_bytes).decode("utf8") if value_bytes is not None else "null"
-    return f"{key}\t{value}\n"
-
-
-def anonymize_avro_schema_message(key_bytes: bytes | None, value_bytes: bytes | None) -> str:
-    if key_bytes is None:
-        raise RuntimeError("Cannot Avro-encode message with key_bytes=None")
-    if value_bytes is None:
-        raise RuntimeError("Cannot Avro-encode message with value_bytes=None")
-    # Check that the message has key `schema` and type is Avro schema.
-    # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
-
-    key = json_decode(key_bytes, Dict[str, str])
-    value = json_decode(value_bytes, Dict[str, str])
-
-    if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
-        original_schema: Any = json_decode(value["schema"])
-        anonymized_schema = anonymize_avro.anonymize(original_schema)
-        if anonymized_schema:
-            value["schema"] = json_encode(anonymized_schema, compact=True, sort_keys=False)
-    if value and "subject" in value:
-        value["subject"] = anonymize_avro.anonymize_name(value["subject"])
-    # The schemas topic contain all changes to schema metadata.
-    if key.get("subject", None):
-        key["subject"] = anonymize_avro.anonymize_name(key["subject"])
-    return serialize_record(
-        json_encode(key, compact=True, binary=True),
-        json_encode(value, compact=True, binary=True),
-    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -505,11 +495,19 @@ def main() -> None:
 
         try:
             if args.command == "get":
-                sb.create(serialize_record, poll_timeout=args.poll_timeout, overwrite=args.overwrite)
+                sb.create(
+                    BackupVersion.V2,
+                    poll_timeout=args.poll_timeout,
+                    overwrite=args.overwrite,
+                )
             elif args.command == "restore":
                 sb.restore_backup()
             elif args.command == "export-anonymized-avro-schemas":
-                sb.create(anonymize_avro_schema_message, poll_timeout=args.poll_timeout, overwrite=args.overwrite)
+                sb.create(
+                    BackupVersion.ANONYMIZE_AVRO,
+                    poll_timeout=args.poll_timeout,
+                    overwrite=args.overwrite,
+                )
             else:
                 # Only reachable if a new subcommand was added that is not mapped above. There are other ways with
                 # argparse to handle this, but all rely on the programmer doing exactly the right thing. Only switching
