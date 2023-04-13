@@ -15,6 +15,7 @@ from decimal import Decimal
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient
 from karapace.typing import ArgJsonData, JsonData
+from pathlib import Path
 from types import MappingProxyType
 from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
 
@@ -150,6 +151,10 @@ def json_decode(
 
 def assert_never(value: NoReturn) -> NoReturn:
     raise RuntimeError(f"This code should never be reached, got: {value}")
+
+
+def get_project_root() -> Path:
+    return Path(__file__).parent.parent
 
 
 class Timeout(Exception):

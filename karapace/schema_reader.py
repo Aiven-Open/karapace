@@ -4,7 +4,9 @@ karapace - Kafka schema reader
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from avro.schema import Schema as AvroSchema
 from contextlib import closing, ExitStack
+from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer, TopicPartition
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import (
@@ -17,17 +19,22 @@ from kafka.errors import (
 )
 from karapace import constants
 from karapace.config import Config
-from karapace.errors import InvalidSchema
+from karapace.dependency import Dependency
+from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_models import SchemaType, TypedSchema
+from karapace.protobuf.schema import ProtobufSchema
+from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, SchemaVersion, TypedSchema
+from karapace.schema_references import Reference, Referents
 from karapace.statsd import StatsClient
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
-from typing import Optional
+from typing import Dict, List, Optional, Union
 
+import json
 import logging
 import time
 
@@ -43,7 +50,6 @@ LOG = logging.getLogger(__name__)
 
 KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS = 2.0
 SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS = 5.0
-
 
 # Metric names
 METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT = "karapace_schema_reader_records_processed"
@@ -116,6 +122,7 @@ class KafkaSchemaReader(Thread):
         self.master_coordinator = master_coordinator
         self.timeout_ms = 200
         self.config = config
+
         self.database = database
         self.admin_client: Optional[KafkaAdminClient] = None
         self.topic_replication_factor = self.config["replication_factor"]
@@ -381,7 +388,6 @@ class KafkaSchemaReader(Thread):
             if self.database.find_subject(subject=subject) is None:
                 LOG.info("Adding first version of subject: %r with no schemas", subject)
                 self.database.insert_subject(subject=subject)
-
             if not value:
                 LOG.info("Deleting compatibility config completely for subject: %r", subject)
                 self.database.delete_subject_compatibility(subject=subject)
@@ -430,6 +436,9 @@ class KafkaSchemaReader(Thread):
         schema_id = value["id"]
         schema_version = value["version"]
         schema_deleted = value.get("deleted", False)
+        schema_references = value.get("references", None)
+        resolved_references: Optional[List[Reference]] = None
+        resolved_dependencies: Optional[Dict[str, Dependency]] = None
 
         try:
             schema_type_parsed = SchemaType(schema_type)
@@ -443,20 +452,60 @@ class KafkaSchemaReader(Thread):
         # won't interfere with the equality. Note: This means it is possible
         # for the REST API to return data that is formatted differently from
         # what is available in the topic.
+
+        parsed_schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None
+        resolved_dependencies: Optional[Dict[str, Dependency]] = None
+        if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
+            try:
+                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+            except json.JSONDecodeError:
+                LOG.error("Schema is not valid JSON")
+                return
+        elif schema_type_parsed == SchemaType.PROTOBUF:
+            try:
+                if schema_references:
+                    resolved_references = [
+                        Reference(reference["name"], reference["subject"], reference["version"])
+                        for reference in schema_references
+                    ]
+                    resolved_dependencies = self.resolve_references(resolved_references)
+                parsed_schema = parse_protobuf_schema_definition(
+                    schema_str,
+                    resolved_references,
+                    resolved_dependencies,
+                    validate_references=False,
+                )
+                schema_str = str(parsed_schema)
+            except InvalidSchema:
+                LOG.exception("Schema is not valid ProtoBuf definition")
+                return
+            except InvalidReferences:
+                LOG.exception("Invalid Protobuf references")
+                return
+
         try:
             typed_schema = TypedSchema(
                 schema_type=schema_type_parsed,
                 schema_str=schema_str,
+                references=resolved_references,
+                dependencies=resolved_dependencies,
+                schema=parsed_schema,
             )
         except (InvalidSchema, JSONDecodeError):
             return
+
         self.database.insert_schema_version(
             subject=schema_subject,
             schema_id=schema_id,
             version=schema_version,
             deleted=schema_deleted,
             schema=typed_schema,
+            references=resolved_references,
         )
+
+        if resolved_references:
+            for ref in resolved_references:
+                self.database.insert_referenced_by(subject=ref.subject, version=ref.version, schema_id=schema_id)
 
     def handle_msg(self, key: dict, value: Optional[dict]) -> None:
         if key["keytype"] == "CONFIG":
@@ -467,3 +516,36 @@ class KafkaSchemaReader(Thread):
             self._handle_msg_delete_subject(key, value)
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
+
+    def remove_referenced_by(self, schema_id: SchemaId, references: List[Reference]):
+        self.database.remove_referenced_by(schema_id, references)
+
+    def get_referenced_by(self, subject: Subject, version: ResolvedVersion) -> Optional[Referents]:
+        return self.database.get_referenced_by(subject, version)
+
+    def _resolve_reference(self, reference: Reference) -> Dependency:
+        subject_data = self.database.find_subject_schemas(subject=reference.subject, include_deleted=False)
+        if not subject_data:
+            raise InvalidReferences(f"Subject not found {reference.subject}.")
+        schema_version: SchemaVersion = subject_data.get(reference.version, None)
+        if schema_version is None:
+            raise InvalidReferences(f"Subject {reference.subject} has no such schema version")
+        schema: TypedSchema = schema_version.schema
+        if not schema:
+            raise InvalidReferences(f"No schema in {reference.subject} with version {reference.version}.")
+        if schema.references:
+            schema_dependencies = self.resolve_references(schema.references)
+            if schema.dependencies is None:
+                schema.dependencies = schema_dependencies
+        return Dependency.of(reference, schema)
+
+    def resolve_references(self, references: Union[List[Reference], JsonObject]) -> Dict[str, Dependency]:
+        dependencies: Dict[str, Dependency] = dict()
+        for reference in references:
+            if isinstance(reference, Reference):
+                dependencies[reference.name] = self._resolve_reference(reference)
+            else:
+                dependencies[reference["name"]] = self._resolve_reference(
+                    Reference(reference["name"], reference["subject"], reference["version"])
+                )
+        return dependencies

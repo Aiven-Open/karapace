@@ -16,4 +16,5 @@ __pycache__/
 /kafka_*/
 venv
 /karapace/version.py
+.run
 .python-version

@@ -146,6 +146,7 @@ class FieldElement:
 
         self_type_record = types.get_self_type(self_type)
         other_type_record = types.get_other_type(other_type)
+
         self_type_element: MessageElement = self_type_record.type_element
         other_type_element: MessageElement = other_type_record.type_element
 
@@ -153,3 +154,9 @@ class FieldElement:
             result.add_modification(Modification.FIELD_NAME_ALTER)
         else:
             self_type_element.compare(other_type_element, result, types)
+
+    def __repr__(self):
+        return f"{self.element_type} {self.name} = {self.tag}"
+
+    def __str__(self):
+        return f"{self.element_type} {self.name} = {self.tag}"
