@@ -4,12 +4,13 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ServiceElement.kt
+from __future__ import annotations
+
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import List
 
 
 @dataclass
@@ -17,11 +18,11 @@ class ServiceElement:
     location: Location
     name: str
     documentation: str = ""
-    rpcs: List[RpcElement] = None
-    options: List[OptionElement] = None
+    rpcs: list[RpcElement] | None = None
+    options: list[OptionElement] | None = None
 
     def to_schema(self) -> str:
-        result: List[str] = []
+        result: list[str] = []
         append_documentation(result, self.documentation)
         result.append(f"service {self.name} {{")
         if self.options:

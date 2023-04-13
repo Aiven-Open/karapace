@@ -519,7 +519,11 @@ class ProtoParser:
         self.reader.expect_with_location(a, location, "'reserved' must have at least one field name or tag")
         my_documentation = self.reader.try_append_trailing_documentation(documentation)
 
-        return ReservedElement(location, my_documentation, values)
+        return ReservedElement(
+            location=location,
+            documentation=my_documentation,
+            values=values,
+        )
 
     def read_extensions(self, location: Location, documentation: str) -> ExtensionsElement:
         """Reads extensions like "extensions 101;" or "extensions 101 to max;"."""
