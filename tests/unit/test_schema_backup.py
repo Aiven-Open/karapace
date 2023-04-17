@@ -7,9 +7,10 @@ from kafka.admin import NewTopic
 from kafka.errors import TopicAlreadyExistsError
 from kafka.structs import PartitionMetadata
 from karapace import config
+from karapace.backup.api import _admin, _consumer, _maybe_create_topic, _producer, _writer
+from karapace.backup.errors import PartitionCountError
 from karapace.config import Config
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
-from karapace.schema_backup import _admin, _consumer, _maybe_create_topic, _producer, _writer, PartitionCountError
 from pathlib import Path
 from types import FunctionType
 from typing import AbstractSet, Callable, List, Type, Union
