@@ -4,9 +4,9 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.backup.api import BackupVersion, SchemaBackup
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.schema_backup import BackupVersion, SchemaBackup
 from karapace.utils import json_encode
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription

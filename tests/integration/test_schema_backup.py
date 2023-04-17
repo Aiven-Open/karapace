@@ -6,12 +6,13 @@ See LICENSE for details
 """
 from datetime import timedelta
 from kafka import KafkaConsumer
+from karapace.backup.api import BackupVersion, SchemaBackup
+from karapace.backup.consumer import PollTimeout
 from karapace.backup.errors import StaleConsumerError
 from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.key_format import is_key_in_canonical_format
-from karapace.schema_backup import BackupVersion, PollTimeout, SchemaBackup
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
