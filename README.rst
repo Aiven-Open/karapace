@@ -553,10 +553,24 @@ Example of complete authorization file
         ]
     }
 
+Public API surface and versioning
+=================================
+
+Karapace is mainly an application and decidedly not a library. It's exposing a
+REST API, as well as a few commands documented here. It's important to note that
+only those documented entrypoints are considered "public" APIs, everything else
+is considered internal implementation details and should be expected to change
+without notice, even between patch versions of Karapace.
+
+For the entry-points that are considered "public", Karapace follows `semantic
+versioning`_, with a ``major.minor.patch`` schema.
+
+.. _`semantic versioning`: https://semver.org/
+
 Uninstall
 =========
 
-To unistall Karapace from the system you can follow the instructions described below. We would love to hear your reasons for uninstalling though. Please file an issue if you experience any problems or email us_ with feedback
+To uninstall Karapace from the system you can follow the instructions described below. We would love to hear your reasons for uninstalling though. Please file an issue if you experience any problems or email us_ with feedback
 
 .. _`us`: mailto:opensource@aiven.io
 
