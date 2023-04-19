@@ -33,7 +33,7 @@ venv/.make:
 
 .PHONY: install
 install: venv/.deps
-venv/.deps: requirements-dev.txt requirements.txt | venv/.make
+venv/.deps: requirements/requirements-dev.txt requirements/requirements.txt | venv/.make
 	set +x
 	source ./bin/get-java
 	source ./bin/get-protoc
@@ -75,3 +75,10 @@ cleaner: clean
 .PHONY: cleanest
 cleanest: cleaner
 	rm -fr '$(VENV_DIR)'
+
+.PHONY: requirements
+requirements: export CUSTOM_COMPILE_COMMAND='make requirements'
+requirements:
+	pip install --upgrade pip setuptools pip-tools
+	pip-compile --upgrade --resolver=backtracking requirements/requirements.in
+	pip-compile --upgrade --resolver=backtracking requirements/requirements-dev.in

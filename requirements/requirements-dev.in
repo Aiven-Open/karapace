@@ -1,0 +1,19 @@
+# runtime requirements
+-r requirements.txt
+
+# Developer QoL
+pdbpp
+
+# testing
+filelock
+pytest
+pytest-xdist[psutil]
+pytest-timeout
+psutil
+requests
+
+# performance test
+locust
+
+# Sentry SDK
+sentry-sdk
