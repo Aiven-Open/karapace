@@ -4,7 +4,9 @@ See LICENSE for details
 """
 from contextlib import contextmanager
 
+import platform
 import psutil
+import random
 import socket
 
 
@@ -29,7 +31,8 @@ class PortRangeInclusive:
 
         self.start = start
         self.end = end
-        self._maybe_available = list(range(start, end + 1))
+        self._maybe_available = range(start, end + 1)
+        self._allocated = set()
 
     def next_range(self, number_of_ports: int) -> "PortRangeInclusive":
         next_start = self.end
@@ -52,21 +55,29 @@ class PortRangeInclusive:
         if len(self._maybe_available) == 0:
             raise RuntimeError(f"No free ports available. start: {self.start} end: {self.end}")
 
-        filtered_ports = ((pos, port) for pos, port in enumerate(self._maybe_available) if not is_time_wait(port))
+        unallocated = [port for port in self._maybe_available if port not in self._allocated]
+
+        if platform.platform().lower().startswith("linux"):
+            filtered_ports = (port for port in unallocated if not is_time_wait(port))
+            try:
+                port = next(filtered_ports)
+            except StopIteration as e:
+                raise RuntimeError(
+                    f"No free ports available. start: {self.start} end: {self.end} time_wait: {unallocated}"
+                ) from e
+        else:
+            # psutil.net_connections requires running as privileged user on Macos, so we
+            # put our trust in entropy instead.
+            port = random.choice(unallocated)
+
+        self._allocated.add(port)
 
         try:
-            pos, port = next(filtered_ports)
-        except StopIteration as e:
-            raise RuntimeError(
-                f"No free ports available. start: {self.start} end: {self.end} time_wait: {self._maybe_available}"
-            ) from e
-
-        self._maybe_available.pop(pos)
-        yield port
-
-        # Append the port at the end, this is a hack to give extra time for a TIME_WAIT socket to
-        # close, but it is not sufficient.
-        self._maybe_available.append(port)
+            yield port
+        finally:
+            # Remove the port at the end, this is a hack to give extra time for a TIME_WAIT socket to
+            # close, but it is not sufficient.
+            self._allocated.remove(port)
 
 
 def port_is_listening(hostname: str, port: int, ipv6: bool) -> bool:
