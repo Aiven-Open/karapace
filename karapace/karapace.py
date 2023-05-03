@@ -13,6 +13,7 @@ from karapace.config import Config
 from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.typing import JsonObject
 from karapace.utils import json_encode
+from karapace.version import __version__
 from typing import Awaitable, Callable, NoReturn
 from typing_extensions import TypeAlias
 
@@ -78,7 +79,11 @@ class KarapaceBase(RestApp):
         self.r({}, "application/json")
 
     async def health(self, _request: HTTPRequest) -> aiohttp.web.Response:
-        resp: JsonObject = {"process_uptime_sec": int(time.monotonic() - self._process_start_time)}
+        resp: JsonObject = {
+            "process_uptime_sec": int(time.monotonic() - self._process_start_time),
+            "karapace_version": __version__,
+        }
+
         for hook in self.health_hooks:
             resp.update(await hook())
         return aiohttp.web.Response(
