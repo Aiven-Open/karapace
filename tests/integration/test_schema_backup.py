@@ -6,12 +6,13 @@ See LICENSE for details
 """
 from datetime import timedelta
 from kafka import KafkaConsumer
+from karapace.backup.api import BackupVersion, SchemaBackup
+from karapace.backup.consumer import PollTimeout
 from karapace.backup.errors import StaleConsumerError
 from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.key_format import is_key_in_canonical_format
-from karapace.schema_backup import PollTimeout, SchemaBackup, serialize_record
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
@@ -55,7 +56,7 @@ async def test_backup_get(
         }
     )
     sb = SchemaBackup(config, str(backup_location))
-    sb.create(serialize_record)
+    sb.create(BackupVersion.V2)
 
     # The backup file has been created
     assert os.path.exists(backup_location)
@@ -93,7 +94,7 @@ async def test_backup_restore_and_get_non_schema_topic(
     # Get the backup
     backup_location = tmp_path / "non_schemas_topic.log"
     sb = SchemaBackup(config, str(backup_location), topic_option=test_topic_name)
-    sb.create(serialize_record)
+    sb.create(BackupVersion.V2)
     # The backup file has been created
     assert os.path.exists(backup_location)
 
@@ -237,7 +238,7 @@ async def test_stale_consumer(
         with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}._poll_once") as poll_once_mock:
             poll_once_mock.return_value = {}
             SchemaBackup(config, str(tmp_path / "backup")).create(
-                serialize_record,
+                BackupVersion.V2,
                 poll_timeout=PollTimeout(timedelta(seconds=1)),
             )
     assert str(e.value) == f"{registry_cluster.schemas_topic}:0#0 (0,0) after PT1S"
