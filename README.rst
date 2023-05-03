@@ -59,9 +59,9 @@ To get you up and running with the latest build of Karapace, a docker image is a
   # Fetch the latest release
   docker pull ghcr.io/aiven/karapace:latest
 
-An example setup including configuration and Kafka connection is available as docker-compose example::
+An example setup including configuration and Kafka connection is available as compose example::
 
-    docker-compose -f ./container/docker-compose.yml up -d
+    docker compose -f ./container/compose.yml up -d
 
 Then you should be able to reach two sets of endpoints:
 

@@ -1,0 +1,37 @@
+name: Smoke test Docker image
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  smoke-test-container:
+    runs-on: ubuntu-latest
+    env:
+      BUILDKIT_PROGRESS: plain
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build and start services
+        run: docker compose --file=container/compose.yml up --build --wait --detach
+
+      - name: Smoke test registry
+        run: |
+          response=$(
+            curl --silent --verbose --fail --request POST \
+              --header 'Content-Type: application/vnd.schemaregistry.v1+json' \
+              --data '{"schema": "{\"type\": \"record\", \"name\": \"Obj\", \"fields\":[{\"name\": \"age\", \"type\": \"int\"}]}"}' \
+              http://localhost:8081/subjects/test-key/versions
+          )
+          echo "$response"
+          [[ $response == '{"id":1}' ]] || exit 1
+          echo "Ok!"
+
+      - name: Smoke test REST proxy
+        run: |
+          response=$(curl --silent --verbose --fail http://localhost:8082/topics)
+          echo "$response"
+          [[ $response == '["_schemas","__consumer_offsets"]' ]] || exit 1
+          echo "Ok!"

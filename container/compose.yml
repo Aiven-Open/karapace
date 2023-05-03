@@ -56,6 +56,9 @@ services:
 
   karapace-registry:
     image: ghcr.io/aiven/karapace:develop
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
     entrypoint:
       - /bin/bash
       - /opt/karapace/start.sh
@@ -78,6 +81,9 @@ services:
 
   karapace-rest:
     image: ghcr.io/aiven/karapace:develop
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
     entrypoint:
       - /bin/bash
       - /opt/karapace/start.sh
