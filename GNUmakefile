@@ -1,3 +1,5 @@
+SHELL := /usr/bin/env bash
+
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
@@ -80,5 +82,5 @@ cleanest: cleaner
 requirements: export CUSTOM_COMPILE_COMMAND='make requirements'
 requirements:
 	pip install --upgrade pip setuptools pip-tools
-	pip-compile --upgrade --resolver=backtracking requirements/requirements.in
-	pip-compile --upgrade --resolver=backtracking requirements/requirements-dev.in
+	cd requirements && pip-compile --upgrade --resolver=backtracking requirements.in
+	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-dev.in
