@@ -5,7 +5,7 @@ Install development requirements per instructions from `README.rst <../README.rs
 
 Requires Kafka and Zookeeper running in the containers::
   cd ../container
-  docker-compose start zookeeper kafka
+  docker compose start zookeeper kafka
 
 Create if necessary the `_schemas` topic to Kafka::
   docker exec -it <KAFKA_POD_ID> bash

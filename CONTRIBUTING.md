@@ -83,7 +83,7 @@ To use your development code, you need to set up a Kafka server and run Karapace
 virtual environment:
 
 ```
-docker-compose -f ./container/docker-compose.yml up -d kafka
+docker compose -f ./container/compose.yml up -d kafka
 karapace karapace.config.json
 ```
 
