@@ -994,6 +994,18 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
     def _validate_references(self, content_type: str, schema_type: SchemaType, body: JsonData) -> list[Reference] | None:
         references = body.get("references", [])
+        # Allow passing `null` as value for compatibility
+        if references is None:
+            return None
+        if not isinstance(references, list):
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.HTTP_BAD_REQUEST.value,
+                    "message": "Expected array of `references`",
+                },
+                content_type=content_type,
+                status=HTTPStatus.BAD_REQUEST,
+            )
         if references and schema_type != SchemaType.PROTOBUF:
             self.r(
                 body={
