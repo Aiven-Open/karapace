@@ -145,7 +145,7 @@ def configure_and_start_kafka(
         ]
     )
 
-    # Keep in sync with containers/docker-compose.yml
+    # Keep in sync with containers/compose.yml
     kafka_ini = {
         "broker.id": 1,
         "broker.rack": "local",

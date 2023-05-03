@@ -65,6 +65,8 @@ RUN pip3 install --no-deps /build/karapace-wheel/*.whl && rm -rf /build/karapace
 COPY ./container/start.sh /opt/karapace
 RUN chmod 500 /opt/karapace/start.sh && chown karapace:karapace /opt/karapace/start.sh
 
+COPY ./container/healthcheck.py /opt/karapace
+
 WORKDIR /opt/karapace
 USER karapace
 
@@ -74,3 +76,6 @@ ARG COMMIT
 LABEL org.opencontainers.image.created=$CREATED \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$COMMIT
+
+HEALTHCHECK --interval=10s --timeout=30s --retries=3 --start-period=60s \
+    CMD python3 healthcheck.py http://localhost:$KARAPACE_PORT/_health || exit 1
