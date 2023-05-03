@@ -29,6 +29,7 @@ disable=
   no-name-in-module,
   use-list-literal,
   use-dict-literal,
+  no-value-for-parameter,
 
 
 [FORMAT]
