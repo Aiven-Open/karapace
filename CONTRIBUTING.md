@@ -23,7 +23,7 @@ pip install -r ./requirements/requirements-dev.txt
 pip install -e .
 ```
 
-##Website
+## Website
 
 Karapace documentation is part of this GitHub repository. You can find it in `website` folder. Its `README` file contains instructions explaining how you can run documentation website locally.
 
