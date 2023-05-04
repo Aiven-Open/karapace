@@ -2,12 +2,7 @@
 # generate wheel files.
 FROM debian:stable-slim AS builder
 
-LABEL org.opencontainers.image.authors=opensource@aiven.io \
-      org.opencontainers.image.url=https://karapace.io \
-      org.opencontainers.image.documentation=https://github.com/aiven/karapace/ \
-      org.opencontainers.image.source=https://github.com/aiven/karapace/ \
-      org.opencontainers.image.vendor=Aiven \
-      org.opencontainers.image.licenses=Apache-2.0
+ARG KARAPACE_VERSION
 
 # Build dependencies that need to be installed:
 # - git: Used to install dependencies directly from their public repos (release
@@ -39,14 +34,6 @@ RUN pip3 wheel --no-deps /build/karapace-repo --wheel-dir /build/karapace-wheel
 # Karapace image.
 FROM debian:stable-slim AS karapace
 
-# Labels must be redefined beucase the base image is debian
-LABEL org.opencontainers.image.authors=opensource@aiven.io \
-      org.opencontainers.image.url=https://karapace.io \
-      org.opencontainers.image.documentation=https://github.com/aiven/karapace/ \
-      org.opencontainers.image.source=https://github.com/aiven/karapace/ \
-      org.opencontainers.image.vendor=Aiven \
-      org.opencontainers.image.licenses=Apache-2.0
-
 RUN groupadd --system karapace && \
     useradd --system --gid karapace karapace && \
     mkdir /opt/karapace /opt/karapace/runtime /var/log/karapace && \
@@ -69,13 +56,6 @@ COPY ./container/healthcheck.py /opt/karapace
 
 WORKDIR /opt/karapace
 USER karapace
-
-ARG CREATED
-ARG VERSION
-ARG COMMIT
-LABEL org.opencontainers.image.created=$CREATED \
-      org.opencontainers.image.version=$VERSION \
-      org.opencontainers.image.revision=$COMMIT
 
 HEALTHCHECK --interval=10s --timeout=30s --retries=3 --start-period=60s \
     CMD python3 healthcheck.py http://localhost:$KARAPACE_PORT/_health || exit 1
