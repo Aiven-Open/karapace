@@ -356,3 +356,56 @@ async def test_protobuf_schema_compatibility_dependencies2(registry_async_client
     )
     assert res.status_code == 200
     assert res.json() == {"is_compatible": False}
+
+
+SIMPLE_SCHEMA = """\
+syntax = "proto3";
+
+message Msg {
+  string name = 1;
+}
+"""
+
+
+async def test_protobuf_schema_references_rejected_values(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_references_values")()
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": 1}
+    )
+    assert res.status_code == 400
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": "foo"}
+    )
+    assert res.status_code == 400
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": False}
+    )
+    assert res.status_code == 400
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": {"this_is_object": True}},
+    )
+    assert res.status_code == 400
+
+
+async def test_protobuf_schema_references_valid_values(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_references_values")()
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+
+    # null value accepted for compatibility, same as empty list
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": None}
+    )
+    assert res.status_code == 200
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": []}
+    )
+    assert res.status_code == 200
