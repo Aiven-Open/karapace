@@ -68,8 +68,7 @@ class SchemaBackupV3Reader(BaseBackupReader):
             return read_metadata(buffer)
 
     def read(self, path: Path, topic_name: str) -> Iterator[Instruction]:
-        with path.open("rb") as metadata_buffer:
-            metadata = read_metadata(metadata_buffer)
+        metadata = self.read_metadata(path)
 
         if topic_name != metadata.topic_name:
             raise RuntimeError("Mismatch between topic name found in metadata and given topic name.")
