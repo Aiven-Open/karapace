@@ -6,7 +6,7 @@ from .checksum import RunningChecksum
 from .constants import V3_MARKER
 from .errors import IntegerAboveBound, IntegerBelowBound
 from .schema import Metadata, Record
-from dataclasses_avroschema import AvroModel
+from karapace.avro_dataclasses.models import AvroModel
 from typing import Final, IO, NoReturn, TypeVar
 
 import io
@@ -46,9 +46,10 @@ T = TypeVar("T", bound=AvroModel)
 
 
 def write_sized(buffer: IO[bytes], model: AvroModel) -> None:
-    encoded = model.serialize()
-    write_uint32(buffer, len(encoded))
-    buffer.write(encoded)
+    with io.BytesIO() as partial_buffer:
+        model.serialize(partial_buffer)
+        write_uint32(buffer, partial_buffer.tell())
+        buffer.write(partial_buffer.getvalue())
 
 
 def write_metadata(buffer: IO[bytes], metadata: Metadata) -> None:
@@ -66,7 +67,9 @@ def write_record(
     `buffer`, preceded by its byte length.
     """
 
-    encoded_record = record.serialize()
+    with io.BytesIO() as record_buffer:
+        record.serialize(record_buffer)
+        encoded_record = record_buffer.getvalue()
 
     # Encode size as uint32 and prepend to record.
     with io.BytesIO() as size_buffer:

@@ -31,7 +31,7 @@
           "name": "Header",
           "type": "record"
         },
-        "name": "header",
+        "name": "one_of_headers",
         "type": "array"
       }
     },

@@ -2,7 +2,6 @@
 accept-types<1
 aiohttp<4
 aiokafka<1
-dataclasses-avroschema<1
 isodate<1
 jsonschema<4
 networkx<3
@@ -23,4 +22,4 @@ xxhash~=3.0
 #   images and forces a new image generation.
 #
 https://github.com/aiven/kafka-python/archive/1b95333c9628152066fb8b1092de9da0433401fd.tar.gz
-https://github.com/aiven/avro/archive/f37a4ea69560d798cc718fccd7f75223527f5ebb.tar.gz#subdirectory=lang/py
+https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py

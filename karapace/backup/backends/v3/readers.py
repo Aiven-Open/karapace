@@ -11,6 +11,7 @@ from .schema import Metadata, Record
 from karapace.avro_dataclasses.models import AvroModel
 from typing import Generator, IO, TypeVar
 
+import io
 import struct
 
 
@@ -27,7 +28,8 @@ M = TypeVar("M", bound=AvroModel)
 
 def read_sized(buffer: IO[bytes], type_: type[M]) -> M:
     size = read_uint32(buffer)
-    return type_.deserialize(buffer.read(size))
+    with io.BytesIO(buffer.read(size)) as view:
+        return type_.parse(view)
 
 
 def read_metadata(buffer: IO[bytes]) -> Metadata:

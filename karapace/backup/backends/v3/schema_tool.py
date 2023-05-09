@@ -6,7 +6,8 @@ See LICENSE for details
 """
 from . import schema
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityType
-from dataclasses_avroschema import AvroModel
+from karapace.avro_dataclasses.introspect import record_schema
+from karapace.avro_dataclasses.models import AvroModel
 from karapace.schema_models import parse_avro_schema_definition
 from typing import Final, Generator, Tuple, Type
 
@@ -41,7 +42,7 @@ def generate_schema() -> None:
         with schema_file.open("w") as fd:
             print(
                 json.dumps(
-                    schema_type.avro_schema_to_python(),
+                    record_schema(schema_type),
                     indent=2,
                     sort_keys=True,
                 ),

@@ -4,17 +4,14 @@ karapace
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from dataclasses_avroschema import AvroModel
+from dataclasses import field
+from karapace.avro_dataclasses.models import AvroModel
 from karapace.dataclasses import default_dataclass
 from typing import Optional, Tuple
-from typing_extensions import Annotated, TypeAlias
 
 import datetime
 import enum
 import uuid
-
-i32: TypeAlias = Annotated[int, "Int32"]
-i64: TypeAlias = Annotated[int, "Int64"]
 
 
 @enum.unique
@@ -31,9 +28,9 @@ class ChecksumAlgorithm(enum.Enum):
 @default_dataclass
 class DataFile(AvroModel):
     filename: str
-    partition: i64
+    partition: int = field(metadata={"type": "long"})
     checksum: bytes
-    record_count: i64
+    record_count: int = field(metadata={"type": "long"})
 
     def __post_init__(self) -> None:
         assert self.record_count >= 0
@@ -44,14 +41,14 @@ class DataFile(AvroModel):
 
 @default_dataclass
 class Metadata(AvroModel):
-    version: i32
+    version: int = field(metadata={"type": "int"})
     tool_name: str
     tool_version: str
     started_at: datetime.datetime
     finished_at: datetime.datetime
     topic_name: str
     topic_id: Optional[uuid.UUID]
-    partition_count: i32
+    partition_count: int = field(metadata={"type": "int"})
     data_files: Tuple[DataFile, ...]
     checksum_algorithm: ChecksumAlgorithm = ChecksumAlgorithm.unknown
 
@@ -74,8 +71,8 @@ class Record(AvroModel):
     key: Optional[bytes]
     value: Optional[bytes]
     headers: Tuple[Header, ...]
-    offset: i64
-    timestamp: i64
+    offset: int = field(metadata={"type": "long"})
+    timestamp: int = field(metadata={"type": "long"})
     # In order to reduce the impact of checksums on total file sizes, especially
     # when key + value + headers is small, we only write checksums to a subset
     # of records. When restoring, we accumulate parsed records until
