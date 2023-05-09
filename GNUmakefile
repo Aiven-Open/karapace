@@ -41,7 +41,9 @@ venv/.deps: requirements/requirements-dev.txt requirements/requirements.txt | ve
 	source ./bin/get-protoc
 	source ./bin/get-snappy
 	set -x
-	$(PIP) install -r '$(<)' --use-pep517
+	$(PIP) install --use-pep517 -r '$(<)'
+	$(PIP) install --use-pep517 .
+	$(PIP) check
 	touch '$(@)'
 
 .PHONY: version
