@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from dataclasses import fields
 from kafka import KafkaAdminClient, KafkaProducer, TopicPartition
 from kafka.admin import NewTopic
@@ -23,6 +25,7 @@ from typing import Iterator, NoReturn
 
 import datetime
 import json
+import os
 import pytest
 import secrets
 import shutil
@@ -293,3 +296,133 @@ def test_roundtrip_from_file(
     # Verify data files are identical.
     (new_data_file,) = new_metadata_path.parent.glob("*.data")
     assert data_file.read_bytes() == new_data_file.read_bytes()
+
+
+def no_color_env() -> dict[str, str]:
+    env = os.environ.copy()
+    try:
+        del env["FORCE_COLOR"]
+    except KeyError:
+        pass
+    return {**env, "COLUMNS": "100"}
+
+
+class TestInspect:
+    def test_can_inspect_v3(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "2db42756.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(metadata_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert json.loads(cp.stdout) == {
+            "version": 3,
+            "tool_name": "karapace",
+            "tool_version": "3.4.6-65-g9259060",
+            "started_at": "2023-05-08T09:31:56.238000+00:00",
+            "finished_at": "2023-05-08T09:31:56.571000+00:00",
+            "topic_name": "2db42756",
+            "topic_id": None,
+            "partition_count": 1,
+            "checksum_algorithm": "xxhash3_64_be",
+            "data_files": [
+                {
+                    "filename": "2db42756:0.data",
+                    "partition": 0,
+                    "checksum_hex": "f414f504a8e49313",
+                    "record_count": 2,
+                },
+            ],
+        }
+
+    def test_can_inspect_v3_with_future_checksum_algorithm(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_future_algorithm" / "a-topic.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(metadata_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert (
+            cp.stderr.decode()
+            == "Warning! This file has an unknown checksum algorithm and cannot be restored with this version of Karapace.\n"
+        )
+        assert json.loads(cp.stdout) == {
+            "version": 3,
+            "tool_name": "karapace",
+            "tool_version": "3.4.6-67-g26d38c0",
+            "started_at": "2023-05-23T13:19:34.843000+00:00",
+            "finished_at": "2023-05-23T13:19:34.843000+00:00",
+            "topic_name": "a-topic",
+            "topic_id": None,
+            "partition_count": 1,
+            "checksum_algorithm": "unknown",
+            "data_files": [
+                {
+                    "filename": "a-topic:123.data",
+                    "partition": 123,
+                    "checksum_hex": "dc0e738f1e856010",
+                    "record_count": 1,
+                },
+            ],
+        }
+
+    def test_can_inspect_v2(self) -> None:
+        backup_path = Path(__file__).parent.parent.resolve() / "test_data" / "test_restore_v2.log"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(backup_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert json.loads(cp.stdout) == {"version": 2}
+
+    def test_can_inspect_v1(self) -> None:
+        backup_path = Path(__file__).parent.parent.resolve() / "test_data" / "test_restore_v1.log"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(backup_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert json.loads(cp.stdout) == {"version": 1}

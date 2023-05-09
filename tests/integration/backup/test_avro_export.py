@@ -4,7 +4,8 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.backup.api import BackupVersion, SchemaBackup
+from karapace.backup import api
+from karapace.backup.api import BackupVersion
 from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.utils import json_encode
@@ -115,8 +116,12 @@ async def test_export_anonymized_avro_schemas(
             "topic_name": registry_cluster.schemas_topic,
         }
     )
-    sb = SchemaBackup(config, str(export_location))
-    sb.create(BackupVersion.ANONYMIZE_AVRO)
+    api.create_backup(
+        config=config,
+        backup_location=export_location,
+        topic_name=api.normalize_topic_name(None, config),
+        version=BackupVersion.ANONYMIZE_AVRO,
+    )
 
     # The export file has been created
     assert os.path.exists(export_location)
