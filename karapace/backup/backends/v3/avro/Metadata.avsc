@@ -69,7 +69,7 @@
           "name": "DataFile",
           "type": "record"
         },
-        "name": "data_file",
+        "name": "one_of_data_files",
         "type": "array"
       }
     },
