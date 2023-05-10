@@ -8,9 +8,12 @@ Supports telegraf's statsd protocol extension for 'key=value' tags:
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from contextlib import contextmanager
+from karapace.config import Config
 from karapace.sentry import get_sentry_client
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Iterator
 
 import datetime
 import logging
@@ -23,28 +26,33 @@ LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
-    def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, config: Optional[Dict[str, str]] = None) -> None:
+    def __init__(
+        self,
+        host: str = STATSD_HOST,
+        port: int = STATSD_PORT,
+        config: Config | None = None,
+    ) -> None:
         self._dest_addr = (host, port)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags = config.get("tags", {})
         self.sentry_client = get_sentry_client(sentry_config=config.get("sentry", None))
 
     @contextmanager
-    def timing_manager(self, metric: str, tags: Optional[Dict] = None) -> Iterator[None]:
+    def timing_manager(self, metric: str, tags: dict | None = None) -> Iterator[None]:
         start_time = time.monotonic()
         yield
         self.timing(metric, time.monotonic() - start_time, tags)
 
-    def gauge(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
+    def gauge(self, metric: str, value: float, tags: dict | None = None) -> None:
         self._send(metric, b"g", value, tags)
 
-    def increase(self, metric: str, inc_value: int = 1, tags: Optional[Dict] = None) -> None:
+    def increase(self, metric: str, inc_value: int = 1, tags: dict | None = None) -> None:
         self._send(metric, b"c", inc_value, tags)
 
-    def timing(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
+    def timing(self, metric: str, value: float, tags: dict | None = None) -> None:
         self._send(metric, b"ms", value, tags)
 
-    def unexpected_exception(self, ex: Exception, where: str, tags: Optional[Dict] = None) -> None:
+    def unexpected_exception(self, ex: Exception, where: str, tags: dict | None = None) -> None:
         all_tags = {
             "exception": ex.__class__.__name__,
             "where": where,
@@ -54,7 +62,7 @@ class StatsClient:
         scope_args = {**(tags or {}), "where": where}
         self.sentry_client.unexpected_exception(error=ex, where=where, tags=scope_args)
 
-    def _send(self, metric: str, metric_type: bytes, value: Any, tags: Optional[Dict]) -> None:
+    def _send(self, metric: str, metric_type: bytes, value: Any, tags: dict | None) -> None:
         if None in self._dest_addr:
             # stats sending is disabled
             return

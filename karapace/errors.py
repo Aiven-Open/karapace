@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.schema_references import Referents
-from karapace.typing import Version
+from karapace.typing import ResolvedVersion
 
 
 class VersionNotFoundException(Exception):
@@ -55,7 +55,7 @@ class SubjectNotSoftDeletedException(Exception):
 
 
 class ReferenceExistsException(Exception):
-    def __init__(self, referenced_by: Referents, version: Version):
+    def __init__(self, referenced_by: Referents, version: ResolvedVersion) -> None:
         super().__init__()
         self.version = version
         self.referenced_by = referenced_by

@@ -21,6 +21,7 @@ from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 from unittest import mock
 
+import asyncio
 import json
 import os
 import pytest
@@ -202,7 +203,7 @@ async def test_backup_restore(
         backup_location=restore_location,
         topic_name=api.normalize_topic_name(None, config),
     )
-    time.sleep(1.0)
+    await asyncio.sleep(1)
     res = await registry_async_client.get(f"config/{subject}")
     assert res.status_code == 404
 

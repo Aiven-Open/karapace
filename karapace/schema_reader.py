@@ -4,6 +4,8 @@ karapace - Kafka schema reader
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from avro.schema import Schema as AvroSchema
 from contextlib import closing, ExitStack
 from jsonschema.validators import Draft7Validator
@@ -26,37 +28,34 @@ from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMod
 from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, SchemaVersion, TypedSchema
+from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import Reference, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
-from typing import Dict, List, Optional, Union
+from typing import Final, Sequence
 
 import json
 import logging
 import time
 
-Offset = int
-Subject = str
-Version = int
+LOG = logging.getLogger(__name__)
 
 # The value `0` is a valid offset and it represents the first message produced
 # to a topic, therefore it can not be used.
-OFFSET_UNINITIALIZED = -2
-OFFSET_EMPTY = -1
-LOG = logging.getLogger(__name__)
+OFFSET_UNINITIALIZED: Final = -2
+OFFSET_EMPTY: Final = -1
 
-KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS = 2.0
-SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS = 5.0
+KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS: Final = 2.0
+SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS: Final = 5.0
 
 # Metric names
-METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT = "karapace_schema_reader_records_processed"
-METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE = "karapace_schema_reader_records_per_keymode"
-METRIC_SCHEMAS_GAUGE = "karapace_schema_reader_schemas"
-METRIC_SUBJECTS_GAUGE = "karapace_schema_reader_subjects"
-METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE = "karapace_schema_reader_subject_data_schema_versions"
+METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT: Final = "karapace_schema_reader_records_processed"
+METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE: Final = "karapace_schema_reader_records_per_keymode"
+METRIC_SCHEMAS_GAUGE: Final = "karapace_schema_reader_schemas"
+METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects"
+METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions"
 
 
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
@@ -116,7 +115,7 @@ class KafkaSchemaReader(Thread):
         offset_watcher: OffsetWatcher,
         key_formatter: KeyFormatter,
         database: InMemoryDatabase,
-        master_coordinator: Optional[MasterCoordinator] = None,
+        master_coordinator: MasterCoordinator | None = None,
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
@@ -124,9 +123,9 @@ class KafkaSchemaReader(Thread):
         self.config = config
 
         self.database = database
-        self.admin_client: Optional[KafkaAdminClient] = None
+        self.admin_client: KafkaAdminClient | None = None
         self.topic_replication_factor = self.config["replication_factor"]
-        self.consumer: Optional[KafkaConsumer] = None
+        self.consumer: KafkaConsumer | None = None
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
 
@@ -179,6 +178,8 @@ class KafkaSchemaReader(Thread):
                     self.stats.unexpected_exception(ex=e, where="admin_client_instantiation")
                     self._stop.wait(timeout=2.0)
 
+            assert self.admin_client is not None
+
             while not self._stop.is_set() and self.consumer is None:
                 try:
                     self.consumer = _create_consumer_from_config(self.config)
@@ -193,6 +194,8 @@ class KafkaSchemaReader(Thread):
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
                     self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
+
+            assert self.consumer is not None
 
             schema_topic_exists = False
             schema_topic = new_schema_topic_from_config(self.config)
@@ -228,6 +231,8 @@ class KafkaSchemaReader(Thread):
                     LOG.exception("Unexpected exception in schema reader loop")
 
     def _get_beginning_offset(self) -> int:
+        assert self.consumer is not None, "Thread must be started"
+
         try:
             offsets = self.consumer.beginning_offsets([TopicPartition(self.config["topic_name"], 0)])
             # Offset in the response is the offset for last offset.
@@ -244,6 +249,9 @@ class KafkaSchemaReader(Thread):
     def _is_ready(self) -> bool:
         if self.ready:
             return True
+
+        assert self.consumer is not None, "Thread must be started"
+
         try:
             offsets = self.consumer.end_offsets([TopicPartition(self.config["topic_name"], 0)])
         except KafkaTimeoutError:
@@ -272,6 +280,15 @@ class KafkaSchemaReader(Thread):
     def highest_offset(self) -> int:
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
+    @staticmethod
+    def _parse_message_value(raw_value: str) -> JsonObject | None:
+        value = json_decode(raw_value)
+        if isinstance(value, dict):
+            return value
+        if value is None or value == "":
+            return None
+        raise TypeError("Invalid type for value")
+
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
 
@@ -299,6 +316,7 @@ class KafkaSchemaReader(Thread):
                     LOG.exception("Invalid JSON in msg.key")
                     continue
 
+                assert isinstance(key, dict)
                 msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
                 # Key mode detection happens on startup.
                 # Default keymode is CANONICAL and preferred unless any data consumed
@@ -311,7 +329,7 @@ class KafkaSchemaReader(Thread):
                 value = None
                 if msg.value:
                     try:
-                        value = json_decode(msg.value)
+                        value = self._parse_message_value(msg.value)
                     except JSONDecodeError:
                         LOG.exception("Invalid JSON in msg.value")
                         continue
@@ -382,7 +400,7 @@ class KafkaSchemaReader(Thread):
                 tags={"state": "soft_deleted"},
             )
 
-    def _handle_msg_config(self, key: dict, value: Optional[dict]) -> None:
+    def _handle_msg_config(self, key: dict, value: dict | None) -> None:
         subject = key.get("subject")
         if subject is not None:
             if self.database.find_subject(subject=subject) is None:
@@ -398,7 +416,7 @@ class KafkaSchemaReader(Thread):
             LOG.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
             self.config["compatibility"] = value["compatibilityLevel"]
 
-    def _handle_msg_delete_subject(self, key: dict, value: Optional[dict]) -> None:  # pylint: disable=unused-argument
+    def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
         if value is None:
             LOG.error("DELETE_SUBJECT record doesnt have a value, should have")
             return
@@ -425,7 +443,7 @@ class KafkaSchemaReader(Thread):
                 LOG.info("Hard delete last version, subject %r is gone", subject)
                 self.database.delete_subject_hard(subject=subject)
 
-    def _handle_msg_schema(self, key: dict, value: Optional[dict]) -> None:
+    def _handle_msg_schema(self, key: dict, value: dict | None) -> None:
         if not value:
             self._handle_msg_schema_hard_delete(key)
             return
@@ -437,8 +455,7 @@ class KafkaSchemaReader(Thread):
         schema_version = value["version"]
         schema_deleted = value.get("deleted", False)
         schema_references = value.get("references", None)
-        resolved_references: Optional[List[Reference]] = None
-        resolved_dependencies: Optional[Dict[str, Dependency]] = None
+        resolved_references: list[Reference] | None = None
 
         try:
             schema_type_parsed = SchemaType(schema_type)
@@ -453,8 +470,8 @@ class KafkaSchemaReader(Thread):
         # for the REST API to return data that is formatted differently from
         # what is available in the topic.
 
-        parsed_schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None
-        resolved_dependencies: Optional[Dict[str, Dependency]] = None
+        parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None
+        resolved_dependencies: dict[str, Dependency] | None = None
         if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
@@ -507,7 +524,7 @@ class KafkaSchemaReader(Thread):
             for ref in resolved_references:
                 self.database.insert_referenced_by(subject=ref.subject, version=ref.version, schema_id=schema_id)
 
-    def handle_msg(self, key: dict, value: Optional[dict]) -> None:
+    def handle_msg(self, key: dict, value: dict | None) -> None:
         if key["keytype"] == "CONFIG":
             self._handle_msg_config(key, value)
         elif key["keytype"] == "SCHEMA":
@@ -517,16 +534,22 @@ class KafkaSchemaReader(Thread):
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
 
-    def remove_referenced_by(self, schema_id: SchemaId, references: List[Reference]):
+    def remove_referenced_by(self, schema_id: SchemaId, references: list[Reference]) -> None:
         self.database.remove_referenced_by(schema_id, references)
 
-    def get_referenced_by(self, subject: Subject, version: ResolvedVersion) -> Optional[Referents]:
+    def get_referenced_by(
+        self,
+        subject: Subject,
+        version: ResolvedVersion,
+    ) -> Referents | None:
         return self.database.get_referenced_by(subject, version)
 
     def _resolve_reference(self, reference: Reference) -> Dependency:
-        subject_data: Dict[ResolvedVersion, SchemaVersion] = self.database.find_subject_schemas(
-            subject=reference.subject, include_deleted=False
+        subject_data = self.database.find_subject_schemas(
+            subject=reference.subject,
+            include_deleted=False,
         )
+
         if not subject_data:
             raise InvalidReferences(f"Subject not found {reference.subject}.")
 
@@ -534,25 +557,35 @@ class KafkaSchemaReader(Thread):
         if reference.version == -1:
             reference.version = max(subject_data)
 
-        schema_version: SchemaVersion = subject_data.get(reference.version, None)
+        schema_version = subject_data.get(reference.version, None)
         if schema_version is None:
             raise InvalidReferences(f"Subject {reference.subject} has no such schema version")
-        schema: TypedSchema = schema_version.schema
+
+        schema = schema_version.schema
         if not schema:
             raise InvalidReferences(f"No schema in {reference.subject} with version {reference.version}.")
+
         if schema.references:
             schema_dependencies = self.resolve_references(schema.references)
             if schema.dependencies is None:
                 schema.dependencies = schema_dependencies
-        return Dependency.of(reference, schema)
 
-    def resolve_references(self, references: Union[List[Reference], JsonObject]) -> Dict[str, Dependency]:
-        dependencies: Dict[str, Dependency] = dict()
+        validated_schema = ValidatedTypedSchema.parse(
+            schema_type=schema.schema_type,
+            schema_str=schema.schema_str,
+            references=schema.references,
+            dependencies=schema.dependencies,
+        )
+
+        return Dependency.of(reference, validated_schema)
+
+    def resolve_references(
+        self,
+        references: Sequence[Reference] | Sequence[JsonObject],
+    ) -> dict[str, Dependency]:
+        dependencies = {}
         for reference in references:
-            if isinstance(reference, Reference):
-                dependencies[reference.name] = self._resolve_reference(reference)
-            else:
-                dependencies[reference["name"]] = self._resolve_reference(
-                    Reference(reference["name"], reference["subject"], reference["version"])
-                )
+            if not isinstance(reference, Reference):
+                reference = Reference.from_mapping(reference)
+            dependencies[reference.name] = self._resolve_reference(reference)
         return dependencies
