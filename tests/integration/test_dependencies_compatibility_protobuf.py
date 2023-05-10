@@ -409,3 +409,51 @@ async def test_protobuf_schema_references_valid_values(registry_async_client: Cl
         f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": []}
     )
     assert res.status_code == 200
+
+
+async def test_protobuf_references_latest(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_references_latest")()
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert res.status_code == 200
+
+    original_dependencies = trim_margin(
+        """
+            |syntax = "proto3";
+            |package a1;
+            |message container {
+            |    message Hint {
+            |        string hint_str = 1;
+            |    }
+            |}
+            |"""
+    )
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}_base/versions", json={"schemaType": "PROTOBUF", "schema": original_dependencies}
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+    original_schema = trim_margin(
+        """
+            |syntax = "proto3";
+            |package a1;
+            |import "container1.proto";
+            |message TestMessage {
+            |    message Value {
+            |        .a1.container.Hint hint = 1;
+            |        int32 x = 2;
+            |    }
+            |    string test = 1;
+            |    .a1.TestMessage.Value val = 2;
+            |}
+            |"""
+    )
+
+    original_references = [{"name": "container1.proto", "subject": f"{subject}_base", "version": -1}]
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
