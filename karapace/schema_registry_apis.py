@@ -446,15 +446,16 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue
             for schema_version in schema_versions:
-                response_schemas.append(
-                    {
-                        "subject": schema_version.subject,
-                        "version": schema_version.version,
-                        "id": schema_version.schema_id,
-                        "schemaType": schema_version.schema.schema_type,
-                        "schema": schema_version.schema.schema_str,
-                    }
-                )
+                response_schema = {
+                    "subject": schema_version.subject,
+                    "version": schema_version.version,
+                    "id": schema_version.schema_id,
+                    "schemaType": schema_version.schema.schema_type,
+                }
+                if schema_version.references:
+                    response_schema["references"] = [r.to_dict() for r in schema_version.references]
+                response_schema["schema"] = schema_version.schema.schema_str
+                response_schemas.append(response_schema)
 
         self.r(
             body=response_schemas,
@@ -512,6 +513,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         response_body = {"schema": schema.schema_str}
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
+        if schema.references:
+            response_body["references"] = [r.to_dict() for r in schema.references]
         if fetch_max_id:
             response_body["maxId"] = schema.max_id
         self.r(response_body, content_type)
