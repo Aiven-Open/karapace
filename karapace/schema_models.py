@@ -101,7 +101,6 @@ class TypedSchema:
         self.schema_str = TypedSchema.normalize_schema_str(schema_str, schema_type, schema)
         self.max_id: Optional[SchemaId] = None
         self._fingerprint_cached: Optional[str] = None
-        self._str_cached: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         if self.schema_type is SchemaType.PROTOBUF:
@@ -140,12 +139,7 @@ class TypedSchema:
         return schema_str
 
     def __str__(self) -> str:
-        if self.schema_type == SchemaType.PROTOBUF:
-            return self.schema_str
-
-        if self._str_cached is None:
-            self._str_cached = json_encode(self.to_dict())
-        return self._str_cached
+        return self.schema_str
 
     def __repr__(self) -> str:
         return f"TypedSchema(type={self.schema_type}, schema={str(self)})"
