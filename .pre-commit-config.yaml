@@ -31,13 +31,13 @@ repos:
   - id: shfmt
 
 - repo: https://github.com/asottile/pyupgrade
-  rev: v3.3.1
+  rev: v3.4.0
   hooks:
   - id: pyupgrade
     args: [ --py38-plus ]
 
 - repo: https://github.com/pycqa/autoflake
-  rev: v2.0.2
+  rev: v2.1.1
   hooks:
     - id: autoflake
       args:
@@ -61,7 +61,7 @@ repos:
   - id: flake8
 
 - repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v1.1.1
+  rev: v1.2.0
   hooks:
   - id: mypy
     pass_filenames: false
@@ -79,6 +79,6 @@ repos:
 - repo: https://github.com/PyCQA/pylint
   # Note: pre-commit autoupdate changes to an alpha version. Instead, manually find the
   # latest stable version here: https://github.com/pylint-dev/pylint/releases
-  rev: v2.17.1
+  rev: v2.17.4
   hooks:
   - id: pylint
