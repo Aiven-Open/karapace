@@ -93,7 +93,7 @@ class TypedSchema:
             schema_type (SchemaType): The type of the schema
             schema_str (str): The original schema string
             schema (Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]]): The parsed and validated schema
-             references (Optional[List[Dependency]]): The references of schema
+            references (Optional[List[Dependency]]): The references of schema
         """
         self.schema_type = schema_type
         self.references = references
@@ -118,8 +118,6 @@ class TypedSchema:
         schema_str: str,
         schema_type: SchemaType,
         schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None,
-        # references: Optional[List[Reference]] = None,
-        # dependencies: Optional[Dict[str, Dependency]] = None,
     ) -> str:
         if schema_type is SchemaType.AVRO or schema_type is SchemaType.JSONSCHEMA:
             try:
