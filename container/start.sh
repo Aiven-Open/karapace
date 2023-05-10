@@ -35,7 +35,7 @@ registry)
     [[ -n ${KARAPACE_REGISTRY_PORT+isset} ]] && export KARAPACE_PORT="${KARAPACE_REGISTRY_PORT}"
     [[ -n ${KARAPACE_REGISTRY_CLIENT_ID+isset} ]] && export KARAPACE_CLIENT_ID="${KARAPACE_REGISTRY_CLIENT_ID}"
     [[ -n ${KARAPACE_REGISTRY_GROUP_ID+isset} ]] && export KARAPACE_GROUP_ID="${KARAPACE_REGISTRY_GROUP_ID}"
-    # Map misspelt environment variable to correct spelling for backwards compatibility.
+    # Map misspelled environment variables to correct spelling for backwards compatibility.
     [[ -n ${KARAPACE_REGISTRY_MASTER_ELIGIBITY+isset} ]] && export KARAPACE_MASTER_ELIGIBILITY="${KARAPACE_REGISTRY_MASTER_ELIGIBITY}"
     [[ -n ${KARAPACE_REGISTRY_MASTER_ELIGIBILITY+isset} ]] && export KARAPACE_MASTER_ELIGIBILITY="${KARAPACE_REGISTRY_MASTER_ELIGIBILITY}"
     [[ -n ${KARAPACE_REGISTRY_TOPIC_NAME+isset} ]] && export KARAPACE_TOPIC_NAME="${KARAPACE_REGISTRY_TOPIC_NAME}"
