@@ -308,7 +308,11 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         dependencies: Optional[Dict[str, Dependency]] = None,
     ):
         super().__init__(
-            schema_type=schema_type, schema_str=schema_str, references=references, dependencies=dependencies, schema=schema
+            schema_type=schema_type,
+            schema_str=schema_str,
+            references=references,
+            dependencies=dependencies,
+            schema=schema,
         )
 
     @staticmethod
