@@ -975,6 +975,10 @@ async def test_references(testcase: ReferenceTestCase, registry_async_client: Cl
                 schema_id = res.json().get("id")
                 fetch_schema_res = await registry_async_client.get(f"/schemas/ids/{schema_id}")
                 assert fetch_schema_res.status_code == 200
+                if testdata.references:
+                    assert "references" in fetch_schema_res.json()
+                else:
+                    assert "references" not in fetch_schema_res.json()
         if isinstance(testdata, TestCaseDeleteSchema):
             if testdata.expected == 200:
                 fetch_res = await registry_async_client.get(f"/subjects/{testdata.subject}/versions/{testdata.version}")
