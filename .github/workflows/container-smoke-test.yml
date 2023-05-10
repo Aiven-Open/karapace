@@ -14,6 +14,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Build karapace/version.py
+        run: python version.py
+
       - name: Build and start services
         run: docker compose --file=container/compose.yml up --build --wait --detach
 
