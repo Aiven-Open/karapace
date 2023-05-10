@@ -524,9 +524,16 @@ class KafkaSchemaReader(Thread):
         return self.database.get_referenced_by(subject, version)
 
     def _resolve_reference(self, reference: Reference) -> Dependency:
-        subject_data = self.database.find_subject_schemas(subject=reference.subject, include_deleted=False)
+        subject_data: Dict[ResolvedVersion, SchemaVersion] = self.database.find_subject_schemas(
+            subject=reference.subject, include_deleted=False
+        )
         if not subject_data:
             raise InvalidReferences(f"Subject not found {reference.subject}.")
+
+        # -1 is alias to latest version
+        if reference.version == -1:
+            reference.version = max(subject_data)
+
         schema_version: SchemaVersion = subject_data.get(reference.version, None)
         if schema_version is None:
             raise InvalidReferences(f"Subject {reference.subject} has no such schema version")
