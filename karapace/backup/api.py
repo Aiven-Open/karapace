@@ -23,22 +23,25 @@ from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
-from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer
+from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
 from karapace.schema_reader import new_schema_topic_from_config
 from karapace.utils import assert_never
 from pathlib import Path
+from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
 from typing import AbstractSet, Callable, Collection, Iterator, Literal, NewType, NoReturn, TypeVar
 
 import contextlib
 import datetime
+import enum
 import json
 import logging
 import math
 import sys
+import textwrap
 
 __all__ = (
     "create_backup",
@@ -46,6 +49,7 @@ __all__ = (
     "normalize_location",
     "normalize_topic_name",
     "BackupVersion",
+    "VerifyLevel",
 )
 
 LOG = logging.getLogger(__name__)
@@ -481,9 +485,9 @@ def inspect(backup_location: Path | StdOut) -> None:
     metadata = backend.read_metadata(backup_location)
 
     if metadata.checksum_algorithm is ChecksumAlgorithm.unknown:
-        print(
+        console = Console(stderr=True, style="red")
+        console.print(
             "Warning! This file has an unknown checksum algorithm and cannot be restored with this version of Karapace.",
-            file=sys.stderr,
         )
 
     metadata_json = {
@@ -508,3 +512,56 @@ def inspect(backup_location: Path | StdOut) -> None:
     }
 
     print(json.dumps(metadata_json, indent=2))
+
+
+class VerifyLevel(enum.Enum):
+    file = "file"
+    record = "record"
+
+
+def verify(backup_location: Path | StdOut, level: VerifyLevel) -> None:
+    if isinstance(backup_location, str):
+        raise NotImplementedError("Cannot verify backup via stdin")
+    if not backup_location.exists():
+        raise BackupError("Backup location doesn't exist")
+    backup_version = BackupVersion.identify(backup_location)
+
+    if backup_version is not BackupVersion.V3:
+        print(
+            f"Only backups using format {BackupVersion.V3.name} can be verified, found {backup_version.name}.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    backend = backup_version.reader()
+    assert isinstance(backend, SchemaBackupV3Reader)
+
+    if level is VerifyLevel.file:
+        results = backend.verify_files(backup_location)
+    elif level is VerifyLevel.record:
+        results = backend.verify_records(backup_location)
+    else:
+        assert_never(level)
+
+    console = Console()
+    success = True
+    verified_files = 0
+
+    for result in results:
+        console.print(f"Integrity of [blue]{result.data_file.filename}[/blue] is ", end="")
+        if isinstance(result, VerifySuccess):
+            console.print("[green]intact.[/green]")
+            verified_files += 1
+        elif isinstance(result, VerifyFailure):
+            success = False
+            console.print("[red]not intact![/red]")
+            if result.exception is not None:
+                console.print(textwrap.indent(f"{result.exception.__class__.__qualname__}: {result.exception}", "    "))
+        else:
+            assert_never(result)
+
+    if not success:
+        console.print("💥 [red]Failed to verify integrity of some data files.[/red]")
+        raise SystemExit(1)
+
+    console.print(f"✅ [green]Verified {verified_files} data files in backup OK.[/green]")
