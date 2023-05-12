@@ -444,11 +444,17 @@ def create_backup(
                     allow_overwrite=overwrite,
                 )
             except EmptyPartition:
+                if version is not BackupVersion.V3:
+                    LOG.warning(
+                        "Topic partition '%s' is empty, nothing to back up.",
+                        topic_partition,
+                    )
+                    return
                 LOG.warning(
-                    "Topic partition '%s' is empty, nothing to back up.",
+                    "Topic partition '%s' is empty, only backing up metadata.",
                     topic_partition,
                 )
-                return
+                data_file = None
 
         end_time = datetime.datetime.now(datetime.timezone.utc)
         backend.store_metadata(
@@ -457,7 +463,8 @@ def create_backup(
             topic_id=None,
             started_at=start_time,
             finished_at=end_time,
-            data_files=[data_file],
+            partition_count=1,
+            data_files=[data_file] if data_file else [],
         )
 
     LOG.info(
@@ -498,7 +505,7 @@ def inspect(backup_location: Path | StdOut) -> None:
         "finished_at": metadata.finished_at.isoformat(),
         "topic_name": metadata.topic_name,
         "topic_id": None if metadata.topic_id is None else str(metadata.topic_id),
-        "partition_count": 1,
+        "partition_count": metadata.partition_count,
         "checksum_algorithm": metadata.checksum_algorithm.value,
         "data_files": tuple(
             {
@@ -506,6 +513,8 @@ def inspect(backup_location: Path | StdOut) -> None:
                 "partition": data_file.partition,
                 "checksum_hex": data_file.checksum.hex(),
                 "record_count": data_file.record_count,
+                "start_offset": data_file.start_offset,
+                "end_offset": data_file.end_offset,
             }
             for data_file in metadata.data_files
         ),

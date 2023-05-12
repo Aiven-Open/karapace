@@ -38,6 +38,10 @@ class UnexpectedEndOfData(DecodeError, ValueError):
     pass
 
 
+class OffsetMismatch(DecodeError, ValueError):
+    pass
+
+
 class EncodeError(BackupError):
     pass
 
@@ -47,4 +51,8 @@ class IntegerBelowBound(EncodeError, ValueError):
 
 
 class IntegerAboveBound(EncodeError, ValueError):
+    pass
+
+
+class InconsistentOffset(EncodeError, ValueError):
     pass
