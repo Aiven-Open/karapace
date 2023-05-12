@@ -177,6 +177,7 @@ class TestMetadata:
             tool_version="1.2.3",
             started_at=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0),
             finished_at=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0),
+            record_count=123,
             topic_name="some-topic",
             topic_id=uuid.uuid4(),
             partition_count=1,
@@ -186,6 +187,8 @@ class TestMetadata:
                     partition=0,
                     checksum=b"abc123",
                     record_count=123,
+                    start_offset=127,
+                    end_offset=250,
                 ),
             ),
         )
