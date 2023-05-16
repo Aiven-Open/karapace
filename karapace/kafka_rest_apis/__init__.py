@@ -284,7 +284,8 @@ class KafkaRest(KarapaceBase):
                         config["security_protocol"] = (
                             "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
                         )
-                        config["sasl_mechanism"] = "PLAIN"
+                        if config["sasl_mechanism"] is None:
+                            config["sasl_mechanism"] = "PLAIN"
                         config["sasl_plain_username"] = auth.login
                         config["sasl_plain_password"] = auth.password
                         self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
