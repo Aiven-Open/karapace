@@ -31,13 +31,6 @@ RUN groupadd --system karapace \
  && mkdir /opt/karapace /opt/karapace/runtime /var/log/karapace \
  && chown --recursive karapace:karapace /opt/karapace /var/log/karapace
 
-# Install protobuf compiler.
-ARG PROTOBUF_COMPILER_VERSION="3.12.4-1"
-RUN apt-get update \
- && apt-get install --assume-yes --no-install-recommends \
-    protobuf-compiler=$PROTOBUF_COMPILER_VERSION \
- && rm -rf /var/lib/apt/lists/*
-
 # Copy virtualenv from builder and activate it.
 COPY --from=builder /venv /venv
 ENV PATH="/venv/bin:$PATH"
