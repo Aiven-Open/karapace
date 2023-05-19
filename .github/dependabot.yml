@@ -3,4 +3,4 @@ updates:
   - package-ecosystem: pip
     directory: requirements
     schedule:
-      interval: daily
+      interval: monthly
