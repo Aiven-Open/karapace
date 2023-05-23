@@ -148,7 +148,7 @@ python-dateutil==2.8.2
     # via -r requirements.txt
 pyzmq==25.0.2
     # via locust
-requests==2.30.0
+requests==2.31.0
     # via
     #   -r requirements-dev.in
     #   locust
