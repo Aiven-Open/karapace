@@ -8,11 +8,10 @@ connections-active - The number of active HTTP(S) connections to server.
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-import time
+from karapace.statsd import StatsClient
 from typing import List, Union
 
-from karapace.statsd import StatsClient
-
+import time
 
 
 class Sample:
@@ -65,9 +64,6 @@ class DraftStats:
 
 
 class Avg(DraftStats):
-    def __init__(self, time_window: float):
-        super().__init__(time_window)
-
     def commit(self, sample: Sample, value: float) -> None:
         sample.value += value
 
@@ -84,9 +80,6 @@ class Avg(DraftStats):
 
 
 class Max(DraftStats):
-    def __init__(self, time_window: float):
-        super().__init__(time_window)
-
     def commit(self, sample: Sample, value: float) -> None:
         sample.value = max(value, sample.value)
 
@@ -101,7 +94,7 @@ class BasicSensor:
     def __init__(self, name: str):
         self._name = name
 
-    def report(self, stats: StatsClient) -> None:
+    def report(self, stats_client: StatsClient) -> None:
         pass
 
 
@@ -118,7 +111,6 @@ class CounterSensor(BasicSensor):
 
 
 class SampledSensor(BasicSensor):
-
     def __init__(self, name: str, stats: DraftStats) -> None:
         super().__init__(name)
         self.stats = stats
@@ -146,7 +138,6 @@ class Metrics:
         self.sensors.append(self.request_size_avg_sensor)
         self.sensors.append(self.response_size_avg_sensor)
         self.sensors.append(self.response_size_max_sensor)
-
 
     def connection(self) -> None:
         self.connections_sensor.record(1.0)
