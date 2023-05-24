@@ -11,6 +11,7 @@ tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
+schedule
 
 # Patched dependencies
 #
