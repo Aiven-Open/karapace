@@ -29,6 +29,7 @@ from karapace.errors import (
     VersionNotFoundException,
 )
 from karapace.karapace import KarapaceBase
+from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import Reference
@@ -1167,7 +1168,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
         except (InvalidReferences, InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
-            if isinstance(e.__cause__, (SchemaParseException, JSONDecodeError)):
+            if isinstance(e.__cause__, (SchemaParseException, JSONDecodeError, ProtobufUnresolvedDependencyException)):
                 human_error = f"{e.__cause__.args[0]}"  # pylint: disable=no-member
             else:
                 from_body_schema_str = body["schema"]
