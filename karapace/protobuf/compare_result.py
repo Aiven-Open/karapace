@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from dataclasses import dataclass, field
 from enum import auto, Enum
+from typing import List
 
 
 class Modification(Enum):
@@ -44,7 +45,7 @@ class Modification(Enum):
             self.FIELD_TYPE_ALTER,
             self.ONE_OF_FIELD_DROP,
             self.FEW_FIELDS_CONVERTED_TO_ONE_OF,
-        ]
+        ]  # type: ignore[comparison-overlap]
 
 
 @dataclass
@@ -65,9 +66,9 @@ class ModificationRecord:
 
 class CompareResult:
     def __init__(self) -> None:
-        self.result = []
-        self.path = []
-        self.canonical_name = []
+        self.result: List[ModificationRecord] = []
+        self.path: List[str] = []
+        self.canonical_name: List[str] = []
 
     def push_path(self, name_element: str, canonical: bool = False) -> None:
         if canonical:

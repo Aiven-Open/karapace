@@ -4,14 +4,27 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OneOfElement.kt
+
+from __future__ import annotations
+
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
+from karapace.protobuf.field_element import FieldElement
+from karapace.protobuf.group_element import GroupElement
+from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.utils import append_documentation, append_indented
 
 
 class OneOfElement:
-    def __init__(self, name: str, documentation: str = "", fields=None, groups=None, options=None) -> None:
+    def __init__(
+        self,
+        name: str,
+        documentation: str = "",
+        fields: list[FieldElement] | None = None,
+        groups: list[GroupElement] | None = None,
+        options: list[OptionElement] | None = None,
+    ) -> None:
         self.name = name
         self.documentation = documentation
         self.fields = fields or []
@@ -19,7 +32,7 @@ class OneOfElement:
         self.groups = groups or []
 
     def to_schema(self) -> str:
-        result = []
+        result: list[str] = []
         append_documentation(result, self.documentation)
         result.append(f"oneof {self.name} {{")
         if self.options:
@@ -38,7 +51,7 @@ class OneOfElement:
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: "OneOfElement", result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: OneOfElement, result: CompareResult, types: CompareTypes) -> None:
         self_tags = {}
         other_tags = {}
 

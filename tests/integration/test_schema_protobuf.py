@@ -657,8 +657,7 @@ message WithReference {
                     subject="wr_nonexisting_s1_missing_references",
                     references=None,
                     expected=422,
-                    expected_msg=f"Invalid PROTOBUF schema. Error: Invalid schema {SCHEMA_WITH_REF} "
-                    f"with refs None of type {SchemaType.PROTOBUF}",
+                    expected_msg='Invalid PROTOBUF schema. Error: type "NoReference" is not defined',
                     expected_error_code=42201,
                 ),
             ],
@@ -1036,3 +1035,23 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
     res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
 
     assert res.status_code == 200
+
+
+async def test_protobuf_missing_google_import(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_missing_google_import")()
+
+    unknown_proto = """\
+syntax = "proto3";
+package a1;
+message UsingGoogleTypesWithoutImport {
+        string name = 1;
+        google.type.PostalAddress p = 2;
+}
+"""
+    body = {"schemaType": "PROTOBUF", "schema": unknown_proto}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 422
+
+    myjson = res.json()
+    assert myjson["error_code"] == 42201 and '"google.type.PostalAddress" is not defined' in myjson["message"]
