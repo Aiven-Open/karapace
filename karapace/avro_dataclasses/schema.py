@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 from typing_extensions import NotRequired, TypeAlias, TypedDict
 
@@ -29,9 +30,16 @@ class EnumType(TypedDict):
     default: NotRequired[str]
 
 
+class MapType(TypedDict):
+    name: str
+    type: Literal["map"]
+    values: AvroType
+    default: NotRequired[Mapping[str, AvroType]]
+
+
 TypeUnit: TypeAlias = "Primitive | TypeObject"
 UnionType: TypeAlias = "list[TypeUnit]"
-AvroType: TypeAlias = "TypeUnit | UnionType | RecordSchema | ArrayType | EnumType"
+AvroType: TypeAlias = "TypeUnit | UnionType | RecordSchema | ArrayType | EnumType | MapType"
 
 
 class FieldSchema(TypedDict):

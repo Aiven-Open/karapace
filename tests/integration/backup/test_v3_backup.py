@@ -6,13 +6,14 @@ from __future__ import annotations
 
 from dataclasses import fields
 from kafka import KafkaAdminClient, KafkaProducer, TopicPartition
-from kafka.admin import NewTopic
+from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup.api import _consume_records
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
 from karapace.backup.poll_timeout import PollTimeout
+from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
 from karapace.constants import TOPIC_CREATION_TIMEOUT_MS
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
@@ -107,6 +108,9 @@ def test_roundtrip_from_kafka_state(
     karapace_config: Config,
 ) -> None:
     # Populate the test topic.
+    admin_client.alter_configs(
+        [ConfigResource(ConfigResourceType.TOPIC, new_topic.name, configs={"max.message.bytes": "999"})]
+    )
     producer.send(
         new_topic.name,
         key=b"bar",
@@ -127,6 +131,8 @@ def test_roundtrip_from_kafka_state(
     ).add_errback(_raise)
     producer.flush()
 
+    topic_config = get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+
     # Execute backup creation.
     subprocess.run(
         [
@@ -137,6 +143,7 @@ def test_roundtrip_from_kafka_state(
             str(config_file),
             "--topic",
             new_topic.name,
+            "--replication-factor=1",
             "--location",
             str(tmp_path),
         ],
@@ -183,6 +190,8 @@ def test_roundtrip_from_kafka_state(
             poll_timeout=PollTimeout.default(),
         )
 
+    assert topic_config == get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+
     # First record.
     assert isinstance(first_record, ConsumerRecord)
     assert first_record.topic == new_topic.name
@@ -216,7 +225,7 @@ def test_roundtrip_from_file(
     config_file: Path,
     admin_client: KafkaAdminClient,
 ) -> None:
-    topic_name = "6595c9c2"
+    topic_name = "0cdc85dc"
     backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition"
     metadata_path = backup_directory / f"{topic_name}.metadata"
     with metadata_path.open("rb") as buffer:
@@ -258,6 +267,7 @@ def test_roundtrip_from_file(
             str(config_file),
             "--topic",
             topic_name,
+            "--replication-factor=1",
             "--location",
             str(tmp_path),
         ],
@@ -288,6 +298,9 @@ def test_roundtrip_from_file(
     # Verify new version matches current version of Karapace.
     assert new_metadata.tool_version == __version__
 
+    # Verify replication factor is correctly propagated.
+    assert new_metadata.replication_factor == 1
+
     # Verify all fields other than timings and version match exactly.
     for field in fields(Metadata):
         if field.name in {"started_at", "finished_at", "tool_version"}:
@@ -311,7 +324,7 @@ def no_color_env() -> dict[str, str]:
 class TestInspect:
     def test_can_inspect_v3(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "6595c9c2.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
         )
 
         cp = subprocess.run(
@@ -331,16 +344,25 @@ class TestInspect:
         assert json.loads(cp.stdout) == {
             "version": 3,
             "tool_name": "karapace",
-            "tool_version": "3.4.6-67-g26d38c0",
-            "started_at": "2023-05-12T14:24:45.932000+00:00",
-            "finished_at": "2023-05-12T14:24:46.286000+00:00",
-            "topic_name": "6595c9c2",
+            "tool_version": "3.5.0-31-g15440ce",
+            "started_at": "2023-05-31T11:42:21.116000+00:00",
+            "finished_at": "2023-05-31T11:42:21.762000+00:00",
+            "topic_name": "0cdc85dc",
             "topic_id": None,
             "partition_count": 1,
+            "record_count": 2,
+            "replication_factor": 1,
+            "topic_configurations": {
+                "min.insync.replicas": "1",
+                "cleanup.policy": "delete",
+                "retention.ms": "604800000",
+                "max.message.bytes": "999",
+                "retention.bytes": "-1",
+            },
             "checksum_algorithm": "xxhash3_64_be",
             "data_files": [
                 {
-                    "filename": "6595c9c2:0.data",
+                    "filename": "0cdc85dc:0.data",
                     "partition": 0,
                     "checksum_hex": "f414f504a8e49313",
                     "record_count": 2,
@@ -374,18 +396,21 @@ class TestInspect:
         assert json.loads(cp.stdout) == {
             "version": 3,
             "tool_name": "karapace",
-            "tool_version": "3.4.6-67-g26d38c0",
-            "started_at": "2023-05-30T14:44:24.841000+00:00",
-            "finished_at": "2023-05-30T14:44:25.168000+00:00",
+            "tool_version": "3.5.0-27-g9535c1d",
+            "started_at": "2023-05-31T12:01:01.165000+00:00",
+            "finished_at": "2023-05-31T12:01:01.165000+00:00",
             "topic_name": "a5f7a413",
             "topic_id": None,
             "partition_count": 1,
+            "record_count": 2,
+            "replication_factor": 2,
+            "topic_configurations": {"cleanup.policy": "compact", "min.insync.replicas": "2"},
             "checksum_algorithm": "unknown",
             "data_files": [
                 {
                     "filename": "a5f7a413:0.data",
                     "partition": 0,
-                    "checksum_hex": "f414f504a8e49313",
+                    "checksum_hex": "66343134663530346138653439333133",
                     "record_count": 2,
                     "start_offset": 0,
                     "end_offset": 1,
@@ -435,7 +460,7 @@ class TestInspect:
 class TestVerify:
     def test_can_verify_file_integrity(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "6595c9c2.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
         )
 
         cp = subprocess.run(
@@ -454,14 +479,14 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             """\
-            Integrity of 6595c9c2:0.data is intact.
+            Integrity of 0cdc85dc:0.data is intact.
             ✅ Verified 1 data files in backup OK.
             """
         )
 
     def test_can_verify_record_integrity(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "6595c9c2.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
         )
 
         cp = subprocess.run(
@@ -480,7 +505,7 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             """\
-            Integrity of 6595c9c2:0.data is intact.
+            Integrity of 0cdc85dc:0.data is intact.
             ✅ Verified 1 data files in backup OK.
             """
         )
@@ -510,6 +535,7 @@ class TestVerify:
                 "--use-format-v3",
                 f"--config={config_file!s}",
                 f"--topic={new_topic.name!s}",
+                "--replication-factor=1",
                 f"--location={tmp_path!s}",
             ],
             capture_output=True,
@@ -563,6 +589,7 @@ class TestVerify:
                 "--use-format-v3",
                 f"--config={config_file!s}",
                 f"--topic={new_topic.name}",
+                "--replication-factor=1",
                 f"--location={tmp_path!s}",
             ],
             capture_output=True,

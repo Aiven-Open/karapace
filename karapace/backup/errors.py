@@ -5,7 +5,7 @@ See LICENSE for details
 from kafka.structs import TopicPartition
 from karapace.backup.poll_timeout import PollTimeout
 
-__all__ = ["BackupError", "PartitionCountError", "StaleConsumerError"]
+__all__ = ["BackupError", "BackupTopicAlreadyExists", "EmptyPartition", "PartitionCountError", "StaleConsumerError"]
 
 
 class BackupError(Exception):
@@ -17,6 +17,10 @@ class EmptyPartition(BackupError):
 
 
 class PartitionCountError(BackupError):
+    pass
+
+
+class BackupTopicAlreadyExists(BackupError):
     pass
 
 
