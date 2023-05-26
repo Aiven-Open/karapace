@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        # Need fetch-depth 0 to fetch tags, see https://github.com/actions/checkout/issues/701
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
