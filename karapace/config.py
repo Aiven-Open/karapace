@@ -164,7 +164,7 @@ def parse_env_value(value: str) -> str | int | bool:
     return value
 
 
-def set_config_defaults(config: Config) -> Config:
+def set_config_defaults(config: ConfigDefaults) -> Config:
     new_config = DEFAULTS.copy()
     new_config.update(config)
 

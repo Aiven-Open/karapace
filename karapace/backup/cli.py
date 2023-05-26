@@ -4,9 +4,11 @@ karapace - schema backup cli
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from .api import BackupVersion, SchemaBackup
-from .consumer import PollTimeout
 from .errors import StaleConsumerError
+from .poll_timeout import PollTimeout
 from karapace.config import read_config
 
 import argparse
@@ -29,7 +31,9 @@ def parse_args() -> argparse.Namespace:
 
     for p in (parser_get, parser_export_anonymized_avro_schemas):
         p.add_argument("--overwrite", action="store_true", help="Overwrite --location even if it exists.")
-        p.add_argument("--poll-timeout", help=PollTimeout.__doc__, type=PollTimeout)
+        p.add_argument("--poll-timeout", help=PollTimeout.__doc__, type=PollTimeout, default=PollTimeout.default())
+
+    parser_get.add_argument("--use-format-v3", action="store_true", help="Use experimental V3 backup format.")
 
     return parser.parse_args()
 
@@ -38,15 +42,21 @@ def main() -> None:
     try:
         args = parse_args()
 
-        with open(args.config, encoding="utf8") as handler:
+        with open(args.config) as handler:
             config = read_config(handler)
 
         sb = SchemaBackup(config, args.location, args.topic)
 
         try:
-            if args.command == "get":
+            if args.command == "get" and args.use_format_v3:
                 sb.create(
-                    BackupVersion.V2,
+                    version=BackupVersion.V3,
+                    poll_timeout=args.poll_timeout,
+                    overwrite=args.overwrite,
+                )
+            elif args.command == "get":
+                sb.create(
+                    version=BackupVersion.V2,
                     poll_timeout=args.poll_timeout,
                     overwrite=args.overwrite,
                 )
@@ -54,7 +64,7 @@ def main() -> None:
                 sb.restore_backup()
             elif args.command == "export-anonymized-avro-schemas":
                 sb.create(
-                    BackupVersion.ANONYMIZE_AVRO,
+                    version=BackupVersion.ANONYMIZE_AVRO,
                     poll_timeout=args.poll_timeout,
                     overwrite=args.overwrite,
                 )
@@ -66,7 +76,8 @@ def main() -> None:
                 raise SystemExit(f"Entered unreachable code, unknown command: {args.command!r}")
         except StaleConsumerError as e:
             print(
-                f"The Kafka consumer did not receive any records for partition {e.partition} of topic {e.topic!r} "
+                f"The Kafka consumer did not receive any records for partition {e.topic_partition.partition} of topic "
+                f"{e.topic_partition.topic!r} "
                 f"within the poll timeout ({e.poll_timeout} seconds) while trying to reach offset {e.end_offset:,} "
                 f"(start was {e.start_offset:,} and the last seen offset was {e.last_offset:,}).\n"
                 "\n"

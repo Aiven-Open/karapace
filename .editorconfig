@@ -11,7 +11,7 @@ trim_trailing_whitespace = true
 
 ij_yaml_indent_sequence_value = false
 
-[*.{json,md,proto,rst,yaml,yml}]
+[*.{json,md,proto,rst,yaml,yml,avsc}]
 indent_size = 2
 tab_width = 2
 

@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from .typing import ArgJsonData, JsonData
 from aiohttp.web_log import AccessLogger
 from aiohttp.web_request import BaseRequest
 from aiohttp.web_response import StreamResponse
@@ -14,7 +15,6 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from http import HTTPStatus
 from kafka.client_async import BrokerConnection, KafkaClient
-from karapace.typing import ArgJsonData, JsonData
 from pathlib import Path
 from types import MappingProxyType
 from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
