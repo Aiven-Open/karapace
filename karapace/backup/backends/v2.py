@@ -4,12 +4,17 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from .backend import BaseItemsBackupReader, BaseKVBackupWriter
 from karapace.anonymize_schemas import anonymize_avro
+from karapace.backup.backends.reader import BaseItemsBackupReader
+from karapace.backup.backends.writer import BaseKVBackupWriter, StdOut
 from karapace.utils import json_decode, json_encode
-from typing import Any, Dict, Generator, IO
+from pathlib import Path
+from typing import Any, ClassVar, Dict, Final, Generator, IO, Sequence
 
 import base64
+import contextlib
+
+V2_MARKER: Final = b"/V2\n"
 
 
 def serialize_record(key_bytes: bytes | None, value_bytes: bytes | None) -> str:
@@ -18,7 +23,20 @@ def serialize_record(key_bytes: bytes | None, value_bytes: bytes | None) -> str:
     return f"{key}\t{value}\n"
 
 
-class SchemaBackupV2Writer(BaseKVBackupWriter):
+class _BaseV2Writer(BaseKVBackupWriter):
+    @classmethod
+    @contextlib.contextmanager
+    def safe_writer(
+        cls,
+        target: Path | StdOut,
+        allow_overwrite: bool,
+    ) -> Generator[IO[str], None, None]:
+        with super().safe_writer(target, allow_overwrite) as buffer:
+            buffer.write(V2_MARKER.decode())
+            yield buffer
+
+
+class SchemaBackupV2Writer(_BaseV2Writer):
     @staticmethod
     def serialize_record(
         key_bytes: bytes | None,
@@ -27,7 +45,7 @@ class SchemaBackupV2Writer(BaseKVBackupWriter):
         return serialize_record(key_bytes, value_bytes)
 
 
-class AnonymizeAvroWriter(BaseKVBackupWriter):
+class AnonymizeAvroWriter(_BaseV2Writer):
     @staticmethod
     def serialize_record(
         key_bytes: bytes | None,
@@ -60,8 +78,10 @@ class AnonymizeAvroWriter(BaseKVBackupWriter):
 
 
 class SchemaBackupV2Reader(BaseItemsBackupReader):
+    marker_size: ClassVar = 4
+
     @staticmethod
-    def items_from_file(fp: IO[str]) -> Generator[tuple[str, str], None, None]:
+    def items_from_file(fp: IO[str]) -> Generator[Sequence[str], None, None]:
         for line in fp:
             hex_key, hex_value = (val.strip() for val in line.split("\t"))
             key = base64.b16decode(hex_key).decode("utf8") if hex_key != "null" else hex_key

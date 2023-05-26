@@ -5,6 +5,7 @@ See LICENSE for details
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from kafka.errors import TopicAlreadyExistsError
 from karapace.client import Client
+from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
@@ -201,13 +202,13 @@ def create_id_factory(prefix: str) -> Callable[[], str]:
     return create_name
 
 
-def new_topic(admin_client, prefix="topic"):
-    tn = f"{new_random_name(prefix)}"
+def new_topic(admin_client: KafkaRestAdminClient, prefix: str = "topic") -> str:
+    topic_name = f"{new_random_name(prefix)}"
     try:
-        admin_client.new_topic(tn)
+        admin_client.new_topic(topic_name)
     except TopicAlreadyExistsError:
         pass
-    return tn
+    return topic_name
 
 
 async def wait_for_topics(rest_async_client: Client, topic_names: List[str], timeout: float, sleep: float) -> None:

@@ -7,8 +7,8 @@ See LICENSE for details
 from datetime import timedelta
 from kafka import KafkaConsumer
 from karapace.backup.api import BackupVersion, SchemaBackup
-from karapace.backup.consumer import PollTimeout
 from karapace.backup.errors import StaleConsumerError
+from karapace.backup.poll_timeout import PollTimeout
 from karapace.client import Client
 from karapace.config import set_config_defaults
 from karapace.kafka_rest_apis import KafkaRestAdminClient
