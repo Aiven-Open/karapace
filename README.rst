@@ -366,6 +366,10 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``0``
      - Time to wait for grouping together requests.
        More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+   * - ``producer_max_request_size``
+     - ``1048576``
+     - The maximum size of a request in bytes.
+       More on `Kafka Producer configs <https://kafka.apache.org/documentation/#producerconfigs_max.request.size>`_
    * - ``security_protocol``
      - ``PLAINTEXT``
      - Default Kafka security protocol needed to communicate with the Kafka

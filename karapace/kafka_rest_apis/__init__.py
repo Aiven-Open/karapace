@@ -459,17 +459,18 @@ class UserRestProxy:
 
                 # Don't retry if instantiating the producer fails, likely a configuration error.
                 producer = AIOKafkaProducer(
+                    acks=acks,
                     bootstrap_servers=self.config["bootstrap_uri"],
+                    compression_type=self.config["producer_compression_type"],
+                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
+                    linger_ms=self.config["producer_linger_ms"],
+                    max_request_size=self.config["producer_max_request_size"],
+                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     security_protocol=self.config["security_protocol"],
                     ssl_context=ssl_context,
                     sasl_mechanism=self.config["sasl_mechanism"],
                     sasl_plain_username=self.config["sasl_plain_username"],
                     sasl_plain_password=self.config["sasl_plain_password"],
-                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    acks=acks,
-                    compression_type=self.config["producer_compression_type"],
-                    linger_ms=self.config["producer_linger_ms"],
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
                 )
 
                 try:

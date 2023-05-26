@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
+from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
     new_random_name,
     new_topic,
@@ -16,6 +17,7 @@ from tests.utils import (
 )
 
 import asyncio
+import base64
 import json
 
 NEW_TOPIC_TIMEOUT = 10
@@ -334,6 +336,22 @@ async def test_publish_malformed_requests(rest_async_client, admin_client):
 
         res = await rest_async_client.post(url, json={"records": [{"value": "not b64"}]}, headers=REST_HEADERS["avro"])
         assert res.status_code == 422
+
+
+async def test_too_large_record(rest_async_client, admin_client):
+    tn = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    # Record batch overhead is 22 bytes, reduce just above
+    REDUCE_MAGIC_RECORD_BATCH_OVERHEAD = 21
+    record_value_str = (REST_PRODUCER_MAX_REQUEST_BYTES - REDUCE_MAGIC_RECORD_BATCH_OVERHEAD) * "a"
+    record_value = base64.b64encode(record_value_str.encode("utf8")).decode("utf8")
+    pl = {"records": [{"value": record_value}]}
+    res = await rest_async_client.post(f"/topics/{tn}", pl, headers={"Content-Type": "application/json"})
+    assert res.status_code == 422
+    assert res.json().get("offsets")[0].get("error") == (
+        "The server has a configurable maximum message size to avoid unbounded memory allocation. "
+        "This error is thrown if the client attempt to produce a message larger than this maximum."
+    )
 
 
 async def test_publish_to_nonexisting_topic(rest_async_client):
