@@ -61,7 +61,14 @@ def relative_path(path: pathlib.Path) -> pathlib.Path:
 def check_compatibility(git_target: str) -> None:
     errored = False
     found_any = False
-    subprocess.run(["git", "fetch"], check=True)
+
+    try:
+        remote, branch = git_target.split("/", 1)
+    except ValueError:
+        remote = "origin"
+        branch = git_target
+
+    subprocess.run(["git", "fetch", remote, branch], check=True, capture_output=True)
 
     for file in schema_directory.glob(f"*{extension}"):
         relative = relative_path(file)
@@ -92,7 +99,7 @@ def check_compatibility(git_target: str) -> None:
         if forwards_compat.compatibility is not SchemaCompatibilityType.compatible:
             errored = True
             print(
-                f"💥 Changes in {relative} breaks forwards compatibility with " f"{git_target}.",
+                f"💥 Changes in {relative} breaks forwards compatibility with {git_target}.",
                 file=sys.stderr,
             )
 
@@ -103,7 +110,7 @@ def check_compatibility(git_target: str) -> None:
         if backwards_compat.compatibility is not SchemaCompatibilityType.compatible:
             errored = True
             print(
-                f"💥 Changes in {relative} breaks backwards compatibility with " f"{git_target}.",
+                f"💥 Changes in {relative} breaks backwards compatibility with {git_target}.",
                 file=sys.stderr,
             )
 
