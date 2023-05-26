@@ -50,6 +50,8 @@ KAFKA_SCALA_VERSION = "2.13"
 KAFKA_LOG4J = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
 WORKER_COUNTER_KEY = "worker_counter"
 
+REST_PRODUCER_MAX_REQUEST_BYTES = 10240
+
 
 def _clear_test_name(name: str) -> str:
     # Based on:
@@ -231,7 +233,14 @@ async def fixture_rest_async(
 
     config_path = tmp_path / "karapace_config.json"
 
-    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers, "admin_metadata_max_age": 2})
+    config = set_config_defaults(
+        {
+            "admin_metadata_max_age": 2,
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            # Use non-default max request size for REST producer.
+            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
+        }
+    )
     write_config(config_path, config)
     rest = KafkaRest(config=config)
 

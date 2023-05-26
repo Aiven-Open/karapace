@@ -69,6 +69,7 @@ class Config(TypedDict):
     producer_compression_type: str | None
     producer_count: int
     producer_linger_ms: int
+    producer_max_request_size: int
     session_timeout_ms: int
     karapace_rest: bool
     karapace_registry: bool
@@ -132,6 +133,7 @@ DEFAULTS: ConfigDefaults = {
     "producer_compression_type": None,
     "producer_count": 5,
     "producer_linger_ms": 100,
+    "producer_max_request_size": 1048576,
     "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
