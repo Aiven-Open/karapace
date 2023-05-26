@@ -121,7 +121,7 @@ class ProtoType:
             else:
                 raise IllegalArgumentException(f"map key must be non-byte, non-floating point scalar: {key_type}")
 
-    def to_kind(self) -> Optional[OptionElement.Kind]:
+    def to_kind(self) -> OptionElement.Kind:
         return {
             "bool": OptionElement.Kind.BOOLEAN,
             "string": OptionElement.Kind.STRING,
