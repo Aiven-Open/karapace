@@ -18,7 +18,7 @@ from karapace.dataclasses import default_dataclass
 from karapace.utils import assert_never
 from karapace.version import __version__
 from pathlib import Path
-from typing import Callable, ContextManager, Final, Generator, IO, Iterator, Sequence, TypeVar
+from typing import Callable, ContextManager, Final, Generator, IO, Iterator, Mapping, Sequence, TypeVar
 from typing_extensions import TypeAlias
 
 import datetime
@@ -127,8 +127,10 @@ class SchemaBackupV3Reader(BaseBackupReader):
             raise UnknownChecksumAlgorithm("Tried restoring from a backup with an unknown checksum algorithm.")
 
         yield RestoreTopic(
-            name=topic_name,
+            topic_name=topic_name,
             partition_count=metadata.partition_count,
+            replication_factor=metadata.replication_factor,
+            topic_configs=metadata.topic_configurations,
         )
 
         for data_file in metadata.data_files:
@@ -297,6 +299,8 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         started_at: datetime.datetime,
         finished_at: datetime.datetime,
         partition_count: int,
+        replication_factor: int,
+        topic_configurations: Mapping[str, str],
         data_files: Sequence[DataFile],
     ) -> None:
         assert isinstance(path, Path)
@@ -321,6 +325,8 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
                     topic_name=topic_name,
                     topic_id=topic_id,
                     partition_count=partition_count,
+                    replication_factor=replication_factor,
+                    topic_configurations=topic_configurations,
                     checksum_algorithm=ChecksumAlgorithm.xxhash3_64_be,
                     data_files=tuple(data_files),
                 ),

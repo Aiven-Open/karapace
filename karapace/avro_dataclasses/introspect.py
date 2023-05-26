@@ -6,6 +6,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from .schema import AvroType, FieldSchema, RecordSchema
+from collections.abc import Mapping
 from dataclasses import Field, fields, is_dataclass, MISSING
 from enum import Enum
 from functools import lru_cache
@@ -30,7 +31,7 @@ class UnsupportedAnnotation(NotImplementedError):
     ...
 
 
-class UnderspecifiedArray(UnsupportedAnnotation):
+class UnderspecifiedAnnotation(UnsupportedAnnotation):
     ...
 
 
@@ -93,7 +94,7 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
     if origin in sequence_types:
         return _field_type_array(field, origin, type_)
     if type_ in sequence_types:
-        raise UnderspecifiedArray("Inner type must be specified for sequence types")
+        raise UnderspecifiedAnnotation("Inner type must be specified for sequence types")
 
     # Handle enums.
     if isinstance(type_, type) and issubclass(type_, Enum):
@@ -104,6 +105,25 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
                 "name": type_.__name__,
                 "type": "enum",
                 "symbols": [value.value for value in type_],
+            }
+        )
+
+    # Handle map types.
+    if origin is Mapping:
+        args = get_args(type_)
+        if len(args) != 2:
+            raise UnderspecifiedAnnotation("Key and value types must be specified for map types")
+        if args[0] is not str:
+            raise UnsupportedAnnotation("Key type must be str")
+        return FieldSchema(
+            {
+                "type": "map",
+                "values": _field_type(field, args[1]),
+                **(
+                    {"default": field.default_factory()}
+                    if field.default_factory is not MISSING
+                    else {}  # type: ignore[misc]
+                ),
             }
         )
 
