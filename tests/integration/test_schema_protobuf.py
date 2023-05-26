@@ -1055,3 +1055,39 @@ message UsingGoogleTypesWithoutImport {
 
     myjson = res.json()
     assert myjson["error_code"] == 42201 and '"google.type.PostalAddress" is not defined' in myjson["message"]
+
+
+async def test_protobuf_customer_update(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_customer_update")()
+
+    customer_proto = """\
+syntax = "proto3";
+package a1;
+import "google/type/postal_address.proto";
+// @consumer: the first comment
+message Customer {
+        string name = 1;
+        google.type.PostalAddress address = 2;
+}
+"""
+
+    body = {"schemaType": "PROTOBUF", "schema": customer_proto}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+
+    customer_proto = """\
+syntax = "proto3";
+package a1;
+import "google/type/postal_address.proto";
+// @consumer: the comment was incorrect, updating it now
+message Customer {
+        string name = 1;
+        google.type.PostalAddress address = 2;
+}
+"""
+
+    body = {"schemaType": "PROTOBUF", "schema": customer_proto}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
