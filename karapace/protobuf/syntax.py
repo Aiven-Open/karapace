@@ -14,7 +14,7 @@ class Syntax(Enum):
     PROTO_3 = "proto3"
 
     @classmethod
-    def _missing_(cls, value) -> None:
+    def _missing_(cls, value: object) -> None:
         raise IllegalArgumentException(f"unexpected syntax: {value}")
 
     def __str__(self) -> str:
