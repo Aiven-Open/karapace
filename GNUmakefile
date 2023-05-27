@@ -41,7 +41,9 @@ venv/.deps: requirements/requirements-dev.txt requirements/requirements.txt | ve
 	source ./bin/get-protoc
 	source ./bin/get-snappy
 	set -x
-	$(PIP) install -r '$(<)' --use-pep517
+	$(PIP) install --use-pep517 -r '$(<)'
+	$(PIP) install --use-pep517 .
+	$(PIP) check
 	touch '$(@)'
 
 .PHONY: version
@@ -84,3 +86,8 @@ requirements:
 	pip install --upgrade pip setuptools pip-tools
 	cd requirements && pip-compile --upgrade --resolver=backtracking requirements.in
 	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-dev.in
+
+.PHONY: schema
+schema: against := origin/main
+schema:
+	python3 -m karapace.backup.backends.v3.schema_tool --against=$(against)

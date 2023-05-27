@@ -44,15 +44,21 @@ class ProtobufDependencyVerifier:
                 used_type_with_scope = used_type[:delimiter] + "." + used_type[delimiter + 1 :]
                 used_type = used_type[delimiter + 1 :]
 
-            if not (
-                used_type in DependenciesHardcoded.index
-                or KnownDependency.index_simple.get(used_type) is not None
-                or KnownDependency.index.get(used_type) is not None
-                or used_type in declared_index
+            if used_type in DependenciesHardcoded.index:
+                continue
+
+            known_pkg = KnownDependency.index_simple.get(used_type) or KnownDependency.index.get(used_type)
+            if known_pkg is not None and known_pkg in self.import_path:
+                continue
+
+            if (
+                used_type in declared_index
                 or (delimiter != -1 and used_type_with_scope in declared_index)
                 or "." + used_type in declared_index
             ):
-                return DependencyVerifierResult(False, f"type {used_type} is not defined")
+                continue
+
+            return DependencyVerifierResult(False, f'type "{used_type}" is not defined')
 
         return DependencyVerifierResult(True)
 

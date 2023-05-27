@@ -22,7 +22,7 @@ attrs==23.1.0
     # via
     #   aiohttp
     #   jsonschema
-avro @ https://github.com/aiven/avro/archive/f37a4ea69560d798cc718fccd7f75223527f5ebb.tar.gz#subdirectory=lang/py
+avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py
     # via -r requirements.in
 charset-normalizer==3.1.0
     # via aiohttp
@@ -72,6 +72,8 @@ typing-extensions==4.6.2
 ujson==5.7.0
     # via -r requirements.in
 watchfiles==0.19.0
+    # via -r requirements.in
+xxhash==3.2.0
     # via -r requirements.in
 yarl==1.9.2
     # via aiohttp

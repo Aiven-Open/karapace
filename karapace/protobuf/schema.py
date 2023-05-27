@@ -130,8 +130,10 @@ class ProtobufSchema:
             for key in self.dependencies:
                 self.dependencies[key].schema.schema.collect_dependencies(verifier)
 
-        # verifier.add_import?? we have no access to own Kafka structure from this class...
-        # but we need data to analyse imports to avoid cyclic dependencies...
+        for i in self.proto_file_element.imports:
+            verifier.add_import(i)
+        for i in self.proto_file_element.public_imports:
+            verifier.add_import(i)
 
         package_name = self.proto_file_element.package_name
         if package_name is None:
