@@ -29,7 +29,7 @@ class StatsClient:
             statsd_uri = config.get("statsd_uri")
             if statsd_uri:
                 srv = urllib.parse.urlsplit("//" + statsd_uri)
-                _host = srv.host or host
+                _host = srv.hostname or host
                 _port = srv.port or port
                 self._dest_addr = (_host, _port)
             else:
