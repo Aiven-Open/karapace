@@ -8,6 +8,7 @@ connections-active - The number of active HTTP(S) connections to server.
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.config import Config
 from karapace.statsd import StatsClient
 from typing import List, Union
 
@@ -123,10 +124,13 @@ class SampledSensor(BasicSensor):
 
 
 class Metrics:
-    def __init__(self, stats_client: StatsClient, prefix: str, time_window: float) -> None:
+    def __init__(self, stats_client: StatsClient, prefix: str, time_window: float, config: Config) -> None:
+        self.active = config.get("metrics_extended")
         self.stats_client = stats_client
         """ app_connections_metric will gauge active connections at present moment """
 
+        if not self.active:
+            return
         self.sensors: List[Union[CounterSensor, SampledSensor]] = []
         self.connections_sensor = CounterSensor(f"{prefix}_connections_active", 0.0)
         self.request_size_max_sensor = SampledSensor(f"{prefix}_request_size_max", Max(time_window))
@@ -140,22 +144,32 @@ class Metrics:
         self.sensors.append(self.response_size_max_sensor)
 
     def connection(self) -> None:
+        if not self.active:
+            return
         self.connections_sensor.record(1.0)
 
     def request(self, size: int) -> None:
+        if not self.active:
+            return
         t = time.monotonic()
         self.request_size_max_sensor.record(size, t)
         self.request_size_avg_sensor.record(size, t)
 
     def response(self, size: int) -> None:
+        if not self.active:
+            return
         self.connections_sensor.record(-1.0)
         t = time.monotonic()
         self.response_size_max_sensor.record(size, t)
         self.response_size_avg_sensor.record(size, t)
 
     def report(self) -> None:
+        if not self.active:
+            return
         for s in self.sensors:
             s.report(self.stats_client)
 
     def cleanup(self) -> None:
+        if not self.active:
+            return
         self.report()

@@ -27,5 +27,8 @@
     "registry_authfile": null,
     "topic_name": "_schemas",
     "protobuf_runtime_directory": "runtime",
-    "session_timeout_ms": 10000
+    "session_timeout_ms": 10000,
+    "metrics_mode" : "statsd",
+    "statsd_uri" : "127.0.0.1:8125",
+    "metrics_extended" : true
 }

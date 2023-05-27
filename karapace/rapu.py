@@ -171,7 +171,7 @@ class RestApp:
         self.stats = StatsClient(config=config)
         self.app.on_cleanup.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
-        self.metrics = Metrics(self.stats, app_name, 10)
+        self.metrics = Metrics(self.stats, app_name, 10, config)
         schedule.every(10).seconds.do(self.metrics.report)
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
