@@ -16,6 +16,7 @@ import datetime
 import logging
 import socket
 import time
+import urllib
 
 STATSD_HOST = "127.0.0.1"
 STATSD_PORT = 8125
@@ -24,7 +25,16 @@ LOG = logging.getLogger(__name__)
 
 class StatsClient:
     def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, config: Optional[Dict[str, str]] = None) -> None:
-        self._dest_addr = (host, port)
+        if config.get("metrics_mode") == "statsd":
+            statsd_uri = config.get("statsd_uri")
+            if statsd_uri:
+                srv = urllib.parse.urlsplit("//" + statsd_uri)
+                _host = srv.hostname or host
+                _port = srv.port or port
+                self._dest_addr = (_host, _port)
+            else:
+                self._dest_addr = (host, port)
+
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags = config.get("tags", {})
         self.sentry_client = get_sentry_client(sentry_config=config.get("sentry", None))
