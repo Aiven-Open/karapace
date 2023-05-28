@@ -11,8 +11,9 @@ tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
-xxhash~=3.0
 schedule
+xxhash~=3.0
+
 
 # Patched dependencies
 #
