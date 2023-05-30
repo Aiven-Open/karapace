@@ -5,7 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from .checksum import RunningChecksum
-from .errors import InvalidChecksum, UnknownChecksumAlgorithm
+from .errors import DecodeError, InvalidChecksum, UnknownChecksumAlgorithm
 from .readers import read_metadata, read_records
 from .schema import ChecksumAlgorithm, DataFile, Header, Metadata, Record
 from .writers import write_metadata, write_record
@@ -14,14 +14,31 @@ from kafka.consumer.fetcher import ConsumerRecord
 from karapace.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
 from karapace.backup.backends.writer import BytesBackupWriter, StdOut
 from karapace.backup.safe_writer import bytes_writer, staging_directory
+from karapace.dataclasses import default_dataclass
 from karapace.utils import assert_never
 from karapace.version import __version__
 from pathlib import Path
-from typing import Callable, ContextManager, Final, IO, Iterator, Sequence, TypeVar
+from typing import Callable, ContextManager, Final, Generator, IO, Iterator, Sequence, TypeVar
+from typing_extensions import TypeAlias
 
 import datetime
+import io
 import uuid
 import xxhash
+
+
+@default_dataclass
+class VerifySuccess:
+    data_file: DataFile
+
+
+@default_dataclass
+class VerifyFailure:
+    data_file: DataFile
+    exception: DecodeError | None
+
+
+VerifyResult: TypeAlias = "VerifySuccess | VerifyFailure"
 
 
 def _get_checksum_implementation(algorithm: ChecksumAlgorithm) -> Callable[[], RunningChecksum]:
@@ -87,6 +104,45 @@ class SchemaBackupV3Reader(BaseBackupReader):
                 metadata=metadata,
                 data_file=data_file,
             )
+
+    # Not part of common interface, because it exposes DataFile which is
+    # specific to V3.
+    def verify_files(self, path: Path) -> Generator[VerifyResult, None, None]:
+        metadata = self.read_metadata(path)
+
+        for data_file in metadata.data_files:
+            checksum = _get_checksum_implementation(metadata.checksum_algorithm)()
+            with (path.parent / data_file.filename).open("rb") as buffer:
+                while True:
+                    chunk = buffer.read(io.DEFAULT_BUFFER_SIZE)
+                    if not chunk:
+                        break
+                    checksum.update(chunk)
+            yield (
+                VerifySuccess(data_file=data_file)
+                if checksum.digest() == data_file.checksum
+                else VerifyFailure(
+                    data_file=data_file,
+                    exception=None,
+                )
+            )
+
+    # Not part of common interface, because it exposes DataFile which is
+    # specific to V3.
+    def verify_records(self, path: Path) -> Generator[VerifyResult, None, None]:
+        metadata = self.read_metadata(path)
+
+        for data_file in metadata.data_files:
+            try:
+                for _ in self.read(path, metadata.topic_name):
+                    pass
+            except DecodeError as exception:
+                yield VerifyFailure(
+                    data_file=data_file,
+                    exception=exception,
+                )
+            else:
+                yield VerifySuccess(data_file=data_file)
 
 
 # Note: Because the underlying checksum API is mutable, it doesn't make sense to attempt

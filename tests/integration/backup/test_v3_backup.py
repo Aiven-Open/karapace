@@ -30,6 +30,7 @@ import pytest
 import secrets
 import shutil
 import subprocess
+import textwrap
 
 
 @pytest.fixture(scope="function", name="karapace_config")
@@ -365,9 +366,8 @@ class TestInspect:
         )
 
         assert cp.returncode == 0
-        assert (
-            cp.stderr.decode()
-            == "Warning! This file has an unknown checksum algorithm and cannot be restored with this version of Karapace.\n"
+        assert cp.stderr.decode() == (
+            "Warning! This file has an unknown checksum algorithm and cannot be restored with this version of \nKarapace.\n"
         )
         assert json.loads(cp.stdout) == {
             "version": 3,
@@ -426,3 +426,258 @@ class TestInspect:
         assert cp.returncode == 0
         assert cp.stderr == b""
         assert json.loads(cp.stdout) == {"version": 1}
+
+
+class TestVerify:
+    def test_can_verify_file_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "2db42756.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of 2db42756:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_verify_record_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "2db42756.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=record",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of 2db42756:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_verify_file_integrity_from_large_topic(
+        self,
+        tmp_path: Path,
+        new_topic: NewTopic,
+        producer: KafkaProducer,
+        config_file: Path,
+    ) -> None:
+        # Populate the test topic.
+        for _ in range(100):
+            producer.send(
+                new_topic.name,
+                key=1000 * b"a",
+                value=1000 * b"b",
+                partition=0,
+            ).add_errback(_raise)
+        producer.flush()
+
+        # Execute backup creation.
+        subprocess.run(
+            [
+                "karapace_schema_backup",
+                "get",
+                "--use-format-v3",
+                f"--config={config_file!s}",
+                f"--topic={new_topic.name!s}",
+                f"--location={tmp_path!s}",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        metadata_path = tmp_path / f"topic-{new_topic.name}" / f"{new_topic.name}.metadata"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            f"""\
+            Integrity of {new_topic.name}:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_verify_record_integrity_from_large_topic(
+        self,
+        tmp_path: Path,
+        new_topic: NewTopic,
+        producer: KafkaProducer,
+        config_file: Path,
+    ) -> None:
+        # Populate the test topic.
+        for _ in range(100):
+            producer.send(
+                new_topic.name,
+                key=1000 * b"a",
+                value=1000 * b"b",
+                partition=0,
+            ).add_errback(_raise)
+        producer.flush()
+
+        # Execute backup creation.
+        subprocess.run(
+            [
+                "karapace_schema_backup",
+                "get",
+                "--use-format-v3",
+                f"--config={config_file!s}",
+                f"--topic={new_topic.name}",
+                f"--location={tmp_path!s}",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        metadata_path = tmp_path / f"topic-{new_topic.name}" / f"{new_topic.name}.metadata"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path}",
+                "--level=record",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            f"""\
+            Integrity of {new_topic.name}:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_refute_file_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve()
+            / "test_data"
+            / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
+            / "2db42756.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 1
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of 2db42756:0.data is not intact!
+            💥 Failed to verify integrity of some data files.
+            """
+        )
+
+    def test_can_refute_record_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve()
+            / "test_data"
+            / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
+            / "2db42756.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=record",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 1
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of 2db42756:0.data is not intact!
+                InvalidChecksum: Found checksum mismatch after reading full data file.
+            💥 Failed to verify integrity of some data files.
+            """
+        )
+
+    @pytest.mark.parametrize(
+        ("test_file", "error_message"),
+        (
+            (
+                "test_restore_v1.log",
+                "Only backups using format V3 can be verified, found V1.\n",
+            ),
+            (
+                "test_restore_v2.log",
+                "Only backups using format V3 can be verified, found V2.\n",
+            ),
+        ),
+    )
+    def test_gives_non_successful_exit_code_for_legacy_backup_format(
+        self,
+        test_file: str,
+        error_message: str,
+    ) -> None:
+        backup_path = Path(__file__).parent.parent.resolve() / "test_data" / test_file
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={backup_path}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 1
+        assert cp.stderr.decode() == error_message
+        assert cp.stdout == b""

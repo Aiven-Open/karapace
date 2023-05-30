@@ -9,6 +9,7 @@ from __future__ import annotations
 from . import api
 from .errors import StaleConsumerError
 from .poll_timeout import PollTimeout
+from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
 
 import argparse
@@ -22,11 +23,12 @@ def parse_args() -> argparse.Namespace:
     parser_get = subparsers.add_parser("get", help="Store the schema backup into a file")
     parser_restore = subparsers.add_parser("restore", help="Restore the schema backup from a file")
     parser_inspect = subparsers.add_parser("inspect", help="Parse and dump metadata from a backup file.")
+    parser_verify = subparsers.add_parser("verify", help="Parse metadata, and verify all checksums of a backup.")
     parser_export_anonymized_avro_schemas = subparsers.add_parser(
         "export-anonymized-avro-schemas", help="Export anonymized Avro schemas into a file"
     )
 
-    for p in (parser_get, parser_restore, parser_inspect, parser_export_anonymized_avro_schemas):
+    for p in (parser_get, parser_restore, parser_inspect, parser_verify, parser_export_anonymized_avro_schemas):
         p.add_argument("--location", default="", help="File path for the backup file")
 
     for p in (parser_get, parser_restore, parser_export_anonymized_avro_schemas):
@@ -38,6 +40,16 @@ def parse_args() -> argparse.Namespace:
         p.add_argument("--poll-timeout", help=PollTimeout.__doc__, type=PollTimeout, default=PollTimeout.default())
 
     parser_get.add_argument("--use-format-v3", action="store_true", help="Use experimental V3 backup format.")
+
+    parser_verify.add_argument(
+        "--level",
+        choices=[level.value for level in VerifyLevel],
+        required=True,
+        help=(
+            "At what level the backup should be verified. Use 'file' to only verify data file checksums. Use 'record' to "
+            "also check that the files are fully parsable and that record counts and offsets are matching."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -62,6 +74,8 @@ def dispatch(args: argparse.Namespace) -> None:
         )
     elif args.command == "inspect":
         api.inspect(location)
+    elif args.command == "verify":
+        api.verify(location, level=VerifyLevel(args.level))
     elif args.command == "restore":
         config = get_config(args)
         api.restore_backup(
