@@ -46,10 +46,12 @@ venv/.deps: requirements/requirements-dev.txt requirements/requirements.txt | ve
 	$(PIP) check
 	touch '$(@)'
 
+
+karapace/version.py:
+	$(PYTHON) version.py
+
 .PHONY: version
-version: karapace/version.py
-karapace/version.py: version.py | venv/.make
-	$(PYTHON) '$(<)' '$(@)'
+version: venv/.make | karapace/version.py
 
 .PHONY: test
 tests: unit-tests integration-tests
@@ -86,6 +88,7 @@ requirements:
 	pip install --upgrade pip setuptools pip-tools
 	cd requirements && pip-compile --upgrade --resolver=backtracking requirements.in
 	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-dev.in
+	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-typing.in
 
 .PHONY: schema
 schema: against := origin/main

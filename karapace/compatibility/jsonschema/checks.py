@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from avro.compatibility import merge, SchemaCompatibilityResult, SchemaCompatibilityType, SchemaIncompatibilityType
 from dataclasses import dataclass
 from itertools import product
@@ -32,7 +34,7 @@ from karapace.compatibility.jsonschema.utils import (
     normalize_schema,
     schema_from_partially_open_content_model,
 )
-from typing import Any, List, Optional
+from typing import Any
 
 import networkx as nx
 
@@ -133,20 +135,26 @@ MIN_ITEMS_CHECK = AssertionCheck(
 def type_mismatch(
     reader_type: JSONSCHEMA_TYPES,
     writer_type: JSONSCHEMA_TYPES,
-    location: List[str],
+    location: list[str],
 ) -> SchemaCompatibilityResult:
     locations = "/".join(location)
     if len(location) > 1:  # Remove ROOT_REFERENCE_TOKEN
         locations = locations[1:]
     return SchemaCompatibilityResult(
         compatibility=SchemaCompatibilityType.incompatible,
-        incompatibilities=[Incompatibility.type_changed],
+        # TODO: https://github.com/aiven/karapace/issues/633
+        incompatibilities=[Incompatibility.type_changed],  # type: ignore[list-item]
         locations={locations},
         messages={f"type {reader_type} is not compatible with type {writer_type}"},
     )
 
 
-def count_uniquely_compatible_schemas(reader_type: Instance, reader_schema, writer_schema, location: List[str]) -> int:
+def count_uniquely_compatible_schemas(
+    reader_type: Instance,
+    reader_schema,
+    writer_schema,
+    location: list[str],
+) -> int:
     # allOf/anyOf/oneOf subschemas do not enforce order, as a consequence the
     # new schema may change the order of the entries without breaking
     # compatibility.
@@ -185,24 +193,27 @@ def count_uniquely_compatible_schemas(reader_type: Instance, reader_schema, writ
 
 
 def incompatible_schema(
-    incompat_type: SchemaIncompatibilityType, message: str, location: List[str]
+    incompat_type: Incompatibility | SchemaIncompatibilityType,
+    message: str,
+    location: list[str],
 ) -> SchemaCompatibilityResult:
     locations = "/".join(location)
     if len(location) > 1:  # Remove ROOT_REFERENCE_TOKEN
         locations = locations[1:]
     return SchemaCompatibilityResult(
         compatibility=SchemaCompatibilityType.incompatible,
-        incompatibilities=[incompat_type],
+        # TODO: https://github.com/aiven/karapace/issues/633
+        incompatibilities=[incompat_type],  # type: ignore[list-item]
         locations={locations},
         messages={message},
     )
 
 
-def is_incompatible(result: "SchemaCompatibilityResult") -> bool:
+def is_incompatible(result: SchemaCompatibilityResult) -> bool:
     return result.compatibility is SchemaCompatibilityType.incompatible
 
 
-def is_compatible(result: "SchemaCompatibilityResult") -> bool:
+def is_compatible(result: SchemaCompatibilityResult) -> bool:
     return result.compatibility is SchemaCompatibilityType.compatible
 
 
@@ -224,7 +235,7 @@ def check_simple_subschema(
     simplified_writer_schema: Any,
     original_reader_type: JSONSCHEMA_TYPES,
     original_writer_type: JSONSCHEMA_TYPES,
-    location: List[str],
+    location: list[str],
 ) -> SchemaCompatibilityResult:
     rec_result = compatibility_rec(simplified_reader_schema, simplified_writer_schema, location)
     if is_compatible(rec_result):
@@ -233,7 +244,9 @@ def check_simple_subschema(
 
 
 def compatibility_rec(
-    reader_schema: Optional[Any], writer_schema: Optional[Any], location: List[str]
+    reader_schema: Any | None,
+    writer_schema: Any | None,
+    location: list[str],
 ) -> SchemaCompatibilityResult:
     if introduced_constraint(reader_schema, writer_schema):
         return incompatible_schema(
@@ -324,7 +337,10 @@ def compatibility_rec(
 
 
 def check_assertion_compatibility(
-    reader_schema, writer_schema, assertion_check: AssertionCheck, location: List[str]
+    reader_schema,
+    writer_schema,
+    assertion_check: AssertionCheck,
+    location: list[str],
 ) -> SchemaCompatibilityResult:
     result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
@@ -355,7 +371,11 @@ def check_assertion_compatibility(
     return result
 
 
-def compatibility_enum(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
+def compatibility_enum(
+    reader_schema,
+    writer_schema,
+    location: list[str],
+) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.1.2
     assert Keyword.ENUM.value in reader_schema, "types should have been previously checked"
     assert Keyword.ENUM.value in writer_schema, "types should have been previously checked"
@@ -372,7 +392,11 @@ def compatibility_enum(reader_schema, writer_schema, location: List[str]) -> Sch
     return SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
 
-def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
+def compatibility_numerical(
+    reader_schema,
+    writer_schema,
+    location: list[str],
+) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.2
     result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
@@ -384,7 +408,7 @@ def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -
     assert reader_is_number, "types should have been previously checked"
     assert writer_is_number, "types should have been previously checked"
 
-    checks: List[AssertionCheck] = [MAXIMUM_CHECK, MINIMUM_CHECK, EXCLUSIVE_MAXIMUM_CHECK, EXCLUSIVE_MINIMUM_CHECK]
+    checks: list[AssertionCheck] = [MAXIMUM_CHECK, MINIMUM_CHECK, EXCLUSIVE_MAXIMUM_CHECK, EXCLUSIVE_MINIMUM_CHECK]
     for assertion_check in checks:
         check_result = check_assertion_compatibility(
             reader_schema,
@@ -430,14 +454,14 @@ def compatibility_numerical(reader_schema, writer_schema, location: List[str]) -
     return result
 
 
-def compatibility_string(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
+def compatibility_string(reader_schema, writer_schema, location: list[str]) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.3
     result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
     assert get_type_of(reader_schema) == Instance.STRING, "types should have been previously checked"
     assert get_type_of(writer_schema) == Instance.STRING, "types should have been previously checked"
 
-    checks: List[AssertionCheck] = [MAX_LENGTH_CHECK, MIN_LENGTH_CHECK, PATTERN_CHECK]
+    checks: list[AssertionCheck] = [MAX_LENGTH_CHECK, MIN_LENGTH_CHECK, PATTERN_CHECK]
     for assertion_check in checks:
         check_result = check_assertion_compatibility(
             reader_schema,
@@ -449,7 +473,11 @@ def compatibility_string(reader_schema, writer_schema, location: List[str]) -> S
     return result
 
 
-def compatibility_array(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
+def compatibility_array(
+    reader_schema,
+    writer_schema,
+    location: list[str],
+) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.4
     reader_type = get_type_of(reader_schema)
     writer_type = get_type_of(writer_schema)
@@ -554,7 +582,7 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
     rec_result = compatibility_rec(reader_additional_items, writer_additional_items, location_additional_items)
     result = merge(result, rec_result)
 
-    checks: List[AssertionCheck] = [MAX_ITEMS_CHECK, MIN_ITEMS_CHECK]
+    checks: list[AssertionCheck] = [MAX_ITEMS_CHECK, MIN_ITEMS_CHECK]
     for assertion_check in checks:
         check_result = check_assertion_compatibility(
             reader_schema,
@@ -582,18 +610,26 @@ def compatibility_array(reader_schema, writer_schema, location: List[str]) -> Sc
 
 
 def add_incompatibility(
-    result: SchemaCompatibilityResult, incompat_type: SchemaIncompatibilityType, message: str, location: List[str]
+    result: SchemaCompatibilityResult,
+    incompat_type: Incompatibility,
+    message: str,
+    location: list[str],
 ) -> None:
     """Add an incompatibility, this will modify the object in-place."""
     formatted_location = "/".join(location[1:] if len(location) > 1 else location)
 
     result.compatibility = SchemaCompatibilityType.incompatible
-    result.incompatibilities.append(incompat_type)
+    # TODO: https://github.com/aiven/karapace/issues/633
+    result.incompatibilities.append(incompat_type)  # type: ignore[arg-type]
     result.messages.add(message)
     result.locations.add(formatted_location)
 
 
-def compatibility_object(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
+def compatibility_object(
+    reader_schema,
+    writer_schema,
+    location: list[str],
+) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-validation.html#rfc.section.6.5
     result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
 
@@ -760,7 +796,7 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
         rec_result = compatibility_rec(reader_dependent_schema, writer_dependent_schema, location)
         result = merge(result, rec_result)
 
-    checks: List[AssertionCheck] = [MAX_PROPERTIES_CHECK, MIN_PROPERTIES_CHECK]
+    checks: list[AssertionCheck] = [MAX_PROPERTIES_CHECK, MIN_PROPERTIES_CHECK]
     for assertion_check in checks:
         check_result = check_assertion_compatibility(
             reader_schema,
@@ -791,13 +827,17 @@ def compatibility_object(reader_schema, writer_schema, location: List[str]) -> S
     return result
 
 
-def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) -> SchemaCompatibilityResult:
+def compatibility_subschemas(
+    reader_schema,
+    writer_schema,
+    location: list[str],
+) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.10
     # pylint: disable=too-many-return-statements
     reader_subschemas_and_type = maybe_get_subschemas_and_type(reader_schema)
     writer_subschemas_and_type = maybe_get_subschemas_and_type(writer_schema)
 
-    reader_subschemas: Optional[List[Any]]
+    reader_subschemas: list[Any] | None
     reader_type: JSONSCHEMA_TYPES
     if reader_subschemas_and_type is not None:
         reader_subschemas = reader_subschemas_and_type[0]
@@ -808,7 +848,7 @@ def compatibility_subschemas(reader_schema, writer_schema, location: List[str]) 
         reader_type = get_type_of(reader_schema)
         reader_has_subschema = False
 
-    writer_subschemas: Optional[List[Any]]
+    writer_subschemas: list[Any] | None
     writer_type: JSONSCHEMA_TYPES
     if writer_subschemas_and_type is not None:
         writer_subschemas = writer_subschemas_and_type[0]

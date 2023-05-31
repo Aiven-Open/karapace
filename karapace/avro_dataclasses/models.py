@@ -126,7 +126,9 @@ def parser_transformations(cls: type[DataclassInstance]) -> Mapping[str, Parser]
 T = TypeVar("T", bound=DataclassInstance)
 
 
-def from_avro_dict(cls: type[T], data: Mapping[str, object]) -> T:
+def from_avro_dict(cls: type[T], data: object) -> T:
+    if not isinstance(data, Mapping):
+        raise TypeError("Expected mapping")
     cls_transformations = parser_transformations(cls)
     return cls(**{key: cls_transformations.get(key, noop)(value) for key, value in data.items()})
 

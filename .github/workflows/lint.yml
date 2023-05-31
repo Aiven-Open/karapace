@@ -25,10 +25,22 @@ jobs:
         cache: pip
         python-version: '3.11'
     # required for pylint
-    - run: make version
+    - run: make karapace/version.py
     - run: pip install pre-commit
     - uses: actions/cache@v3
       with:
         path: ~/.cache/pre-commit
         key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
     - run: pre-commit run --all-files --show-diff-on-failure
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        cache: pip
+        python-version: '3.11'
+    - run: pip install -r requirements/requirements.txt -r requirements/requirements-typing.txt
+    - run: make karapace/version.py
+    - run: mypy
