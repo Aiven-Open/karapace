@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from contextlib import AsyncExitStack, closing
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -27,8 +29,8 @@ from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import Reference
-from karapace.typing import JsonObject, ResolvedVersion, Subject, Version
-from typing import Dict, List, Optional, Tuple, Union
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
+from typing import Mapping, Sequence
 
 import asyncio
 import logging
@@ -36,18 +38,17 @@ import logging
 LOG = logging.getLogger(__name__)
 
 
-def _resolve_version(schema_versions: Dict[ResolvedVersion, SchemaVersion], version: Version) -> ResolvedVersion:
+def _resolve_version(
+    schema_versions: Mapping[ResolvedVersion, SchemaVersion],
+    version: Version,
+) -> ResolvedVersion:
     max_version = max(schema_versions)
-    resolved_version: ResolvedVersion
     if isinstance(version, str) and version == "latest":
         return max_version
-
-    version = int(version)
-    if version <= max_version:
-        resolved_version = version
-    else:
-        raise VersionNotFoundException()
-    return resolved_version
+    resolved_version = ResolvedVersion(int(version))
+    if resolved_version <= max_version:
+        return resolved_version
+    raise VersionNotFoundException()
 
 
 def validate_version(version: Version) -> Version:
@@ -85,14 +86,14 @@ class KarapaceSchemaRegistry:
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
 
-    def subjects_list(self, include_deleted: bool = False) -> List[Subject]:
+    def subjects_list(self, include_deleted: bool = False) -> list[Subject]:
         return self.database.find_subjects(include_deleted=include_deleted)
 
     @property
     def compatibility(self) -> str:
         return str(self.config["compatibility"])
 
-    def get_schemas(self, subject: Subject, *, include_deleted: bool = False) -> List[SchemaVersion]:
+    def get_schemas(self, subject: Subject, *, include_deleted: bool = False) -> list[SchemaVersion]:
         schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=include_deleted)
         return list(schema_versions.values())
 
@@ -107,7 +108,7 @@ class KarapaceSchemaRegistry:
             stack.enter_context(closing(self.schema_reader))
             stack.enter_context(closing(self.producer))
 
-    async def get_master(self, ignore_readiness: bool = False) -> Tuple[bool, Optional[str]]:
+    async def get_master(self, ignore_readiness: bool = False) -> tuple[bool, str | None]:
         """Resolve if current node is the primary and the primary node address.
 
         :param bool ignore_readiness: Ignore waiting to become ready and return
@@ -136,23 +137,23 @@ class KarapaceSchemaRegistry:
             raise ValueError(f"Unknown compatibility mode {compatibility}") from e
         return compatibility_mode
 
-    async def schemas_list(self, *, include_deleted: bool, latest_only: bool) -> Dict[Subject, List[SchemaVersion]]:
+    async def schemas_list(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
         async with self.schema_lock:
             schemas = self.database.find_schemas(include_deleted=include_deleted, latest_only=latest_only)
             return schemas
 
-    def schemas_get(self, schema_id: int, *, fetch_max_id: bool = False) -> Optional[TypedSchema]:
+    def schemas_get(self, schema_id: SchemaId, *, fetch_max_id: bool = False) -> TypedSchema | None:
         try:
             schema = self.database.find_schema(schema_id=schema_id)
-
-            if schema and fetch_max_id:
-                schema.max_id = self.database.global_schema_id
-
-            return schema
         except KeyError:
             return None
 
-    async def subject_delete_local(self, subject: str, permanent: bool) -> List[ResolvedVersion]:
+        if schema and fetch_max_id:
+            schema.max_id = self.database.global_schema_id
+
+        return schema
+
+    async def subject_delete_local(self, subject: Subject, permanent: bool) -> list[ResolvedVersion]:
         async with self.schema_lock:
             schema_versions = self.subject_get(subject, include_deleted=True)
 
@@ -170,8 +171,6 @@ class KarapaceSchemaRegistry:
             if not permanent and already_soft_deleted:
                 raise SubjectSoftDeletedException()
 
-            latest_version_id = 0
-            version_list = []
             if permanent:
                 version_list = list(schema_versions)
                 for version_id, schema_version in list(schema_versions.items()):
@@ -199,11 +198,13 @@ class KarapaceSchemaRegistry:
             else:
                 try:
                     schema_versions_live = self.subject_get(subject, include_deleted=False)
+                except SchemasNotFoundException:
+                    latest_version_id = ResolvedVersion(0)
+                    version_list = []
+                else:
                     version_list = list(schema_versions_live)
                     if version_list:
                         latest_version_id = version_list[-1]
-                except SchemasNotFoundException:
-                    pass
 
                 referenced_by = self.schema_reader.get_referenced_by(subject, latest_version_id)
                 if referenced_by and len(referenced_by) > 0:
@@ -235,7 +236,7 @@ class KarapaceSchemaRegistry:
 
             referenced_by = self.schema_reader.get_referenced_by(subject, resolved_version)
             if referenced_by and len(referenced_by) > 0:
-                raise ReferenceExistsException(referenced_by, version)
+                raise ReferenceExistsException(referenced_by, resolved_version)
 
             self.send_schema_message(
                 subject=subject,
@@ -249,7 +250,7 @@ class KarapaceSchemaRegistry:
                 self.schema_reader.remove_referenced_by(schema_version.schema_id, schema_version.references)
             return resolved_version
 
-    def subject_get(self, subject: Subject, include_deleted: bool = False) -> Dict[ResolvedVersion, SchemaVersion]:
+    def subject_get(self, subject: Subject, include_deleted: bool = False) -> dict[ResolvedVersion, SchemaVersion]:
         subject_found = self.database.find_subject(subject=subject)
         if not subject_found:
             raise SubjectNotFoundException()
@@ -265,7 +266,7 @@ class KarapaceSchemaRegistry:
         if not schema_versions:
             raise SubjectNotFoundException()
         resolved_version = _resolve_version(schema_versions=schema_versions, version=version)
-        schema_data: Optional[SchemaVersion] = schema_versions.get(resolved_version, None)
+        schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
 
         if not schema_data:
             raise VersionNotFoundException()
@@ -291,13 +292,13 @@ class KarapaceSchemaRegistry:
 
     async def subject_version_referencedby_get(
         self, subject: Subject, version: Version, *, include_deleted: bool = False
-    ) -> List:
+    ) -> list:
         validate_version(version)
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
         resolved_version = _resolve_version(schema_versions=schema_versions, version=version)
-        schema_data: Optional[SchemaVersion] = schema_versions.get(resolved_version, None)
+        schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
         if not schema_data:
             raise VersionNotFoundException()
         referenced_by = self.schema_reader.get_referenced_by(schema_data.subject, schema_data.version)
@@ -310,7 +311,7 @@ class KarapaceSchemaRegistry:
         self,
         subject: Subject,
         new_schema: ValidatedTypedSchema,
-        new_schema_references: Optional[List[Reference]],
+        new_schema_references: list[Reference] | None,
     ) -> int:
         """Write new schema and return new id or return id of matching existing schema
 
@@ -380,8 +381,8 @@ class KarapaceSchemaRegistry:
 
                 for old_version in check_against:
                     old_schema = all_schema_versions[old_version].schema
-                    old_schema_dependencies: Optional[Dict[str, Dependency]] = None
-                    old_schema_references: Optional[List[Reference]] = old_schema.references
+                    old_schema_dependencies: dict[str, Dependency] | None = None
+                    old_schema_references: list[Reference] | None = old_schema.references
                     if old_schema_references:
                         old_schema_dependencies = self.resolve_references(old_schema_references)
                     parsed_old_schema = ParsedTypedSchema.parse(
@@ -428,11 +429,12 @@ class KarapaceSchemaRegistry:
             return schema_id
 
     def get_subject_versions_for_schema(
-        self, schema_id: int, *, include_deleted: bool = False
-    ) -> List[Dict[str, Union[Subject, ResolvedVersion]]]:
-        subject_versions: List[Dict[str, Union[Subject, ResolvedVersion]]] = []
+        self, schema_id: SchemaId, *, include_deleted: bool = False
+    ) -> list[dict[str, Subject | ResolvedVersion]]:
+        subject_versions: list[dict[str, Subject | ResolvedVersion]] = []
         schema_versions = self.database.find_schema_versions_by_schema_id(
-            schema_id=schema_id, include_deleted=include_deleted
+            schema_id=schema_id,
+            include_deleted=include_deleted,
         )
         for schema_version in schema_versions:
             subject_versions.append({"subject": schema_version.subject, "version": schema_version.version})
@@ -443,11 +445,11 @@ class KarapaceSchemaRegistry:
         self,
         *,
         subject: Subject,
-        schema: Optional[TypedSchema],
+        schema: TypedSchema | None,
         schema_id: int,
         version: int,
         deleted: bool,
-        references: Optional[List[Reference]],
+        references: list[Reference] | None,
     ) -> None:
         key = {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}
         if schema:
@@ -466,7 +468,7 @@ class KarapaceSchemaRegistry:
             value = None
         self.producer.send_message(key=key, value=value)
 
-    def send_config_message(self, compatibility_level: CompatibilityModes, subject: Optional[Subject] = None) -> None:
+    def send_config_message(self, compatibility_level: CompatibilityModes, subject: Subject | None = None) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "CONFIG"}
         value = {"compatibilityLevel": compatibility_level.value}
         self.producer.send_message(key=key, value=value)
@@ -476,13 +478,14 @@ class KarapaceSchemaRegistry:
         self.producer.send_message(key=key, value=None)
 
     def resolve_references(
-        self, references: Optional[Union[List[Reference], JsonObject]]
-    ) -> Optional[Dict[str, Dependency]]:
+        self,
+        references: Sequence[Reference] | Sequence[JsonObject] | None,
+    ) -> dict[str, Dependency] | None:
         if references:
             return self.schema_reader.resolve_references(references)
         return None
 
-    def send_delete_subject_message(self, subject: Subject, version: Version) -> None:
+    def send_delete_subject_message(self, subject: Subject, version: ResolvedVersion) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}
         value = {"subject": subject, "version": version}
         self.producer.send_message(key=key, value=value)
