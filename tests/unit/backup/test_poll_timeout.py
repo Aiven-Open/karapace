@@ -12,9 +12,18 @@ import pytest
 class TestPollTimeout:
     @pytest.mark.parametrize("it", ("PT0.999S", timedelta(milliseconds=999)))
     def test_min_validation(self, it: Union[str, timedelta]) -> None:
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(
+            ValueError,
+            match=r"^Poll timeout must be at least one second, got: 0:00:00.999000$",
+        ):
             PollTimeout(it)
-        assert str(e.value) == "Poll timeout MUST be at least one second, got: PT0.999S"
+
+    def test_max_validation(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"^Poll timeout must be less than one year, got: 1 years, 0:00:00$",
+        ):
+            PollTimeout("P1Y")
 
     # Changing the default is not a breaking change, but the documentation needs to be adjusted!
     def test_default(self) -> None:
