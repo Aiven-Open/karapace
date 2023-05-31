@@ -110,6 +110,7 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
         started_at=datetime.datetime.now(datetime.timezone.utc),
         finished_at=datetime.datetime.now(datetime.timezone.utc),
         data_files=(data_file,),
+        partition_count=1,
     )
 
     reader = get_reader()
@@ -258,6 +259,7 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
         started_at=datetime.datetime.now(datetime.timezone.utc),
         finished_at=datetime.datetime.now(datetime.timezone.utc),
         data_files=(data_file,),
+        partition_count=1,
     )
 
     # Only the backup file, and no temporary files exist in backup directory.

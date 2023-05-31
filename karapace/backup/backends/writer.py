@@ -81,6 +81,7 @@ class BackupWriter(Generic[B, F], abc.ABC):
         topic_id: uuid.UUID | None,
         started_at: datetime.datetime,
         finished_at: datetime.datetime,
+        partition_count: int,
         data_files: Sequence[F],
     ) -> None:
         """

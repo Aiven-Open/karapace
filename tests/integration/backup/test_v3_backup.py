@@ -216,7 +216,7 @@ def test_roundtrip_from_file(
     config_file: Path,
     admin_client: KafkaAdminClient,
 ) -> None:
-    topic_name = "2db42756"
+    topic_name = "6595c9c2"
     backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition"
     metadata_path = backup_directory / f"{topic_name}.metadata"
     with metadata_path.open("rb") as buffer:
@@ -311,7 +311,7 @@ def no_color_env() -> dict[str, str]:
 class TestInspect:
     def test_can_inspect_v3(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "2db42756.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "6595c9c2.metadata"
         )
 
         cp = subprocess.run(
@@ -331,26 +331,28 @@ class TestInspect:
         assert json.loads(cp.stdout) == {
             "version": 3,
             "tool_name": "karapace",
-            "tool_version": "3.4.6-65-g9259060",
-            "started_at": "2023-05-08T09:31:56.238000+00:00",
-            "finished_at": "2023-05-08T09:31:56.571000+00:00",
-            "topic_name": "2db42756",
+            "tool_version": "3.4.6-67-g26d38c0",
+            "started_at": "2023-05-12T14:24:45.932000+00:00",
+            "finished_at": "2023-05-12T14:24:46.286000+00:00",
+            "topic_name": "6595c9c2",
             "topic_id": None,
             "partition_count": 1,
             "checksum_algorithm": "xxhash3_64_be",
             "data_files": [
                 {
-                    "filename": "2db42756:0.data",
+                    "filename": "6595c9c2:0.data",
                     "partition": 0,
                     "checksum_hex": "f414f504a8e49313",
                     "record_count": 2,
+                    "start_offset": 0,
+                    "end_offset": 1,
                 },
             ],
         }
 
     def test_can_inspect_v3_with_future_checksum_algorithm(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_future_algorithm" / "a-topic.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_future_algorithm" / "a5f7a413.metadata"
         )
 
         cp = subprocess.run(
@@ -373,18 +375,20 @@ class TestInspect:
             "version": 3,
             "tool_name": "karapace",
             "tool_version": "3.4.6-67-g26d38c0",
-            "started_at": "2023-05-23T13:19:34.843000+00:00",
-            "finished_at": "2023-05-23T13:19:34.843000+00:00",
-            "topic_name": "a-topic",
+            "started_at": "2023-05-30T14:44:24.841000+00:00",
+            "finished_at": "2023-05-30T14:44:25.168000+00:00",
+            "topic_name": "a5f7a413",
             "topic_id": None,
             "partition_count": 1,
             "checksum_algorithm": "unknown",
             "data_files": [
                 {
-                    "filename": "a-topic:123.data",
-                    "partition": 123,
-                    "checksum_hex": "dc0e738f1e856010",
-                    "record_count": 1,
+                    "filename": "a5f7a413:0.data",
+                    "partition": 0,
+                    "checksum_hex": "f414f504a8e49313",
+                    "record_count": 2,
+                    "start_offset": 0,
+                    "end_offset": 1,
                 },
             ],
         }
@@ -431,7 +435,7 @@ class TestInspect:
 class TestVerify:
     def test_can_verify_file_integrity(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "2db42756.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "6595c9c2.metadata"
         )
 
         cp = subprocess.run(
@@ -450,14 +454,14 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             """\
-            Integrity of 2db42756:0.data is intact.
+            Integrity of 6595c9c2:0.data is intact.
             ✅ Verified 1 data files in backup OK.
             """
         )
 
     def test_can_verify_record_integrity(self) -> None:
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "2db42756.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "6595c9c2.metadata"
         )
 
         cp = subprocess.run(
@@ -476,7 +480,7 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             """\
-            Integrity of 2db42756:0.data is intact.
+            Integrity of 6595c9c2:0.data is intact.
             ✅ Verified 1 data files in backup OK.
             """
         )
@@ -592,7 +596,7 @@ class TestVerify:
             Path(__file__).parent.parent.resolve()
             / "test_data"
             / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
-            / "2db42756.metadata"
+            / "a-topic.metadata"
         )
 
         cp = subprocess.run(
@@ -611,7 +615,7 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             """\
-            Integrity of 2db42756:0.data is not intact!
+            Integrity of a-topic:123.data is not intact!
             💥 Failed to verify integrity of some data files.
             """
         )
@@ -621,7 +625,7 @@ class TestVerify:
             Path(__file__).parent.parent.resolve()
             / "test_data"
             / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
-            / "2db42756.metadata"
+            / "a-topic.metadata"
         )
 
         cp = subprocess.run(
@@ -640,7 +644,7 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             """\
-            Integrity of 2db42756:0.data is not intact!
+            Integrity of a-topic:123.data is not intact!
                 InvalidChecksum: Found checksum mismatch after reading full data file.
             💥 Failed to verify integrity of some data files.
             """
