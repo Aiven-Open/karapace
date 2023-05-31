@@ -14,7 +14,7 @@ aiosignal==1.3.1
     # via
     #   -r requirements.txt
     #   aiohttp
-anyio==3.6.2
+anyio==3.7.0
     # via
     #   -r requirements.txt
     #   watchfiles
@@ -55,6 +55,8 @@ configargparse==1.5.3
     # via locust
 exceptiongroup==1.1.1
     # via
+    #   -r requirements.txt
+    #   anyio
     #   hypothesis
     #   pytest
 execnet==1.9.0
@@ -85,7 +87,7 @@ geventhttpclient==2.0.9
     # via locust
 greenlet==2.0.2
     # via gevent
-hypothesis==6.75.4
+hypothesis==6.75.7
     # via -r requirements-dev.in
 idna==3.4
     # via
@@ -162,7 +164,7 @@ pytest-xdist[psutil]==3.3.1
     # via -r requirements-dev.in
 python-dateutil==2.8.2
     # via -r requirements.txt
-pyzmq==25.0.2
+pyzmq==25.1.0
     # via locust
 requests==2.31.0
     # via

@@ -69,7 +69,9 @@ def check_protobuf_compatibility(reader: ProtobufSchema, writer: ProtobufSchema)
 
 
 def check_compatibility(
-    old_schema: ParsedTypedSchema, new_schema: ValidatedTypedSchema, compatibility_mode: CompatibilityModes
+    old_schema: ParsedTypedSchema,
+    new_schema: ValidatedTypedSchema,
+    compatibility_mode: CompatibilityModes,
 ) -> SchemaCompatibilityResult:
     """Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`."""
     if compatibility_mode is CompatibilityModes.NONE:
@@ -84,6 +86,8 @@ def check_compatibility(
         )
 
     if old_schema.schema_type is SchemaType.AVRO:
+        assert isinstance(old_schema.schema, AvroSchema)
+        assert isinstance(new_schema.schema, AvroSchema)
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
             result = check_avro_compatibility(
                 reader_schema=new_schema.schema,
@@ -110,6 +114,8 @@ def check_compatibility(
             )
 
     elif old_schema.schema_type is SchemaType.JSONSCHEMA:
+        assert isinstance(old_schema.schema, Draft7Validator)
+        assert isinstance(new_schema.schema, Draft7Validator)
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
             result = check_jsonschema_compatibility(
                 reader=new_schema.schema,
@@ -136,6 +142,8 @@ def check_compatibility(
             )
 
     elif old_schema.schema_type is SchemaType.PROTOBUF:
+        assert isinstance(old_schema.schema, ProtobufSchema)
+        assert isinstance(new_schema.schema, ProtobufSchema)
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
             result = check_protobuf_compatibility(
                 reader=new_schema.schema,
