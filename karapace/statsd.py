@@ -13,29 +13,29 @@ from __future__ import annotations
 from contextlib import contextmanager
 from karapace.config import Config
 from karapace.sentry import get_sentry_client
-from typing import Any, Iterator
+from typing import Any, Final, Iterator
 
 import datetime
 import logging
 import socket
 import time
 
-STATSD_HOST = "127.0.0.1"
-STATSD_PORT = 8125
+STATSD_HOST: Final = "127.0.0.1"
+STATSD_PORT: Final = 8125
 LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
     def __init__(
         self,
+        config: Config,
         host: str = STATSD_HOST,
         port: int = STATSD_PORT,
-        config: Config | None = None,
     ) -> None:
-        self._dest_addr = (host, port)
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags = config.get("tags", {})
-        self.sentry_client = get_sentry_client(sentry_config=config.get("sentry", None))
+        self._dest_addr: Final = (host, port)
+        self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._tags: Final = config.get("tags", {})
+        self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))
 
     @contextmanager
     def timing_manager(self, metric: str, tags: dict | None = None) -> Iterator[None]:
@@ -70,7 +70,7 @@ class StatsClient:
         try:
             # format: "user.logins,service=payroll,region=us-west:1|c"
             parts = [metric.encode("utf-8"), b":", str(value).encode("utf-8"), b"|", metric_type]
-            send_tags = self._tags.copy()
+            send_tags = dict(self._tags)
             send_tags.update(tags or {})
             for tag, tag_value in sorted(send_tags.items()):
                 if tag_value is None:
