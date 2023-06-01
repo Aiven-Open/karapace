@@ -97,7 +97,7 @@ async def test_happy_flow_references(default_config_path):
         {"query": 10, "speed": {"speed": "MIDDLE"}},
     ]
 
-    references = [Reference("Speed.proto", "speed", 1)]
+    references = [Reference(name="Speed.proto", subject="speed", version=1)]
 
     no_ref_schema = ParsedTypedSchema.parse(SchemaType.PROTOBUF, no_ref_schema_str)
     dep = Dependency("Speed.proto", "speed", 1, no_ref_schema)
@@ -179,8 +179,8 @@ async def test_happy_flow_references_two(default_config_path):
         {"index": 2, "qry": {"query": 10, "speed": {"speed": "HIGH"}}},
     ]
 
-    references = [Reference("Speed.proto", "speed", 1)]
-    references_two = [Reference("Query.proto", "msg", 1)]
+    references = [Reference(name="Speed.proto", subject="speed", version=1)]
+    references_two = [Reference(name="Query.proto", subject="msg", version=1)]
 
     no_ref_schema = ParsedTypedSchema.parse(SchemaType.PROTOBUF, no_ref_schema_str)
     dep = Dependency("Speed.proto", "speed", 1, no_ref_schema)
