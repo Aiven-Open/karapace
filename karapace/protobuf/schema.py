@@ -18,7 +18,7 @@ from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
 from karapace.schema_references import Reference
-from typing import Dict, List, Optional
+from typing import Mapping, Optional, Sequence
 
 
 def add_slashes(text: str) -> str:
@@ -110,7 +110,10 @@ class ProtobufSchema:
     DEFAULT_LOCATION = Location.get("")
 
     def __init__(
-        self, schema: str, references: Optional[List[Reference]] = None, dependencies: Optional[Dict[str, Dependency]] = None
+        self,
+        schema: str,
+        references: Optional[Sequence[Reference]] = None,
+        dependencies: Optional[Mapping[str, Dependency]] = None,
     ) -> None:
         if type(schema).__name__ != "str":
             raise IllegalArgumentException("Non str type of schema string")
