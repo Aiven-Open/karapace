@@ -28,7 +28,7 @@ from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.schema_references import Reference
+from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
 from typing import Mapping, Sequence
 
@@ -307,11 +307,20 @@ class KarapaceSchemaRegistry:
             return list(referenced_by)
         return []
 
+    def _resolve_and_parse(self, schema: TypedSchema) -> ParsedTypedSchema:
+        references, dependencies = self.resolve_references(schema.references) if schema.references else (None, None)
+        return ParsedTypedSchema.parse(
+            schema_type=schema.schema_type,
+            schema_str=schema.schema_str,
+            references=references,
+            dependencies=dependencies,
+        )
+
     async def write_new_schema_local(
         self,
         subject: Subject,
         new_schema: ValidatedTypedSchema,
-        new_schema_references: list[Reference] | None,
+        new_schema_references: Sequence[Reference] | None,
     ) -> int:
         """Write new schema and return new id or return id of matching existing schema
 
@@ -319,7 +328,7 @@ class KarapaceSchemaRegistry:
         """
         LOG.info("Writing new schema locally since we're the master")
         async with self.schema_lock:
-            # When waiting for lock an another writer may have written the schema.
+            # When waiting for a lock, another writer may have written the schema.
             # Fast path check for resolving.
             maybe_schema_id = self.database.get_schema_id_if_exists(
                 subject=subject, schema=new_schema, include_deleted=False
@@ -380,17 +389,7 @@ class KarapaceSchemaRegistry:
                     check_against = [schema_versions[-1]]
 
                 for old_version in check_against:
-                    old_schema = all_schema_versions[old_version].schema
-                    old_schema_dependencies: dict[str, Dependency] | None = None
-                    old_schema_references: list[Reference] | None = old_schema.references
-                    if old_schema_references:
-                        old_schema_dependencies = self.resolve_references(old_schema_references)
-                    parsed_old_schema = ParsedTypedSchema.parse(
-                        schema_type=old_schema.schema_type,
-                        schema_str=old_schema.schema_str,
-                        references=old_schema_references,
-                        dependencies=old_schema_dependencies,
-                    )
+                    parsed_old_schema = self._resolve_and_parse(all_schema_versions[old_version].schema)
                     result = check_compatibility(
                         old_schema=parsed_old_schema,
                         new_schema=new_schema,
@@ -449,7 +448,7 @@ class KarapaceSchemaRegistry:
         schema_id: int,
         version: int,
         deleted: bool,
-        references: list[Reference] | None,
+        references: Sequence[Reference] | None,
     ) -> None:
         key = {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}
         if schema:
@@ -479,11 +478,9 @@ class KarapaceSchemaRegistry:
 
     def resolve_references(
         self,
-        references: Sequence[Reference] | Sequence[JsonObject] | None,
-    ) -> dict[str, Dependency] | None:
-        if references:
-            return self.schema_reader.resolve_references(references)
-        return None
+        references: Sequence[Reference | LatestVersionReference] | Sequence[JsonObject] | None,
+    ) -> tuple[Sequence[Reference], dict[str, Dependency]] | tuple[None, None]:
+        return self.schema_reader.resolve_references(references) if references else (None, None)
 
     def send_delete_subject_message(self, subject: Subject, version: ResolvedVersion) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}

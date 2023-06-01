@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from avro.errors import SchemaParseException
 from avro.schema import parse as avro_parse, Schema as AvroSchema
 from dataclasses import dataclass
@@ -20,9 +22,9 @@ from karapace.protobuf.exception import (
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
-from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Dict, List, Optional, Union
+from typing import Any, cast, Dict, Final, final, Mapping, Sequence
 
 import hashlib
 import logging
@@ -57,8 +59,8 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
 
 def parse_protobuf_schema_definition(
     schema_definition: str,
-    references: Optional[List[Reference]] = None,
-    dependencies: Optional[Dict[str, Dependency]] = None,
+    references: Sequence[Reference] | None = None,
+    dependencies: Mapping[str, Dependency] | None = None,
     validate_references: bool = True,
 ) -> ProtobufSchema:
     """Parses and validates `schema_definition`.
@@ -81,9 +83,9 @@ class TypedSchema:
         *,
         schema_type: SchemaType,
         schema_str: str,
-        schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None,
-        references: Optional[List[Reference]] = None,
-        dependencies: Optional[Dict[str, Dependency]] = None,
+        schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None,
+        references: Sequence[Reference] | None = None,
+        dependencies: Mapping[str, Dependency] | None = None,
     ) -> None:
         """Schema with type information
 
@@ -93,14 +95,14 @@ class TypedSchema:
             schema (Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]]): The parsed and validated schema
             references (Optional[List[Dependency]]): The references of schema
         """
-        self.schema_type = schema_type
-        self.references = references
-        self.dependencies = dependencies
-        self.schema_str = TypedSchema.normalize_schema_str(schema_str, schema_type, schema)
-        self.max_id: Optional[SchemaId] = None
-        self._fingerprint_cached: Optional[str] = None
+        self.schema_type: Final = schema_type
+        self.references: Final = references
+        self.dependencies: Final = dependencies
+        self.schema_str: Final = TypedSchema.normalize_schema_str(schema_str, schema_type, schema)
+        self.max_id: SchemaId | None = None
+        self._fingerprint_cached: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> JsonObject:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
         return json_decode(self.schema_str, Dict[str, Any])
@@ -110,11 +112,14 @@ class TypedSchema:
             self._fingerprint_cached = hashlib.sha1(str(self).encode("utf8")).hexdigest()
         return self._fingerprint_cached
 
+    # This is marked @final because __init__ references this statically, hence
+    # allowing overriding this in a subclass could lead to confusing bugs.
     @staticmethod
+    @final
     def normalize_schema_str(
         schema_str: str,
         schema_type: SchemaType,
-        schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None,
+        schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None,
     ) -> str:
         if schema_type is SchemaType.AVRO or schema_type is SchemaType.JSONSCHEMA:
             try:
@@ -151,7 +156,7 @@ class TypedSchema:
         )
 
     @property
-    def schema(self) -> Union[Draft7Validator, AvroSchema, ProtobufSchema]:
+    def schema(self) -> Draft7Validator | AvroSchema | ProtobufSchema:
         parsed_typed_schema = parse(
             schema_type=self.schema_type,
             schema_str=self.schema_str,
@@ -168,13 +173,13 @@ def parse(
     schema_str: str,
     validate_avro_enum_symbols: bool,
     validate_avro_names: bool,
-    references: Optional[List[Reference]] = None,
-    dependencies: Optional[Dict[str, Dependency]] = None,
-) -> "ParsedTypedSchema":
+    references: Sequence[Reference] | None = None,
+    dependencies: Mapping[str, Dependency] | None = None,
+) -> ParsedTypedSchema:
     if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
-    parsed_schema: Union[Draft7Validator, AvroSchema, ProtobufSchema]
+    parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema
     if schema_type is SchemaType.AVRO:
         try:
             parsed_schema = parse_avro_schema_definition(
@@ -241,23 +246,27 @@ class ParsedTypedSchema(TypedSchema):
         self,
         schema_type: SchemaType,
         schema_str: str,
-        schema: Union[Draft7Validator, AvroSchema, ProtobufSchema],
-        references: Optional[List[Reference]] = None,
-        dependencies: Optional[Dict[str, Dependency]] = None,
-    ):
-        self._schema_cached: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = schema
+        schema: Draft7Validator | AvroSchema | ProtobufSchema,
+        references: Sequence[Reference] | None = None,
+        dependencies: Mapping[str, Dependency] | None = None,
+    ) -> None:
+        self._schema_cached: Draft7Validator | AvroSchema | ProtobufSchema | None = schema
 
         super().__init__(
-            schema_type=schema_type, schema_str=schema_str, references=references, dependencies=dependencies, schema=schema
+            schema_type=schema_type,
+            schema_str=schema_str,
+            references=references,
+            dependencies=dependencies,
+            schema=schema,
         )
 
     @staticmethod
     def parse(
         schema_type: SchemaType,
         schema_str: str,
-        references: Optional[List[Reference]] = None,
-        dependencies: Optional[Dict[str, Dependency]] = None,
-    ) -> "ParsedTypedSchema":
+        references: Sequence[Reference] | None = None,
+        dependencies: Mapping[str, Dependency] | None = None,
+    ) -> ParsedTypedSchema:
         return parse(
             schema_type=schema_type,
             schema_str=schema_str,
@@ -273,13 +282,13 @@ class ParsedTypedSchema(TypedSchema):
         return super().__str__()
 
     @property
-    def schema(self) -> Union[Draft7Validator, AvroSchema, ProtobufSchema]:
+    def schema(self) -> Draft7Validator | AvroSchema | ProtobufSchema:
         if self._schema_cached is not None:
             return self._schema_cached
         self._schema_cached = super().schema
         return self._schema_cached
 
-    def get_references(self) -> Optional[List[Reference]]:
+    def get_references(self) -> Sequence[Reference] | None:
         return self.references
 
 
@@ -301,10 +310,10 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         self,
         schema_type: SchemaType,
         schema_str: str,
-        schema: Union[Draft7Validator, AvroSchema, ProtobufSchema],
-        references: Optional[List[Reference]] = None,
-        dependencies: Optional[Dict[str, Dependency]] = None,
-    ):
+        schema: Draft7Validator | AvroSchema | ProtobufSchema,
+        references: list[Reference] | None = None,
+        dependencies: dict[str, Dependency] | None = None,
+    ) -> None:
         super().__init__(
             schema_type=schema_type,
             schema_str=schema_str,
@@ -317,9 +326,9 @@ class ValidatedTypedSchema(ParsedTypedSchema):
     def parse(
         schema_type: SchemaType,
         schema_str: str,
-        references: Optional[List[Reference]] = None,
-        dependencies: Optional[Dict[str, Dependency]] = None,
-    ) -> "ValidatedTypedSchema":
+        references: Sequence[Reference] | None = None,
+        dependencies: Mapping[str, Dependency] | None = None,
+    ) -> ValidatedTypedSchema:
         parsed_schema = parse(
             schema_type=schema_type,
             schema_str=schema_str,
@@ -339,4 +348,4 @@ class SchemaVersion:
     deleted: bool
     schema_id: SchemaId
     schema: TypedSchema
-    references: Optional[List[Reference]]
+    references: Sequence[Reference] | None
