@@ -1,0 +1,6 @@
+-c requirements.txt
+-c requirements-dev.txt
+
+mypy
+types-jsonschema
+sentry-sdk
