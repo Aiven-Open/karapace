@@ -29,12 +29,12 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.schema_references import Reference, Referents
+from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
-from typing import Final, Sequence
+from typing import Final, Mapping, Sequence
 
 import json
 import logging
@@ -481,11 +481,8 @@ class KafkaSchemaReader(Thread):
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
                 if schema_references:
-                    resolved_references = [
-                        Reference(reference["name"], reference["subject"], reference["version"])
-                        for reference in schema_references
-                    ]
-                    resolved_dependencies = self.resolve_references(resolved_references)
+                    candidate_references = [reference_from_mapping(reference_data) for reference_data in schema_references]
+                    resolved_references, resolved_dependencies = self.resolve_references(candidate_references)
                 parsed_schema = parse_protobuf_schema_definition(
                     schema_str,
                     resolved_references,
@@ -534,7 +531,11 @@ class KafkaSchemaReader(Thread):
         elif key["keytype"] == "NOOP":  # for spec completeness
             pass
 
-    def remove_referenced_by(self, schema_id: SchemaId, references: list[Reference]) -> None:
+    def remove_referenced_by(
+        self,
+        schema_id: SchemaId,
+        references: Sequence[Reference],
+    ) -> None:
         self.database.remove_referenced_by(schema_id, references)
 
     def get_referenced_by(
@@ -544,7 +545,21 @@ class KafkaSchemaReader(Thread):
     ) -> Referents | None:
         return self.database.get_referenced_by(subject, version)
 
-    def _resolve_reference(self, reference: Reference) -> Dependency:
+    def _resolve_and_validate(self, schema: TypedSchema) -> ValidatedTypedSchema:
+        references, dependencies = (
+            self.resolve_references(schema.references) if schema.references else (schema.references, schema.dependencies)
+        )
+        return ValidatedTypedSchema.parse(
+            schema_type=schema.schema_type,
+            schema_str=schema.schema_str,
+            references=references,
+            dependencies=dependencies,
+        )
+
+    def _resolve_reference(
+        self,
+        reference: Reference | LatestVersionReference,
+    ) -> tuple[Reference, Dependency]:
         subject_data = self.database.find_subject_schemas(
             subject=reference.subject,
             include_deleted=False,
@@ -553,39 +568,30 @@ class KafkaSchemaReader(Thread):
         if not subject_data:
             raise InvalidReferences(f"Subject not found {reference.subject}.")
 
-        # -1 is alias to latest version
-        if reference.version == -1:
-            reference.version = max(subject_data)
+        if isinstance(reference, LatestVersionReference):
+            reference = reference.resolve(max(subject_data))
 
         schema_version = subject_data.get(reference.version, None)
         if schema_version is None:
             raise InvalidReferences(f"Subject {reference.subject} has no such schema version")
 
-        schema = schema_version.schema
-        if not schema:
+        if not schema_version.schema:
             raise InvalidReferences(f"No schema in {reference.subject} with version {reference.version}.")
 
-        if schema.references:
-            schema_dependencies = self.resolve_references(schema.references)
-            if schema.dependencies is None:
-                schema.dependencies = schema_dependencies
+        validated_schema = self._resolve_and_validate(schema_version.schema)
 
-        validated_schema = ValidatedTypedSchema.parse(
-            schema_type=schema.schema_type,
-            schema_str=schema.schema_str,
-            references=schema.references,
-            dependencies=schema.dependencies,
-        )
-
-        return Dependency.of(reference, validated_schema)
+        return reference, Dependency.of(reference, validated_schema)
 
     def resolve_references(
         self,
-        references: Sequence[Reference] | Sequence[JsonObject],
-    ) -> dict[str, Dependency]:
+        references: Sequence[Reference | LatestVersionReference] | Sequence[JsonObject],
+    ) -> tuple[list[Reference], dict[str, Dependency]]:
+        resolved_references = []
         dependencies = {}
         for reference in references:
-            if not isinstance(reference, Reference):
-                reference = Reference.from_mapping(reference)
-            dependencies[reference.name] = self._resolve_reference(reference)
-        return dependencies
+            if isinstance(reference, Mapping):
+                reference = reference_from_mapping(reference)
+            resolved_reference, dependency = self._resolve_reference(reference)
+            dependencies[resolved_reference.name] = dependency
+            resolved_references.append(resolved_reference)
+        return resolved_references, dependencies
