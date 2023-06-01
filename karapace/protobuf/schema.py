@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Schema.kt
 # Ported partially for required functionality.
@@ -17,8 +19,7 @@ from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from karapace.schema_references import Reference
-from typing import Mapping, Optional, Sequence
+from typing import Final, Mapping
 
 
 def add_slashes(text: str) -> str:
@@ -39,7 +40,7 @@ def add_slashes(text: str) -> str:
 
 
 def message_element_string(element: MessageElement) -> str:
-    result = []
+    result: list[str] = []
     append_documentation(result, element.documentation)
     result.append(f"message {element.name} {{")
     if element.reserveds:
@@ -107,21 +108,18 @@ def option_element_string(option: OptionElement) -> str:
 
 
 class ProtobufSchema:
-    DEFAULT_LOCATION = Location.get("")
+    DEFAULT_LOCATION: Final = Location.get("")
 
     def __init__(
         self,
         schema: str,
-        references: Optional[Sequence[Reference]] = None,
-        dependencies: Optional[Mapping[str, Dependency]] = None,
+        dependencies: Mapping[str, Dependency] | None = None,
     ) -> None:
-        if type(schema).__name__ != "str":
+        if not isinstance(schema, str):
             raise IllegalArgumentException("Non str type of schema string")
-        self.dirty = schema
         self.cache_string = ""
-        self.proto_file_element = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
-        self.references = references
-        self.dependencies = dependencies
+        self.proto_file_element: Final = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
+        self.dependencies: Final = dependencies
 
     def verify_schema_dependencies(self) -> DependencyVerifierResult:
         verifier = ProtobufDependencyVerifier()
@@ -131,7 +129,9 @@ class ProtobufSchema:
     def collect_dependencies(self, verifier: ProtobufDependencyVerifier) -> None:
         if self.dependencies:
             for key in self.dependencies:
-                self.dependencies[key].schema.schema.collect_dependencies(verifier)
+                schema = self.dependencies[key].schema.schema
+                assert isinstance(schema, ProtobufSchema)
+                schema.collect_dependencies(verifier)
 
         for i in self.proto_file_element.imports:
             verifier.add_import(i)
@@ -157,8 +157,12 @@ class ProtobufSchema:
                 self._process_nested_type(verifier, package_name, type_name, nested_type)
 
     def _process_nested_type(
-        self, verifier: ProtobufDependencyVerifier, package_name: str, parent_name, element_type: TypeElement
-    ):
+        self,
+        verifier: ProtobufDependencyVerifier,
+        package_name: str,
+        parent_name: str,
+        element_type: TypeElement,
+    ) -> None:
         verifier.add_declared_type(package_name + "." + parent_name + "." + element_type.name)
         verifier.add_declared_type(parent_name + "." + element_type.name)
 
@@ -176,8 +180,8 @@ class ProtobufSchema:
         return self.cache_string
 
     # str() does normalization of whitespaces and element ordering
-    def __eq__(self, other) -> bool:
-        return str(self) == str(other)
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, ProtobufSchema) and str(self) == str(other)
 
     def to_schema(self) -> str:
         strings = []
@@ -224,7 +228,7 @@ class ProtobufSchema:
                 strings.append(str(service.to_schema()))
         return "".join(strings)
 
-    def compare(self, other: "ProtobufSchema", result: CompareResult) -> CompareResult:
+    def compare(self, other: ProtobufSchema, result: CompareResult) -> CompareResult:
         return self.proto_file_element.compare(
             other.proto_file_element,
             result,

@@ -59,7 +59,6 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
 
 def parse_protobuf_schema_definition(
     schema_definition: str,
-    references: Sequence[Reference] | None = None,
     dependencies: Mapping[str, Dependency] | None = None,
     validate_references: bool = True,
 ) -> ProtobufSchema:
@@ -69,7 +68,7 @@ def parse_protobuf_schema_definition(
         ProtobufUnresolvedDependencyException if Protobuf dependency cannot be resolved.
 
     """
-    protobuf_schema = ProtobufSchema(schema_definition, references, dependencies)
+    protobuf_schema = ProtobufSchema(schema_definition, dependencies)
     if validate_references:
         result = protobuf_schema.verify_schema_dependencies()
         if not result.result:
@@ -132,7 +131,7 @@ class TypedSchema:
                 schema_str = str(schema)
             else:
                 try:
-                    schema_str = str(parse_protobuf_schema_definition(schema_str, None, None, False))
+                    schema_str = str(parse_protobuf_schema_definition(schema_str, None, False))
                 except InvalidSchema as e:
                     LOG.exception("Schema is not valid ProtoBuf definition")
                     raise e
@@ -199,7 +198,7 @@ def parse(
 
     elif schema_type is SchemaType.PROTOBUF:
         try:
-            parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies)
+            parsed_schema = parse_protobuf_schema_definition(schema_str, dependencies)
         except (
             TypeError,
             SchemaError,

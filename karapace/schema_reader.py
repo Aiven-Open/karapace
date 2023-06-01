@@ -483,12 +483,7 @@ class KafkaSchemaReader(Thread):
                 if schema_references:
                     candidate_references = [reference_from_mapping(reference_data) for reference_data in schema_references]
                     resolved_references, resolved_dependencies = self.resolve_references(candidate_references)
-                parsed_schema = parse_protobuf_schema_definition(
-                    schema_str,
-                    resolved_references,
-                    resolved_dependencies,
-                    validate_references=False,
-                )
+                parsed_schema = parse_protobuf_schema_definition(schema_str, resolved_dependencies, False)
                 schema_str = str(parsed_schema)
             except InvalidSchema:
                 LOG.exception("Schema is not valid ProtoBuf definition")
