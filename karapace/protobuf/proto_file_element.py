@@ -10,10 +10,14 @@ from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.location import Location
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, Optional
+from typing import List, Mapping, Optional
 
 
-def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
+def _collect_dependencies_types(
+    compare_types: CompareTypes,
+    dependencies: Optional[Mapping[str, Dependency]],
+    is_self: bool,
+) -> None:
     for dep in dependencies.values():
         types: List[TypeElement] = dep.schema.schema.proto_file_element.types
         sub_deps = dep.schema.schema.dependencies
@@ -107,11 +111,8 @@ class ProtoFileElement:
         return ProtoFileElement(Location.get(path))
 
     # TODO: there maybe be faster comparison workaround
-    def __eq__(self, other: "ProtoFileElement") -> bool:  # type: ignore
-        a = self.to_schema()
-        b = other.to_schema()
-
-        return a == b
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, ProtoFileElement) and self.to_schema() == other.to_schema()
 
     def __repr__(self) -> str:
         return self.to_schema()
@@ -120,8 +121,8 @@ class ProtoFileElement:
         self,
         other: "ProtoFileElement",
         result: CompareResult,
-        self_dependencies: Optional[Dict[str, Dependency]] = None,
-        other_dependencies: Optional[Dict[str, Dependency]] = None,
+        self_dependencies: Optional[Mapping[str, Dependency]] = None,
+        other_dependencies: Optional[Mapping[str, Dependency]] = None,
     ) -> CompareResult:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 
