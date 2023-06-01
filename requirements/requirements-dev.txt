@@ -53,12 +53,6 @@ commonmark==0.9.1
     #   rich
 configargparse==1.5.3
     # via locust
-exceptiongroup==1.1.1
-    # via
-    #   -r requirements.txt
-    #   anyio
-    #   hypothesis
-    #   pytest
 execnet==1.9.0
     # via pytest-xdist
 fancycompleter==0.9.1
@@ -95,8 +89,6 @@ idna==3.4
     #   anyio
     #   requests
     #   yarl
-importlib-metadata==6.6.0
-    # via flask
 iniconfig==2.0.0
     # via pytest
 isodate==0.6.1
@@ -124,7 +116,7 @@ multidict==6.0.4
     #   -r requirements.txt
     #   aiohttp
     #   yarl
-networkx==2.8.8
+networkx==3.1
     # via -r requirements.txt
 packaging==23.1
     # via
@@ -192,13 +184,10 @@ sortedcontainers==2.4.0
     # via hypothesis
 tenacity==8.2.2
     # via -r requirements.txt
-tomli==2.0.1
-    # via pytest
 typing-extensions==4.6.2
     # via
     #   -r requirements.txt
     #   locust
-    #   rich
 ujson==5.7.0
     # via -r requirements.txt
 urllib3==1.26.16
@@ -219,8 +208,6 @@ yarl==1.9.2
     # via
     #   -r requirements.txt
     #   aiohttp
-zipp==3.15.0
-    # via importlib-metadata
 zope-event==4.6
     # via gevent
 zope-interface==6.0
