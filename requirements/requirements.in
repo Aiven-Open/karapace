@@ -3,7 +3,7 @@ accept-types<1
 aiohttp<4
 aiokafka<1
 isodate<1
-jsonschema<4
+jsonschema<5
 networkx<3
 protobuf<4
 python-dateutil<3
