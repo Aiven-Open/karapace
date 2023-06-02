@@ -220,6 +220,23 @@ def test_roundtrip_from_kafka_state(
     ]
 
 
+def test_errors_when_omitting_replication_factor(config_file: Path) -> None:
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        subprocess.run(
+            [
+                "karapace_schema_backup",
+                "get",
+                "--use-format-v3",
+                f"--config={config_file!s}",
+                "--topic=foo-bar",
+                "--location=foo-bar",
+            ],
+            capture_output=True,
+            check=True,
+        )
+    assert "the following arguments are required: --replication-factor" in exc_info.value.stderr.decode()
+
+
 def test_roundtrip_from_file(
     tmp_path: Path,
     config_file: Path,
