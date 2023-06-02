@@ -7,7 +7,7 @@ from __future__ import annotations
 from kafka.consumer.fetcher import ConsumerRecord
 from karapace.backup.safe_writer import bytes_writer, str_writer
 from pathlib import Path
-from typing import ContextManager, Generic, IO, Iterator, Literal, Sequence, TypeVar
+from typing import ContextManager, Generic, IO, Iterator, Literal, Mapping, Sequence, TypeVar
 from typing_extensions import TypeAlias
 
 import abc
@@ -82,6 +82,8 @@ class BackupWriter(Generic[B, F], abc.ABC):
         started_at: datetime.datetime,
         finished_at: datetime.datetime,
         partition_count: int,
+        replication_factor: int,
+        topic_configurations: Mapping[str, str],
         data_files: Sequence[F],
     ) -> None:
         """

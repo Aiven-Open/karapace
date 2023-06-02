@@ -40,6 +40,16 @@ def parse_args() -> argparse.Namespace:
         p.add_argument("--poll-timeout", help=PollTimeout.__doc__, type=PollTimeout, default=PollTimeout.default())
 
     parser_get.add_argument("--use-format-v3", action="store_true", help="Use experimental V3 backup format.")
+    parser_get.add_argument(
+        "--replication-factor",
+        help=(
+            "Value will be stored in metadata, and used when creating topic during restoration. This is required for "
+            "V3 backup, but has no effect on earlier versions, as they don't handle metadata."
+        ),
+        # This is hacky, but such is life with argparse.
+        required="--use-format-v3" in sys.argv,
+        type=int,
+    )
 
     parser_verify.add_argument(
         "--level",
@@ -71,6 +81,7 @@ def dispatch(args: argparse.Namespace) -> None:
             version=api.BackupVersion.V3 if args.use_format_v3 else api.BackupVersion.V2,
             poll_timeout=args.poll_timeout,
             overwrite=args.overwrite,
+            replication_factor=args.replication_factor,
         )
     elif args.command == "inspect":
         api.inspect(location)

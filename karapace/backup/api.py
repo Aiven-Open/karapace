@@ -6,13 +6,14 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic
+from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic, RestoreTopicLegacy
 from .backends.v3.constants import V3_MARKER
 from .backends.v3.schema import ChecksumAlgorithm
 from .backends.writer import BackupWriter, StdOut
 from .encoders import encode_key, encode_value
-from .errors import BackupError, EmptyPartition, PartitionCountError, StaleConsumerError
+from .errors import BackupError, BackupTopicAlreadyExists, EmptyPartition, PartitionCountError, StaleConsumerError
 from .poll_timeout import PollTimeout
+from .topic_configurations import ConfigSource, get_topic_configurations
 from enum import Enum
 from functools import partial
 from kafka import KafkaConsumer, KafkaProducer
@@ -27,12 +28,11 @@ from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBack
 from karapace.config import Config
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
-from karapace.schema_reader import new_schema_topic_from_config
 from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, Iterator, Literal, NewType, NoReturn, TypeVar
+from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, NoReturn, TypeVar
 
 import contextlib
 import datetime
@@ -178,31 +178,27 @@ def _admin(config: Config) -> KafkaAdminClient:
     wait=wait_fixed(1),  # seconds
     retry=retry_if_exception_type(KafkaError),
 )
-def _maybe_create_topic(config: Config, name: str, backup_version: BackupVersion) -> None:
-    if backup_version in {BackupVersion.V1, BackupVersion.V2}:
-        topic = new_schema_topic_from_config(config)
-
-        if topic.name != name:
-            LOG.warning(
-                "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
-                topic.name,
-                name,
-            )
-            return
-    else:
-        topic = NewTopic(
-            name=name,
-            num_partitions=1,
-            replication_factor=config["replication_factor"],
-            topic_configs={"cleanup.policy": "compact"},
-        )
+def _maybe_create_topic(
+    name: str,
+    *,
+    config: Config,
+    replication_factor: int,
+    topic_configs: Mapping[str, str],
+) -> bool:
+    """Returns True if topic creation was successful, False if topic already exists"""
+    topic = NewTopic(
+        name=name,
+        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+        replication_factor=replication_factor,
+        topic_configs=topic_configs,
+    )
 
     with _admin(config) as admin:
         try:
             admin.create_topics([topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
         except TopicAlreadyExistsError:
             LOG.debug("Topic %r already exists", topic.name)
-            return
+            return False
 
         LOG.info(
             "Created topic %r (partition count: %s, replication factor: %s, config: %s)",
@@ -211,7 +207,7 @@ def _maybe_create_topic(config: Config, name: str, backup_version: BackupVersion
             topic.replication_factor,
             topic.topic_configs,
         )
-        return
+        return True
 
 
 @contextlib.contextmanager
@@ -307,16 +303,36 @@ def _write_partition(
     )
 
 
+def _handle_restore_topic_legacy(
+    instruction: RestoreTopicLegacy,
+    config: Config,
+) -> None:
+    if config["topic_name"] != instruction.topic_name:
+        LOG.warning(
+            "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
+            config["topic_name"],
+            instruction.topic_name,
+        )
+        return
+    _maybe_create_topic(
+        config=config,
+        name=instruction.topic_name,
+        replication_factor=config["replication_factor"],
+        topic_configs={"cleanup.policy": "compact"},
+    )
+
+
 def _handle_restore_topic(
     instruction: RestoreTopic,
     config: Config,
-    backup_version: BackupVersion,
 ) -> None:
-    _maybe_create_topic(
+    if not _maybe_create_topic(
         config=config,
-        name=instruction.name,
-        backup_version=backup_version,
-    )
+        name=instruction.topic_name,
+        replication_factor=instruction.replication_factor,
+        topic_configs=instruction.topic_configs,
+    ):
+        raise BackupTopicAlreadyExists(f"Topic to restore '{instruction.topic_name}' already exists")
 
 
 def _raise_backup_error(exception: Exception) -> NoReturn:
@@ -347,6 +363,12 @@ def restore_backup(
     backup_location: Path | StdOut,
     topic_name: TopicName,
 ) -> None:
+    """Restores a backup from the specified location into the configured topic.
+
+    :raises Exception: if production fails, concrete exception types are unknown,
+        see Kafka implementation.
+    :raises BackupTopicAlreadyExists: if backup version is V3 and topic already exists
+    """
     if isinstance(backup_location, str):
         raise NotImplementedError("Cannot restore backups from stdin")
 
@@ -377,9 +399,12 @@ def restore_backup(
         producer = None
 
         for instruction in backend.read(backup_location, topic_name):
-            if isinstance(instruction, RestoreTopic):
-                _handle_restore_topic(instruction, config, backup_version=backup_version)
-                producer = stack.enter_context(_producer(config, instruction.name))
+            if isinstance(instruction, RestoreTopicLegacy):
+                _handle_restore_topic_legacy(instruction, config)
+                producer = stack.enter_context(_producer(config, instruction.topic_name))
+            elif isinstance(instruction, RestoreTopic):
+                _handle_restore_topic(instruction, config)
+                producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, ProducerSend):
                 if producer is None:
                     raise RuntimeError("Backend has not yet sent RestoreTopic.")
@@ -396,6 +421,7 @@ def create_backup(
     *,
     poll_timeout: PollTimeout = PollTimeout.default(),
     overwrite: bool = False,
+    replication_factor: int | None = None,
 ) -> None:
     """Creates a backup of the configured topic.
 
@@ -404,6 +430,9 @@ def create_backup(
         if not records are received within that time and the target offset has not
         been reached an exception is raised. Defaults to one minute.
     :param overwrite: the output file if it exists.
+    :param replication_factor: Value will be stored in metadata, and used when
+        creating topic during restoration. This is required for Version 3 backup,
+        but has no effect on earlier versions, as they don't handle metadata.
 
     :raises Exception: if consumption fails, concrete exception types are unknown,
         see Kafka implementation.
@@ -416,6 +445,8 @@ def create_backup(
     """
     if version is BackupVersion.V3 and not isinstance(backup_location, Path):
         raise RuntimeError("Backup format version 3 does not support writing to stdout.")
+    if version is BackupVersion.V3 and replication_factor is None:
+        raise RuntimeError("Backup format version 3 needs a replication factor to be specified.")
 
     start_time = datetime.datetime.now(datetime.timezone.utc)
     backend = version.writer()
@@ -426,6 +457,10 @@ def create_backup(
             version.name,
             topic_name,
         )
+        with _admin(config) as admin:
+            topic_configurations = get_topic_configurations(
+                admin=admin, topic_name=topic_name, config_source_filter={ConfigSource.TOPIC_CONFIG}
+            )
 
         # Note: It's expected that we at some point want to introduce handling of
         # multi-partition topics here. The backend interface is built with that in
@@ -464,6 +499,8 @@ def create_backup(
             started_at=start_time,
             finished_at=end_time,
             partition_count=1,
+            replication_factor=replication_factor if replication_factor is not None else config["replication_factor"],
+            topic_configurations=topic_configurations,
             data_files=[data_file] if data_file else [],
         )
 
@@ -506,6 +543,9 @@ def inspect(backup_location: Path | StdOut) -> None:
         "topic_name": metadata.topic_name,
         "topic_id": None if metadata.topic_id is None else str(metadata.topic_id),
         "partition_count": metadata.partition_count,
+        "record_count": metadata.record_count,
+        "replication_factor": metadata.replication_factor,
+        "topic_configurations": metadata.topic_configurations,
         "checksum_algorithm": metadata.checksum_algorithm.value,
         "data_files": tuple(
             {

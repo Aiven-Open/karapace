@@ -181,6 +181,8 @@ class TestMetadata:
             topic_name="some-topic",
             topic_id=uuid.uuid4(),
             partition_count=1,
+            replication_factor=2,
+            topic_configurations={"cleanup.policy": "compact", "min.insync.replicas": "2"},
             data_files=(
                 DataFile(
                     filename="some-topic:0.data",

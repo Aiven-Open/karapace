@@ -9,7 +9,15 @@ from kafka.admin import NewTopic
 from kafka.errors import KafkaError, TopicAlreadyExistsError
 from kafka.structs import PartitionMetadata
 from karapace import config
-from karapace.backup.api import _admin, _consumer, _maybe_create_topic, _producer, BackupVersion
+from karapace.backup.api import (
+    _admin,
+    _consumer,
+    _handle_restore_topic,
+    _handle_restore_topic_legacy,
+    _maybe_create_topic,
+    _producer,
+)
+from karapace.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
 from karapace.backup.errors import PartitionCountError
 from karapace.config import Config
 from karapace.constants import DEFAULT_SCHEMA_TOPIC, TOPIC_CREATION_TIMEOUT_MS
@@ -59,11 +67,12 @@ class TestAdmin:
         assert sleep_mock.call_count == 0  # proof that we did not retry
 
 
-class TestMaybeCreateTopic:
+class TestHandleRestoreTopic:
     @patch_admin_new
     def test_calls_admin_create_topics(self, admin_new: MagicMock) -> None:
         create_topics: MagicMock = admin_new.return_value.create_topics
-        _maybe_create_topic(config.DEFAULTS, DEFAULT_SCHEMA_TOPIC, BackupVersion.V1)
+        topic_configs = {"cleanup.policy": "compact"}
+        _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs=topic_configs)
 
         create_topics.assert_called_once_with(mock.ANY, timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
         ((new_topic,),) = create_topics.call_args.args
@@ -71,13 +80,13 @@ class TestMaybeCreateTopic:
         assert new_topic.name == DEFAULT_SCHEMA_TOPIC
         assert new_topic.num_partitions == 1
         assert new_topic.replication_factor == config.DEFAULTS["replication_factor"]
-        assert new_topic.topic_configs == {"cleanup.policy": "compact"}
+        assert new_topic.topic_configs == topic_configs
 
     @patch_admin_new
     def test_gracefully_handles_topic_already_exists_error(self, admin_new: MagicMock) -> None:
         create_topics: MagicMock = admin_new.return_value.create_topics
         create_topics.side_effect = TopicAlreadyExistsError()
-        _maybe_create_topic(config.DEFAULTS, DEFAULT_SCHEMA_TOPIC, BackupVersion.V2)
+        _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs={})
         create_topics.assert_called_once()
 
     @patch_admin_new
@@ -86,20 +95,19 @@ class TestMaybeCreateTopic:
         create_topics.side_effect = [KafkaError("1"), KafkaError("2"), None]
 
         with mock.patch("time.sleep", autospec=True):
-            _maybe_create_topic(config.DEFAULTS, DEFAULT_SCHEMA_TOPIC, BackupVersion.V2)
+            _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs={})
 
         assert create_topics.call_count == 3
 
-    @pytest.mark.parametrize("version", (BackupVersion.V1, BackupVersion.V2))
     @patch_admin_new
     def test_noop_for_custom_name_on_legacy_versions(
         self,
         admin_new: MagicMock,
-        version: BackupVersion,
     ) -> None:
         create_topics: MagicMock = admin_new.return_value.create_topics
         assert "custom-name" != DEFAULT_SCHEMA_TOPIC
-        _maybe_create_topic(config.DEFAULTS, "custom-name", version)
+        instruction = RestoreTopicLegacy(topic_name="custom-name", partition_count=1)
+        _handle_restore_topic_legacy(instruction, config.DEFAULTS)
         create_topics.assert_not_called()
 
     @patch_admin_new
@@ -110,15 +118,19 @@ class TestMaybeCreateTopic:
         create_topics: MagicMock = admin_new.return_value.create_topics
         topic_name = "custom-name"
         assert topic_name != DEFAULT_SCHEMA_TOPIC
-        _maybe_create_topic(config.DEFAULTS, "custom-name", BackupVersion.V3)
+        topic_configs = {"segment.bytes": "1000"}
+        instruction = RestoreTopic(
+            topic_name="custom-name", partition_count=1, replication_factor=2, topic_configs=topic_configs
+        )
+        _handle_restore_topic(instruction, config.DEFAULTS)
 
         create_topics.assert_called_once_with(mock.ANY, timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
         ((new_topic,),) = create_topics.call_args.args
         assert isinstance(new_topic, NewTopic)
         assert new_topic.name == topic_name
         assert new_topic.num_partitions == 1
-        assert new_topic.replication_factor == config.DEFAULTS["replication_factor"]
-        assert new_topic.topic_configs == {"cleanup.policy": "compact"}
+        assert new_topic.replication_factor == 2
+        assert new_topic.topic_configs == topic_configs
 
 
 class TestClients:
