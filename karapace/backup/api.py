@@ -430,9 +430,9 @@ def create_backup(
         if not records are received within that time and the target offset has not
         been reached an exception is raised. Defaults to one minute.
     :param overwrite: the output file if it exists.
-    :param replication_factor: if specified, metadata will contain this value for
-        replication factor, instead of the one that would be retrieved from
-        the current topic state.
+    :param replication_factor: Value will be stored in metadata, and used when
+        creating topic during restoration. This is required for Version 3 backup,
+        but has no effect on earlier versions, as they don't handle metadata.
 
     :raises Exception: if consumption fails, concrete exception types are unknown,
         see Kafka implementation.
