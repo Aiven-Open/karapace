@@ -42,8 +42,12 @@ def parse_args() -> argparse.Namespace:
     parser_get.add_argument("--use-format-v3", action="store_true", help="Use experimental V3 backup format.")
     parser_get.add_argument(
         "--replication-factor",
-        help="Use a specified replication factor instead of retrieving it from the current topic state. "
-        "Required for V3 backup format.",
+        help=(
+            "Value will be stored in metadata, and used when creating topic during restoration. This is required for "
+            "V3 backup, but has no effect on earlier versions, as they don't handle metadata."
+        ),
+        # This is hacky, but such is life with argparse.
+        required="--use-format-v3" in sys.argv,
         type=int,
     )
 
