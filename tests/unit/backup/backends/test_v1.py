@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from functools import partial
-from karapace.backup.backends.reader import ProducerSend, RestoreTopic
+from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.encoders import encode_key, encode_value
 from karapace.key_format import KeyFormatter
@@ -40,7 +40,7 @@ class TestSchemaBackupV1Reader:
             second_send,
         ) = tuple(reader.read(tmp_file, "some-topic"))
 
-        assert restore_topic == RestoreTopic(name="some-topic", partition_count=1)
+        assert restore_topic == RestoreTopicLegacy(topic_name="some-topic", partition_count=1)
 
         # First message.
         assert isinstance(first_send, ProducerSend)
@@ -68,4 +68,6 @@ class TestSchemaBackupV1Reader:
         reader = get_reader()
         tmp_file.write_text("null")
 
-        assert tuple(reader.read(tmp_file, "some-topic")) == (RestoreTopic(name="some-topic", partition_count=1),)
+        assert tuple(reader.read(tmp_file, "some-topic")) == (
+            RestoreTopicLegacy(topic_name="some-topic", partition_count=1),
+        )

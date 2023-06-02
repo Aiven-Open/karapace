@@ -7,7 +7,7 @@ See LICENSE for details
 from dataclasses import field
 from karapace.avro_dataclasses.models import AvroModel
 from karapace.dataclasses import default_dataclass
-from typing import Optional, Tuple
+from typing import Mapping, Optional, Tuple
 
 import datetime
 import enum
@@ -54,6 +54,8 @@ class Metadata(AvroModel):
     topic_name: str
     topic_id: Optional[uuid.UUID]
     partition_count: int = field(metadata={"type": "int"})
+    replication_factor: int = field(metadata={"type": "int"})
+    topic_configurations: Mapping[str, str]
     data_files: Tuple[DataFile, ...]
     checksum_algorithm: ChecksumAlgorithm = ChecksumAlgorithm.unknown
 

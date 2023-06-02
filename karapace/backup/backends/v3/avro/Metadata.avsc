@@ -49,6 +49,17 @@
       "type": "int"
     },
     {
+      "name": "replication_factor",
+      "type": "int"
+    },
+    {
+      "name": "topic_configurations",
+      "type": {
+        "type": "map",
+        "values": "string"
+      }
+    },
+    {
       "name": "data_files",
       "type": {
         "items": {

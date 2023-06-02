@@ -62,6 +62,7 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
             serialized_header_size=None,
         ),
     )
+    topic_configurations = {"max.message.bytes": "1024"}
 
     # Write backup to files.
     backup_writer = SchemaBackupV3Writer(
@@ -87,6 +88,8 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=2,
+        topic_configurations=topic_configurations,
         data_files=(data_file,),
         partition_count=1,
     )
@@ -113,8 +116,10 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
 
     assert instructions == (
         RestoreTopic(
-            name=topic_name,
+            topic_name=topic_name,
             partition_count=1,
+            replication_factor=2,
+            topic_configs={"max.message.bytes": "1024"},
         ),
         ProducerSend(
             topic_name=topic_name,
@@ -215,6 +220,8 @@ def test_reader_raises_invalid_checksum(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
         partition_count=1,
     )
@@ -273,6 +280,8 @@ def test_reader_raises_invalid_checksum_for_corruption_in_last_record(tmp_path: 
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
         partition_count=1,
     )
@@ -327,6 +336,8 @@ def test_reader_raises_too_many_records(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
         partition_count=1,
     )
@@ -381,6 +392,8 @@ def test_reader_raises_too_few_records(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
         partition_count=1,
     )
@@ -434,6 +447,8 @@ def test_reader_raises_offset_mismatch_for_first_record(tmp_path: Path) -> None:
         finished_at=finished_at,
         data_files=(data_file,),
         partition_count=1,
+        topic_configurations={},
+        replication_factor=1,
     )
 
     # Read backup into restore instructions.
@@ -485,6 +500,8 @@ def test_reader_raises_offset_mismatch_for_last_record(tmp_path: Path) -> None:
         finished_at=finished_at,
         data_files=(data_file,),
         partition_count=1,
+        topic_configurations={},
+        replication_factor=1,
     )
 
     # Read backup into restore instructions.
