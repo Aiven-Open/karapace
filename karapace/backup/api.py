@@ -451,7 +451,7 @@ def create_backup(
     start_time = datetime.datetime.now(datetime.timezone.utc)
     backend = version.writer()
 
-    with backend.prepare_location(topic_name, backup_location) as prepared_location:
+    with backend.prepare_location(backup_location) as prepared_location:
         LOG.info(
             "Started backup in format %s of topic '%s'.",
             version.name,

@@ -37,7 +37,6 @@ class BackupWriter(Generic[B, F], abc.ABC):
 
     def prepare_location(
         self,
-        topic_name: str,
         backup_location: P,
     ) -> ContextManager[P]:
         """
