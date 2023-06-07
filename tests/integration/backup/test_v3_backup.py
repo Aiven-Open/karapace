@@ -134,6 +134,7 @@ def test_roundtrip_from_kafka_state(
     topic_config = get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
 
     # Execute backup creation.
+    backup_location = tmp_path / "backup"
     subprocess.run(
         [
             "karapace_schema_backup",
@@ -145,7 +146,7 @@ def test_roundtrip_from_kafka_state(
             new_topic.name,
             "--replication-factor=1",
             "--location",
-            str(tmp_path),
+            str(backup_location),
         ],
         capture_output=True,
         check=True,
@@ -154,7 +155,7 @@ def test_roundtrip_from_kafka_state(
     # Verify exactly the expected file structure in the target path, and no residues
     # from temporary files.
     (backup_directory,) = tmp_path.iterdir()
-    assert backup_directory.name == f"topic-{new_topic.name}"
+    assert backup_directory.name == "backup"
     assert sorted(path.name for path in backup_directory.iterdir()) == [
         f"{new_topic.name}.metadata",
         f"{new_topic.name}:0.data",
@@ -275,6 +276,7 @@ def test_roundtrip_from_file(
 
     # Execute backup creation.
     backup_start_time = datetime.datetime.now(datetime.timezone.utc)
+    backup_location = tmp_path / "backup"
     subprocess.run(
         [
             "karapace_schema_backup",
@@ -286,7 +288,7 @@ def test_roundtrip_from_file(
             topic_name,
             "--replication-factor=1",
             "--location",
-            str(tmp_path),
+            str(backup_location),
         ],
         capture_output=True,
         check=True,
@@ -296,7 +298,7 @@ def test_roundtrip_from_file(
     # Verify exactly the expected file directory structure, no other files in target
     # path. This is important so that assert temporary files are properly cleaned up.
     (backup_directory,) = tmp_path.iterdir()
-    assert backup_directory.name == f"topic-{topic_name}"
+    assert backup_directory.name == "backup"
     assert sorted(path.name for path in backup_directory.iterdir()) == [
         f"{topic_name}.metadata",
         f"{topic_name}:0.data",
@@ -545,6 +547,7 @@ class TestVerify:
         producer.flush()
 
         # Execute backup creation.
+        backup_location = tmp_path / "backup"
         subprocess.run(
             [
                 "karapace_schema_backup",
@@ -553,12 +556,12 @@ class TestVerify:
                 f"--config={config_file!s}",
                 f"--topic={new_topic.name!s}",
                 "--replication-factor=1",
-                f"--location={tmp_path!s}",
+                f"--location={backup_location!s}",
             ],
             capture_output=True,
             check=True,
         )
-        metadata_path = tmp_path / f"topic-{new_topic.name}" / f"{new_topic.name}.metadata"
+        metadata_path = backup_location / f"{new_topic.name}.metadata"
 
         cp = subprocess.run(
             [
@@ -599,6 +602,7 @@ class TestVerify:
         producer.flush()
 
         # Execute backup creation.
+        backup_location = tmp_path / "backup"
         subprocess.run(
             [
                 "karapace_schema_backup",
@@ -607,12 +611,12 @@ class TestVerify:
                 f"--config={config_file!s}",
                 f"--topic={new_topic.name}",
                 "--replication-factor=1",
-                f"--location={tmp_path!s}",
+                f"--location={backup_location!s}",
             ],
             capture_output=True,
             check=True,
         )
-        metadata_path = tmp_path / f"topic-{new_topic.name}" / f"{new_topic.name}.metadata"
+        metadata_path = backup_location / f"{new_topic.name}.metadata"
 
         cp = subprocess.run(
             [
