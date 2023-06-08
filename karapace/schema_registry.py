@@ -20,6 +20,7 @@ from karapace.errors import (
     VersionNotFoundException,
 )
 from karapace.in_memory_database import InMemoryDatabase
+from karapace.karapacemetrics import KarapaceMetrics
 from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
@@ -122,6 +123,7 @@ class KarapaceSchemaRegistry:
                 elif not ignore_readiness and self.schema_reader.ready is False:
                     LOG.info("Schema reader isn't ready yet: %r", self.schema_reader.ready)
                 else:
+                    KarapaceMetrics().are_we_master(are_we_master)
                     return are_we_master, master_url
                 await asyncio.sleep(1.0)
 
