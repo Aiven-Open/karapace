@@ -172,7 +172,7 @@ class RestApp:
         self.stats = StatsClient(config=config)
         self.app.on_cleanup.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
-        KarapaceMetrics().setup(self.stats, "", config)
+        KarapaceMetrics().setup(self.stats, config)
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         await self.close()
@@ -405,6 +405,7 @@ class RestApp:
             resp = aiohttp.web.Response(text="Internal Server Error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)
         finally:
             KarapaceMetrics().response(resp.content_length)
+            KarapaceMetrics().latency((time.monotonic() - start_time) * 1000)
             self.stats.timing(
                 self.app_request_metric,
                 time.monotonic() - start_time,

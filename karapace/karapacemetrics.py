@@ -58,7 +58,7 @@ class KarapaceMetrics(metaclass=Singleton):
         self.worker_thread = threading.Thread(target=self.worker)
         self.lock = threading.Lock()
 
-    def setup(self, stats_client: StatsClient, prefix: str, config: Config) -> None:
+    def setup(self, stats_client: StatsClient, config: Config) -> None:
         self.active = config.get("metrics_extended")
         if not self.active:
             return
@@ -68,30 +68,34 @@ class KarapaceMetrics(metaclass=Singleton):
             self.is_ready = True
 
         sensor = self.metrics.sensor("connections-active")
-        sensor.add(MetricName(f"{prefix}-connections-active", "kafka-metrics"), Total())
+        sensor.add(MetricName("connections-active", "kafka-metrics"), Total())
 
         sensor = self.metrics.sensor("request-size")
-        sensor.add(MetricName(f"{prefix}-request-size-max", "kafka-metrics"), Max())
-        sensor.add(MetricName(f"{prefix}-request-size-avg", "kafka-metrics"), Avg())
+        sensor.add(MetricName("request-size-max", "kafka-metrics"), Max())
+        sensor.add(MetricName("request-size-avg", "kafka-metrics"), Avg())
 
         sensor = self.metrics.sensor("response-size")
-        sensor.add(MetricName(f"{prefix}-response-size-max", "kafka-metrics"), Max())
-        sensor.add(MetricName(f"{prefix}-response-size-avg", "kafka-metrics"), Avg())
+        sensor.add(MetricName("response-size-max", "kafka-metrics"), Max())
+        sensor.add(MetricName("response-size-avg", "kafka-metrics"), Avg())
 
         sensor = self.metrics.sensor("master-slave-role")
-        sensor.add(MetricName(f"{prefix}-master-slave-role", "kafka-metrics"), Value())
+        sensor.add(MetricName("master-slave-role", "kafka-metrics"), Value())
 
         sensor = self.metrics.sensor("request-error-rate")
-        sensor.add(MetricName(f"{prefix}-request-error-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName("request-error-rate", "kafka-metrics"), Rate())
 
         sensor = self.metrics.sensor("request-rate")
-        sensor.add(MetricName(f"{prefix}-request-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName("request-rate", "kafka-metrics"), Rate())
 
         sensor = self.metrics.sensor("response-rate")
-        sensor.add(MetricName(f"{prefix}-response-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName("response-rate", "kafka-metrics"), Rate())
 
         sensor = self.metrics.sensor("response-byte-rate")
-        sensor.add(MetricName(f"{prefix}-response-byte-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName("response-byte-rate", "kafka-metrics"), Rate())
+
+        sensor = self.metrics.sensor("latency")
+        sensor.add(MetricName("latency-max", "kafka-metrics"), Max())
+        sensor.add(MetricName("latency-avg", "kafka-metrics"), Avg())
 
         self.stats_client = stats_client
 
@@ -126,6 +130,12 @@ class KarapaceMetrics(metaclass=Singleton):
             return
         timestamp = int(datetime.utcnow().timestamp() * 1e3)
         self.metrics.get_sensor("master-slave-role").record(int(is_master), timestamp)
+
+    def latency(self, latency_ms: float):
+        if not self.active:
+            return
+        timestamp = int(datetime.utcnow().timestamp() * 1e3)
+        self.metrics.get_sensor("latency").record(latency_ms, timestamp)
 
     def error(self) -> None:
         if not self.active:
