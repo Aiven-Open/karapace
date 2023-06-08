@@ -17,6 +17,7 @@ from karapace.statsd import StatsClient
 from typing import Optional
 
 import schedule
+import threading
 import time
 
 
@@ -36,80 +37,60 @@ class Value(AbstractMeasurableStat):
         self.value = value
 
 
-class Sample:
-    def __init__(self, value: float, now: float):
-        self.value = value
-        self.default_value = value
-        self.event_number = 0
-        self.start_time = now
+class Singleton(type):
+    _instances = {}
 
-    def reset(self, start_time: float) -> None:
-        self.start_time = start_time
-        self.value = self.default_value
-        self.event_number = 0
-
-    def event(self) -> None:
-        self.event_number += 1
-
-    def is_finished(self, time_window: float) -> bool:
-        if time.monotonic() - self.start_time > time_window:
-            return True
-        return False
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
 
 
-class KarapaceMetrics:
+class KarapaceMetrics(metaclass=Singleton):
     _instance = None
 
     def __init__(self) -> None:
-        self.prefix = ""
         self.active: Optional[object] = None
         self.stats_client: Optional[StatsClient] = None
 
-    def __new__(cls, *args: str, **kwargs: int) -> "KarapaceMetrics":
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __call__(self) -> "KarapaceMetrics":
-        return self
-
     def setup(self, stats_client: StatsClient, prefix: str, config: Config) -> None:
-        self.prefix = prefix
-
         metrics = Metrics()
         sensor = metrics.sensor("connections-active")
-
-        sensor.add(MetricName("f{prefix}-connections-active", "kafka-metrics"), Total())
+        sensor.add(MetricName(f"{prefix}-connections-active", "kafka-metrics"), Total())
 
         sensor = metrics.sensor("request-size")
-        sensor.add(MetricName("f{prefix}-request-size-max", "kafka-metrics"), Max())
-        sensor.add(MetricName("f{prefix}-request-size-avg", "kafka-metrics"), Avg())
+        sensor.add(MetricName(f"{prefix}-request-size-max", "kafka-metrics"), Max())
+        sensor.add(MetricName(f"{prefix}-request-size-avg", "kafka-metrics"), Avg())
 
         sensor = metrics.sensor("response-size")
-        sensor.add(MetricName("f{prefix}-response-size-max", "kafka-metrics"), Max())
-        sensor.add(MetricName("f{prefix}-response-size-avg", "kafka-metrics"), Avg())
+        sensor.add(MetricName(f"{prefix}-response-size-max", "kafka-metrics"), Max())
+        sensor.add(MetricName(f"{prefix}-response-size-avg", "kafka-metrics"), Avg())
 
         sensor = metrics.sensor("master-slave-role")
-        sensor.add(MetricName("f{prefix}-master-slave-role", "kafka-metrics"), Value())
+        sensor.add(MetricName(f"{prefix}-master-slave-role", "kafka-metrics"), Value())
 
         sensor = metrics.sensor("request-error-rate")
-        sensor.add(MetricName("f{prefix}-request-error-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName(f"{prefix}-request-error-rate", "kafka-metrics"), Rate())
 
         sensor = metrics.sensor("request-rate")
-        sensor.add(MetricName("f{prefix}-request-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName(f"{prefix}-request-rate", "kafka-metrics"), Rate())
 
         sensor = metrics.sensor("response-rate")
-        sensor.add(MetricName("f{prefix}-response-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName(f"{prefix}-response-rate", "kafka-metrics"), Rate())
 
         sensor = metrics.sensor("response-byte-rate")
-        sensor.add(MetricName("f{prefix}-response-byte-rate", "kafka-metrics"), Rate())
+        sensor.add(MetricName(f"{prefix}-response-byte-rate", "kafka-metrics"), Rate())
         self.active = config.get("metrics_extended")
         self.stats_client = stats_client
         self.metrics = metrics
         if not self.active:
             return
 
-        schedule.every(30).seconds.do(self.report)
+        schedule.every(10).seconds.do(self.schedule)
+        self.event = threading.Event()
+        self.worker_thread = threading.Thread(target=self.worker)
+        self.worker_thread.start()
 
     def connection(self) -> None:
         if not self.active:
@@ -149,10 +130,23 @@ class KarapaceMetrics:
         if not self.active:
             return
         if isinstance(self.stats_client, StatsClient):
-            for metric_name, metric in self.metrics.metrics:
-                self.stats_client.gauge(metric_name, metric.value)
+            for metric_name in self.metrics.metrics:
+                value = self.metrics.metrics[metric_name].value()
+                self.stats_client.gauge(metric_name.name, value)
+
+    def schedule(self) -> None:
+        self.report()
+
+    def worker(self) -> None:
+        while True:
+            if self.event.is_set():
+                break
+            schedule.run_pending()
+            time.sleep(1)
 
     def cleanup(self) -> None:
         if not self.active:
             return
         self.report()
+        self.event.set()
+        self.worker_thread.join()
