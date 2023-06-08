@@ -172,7 +172,7 @@ class RestApp:
         self.stats = StatsClient(config=config)
         self.app.on_cleanup.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
-        KarapaceMetrics().setup(self.stats, app_name, config)
+        KarapaceMetrics().setup(self.stats, "", config)
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         await self.close()
