@@ -2,7 +2,10 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from io import BytesIO
+from karapace.config import Config
 from karapace.protobuf.encoding_variants import read_indexes, write_indexes
 from karapace.protobuf.exception import IllegalArgumentException, ProtobufSchemaResolutionException, ProtobufTypeException
 from karapace.protobuf.message_element import MessageElement
@@ -10,7 +13,8 @@ from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dic
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.type_element import TypeElement
 from multiprocessing import Process, Queue
-from typing import Any, Dict, List, Optional
+from typing import Dict, Final, Iterable, Protocol
+from typing_extensions import Self, TypeAlias
 
 import hashlib
 import importlib
@@ -30,8 +34,8 @@ def match_schemas(writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) 
     return str(writer_schema) == str(reader_schema)
 
 
-def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
-    result: List[str] = []
+def find_message_name(schema: ProtobufSchema, indexes: Iterable[int]) -> str:
+    result: list[str] = []
     types = schema.proto_file_element.types
     for index in indexes:
         try:
@@ -51,23 +55,26 @@ def find_message_name(schema: ProtobufSchema, indexes: List[int]) -> str:
     return ".".join(result)
 
 
-def crawl_dependencies_(schema: ProtobufSchema, deps_list: Dict[str, Dict[str, str]]):
+# todo: This can be rewritten as a generator to eliminate mutation of a shared dict.
+def _crawl_dependencies(schema: ProtobufSchema, deps_list: dict[str, dict[str, str]]) -> None:
     if schema.dependencies:
         for name, dependency in schema.dependencies.items():
-            crawl_dependencies_(dependency.schema.schema, deps_list)
+            # todo: https://github.com/aiven/karapace/issues/641
+            assert isinstance(dependency.schema.schema, ProtobufSchema)
+            _crawl_dependencies(dependency.schema.schema, deps_list)
             deps_list[name] = {
                 "schema": str(dependency.schema.schema),
                 "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
             }
 
 
-def crawl_dependencies(schema: ProtobufSchema) -> Dict[str, Dict[str, str]]:
-    deps_list: Dict[str, Dict[str, str]] = {}
-    crawl_dependencies_(schema, deps_list)
+def crawl_dependencies(schema: ProtobufSchema) -> dict[str, dict[str, str]]:
+    deps_list: dict[str, dict[str, str]] = {}
+    _crawl_dependencies(schema, deps_list)
     return deps_list
 
 
-def replace_imports(string: str, deps_list: Optional[Dict[str, Dict[str, str]]]) -> str:
+def replace_imports(string: str, deps_list: dict[str, dict[str, str]] | None) -> str:
     if deps_list is None:
         return string
     for key, value in deps_list.items():
@@ -76,7 +83,19 @@ def replace_imports(string: str, deps_list: Optional[Dict[str, Dict[str, str]]])
     return string
 
 
-def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Dict) -> Any:
+class _ProtobufModel(Protocol):
+    def ParseFromString(self, buffer: bytes) -> Self:
+        ...
+
+    def SerializeToString(self) -> bytes:
+        ...
+
+
+def get_protobuf_class_instance(
+    schema: ProtobufSchema,
+    class_name: str,
+    cfg: Config,
+) -> _ProtobufModel:
     directory = cfg["protobuf_runtime_directory"]
     deps_list = crawl_dependencies(schema)
     root_class_name = ""
@@ -115,12 +134,14 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
                 cwd=work_dir,
             )
 
+    # todo: This will leave residues on sys.path in case of exceptions. If really must
+    #  mutate sys.path, we should at least wrap in try-finally.
     sys.path.append(f"./runtime/{proto_name}")
-    spec = importlib.util.spec_from_file_location(
-        f"{proto_name}_pb2",
-        class_path,
-    )
+    spec = importlib.util.spec_from_file_location(f"{proto_name}_pb2", class_path)
+    # This is reasonable to assert because we just created this file.
+    assert spec is not None
     tmp_module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(tmp_module)
     sys.path.pop()
     class_to_call = getattr(tmp_module, class_name)
@@ -128,7 +149,12 @@ def get_protobuf_class_instance(schema: ProtobufSchema, class_name: str, cfg: Di
     return class_to_call()
 
 
-def read_data(config: dict, writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO) -> Any:
+def read_data(
+    config: Config,
+    writer_schema: ProtobufSchema,
+    reader_schema: ProtobufSchema,
+    bio: BytesIO,
+) -> _ProtobufModel:
     if not match_schemas(writer_schema, reader_schema):
         fail_msg = "Schemas do not match."
         raise ProtobufSchemaResolutionException(fail_msg, writer_schema, reader_schema)
@@ -142,14 +168,30 @@ def read_data(config: dict, writer_schema: ProtobufSchema, reader_schema: Protob
     return class_instance
 
 
-def reader_process(queue: Queue, config: dict, writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO):
+_ReaderQueue: TypeAlias = "Queue[dict[object, object] | Exception]"
+
+
+def reader_process(
+    queue: _ReaderQueue,
+    config: Config,
+    writer_schema: ProtobufSchema,
+    reader_schema: ProtobufSchema,
+    bio: BytesIO,
+) -> None:
     try:
         queue.put(protobuf_to_dict(read_data(config, writer_schema, reader_schema, bio), True))
+    # todo: This lint ignore does not look reasonable. If it is, reasoning should be
+    #  documented.
     except Exception as e:  # pylint: disable=broad-except
         queue.put(e)
 
 
-def reader_mp(config: dict, writer_schema: ProtobufSchema, reader_schema: ProtobufSchema, bio: BytesIO) -> Dict:
+def reader_mp(
+    config: Config,
+    writer_schema: ProtobufSchema,
+    reader_schema: ProtobufSchema,
+    bio: BytesIO,
+) -> dict[object, object]:
     # Note Protobuf enum values use C++ scoping rules,
     # meaning that enum values are siblings of their type, not children of it.
     # Therefore, if we have two proto files with Enums which elements have the same name we will have error.
@@ -158,7 +200,7 @@ def reader_mp(config: dict, writer_schema: ProtobufSchema, reader_schema: Protob
     # To avoid problem with enum values for basic SerDe support we
     # will isolate work with call protobuf libraries in child process.
     if __name__ == "karapace.protobuf.io":
-        queue = Queue()
+        queue: _ReaderQueue = Queue()
         p = Process(target=reader_process, args=(queue, config, writer_schema, reader_schema, bio))
         p.start()
         result = queue.get()
@@ -174,25 +216,41 @@ def reader_mp(config: dict, writer_schema: ProtobufSchema, reader_schema: Protob
 class ProtobufDatumReader:
     """Deserialize Protobuf-encoded data into a Python data structure."""
 
-    def __init__(self, config: dict, writer_schema: ProtobufSchema = None, reader_schema: ProtobufSchema = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        writer_schema: ProtobufSchema,
+        reader_schema: ProtobufSchema | None = None,
+    ) -> None:
         """As defined in the Protobuf specification, we call the schema encoded
         in the data the "writer's schema", and the schema expected by the
         reader the "reader's schema".
         """
-        self.config = config
-        self._writer_schema = writer_schema
+        self.config: Final = config
+        self._writer_schema: Final = writer_schema
         self._reader_schema = reader_schema
 
-    def read(self, bio: BytesIO) -> Dict:
+    def read(self, bio: BytesIO) -> dict:
         if self._reader_schema is None:
             self._reader_schema = self._writer_schema
         return reader_mp(self.config, self._writer_schema, self._reader_schema, bio)
 
 
-def writer_process(queue: Queue, config: Dict, writer_schema: ProtobufSchema, message_name: str, datum: dict):
+_WriterQueue: TypeAlias = "Queue[bytes | Exception]"
+
+
+def writer_process(
+    queue: _WriterQueue,
+    config: Config,
+    writer_schema: ProtobufSchema,
+    message_name: str,
+    datum: dict,
+) -> None:
     class_instance = get_protobuf_class_instance(writer_schema, message_name, config)
     try:
         dict_to_protobuf(class_instance, datum)
+    # todo: This does not look like a reasonable place to catch any exception,
+    #  especially since we're effectively silencing them.
     except Exception:
         # pylint: disable=raise-missing-from
         e = ProtobufTypeException(writer_schema, datum)
@@ -201,7 +259,13 @@ def writer_process(queue: Queue, config: Dict, writer_schema: ProtobufSchema, me
     queue.put(class_instance.SerializeToString())
 
 
-def writer_mp(config: Dict, writer_schema: ProtobufSchema, message_name: str, datum: Dict) -> str:
+# todo: What is mp? Expand the abbreviation or add an explaining comment.
+def writer_mp(
+    config: Config,
+    writer_schema: ProtobufSchema,
+    message_name: str,
+    datum: dict[object, object],
+) -> bytes:
     # Note Protobuf enum values use C++ scoping rules,
     # meaning that enum values are siblings of their type, not children of it.
     # Therefore, if we have two proto files with Enums which elements have the same name we will have error.
@@ -210,7 +274,7 @@ def writer_mp(config: Dict, writer_schema: ProtobufSchema, message_name: str, da
     # To avoid problem with enum values for basic SerDe support we
     # will isolate work with call protobuf libraries in child process.
     if __name__ == "karapace.protobuf.io":
-        queue = Queue()
+        queue: _WriterQueue = Queue()
         p = Process(target=writer_process, args=(queue, config, writer_schema, message_name, datum))
         p.start()
         result = queue.get()
@@ -220,13 +284,13 @@ def writer_mp(config: Dict, writer_schema: ProtobufSchema, message_name: str, da
         if isinstance(result, Exception):
             raise result
         raise IllegalArgumentException()
-    return "Error :This never must be returned"
+    raise NotImplementedError("Error: Reached unreachable code")
 
 
 class ProtobufDatumWriter:
     """ProtobufDatumWriter for generic python objects."""
 
-    def __init__(self, config: dict, writer_schema: ProtobufSchema = None):
+    def __init__(self, config: Config, writer_schema: ProtobufSchema) -> None:
         self.config = config
         self._writer_schema = writer_schema
         a: ProtobufSchema = writer_schema
@@ -244,5 +308,5 @@ class ProtobufDatumWriter:
     def write_index(self, writer: BytesIO) -> None:
         write_indexes(writer, [self._message_index])
 
-    def write(self, datum: dict, writer: BytesIO) -> None:
+    def write(self, datum: dict[object, object], writer: BytesIO) -> None:
         writer.write(writer_mp(self.config, self._writer_schema, self._message_name, datum))
