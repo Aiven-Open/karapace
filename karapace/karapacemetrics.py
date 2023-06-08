@@ -30,6 +30,7 @@ class Value(AbstractMeasurableStat):
         super().__init__()
         self.value = 0.0
 
+    # pylint: disable=unused-argument
     def measure(self, config: object, now: int) -> float:
         return self.value
 
@@ -53,42 +54,44 @@ class KarapaceMetrics(metaclass=Singleton):
     def __init__(self) -> None:
         self.active: Optional[object] = None
         self.stats_client: Optional[StatsClient] = None
+        self.metrics = Metrics()
+        self.event = threading.Event()
+        self.worker_thread = None
 
     def setup(self, stats_client: StatsClient, prefix: str, config: Config) -> None:
-        metrics = Metrics()
-        sensor = metrics.sensor("connections-active")
-        sensor.add(MetricName(f"{prefix}-connections-active", "kafka-metrics"), Total())
-
-        sensor = metrics.sensor("request-size")
-        sensor.add(MetricName(f"{prefix}-request-size-max", "kafka-metrics"), Max())
-        sensor.add(MetricName(f"{prefix}-request-size-avg", "kafka-metrics"), Avg())
-
-        sensor = metrics.sensor("response-size")
-        sensor.add(MetricName(f"{prefix}-response-size-max", "kafka-metrics"), Max())
-        sensor.add(MetricName(f"{prefix}-response-size-avg", "kafka-metrics"), Avg())
-
-        sensor = metrics.sensor("master-slave-role")
-        sensor.add(MetricName(f"{prefix}-master-slave-role", "kafka-metrics"), Value())
-
-        sensor = metrics.sensor("request-error-rate")
-        sensor.add(MetricName(f"{prefix}-request-error-rate", "kafka-metrics"), Rate())
-
-        sensor = metrics.sensor("request-rate")
-        sensor.add(MetricName(f"{prefix}-request-rate", "kafka-metrics"), Rate())
-
-        sensor = metrics.sensor("response-rate")
-        sensor.add(MetricName(f"{prefix}-response-rate", "kafka-metrics"), Rate())
-
-        sensor = metrics.sensor("response-byte-rate")
-        sensor.add(MetricName(f"{prefix}-response-byte-rate", "kafka-metrics"), Rate())
         self.active = config.get("metrics_extended")
-        self.stats_client = stats_client
-        self.metrics = metrics
         if not self.active:
             return
 
+        sensor = self.metrics.sensor("connections-active")
+        sensor.add(MetricName(f"{prefix}-connections-active", "kafka-metrics"), Total())
+
+        sensor = self.metrics.sensor("request-size")
+        sensor.add(MetricName(f"{prefix}-request-size-max", "kafka-metrics"), Max())
+        sensor.add(MetricName(f"{prefix}-request-size-avg", "kafka-metrics"), Avg())
+
+        sensor = self.metrics.sensor("response-size")
+        sensor.add(MetricName(f"{prefix}-response-size-max", "kafka-metrics"), Max())
+        sensor.add(MetricName(f"{prefix}-response-size-avg", "kafka-metrics"), Avg())
+
+        sensor = self.metrics.sensor("master-slave-role")
+        sensor.add(MetricName(f"{prefix}-master-slave-role", "kafka-metrics"), Value())
+
+        sensor = self.metrics.sensor("request-error-rate")
+        sensor.add(MetricName(f"{prefix}-request-error-rate", "kafka-metrics"), Rate())
+
+        sensor = self.metrics.sensor("request-rate")
+        sensor.add(MetricName(f"{prefix}-request-rate", "kafka-metrics"), Rate())
+
+        sensor = self.metrics.sensor("response-rate")
+        sensor.add(MetricName(f"{prefix}-response-rate", "kafka-metrics"), Rate())
+
+        sensor = self.metrics.sensor("response-byte-rate")
+        sensor.add(MetricName(f"{prefix}-response-byte-rate", "kafka-metrics"), Rate())
+        self.stats_client = stats_client
+
         schedule.every(10).seconds.do(self.schedule)
-        self.event = threading.Event()
+
         self.worker_thread = threading.Thread(target=self.worker)
         self.worker_thread.start()
 
