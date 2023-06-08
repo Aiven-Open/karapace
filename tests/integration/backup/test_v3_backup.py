@@ -12,6 +12,7 @@ from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup.api import _consume_records
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
+from karapace.backup.errors import EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
@@ -107,10 +108,18 @@ def test_roundtrip_from_kafka_state(
     admin_client: KafkaAdminClient,
     karapace_config: Config,
 ) -> None:
-    # Populate the test topic.
+    # Configure topic.
     admin_client.alter_configs(
-        [ConfigResource(ConfigResourceType.TOPIC, new_topic.name, configs={"max.message.bytes": "999"})]
+        [
+            ConfigResource(
+                ConfigResourceType.TOPIC,
+                new_topic.name,
+                configs={"max.message.bytes": "999"},
+            )
+        ]
     )
+
+    # Populate topic.
     producer.send(
         new_topic.name,
         key=b"bar",
@@ -182,7 +191,10 @@ def test_roundtrip_from_kafka_state(
         check=True,
     )
 
-    # Verify restored topic.
+    # Verify configuration is identical.
+    assert topic_config == get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+
+    # Verify records of restored topic.
     with kafka_consumer_from_config(karapace_config, new_topic.name) as consumer:
         (partition,) = consumer.partitions_for_topic(new_topic.name)
         first_record, second_record = _consume_records(
@@ -190,8 +202,6 @@ def test_roundtrip_from_kafka_state(
             topic_partition=TopicPartition(new_topic.name, partition),
             poll_timeout=PollTimeout.default(),
         )
-
-    assert topic_config == get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
 
     # First record.
     assert isinstance(first_record, ConsumerRecord)
@@ -219,6 +229,88 @@ def test_roundtrip_from_kafka_state(
         ("some-header", b"some header value"),
         ("other-header", b"some other header value"),
     ]
+
+
+def test_roundtrip_empty_topic(
+    tmp_path: Path,
+    new_topic: NewTopic,
+    config_file: Path,
+    admin_client: KafkaAdminClient,
+    karapace_config: Config,
+) -> None:
+    # Configure topic.
+    admin_client.alter_configs(
+        [
+            ConfigResource(
+                ConfigResourceType.TOPIC,
+                new_topic.name,
+                configs={"max.message.bytes": "987"},
+            )
+        ]
+    )
+
+    # Execute backup creation.
+    backup_location = tmp_path / "backup"
+    subprocess.run(
+        [
+            "karapace_schema_backup",
+            "get",
+            "--use-format-v3",
+            "--config",
+            str(config_file),
+            "--topic",
+            new_topic.name,
+            "--replication-factor=1",
+            "--location",
+            str(backup_location),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    # Verify exactly the expected file structure in the target path, and no residues
+    # from temporary files.
+    (backup_directory,) = tmp_path.iterdir()
+    assert backup_directory.name == "backup"
+    (metadata_path,) = backup_directory.iterdir()
+
+    # Delete the source topic.
+    admin_client.delete_topics([new_topic.name], timeout_ms=10_000)
+
+    # Execute backup restoration.
+    subprocess.run(
+        [
+            "karapace_schema_backup",
+            "restore",
+            "--config",
+            str(config_file),
+            "--topic",
+            new_topic.name,
+            "--location",
+            str(metadata_path),
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    # Verify configuration.
+    assert get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG}) == {
+        "min.insync.replicas": "1",
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000",
+        "max.message.bytes": "987",
+        "retention.bytes": "-1",
+    }
+
+    # Verify the restored partition is empty.
+    consumer_ctx = kafka_consumer_from_config(karapace_config, new_topic.name)
+    with consumer_ctx as consumer, pytest.raises(EmptyPartition):
+        (partition,) = consumer.partitions_for_topic(new_topic.name)
+        () = _consume_records(
+            consumer=consumer,
+            topic_partition=TopicPartition(new_topic.name, partition),
+            poll_timeout=PollTimeout.default(),
+        )
 
 
 def test_errors_when_omitting_replication_factor(config_file: Path) -> None:

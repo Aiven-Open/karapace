@@ -459,7 +459,9 @@ def create_backup(
         )
         with _admin(config) as admin:
             topic_configurations = get_topic_configurations(
-                admin=admin, topic_name=topic_name, config_source_filter={ConfigSource.TOPIC_CONFIG}
+                admin=admin,
+                topic_name=topic_name,
+                config_source_filter={ConfigSource.TOPIC_CONFIG},
             )
 
         # Note: It's expected that we at some point want to introduce handling of
