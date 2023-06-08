@@ -14,7 +14,7 @@ from kafka.metrics.measurable_stat import AbstractMeasurableStat
 from kafka.metrics.stats import Avg, Max, Rate, Sensor, Total
 from karapace.config import Config
 from karapace.statsd import StatsClient
-from typing import Optional
+from typing import Dict, Optional
 
 import schedule
 import threading
@@ -39,9 +39,9 @@ class Value(AbstractMeasurableStat):
 
 
 class Singleton(type):
-    _instances = {}
+    _instances: Dict["Singleton", "Singleton"] = {}
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls, *args: str, **kwargs: int) -> "Singleton":
         if cls not in cls._instances:
             instance = super().__call__(*args, **kwargs)
             cls._instances[cls] = instance
@@ -49,14 +49,12 @@ class Singleton(type):
 
 
 class KarapaceMetrics(metaclass=Singleton):
-    _instance = None
-
     def __init__(self) -> None:
         self.active: Optional[object] = None
         self.stats_client: Optional[StatsClient] = None
         self.metrics = Metrics()
         self.event = threading.Event()
-        self.worker_thread = None
+        self.worker_thread = threading.Thread(target=self.worker)
 
     def sensor_metric(self, sensor: Sensor, metric_name: MetricName, stat: AbstractMeasurableStat) -> None:
         if self.metrics.metrics and self.metrics.metrics.get(metric_name):
@@ -98,7 +96,6 @@ class KarapaceMetrics(metaclass=Singleton):
 
         schedule.every(10).seconds.do(self.schedule)
 
-        self.worker_thread = threading.Thread(target=self.worker)
         self.worker_thread.start()
 
     def connection(self) -> None:
