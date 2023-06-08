@@ -84,14 +84,14 @@ def dispatch(args: argparse.Namespace) -> None:
             replication_factor=args.replication_factor,
         )
     elif args.command == "inspect":
-        api.inspect(location)
+        api.inspect(api.locate_backup_file(location))
     elif args.command == "verify":
-        api.verify(location, level=VerifyLevel(args.level))
+        api.verify(api.locate_backup_file(location), level=VerifyLevel(args.level))
     elif args.command == "restore":
         config = get_config(args)
         api.restore_backup(
             config=config,
-            backup_location=location,
+            backup_location=api.locate_backup_file(location),
             topic_name=api.normalize_topic_name(args.topic, config),
         )
     elif args.command == "export-anonymized-avro-schemas":

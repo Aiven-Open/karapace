@@ -16,13 +16,18 @@ from karapace.backup.api import (
     _handle_restore_topic_legacy,
     _maybe_create_topic,
     _producer,
+    locate_backup_file,
+    normalize_location,
+    normalize_topic_name,
 )
 from karapace.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
-from karapace.backup.errors import PartitionCountError
+from karapace.backup.backends.writer import StdOut
+from karapace.backup.errors import BackupError, PartitionCountError
 from karapace.config import Config
 from karapace.constants import DEFAULT_SCHEMA_TOPIC, TOPIC_CREATION_TIMEOUT_MS
+from pathlib import Path
 from types import FunctionType
-from typing import Callable, ContextManager
+from typing import Callable, cast, ContextManager
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -180,3 +185,75 @@ class TestClients:
                 with ctx_mng(config.DEFAULTS, "topic") as client:
                     assert client == client_mock
             assert client_mock.close.call_count == 1
+
+
+class TestNormalizeLocation:
+    @pytest.mark.parametrize("alias", ("", "-"))
+    def test_returns_dash_for_stdout_alias(self, alias: str) -> None:
+        assert normalize_location(alias) == "-"
+
+    def test_returns_absolute_path(self) -> None:
+        normalized = normalize_location("some/file/path")
+        assert isinstance(normalized, Path)
+        assert normalized.is_absolute()
+
+
+class TestLocateBackupFile:
+    @pytest.mark.parametrize("alias", ("", "-"))
+    def test_raises_backup_error_for_stdout_alias(self, alias: StdOut) -> None:
+        with pytest.raises(BackupError, match=r"^Cannot restore backups from stdin$"):
+            locate_backup_file(alias)
+
+    def test_raises_backup_error_for_empty_directory(self, tmp_path: Path) -> None:
+        with pytest.raises(
+            BackupError,
+            match=r"^When a given location is a directory, it must contain exactly one metadata file, found 0\.$",
+        ):
+            locate_backup_file(tmp_path)
+
+    def test_raises_backup_error_for_multiple_metadata_files(self, tmp_path: Path) -> None:
+        (tmp_path / "foo.metadata").touch()
+        (tmp_path / "bar.metadata").touch()
+        with pytest.raises(
+            BackupError,
+            match=r"^When a given location is a directory, it must contain exactly one metadata file, found 2\.$",
+        ):
+            locate_backup_file(tmp_path)
+
+    def test_raises_backup_error_for_non_existent_path(self, tmp_path: Path) -> None:
+        path = tmp_path / "foo"
+        with pytest.raises(
+            BackupError,
+            match=r"^Backup location doesn't exist$",
+        ):
+            locate_backup_file(path)
+
+    def test_raises_backup_error_for_non_file(self, tmp_path: Path) -> None:
+        (tmp_path / "foo.metadata").mkdir()
+        with pytest.raises(
+            BackupError,
+            match=r"^The normalized path is not a file$",
+        ):
+            locate_backup_file(tmp_path)
+
+    def test_returns_path_to_nested_metadata(self, tmp_path: Path) -> None:
+        metadata_path = tmp_path / "foo.metadata"
+        metadata_path.touch()
+        normalized = locate_backup_file(tmp_path)
+        assert normalized == metadata_path
+
+    def test_returns_given_file_path(self, tmp_path: Path) -> None:
+        path = tmp_path / "foo"
+        path.touch()
+        normalized = locate_backup_file(path)
+        assert normalized == path
+
+
+class TestNormalizeTopicName:
+    def test_returns_option_if_given(self) -> None:
+        fake_config = cast(Config, {})
+        assert normalize_topic_name("some-topic", fake_config) == "some-topic"
+
+    def test_defaults_to_config(self) -> None:
+        fake_config = cast(Config, {"topic_name": "default-topic"})
+        assert normalize_topic_name(None, fake_config) == "default-topic"
