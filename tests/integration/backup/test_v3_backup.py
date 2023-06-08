@@ -161,6 +161,7 @@ def test_roundtrip_from_kafka_state(
         f"{new_topic.name}:0.data",
     ]
     (metadata_path,) = backup_directory.glob("*.metadata")
+    assert metadata_path.exists()
 
     # Delete the source topic.
     admin_client.delete_topics([new_topic.name], timeout_ms=10_000)
@@ -176,7 +177,7 @@ def test_roundtrip_from_kafka_state(
             "--topic",
             new_topic.name,
             "--location",
-            str(metadata_path),
+            str(backup_directory),
         ],
         capture_output=True,
         check=True,
