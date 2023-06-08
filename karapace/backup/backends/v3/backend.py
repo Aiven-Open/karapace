@@ -242,7 +242,6 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
 
     def prepare_location(
         self,
-        topic_name: str,
         backup_location: P,
     ) -> ContextManager[P]:
         """
@@ -251,7 +250,7 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         """
         if not isinstance(backup_location, Path):
             raise RuntimeError("Cannot use stdout with backup format V3")
-        return staging_directory(backup_location / f"topic-{topic_name}")  # type: ignore[return-value]
+        return staging_directory(backup_location)  # type: ignore[return-value]
 
     @staticmethod
     def _build_data_file_name(
