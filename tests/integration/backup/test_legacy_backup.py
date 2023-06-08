@@ -6,7 +6,8 @@ See LICENSE for details
 """
 from datetime import timedelta
 from kafka import KafkaConsumer
-from karapace.backup.api import BackupVersion, SchemaBackup
+from karapace.backup import api
+from karapace.backup.api import BackupVersion
 from karapace.backup.errors import StaleConsumerError
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.client import Client
@@ -20,6 +21,7 @@ from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 from unittest import mock
 
+import asyncio
 import json
 import os
 import pytest
@@ -55,8 +57,12 @@ async def test_backup_get(
             "topic_name": registry_cluster.schemas_topic,
         }
     )
-    sb = SchemaBackup(config, str(backup_location))
-    sb.create(BackupVersion.V2)
+    api.create_backup(
+        config=config,
+        backup_location=backup_location,
+        topic_name=api.normalize_topic_name(None, config),
+        version=BackupVersion.V2,
+    )
 
     # The backup file has been created
     assert os.path.exists(backup_location)
@@ -88,13 +94,20 @@ async def test_backup_restore_and_get_non_schema_topic(
     # Restore from backup
     test_data_path = Path("tests/integration/test_data/")
     restore_location = test_data_path / "test_restore_non_schema_topic_v2.log"
-    sb = SchemaBackup(config, str(restore_location), topic_option=test_topic_name)
-    sb.restore_backup()
+    api.restore_backup(
+        config=config,
+        backup_location=restore_location,
+        topic_name=api.normalize_topic_name(test_topic_name, config),
+    )
 
     # Get the backup
     backup_location = tmp_path / "non_schemas_topic.log"
-    sb = SchemaBackup(config, str(backup_location), topic_option=test_topic_name)
-    sb.create(BackupVersion.V2)
+    api.create_backup(
+        config=config,
+        backup_location=backup_location,
+        topic_name=api.normalize_topic_name(test_topic_name, config),
+        version=BackupVersion.V2,
+    )
     # The backup file has been created
     assert os.path.exists(backup_location)
 
@@ -153,8 +166,11 @@ async def test_backup_restore(
     # Test basic restore functionality
     restore_location = test_data_path / f"test_restore_{backup_file_version}.log"
 
-    sb = SchemaBackup(config, str(restore_location))
-    sb.restore_backup()
+    api.restore_backup(
+        config=config,
+        backup_location=restore_location,
+        topic_name=api.normalize_topic_name(None, config),
+    )
 
     # The restored karapace should have the previously created subject
     all_subjects = []
@@ -175,7 +191,6 @@ async def test_backup_restore(
     # Restore a compatibility config remove message
     subject = "compatibility-config-remove"
     restore_location = test_data_path / f"test_restore_compatibility_config_remove_{backup_file_version}.log"
-    sb = SchemaBackup(config, str(restore_location))
 
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "FORWARD"})
     assert res.status_code == 200
@@ -183,15 +198,18 @@ async def test_backup_restore(
     res = await registry_async_client.get(f"config/{subject}")
     assert res.status_code == 200
     assert res.json()["compatibilityLevel"] == "FORWARD"
-    sb.restore_backup()
-    time.sleep(1.0)
+    api.restore_backup(
+        config=config,
+        backup_location=restore_location,
+        topic_name=api.normalize_topic_name(None, config),
+    )
+    await asyncio.sleep(1)
     res = await registry_async_client.get(f"config/{subject}")
     assert res.status_code == 404
 
     # Restore a complete schema delete message
     subject = "complete-schema-delete-version"
     restore_location = test_data_path / f"test_restore_complete_schema_delete_{backup_file_version}.log"
-    sb = SchemaBackup(config, str(restore_location))
 
     res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "int"}'})
@@ -199,7 +217,11 @@ async def test_backup_restore(
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 200
     assert res.json() == [1, 2]
-    sb.restore_backup()
+    api.restore_backup(
+        config=config,
+        backup_location=restore_location,
+        topic_name=api.normalize_topic_name(None, config),
+    )
     time.sleep(1.0)
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 200
@@ -208,9 +230,12 @@ async def test_backup_restore(
     # Schema delete for a nonexistent subject version is ignored
     subject = "delete-nonexistent-schema"
     restore_location = test_data_path / f"test_restore_delete_nonexistent_schema_{backup_file_version}.log"
-    sb = SchemaBackup(config, str(restore_location))
     res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
-    sb.restore_backup()
+    api.restore_backup(
+        config=config,
+        backup_location=restore_location,
+        topic_name=api.normalize_topic_name(None, config),
+    )
     time.sleep(1.0)
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 200
@@ -237,8 +262,11 @@ async def test_stale_consumer(
         # implement the necessary APIs.
         with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}._poll_once") as poll_once_mock:
             poll_once_mock.return_value = {}
-            SchemaBackup(config, str(tmp_path / "backup")).create(
-                BackupVersion.V2,
+            api.create_backup(
+                config=config,
+                backup_location=tmp_path / "backup",
+                topic_name=api.normalize_topic_name(None, config),
+                version=BackupVersion.V2,
                 poll_timeout=PollTimeout(timedelta(seconds=1)),
             )
     assert str(e.value) == f"{registry_cluster.schemas_topic}:0#0 (0,0) after PT1S"

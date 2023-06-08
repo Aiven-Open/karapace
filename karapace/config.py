@@ -10,8 +10,8 @@ from enum import Enum, unique
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
-from typing import IO
-from typing_extensions import TypedDict
+from typing import IO, Mapping
+from typing_extensions import NotRequired, TypedDict
 
 import logging
 import os
@@ -75,6 +75,9 @@ class Config(TypedDict):
     karapace_registry: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
+
+    sentry: NotRequired[Mapping[str, object]]
+    tags: NotRequired[Mapping[str, object]]
 
 
 class ConfigDefaults(Config, total=False):

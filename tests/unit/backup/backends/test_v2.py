@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from functools import partial
 from kafka.consumer.fetcher import ConsumerRecord
-from karapace.backup.backends.reader import ProducerSend, RestoreTopic
+from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer
 from karapace.backup.encoders import encode_key, encode_value
 from karapace.key_format import KeyFormatter
@@ -109,7 +109,10 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
         topic_id=None,
         started_at=datetime.datetime.now(datetime.timezone.utc),
         finished_at=datetime.datetime.now(datetime.timezone.utc),
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
+        partition_count=1,
     )
 
     reader = get_reader()
@@ -119,7 +122,7 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
         second_send,
     ) = reader.read(backup_path, topic_name)
 
-    assert restore_topic == RestoreTopic(name=topic_name, partition_count=1)
+    assert restore_topic == RestoreTopicLegacy(topic_name=topic_name, partition_count=1)
 
     # First message.
     assert isinstance(first_send, ProducerSend)
@@ -257,7 +260,10 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
         topic_id=None,
         started_at=datetime.datetime.now(datetime.timezone.utc),
         finished_at=datetime.datetime.now(datetime.timezone.utc),
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
+        partition_count=1,
     )
 
     # Only the backup file, and no temporary files exist in backup directory.
@@ -271,7 +277,7 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
         second_send,
     ) = reader.read(backup_path, topic_name)
 
-    assert restore_topic == RestoreTopic(name=topic_name, partition_count=1)
+    assert restore_topic == RestoreTopicLegacy(topic_name=topic_name, partition_count=1)
 
     # First message.
     assert isinstance(first_send, ProducerSend)
@@ -324,4 +330,4 @@ def test_yields_restore_topic_for_empty_file(tmp_file: Path) -> None:
     reader = get_reader()
     tmp_file.write_text("/V2\n")
     instructions = tuple(reader.read(tmp_file, "a-topic"))
-    assert instructions == (RestoreTopic(name="a-topic", partition_count=1),)
+    assert instructions == (RestoreTopicLegacy(topic_name="a-topic", partition_count=1),)

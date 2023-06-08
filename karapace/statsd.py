@@ -8,9 +8,12 @@ Supports telegraf's statsd protocol extension for 'key=value' tags:
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from contextlib import contextmanager
+from karapace.config import Config
 from karapace.sentry import get_sentry_client
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Final, Iterator
 
 import datetime
 import logging
@@ -18,43 +21,47 @@ import socket
 import time
 import urllib
 
-STATSD_HOST = "127.0.0.1"
-STATSD_PORT = 8125
+STATSD_HOST: Final = "127.0.0.1"
+STATSD_PORT: Final = 8125
 LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
-    def __init__(self, host: str = STATSD_HOST, port: int = STATSD_PORT, config: Optional[Dict[str, str]] = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        host: str = STATSD_HOST,
+        port: int = STATSD_PORT,
+    ) -> None:
         if config.get("metrics_mode") == "statsd":
             statsd_uri = config.get("statsd_uri")
             if statsd_uri:
                 srv = urllib.parse.urlsplit("//" + statsd_uri)
                 _host = srv.hostname or host
                 _port = srv.port or port
-                self._dest_addr = (_host, _port)
+                self._dest_addr: Final = (_host, _port)
             else:
-                self._dest_addr = (host, port)
-
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags = config.get("tags", {})
-        self.sentry_client = get_sentry_client(sentry_config=config.get("sentry", None))
+                self._dest_addr: Final = (host, port)
+        self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._tags: Final = config.get("tags", {})
+        self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))
 
     @contextmanager
-    def timing_manager(self, metric: str, tags: Optional[Dict] = None) -> Iterator[None]:
+    def timing_manager(self, metric: str, tags: dict | None = None) -> Iterator[None]:
         start_time = time.monotonic()
         yield
         self.timing(metric, time.monotonic() - start_time, tags)
 
-    def gauge(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
+    def gauge(self, metric: str, value: float, tags: dict | None = None) -> None:
         self._send(metric, b"g", value, tags)
 
-    def increase(self, metric: str, inc_value: int = 1, tags: Optional[Dict] = None) -> None:
+    def increase(self, metric: str, inc_value: int = 1, tags: dict | None = None) -> None:
         self._send(metric, b"c", inc_value, tags)
 
-    def timing(self, metric: str, value: float, tags: Optional[Dict] = None) -> None:
+    def timing(self, metric: str, value: float, tags: dict | None = None) -> None:
         self._send(metric, b"ms", value, tags)
 
-    def unexpected_exception(self, ex: Exception, where: str, tags: Optional[Dict] = None) -> None:
+    def unexpected_exception(self, ex: Exception, where: str, tags: dict | None = None) -> None:
         all_tags = {
             "exception": ex.__class__.__name__,
             "where": where,
@@ -64,7 +71,7 @@ class StatsClient:
         scope_args = {**(tags or {}), "where": where}
         self.sentry_client.unexpected_exception(error=ex, where=where, tags=scope_args)
 
-    def _send(self, metric: str, metric_type: bytes, value: Any, tags: Optional[Dict]) -> None:
+    def _send(self, metric: str, metric_type: bytes, value: Any, tags: dict | None) -> None:
         if None in self._dest_addr:
             # stats sending is disabled
             return
@@ -72,7 +79,7 @@ class StatsClient:
         try:
             # format: "user.logins,service=payroll,region=us-west:1|c"
             parts = [metric.encode("utf-8"), b":", str(value).encode("utf-8"), b"|", metric_type]
-            send_tags = self._tags.copy()
+            send_tags = dict(self._tags)
             send_tags.update(tags or {})
             for tag, tag_value in sorted(send_tags.items()):
                 if tag_value is None:

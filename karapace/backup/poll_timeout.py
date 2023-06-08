@@ -7,8 +7,9 @@ from __future__ import annotations
 from datetime import timedelta
 from functools import cached_property
 from isodate import duration_isoformat, parse_duration
+from typing import Final
 
-__all__ = ["PollTimeout"]
+__all__ = ("PollTimeout",)
 
 
 class PollTimeout:
@@ -19,9 +20,14 @@ class PollTimeout:
     """
 
     def __init__(self, value: str | timedelta) -> None:
-        self.__value = value if isinstance(value, timedelta) else parse_duration(value)
-        if self.__value // timedelta(seconds=1) < 1:
-            raise ValueError(f"Poll timeout MUST be at least one second, got: {self}")
+        duration = value if isinstance(value, timedelta) else parse_duration(value)
+        # parse_duration() returns Duration objects for values that cannot be
+        # represented by a datetime.timedelta.
+        if not isinstance(duration, timedelta):
+            raise ValueError(f"Poll timeout must be less than one year, got: {duration}")
+        if isinstance(duration, timedelta) and duration < timedelta(seconds=1):
+            raise ValueError(f"Poll timeout must be at least one second, got: {duration}")
+        self.__value: Final = duration
 
     @classmethod
     def default(cls) -> PollTimeout:

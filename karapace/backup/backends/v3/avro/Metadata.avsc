@@ -27,6 +27,10 @@
       }
     },
     {
+      "name": "record_count",
+      "type": "int"
+    },
+    {
       "name": "topic_name",
       "type": "string"
     },
@@ -43,6 +47,17 @@
     {
       "name": "partition_count",
       "type": "int"
+    },
+    {
+      "name": "replication_factor",
+      "type": "int"
+    },
+    {
+      "name": "topic_configurations",
+      "type": {
+        "type": "map",
+        "values": "string"
+      }
     },
     {
       "name": "data_files",
@@ -64,6 +79,14 @@
             {
               "name": "record_count",
               "type": "long"
+            },
+            {
+              "name": "start_offset",
+              "type": "int"
+            },
+            {
+              "name": "end_offset",
+              "type": "int"
             }
           ],
           "name": "DataFile",

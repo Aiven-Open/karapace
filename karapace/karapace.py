@@ -7,6 +7,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from aiohttp.web_request import Request
 from functools import partial
 from http import HTTPStatus
 from karapace.config import Config
@@ -77,7 +78,7 @@ class KarapaceBase(RestApp):
     async def root_get(self) -> NoReturn:
         self.r({}, "application/json")
 
-    async def health(self, _request: HTTPRequest) -> aiohttp.web.Response:
+    async def health(self, _request: Request) -> aiohttp.web.Response:
         resp: JsonObject = {"process_uptime_sec": int(time.monotonic() - self._process_start_time)}
         for hook in self.health_hooks:
             resp.update(await hook())

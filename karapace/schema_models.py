@@ -21,8 +21,8 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import ResolvedVersion, SchemaId, Subject
-from karapace.utils import json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Dict, List, NoReturn, Optional, Union
+from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
+from typing import Any, cast, Dict, List, Optional, Union
 
 import hashlib
 import logging
@@ -49,8 +49,10 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
     """
     schema = json_decode(schema_definition)
-    Draft7Validator.check_schema(schema)
-    return Draft7Validator(schema)
+    # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
+    #  use bool values and fail if we assert isinstance(_, dict).
+    Draft7Validator.check_schema(schema)  # type: ignore[arg-type]
+    return Draft7Validator(schema)  # type: ignore[arg-type]
 
 
 def parse_protobuf_schema_definition(
@@ -73,10 +75,6 @@ def parse_protobuf_schema_definition(
     return protobuf_schema
 
 
-def _assert_never(no_return: NoReturn) -> NoReturn:
-    raise AssertionError(f"Expected to be unreachable {no_return}")
-
-
 class TypedSchema:
     def __init__(
         self,
@@ -86,7 +84,7 @@ class TypedSchema:
         schema: Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]] = None,
         references: Optional[List[Reference]] = None,
         dependencies: Optional[Dict[str, Dependency]] = None,
-    ):
+    ) -> None:
         """Schema with type information
 
         Args:
@@ -135,7 +133,7 @@ class TypedSchema:
                     raise e
 
         else:
-            _assert_never(schema_type)
+            assert_never(schema_type)
         return schema_str
 
     def __str__(self) -> str:
@@ -308,7 +306,11 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         dependencies: Optional[Dict[str, Dependency]] = None,
     ):
         super().__init__(
-            schema_type=schema_type, schema_str=schema_str, references=references, dependencies=dependencies, schema=schema
+            schema_type=schema_type,
+            schema_str=schema_str,
+            references=references,
+            dependencies=dependencies,
+            schema=schema,
         )
 
     @staticmethod

@@ -7,7 +7,7 @@ See LICENSE for details
 from dataclasses import field
 from karapace.avro_dataclasses.models import AvroModel
 from karapace.dataclasses import default_dataclass
-from typing import Optional, Tuple
+from typing import Mapping, Optional, Tuple
 
 import datetime
 import enum
@@ -31,12 +31,16 @@ class DataFile(AvroModel):
     partition: int = field(metadata={"type": "long"})
     checksum: bytes
     record_count: int = field(metadata={"type": "long"})
+    start_offset: int
+    end_offset: int
 
     def __post_init__(self) -> None:
         assert self.record_count >= 0
         assert self.partition >= 0
         assert self.checksum
         assert self.filename
+        assert self.start_offset <= self.end_offset
+        assert self.end_offset - self.start_offset + 1 >= self.record_count
 
 
 @default_dataclass
@@ -46,9 +50,12 @@ class Metadata(AvroModel):
     tool_version: str
     started_at: datetime.datetime
     finished_at: datetime.datetime
+    record_count: int = field(metadata={"type": "int"})
     topic_name: str
     topic_id: Optional[uuid.UUID]
     partition_count: int = field(metadata={"type": "int"})
+    replication_factor: int = field(metadata={"type": "int"})
+    topic_configurations: Mapping[str, str]
     data_files: Tuple[DataFile, ...]
     checksum_algorithm: ChecksumAlgorithm = ChecksumAlgorithm.unknown
 
@@ -58,6 +65,7 @@ class Metadata(AvroModel):
         assert self.finished_at >= self.started_at
         assert self.partition_count == 1
         assert self.version == 3
+        assert self.record_count == sum(data_file.record_count for data_file in self.data_files)
 
 
 @default_dataclass

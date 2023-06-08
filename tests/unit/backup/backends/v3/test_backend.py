@@ -6,7 +6,14 @@ from dataclasses import replace
 from kafka.consumer.fetcher import ConsumerRecord
 from karapace.backup.backends.reader import ProducerSend, RestoreTopic
 from karapace.backup.backends.v3.backend import _PartitionStats, SchemaBackupV3Reader, SchemaBackupV3Writer
-from karapace.backup.backends.v3.errors import InvalidChecksum, TooFewRecords, TooManyRecords, UnknownChecksumAlgorithm
+from karapace.backup.backends.v3.errors import (
+    InconsistentOffset,
+    InvalidChecksum,
+    OffsetMismatch,
+    TooFewRecords,
+    TooManyRecords,
+    UnknownChecksumAlgorithm,
+)
 from karapace.backup.backends.v3.readers import read_records
 from karapace.backup.backends.v3.schema import ChecksumAlgorithm, DataFile
 from pathlib import Path
@@ -31,7 +38,7 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
             value=b"bar",
             topic=topic_name,
             partition=partition_index,
-            offset=0,
+            offset=10,
             timestamp=round(time.time()),
             timestamp_type=None,
             headers=(),
@@ -45,7 +52,7 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
             value=b"bar",
             topic=topic_name,
             partition=partition_index,
-            offset=0,
+            offset=14,
             timestamp=round(time.time()),
             timestamp_type=None,
             headers=(("some-key", b"some-value"),),
@@ -55,6 +62,7 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
             serialized_header_size=None,
         ),
     )
+    topic_configurations = {"max.message.bytes": "1024"}
 
     # Write backup to files.
     backup_writer = SchemaBackupV3Writer(
@@ -80,7 +88,10 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=2,
+        topic_configurations=topic_configurations,
         data_files=(data_file,),
+        partition_count=1,
     )
 
     assert sorted(path.name for path in backup_path.iterdir()) == ["a-topic.metadata", "a-topic:123.data"]
@@ -89,6 +100,8 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
         partition=123,
         checksum=mock.ANY,
         record_count=2,
+        start_offset=10,
+        end_offset=14,
     )
 
     # Read backup into restore instructions.
@@ -103,8 +116,10 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
 
     assert instructions == (
         RestoreTopic(
-            name=topic_name,
+            topic_name=topic_name,
             partition_count=1,
+            replication_factor=2,
+            topic_configs={"max.message.bytes": "1024"},
         ),
         ProducerSend(
             topic_name=topic_name,
@@ -187,15 +202,15 @@ def test_reader_raises_invalid_checksum(tmp_path: Path) -> None:
     # another record.
     with backup_writer.safe_writer(file_path, False) as buffer:
         backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
-        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 1))
         with mock.patch.object(
             backup_writer._partition_stats[partition_index],  # pylint: disable=protected-access
             "get_checkpoint",
             return_value=b"not what you expected!",
             autospec=True,
         ):
-            backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
-        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
+            backup_writer.store_record(buffer, make_record(topic_name, partition_index, 2))
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 3))
 
     # Finalize backup.
     data_file = backup_writer.finalize_partition(partition_index, file_path.name)
@@ -205,7 +220,10 @@ def test_reader_raises_invalid_checksum(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
+        partition_count=1,
     )
 
     # Read backup into restore instructions.
@@ -246,8 +264,8 @@ def test_reader_raises_invalid_checksum_for_corruption_in_last_record(tmp_path: 
     )
 
     with backup_writer.safe_writer(file_path, False) as buffer:
-        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
-        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 123))
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 124))
 
     # Flip last bit in byte before last.
     pos = -2
@@ -262,7 +280,10 @@ def test_reader_raises_invalid_checksum_for_corruption_in_last_record(tmp_path: 
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
+        partition_count=1,
     )
 
     # Read backup into restore instructions.
@@ -315,7 +336,10 @@ def test_reader_raises_too_many_records(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
+        partition_count=1,
     )
 
     # Read backup into restore instructions.
@@ -358,6 +382,7 @@ def test_reader_raises_too_few_records(tmp_path: Path) -> None:
     data_file = replace(
         data_file,
         record_count=data_file.record_count + 1,
+        end_offset=data_file.end_offset + 1,
     )
 
     # Finalize backup
@@ -367,7 +392,10 @@ def test_reader_raises_too_few_records(tmp_path: Path) -> None:
         topic_id=None,
         started_at=started_at,
         finished_at=finished_at,
+        replication_factor=1,
+        topic_configurations={},
         data_files=(data_file,),
+        partition_count=1,
     )
 
     # Read backup into restore instructions.
@@ -377,6 +405,112 @@ def test_reader_raises_too_few_records(tmp_path: Path) -> None:
     with pytest.raises(
         TooFewRecords,
         match=r"^Data file contains fewer records than expected\.$",
+    ):
+        tuple(
+            backup_reader.read(
+                path=metadata_path,
+                topic_name="a-topic",
+            )
+        )
+
+
+def test_reader_raises_offset_mismatch_for_first_record(tmp_path: Path) -> None:
+    backup_path = tmp_path
+    topic_name = "a-topic"
+    partition_index = 123
+    started_at = datetime.datetime.now(datetime.timezone.utc)
+    finished_at = datetime.datetime.now(datetime.timezone.utc)
+
+    backup_writer = SchemaBackupV3Writer()
+    file_path = backup_writer.start_partition(
+        path=backup_path,
+        topic_name=topic_name,
+        index=partition_index,
+    )
+
+    with backup_writer.safe_writer(file_path, False) as buffer:
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 123))
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 124))
+
+    # Finalize partition.
+    data_file = backup_writer.finalize_partition(partition_index, file_path.name)
+
+    # Insert bad offset.
+    data_file = replace(data_file, start_offset=122)
+
+    # Finalize backup.
+    backup_writer.store_metadata(
+        path=backup_path,
+        topic_name=topic_name,
+        topic_id=None,
+        started_at=started_at,
+        finished_at=finished_at,
+        data_files=(data_file,),
+        partition_count=1,
+        topic_configurations={},
+        replication_factor=1,
+    )
+
+    # Read backup into restore instructions.
+    backup_reader = SchemaBackupV3Reader()
+    metadata_path = backup_path / "a-topic.metadata"
+
+    with pytest.raises(
+        OffsetMismatch,
+        match=r"^First record in data file does not match expected start_offset \(expected: 122, actual: 123\)\.$",
+    ):
+        tuple(
+            backup_reader.read(
+                path=metadata_path,
+                topic_name="a-topic",
+            )
+        )
+
+
+def test_reader_raises_offset_mismatch_for_last_record(tmp_path: Path) -> None:
+    backup_path = tmp_path
+    topic_name = "a-topic"
+    partition_index = 123
+    started_at = datetime.datetime.now(datetime.timezone.utc)
+    finished_at = datetime.datetime.now(datetime.timezone.utc)
+
+    backup_writer = SchemaBackupV3Writer()
+    file_path = backup_writer.start_partition(
+        path=backup_path,
+        topic_name=topic_name,
+        index=partition_index,
+    )
+
+    with backup_writer.safe_writer(file_path, False) as buffer:
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 123))
+        backup_writer.store_record(buffer, make_record(topic_name, partition_index, 124))
+
+    # Finalize partition.
+    data_file = backup_writer.finalize_partition(partition_index, file_path.name)
+
+    # Insert bad offset.
+    data_file = replace(data_file, end_offset=125)
+
+    # Finalize backup.
+    backup_writer.store_metadata(
+        path=backup_path,
+        topic_name=topic_name,
+        topic_id=None,
+        started_at=started_at,
+        finished_at=finished_at,
+        data_files=(data_file,),
+        partition_count=1,
+        topic_configurations={},
+        replication_factor=1,
+    )
+
+    # Read backup into restore instructions.
+    backup_reader = SchemaBackupV3Reader()
+    metadata_path = backup_path / "a-topic.metadata"
+
+    with pytest.raises(
+        OffsetMismatch,
+        match=r"^Last record in data file does not match expected end_offset \(expected: 125, actual: 124\)\.$",
     ):
         tuple(
             backup_reader.read(
@@ -579,18 +713,62 @@ class TestPartitionStats:
             records_written=0,
             bytes_written_since_checkpoint=0,
             records_written_since_checkpoint=0,
+            min_offset=None,
+            max_offset=None,
         )
-        stats.increase(1)
+        stats.update(
+            bytes_offset=1,
+            record_offset=1,
+        )
         assert stats == _PartitionStats(
             running_checksum=stats.running_checksum,
             records_written=1,
             bytes_written_since_checkpoint=1,
             records_written_since_checkpoint=1,
+            min_offset=1,
+            max_offset=1,
         )
-        stats.increase(1023)
+        stats.update(
+            bytes_offset=1023,
+            record_offset=23,
+        )
         assert stats == _PartitionStats(
             running_checksum=stats.running_checksum,
             records_written=2,
             bytes_written_since_checkpoint=1024,
             records_written_since_checkpoint=2,
+            min_offset=1,
+            max_offset=23,
         )
+
+    def test_update_raises_inconsistent_offset_when_not_increasing(self) -> None:
+        stats = _PartitionStats(
+            running_checksum=xxhash.xxh64(),
+            min_offset=0,
+            max_offset=0,
+        )
+
+        with pytest.raises(
+            InconsistentOffset,
+            match=(
+                r"^Read record offset that's less than or equal to an already seen "
+                r"record. Expected record offset 0 > 0\.$"
+            ),
+        ):
+            stats.update(bytes_offset=1, record_offset=0)
+
+    def test_update_raises_inconsistent_offset_when_decreasing(self) -> None:
+        stats = _PartitionStats(
+            running_checksum=xxhash.xxh64(),
+            min_offset=10,
+            max_offset=20,
+        )
+
+        with pytest.raises(
+            InconsistentOffset,
+            match=(
+                r"^Read record offset that's less than or equal to an already seen "
+                r"record. Expected record offset 19 > 20\.$"
+            ),
+        ):
+            stats.update(bytes_offset=1, record_offset=19)

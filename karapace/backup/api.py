@@ -6,12 +6,14 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic
+from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic, RestoreTopicLegacy
 from .backends.v3.constants import V3_MARKER
+from .backends.v3.schema import ChecksumAlgorithm
 from .backends.writer import BackupWriter, StdOut
 from .encoders import encode_key, encode_value
-from .errors import BackupError, EmptyPartition, PartitionCountError, StaleConsumerError
+from .errors import BackupError, BackupTopicAlreadyExists, EmptyPartition, PartitionCountError, StaleConsumerError
 from .poll_timeout import PollTimeout
+from .topic_configurations import ConfigSource, get_topic_configurations
 from enum import Enum
 from functools import partial
 from kafka import KafkaConsumer, KafkaProducer
@@ -22,26 +24,54 @@ from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
-from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer
+from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
-from karapace.schema_reader import new_schema_topic_from_config
 from karapace.utils import assert_never
 from pathlib import Path
+from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, Final, Iterator, Literal, NoReturn, TypeVar
+from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, NoReturn, TypeVar
 
 import contextlib
 import datetime
+import enum
+import json
 import logging
 import math
 import sys
+import textwrap
+
+__all__ = (
+    "create_backup",
+    "restore_backup",
+    "normalize_location",
+    "normalize_topic_name",
+    "BackupVersion",
+    "VerifyLevel",
+)
 
 LOG = logging.getLogger(__name__)
 
 B = TypeVar("B", str, bytes)
 F = TypeVar("F")
+
+
+def normalize_location(input_location: str) -> Path | StdOut:
+    if input_location in ("", "-"):
+        return "-"
+    return Path(input_location).absolute()
+
+
+TopicName = NewType("TopicName", str)
+
+
+def normalize_topic_name(
+    topic_option: str | None,
+    config: Config,
+) -> TopicName:
+    return TopicName(topic_option or config["topic_name"])
 
 
 class BackupVersion(Enum):
@@ -148,31 +178,27 @@ def _admin(config: Config) -> KafkaAdminClient:
     wait=wait_fixed(1),  # seconds
     retry=retry_if_exception_type(KafkaError),
 )
-def _maybe_create_topic(config: Config, name: str, backup_version: BackupVersion) -> None:
-    if backup_version in {BackupVersion.V1, BackupVersion.V2}:
-        topic = new_schema_topic_from_config(config)
-
-        if topic.name != name:
-            LOG.warning(
-                "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
-                topic.name,
-                name,
-            )
-            return
-    else:
-        topic = NewTopic(
-            name=name,
-            num_partitions=1,
-            replication_factor=config["replication_factor"],
-            topic_configs={"cleanup.policy": "compact"},
-        )
+def _maybe_create_topic(
+    name: str,
+    *,
+    config: Config,
+    replication_factor: int,
+    topic_configs: Mapping[str, str],
+) -> bool:
+    """Returns True if topic creation was successful, False if topic already exists"""
+    topic = NewTopic(
+        name=name,
+        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+        replication_factor=replication_factor,
+        topic_configs=topic_configs,
+    )
 
     with _admin(config) as admin:
         try:
             admin.create_topics([topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
         except TopicAlreadyExistsError:
             LOG.debug("Topic %r already exists", topic.name)
-            return
+            return False
 
         LOG.info(
             "Created topic %r (partition count: %s, replication factor: %s, config: %s)",
@@ -181,7 +207,7 @@ def _maybe_create_topic(config: Config, name: str, backup_version: BackupVersion
             topic.replication_factor,
             topic.topic_configs,
         )
-        return
+        return True
 
 
 @contextlib.contextmanager
@@ -277,16 +303,36 @@ def _write_partition(
     )
 
 
+def _handle_restore_topic_legacy(
+    instruction: RestoreTopicLegacy,
+    config: Config,
+) -> None:
+    if config["topic_name"] != instruction.topic_name:
+        LOG.warning(
+            "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
+            config["topic_name"],
+            instruction.topic_name,
+        )
+        return
+    _maybe_create_topic(
+        config=config,
+        name=instruction.topic_name,
+        replication_factor=config["replication_factor"],
+        topic_configs={"cleanup.policy": "compact"},
+    )
+
+
 def _handle_restore_topic(
     instruction: RestoreTopic,
     config: Config,
-    backup_version: BackupVersion,
 ) -> None:
-    _maybe_create_topic(
+    if not _maybe_create_topic(
         config=config,
-        name=instruction.name,
-        backup_version=backup_version,
-    )
+        name=instruction.topic_name,
+        replication_factor=instruction.replication_factor,
+        topic_configs=instruction.topic_configs,
+    ):
+        raise BackupTopicAlreadyExists(f"Topic to restore '{instruction.topic_name}' already exists")
 
 
 def _raise_backup_error(exception: Exception) -> NoReturn:
@@ -312,141 +358,259 @@ def _handle_producer_send(
     ).add_errback(_raise_backup_error)
 
 
-class SchemaBackup:
-    def __init__(
-        self,
-        config: Config,
-        backup_path: str,
-        topic_option: str | None = None,
-    ) -> None:
-        self.config: Final = config
-        self.backup_location: Final = _normalize_location(backup_path)
-        self.topic_name: Final[str] = topic_option or self.config["topic_name"]
-        self.timeout_ms: Final = 1000
-        self.timeout_kafka_producer: Final = 5
-        self.producer_exception: Exception | None = None
+def restore_backup(
+    config: Config,
+    backup_location: Path | StdOut,
+    topic_name: TopicName,
+) -> None:
+    """Restores a backup from the specified location into the configured topic.
 
-        # Schema key formatter
-        self.key_formatter: Final = (
-            KeyFormatter()
-            if self.topic_name == constants.DEFAULT_SCHEMA_TOPIC or self.config.get("force_key_correction", False)
-            else None
+    :raises Exception: if production fails, concrete exception types are unknown,
+        see Kafka implementation.
+    :raises BackupTopicAlreadyExists: if backup version is V3 and topic already exists
+    """
+    if isinstance(backup_location, str):
+        raise NotImplementedError("Cannot restore backups from stdin")
+
+    if not backup_location.exists():
+        raise BackupError("Backup location doesn't exist")
+
+    key_formatter = (
+        KeyFormatter() if topic_name == constants.DEFAULT_SCHEMA_TOPIC or config.get("force_key_correction", False) else None
+    )
+
+    backup_version = BackupVersion.identify(backup_location)
+    backend_type = backup_version.reader
+    backend = (
+        backend_type(
+            key_encoder=partial(encode_key, key_formatter=key_formatter),
+            value_encoder=encode_value,
         )
+        if issubclass(backend_type, BaseItemsBackupReader)
+        else backend_type()
+    )
 
-    def restore_backup(self) -> None:
-        if isinstance(self.backup_location, str):
-            raise NotImplementedError("Cannot restore backups from stdin")
+    LOG.info("Identified backup backend: %s", backend.__class__.__name__)
+    LOG.info("Starting backup restore for topic: %r", topic_name)
 
-        if not self.backup_location.exists():
-            raise BackupError("Backup location doesn't exist")
+    # We set up an ExitStack context, so that we can enter the producer context only
+    # after processing a RestoreTopic instruction.
+    with contextlib.ExitStack() as stack:
+        producer = None
 
-        backup_version = BackupVersion.identify(self.backup_location)
-        backend_type = backup_version.reader
-        backend = (
-            backend_type(
-                key_encoder=partial(encode_key, key_formatter=self.key_formatter),
-                value_encoder=encode_value,
-            )
-            if issubclass(backend_type, BaseItemsBackupReader)
-            else backend_type()
+        for instruction in backend.read(backup_location, topic_name):
+            if isinstance(instruction, RestoreTopicLegacy):
+                _handle_restore_topic_legacy(instruction, config)
+                producer = stack.enter_context(_producer(config, instruction.topic_name))
+            elif isinstance(instruction, RestoreTopic):
+                _handle_restore_topic(instruction, config)
+                producer = stack.enter_context(_producer(config, instruction.topic_name))
+            elif isinstance(instruction, ProducerSend):
+                if producer is None:
+                    raise RuntimeError("Backend has not yet sent RestoreTopic.")
+                _handle_producer_send(instruction, producer)
+            else:
+                assert_never(instruction)
+
+
+def create_backup(
+    config: Config,
+    backup_location: Path | StdOut,
+    topic_name: TopicName,
+    version: Literal[BackupVersion.V3, BackupVersion.V2, BackupVersion.ANONYMIZE_AVRO],
+    *,
+    poll_timeout: PollTimeout = PollTimeout.default(),
+    overwrite: bool = False,
+    replication_factor: int | None = None,
+) -> None:
+    """Creates a backup of the configured topic.
+
+    :param version: Specifies which format version to use for the backup.
+    :param poll_timeout: specifies the maximum time to wait for receiving records,
+        if not records are received within that time and the target offset has not
+        been reached an exception is raised. Defaults to one minute.
+    :param overwrite: the output file if it exists.
+    :param replication_factor: Value will be stored in metadata, and used when
+        creating topic during restoration. This is required for Version 3 backup,
+        but has no effect on earlier versions, as they don't handle metadata.
+
+    :raises Exception: if consumption fails, concrete exception types are unknown,
+        see Kafka implementation.
+    :raises FileExistsError: if ``overwrite`` is not ``True`` and the file already
+        exists, or if the parent directory of the file is not a directory.
+    :raises OSError: if writing fails or if the file already exists and is not
+        actually a file.
+    :raises StaleConsumerError: if no records are received within the given
+        ``poll_timeout`` and the target offset has not been reached yet.
+    """
+    if version is BackupVersion.V3 and not isinstance(backup_location, Path):
+        raise RuntimeError("Backup format version 3 does not support writing to stdout.")
+    if version is BackupVersion.V3 and replication_factor is None:
+        raise RuntimeError("Backup format version 3 needs a replication factor to be specified.")
+
+    start_time = datetime.datetime.now(datetime.timezone.utc)
+    backend = version.writer()
+
+    with backend.prepare_location(topic_name, backup_location) as prepared_location:
+        LOG.info(
+            "Started backup in format %s of topic '%s'.",
+            version.name,
+            topic_name,
         )
-
-        LOG.info("Identified backup backend: %s", backend.__class__.__name__)
-        LOG.info("Starting backup restore for topic: %r", self.topic_name)
-
-        # We set up an ExitStack context, so that we can enter the producer context only
-        # after processing a RestoreTopic instruction.
-        with contextlib.ExitStack() as stack:
-            producer = None
-
-            for instruction in backend.read(self.backup_location, self.topic_name):
-                if isinstance(instruction, RestoreTopic):
-                    _handle_restore_topic(instruction, self.config, backup_version=backup_version)
-                    producer = stack.enter_context(_producer(self.config, instruction.name))
-                elif isinstance(instruction, ProducerSend):
-                    if producer is None:
-                        raise RuntimeError("Backend has not yet sent RestoreTopic.")
-                    _handle_producer_send(instruction, producer)
-                else:
-                    assert_never(instruction)
-
-    def create(
-        self,
-        version: Literal[BackupVersion.V3, BackupVersion.V2, BackupVersion.ANONYMIZE_AVRO],
-        *,
-        poll_timeout: PollTimeout = PollTimeout.default(),
-        overwrite: bool = False,
-    ) -> None:
-        """Creates a backup of the configured topic.
-
-        :param version: Specifies which format version to use for the backup.
-        :param poll_timeout: specifies the maximum time to wait for receiving records,
-            if not records are received within that time and the target offset has not
-            been reached an exception is raised. Defaults to one minute.
-        :param overwrite: the output file if it exists.
-
-        :raises Exception: if consumption fails, concrete exception types are unknown,
-            see Kafka implementation.
-        :raises FileExistsError: if ``overwrite`` is not ``True`` and the file already
-            exists, or if the parent directory of the file is not a directory.
-        :raises OSError: if writing fails or if the file already exists and is not
-            actually a file.
-        :raises StaleConsumerError: if no records are received within the given
-            ``poll_timeout`` and the target offset has not been reached yet.
-        """
-        if version is BackupVersion.V3 and not isinstance(self.backup_location, Path):
-            raise RuntimeError("Backup format version 3 does not support writing to stdout.")
-
-        start_time = datetime.datetime.now(datetime.timezone.utc)
-        backend = version.writer()
-
-        with backend.prepare_location(
-            self.topic_name,
-            self.backup_location,
-        ) as backup_location:
-            LOG.info(
-                "Started backup in format %s of topic '%s'.",
-                version.name,
-                self.topic_name,
+        with _admin(config) as admin:
+            topic_configurations = get_topic_configurations(
+                admin=admin, topic_name=topic_name, config_source_filter={ConfigSource.TOPIC_CONFIG}
             )
 
-            # Note: It's expected that we at some point want to introduce handling of
-            # multi-partition topics here. The backend interface is built with that in
-            # mind, so that .store_metadata() accepts a sequence of data files.
-            with _consumer(self.config, self.topic_name) as consumer:
-                (partition,) = consumer.partitions_for_topic(self.topic_name)
-                topic_partition = TopicPartition(self.topic_name, partition)
+        # Note: It's expected that we at some point want to introduce handling of
+        # multi-partition topics here. The backend interface is built with that in
+        # mind, so that .store_metadata() accepts a sequence of data files.
+        with _consumer(config, topic_name) as consumer:
+            (partition,) = consumer.partitions_for_topic(topic_name)
+            topic_partition = TopicPartition(topic_name, partition)
 
-                try:
-                    data_file = _write_partition(
-                        path=backup_location,
-                        backend=backend,
-                        consumer=consumer,
-                        topic_partition=topic_partition,
-                        poll_timeout=poll_timeout,
-                        allow_overwrite=overwrite,
-                    )
-                except EmptyPartition:
+            try:
+                data_file = _write_partition(
+                    path=prepared_location,
+                    backend=backend,
+                    consumer=consumer,
+                    topic_partition=topic_partition,
+                    poll_timeout=poll_timeout,
+                    allow_overwrite=overwrite,
+                )
+            except EmptyPartition:
+                if version is not BackupVersion.V3:
                     LOG.warning(
                         "Topic partition '%s' is empty, nothing to back up.",
                         topic_partition,
                     )
                     return
+                LOG.warning(
+                    "Topic partition '%s' is empty, only backing up metadata.",
+                    topic_partition,
+                )
+                data_file = None
 
-            end_time = datetime.datetime.now(datetime.timezone.utc)
-            backend.store_metadata(
-                path=backup_location,
-                topic_name=self.topic_name,
-                topic_id=None,
-                started_at=start_time,
-                finished_at=end_time,
-                data_files=[data_file],
-            )
-
-        LOG.info(
-            "Finished backup in format %s of '%s' to %s after %s seconds.",
-            version.name,
-            self.topic_name,
-            ("stdout" if not isinstance(self.backup_location, Path) else self.backup_location),
-            math.ceil((end_time - start_time).total_seconds()),
+        end_time = datetime.datetime.now(datetime.timezone.utc)
+        backend.store_metadata(
+            path=prepared_location,
+            topic_name=topic_name,
+            topic_id=None,
+            started_at=start_time,
+            finished_at=end_time,
+            partition_count=1,
+            replication_factor=replication_factor if replication_factor is not None else config["replication_factor"],
+            topic_configurations=topic_configurations,
+            data_files=[data_file] if data_file else [],
         )
+
+    LOG.info(
+        "Finished backup in format %s of '%s' to %s after %s seconds.",
+        version.name,
+        topic_name,
+        ("stdout" if not isinstance(backup_location, Path) else backup_location),
+        math.ceil((end_time - start_time).total_seconds()),
+    )
+
+
+def inspect(backup_location: Path | StdOut) -> None:
+    if isinstance(backup_location, str):
+        raise NotImplementedError("Cannot inspect backup via stdin")
+    if not backup_location.exists():
+        raise BackupError("Backup location doesn't exist")
+    backup_version = BackupVersion.identify(backup_location)
+
+    if backup_version is not BackupVersion.V3:
+        print(json.dumps({"version": backup_version.value}, indent=2))
+        return
+
+    backend = backup_version.reader()
+    assert isinstance(backend, SchemaBackupV3Reader)
+    metadata = backend.read_metadata(backup_location)
+
+    if metadata.checksum_algorithm is ChecksumAlgorithm.unknown:
+        console = Console(stderr=True, style="red")
+        console.print(
+            "Warning! This file has an unknown checksum algorithm and cannot be restored with this version of Karapace.",
+        )
+
+    metadata_json = {
+        "version": metadata.version,
+        "tool_name": metadata.tool_name,
+        "tool_version": metadata.tool_version,
+        "started_at": metadata.started_at.isoformat(),
+        "finished_at": metadata.finished_at.isoformat(),
+        "topic_name": metadata.topic_name,
+        "topic_id": None if metadata.topic_id is None else str(metadata.topic_id),
+        "partition_count": metadata.partition_count,
+        "record_count": metadata.record_count,
+        "replication_factor": metadata.replication_factor,
+        "topic_configurations": metadata.topic_configurations,
+        "checksum_algorithm": metadata.checksum_algorithm.value,
+        "data_files": tuple(
+            {
+                "filename": data_file.filename,
+                "partition": data_file.partition,
+                "checksum_hex": data_file.checksum.hex(),
+                "record_count": data_file.record_count,
+                "start_offset": data_file.start_offset,
+                "end_offset": data_file.end_offset,
+            }
+            for data_file in metadata.data_files
+        ),
+    }
+
+    print(json.dumps(metadata_json, indent=2))
+
+
+class VerifyLevel(enum.Enum):
+    file = "file"
+    record = "record"
+
+
+def verify(backup_location: Path | StdOut, level: VerifyLevel) -> None:
+    if isinstance(backup_location, str):
+        raise NotImplementedError("Cannot verify backup via stdin")
+    if not backup_location.exists():
+        raise BackupError("Backup location doesn't exist")
+    backup_version = BackupVersion.identify(backup_location)
+
+    if backup_version is not BackupVersion.V3:
+        print(
+            f"Only backups using format {BackupVersion.V3.name} can be verified, found {backup_version.name}.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    backend = backup_version.reader()
+    assert isinstance(backend, SchemaBackupV3Reader)
+
+    if level is VerifyLevel.file:
+        results = backend.verify_files(backup_location)
+    elif level is VerifyLevel.record:
+        results = backend.verify_records(backup_location)
+    else:
+        assert_never(level)
+
+    console = Console()
+    success = True
+    verified_files = 0
+
+    for result in results:
+        console.print(f"Integrity of [blue]{result.data_file.filename}[/blue] is ", end="")
+        if isinstance(result, VerifySuccess):
+            console.print("[green]intact.[/green]")
+            verified_files += 1
+        elif isinstance(result, VerifyFailure):
+            success = False
+            console.print("[red]not intact![/red]")
+            if result.exception is not None:
+                console.print(textwrap.indent(f"{result.exception.__class__.__qualname__}: {result.exception}", "    "))
+        else:
+            assert_never(result)
+
+    if not success:
+        console.print("💥 [red]Failed to verify integrity of some data files.[/red]")
+        raise SystemExit(1)
+
+    console.print(f"✅ [green]Verified {verified_files} data files in backup OK.[/green]")

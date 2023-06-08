@@ -24,7 +24,8 @@ def check_protobuf_schema_compatibility(reader: ProtobufSchema, writer: Protobuf
 
     return SchemaCompatibilityResult(
         compatibility=SchemaCompatibilityType.incompatible,
-        incompatibilities=list(incompatibilities),
+        # TODO: https://github.com/aiven/karapace/issues/633
+        incompatibilities=incompatibilities,  # type: ignore[arg-type]
         locations=set(locations),
         messages=set(messages),
     )

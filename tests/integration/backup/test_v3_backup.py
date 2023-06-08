@@ -2,15 +2,18 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from dataclasses import fields
 from kafka import KafkaAdminClient, KafkaProducer, TopicPartition
-from kafka.admin import NewTopic
+from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup.api import _consume_records
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
 from karapace.backup.poll_timeout import PollTimeout
+from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
 from karapace.constants import TOPIC_CREATION_TIMEOUT_MS
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
@@ -23,10 +26,12 @@ from typing import Iterator, NoReturn
 
 import datetime
 import json
+import os
 import pytest
 import secrets
 import shutil
 import subprocess
+import textwrap
 
 
 @pytest.fixture(scope="function", name="karapace_config")
@@ -103,6 +108,9 @@ def test_roundtrip_from_kafka_state(
     karapace_config: Config,
 ) -> None:
     # Populate the test topic.
+    admin_client.alter_configs(
+        [ConfigResource(ConfigResourceType.TOPIC, new_topic.name, configs={"max.message.bytes": "999"})]
+    )
     producer.send(
         new_topic.name,
         key=b"bar",
@@ -123,6 +131,8 @@ def test_roundtrip_from_kafka_state(
     ).add_errback(_raise)
     producer.flush()
 
+    topic_config = get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+
     # Execute backup creation.
     subprocess.run(
         [
@@ -133,6 +143,7 @@ def test_roundtrip_from_kafka_state(
             str(config_file),
             "--topic",
             new_topic.name,
+            "--replication-factor=1",
             "--location",
             str(tmp_path),
         ],
@@ -179,6 +190,8 @@ def test_roundtrip_from_kafka_state(
             poll_timeout=PollTimeout.default(),
         )
 
+    assert topic_config == get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+
     # First record.
     assert isinstance(first_record, ConsumerRecord)
     assert first_record.topic == new_topic.name
@@ -207,12 +220,29 @@ def test_roundtrip_from_kafka_state(
     ]
 
 
+def test_errors_when_omitting_replication_factor(config_file: Path) -> None:
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        subprocess.run(
+            [
+                "karapace_schema_backup",
+                "get",
+                "--use-format-v3",
+                f"--config={config_file!s}",
+                "--topic=foo-bar",
+                "--location=foo-bar",
+            ],
+            capture_output=True,
+            check=True,
+        )
+    assert "the following arguments are required: --replication-factor" in exc_info.value.stderr.decode()
+
+
 def test_roundtrip_from_file(
     tmp_path: Path,
     config_file: Path,
     admin_client: KafkaAdminClient,
 ) -> None:
-    topic_name = "2db42756"
+    topic_name = "0cdc85dc"
     backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition"
     metadata_path = backup_directory / f"{topic_name}.metadata"
     with metadata_path.open("rb") as buffer:
@@ -254,6 +284,7 @@ def test_roundtrip_from_file(
             str(config_file),
             "--topic",
             topic_name,
+            "--replication-factor=1",
             "--location",
             str(tmp_path),
         ],
@@ -284,6 +315,9 @@ def test_roundtrip_from_file(
     # Verify new version matches current version of Karapace.
     assert new_metadata.tool_version == __version__
 
+    # Verify replication factor is correctly propagated.
+    assert new_metadata.replication_factor == 1
+
     # Verify all fields other than timings and version match exactly.
     for field in fields(Metadata):
         if field.name in {"started_at", "finished_at", "tool_version"}:
@@ -293,3 +327,405 @@ def test_roundtrip_from_file(
     # Verify data files are identical.
     (new_data_file,) = new_metadata_path.parent.glob("*.data")
     assert data_file.read_bytes() == new_data_file.read_bytes()
+
+
+def no_color_env() -> dict[str, str]:
+    env = os.environ.copy()
+    try:
+        del env["FORCE_COLOR"]
+    except KeyError:
+        pass
+    return {**env, "COLUMNS": "100"}
+
+
+class TestInspect:
+    def test_can_inspect_v3(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(metadata_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert json.loads(cp.stdout) == {
+            "version": 3,
+            "tool_name": "karapace",
+            "tool_version": "3.5.0-31-g15440ce",
+            "started_at": "2023-05-31T11:42:21.116000+00:00",
+            "finished_at": "2023-05-31T11:42:21.762000+00:00",
+            "topic_name": "0cdc85dc",
+            "topic_id": None,
+            "partition_count": 1,
+            "record_count": 2,
+            "replication_factor": 1,
+            "topic_configurations": {
+                "min.insync.replicas": "1",
+                "cleanup.policy": "delete",
+                "retention.ms": "604800000",
+                "max.message.bytes": "999",
+                "retention.bytes": "-1",
+            },
+            "checksum_algorithm": "xxhash3_64_be",
+            "data_files": [
+                {
+                    "filename": "0cdc85dc:0.data",
+                    "partition": 0,
+                    "checksum_hex": "f414f504a8e49313",
+                    "record_count": 2,
+                    "start_offset": 0,
+                    "end_offset": 1,
+                },
+            ],
+        }
+
+    def test_can_inspect_v3_with_future_checksum_algorithm(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_future_algorithm" / "a5f7a413.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(metadata_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr.decode() == (
+            "Warning! This file has an unknown checksum algorithm and cannot be restored with this version of \nKarapace.\n"
+        )
+        assert json.loads(cp.stdout) == {
+            "version": 3,
+            "tool_name": "karapace",
+            "tool_version": "3.5.0-27-g9535c1d",
+            "started_at": "2023-05-31T12:01:01.165000+00:00",
+            "finished_at": "2023-05-31T12:01:01.165000+00:00",
+            "topic_name": "a5f7a413",
+            "topic_id": None,
+            "partition_count": 1,
+            "record_count": 2,
+            "replication_factor": 2,
+            "topic_configurations": {"cleanup.policy": "compact", "min.insync.replicas": "2"},
+            "checksum_algorithm": "unknown",
+            "data_files": [
+                {
+                    "filename": "a5f7a413:0.data",
+                    "partition": 0,
+                    "checksum_hex": "66343134663530346138653439333133",
+                    "record_count": 2,
+                    "start_offset": 0,
+                    "end_offset": 1,
+                },
+            ],
+        }
+
+    def test_can_inspect_v2(self) -> None:
+        backup_path = Path(__file__).parent.parent.resolve() / "test_data" / "test_restore_v2.log"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(backup_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert json.loads(cp.stdout) == {"version": 2}
+
+    def test_can_inspect_v1(self) -> None:
+        backup_path = Path(__file__).parent.parent.resolve() / "test_data" / "test_restore_v1.log"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "inspect",
+                "--location",
+                str(backup_path),
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert json.loads(cp.stdout) == {"version": 1}
+
+
+class TestVerify:
+    def test_can_verify_file_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of 0cdc85dc:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_verify_record_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=record",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of 0cdc85dc:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_verify_file_integrity_from_large_topic(
+        self,
+        tmp_path: Path,
+        new_topic: NewTopic,
+        producer: KafkaProducer,
+        config_file: Path,
+    ) -> None:
+        # Populate the test topic.
+        for _ in range(100):
+            producer.send(
+                new_topic.name,
+                key=1000 * b"a",
+                value=1000 * b"b",
+                partition=0,
+            ).add_errback(_raise)
+        producer.flush()
+
+        # Execute backup creation.
+        subprocess.run(
+            [
+                "karapace_schema_backup",
+                "get",
+                "--use-format-v3",
+                f"--config={config_file!s}",
+                f"--topic={new_topic.name!s}",
+                "--replication-factor=1",
+                f"--location={tmp_path!s}",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        metadata_path = tmp_path / f"topic-{new_topic.name}" / f"{new_topic.name}.metadata"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            f"""\
+            Integrity of {new_topic.name}:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_verify_record_integrity_from_large_topic(
+        self,
+        tmp_path: Path,
+        new_topic: NewTopic,
+        producer: KafkaProducer,
+        config_file: Path,
+    ) -> None:
+        # Populate the test topic.
+        for _ in range(100):
+            producer.send(
+                new_topic.name,
+                key=1000 * b"a",
+                value=1000 * b"b",
+                partition=0,
+            ).add_errback(_raise)
+        producer.flush()
+
+        # Execute backup creation.
+        subprocess.run(
+            [
+                "karapace_schema_backup",
+                "get",
+                "--use-format-v3",
+                f"--config={config_file!s}",
+                f"--topic={new_topic.name}",
+                "--replication-factor=1",
+                f"--location={tmp_path!s}",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        metadata_path = tmp_path / f"topic-{new_topic.name}" / f"{new_topic.name}.metadata"
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path}",
+                "--level=record",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 0
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            f"""\
+            Integrity of {new_topic.name}:0.data is intact.
+            ✅ Verified 1 data files in backup OK.
+            """
+        )
+
+    def test_can_refute_file_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve()
+            / "test_data"
+            / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
+            / "a-topic.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 1
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of a-topic:123.data is not intact!
+            💥 Failed to verify integrity of some data files.
+            """
+        )
+
+    def test_can_refute_record_integrity(self) -> None:
+        metadata_path = (
+            Path(__file__).parent.parent.resolve()
+            / "test_data"
+            / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
+            / "a-topic.metadata"
+        )
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={metadata_path!s}",
+                "--level=record",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 1
+        assert cp.stderr == b""
+        assert cp.stdout.decode() == textwrap.dedent(
+            """\
+            Integrity of a-topic:123.data is not intact!
+                InvalidChecksum: Found checksum mismatch after reading full data file.
+            💥 Failed to verify integrity of some data files.
+            """
+        )
+
+    @pytest.mark.parametrize(
+        ("test_file", "error_message"),
+        (
+            (
+                "test_restore_v1.log",
+                "Only backups using format V3 can be verified, found V1.\n",
+            ),
+            (
+                "test_restore_v2.log",
+                "Only backups using format V3 can be verified, found V2.\n",
+            ),
+        ),
+    )
+    def test_gives_non_successful_exit_code_for_legacy_backup_format(
+        self,
+        test_file: str,
+        error_message: str,
+    ) -> None:
+        backup_path = Path(__file__).parent.parent.resolve() / "test_data" / test_file
+
+        cp = subprocess.run(
+            [
+                "karapace_schema_backup",
+                "verify",
+                f"--location={backup_path}",
+                "--level=file",
+            ],
+            capture_output=True,
+            check=False,
+            env=no_color_env(),
+        )
+
+        assert cp.returncode == 1
+        assert cp.stderr.decode() == error_message
+        assert cp.stdout == b""

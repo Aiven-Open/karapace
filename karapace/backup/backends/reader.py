@@ -7,7 +7,7 @@ from __future__ import annotations
 from karapace.dataclasses import default_dataclass
 from karapace.typing import JsonData, JsonObject
 from pathlib import Path
-from typing import Callable, ClassVar, Final, Generator, IO, Iterator, Optional, Sequence, TypeVar, Union
+from typing import Callable, ClassVar, Final, Generator, IO, Iterator, Mapping, Optional, Sequence, TypeVar, Union
 from typing_extensions import TypeAlias
 
 import abc
@@ -18,9 +18,17 @@ PARTITION_ZERO: Final = 0
 
 
 @default_dataclass
-class RestoreTopic:
-    name: str
+class RestoreTopicLegacy:
+    topic_name: str
     partition_count: int
+
+
+@default_dataclass
+class RestoreTopic:
+    topic_name: str
+    partition_count: int
+    replication_factor: int
+    topic_configs: Mapping[str, str]
 
 
 @default_dataclass
@@ -33,7 +41,7 @@ class ProducerSend:
     timestamp: int | None = None
 
 
-Instruction: TypeAlias = "RestoreTopic | ProducerSend"
+Instruction: TypeAlias = "RestoreTopicLegacy | RestoreTopic | ProducerSend"
 
 
 KeyEncoder: TypeAlias = Callable[[Union[JsonObject, str]], Optional[bytes]]
@@ -78,8 +86,8 @@ class BaseItemsBackupReader(BaseBackupReader, abc.ABC):
         path: Path,
         topic_name: str,
     ) -> Generator[Instruction, None, None]:
-        yield RestoreTopic(
-            name=topic_name,
+        yield RestoreTopicLegacy(
+            topic_name=topic_name,
             partition_count=1,
         )
         with path.open("r") as buffer:
