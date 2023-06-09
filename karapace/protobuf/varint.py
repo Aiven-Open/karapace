@@ -5,11 +5,12 @@ See LICENSE for details
 # Workaround to encode/decode indexes in protobuf messages
 # Based on https://developers.google.com/protocol-buffers/docs/encoding#varints
 
+from __future__ import annotations
 from io import BytesIO
 from karapace.protobuf.exception import IllegalArgumentException
-from typing import List
+from typing import List, Final, Sequence
 
-ZERO_BYTE = b"\x00"
+ZERO_BYTE: Final = b"\x00"
 
 
 def read_varint(bio: BytesIO) -> int:
@@ -35,25 +36,21 @@ def read_varint(bio: BytesIO) -> int:
 
 def read_indexes(bio: BytesIO) -> List[int]:
     try:
-        size: int = read_varint(bio)
+        size = read_varint(bio)
     except EOFError:
         # TODO: change exception
-        # pylint: disable=raise-missing-from
-        raise IllegalArgumentException("problem with reading binary data")
-    if size == 0:
-        return [0]
+        raise IllegalArgumentException("problem with reading binary data") from None
     return [read_varint(bio) for _ in range(size)]
 
 
-def write_varint(bio: BytesIO, value: int) -> int:
+def write_varint(bio: BytesIO, value: int) -> None:
     if value < 0:
         raise ValueError(f"value must not be negative, got {value}")
 
     if value == 0:
         bio.write(ZERO_BYTE)
-        return 1
+        return
 
-    written_bytes = 0
     while value > 0:
         to_write = value & 0x7F
         value = value >> 7
@@ -61,12 +58,10 @@ def write_varint(bio: BytesIO, value: int) -> int:
         if value > 0:
             to_write |= 0x80
 
-        bio.write(bytearray(to_write)[0])
-        written_bytes += 1
-
-    return written_bytes
+        bio.write(to_write.to_bytes(1, "little"))
 
 
-def write_indexes(bio: BytesIO, indexes: List[int]) -> None:
+def write_indexes(bio: BytesIO, indexes: Sequence[int]) -> None:
+    write_varint(bio, len(indexes))
     for i in indexes:
         write_varint(bio, i)
