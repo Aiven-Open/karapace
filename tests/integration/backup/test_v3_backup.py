@@ -8,8 +8,9 @@ from dataclasses import fields
 from kafka import KafkaAdminClient, KafkaProducer, TopicPartition
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
-from kafka.errors import UnknownTopicOrPartitionError
-from karapace.backup.api import _consume_records
+from kafka.errors import KafkaTimeoutError, UnknownTopicOrPartitionError
+from karapace.backup import api
+from karapace.backup.api import _consume_records, TopicName
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
 from karapace.backup.errors import EmptyPartition
@@ -18,12 +19,14 @@ from karapace.backup.topic_configurations import ConfigSource, get_topic_configu
 from karapace.config import Config, set_config_defaults
 from karapace.constants import TOPIC_CREATION_TIMEOUT_MS
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
+from karapace.utils import KarapaceKafkaClient
 from karapace.version import __version__
 from pathlib import Path
 from tempfile import mkdtemp
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
 from typing import Iterator, NoReturn
+from unittest.mock import patch
 
 import datetime
 import json
@@ -337,7 +340,7 @@ def test_roundtrip_from_file(
     admin_client: KafkaAdminClient,
 ) -> None:
     topic_name = "0cdc85dc"
-    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition"
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
     metadata_path = backup_directory / f"{topic_name}.metadata"
     with metadata_path.open("rb") as buffer:
         metadata = read_metadata(buffer)
@@ -424,6 +427,159 @@ def test_roundtrip_from_file(
     assert data_file.read_bytes() == new_data_file.read_bytes()
 
 
+def test_roundtrip_from_file_skipping_topic_creation(
+    tmp_path: Path,
+    config_file: Path,
+    admin_client: KafkaAdminClient,
+) -> None:
+    topic_name = "942700b6"
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
+    metadata_path = backup_directory / f"{topic_name}.metadata"
+    with metadata_path.open("rb") as buffer:
+        metadata = read_metadata(buffer)
+    (data_file,) = metadata_path.parent.glob("*.data")
+
+    # Create topic exactly as it was stored on backup file
+    try:
+        admin_client.delete_topics([topic_name])
+    except UnknownTopicOrPartitionError:
+        print("No previously existing topic.")
+    else:
+        print("Deleted topic from previous run.")
+
+    admin_client.create_topics(
+        [NewTopic(topic_name, 1, 1)],
+        timeout_ms=TOPIC_CREATION_TIMEOUT_MS,
+    )
+
+    # Execute backup restoration.
+    subprocess.run(
+        [
+            "karapace_schema_backup",
+            "restore",
+            "--config",
+            str(config_file),
+            "--topic",
+            topic_name,
+            "--location",
+            str(metadata_path),
+            "--skip-topic-creation",
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    # Execute backup creation.
+    backup_start_time = datetime.datetime.now(datetime.timezone.utc)
+    backup_location = tmp_path / "backup"
+    subprocess.run(
+        [
+            "karapace_schema_backup",
+            "get",
+            "--use-format-v3",
+            "--config",
+            str(config_file),
+            "--topic",
+            topic_name,
+            "--replication-factor=1",
+            "--location",
+            str(backup_location),
+        ],
+        capture_output=True,
+        check=True,
+    )
+    backup_end_time = datetime.datetime.now(datetime.timezone.utc)
+
+    # Verify exactly the expected file directory structure, no other files in target
+    # path. This is important so that assert temporary files are properly cleaned up.
+    (backup_directory,) = tmp_path.iterdir()
+    assert backup_directory.name == "backup"
+    assert sorted(path.name for path in backup_directory.iterdir()) == [
+        f"{topic_name}.metadata",
+        f"{topic_name}:0.data",
+    ]
+
+    # Parse metadata from file.
+    (new_metadata_path,) = backup_directory.glob("*.metadata")
+    with new_metadata_path.open("rb") as buffer:
+        new_metadata = read_metadata(buffer)
+
+    # Verify start and end timestamps are within expected range.
+    assert backup_start_time < new_metadata.started_at
+    assert new_metadata.started_at < new_metadata.finished_at
+    assert new_metadata.finished_at < backup_end_time
+
+    # Verify new version matches current version of Karapace.
+    assert new_metadata.tool_version == __version__
+
+    # Verify replication factor is correctly propagated.
+    assert new_metadata.replication_factor == 1
+
+    # Verify all fields other than timings and version match exactly.
+    for field in fields(Metadata):
+        if field.name in {"started_at", "finished_at", "tool_version"}:
+            continue
+        assert getattr(metadata, field.name) == getattr(new_metadata, field.name)
+
+    # Verify data files are identical.
+    (new_data_file,) = new_metadata_path.parent.glob("*.data")
+    assert data_file.read_bytes() == new_data_file.read_bytes()
+
+
+def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is_true(
+    admin_client: KafkaAdminClient,
+    kafka_servers: KafkaServers,
+) -> None:
+    topic_name = "596ddf6b"
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
+    metadata_path = backup_directory / f"{topic_name}.metadata"
+
+    # Make sure topic doesn't exist beforehand.
+    try:
+        admin_client.delete_topics([topic_name])
+    except UnknownTopicOrPartitionError:
+        print("No previously existing topic.")
+    else:
+        print("Deleted topic from previous run.")
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+        }
+    )
+
+    class LowTimeoutProducer:
+        def __init__(self):
+            self._producer = KafkaProducer(
+                bootstrap_servers=config["bootstrap_uri"],
+                security_protocol=config["security_protocol"],
+                ssl_cafile=config["ssl_cafile"],
+                ssl_certfile=config["ssl_certfile"],
+                ssl_keyfile=config["ssl_keyfile"],
+                sasl_mechanism=config["sasl_mechanism"],
+                sasl_plain_username=config["sasl_plain_username"],
+                sasl_plain_password=config["sasl_plain_password"],
+                kafka_client=KarapaceKafkaClient,
+                max_block_ms=5000,
+            )
+
+        def __enter__(self):
+            return self._producer
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self._producer.close()
+
+    with patch("karapace.backup.api._producer") as p:
+        p.return_value = LowTimeoutProducer()
+        with pytest.raises(KafkaTimeoutError):
+            api.restore_backup(
+                config=config,
+                backup_location=metadata_path,
+                topic_name=TopicName(topic_name),
+                skip_topic_creation=True,
+            )
+
+
 def no_color_env() -> dict[str, str]:
     env = os.environ.copy()
     try:
@@ -435,8 +591,9 @@ def no_color_env() -> dict[str, str]:
 
 class TestInspect:
     def test_can_inspect_v3(self) -> None:
+        topic = "0cdc85dc"
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic / f"{topic}.metadata"
         )
 
         cp = subprocess.run(
@@ -571,8 +728,9 @@ class TestInspect:
 
 class TestVerify:
     def test_can_verify_file_integrity(self) -> None:
+        topic = "0cdc85dc"
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic / f"{topic}.metadata"
         )
 
         cp = subprocess.run(
@@ -597,8 +755,9 @@ class TestVerify:
         )
 
     def test_can_verify_record_integrity(self) -> None:
+        topic = "0cdc85dc"
         metadata_path = (
-            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / "0cdc85dc.metadata"
+            Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic / f"{topic}.metadata"
         )
 
         cp = subprocess.run(
