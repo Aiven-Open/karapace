@@ -48,6 +48,7 @@ __all__ = (
     "restore_backup",
     "normalize_location",
     "normalize_topic_name",
+    "locate_backup_file",
     "BackupVersion",
     "VerifyLevel",
 )
@@ -62,6 +63,35 @@ def normalize_location(input_location: str) -> Path | StdOut:
     if input_location in ("", "-"):
         return "-"
     return Path(input_location).absolute()
+
+
+# Type for a file that has been validated to exist, and to be a file (not a
+# directory). Note that this is no guarantee that the file remains in this
+# state throughout execution of the program.
+ExistingFile = NewType("ExistingFile", Path)
+
+
+def locate_backup_file(path: Path | StdOut) -> ExistingFile:
+    if isinstance(path, str):
+        raise BackupError("Cannot restore backups from stdin")
+
+    if path.is_dir():
+        metadata_files = tuple(path.glob("*.metadata"))
+        try:
+            (path,) = metadata_files
+        except ValueError as exc:
+            raise BackupError(
+                f"When a given location is a directory, it must contain exactly one "
+                f"metadata file, found {len(metadata_files)}."
+            ) from exc
+
+    if not path.exists():
+        raise BackupError("Backup location doesn't exist")
+
+    if not path.is_file():
+        raise BackupError("The normalized path is not a file")
+
+    return ExistingFile(path)
 
 
 TopicName = NewType("TopicName", str)
@@ -360,7 +390,7 @@ def _handle_producer_send(
 
 def restore_backup(
     config: Config,
-    backup_location: Path | StdOut,
+    backup_location: ExistingFile,
     topic_name: TopicName,
 ) -> None:
     """Restores a backup from the specified location into the configured topic.
@@ -369,12 +399,6 @@ def restore_backup(
         see Kafka implementation.
     :raises BackupTopicAlreadyExists: if backup version is V3 and topic already exists
     """
-    if isinstance(backup_location, str):
-        raise NotImplementedError("Cannot restore backups from stdin")
-
-    if not backup_location.exists():
-        raise BackupError("Backup location doesn't exist")
-
     key_formatter = (
         KeyFormatter() if topic_name == constants.DEFAULT_SCHEMA_TOPIC or config.get("force_key_correction", False) else None
     )
@@ -451,7 +475,7 @@ def create_backup(
     start_time = datetime.datetime.now(datetime.timezone.utc)
     backend = version.writer()
 
-    with backend.prepare_location(topic_name, backup_location) as prepared_location:
+    with backend.prepare_location(backup_location) as prepared_location:
         LOG.info(
             "Started backup in format %s of topic '%s'.",
             version.name,
@@ -459,7 +483,9 @@ def create_backup(
         )
         with _admin(config) as admin:
             topic_configurations = get_topic_configurations(
-                admin=admin, topic_name=topic_name, config_source_filter={ConfigSource.TOPIC_CONFIG}
+                admin=admin,
+                topic_name=topic_name,
+                config_source_filter={ConfigSource.TOPIC_CONFIG},
             )
 
         # Note: It's expected that we at some point want to introduce handling of
@@ -513,11 +539,7 @@ def create_backup(
     )
 
 
-def inspect(backup_location: Path | StdOut) -> None:
-    if isinstance(backup_location, str):
-        raise NotImplementedError("Cannot inspect backup via stdin")
-    if not backup_location.exists():
-        raise BackupError("Backup location doesn't exist")
+def inspect(backup_location: ExistingFile) -> None:
     backup_version = BackupVersion.identify(backup_location)
 
     if backup_version is not BackupVersion.V3:
@@ -568,11 +590,7 @@ class VerifyLevel(enum.Enum):
     record = "record"
 
 
-def verify(backup_location: Path | StdOut, level: VerifyLevel) -> None:
-    if isinstance(backup_location, str):
-        raise NotImplementedError("Cannot verify backup via stdin")
-    if not backup_location.exists():
-        raise BackupError("Backup location doesn't exist")
+def verify(backup_location: ExistingFile, level: VerifyLevel) -> None:
     backup_version = BackupVersion.identify(backup_location)
 
     if backup_version is not BackupVersion.V3:

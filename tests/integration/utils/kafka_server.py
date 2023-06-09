@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from dataclasses import dataclass
-from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable
+from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable, UnrecognizedBrokerVersion
 from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.utils import Expiration
 from pathlib import Path
@@ -58,9 +58,12 @@ def wait_for_kafka(
             # - if the address/port does not point to a running server
             # LeaderNotAvailableError:
             # - if there is no leader yet
+            # UnrecognizedBrokerVersion:
+            # - happens during start-up of dockerized Kafka
             except (
                 NoBrokersAvailable,
                 LeaderNotAvailableError,
+                UnrecognizedBrokerVersion,
                 ValueError,
             ) as e:
                 print(f"Error checking kafka cluster: {e}")
