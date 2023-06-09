@@ -19,6 +19,7 @@ import datetime
 import logging
 import socket
 import time
+import urllib
 
 STATSD_HOST: Final = "127.0.0.1"
 STATSD_PORT: Final = 8125
@@ -32,7 +33,19 @@ class StatsClient:
         host: str = STATSD_HOST,
         port: int = STATSD_PORT,
     ) -> None:
-        self._dest_addr: Final = (host, port)
+        _host = host
+        _port = port
+
+        if config.get("metrics_mode") == "statsd":
+            statsd_uri = config.get("statsd_uri")
+            if statsd_uri:
+                srv = urllib.parse.urlsplit("//" + str(statsd_uri))
+                if srv.hostname:
+                    _host = str(srv.hostname)
+                if srv.port:
+                    _port = int(srv.port)
+
+        self._dest_addr: Final = (_host, _port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags: Final = config.get("tags", {})
         self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))

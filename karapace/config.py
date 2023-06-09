@@ -142,6 +142,9 @@ DEFAULTS: ConfigDefaults = {
     "karapace_registry": False,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
+    "metrics_mode": "statsd",
+    "statsd_uri": "127.0.0.1:8125",
+    "metrics_extended": True,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
