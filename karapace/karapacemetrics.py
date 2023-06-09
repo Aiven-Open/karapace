@@ -131,7 +131,7 @@ class KarapaceMetrics(metaclass=Singleton):
         timestamp = int(datetime.utcnow().timestamp() * 1e3)
         self.metrics.get_sensor("master-slave-role").record(int(is_master), timestamp)
 
-    def latency(self, latency_ms: float):
+    def latency(self, latency_ms: float) -> None:
         if not self.active:
             return
         timestamp = int(datetime.utcnow().timestamp() * 1e3)
