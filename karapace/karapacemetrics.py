@@ -39,7 +39,7 @@ class Value(AbstractMeasurableStat):
 
 
 class Singleton(type):
-    _instances: Dict["type[Singleton]", "Singleton"] = {}
+    _instances: Dict["Singleton", "Singleton"] = {}
 
     def __call__(cls, *args: str, **kwargs: int) -> "Singleton":
         if cls not in cls._instances:
