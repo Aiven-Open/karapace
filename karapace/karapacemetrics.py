@@ -39,7 +39,7 @@ class Value(AbstractMeasurableStat):
 
 
 class Singleton(type):
-    _instances: Dict["Singleton", "Singleton"] = {}
+    _instances: Dict["type[Singleton]", "Singleton"] = {}
 
     def __call__(cls, *args: str, **kwargs: int) -> "Singleton":
         if cls not in cls._instances:
@@ -54,7 +54,7 @@ class KarapaceMetrics(metaclass=Singleton):
         self.stats_client: Optional[StatsClient] = None
         self.is_ready = False
         self.metrics = Metrics()
-        self.event = threading.Event()
+        self.stop_event = threading.Event()
         self.worker_thread = threading.Thread(target=self.worker)
         self.lock = threading.Lock()
 
@@ -99,7 +99,7 @@ class KarapaceMetrics(metaclass=Singleton):
 
         self.stats_client = stats_client
 
-        schedule.every(10).seconds.do(self.schedule)
+        schedule.every(10).seconds.do(self.report)
 
         self.worker_thread.start()
 
@@ -150,13 +150,12 @@ class KarapaceMetrics(metaclass=Singleton):
             for metric_name in self.metrics.metrics:
                 value = self.metrics.metrics[metric_name].value()
                 self.stats_client.gauge(metric_name.name, value)
-
-    def schedule(self) -> None:
-        self.report()
+        else:
+            raise RuntimeError
 
     def worker(self) -> None:
         while True:
-            if self.event.is_set():
+            if self.stop_event.is_set():
                 break
             schedule.run_pending()
             time.sleep(1)
@@ -165,5 +164,5 @@ class KarapaceMetrics(metaclass=Singleton):
         if not self.active:
             return
         self.report()
-        self.event.set()
+        self.stop_event.set()
         self.worker_thread.join()
