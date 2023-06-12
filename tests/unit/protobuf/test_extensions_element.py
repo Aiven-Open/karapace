@@ -10,7 +10,7 @@ from karapace.protobuf.kotlin_wrapper import KotlinRange, trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import MAX_TAG_VALUE
 
-location = Location.get("file.proto")
+location = Location("", "file.proto")
 
 
 def test_single_value_to_schema():
