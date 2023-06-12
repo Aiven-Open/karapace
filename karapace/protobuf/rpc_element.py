@@ -5,6 +5,8 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/RpcElement.kt
 
+from __future__ import annotations
+
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_indented
 
@@ -19,7 +21,7 @@ class RpcElement:
         response_type: str = "",
         request_streaming: bool = False,
         response_streaming: bool = False,
-        options: list = None,
+        options: list | None = None,
     ) -> None:
         self.location = location
         self.name = name
@@ -31,7 +33,7 @@ class RpcElement:
         self.options = options or []
 
     def to_schema(self) -> str:
-        result = []
+        result: list[str] = []
         append_documentation(result, self.documentation)
         result.append(f"rpc {self.name} (")
 
