@@ -8,13 +8,14 @@ connections-active - The number of active HTTP(S) connections to server.
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from datetime import datetime
 from kafka.metrics import MetricName, Metrics
 from kafka.metrics.measurable_stat import AbstractMeasurableStat
 from kafka.metrics.stats import Avg, Max, Rate, Total
 from karapace.config import Config
 from karapace.statsd import StatsClient
-from typing import Dict, Optional
 
 import schedule
 import threading
@@ -39,9 +40,9 @@ class Value(AbstractMeasurableStat):
 
 
 class Singleton(type):
-    _instances: Dict["Singleton", "Singleton"] = {}
+    _instances: dict[type[object], Singleton] = {}
 
-    def __call__(cls, *args: str, **kwargs: int) -> "Singleton":
+    def __call__(cls, *args: str, **kwargs: int) -> Singleton:
         if cls not in cls._instances:
             instance = super().__call__(*args, **kwargs)
             cls._instances[cls] = instance
@@ -50,8 +51,8 @@ class Singleton(type):
 
 class KarapaceMetrics(metaclass=Singleton):
     def __init__(self) -> None:
-        self.active: Optional[object] = None
-        self.stats_client: Optional[StatsClient] = None
+        self.active: object | None = None
+        self.stats_client: StatsClient | None = None
         self.is_ready = False
         self.metrics = Metrics()
         self.stop_event = threading.Event()
@@ -144,14 +145,12 @@ class KarapaceMetrics(metaclass=Singleton):
         self.metrics.get_sensor("request-error-rate").record(1, timestamp)
 
     def report(self) -> None:
-        if not self.active:
-            return
-        if isinstance(self.stats_client, StatsClient):
-            for metric_name in self.metrics.metrics:
-                value = self.metrics.metrics[metric_name].value()
-                self.stats_client.gauge(metric_name.name, value)
-        else:
+        if not self.active or not isinstance(self.stats_client, StatsClient):
             raise RuntimeError
+
+        for metric_name in self.metrics.metrics:
+            value = self.metrics.metrics[metric_name].value()
+            self.stats_client.gauge(metric_name.name, value)
 
     def worker(self) -> None:
         while True:
