@@ -21,7 +21,7 @@ import ssl
 
 class Config(TypedDict):
     access_logs_debug: bool
-    access_log_class: str | None
+    access_log_class: type | None
     advertised_hostname: str
     advertised_port: int
     advertised_protocol: str
