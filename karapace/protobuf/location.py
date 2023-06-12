@@ -4,7 +4,6 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/Location.kt
-from typing import Optional
 
 
 class Location:
@@ -16,6 +15,8 @@ class Location:
         line - The line number of this location, or -1 for no specific line number
         column - The column on the line of this location, or -1 for no specific column
         """
+        if base.endswith("/"):
+            base = base[:-1]
         self.base = base
         self.path = path
         self.line = line
@@ -45,20 +46,5 @@ class Location:
             if self.column != -1:
                 result += ":"
                 result += str(self.column)
-
-        return result
-
-    @staticmethod
-    def get(*args) -> Optional["Location"]:
-        result = None
-        if len(args) == 1:  # (path)
-            path = args[0]
-            result = Location.get("", path)
-        if len(args) == 2:  # (base,path)
-            path: str = args[1]
-            base: str = args[0]
-            if base.endswith("/"):
-                base = base[:-1]
-            result = Location(base, path)
 
         return result

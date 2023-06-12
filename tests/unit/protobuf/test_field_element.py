@@ -11,7 +11,7 @@ from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 
-location = Location.get("file.proto")
+location = Location("", "file.proto")
 
 
 def test_field():
