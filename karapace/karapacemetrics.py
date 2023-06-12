@@ -40,10 +40,10 @@ class Value(AbstractMeasurableStat):
 
 
 class Singleton(type):
-    _instance: Singleton
+    _instance: Singleton | None = None
 
     def __call__(cls, *args: str, **kwargs: int) -> Singleton:
-        if cls != cls._instance:
+        if cls._instance is None:
             instance = super().__call__(*args, **kwargs)
             cls._instance = instance
         return cls._instance
