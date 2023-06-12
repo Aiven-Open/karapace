@@ -2,7 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import json
+
+if TYPE_CHECKING:
+    from karapace.protobuf.schema import ProtobufSchema
 
 
 class IllegalStateException(Exception):
@@ -38,7 +45,7 @@ def pretty_print_json(obj: str) -> str:
 
 
 class ProtobufSchemaResolutionException(ProtobufException):
-    def __init__(self, fail_msg: str, writer_schema=None, reader_schema=None) -> None:
+    def __init__(self, fail_msg: str, writer_schema: ProtobufSchema, reader_schema: ProtobufSchema) -> None:
         writer_dump = pretty_print_json(str(writer_schema))
         reader_dump = pretty_print_json(str(reader_schema))
         if writer_schema:
