@@ -40,13 +40,13 @@ class Value(AbstractMeasurableStat):
 
 
 class Singleton(type):
-    _instances: dict[type[object], Singleton] = {}
+    _instance: Singleton
 
     def __call__(cls, *args: str, **kwargs: int) -> Singleton:
-        if cls not in cls._instances:
+        if cls != cls._instance:
             instance = super().__call__(*args, **kwargs)
-            cls._instances[cls] = instance
-        return cls._instances[cls]
+            cls._instance = instance
+        return cls._instance
 
 
 class KarapaceMetrics(metaclass=Singleton):
