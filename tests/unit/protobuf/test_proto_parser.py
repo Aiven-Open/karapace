@@ -28,7 +28,7 @@ from karapace.protobuf.utils import MAX_TAG_VALUE
 
 import pytest
 
-location: Location = Location.get("file.proto")
+location: Location = Location("", "file.proto")
 
 
 def test_type_parsing():

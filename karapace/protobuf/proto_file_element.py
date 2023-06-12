@@ -104,7 +104,7 @@ class ProtoFileElement:
 
     @staticmethod
     def empty(path) -> "ProtoFileElement":
-        return ProtoFileElement(Location.get(path))
+        return ProtoFileElement(Location("", path))
 
     # TODO: there maybe be faster comparison workaround
     def __eq__(self, other: "ProtoFileElement") -> bool:  # type: ignore

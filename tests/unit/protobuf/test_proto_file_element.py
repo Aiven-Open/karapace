@@ -18,7 +18,7 @@ from karapace.protobuf.syntax import Syntax
 
 import copy
 
-location: Location = Location.get("some/folder", "file.proto")
+location: Location = Location("some/folder", "file.proto")
 
 
 def test_empty_to_schema():
