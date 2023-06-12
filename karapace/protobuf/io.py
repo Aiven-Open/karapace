@@ -13,7 +13,7 @@ from karapace.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dic
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.type_element import TypeElement
 from multiprocessing import Process, Queue
-from typing import Dict, Final, Iterable, Protocol
+from typing import Dict, Final, Generator, Iterable, Protocol
 from typing_extensions import Self, TypeAlias
 
 import hashlib
@@ -55,23 +55,23 @@ def find_message_name(schema: ProtobufSchema, indexes: Iterable[int]) -> str:
     return ".".join(result)
 
 
-# todo: This can be rewritten as a generator to eliminate mutation of a shared dict.
-def _crawl_dependencies(schema: ProtobufSchema, deps_list: dict[str, dict[str, str]]) -> None:
-    if schema.dependencies:
-        for name, dependency in schema.dependencies.items():
-            # todo: https://github.com/aiven/karapace/issues/641
-            assert isinstance(dependency.schema.schema, ProtobufSchema)
-            _crawl_dependencies(dependency.schema.schema, deps_list)
-            deps_list[name] = {
-                "schema": str(dependency.schema.schema),
-                "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
-            }
+def _crawl_dependencies(
+    schema: ProtobufSchema,
+) -> Generator[tuple[str, dict[str, str]], None, None]:
+    if not schema.dependencies:
+        return
+    for name, dependency in schema.dependencies.items():
+        # todo: https://github.com/aiven/karapace/issues/641
+        assert isinstance(dependency.schema.schema, ProtobufSchema)
+        yield from _crawl_dependencies(dependency.schema.schema)
+        yield name, {
+            "schema": str(dependency.schema.schema),
+            "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
+        }
 
 
 def crawl_dependencies(schema: ProtobufSchema) -> dict[str, dict[str, str]]:
-    deps_list: dict[str, dict[str, str]] = {}
-    _crawl_dependencies(schema, deps_list)
-    return deps_list
+    return dict(_crawl_dependencies(schema))
 
 
 def replace_imports(string: str, deps_list: dict[str, dict[str, str]] | None) -> str:
