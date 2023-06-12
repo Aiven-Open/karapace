@@ -8,7 +8,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
 
-location: Location = Location.get("some/folder", "file.proto")
+location: Location = Location("some/folder", "file.proto")
 
 
 def test_compatibility_package():

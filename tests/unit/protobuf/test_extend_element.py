@@ -11,7 +11,7 @@ from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 
-location = Location.get("file.proto")
+location = Location("", "file.proto")
 
 
 def test_empty_to_schema():

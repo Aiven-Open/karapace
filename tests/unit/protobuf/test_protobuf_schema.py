@@ -14,7 +14,7 @@ from tests.schemas.protobuf import (
     schema_protobuf_schema_registry1,
 )
 
-location: Location = Location.get("file.proto")
+location: Location = Location("", "file.proto")
 
 
 def test_protobuf_schema_simple():
