@@ -146,7 +146,7 @@ class KarapaceMetrics(metaclass=Singleton):
 
     def report(self) -> None:
         if not self.active or not isinstance(self.stats_client, StatsClient):
-            raise RuntimeError
+            raise RuntimeError("no StatsClient available")
 
         for metric_name in self.metrics.metrics:
             value = self.metrics.metrics[metric_name].value()
