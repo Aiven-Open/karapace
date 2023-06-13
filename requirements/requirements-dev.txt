@@ -53,12 +53,6 @@ commonmark==0.9.1
     #   rich
 configargparse==1.5.3
     # via locust
-exceptiongroup==1.1.1
-    # via
-    #   -r requirements.txt
-    #   anyio
-    #   hypothesis
-    #   pytest
 execnet==1.9.0
     # via pytest-xdist
 fancycompleter==0.9.1
@@ -95,8 +89,6 @@ idna==3.4
     #   anyio
     #   requests
     #   yarl
-importlib-metadata==6.6.0
-    # via flask
 iniconfig==2.0.0
     # via pytest
 isodate==0.6.1
@@ -105,7 +97,7 @@ itsdangerous==2.1.2
     # via flask
 jinja2==3.1.2
     # via flask
-jsonschema==3.2.0
+jsonschema==4.17.3
     # via -r requirements.txt
 kafka-python @ https://github.com/aiven/kafka-python/archive/1b95333c9628152066fb8b1092de9da0433401fd.tar.gz
     # via
@@ -182,7 +174,6 @@ six==1.16.0
     #   flask-cors
     #   geventhttpclient
     #   isodate
-    #   jsonschema
     #   python-dateutil
 sniffio==1.3.0
     # via
@@ -192,13 +183,10 @@ sortedcontainers==2.4.0
     # via hypothesis
 tenacity==8.2.2
     # via -r requirements.txt
-tomli==2.0.1
-    # via pytest
 typing-extensions==4.6.2
     # via
     #   -r requirements.txt
     #   locust
-    #   rich
 ujson==5.7.0
     # via -r requirements.txt
 urllib3==1.26.16
@@ -219,8 +207,6 @@ yarl==1.9.2
     # via
     #   -r requirements.txt
     #   aiohttp
-zipp==3.15.0
-    # via importlib-metadata
 zope-event==4.6
     # via gevent
 zope-interface==6.0
