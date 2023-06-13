@@ -336,7 +336,10 @@ def _write_partition(
 def _handle_restore_topic_legacy(
     instruction: RestoreTopicLegacy,
     config: Config,
+    skip_topic_creation: bool = False,
 ) -> None:
+    if skip_topic_creation:
+        return
     if config["topic_name"] != instruction.topic_name:
         LOG.warning(
             "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
@@ -355,7 +358,10 @@ def _handle_restore_topic_legacy(
 def _handle_restore_topic(
     instruction: RestoreTopic,
     config: Config,
+    skip_topic_creation: bool = False,
 ) -> None:
+    if skip_topic_creation:
+        return
     if not _maybe_create_topic(
         config=config,
         name=instruction.topic_name,
@@ -392,6 +398,7 @@ def restore_backup(
     config: Config,
     backup_location: ExistingFile,
     topic_name: TopicName,
+    skip_topic_creation: bool = False,
 ) -> None:
     """Restores a backup from the specified location into the configured topic.
 
@@ -424,10 +431,10 @@ def restore_backup(
 
         for instruction in backend.read(backup_location, topic_name):
             if isinstance(instruction, RestoreTopicLegacy):
-                _handle_restore_topic_legacy(instruction, config)
+                _handle_restore_topic_legacy(instruction, config, skip_topic_creation)
                 producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, RestoreTopic):
-                _handle_restore_topic(instruction, config)
+                _handle_restore_topic(instruction, config, skip_topic_creation)
                 producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, ProducerSend):
                 if producer is None:

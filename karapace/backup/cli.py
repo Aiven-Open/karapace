@@ -34,6 +34,12 @@ def parse_args() -> argparse.Namespace:
     for p in (parser_get, parser_restore, parser_export_anonymized_avro_schemas):
         p.add_argument("--config", help="Configuration file path", required=True)
         p.add_argument("--topic", help="Kafka topic name to be used", required=False)
+        p.add_argument(
+            "--skip-topic-creation",
+            action="store_true",
+            help="Skip topic creation, restoring only the data into an already existing topic.",
+            default=False,
+        )
 
     for p in (parser_get, parser_export_anonymized_avro_schemas):
         p.add_argument("--overwrite", action="store_true", help="Overwrite --location even if it exists.")
@@ -93,6 +99,7 @@ def dispatch(args: argparse.Namespace) -> None:
             config=config,
             backup_location=api.locate_backup_file(location),
             topic_name=api.normalize_topic_name(args.topic, config),
+            skip_topic_creation=args.skip_topic_creation,
         )
     elif args.command == "export-anonymized-avro-schemas":
         config = get_config(args)
