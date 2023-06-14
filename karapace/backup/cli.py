@@ -7,13 +7,14 @@ See LICENSE for details
 from __future__ import annotations
 
 from . import api
-from .errors import StaleConsumerError
+from .errors import BackupDataRestorationError, StaleConsumerError
 from .poll_timeout import PollTimeout
 from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
 
 import argparse
 import sys
+import traceback
 
 
 def parse_args() -> argparse.Namespace:
@@ -95,12 +96,16 @@ def dispatch(args: argparse.Namespace) -> None:
         api.verify(api.locate_backup_file(location), level=VerifyLevel(args.level))
     elif args.command == "restore":
         config = get_config(args)
-        api.restore_backup(
-            config=config,
-            backup_location=api.locate_backup_file(location),
-            topic_name=api.normalize_topic_name(args.topic, config),
-            skip_topic_creation=args.skip_topic_creation,
-        )
+        try:
+            api.restore_backup(
+                config=config,
+                backup_location=api.locate_backup_file(location),
+                topic_name=api.normalize_topic_name(args.topic, config),
+                skip_topic_creation=args.skip_topic_creation,
+            )
+        except BackupDataRestorationError:
+            traceback.print_exc()
+            sys.exit(3)
     elif args.command == "export-anonymized-avro-schemas":
         config = get_config(args)
         api.create_backup(
