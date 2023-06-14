@@ -11,7 +11,14 @@ from .backends.v3.constants import V3_MARKER
 from .backends.v3.schema import ChecksumAlgorithm
 from .backends.writer import BackupWriter, StdOut
 from .encoders import encode_key, encode_value
-from .errors import BackupError, BackupTopicAlreadyExists, EmptyPartition, PartitionCountError, StaleConsumerError
+from .errors import (
+    BackupDataRestorationError,
+    BackupError,
+    BackupTopicAlreadyExists,
+    EmptyPartition,
+    PartitionCountError,
+    StaleConsumerError,
+)
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
 from enum import Enum
@@ -20,6 +27,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
+from kafka.future import Future
 from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
@@ -256,6 +264,16 @@ def _consumer(config: Config, topic: str) -> Iterator[KafkaConsumer]:
 
 
 @contextlib.contextmanager
+def _enable_producer_callback_errors() -> Iterator[None]:
+    global_value = Future.error_on_callbacks
+    Future.error_on_callbacks = True
+    try:
+        yield None
+    finally:
+        Future.error_on_callbacks = global_value
+
+
+@contextlib.contextmanager
 def _producer(config: Config, topic: str) -> Iterator[KafkaProducer]:
     """Creates an automatically closing Kafka producer client.
 
@@ -264,9 +282,10 @@ def _producer(config: Config, topic: str) -> Iterator[KafkaProducer]:
     :raises PartitionCountError: if the topic does not have exactly one partition.
     :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
     """
-    with kafka_producer_from_config(config) as producer:
-        __check_partition_count(topic, producer.partitions_for)
-        yield producer
+    with _enable_producer_callback_errors():
+        with kafka_producer_from_config(config) as producer:
+            __check_partition_count(topic, producer.partitions_for)
+            yield producer
 
 
 def _normalize_location(input_location: str) -> Path | StdOut:
@@ -372,7 +391,7 @@ def _handle_restore_topic(
 
 
 def _raise_backup_error(exception: Exception) -> NoReturn:
-    raise BackupError("Error while producing restored messages") from exception
+    raise BackupDataRestorationError("Error while producing restored messages") from exception
 
 
 def _handle_producer_send(
@@ -384,14 +403,17 @@ def _handle_producer_send(
         instruction.key,
         instruction.value,
     )
-    producer.send(
-        instruction.topic_name,
-        key=instruction.key,
-        value=instruction.value,
-        partition=instruction.partition_index,
-        headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
-        timestamp_ms=instruction.timestamp,
-    ).add_errback(_raise_backup_error)
+    try:
+        producer.send(
+            instruction.topic_name,
+            key=instruction.key,
+            value=instruction.value,
+            partition=instruction.partition_index,
+            headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
+            timestamp_ms=instruction.timestamp,
+        ).add_errback(_raise_backup_error)
+    except (KafkaError, AssertionError) as ex:
+        raise BackupDataRestorationError("Error while calling send on restoring messages") from ex
 
 
 def restore_backup(
