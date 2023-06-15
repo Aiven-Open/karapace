@@ -24,10 +24,6 @@ class BackupTopicAlreadyExists(BackupError):
     pass
 
 
-class BackupDataRestorationError(BackupError):
-    pass
-
-
 class StaleConsumerError(BackupError, RuntimeError):
     """Raised when the backup consumer does not make any progress and has not reached the last record in the topic."""
 

@@ -8,12 +8,12 @@ from dataclasses import fields
 from kafka import KafkaAdminClient, KafkaProducer, TopicPartition
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
-from kafka.errors import UnknownTopicOrPartitionError
+from kafka.errors import KafkaTimeoutError, UnknownTopicOrPartitionError
 from karapace.backup import api
 from karapace.backup.api import _consume_records, TopicName
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
-from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
+from karapace.backup.errors import EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
@@ -334,46 +334,6 @@ def test_errors_when_omitting_replication_factor(config_file: Path) -> None:
     assert "the following arguments are required: --replication-factor" in exc_info.value.stderr.decode()
 
 
-def test_exits_with_return_code_3_for_data_restoration_error(
-    config_file: Path,
-    admin_client: KafkaAdminClient,
-) -> None:
-    topic_name = "a-topic"
-    location = (
-        Path(__file__).parent.parent.resolve()
-        / "test_data"
-        / "backup_v3_corrupt_last_record_bit_flipped_no_checkpoints"
-        / f"{topic_name}.metadata"
-    )
-
-    # Make sure topic doesn't exist beforehand.
-    try:
-        admin_client.delete_topics([topic_name])
-    except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
-    else:
-        print("Deleted topic from previous run.")
-
-    admin_client.create_topics([NewTopic(topic_name, 1, 1)])
-    with pytest.raises(subprocess.CalledProcessError) as er:
-        subprocess.run(
-            [
-                "karapace_schema_backup",
-                "restore",
-                "--config",
-                str(config_file),
-                "--topic",
-                topic_name,
-                "--location",
-                str(location),
-                "--skip-topic-creation",
-            ],
-            capture_output=True,
-            check=True,
-        )
-    assert er.value.returncode == 3
-
-
 def test_roundtrip_from_file(
     tmp_path: Path,
     config_file: Path,
@@ -611,7 +571,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
 
     with patch("karapace.backup.api._producer") as p:
         p.return_value = LowTimeoutProducer()
-        with pytest.raises(BackupDataRestorationError):
+        with pytest.raises(KafkaTimeoutError):
             api.restore_backup(
                 config=config,
                 backup_location=metadata_path,
