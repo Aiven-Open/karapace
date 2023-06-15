@@ -125,6 +125,9 @@ def dispatch(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    import logging
+
+    logging.basicConfig(level=logging.DEBUG)
     try:
         args = parse_args()
 
