@@ -620,6 +620,38 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
             )
 
 
+def test_producer_raises_exceptions(
+    admin_client: KafkaAdminClient,
+    kafka_servers: KafkaServers,
+) -> None:
+    topic_name = "596ddf6b"
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
+    metadata_path = backup_directory / f"{topic_name}.metadata"
+
+    # Make sure topic doesn't exist beforehand.
+    try:
+        admin_client.delete_topics([topic_name])
+    except UnknownTopicOrPartitionError:
+        print("No previously existing topic.")
+    else:
+        print("Deleted topic from previous run.")
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+        }
+    )
+
+    with patch("kafka.producer.record_accumulator.RecordAccumulator.append") as p:
+        p.side_effect = UnknownTopicOrPartitionError()
+        with pytest.raises(BackupDataRestorationError):
+            api.restore_backup(
+                config=config,
+                backup_location=metadata_path,
+                topic_name=TopicName(topic_name),
+            )
+
+
 def no_color_env() -> dict[str, str]:
     env = os.environ.copy()
     try:
