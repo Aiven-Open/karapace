@@ -11,7 +11,7 @@ from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.schema_references import Reference
+from karapace.schema_references import Reference, reference_from_mapping
 from karapace.utils import json_decode, json_encode
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
@@ -126,12 +126,12 @@ class SchemaRegistryClient:
             parsed_references = None
             if references:
                 parsed_references = []
-                for reference in references:
-                    if ["name", "subject", "version"] != sorted(reference.keys()):
-                        raise InvalidReferences()
-                    parsed_references.append(
-                        Reference(name=reference["name"], subject=reference["subject"], version=reference["version"])
-                    )
+                for reference_data in references:
+                    try:
+                        reference = reference_from_mapping(reference_data)
+                    except (TypeError, KeyError) as exc:
+                        raise InvalidReferences from exc
+                    parsed_references.append(reference)
             if parsed_references:
                 return ParsedTypedSchema.parse(schema_type, json_result["schema"], references=parsed_references)
             return ParsedTypedSchema.parse(schema_type, json_result["schema"])
