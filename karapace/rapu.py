@@ -167,12 +167,15 @@ class RestApp:
         self.app_name = app_name
         self.config = config
         self.app_request_metric = f"{app_name}_request"
-        self.app = aiohttp.web.Application()
+        self.app = self._create_aiohttp_application(config=config)
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(config=config)
         self.app.on_cleanup.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
         KarapaceMetrics().setup(self.stats, config)
+
+    def _create_aiohttp_application(self, *, config: Config) -> aiohttp.web.Application:
+        return aiohttp.web.Application(client_max_size=config["http_request_max_size"])
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         await self.close()

@@ -137,6 +137,28 @@ class TestHandleRestoreTopic:
         assert new_topic.replication_factor == 2
         assert new_topic.topic_configs == topic_configs
 
+    @patch_admin_new
+    def test_skip_topic_creation(
+        self,
+        admin_new: MagicMock,
+    ) -> None:
+        create_topics: MagicMock = admin_new.return_value.create_topics
+        _handle_restore_topic(
+            RestoreTopic(topic_name="custom-name", partition_count=1, replication_factor=2, topic_configs={}),
+            config.DEFAULTS,
+            skip_topic_creation=True,
+        )
+        _handle_restore_topic_legacy(
+            RestoreTopicLegacy(
+                topic_name="custom-name",
+                partition_count=1,
+            ),
+            config.DEFAULTS,
+            skip_topic_creation=True,
+        )
+
+        create_topics.assert_not_called()
+
 
 class TestClients:
     @staticmethod

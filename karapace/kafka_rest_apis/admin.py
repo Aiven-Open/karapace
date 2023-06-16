@@ -2,14 +2,16 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
+from __future__ import annotations
+
 from kafka import KafkaAdminClient
 from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
 from kafka.errors import Cancelled, for_code, UnrecognizedBrokerVersion
 from kafka.future import Future
 from kafka.protocol.admin import DescribeConfigsRequest
-from kafka.protocol.metadata import MetadataRequest
+from kafka.protocol.metadata import MetadataRequest, MetadataResponse_v1
 from kafka.protocol.offset import OffsetRequest, OffsetResetStrategy
-from typing import List
 
 import logging
 
@@ -35,10 +37,10 @@ class KafkaRestAdminClient(KafkaAdminClient):
             topic_config[name] = val
         return topic_config
 
-    def new_topic(self, name: str):
+    def new_topic(self, name: str) -> None:
         self.create_topics([NewTopic(name, 1, 1)])
 
-    def cluster_metadata(self, topics: List[str] = None, retries: int = 0) -> dict:
+    def cluster_metadata(self, topics: list[str] | None = None, retries: int = 0) -> dict:
         """Fetch cluster metadata and topic information for given topics or all topics if not given."""
         metadata_version = self._matching_api_version(MetadataRequest)
         if metadata_version > 6 or metadata_version < 1:
@@ -57,16 +59,16 @@ class KafkaRestAdminClient(KafkaAdminClient):
         return self._make_metadata_response(future.value)
 
     @staticmethod
-    def _make_metadata_response(metadata):
+    def _make_metadata_response(metadata: MetadataResponse_v1) -> dict:
         resp_brokers = metadata.brokers
         brokers = set()
         for b in resp_brokers:
             node_id, _, _, _ = b
             brokers.add(node_id)
-        resp = {"topics": {}, "brokers": list(brokers)}
         if not metadata.topics:
-            return resp
+            return {"topics": {}, "brokers": list(brokers)}
 
+        topics: dict[str, dict] = {}
         for tup in metadata.topics:
             err, topic, _, partitions = tup
             if err:
@@ -81,8 +83,8 @@ class KafkaRestAdminClient(KafkaAdminClient):
                         {"broker": node, "leader": node == leader_id, "in_sync": node in isr_nodes}
                     )
                 topic_data.append(topic_response)
-            resp["topics"][topic] = {"partitions": topic_data}
-        return resp
+            topics[topic] = {"partitions": topic_data}
+        return {"topics": topics, "brokers": list(brokers)}
 
     def make_offsets_request(self, topic: str, partition_id: int, timestamp: int) -> Future:
         v = self._matching_api_version(OffsetRequest)

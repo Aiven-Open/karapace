@@ -11,7 +11,7 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.service_element import ServiceElement
 
-location: Location = Location.get("file.proto")
+location: Location = Location("", "file.proto")
 
 
 def test_empty_to_schema():

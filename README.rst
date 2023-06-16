@@ -308,6 +308,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - Parameter
      - Default Value
      - Description
+   * - ``http_request_max_size``
+     - ``1048576``
+     - The maximum client HTTP request size. This value controls how large (POST) payloads are allowed. When configuration of ``karapace_rest`` is set to `true` and ``http_request_max_size`` is not set, Karapace configuration adapts the allowed client max size from the ``producer_max_request_size``. In cases where automatically selected size is not enough the configuration can be overridden by setting a value in configuration. For schema registry operation set the client max size according to expected size of schema payloads if default size is not enough.
    * - ``advertised_protocol``
      - ``http``
      - The protocol being advertised to other instances of Karapace that are attached to the same Kafka group.

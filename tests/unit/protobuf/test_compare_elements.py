@@ -10,7 +10,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 
-location: Location = Location.get("some/folder", "file.proto")
+location: Location = Location("some/folder", "file.proto")
 
 
 def test_compare_oneof():

@@ -107,7 +107,7 @@ def option_element_string(option: OptionElement) -> str:
 
 
 class ProtobufSchema:
-    DEFAULT_LOCATION = Location.get("")
+    DEFAULT_LOCATION = Location("", "")
 
     def __init__(
         self, schema: str, references: Optional[List[Reference]] = None, dependencies: Optional[Dict[str, Dependency]] = None

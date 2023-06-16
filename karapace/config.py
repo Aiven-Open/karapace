@@ -7,7 +7,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from enum import Enum, unique
-from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
 from typing import IO, Mapping
@@ -21,7 +21,7 @@ import ssl
 
 class Config(TypedDict):
     access_logs_debug: bool
-    access_log_class: str | None
+    access_log_class: type | None
     advertised_hostname: str
     advertised_port: int
     advertised_protocol: str
@@ -103,6 +103,7 @@ DEFAULTS: ConfigDefaults = {
     "consumer_idle_disconnect_timeout": 0,
     "fetch_min_bytes": 1,
     "group_id": "schema-registry",
+    "http_request_max_size": None,
     "host": "127.0.0.1",
     "port": 8081,
     "server_tls_certfile": None,
@@ -136,7 +137,7 @@ DEFAULTS: ConfigDefaults = {
     "producer_compression_type": None,
     "producer_count": 5,
     "producer_linger_ms": 100,
-    "producer_max_request_size": 1048576,
+    "producer_max_request_size": DEFAULT_PRODUCER_MAX_REQUEST,
     "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
@@ -188,6 +189,24 @@ def set_config_defaults(config: ConfigDefaults) -> Config:
     # Tag app should always be karapace
     new_config.setdefault("tags", {})
     new_config["tags"]["app"] = "Karapace"
+
+    # Set the aiohttp client max size if REST Proxy is enabled and producer max request configuration is altered from default
+    # and aiohttp client max size is not set
+    # Use the http request max size from the configuration without altering if set.
+    if (
+        new_config["karapace_rest"]
+        and new_config["producer_max_request_size"] > DEFAULT_PRODUCER_MAX_REQUEST
+        and new_config["http_request_max_size"] is None
+    ):
+        # REST Proxy API configuration for producer max request size must be taken into account
+        # also for the aiohttp.web.Application client max size.
+        # Always add the aiohttp default client max size as the headroom above the producer max request size.
+        # The input JSON size for REST Proxy is not easy to estimate, lot of small records in single request has
+        # a lot of overhead due to JSON structure.
+        new_config["http_request_max_size"] = new_config["producer_max_request_size"] + DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
+    elif new_config["http_request_max_size"] is None:
+        # Set the default aiohttp client max size
+        new_config["http_request_max_size"] = DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
 
     set_settings_from_environment(new_config)
     set_sentry_dsn_from_environment(new_config)
