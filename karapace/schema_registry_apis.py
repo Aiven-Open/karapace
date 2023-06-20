@@ -865,7 +865,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
-        except SubjectNotFoundException:
+        except (SchemasNotFoundException, SubjectNotFoundException):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,

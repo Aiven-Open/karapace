@@ -2674,6 +2674,12 @@ async def test_schema_hard_delete_whole_schema(registry_async_client: Client) ->
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
 
+    # Check that fetching unescaped schema gives valid error message
+    res = await registry_async_client.get(f"subjects/{subject}/versions/latest/schema")
+    assert res.status_code == 404
+    assert res.json()["error_code"] == 40401
+    assert res.json()["message"] == f"Subject '{subject}' not found."
+
     # Soft delete cannot be done twice
     res = await registry_async_client.delete(f"subjects/{subject}")
     assert res.status_code == 404
