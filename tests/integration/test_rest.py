@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from kafka.errors import UnknownTopicOrPartitionError
 from pytest import raises
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
@@ -19,6 +21,7 @@ from tests.utils import (
 import asyncio
 import base64
 import json
+import time
 
 NEW_TOPIC_TIMEOUT = 10
 
@@ -298,6 +301,27 @@ async def test_publish(rest_async_client, admin_client):
                 for o in res_json["offsets"]:
                     assert "partition" in o
                     assert o["partition"] == 0
+
+
+# Produce messages to a topic without key and without explicit partition to verify that
+# partitioner assigns partition randomly
+async def test_publish_random_partitioning(rest_async_client, admin_client):
+    topic = new_topic(admin_client, num_partitions=100)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    topic_url = f"/topics/{topic}"
+    partitions_seen: set[int] = set()
+    do_until_time = time.monotonic() + 30
+    while len(partitions_seen) < 2 and do_until_time > time.monotonic():
+        res = await rest_async_client.post(
+            topic_url, json={"records": [{"value": f"data{time.monotonic()}"}]}, headers=REST_HEADERS["json"]
+        )
+        res_json = res.json()
+        assert res.ok
+        assert "offsets" in res_json
+        for o in res_json["offsets"]:
+            assert "partition" in o
+            partitions_seen.add(o["partition"])
+    assert len(partitions_seen) >= 2, "Partitioner should randomly assign to different partitions if no key given"
 
 
 async def test_publish_malformed_requests(rest_async_client, admin_client):
