@@ -275,7 +275,6 @@ class RestApp:
             path_for_stats=path_for_stats,
         )
 
-        KarapaceMetrics().connection()
         try:
             if request.method == "OPTIONS":
                 # self.metrics.request(0)

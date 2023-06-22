@@ -33,7 +33,7 @@ class Singleton(type):
 
 class KarapaceMetrics(metaclass=Singleton):
     def __init__(self) -> None:
-        self.active: object | None = None
+        self.active = False
         self.stats_client: StatsClient | None = None
         self.is_ready = False
         self.metrics = Metrics()
@@ -52,7 +52,7 @@ class KarapaceMetrics(metaclass=Singleton):
             if self.is_ready:
                 return
             self.is_ready = True
-        if self.stats_client:
+        if not self.stats_client:
             self.stats_client = stats_client
         else:
             self.active = False
@@ -66,7 +66,6 @@ class KarapaceMetrics(metaclass=Singleton):
             raise RuntimeError("No application host or port defined in application")
 
         schedule.every(10).seconds.do(self.connections)
-
         self.worker_thread.start()
 
     def request(self, size: int) -> None:
@@ -130,4 +129,6 @@ class KarapaceMetrics(metaclass=Singleton):
         if not self.active:
             return
         self.stop_event.set()
-        self.worker_thread.join()
+        if self.worker_thread.is_alive():
+            self.worker_thread.join()
+
