@@ -33,7 +33,7 @@ class Singleton(type):
 
 class KarapaceMetrics(metaclass=Singleton):
     def __init__(self) -> None:
-        self.active = False
+        self.active: object | None = None
         self.stats_client: StatsClient | None = None
         self.is_ready = False
         self.metrics = Metrics()
@@ -131,4 +131,3 @@ class KarapaceMetrics(metaclass=Singleton):
         self.stop_event.set()
         if self.worker_thread.is_alive():
             self.worker_thread.join()
-
