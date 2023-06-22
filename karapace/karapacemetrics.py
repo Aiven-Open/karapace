@@ -86,6 +86,8 @@ class KarapaceMetrics(metaclass=Singleton):
     def are_we_master(self, is_master: bool) -> None:
         if not self.active:
             return
+        if not isinstance(self.stats_client, StatsClient):
+            raise RuntimeError("no StatsClient available")
         self.stats_client.gauge("master-slave-role", int(is_master))
 
     def latency(self, latency_ms: float) -> None:
@@ -111,6 +113,8 @@ class KarapaceMetrics(metaclass=Singleton):
         psutil.Process(os.getpid()).connections()
         connections = 0
         for conn in psutil.net_connections(kind="tcp"):
+            if not conn.laddr:
+                continue
             if conn.laddr[0] == self.app_host and conn.laddr[1] == self.app_port and conn.status == "ESTABLISHED":
                 connections += 1
         self.stats_client.gauge("connections-active", connections)
