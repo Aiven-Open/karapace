@@ -810,7 +810,8 @@ class UserRestProxy:
         for record in data["records"]:
             key = record.get("key")
             value = record.get("value")
-            key = await self.serialize(content_type, key, ser_format, key_schema_id)
+            if key is not None:
+                key = await self.serialize(content_type, key, ser_format, key_schema_id)
             value = await self.serialize(content_type, value, ser_format, value_schema_id)
             prepared_records.append((key, value, record.get("partition", default_partition)))
         return prepared_records
