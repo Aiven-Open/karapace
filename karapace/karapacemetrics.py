@@ -10,7 +10,6 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from datetime import datetime
 from kafka.metrics import Metrics
 from karapace.config import Config
 from karapace.statsd import StatsClient
