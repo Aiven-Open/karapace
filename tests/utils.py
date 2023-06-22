@@ -202,10 +202,10 @@ def create_id_factory(prefix: str) -> Callable[[], str]:
     return create_name
 
 
-def new_topic(admin_client: KafkaRestAdminClient, prefix: str = "topic") -> str:
+def new_topic(admin_client: KafkaRestAdminClient, prefix: str = "topic", *, num_partitions: int = 1) -> str:
     topic_name = f"{new_random_name(prefix)}"
     try:
-        admin_client.new_topic(topic_name)
+        admin_client.new_topic(topic_name, num_partitions=num_partitions)
     except TopicAlreadyExistsError:
         pass
     return topic_name

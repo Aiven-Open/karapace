@@ -37,8 +37,8 @@ class KafkaRestAdminClient(KafkaAdminClient):
             topic_config[name] = val
         return topic_config
 
-    def new_topic(self, name: str) -> None:
-        self.create_topics([NewTopic(name, 1, 1)])
+    def new_topic(self, name: str, *, num_partitions: int = 1, replication_factor: int = 1) -> None:
+        self.create_topics([NewTopic(name, num_partitions, replication_factor)])
 
     def cluster_metadata(self, topics: list[str] | None = None, retries: int = 0) -> dict:
         """Fetch cluster metadata and topic information for given topics or all topics if not given."""
