@@ -27,7 +27,6 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.future import Future
 from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
@@ -40,7 +39,7 @@ from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, NoReturn, TypeVar
+from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, TypeVar
 
 import contextlib
 import datetime
@@ -264,16 +263,6 @@ def _consumer(config: Config, topic: str) -> Iterator[KafkaConsumer]:
 
 
 @contextlib.contextmanager
-def _enable_producer_callback_errors() -> Iterator[None]:
-    global_value = Future.error_on_callbacks
-    Future.error_on_callbacks = True
-    try:
-        yield None
-    finally:
-        Future.error_on_callbacks = global_value
-
-
-@contextlib.contextmanager
 def _producer(config: Config, topic: str) -> Iterator[KafkaProducer]:
     """Creates an automatically closing Kafka producer client.
 
@@ -282,10 +271,9 @@ def _producer(config: Config, topic: str) -> Iterator[KafkaProducer]:
     :raises PartitionCountError: if the topic does not have exactly one partition.
     :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
     """
-    with _enable_producer_callback_errors():
-        with kafka_producer_from_config(config) as producer:
-            __check_partition_count(topic, producer.partitions_for)
-            yield producer
+    with kafka_producer_from_config(config) as producer:
+        __check_partition_count(topic, producer.partitions_for)
+        yield producer
 
 
 def _normalize_location(input_location: str) -> Path | StdOut:
@@ -390,13 +378,10 @@ def _handle_restore_topic(
         raise BackupTopicAlreadyExists(f"Topic to restore '{instruction.topic_name}' already exists")
 
 
-def _raise_backup_error(exception: Exception) -> NoReturn:
-    raise BackupDataRestorationError("Error while producing restored messages") from exception
-
-
 def _handle_producer_send(
     instruction: ProducerSend,
     producer: KafkaProducer,
+    producer_error_callback: Callable[[Exception], None],
 ) -> None:
     LOG.debug(
         "Sending kafka msg key: %r, value: %r",
@@ -411,7 +396,7 @@ def _handle_producer_send(
             partition=instruction.partition_index,
             headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
             timestamp_ms=instruction.timestamp,
-        ).add_errback(_raise_backup_error)
+        ).add_errback(producer_error_callback)
     except (KafkaError, AssertionError) as ex:
         raise BackupDataRestorationError("Error while calling send on restoring messages") from ex
 
@@ -446,10 +431,22 @@ def restore_backup(
     LOG.info("Identified backup backend: %s", backend.__class__.__name__)
     LOG.info("Starting backup restore for topic: %r", topic_name)
 
+    # Stores the latest exception raised by the error callback set on producer.send()
+    _producer_exception = None
+
     # We set up an ExitStack context, so that we can enter the producer context only
     # after processing a RestoreTopic instruction.
     with contextlib.ExitStack() as stack:
         producer = None
+
+        def _producer_error_callback(exception: Exception) -> None:
+            LOG.error("Producer error", exc_info=exception)
+            nonlocal _producer_exception
+            _producer_exception = exception
+
+        def _check_producer_exception() -> None:
+            if _producer_exception is not None:
+                raise BackupDataRestorationError("Error while producing restored messages") from _producer_exception
 
         for instruction in backend.read(backup_location, topic_name):
             if isinstance(instruction, RestoreTopicLegacy):
@@ -461,9 +458,19 @@ def restore_backup(
             elif isinstance(instruction, ProducerSend):
                 if producer is None:
                     raise RuntimeError("Backend has not yet sent RestoreTopic.")
-                _handle_producer_send(instruction, producer)
+                _handle_producer_send(instruction, producer, _producer_error_callback)
+                # Immediately check if producer.send() generated an exception. This call is
+                # only an optimization, as producing is asynchronous and no sends might
+                # have been executed once we reach this line.
+                _check_producer_exception()
             else:
                 assert_never(instruction)
+
+    # Check if an exception was raised after the producer was flushed and closed
+    # by `kafka_producer_from_config` context manager. As opposed to the previous
+    # call, this one is essential for correct behavior, as when we reach this point the
+    # producer can no longer be sending messages (it has been flushed and closed).
+    _check_producer_exception()
 
 
 def create_backup(
