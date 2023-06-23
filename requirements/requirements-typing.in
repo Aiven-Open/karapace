@@ -4,3 +4,4 @@
 mypy
 types-jsonschema
 sentry-sdk
+types-cachetools

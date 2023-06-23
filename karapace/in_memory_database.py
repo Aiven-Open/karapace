@@ -11,7 +11,7 @@ from karapace.schema_models import SchemaVersion, TypedSchema
 from karapace.schema_references import Reference, Referents
 from karapace.typing import ResolvedVersion, SchemaId, Subject
 from threading import Lock, RLock
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import logging
 
@@ -111,7 +111,7 @@ class InMemoryDatabase:
         version: ResolvedVersion,
         deleted: bool,
         schema: TypedSchema,
-        references: list[Reference] | None,
+        references: Sequence[Reference] | None,
     ) -> None:
         with self.schema_lock_thread:
             self.global_schema_id = max(self.global_schema_id, schema_id)
@@ -183,6 +183,17 @@ class InMemoryDatabase:
                     selected_schemas = [schema for schema in selected_schemas if schema.deleted is False]
                 res_schemas[subject] = selected_schemas
         return res_schemas
+
+    def subjects_for_schema(self, schema_id: SchemaId) -> list[Subject]:
+        subjects = []
+        with self.schema_lock_thread:
+            for subject, subject_data in self.subjects.items():
+                for version in subject_data.schemas.values():
+                    if version.deleted is False and version.schema_id == schema_id:
+                        subjects.append(subject)
+                        break
+
+        return subjects
 
     def find_schema_versions_by_schema_id(self, *, schema_id: SchemaId, include_deleted: bool) -> list[SchemaVersion]:
         schema_versions: list[SchemaVersion] = []

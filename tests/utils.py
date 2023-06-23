@@ -50,6 +50,21 @@ schema_avro_json = json.dumps(
     }
 )
 
+schema_avro_json_evolution = json.dumps(
+    {
+        "namespace": "example.avro",
+        "type": "record",
+        "name": "example.avro.User",
+        "fields": [
+            {"name": "name", "type": "string"},
+            {"name": "favorite_number", "type": "int"},
+            {"name": "favorite_color", "type": "string"},
+            {"name": "favorite_quark", "type": "string", "default": "def"},
+        ],
+    }
+)
+
+
 test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
 
 test_objects_avro = [
@@ -57,6 +72,13 @@ test_objects_avro = [
     {"name": "Second Foo", "favorite_number": 3, "favorite_color": "baz"},
     {"name": "Third Foo", "favorite_number": 5, "favorite_color": "quux"},
 ]
+
+test_objects_avro_evolution = [
+    {"name": "First Foo", "favorite_number": 2, "favorite_color": "bar", "favorite_quark": "up"},
+    {"name": "Second Foo", "favorite_number": 3, "favorite_color": "baz", "favorite_quark": "down"},
+    {"name": "Third Foo", "favorite_number": 5, "favorite_color": "quux", "favorite_quark": "charm"},
+]
+
 
 # protobuf schemas in tests must be filtered by  trim_margin() from kotlin_wrapper module
 
