@@ -13,6 +13,7 @@ ujson<6
 watchfiles<1
 xxhash~=3.0
 rich~=12.5.0
+cachetools==5.2.0
 
 # Patched dependencies
 #
