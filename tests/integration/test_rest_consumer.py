@@ -276,6 +276,10 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
         data = resp.json()
         assert len(data) == len(values[fmt]), f"Expected {len(values[fmt])} element in response: {resp}"
         for i in range(len(values[fmt])):
+            assert data[i]["topic"] == topic_name
+            assert data[i]["partition"] == 0
+            assert data[i]["offset"] >= 0
+            assert data[i]["timestamp"] > 0
             assert deserializers[fmt](data[i]["value"]) == values[fmt][i], (
                 f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {values[fmt][i]} for format {fmt}"
             )
