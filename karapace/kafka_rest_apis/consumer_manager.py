@@ -526,6 +526,7 @@ class ConsumerManager:
                         "topic": tp.topic,
                         "partition": tp.partition,
                         "offset": msg.offset,
+                        "timestamp": msg.timestamp,
                         "key": key,
                         "value": value,
                     }
