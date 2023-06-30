@@ -43,6 +43,8 @@ def _resolve_version(
     version: Version,
 ) -> ResolvedVersion:
     max_version = max(schema_versions)
+    if version == "-1":
+        return max_version
     if isinstance(version, str) and version == "latest":
         return max_version
     resolved_version = ResolvedVersion(int(version))
