@@ -54,6 +54,8 @@ def _resolve_version(
 def validate_version(version: Version) -> Version:
     try:
         version_number = int(version)
+        if version_number == -1:
+            return "latest"
         if version_number > 0:
             return version
         raise InvalidVersion(f"Invalid version {version_number}")
