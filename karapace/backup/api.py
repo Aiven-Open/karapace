@@ -38,7 +38,7 @@ from karapace.key_format import KeyFormatter
 from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
-from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
+from tenacity import RetryCallState
 from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, TypeVar
 
 import contextlib
@@ -194,13 +194,7 @@ def _admin(config: Config) -> KafkaAdminClient:
     :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
     """
 
-    admin = retry(
-        before_sleep=__before_sleep("Kafka Admin client creation"),
-        reraise=True,
-        stop=stop_after_delay(60),  # seconds
-        wait=wait_fixed(1),  # seconds
-        retry=retry_if_exception_type(KafkaError),
-    )(kafka_admin_from_config)(config)
+    admin = kafka_admin_from_config(config)
 
     try:
         yield admin
@@ -208,13 +202,13 @@ def _admin(config: Config) -> KafkaAdminClient:
         admin.close()
 
 
-@retry(
-    before_sleep=__before_sleep("Schemas topic creation"),
-    reraise=True,
-    stop=stop_after_delay(60),  # seconds
-    wait=wait_fixed(1),  # seconds
-    retry=retry_if_exception_type(KafkaError),
-)
+# @retry(
+#     before_sleep=__before_sleep("Schemas topic creation"),
+#     reraise=True,
+#     stop=stop_after_delay(60),  # seconds
+#     wait=wait_fixed(1),  # seconds
+#     retry=retry_if_exception_type(KafkaError),
+# )
 def _maybe_create_topic(
     name: str,
     *,
