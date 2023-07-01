@@ -8,21 +8,20 @@ certifi==2023.5.7
     # via
     #   -c requirements-dev.txt
     #   sentry-sdk
-mypy==1.3.0
+mypy==1.4.1
     # via -r requirements-typing.in
 mypy-extensions==1.0.0
     # via mypy
 sentry-sdk==1.24.0
-    # via -r requirements-typing.in
-tomli==2.0.1
     # via
     #   -c requirements-dev.txt
-    #   mypy
+    #   -r requirements-typing.in
 types-jsonschema==4.17.0.8
     # via -r requirements-typing.in
 typing-extensions==4.6.2
     # via
     #   -c requirements-dev.txt
+    #   -c requirements.txt
     #   mypy
 urllib3==1.26.16
     # via
