@@ -18,4 +18,7 @@ ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 Subject = NewType("Subject", str)
 Version = Union[int, str]
 ResolvedVersion = NewType("ResolvedVersion", int)
+# note: the SchemaID is a unique id among all the schemas (and each version should be assigned to a different id)
+# basically the same SchemaID refer always to the same TypedSchema.
 SchemaId = NewType("SchemaId", int)
+TopicName = NewType("TopicName", str)

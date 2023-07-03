@@ -461,7 +461,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self, content_type: str, *, request: HTTPRequest, user: User | None = None, schema_id: str
     ) -> None:
         try:
-            schema_id_int = int(schema_id)
+            parsed_schema_id = SchemaId(int(schema_id))
         except ValueError:
             self.r(
                 body={
@@ -473,7 +473,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
-        schema = self.schema_registry.schemas_get(schema_id_int, fetch_max_id=fetch_max_id)
+        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
 
         def _has_subject_with_id() -> bool:
             schema_versions = self.schema_registry.database.find_schemas(include_deleted=True, latest_only=False)
@@ -482,7 +482,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     continue
                 for schema_version in schema_versions:
                     if (
-                        schema_version.schema_id == schema_id_int
+                        schema_version.schema_id == parsed_schema_id
                         and not schema_version.deleted
                         and self._auth is not None
                         and self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}")
@@ -504,13 +504,17 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
-        response_body = {"schema": schema.schema_str}
+
+        subjects = self.schema_registry.database.subjects_for_schema(parsed_schema_id)
+
+        response_body = {"schema": schema.schema_str, "subjects": subjects}
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
         if schema.references:
             response_body["references"] = [r.to_dict() for r in schema.references]
         if fetch_max_id:
             response_body["maxId"] = schema.max_id
+
         self.r(response_body, content_type)
 
     async def schemas_get_versions(

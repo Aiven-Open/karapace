@@ -17,12 +17,15 @@ from karapace.errors import InvalidSchema
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
+from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, HTTPResponse, JSON_CONTENT_TYPE
-from karapace.schema_reader import SchemaType
+from karapace.schema_models import TypedSchema, ValidatedTypedSchema
+from karapace.schema_type import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
+from karapace.typing import SchemaId, Subject
 from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import aiohttp.web
 import asyncio
@@ -416,7 +419,7 @@ class UserRestProxy:
         self.admin_client = None
         self.admin_lock = asyncio.Lock()
         self.metadata_cache = None
-        self.schemas_cache = {}
+        self.topic_schema_cache = TopicSchemaCache()
         self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
         self.init_admin_client()
         self._last_used = time.monotonic()
@@ -739,18 +742,83 @@ class UserRestProxy:
                 return False
         return isinstance(schema, str)
 
-    async def get_schema_id(self, data: dict, topic: str, prefix: str, schema_type: SchemaType) -> int:
-        log.debug("Retrieving schema id for %r", data)
-        if f"{prefix}_schema_id" in data and data[f"{prefix}_schema_id"] is not None:
-            log.debug("Will use schema id %d for serializing %s on topic %s", data[f"{prefix}_schema_id"], prefix, topic)
-            return int(data[f"{prefix}_schema_id"])
-        schema_str = data[f"{prefix}_schema"]
-        log.debug("Registering / Retrieving ID for schema %s", schema_str)
-        if schema_str not in self.schemas_cache:
-            subject_name = self.serializer.get_subject_name(topic, data[f"{prefix}_schema"], prefix, schema_type)
-            schema_id = await self.serializer.get_id_for_schema(data[f"{prefix}_schema"], subject_name, schema_type)
-            self.schemas_cache[schema_str] = schema_id
-        return self.schemas_cache[schema_str]
+    async def get_schema_id(
+        self,
+        data: dict,
+        topic: str,
+        prefix: str,
+        schema_type: SchemaType,
+    ) -> SchemaId:
+        """
+        This method search and validate the SchemaId for a request, it acts as a guard (In case of something wrong
+        throws an error).
+
+        :raises InvalidSchema:
+        """
+        log.debug("[resolve schema id] Retrieving schema id for %r", data)
+        schema_id: Union[SchemaId, None] = (
+            SchemaId(int(data[f"{prefix}_schema_id"])) if f"{prefix}_schema_id" in data else None
+        )
+        schema_str = data.get(f"{prefix}_schema")
+
+        if schema_id is None and schema_str is None:
+            raise InvalidSchema()
+
+        if schema_id is None:
+            parsed_schema = ValidatedTypedSchema.parse(schema_type, schema_str)
+            subject_name = self.serializer.get_subject_name(topic, parsed_schema, prefix, schema_type)
+            schema_id = await self._query_schema_id_from_cache_or_registry(parsed_schema, schema_str, subject_name)
+        else:
+
+            def subject_not_included(schema: TypedSchema, subjects: List[Subject]) -> bool:
+                subject = self.serializer.get_subject_name(topic, schema, prefix, schema_type)
+                return subject not in subjects
+
+            parsed_schema, valid_subjects = await self._query_schema_and_subjects(
+                schema_id,
+                need_new_call=subject_not_included,
+            )
+
+            if subject_not_included(parsed_schema, valid_subjects):
+                raise InvalidSchema()
+
+        return schema_id
+
+    async def _query_schema_and_subjects(
+        self, schema_id: SchemaId, *, need_new_call: Optional[Callable[[TypedSchema, List[Subject]], bool]]
+    ) -> Tuple[TypedSchema, List[Subject]]:
+        try:
+            return await self.serializer.get_schema_for_id(schema_id, need_new_call=need_new_call)
+        except SchemaRetrievalError as schema_error:
+            # if the schema doesn't exist we treated as if the error was due to an invalid schema
+            raise InvalidSchema() from schema_error
+
+    async def _query_schema_id_from_cache_or_registry(
+        self,
+        parsed_schema: ValidatedTypedSchema,
+        schema_str: str,
+        subject_name: Subject,
+    ) -> SchemaId:
+        """
+        Checks if the schema registered with a certain id match with the schema provided (you can provide
+        a valid id but place in the body a totally unrelated schema).
+        Also, here if we don't have a match we query the registry  since the cache could be evicted in the meanwhile
+        or the schema could be registered without passing though the http proxy.
+        """
+        schema_id = self.topic_schema_cache.get_schema_id(subject_name, parsed_schema)
+        if schema_id is None:
+            log.debug("[resolve schema id] Registering / Retrieving ID for %s and schema %s", subject_name, schema_str)
+            schema_id = await self.serializer.upsert_id_for_schema(parsed_schema, subject_name)
+            log.debug("[resolve schema id] Found schema id %s from registry for subject %s", schema_id, subject_name)
+            self.topic_schema_cache.set_schema(subject_name, schema_id, parsed_schema)
+        else:
+            log.debug(
+                "[resolve schema id] schema ID %s found from cache for %s and schema %s",
+                schema_id,
+                subject_name,
+                schema_str,
+            )
+        return schema_id
 
     async def validate_schema_info(self, data: dict, prefix: str, content_type: str, topic: str, schema_type: str):
         try:
@@ -788,10 +856,14 @@ class UserRestProxy:
                 status=HTTPStatus.REQUEST_TIMEOUT,
             )
         except InvalidSchema:
+            if f"{prefix}_schema" in data:
+                err = f'schema = {data[f"{prefix}_schema"]}'
+            else:
+                err = f'schema_id = {data[f"{prefix}_schema_id"]}'
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.INVALID_DATA.value,
-                    "message": f'Invalid schema. format = {schema_type.value}, schema = {data[f"{prefix}_schema"]}',
+                    "message": f"Invalid schema. format = {schema_type.value}, {err}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -810,7 +882,8 @@ class UserRestProxy:
         for record in data["records"]:
             key = record.get("key")
             value = record.get("value")
-            key = await self.serialize(content_type, key, ser_format, key_schema_id)
+            if key is not None:
+                key = await self.serialize(content_type, key, ser_format, key_schema_id)
             value = await self.serialize(content_type, value, ser_format, value_schema_id)
             prepared_records.append((key, value, record.get("partition", default_partition)))
         return prepared_records
@@ -881,7 +954,7 @@ class UserRestProxy:
         raise FormatError(f"Unknown format: {ser_format}")
 
     async def schema_serialize(self, obj: dict, schema_id: Optional[int]) -> bytes:
-        schema = await self.serializer.get_schema_for_id(schema_id)
+        schema, _ = await self.serializer.get_schema_for_id(schema_id)
         bytes_ = await self.serializer.serialize(schema, obj)
         return bytes_
 
