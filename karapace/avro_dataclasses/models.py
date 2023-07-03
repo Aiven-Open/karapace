@@ -68,7 +68,7 @@ def optional_parser(parser: Parser | None) -> Parser | None:
         return None
 
     def parse(value: object) -> object:
-        return None if value is None else parser(value)  # type: ignore[misc]
+        return None if value is None else parser(value)
 
     return parse
 

@@ -90,6 +90,7 @@ class Client:
         json: JsonData = None,
         headers: Optional[Headers] = None,
         auth: Optional[BasicAuth] = None,
+        params: Optional[Mapping[str, str]] = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -101,6 +102,7 @@ class Client:
             headers=headers,
             auth=auth,
             ssl=self.ssl_mode,
+            params=params,
         ) as res:
             # required for forcing the response body conversion to json despite missing valid Accept headers
             json_result = await res.json(content_type=None)

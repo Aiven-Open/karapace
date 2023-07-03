@@ -14,6 +14,7 @@ from karapace.serialization import (
     START_BYTE,
     write_value,
 )
+from karapace.typing import Subject
 from tests.utils import schema_avro_json, test_objects_avro
 from unittest.mock import call, Mock
 
@@ -43,6 +44,9 @@ async def test_happy_flow(default_config_path):
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)))
     mock_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
     serializer = await make_ser_deser(default_config_path, mock_registry_client)
     assert len(serializer.ids_to_schemas) == 0
@@ -52,7 +56,7 @@ async def test_happy_flow(default_config_path):
     assert len(serializer.ids_to_schemas) == 1
     assert 1 in serializer.ids_to_schemas
 
-    assert mock_registry_client.method_calls == [call.get_latest_schema("top")]
+    assert mock_registry_client.method_calls == [call.get_latest_schema("top"), call.get_schema_for_id(1)]
 
 
 def test_flatten_unions_record() -> None:
@@ -259,7 +263,7 @@ async def test_serialization_fails(default_config_path):
 async def test_deserialization_fails(default_config_path):
     mock_registry_client = Mock()
     schema_for_id_one_future = asyncio.Future()
-    schema_for_id_one_future.set_result(ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json))
+    schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
     mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
     deserializer = await make_ser_deser(default_config_path, mock_registry_client)
@@ -277,7 +281,7 @@ async def test_deserialization_fails(default_config_path):
     mock_registry_client.reset_mock()
 
     # but we can pass in a perfectly fine doc belonging to a diff schema
-    schema = await mock_registry_client.get_schema_for_id(1)
+    schema, _ = await mock_registry_client.get_schema_for_id(1)
     schema = copy.deepcopy(schema.to_dict())
     schema["name"] = "BadUser"
     schema["fields"][0]["type"] = "int"

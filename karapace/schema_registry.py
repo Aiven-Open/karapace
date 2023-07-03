@@ -339,7 +339,7 @@ class KarapaceSchemaRegistry:
 
             all_schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
             if not all_schema_versions:
-                version = 1
+                version = ResolvedVersion(1)
                 schema_id = self.database.get_schema_id(new_schema)
                 LOG.debug(
                     "Registering new subject: %r, id: %r with version: %r with schema %r, schema_id: %r",
@@ -407,7 +407,6 @@ class KarapaceSchemaRegistry:
                 # We didn't find an existing schema and the schema is compatible so go and create one
                 version = self.database.get_next_version(subject=subject)
                 schema_id = self.database.get_schema_id(new_schema)
-
                 LOG.debug(
                     "Registering subject: %r, id: %r new version: %r with schema %s, schema_id: %r",
                     subject,
