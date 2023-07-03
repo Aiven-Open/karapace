@@ -19,3 +19,4 @@ venv
 .run
 .python-version
 .hypothesis/
+.DS_Store

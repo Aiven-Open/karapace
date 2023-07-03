@@ -12,9 +12,10 @@ from tests.utils import (
     new_topic,
     REST_HEADERS,
     schema_avro_json,
+    schema_avro_json_evolution,
     second_obj,
-    second_schema_json,
     test_objects_avro,
+    test_objects_avro_evolution,
     wait_for_topics,
 )
 
@@ -144,12 +145,22 @@ async def test_avro_publish_primitive_schema(rest_async_client, admin_client):
 async def test_avro_publish(rest_async_client, registry_async_client, admin_client):
     tn = new_topic(admin_client)
     other_tn = new_topic(admin_client)
+
     await wait_for_topics(rest_async_client, topic_names=[tn, other_tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     header = REST_HEADERS["avro"]
     # check succeeds with 1 record and brand new schema
-    res = await registry_async_client.post(f"subjects/{other_tn}/versions", json={"schema": second_schema_json})
+    res = await registry_async_client.post(f"subjects/{other_tn}/versions", json={"schema": schema_avro_json_evolution})
     assert res.ok
     new_schema_id = res.json()["id"]
+
+    # test checks schema id use for key and value, register schema for both with topic naming strategy
+    for pl_type in ["key", "value"]:
+        res = await registry_async_client.post(
+            f"subjects/{tn}-{pl_type}/versions", json={"schema": schema_avro_json_evolution}
+        )
+        assert res.ok
+        assert res.json()["id"] == new_schema_id
+
     urls = [f"/topics/{tn}", f"/topics/{tn}/partitions/0"]
     for url in urls:
         partition_id = 0 if "partition" in url else None
@@ -158,13 +169,16 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
             res = await rest_async_client.post(url, correct_payload, headers=header)
             check_successful_publish_response(res, test_objects_avro, partition_id)
             # check succeeds with prepublished schema
-            pre_publish_payload = {f"{pl_type}_schema_id": new_schema_id, "records": [{pl_type: o} for o in second_obj]}
+            pre_publish_payload = {
+                f"{pl_type}_schema_id": new_schema_id,
+                "records": [{pl_type: o} for o in test_objects_avro_evolution],
+            }
             res = await rest_async_client.post(f"/topics/{tn}", json=pre_publish_payload, headers=header)
-            check_successful_publish_response(res, second_obj, partition_id)
+            check_successful_publish_response(res, test_objects_avro_evolution, partition_id)
             # unknown schema id
             unknown_payload = {f"{pl_type}_schema_id": 666, "records": [{pl_type: o} for o in second_obj]}
             res = await rest_async_client.post(url, json=unknown_payload, headers=header)
-            assert res.status_code == 408
+            assert res.status_code == 422
             # mismatched schema
             # TODO -> maybe this test is useless, since it tests registry behavior
             # mismatch_payload = {f"{pl_type}_schema_id": new_schema_id,"records": [{pl_type: o} for o in test_objects]}
@@ -391,51 +405,6 @@ async def test_publish_to_nonexisting_topic(rest_async_client):
             assert res.json()["error_code"] == 40401, "Error code should be for topic not found"
 
 
-async def test_publish_incompatible_schema(rest_async_client, admin_client):
-    topic_name = new_topic(admin_client)
-    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
-    url = f"/topics/{topic_name}"
-
-    schema_1 = {
-        "type": "record",
-        "name": "Schema1",
-        "fields": [
-            {
-                "name": "name",
-                "type": "string",
-            },
-        ],
-    }
-    schema_2 = {
-        "type": "record",
-        "name": "Schema2",
-        "fields": [
-            {
-                "name": "name",
-                "type": "string",
-            },
-        ],
-    }
-
-    res = await rest_async_client.post(
-        url,
-        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Foobar"}}]},
-        headers=REST_HEADERS["avro"],
-    )
-    assert res.status_code == 200
-
-    res = await rest_async_client.post(
-        url,
-        json={"value_schema": json.dumps(schema_2), "records": [{"value": {"name2": "Foobar"}}]},
-        headers=REST_HEADERS["avro"],
-    )
-    assert res.status_code == 408
-    res_json = res.json()
-    assert res_json["error_code"] == 40801
-    assert "message" in res_json
-    assert "Error when registering schema" in res_json["message"]
-
-
 async def test_publish_with_incompatible_data(rest_async_client, registry_async_client, admin_client):
     topic_name = new_topic(admin_client)
     subject_1 = f"{topic_name}-value"
@@ -477,6 +446,117 @@ async def test_publish_with_incompatible_data(rest_async_client, registry_async_
     assert res_json["error_code"] == 42205
     assert "message" in res_json
     assert "Object does not fit to stored schema" in res_json["message"]
+
+
+async def test_publish_with_incompatible_schema(rest_async_client, admin_client):
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    url = f"/topics/{topic_name}"
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+    schema_2 = {
+        "type": "record",
+        "name": "Schema2",
+        "fields": [
+            {
+                "name": "temperature",
+                "type": "int",
+            },
+        ],
+    }
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Foobar"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema": json.dumps(schema_2), "records": [{"value": {"temperature": 25}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 408
+    res_json = res.json()
+    assert res_json["error_code"] == 40801
+    assert "message" in res_json
+    assert "Error when registering schema" in res_json["message"]
+
+
+async def test_publish_with_schema_id_of_another_subject(rest_async_client, registry_async_client, admin_client):
+    """
+    Karapace issue 658: https://github.com/aiven/karapace/issues/658
+    """
+    topic_name = new_topic(admin_client)
+    subject_1 = f"{topic_name}-value"
+    subject_2 = "some-other-subject-value"
+
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    url = f"/topics/{topic_name}"
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+    schema_2 = {
+        "type": "record",
+        "name": "Schema2",
+        "fields": [
+            {
+                "name": "temperature",
+                "type": "int",
+            },
+        ],
+    }
+
+    # Register schemas to get the ids
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}/versions",
+        json={"schema": json.dumps(schema_1)},
+    )
+    assert res.status_code == 200
+    schema_1_id = res.json()["id"]
+
+    res = await registry_async_client.post(
+        f"subjects/{subject_2}/versions",
+        json={"schema": json.dumps(schema_2)},
+    )
+    assert res.status_code == 200
+    schema_2_id = res.json()["id"]
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema_id": schema_2_id, "records": [{"value": {"temperature": 25}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 422
+    res_json = res.json()
+    assert res_json["error_code"] == 42205
+    assert "message" in res_json
+    assert "Invalid schema. format = AVRO, schema_id = 2" in res_json["message"]
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema_id": schema_1_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
 
 
 async def test_brokers(rest_async_client):
