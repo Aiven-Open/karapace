@@ -956,14 +956,9 @@ async def test_union_comparing_to_other_types(registry_async_client: Client) -> 
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(schema)})
         assert res.status_code == 200
 
-        initial_schema_id = res.json()["id"]
-
         plain_schema = {"type": "string"}
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(plain_schema)})
         assert res.status_code == status_code
-
-        res = await registry_async_client.get(f"/schemas/ids/{initial_schema_id}")
-        assert subject in res.json()["subjects"]
 
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
     for compatibility, status_code in expected_results:
@@ -2352,7 +2347,7 @@ async def test_malformed_kafka_message(
         sleep=1,
     )
     res_data = res.json()
-    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True), "subjects": ["foo"]}
+    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True)}
     assert res_data == expected_payload, res_data
 
 

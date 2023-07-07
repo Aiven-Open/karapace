@@ -505,9 +505,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-        subjects = self.schema_registry.database.subjects_for_schema(parsed_schema_id)
-
-        response_body = {"schema": schema.schema_str, "subjects": subjects}
+        response_body = {"schema": schema.schema_str}
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
         if schema.references:
