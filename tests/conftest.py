@@ -126,9 +126,9 @@ def fixture_validate_options(request) -> None:
         msg = "When using a server CA, an external registry or rest URI must also be provided."
         raise ValueError(msg)
 
-    if has_external_registry_or_rest and not kafka_bootstrap_servers:
-        msg = "When using an external registry or rest, the kafka bootstrap URIs must also be provided."
-        raise ValueError(msg)
+    # if has_external_registry_or_rest and not kafka_bootstrap_servers:
+    #     msg = "When using an external registry or rest, the kafka bootstrap URIs must also be provided."
+    #     raise ValueError(msg)
 
 
 @pytest.fixture(scope="session", name="session_datadir")

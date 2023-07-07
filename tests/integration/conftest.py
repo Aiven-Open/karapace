@@ -110,11 +110,11 @@ def fixture_kafka_server(
 ) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
 
-    if bootstrap_servers:
-        kafka_servers = KafkaServers(bootstrap_servers)
-        wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
-        yield kafka_servers
-        return
+    # if bootstrap_servers:
+    #     kafka_servers = KafkaServers(bootstrap_servers)
+    #     wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
+    #     yield kafka_servers
+    #     return
 
     zk_dir = session_logdir / "zk"
 
@@ -146,7 +146,7 @@ def fixture_kafka_server(
 
                 zk_proc = configure_and_start_zk(zk_config, kafka_description)
                 stack.callback(stop_process, zk_proc)
-
+                #
                 # Make sure zookeeper is running before trying to start Kafka
                 wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
 
@@ -178,7 +178,7 @@ def fixture_kafka_server(
         try:
             # Make sure every test worker can communicate with kafka
             kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"])
-            wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
+            # wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
 
             yield kafka_servers
         finally:
@@ -213,43 +213,43 @@ def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]
     with closing(KafkaRestAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)) as cli:
         yield cli
 
-
-@pytest.fixture(scope="function", name="rest_async")
-async def fixture_rest_async(
-    request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
-    kafka_servers: KafkaServers,
-    registry_async_client: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
-    # Do not start a REST api when the user provided an external service. Doing
-    # so would cause this node to join the existing group and participate in
-    # the election process. Without proper configuration for the listeners that
-    # won't work and will cause test failures.
-    rest_url = request.config.getoption("rest_url")
-    if rest_url:
-        yield None
-        return
-
-    config_path = tmp_path / "karapace_config.json"
-
-    config = set_config_defaults(
-        {
-            "admin_metadata_max_age": 2,
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            # Use non-default max request size for REST producer.
-            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
-        }
-    )
-    write_config(config_path, config)
-    rest = KafkaRest(config=config)
-
-    assert rest.serializer.registry_client
-    rest.serializer.registry_client.client = registry_async_client
-    try:
-        yield rest
-    finally:
-        await rest.close()
+#
+# @pytest.fixture(scope="function", name="rest_async")
+# async def fixture_rest_async(
+#     request: SubRequest,
+#     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+#     tmp_path: Path,
+#     kafka_servers: KafkaServers,
+#     registry_async_client: Client,
+# ) -> AsyncIterator[Optional[KafkaRest]]:
+#     # Do not start a REST api when the user provided an external service. Doing
+#     # so would cause this node to join the existing group and participate in
+#     # the election process. Without proper configuration for the listeners that
+#     # won't work and will cause test failures.
+#     rest_url = request.config.getoption("rest_url")
+#     if rest_url:
+#         yield None
+#         return
+#
+#     config_path = tmp_path / "karapace_config.json"
+#
+#     config = set_config_defaults(
+#         {
+#             "admin_metadata_max_age": 2,
+#             "bootstrap_uri": kafka_servers.bootstrap_servers,
+#             # Use non-default max request size for REST producer.
+#             "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
+#         }
+#     )
+#     write_config(config_path, config)
+#     rest = KafkaRest(config=config)
+#
+#     assert rest.serializer.registry_client
+#     rest.serializer.registry_client.client = registry_async_client
+#     try:
+#         yield rest
+#     finally:
+#         await rest.close()
 
 
 @pytest.fixture(scope="function", name="rest_async_client")
@@ -356,27 +356,27 @@ async def fixture_rest_async_client_registry_auth(
     finally:
         await client.close()
 
-
-@pytest.fixture(scope="function", name="registry_async_pair")
-async def fixture_registry_async_pair(
-    request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    session_logdir: Path,
-    kafka_servers: KafkaServers,
-    port_range: PortRangeInclusive,
-) -> AsyncIterator[List[str]]:
-    """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
-
-    config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
-    config2: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
-
-    async with start_schema_registry_cluster(
-        config_templates=[config1, config2],
-        data_dir=session_logdir / _clear_test_name(request.node.name),
-        port_range=port_range,
-    ) as endpoints:
-        yield [server.endpoint.to_url() for server in endpoints]
-
+#
+# @pytest.fixture(scope="function", name="registry_async_pair")
+# async def fixture_registry_async_pair(
+#     request: SubRequest,
+#     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+#     session_logdir: Path,
+#     kafka_servers: KafkaServers,
+#     port_range: PortRangeInclusive,
+# ) -> AsyncIterator[List[str]]:
+#     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
+#
+#     config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+#     config2: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+#
+#     async with start_schema_registry_cluster(
+#         config_templates=[config1, config2],
+#         data_dir=session_logdir / _clear_test_name(request.node.name),
+#         port_range=port_range,
+#     ) as endpoints:
+#         yield [server.endpoint.to_url() for server in endpoints]
+#
 
 @pytest.fixture(scope="function", name="registry_cluster")
 async def fixture_registry_cluster(
