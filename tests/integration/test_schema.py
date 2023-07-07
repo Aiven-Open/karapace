@@ -1335,6 +1335,49 @@ async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
     assert schema_id == res.json()["id"]
 
 
+async def test_get_schema_with_subjects(registry_async_client: Client) -> None:
+    subject1 = create_subject_name_factory("subject_1")()
+    subject2 = create_subject_name_factory("subject_2")()
+
+    field_name = create_field_name_factory("field")()
+    schema_str = json.dumps({"type": "string", "unique": field_name})
+    res = await registry_async_client.post(
+        f"subjects/{subject1}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+    assert res.ok
+    expected_schema = json.loads(schema_str)
+
+    json_reply = res.json()
+    assert "subjects" not in json_reply, "the default reply shouldn't include the subjects field"
+    assert json.loads(json_reply["schema"]) == expected_schema
+
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
+    assert res.ok
+    json_reply = res.json()
+
+    assert json.loads(json_reply["schema"]) == expected_schema, "schema should always stays the same"
+    assert json_reply["subjects"] == [subject1], "subjects should be present if specified"
+
+    res = await registry_async_client.post(
+        f"subjects/{subject2}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
+    assert res.ok
+    json_reply = res.json()
+
+    assert json.loads(json_reply["schema"]) == expected_schema, "schema should always stays the same"
+    assert json_reply["subjects"] == [subject1, subject2], "subjects should be present if specified"
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_schema_missing_body(registry_async_client: Client, trail: str) -> None:
     subject = create_subject_name_factory(f"test_schema_missing_body-{trail}")()
@@ -2354,13 +2397,6 @@ async def test_malformed_kafka_message(
     res_data = res.json()
     expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True)}
     assert res_data == expected_payload, res_data
-
-    with_subjects_reply = await registry_async_client.get(path, params={"includeSubjects": "True"})
-    assert with_subjects_reply.ok, "a subsequent request once the server is up should be valid"
-    json_reply = with_subjects_reply.json()
-    assert "subjects" in json_reply, "subjects should be present if specified"
-    expected_payload["subjects"] = ["foo"]
-    assert expected_payload == json_reply, "the reply should be equal as the previous one with additional subjects field"
 
 
 async def test_inner_type_compat_failure(registry_async_client: Client) -> None:
