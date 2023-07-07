@@ -962,7 +962,7 @@ async def test_union_comparing_to_other_types(registry_async_client: Client) -> 
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(plain_schema)})
         assert res.status_code == status_code
 
-        res = await registry_async_client.get(f"/schemas/ids/{initial_schema_id}")
+        res = await registry_async_client.get(f"/schemas/ids/{initial_schema_id}", params={"includeSubjects": "True"})
         assert subject in res.json()["subjects"]
 
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
@@ -2352,8 +2352,15 @@ async def test_malformed_kafka_message(
         sleep=1,
     )
     res_data = res.json()
-    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True), "subjects": ["foo"]}
+    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True)}
     assert res_data == expected_payload, res_data
+
+    with_subjects_reply = await registry_async_client.get(path, params={"includeSubjects": "True"})
+    assert with_subjects_reply.ok, "a subsequent request once the server is up should be valid"
+    json_reply = with_subjects_reply.json()
+    assert "subjects" in json_reply, "subjects should be present if specified"
+    expected_payload["subjects"] = ["foo"]
+    assert expected_payload == json_reply, "the reply should be equal as the previous one with additional subjects field"
 
 
 async def test_inner_type_compat_failure(registry_async_client: Client) -> None:

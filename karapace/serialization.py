@@ -115,7 +115,7 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
     async def get_schema_for_id(self, schema_id: SchemaId) -> Tuple[TypedSchema, List[Subject]]:
-        result = await self.client.get(f"schemas/ids/{schema_id}")
+        result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
         json_result = result.json()
