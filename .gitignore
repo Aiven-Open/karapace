@@ -20,3 +20,5 @@ venv
 .python-version
 .hypothesis/
 .DS_Store
+# ignoring protobuf generated files.
+runtime/
