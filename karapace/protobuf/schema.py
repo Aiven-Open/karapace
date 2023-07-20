@@ -131,7 +131,7 @@ class ProtobufSchema:
     def collect_dependencies(self, verifier: ProtobufDependencyVerifier) -> None:
         if self.dependencies:
             for key in self.dependencies:
-                self.dependencies[key].schema.schema.collect_dependencies(verifier)
+                self.dependencies[key].get_schema().schema.collect_dependencies(verifier)
 
         for i in self.proto_file_element.imports:
             verifier.add_import(i)
