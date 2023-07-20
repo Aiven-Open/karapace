@@ -2,7 +2,12 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from kafka import KafkaProducer
+
+from karapace.client import Client
+from karapace.kafka_rest_apis import KafkaRestAdminClient
 from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
+from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import (
     consumer_valid_payload,
     new_consumer,
@@ -91,7 +96,8 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     res = await rest_async_client.get(sub_path, headers=header)
     assert res.ok
     data = res.json()
-    assert "topics" in data and len(data["topics"]) == 0, f"Expecting no subscription on freshly created consumer: {data}"
+    assert "topics" in data and len(
+        data["topics"]) == 0, f"Expecting no subscription on freshly created consumer: {data}"
     # simple sub
     res = await rest_async_client.post(sub_path, json={"topics": [topic_name]}, headers=header)
     assert res.ok
@@ -152,8 +158,8 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     assert (
         str(data)
         == "{'error_code': 40903, 'message': 'IllegalStateError: You must choose only one way to configure your consumer:"
-        " (1) subscribe to specific topics by name, (2) subscribe to topics matching a regex pattern,"
-        " (3) assign itself specific topic-partitions.'}"
+           " (1) subscribe to specific topics by name, (2) subscribe to topics matching a regex pattern,"
+           " (3) assign itself specific topic-partitions.'}"
     )
     # assign after subscribe will fail
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
@@ -376,7 +382,8 @@ async def test_consume_grafecul_deserialization_error_handling(rest_async_client
 
     # Produce binary record
     headers = REST_HEADERS["binary"]
-    resp = await rest_async_client.post(f"topics/{topic_name}", json={"records": [{"value": "dGVzdA=="}]}, headers=headers)
+    resp = await rest_async_client.post(f"topics/{topic_name}", json={"records": [{"value": "dGVzdA=="}]},
+                                        headers=headers)
     assert resp.ok, f"Expected a successful response: {resp}"
 
     # Test consuming records with different formats
@@ -397,3 +404,48 @@ async def test_consume_grafecul_deserialization_error_handling(rest_async_client
         # Consuming records should fail gracefully if record can not be deserialized to the selected format
         assert resp.status_code == 422, f"Expected 422 response: {resp}"
         assert f"value deserialization error for format {fmt}" in resp.json()["message"]
+
+
+async def test_consume_from_a_deleted_topic(
+    rest_async_client: Client,
+    admin_client: KafkaRestAdminClient,
+    producer: KafkaProducer,
+):
+    messages = [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)]
+    deserializer = lambda x: json.dumps(x).encode("utf-8")
+    group_name = "consume_group"
+
+    header = REST_HEADERS["json"]
+    instance_id = await new_consumer(rest_async_client, group_name, fmt="json")
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    topic_name = new_topic(admin_client)
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
+    assert res.ok
+    for i in range(len(messages)):
+        producer.send(topic_name, value=messages[i]).get()
+
+    seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
+    assert resp.ok
+    header["Accept"] = f"application/vnd.kafka.json.v2+json"
+    resp = await rest_async_client.get(consume_path, headers=header)
+
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+
+    assert len(data) == len(messages[fmt]), f"Expected {len(messages[fmt])} element in response: {resp}"
+    for i in range(len(messages[fmt])):
+        assert data[i]["topic"] == topic_name
+        assert data[i]["partition"] == 0
+        assert data[i]["offset"] >= 0
+        assert data[i]["timestamp"] > 0
+        assert deserializers[fmt](data[i]["value"]) == messages[fmt][i], (
+            f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {messages[fmt][i]} for format {fmt}"
+        )
+
+
+
+    admin_client.delete_topics(topic_name)

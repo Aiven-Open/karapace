@@ -2,7 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, ConsumerRebalanceListener
 from asyncio import Lock
 from collections import defaultdict, namedtuple
 from functools import partial
@@ -15,7 +15,7 @@ from karapace.karapace import empty_response, KarapaceBase
 from karapace.serialization import DeserializationError, InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
 from karapace.utils import convert_to_int, json_decode, JSONDecodeError
 from struct import error as UnpackError
-from typing import Tuple
+from typing import Tuple, List, Optional
 from urllib.parse import urljoin
 
 import asyncio
@@ -33,6 +33,50 @@ LOG = logging.getLogger(__name__)
 
 def new_name() -> str:
     return str(uuid.uuid4())
+
+
+class TopicDeletionEventGenerator(ConsumerRebalanceListener):
+    def __init__(self):
+        # valid in the previous implementation, now is't used.
+        # # pattern required since the AIOKafkaConsumer changes the configuration
+        # # from regex to list of topics and vice-versa if a topic or a pattern it's added.
+        # # during the restore of the partition I need to understand if we were using the pattern
+        # # since isn't possible to get back the pattern registered from the consumer object.
+        # self._pattern = pattern
+        self._consumer = None
+
+    def set_consumer(self, consumer: AIOKafkaConsumer):
+        self._consumer = consumer
+
+    # as documentations says we are guaranteed to be called when a topic is deleted
+    async def on_partitions_revoked(self, revoked: List[TopicPartition]):
+        assert self._consumer is not None
+
+        available_topics = await self._consumer.topics()
+        revoked_topics = [topic for topic, _ in revoked]
+        for revoked_topic in revoked_topics:
+            if revoked_topic not in available_topics:
+                self._topic_deleted()
+                break
+
+    def _topic_deleted(self):
+        self._consumer.unsubscribe()
+        # this logic couldn't be performed because on how it's implemented the OIOKafka library.
+        # if we assign manually the partition 1 of the topic A and the partition 3 of the topic B to a consumer
+        # and the topic A for e.g. is deleted, this logic will assign manually all the partitions of topic B to the consumer
+        # even if probably it's possible to construct by subtraction a direct call to subscribe specifying all the previous partitions
+        # if the topic in the future will add new partitions we will lose all the other partitions, TLDR it's tricky to implement right
+        # and maybe the best solution is simply to acknowledge the user of the error and unsubscribe the consumer when that case happens.
+        #if self._pattern:
+        #    self._consumer.unsubscribe()
+        #    self._consumer.subscribe(topics=[], pattern=self._pattern, listener=self)
+        #else:
+        #    re_subscribe = self._consumer.subscription() - topic_name
+        #    self._consumer.unsubscribe()
+        #    self._consumer.subscribe(topics=list(re_subscribe), listener=self)
+
+    def on_partitions_assigned(self, assigned: List[TopicPartition]):
+        pass
 
 
 class ConsumerManager:
@@ -95,7 +139,8 @@ class ConsumerManager:
         partition = topic_data["partition"]
         if topic not in cluster_metadata["topics"]:
             KarapaceBase.not_found(
-                message=f"Topic {topic} not found", content_type=content_type, sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value
+                message=f"Topic {topic} not found", content_type=content_type,
+                sub_code=RESTErrorCodes.TOPIC_NOT_FOUND.value
             )
         partitions = {pi["partition"] for pi in cluster_metadata["topics"][topic]["partitions"]}
         if partition not in partitions:
@@ -128,7 +173,7 @@ class ConsumerManager:
         consumer_data_valid(
             cond=auto_reset_key not in request or request[auto_reset_key].lower() in OFFSET_RESET_STRATEGIES,
             message=f"Invalid value bar for configuration {auto_reset_key}: "
-            f"String must be one of: {OFFSET_RESET_STRATEGIES}",
+                    f"String must be one of: {OFFSET_RESET_STRATEGIES}",
         )
 
     @staticmethod
@@ -188,9 +233,10 @@ class ConsumerManager:
                 consumer=c, serialization_format=request_data["format"], config=request_data
             )
             consumer_base_uri = urljoin(self.base_uri, f"consumers/{group_name}/instances/{consumer_name}")
-            KarapaceBase.r(content_type=content_type, body={"base_uri": consumer_base_uri, "instance_id": consumer_name})
+            KarapaceBase.r(content_type=content_type,
+                           body={"base_uri": consumer_base_uri, "instance_id": consumer_name})
 
-    async def create_kafka_consumer(self, fetch_min_bytes, group_name, internal_name, request_data):
+    async def create_kafka_consumer(self, fetch_min_bytes, group_name, internal_name, request_data) -> AIOKafkaConsumer:
         ssl_context = create_client_ssl_context(self.config)
         for retry in [True, True, False]:
             try:
@@ -211,7 +257,8 @@ class ConsumerManager:
                     group_id=group_name,
                     fetch_min_bytes=max(1, fetch_min_bytes),  # Discard earlier negative values
                     fetch_max_bytes=self.config["consumer_request_max_bytes"],
-                    fetch_max_wait_ms=self.config.get("consumer_fetch_max_wait_ms", 500),  # Copy aiokafka default 500 ms
+                    fetch_max_wait_ms=self.config.get("consumer_fetch_max_wait_ms", 500),
+                    # Copy aiokafka default 500 ms
                     # This will cause delay if subscription is changed.
                     consumer_timeout_ms=self.config.get("consumer_timeout_ms", 200),  # Copy aiokafka default 200 ms
                     request_timeout_ms=request_timeout_ms,
@@ -236,7 +283,7 @@ class ConsumerManager:
             try:
                 c = self.consumers.pop(internal_name)
                 await c.consumer.stop()
-                self.consumer_locks.pop(internal_name)
+                await self.consumer_locks.pop(internal_name)
             except:  # pylint: disable=bare-except
                 LOG.exception("Unable to properly dispose of consumer")
             finally:
@@ -281,7 +328,8 @@ class ConsumerManager:
                 try:
                     offset = await consumer.committed(tp)
                 except GroupAuthorizationFailedError:
-                    KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
+                    KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type,
+                                   status=HTTPStatus.FORBIDDEN)
                 except KafkaError as ex:
                     KarapaceBase.internal_error(
                         message=f"Failed to get offsets: {ex}",
@@ -312,16 +360,19 @@ class ConsumerManager:
         if topics and topics_pattern:
             self._illegal_state_fail(
                 message="IllegalStateError: You must choose only one way to configure your consumer: "
-                "(1) subscribe to specific topics by name, (2) subscribe to topics matching a regex pattern, "
-                "(3) assign itself specific topic-partitions.",
+                        "(1) subscribe to specific topics by name, (2) subscribe to topics matching a regex pattern, "
+                        "(3) assign itself specific topic-partitions.",
                 content_type=content_type,
             )
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             try:
+                # internally every time the deletion_listener it's replaced
+                deletion_listener = TopicDeletionEventGenerator()
                 # aiokafka does not verify access to topics subscribed during this call, thus cannot get topic authorzation
                 # error immediately
-                consumer.subscribe(topics=topics, pattern=topics_pattern)
+                consumer.subscribe(topics=topics, pattern=topics_pattern, listener=deletion_listener)
+                deletion_listener.set_consumer(consumer)
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(str(e), content_type=content_type)
@@ -450,7 +501,8 @@ class ConsumerManager:
                 # pylint: disable=protected-access
                 max_bytes = int(query_params["max_bytes"]) if "max_bytes" in query_params else consumer._fetch_max_bytes
             except ValueError:
-                KarapaceBase.internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)
+                KarapaceBase.internal_error(message=f"Invalid request parameters: {query_params}",
+                                            content_type=content_type)
             for val in [timeout, max_bytes]:
                 if not val:
                     continue
@@ -483,7 +535,8 @@ class ConsumerManager:
                 try:
                     data = await consumer.getmany(timeout_ms=timeout_left, max_records=1)
                 except GroupAuthorizationFailedError:
-                    KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
+                    KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type,
+                                   status=HTTPStatus.FORBIDDEN)
                 except KafkaError as ex:
                     KarapaceBase.internal_error(
                         message=f"Failed to fetch: {ex}",
