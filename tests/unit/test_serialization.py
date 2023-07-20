@@ -14,7 +14,7 @@ from karapace.serialization import (
     START_BYTE,
     write_value,
 )
-from karapace.typing import Subject
+from karapace.typing import ResolvedVersion, Subject
 from tests.utils import schema_avro_json, test_objects_avro
 from unittest.mock import call, Mock
 
@@ -42,21 +42,23 @@ async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySeriali
 async def test_happy_flow(default_config_path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)))
-    mock_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    get_latest_schema_future.set_result(
+        (1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), ResolvedVersion(1))
+    )
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
     mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
     serializer = await make_ser_deser(default_config_path, mock_registry_client)
     assert len(serializer.ids_to_schemas) == 0
-    schema = await serializer.get_schema_for_subject("top")
+    schema = await serializer.get_schema_for_subject(Subject("top"))
     for o in test_objects_avro:
         assert o == await serializer.deserialize(await serializer.serialize(schema, o))
     assert len(serializer.ids_to_schemas) == 1
     assert 1 in serializer.ids_to_schemas
 
-    assert mock_registry_client.method_calls == [call.get_latest_schema("top"), call.get_schema_for_id(1)]
+    assert mock_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
 def test_flatten_unions_record() -> None:
@@ -249,15 +251,17 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
 async def test_serialization_fails(default_config_path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)))
-    mock_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    get_latest_schema_future.set_result(
+        (1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), ResolvedVersion(1))
+    )
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_registry_client)
     with pytest.raises(InvalidMessageSchema):
-        schema = await serializer.get_schema_for_subject("topic")
+        schema = await serializer.get_schema_for_subject(Subject("topic"))
         await serializer.serialize(schema, {"foo": "bar"})
 
-    assert mock_registry_client.method_calls == [call.get_latest_schema("topic")]
+    assert mock_registry_client.method_calls == [call.get_schema("topic")]
 
 
 async def test_deserialization_fails(default_config_path):
