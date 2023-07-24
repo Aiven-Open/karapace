@@ -62,7 +62,7 @@ pyrsistent==0.19.3
     # via jsonschema
 python-dateutil==2.8.2
     # via -r requirements.in
-rich==12.5.1
+rich==12.6.0
     # via -r requirements.in
 six==1.16.0
     # via
