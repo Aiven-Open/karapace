@@ -37,7 +37,7 @@ brotli==1.0.9
     # via geventhttpclient
 cachetools==5.2.0
     # via -r requirements.txt
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   geventhttpclient
     #   requests
