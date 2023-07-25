@@ -14,7 +14,7 @@ from karapace.serialization import (
     SchemaRegistrySerializer,
     START_BYTE,
 )
-from karapace.typing import Subject
+from karapace.typing import ResolvedVersion, Subject
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
 from unittest.mock import call, Mock
 
@@ -43,8 +43,10 @@ async def test_happy_flow(default_config_path):
     )
     mock_protobuf_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf))))
-    mock_protobuf_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    get_latest_schema_future.set_result(
+        (1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf)), ResolvedVersion(1))
+    )
+    mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
     assert len(serializer.ids_to_schemas) == 0
@@ -56,7 +58,7 @@ async def test_happy_flow(default_config_path):
     assert len(serializer.ids_to_schemas) == 1
     assert 1 in serializer.ids_to_schemas
 
-    assert mock_protobuf_registry_client.method_calls == [call.get_latest_schema("top"), call.get_schema_for_id(1)]
+    assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
 async def test_happy_flow_references(default_config_path):
@@ -111,8 +113,8 @@ async def test_happy_flow_references(default_config_path):
     schema_for_id_one_future.set_result((ref_schema, [Subject("stub")]))
     mock_protobuf_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ref_schema))
-    mock_protobuf_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    get_latest_schema_future.set_result((1, ref_schema, ResolvedVersion(1)))
+    mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
     assert len(serializer.ids_to_schemas) == 0
@@ -124,7 +126,7 @@ async def test_happy_flow_references(default_config_path):
     assert len(serializer.ids_to_schemas) == 1
     assert 1 in serializer.ids_to_schemas
 
-    assert mock_protobuf_registry_client.method_calls == [call.get_latest_schema("top"), call.get_schema_for_id(1)]
+    assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
 async def test_happy_flow_references_two(default_config_path):
@@ -198,8 +200,8 @@ async def test_happy_flow_references_two(default_config_path):
     schema_for_id_one_future.set_result((ref_schema_two, [Subject("mock")]))
     mock_protobuf_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ref_schema_two))
-    mock_protobuf_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    get_latest_schema_future.set_result((1, ref_schema_two, ResolvedVersion(1)))
+    mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
     assert len(serializer.ids_to_schemas) == 0
@@ -211,28 +213,30 @@ async def test_happy_flow_references_two(default_config_path):
     assert len(serializer.ids_to_schemas) == 1
     assert 1 in serializer.ids_to_schemas
 
-    assert mock_protobuf_registry_client.method_calls == [call.get_latest_schema("top"), call.get_schema_for_id(1)]
+    assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
 async def test_serialization_fails(default_config_path):
     mock_protobuf_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf))))
-    mock_protobuf_registry_client.get_latest_schema.return_value = get_latest_schema_future
+    get_latest_schema_future.set_result(
+        (1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf)), ResolvedVersion(1))
+    )
+    mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
     with pytest.raises(InvalidMessageSchema):
         schema = await serializer.get_schema_for_subject("top")
         await serializer.serialize(schema, test_fail_objects_protobuf[0])
 
-    assert mock_protobuf_registry_client.method_calls == [call.get_latest_schema("top")]
+    assert mock_protobuf_registry_client.method_calls == [call.get_schema("top")]
     mock_protobuf_registry_client.reset_mock()
 
     with pytest.raises(InvalidMessageSchema):
         schema = await serializer.get_schema_for_subject("top")
         await serializer.serialize(schema, test_fail_objects_protobuf[1])
 
-    assert mock_protobuf_registry_client.method_calls == [call.get_latest_schema("top")]
+    assert mock_protobuf_registry_client.method_calls == [call.get_schema("top")]
 
 
 async def test_deserialization_fails(default_config_path):

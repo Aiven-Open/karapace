@@ -18,7 +18,7 @@ async def test_remote_client_protobuf(registry_async_client):
     assert sc_id >= 0
     stored_schema, _ = await reg_cli.get_schema_for_id(sc_id)
     assert stored_schema == schema_protobuf, f"stored schema {stored_schema} is not {schema_protobuf}"
-    stored_id, stored_schema = await reg_cli.get_latest_schema(subject)
+    stored_id, stored_schema, _ = await reg_cli.get_schema(subject)
     assert stored_id == sc_id
     assert stored_schema == schema_protobuf
 
@@ -33,6 +33,6 @@ async def test_remote_client_protobuf2(registry_async_client):
     assert sc_id >= 0
     stored_schema, _ = await reg_cli.get_schema_for_id(sc_id)
     assert stored_schema == schema_protobuf, f"stored schema {stored_schema} is not {schema_protobuf}"
-    stored_id, stored_schema = await reg_cli.get_latest_schema(subject)
+    stored_id, stored_schema, _ = await reg_cli.get_schema(subject)
     assert stored_id == sc_id
     assert stored_schema == schema_protobuf_after
