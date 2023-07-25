@@ -8,11 +8,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.dataclasses import default_dataclass
-from karapace.typing import JsonData, ResolvedVersion, SchemaId, Subject
-from typing import List, Mapping, NewType, TypeVar
+from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, Subject
+from typing import cast, List, Mapping, NewType, TypeVar
 
 Referents = NewType("Referents", List[SchemaId])
-
 
 T = TypeVar("T")
 
@@ -63,6 +62,14 @@ class Reference:
             "subject": self.subject,
             "version": self.version,
         }
+
+    @staticmethod
+    def from_dict(data: JsonObject) -> Reference:
+        return Reference(
+            name=str(data["name"]),
+            subject=Subject(str(data["subject"])),
+            version=ResolvedVersion(cast(int, data["version"])),
+        )
 
 
 def reference_from_mapping(
