@@ -24,7 +24,7 @@ attrs==23.1.0
     #   jsonschema
 avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py
     # via -r requirements.in
-cachetools==5.2.0
+cachetools==5.3.1
     # via -r requirements.in
 charset-normalizer==3.1.0
     # via aiohttp
