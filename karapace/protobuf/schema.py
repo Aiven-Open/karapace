@@ -164,7 +164,10 @@ class ProtobufSchema:
 
         if isinstance(element_type, MessageElement):
             for one_of in element_type.one_ofs:
-                process_one_of(verifier, package_name, parent_name, one_of)
+                # The parent name for nested one of fields is the parent and element type name.
+                # The field type name is handled in process_one_of function.
+                one_of_parent_name = parent_name + "." + element_type.name
+                process_one_of(verifier, package_name, one_of_parent_name, one_of)
             for field in element_type.fields:
                 verifier.add_used_type(parent_name, field.element_type)
         for nested_type in element_type.nested_types:
