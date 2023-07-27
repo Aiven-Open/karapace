@@ -36,7 +36,7 @@ blinker==1.6.2
     # via flask
 brotli==1.0.9
     # via geventhttpclient
-cachetools==5.2.0
+cachetools==5.3.1
     # via -r requirements.txt
 certifi==2023.7.22
     # via
