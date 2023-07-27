@@ -18,7 +18,7 @@ sentry-sdk==1.26.0
     #   -r requirements-typing.in
 types-cachetools==5.3.0.5
     # via -r requirements-typing.in
-types-jsonschema==4.17.0.8
+types-jsonschema==4.17.0.10
     # via -r requirements-typing.in
 typing-extensions==4.6.3
     # via
