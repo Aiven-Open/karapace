@@ -104,8 +104,19 @@ class KafkaRestAdminClient(KafkaAdminClient):
             topics = [(topic, partitions)]
             request = OffsetRequest[2](replica_id, isolation_level, topics)
 
-        future = self._send_request_to_least_loaded_node(request)
+        future = self.send_request_to_leader_node(request, topic, partition_id)
         return future
+
+    def send_request_to_leader_node(self, request: OffsetRequest, topic_name: str, partition_id: int) -> Future:
+        cluster_meta_resp = self.cluster_metadata(topics=[topic_name])
+        partition = [p for p in cluster_meta_resp["topics"][topic_name]["partitions"] if p["partition"] == partition_id]
+
+        # handle case where partition_id is not part metadata
+        if partition == []:
+            return self._send_request_to_least_loaded_node(request)
+
+        leader_id = partition[0]["leader"]
+        return self._send_request_to_node(leader_id, request)
 
     def get_offsets(self, topic: str, partition_id: int) -> dict:
         beginning_f = self.make_offsets_request(topic, partition_id, OffsetResetStrategy.EARLIEST)
