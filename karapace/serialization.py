@@ -5,17 +5,19 @@ See LICENSE for details
 from aiohttp import BasicAuth
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from cachetools import TTLCache
+from functools import lru_cache
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
+from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.schema_references import Reference, reference_from_mapping
-from karapace.typing import SchemaId, Subject
+from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
+from karapace.typing import ResolvedVersion, SchemaId, Subject
 from karapace.utils import json_decode, json_encode
-from typing import Any, Callable, Dict, List, MutableMapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Tuple
 from urllib.parse import quote
 
 import asyncio
@@ -101,21 +103,81 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(result.json())
         return SchemaId(result.json()["id"])
 
-    async def get_latest_schema(self, subject: str) -> Tuple[SchemaId, ParsedTypedSchema]:
-        result = await self.client.get(f"subjects/{quote(subject)}/versions/latest")
+    async def _get_schema_r(
+        self,
+        subject: Subject,
+        explored_schemas: Set[Tuple[Subject, Optional[ResolvedVersion]]],
+        version: Optional[ResolvedVersion] = None,
+    ) -> Tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
+        if (subject, version) in explored_schemas:
+            raise InvalidSchema(
+                f"The schema has at least a cycle in dependencies, "
+                f"one path of the cycle is given by the following nodes: {explored_schemas}"
+            )
+
+        explored_schemas = explored_schemas | {(subject, version)}
+
+        version_str = str(version) if version is not None else "latest"
+        result = await self.client.get(f"subjects/{quote(subject)}/versions/{version_str}")
+
         if not result.ok:
             raise SchemaRetrievalError(result.json())
+
         json_result = result.json()
-        if "id" not in json_result or "schema" not in json_result:
+        if "id" not in json_result or "schema" not in json_result or "version" not in json_result:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
+
+        if "references" in json_result:
+            references = [Reference.from_dict(data) for data in json_result["references"]]
+            dependencies = {}
+            for reference in references:
+                _, schema, version = await self._get_schema_r(reference.subject, explored_schemas, reference.version)
+                dependencies[reference.name] = Dependency(
+                    name=reference.name, subject=reference.subject, version=version, target_schema=schema
+                )
+        else:
+            references = None
+            dependencies = None
+
         try:
             schema_type = SchemaType(json_result.get("schemaType", "AVRO"))
-            return SchemaId(json_result["id"]), ParsedTypedSchema.parse(schema_type, json_result["schema"])
+            return (
+                SchemaId(json_result["id"]),
+                ValidatedTypedSchema.parse(
+                    schema_type,
+                    json_result["schema"],
+                    references=references,
+                    dependencies=dependencies,
+                ),
+                ResolvedVersion(json_result["version"]),
+            )
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
+    @lru_cache(maxsize=100)
+    async def get_schema(
+        self,
+        subject: Subject,
+        version: Optional[ResolvedVersion] = None,
+    ) -> Tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
+        """
+        Retrieves the schema and its dependencies for the specified subject.
+
+        Args:
+            subject (Subject): The subject for which to retrieve the schema.
+            version (Optional[ResolvedVersion]): The specific version of the schema to retrieve.
+                                                    If None, the latest available schema will be returned.
+
+        Returns:
+            Tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]: A tuple containing:
+                - SchemaId: The ID of the retrieved schema.
+                - ValidatedTypedSchema: The retrieved schema, validated and typed.
+                - ResolvedVersion: The version of the schema that was retrieved.
+        """
+        return await self._get_schema_r(subject, set(), version)
+
     async def get_schema_for_id(self, schema_id: SchemaId) -> Tuple[TypedSchema, List[Subject]]:
-        result = await self.client.get(f"schemas/ids/{schema_id}")
+        result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
         json_result = result.json()
@@ -138,15 +200,24 @@ class SchemaRegistryClient:
                         raise InvalidReferences from exc
                     parsed_references.append(reference)
             if parsed_references:
-                return (
-                    ParsedTypedSchema.parse(
-                        schema_type,
-                        json_result["schema"],
-                        references=parsed_references,
-                    ),
-                    subjects,
-                )
-            return ParsedTypedSchema.parse(schema_type, json_result["schema"]), subjects
+                dependencies = {}
+
+                for reference in parsed_references:
+                    if isinstance(reference, LatestVersionReference):
+                        _, schema, version = await self.get_schema(reference.subject)
+                    else:
+                        _, schema, version = await self.get_schema(reference.subject, reference.version)
+
+                    dependencies[reference.name] = Dependency(reference.name, reference.subject, version, schema)
+            else:
+                dependencies = None
+
+            return (
+                ParsedTypedSchema.parse(
+                    schema_type, json_result["schema"], references=parsed_references, dependencies=dependencies
+                ),
+                subjects,
+            )
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
@@ -204,9 +275,9 @@ class SchemaRegistrySerializer:
 
         return Subject(f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}")
 
-    async def get_schema_for_subject(self, subject: str) -> TypedSchema:
+    async def get_schema_for_subject(self, subject: Subject) -> TypedSchema:
         assert self.registry_client, "must not call this method after the object is closed."
-        schema_id, schema = await self.registry_client.get_latest_schema(subject)
+        schema_id, schema, _ = await self.registry_client.get_schema(subject)
         async with self.state_lock:
             schema_ser = str(schema)
             self.schemas_to_ids[schema_ser] = schema_id

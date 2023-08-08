@@ -61,7 +61,7 @@ class TopicSchemaCache:
 class SchemaCache(SchemaCacheProtocol):
     def __init__(self) -> None:
         self._schema_hash_str_to_id: Dict[str, SchemaId] = {}
-        self._id_to_schema_str: MutableMapping[SchemaId, TypedSchema] = TTLCache(maxsize=10000, ttl=600)
+        self._id_to_schema_str: MutableMapping[SchemaId, TypedSchema] = TTLCache(maxsize=100, ttl=600)
 
     def get_schema_id(self, schema: TypedSchema) -> Optional[SchemaId]:
         fingerprint = hashlib.sha1(str(schema).encode("utf8")).hexdigest()

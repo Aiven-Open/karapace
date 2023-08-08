@@ -962,7 +962,7 @@ async def test_union_comparing_to_other_types(registry_async_client: Client) -> 
         res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": json.dumps(plain_schema)})
         assert res.status_code == status_code
 
-        res = await registry_async_client.get(f"/schemas/ids/{initial_schema_id}")
+        res = await registry_async_client.get(f"/schemas/ids/{initial_schema_id}", params={"includeSubjects": "True"})
         assert subject in res.json()["subjects"]
 
     expected_results = [("BACKWARD", 200), ("FORWARD", 409), ("FULL", 409)]
@@ -1333,6 +1333,49 @@ async def test_schema_repost(registry_async_client: Client, trail: str) -> None:
     assert res.status_code == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
+
+
+async def test_get_schema_with_subjects(registry_async_client: Client) -> None:
+    subject1 = create_subject_name_factory("subject_1")()
+    subject2 = create_subject_name_factory("subject_2")()
+
+    field_name = create_field_name_factory("field")()
+    schema_str = json.dumps({"type": "string", "unique": field_name})
+    res = await registry_async_client.post(
+        f"subjects/{subject1}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+    assert res.ok
+    expected_schema = json.loads(schema_str)
+
+    json_reply = res.json()
+    assert "subjects" not in json_reply, "the default reply shouldn't include the subjects field"
+    assert json.loads(json_reply["schema"]) == expected_schema
+
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
+    assert res.ok
+    json_reply = res.json()
+
+    assert json.loads(json_reply["schema"]) == expected_schema, "schema should always stays the same"
+    assert json_reply["subjects"] == [subject1], "subjects should be present if specified"
+
+    res = await registry_async_client.post(
+        f"subjects/{subject2}/versions",
+        json={"schema": schema_str},
+    )
+    assert res.status_code == 200
+
+    res = await registry_async_client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
+    assert res.ok
+    json_reply = res.json()
+
+    assert json.loads(json_reply["schema"]) == expected_schema, "schema should always stays the same"
+    assert json_reply["subjects"] == [subject1, subject2], "subjects should be present if specified"
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -2352,7 +2395,7 @@ async def test_malformed_kafka_message(
         sleep=1,
     )
     res_data = res.json()
-    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True), "subjects": ["foo"]}
+    expected_payload = {"schema": json_encode({"foo": "bar"}, compact=True)}
     assert res_data == expected_payload, res_data
 
 

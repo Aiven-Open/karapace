@@ -472,6 +472,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
+        include_subjects = request.query.get("includeSubjects", "false").lower() == "true"
         fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
         schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
 
@@ -505,9 +506,11 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-        subjects = self.schema_registry.database.subjects_for_schema(parsed_schema_id)
+        response_body = {"schema": schema.schema_str}
 
-        response_body = {"schema": schema.schema_str, "subjects": subjects}
+        if include_subjects:
+            response_body["subjects"] = self.schema_registry.database.subjects_for_schema(parsed_schema_id)
+
         if schema.schema_type is not SchemaType.AVRO:
             response_body["schemaType"] = schema.schema_type
         if schema.references:
