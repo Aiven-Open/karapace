@@ -461,16 +461,15 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``master_election_strategy``
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
-   * - ``metrics_mode``
-     - ``statsd``
-     - Statistics server mode. For karapace supports ststsd server
-   * - ``statsd_uri``
-     - ``127.0.0.1:8125``
-     - Host:Port of statsd server
    * - ``metrics_extended``
      - ``true``
-     - Enable extended metrics. Extended metrics: connections_active, request_size_avg, request_size_max, response_size_avg, response_size_max
-
+     - Enable extended metrics. Extended metrics: connections_active, [request|response]_size
+   * - ``statsd_host``
+     - ``127.0.0.1``
+     - Host of statsd server
+   * - ``statsd_port``
+     - ``8125``
+     - Port of statsd server
 
 Authentication and authorization of Karapace Schema Registry REST API
 =====================================================================

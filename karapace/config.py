@@ -75,6 +75,9 @@ class Config(TypedDict):
     karapace_registry: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
+    metrics_extended: bool
+    statsd_host: str
+    statsd_port: int
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -143,9 +146,9 @@ DEFAULTS: ConfigDefaults = {
     "karapace_registry": False,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
-    "metrics_mode": "statsd",
-    "statsd_uri": "127.0.0.1:8125",
     "metrics_extended": True,
+    "statsd_host": "127.0.0.1",
+    "statsd_port": 8125,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 

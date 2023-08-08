@@ -19,7 +19,6 @@ import datetime
 import logging
 import socket
 import time
-import urllib
 
 STATSD_HOST: Final = "127.0.0.1"
 STATSD_PORT: Final = 8125
@@ -33,18 +32,8 @@ class StatsClient:
         host: str = STATSD_HOST,
         port: int = STATSD_PORT,
     ) -> None:
-        _host = host
-        _port = port
-
-        if config.get("metrics_mode") == "statsd":
-            statsd_uri = config.get("statsd_uri")
-            if statsd_uri:
-                srv = urllib.parse.urlsplit("//" + str(statsd_uri))
-                if srv.hostname:
-                    _host = str(srv.hostname)
-                if srv.port:
-                    _port = int(srv.port)
-
+        _host = config.get("statsd_host") if "statsd_host" in config else host
+        _port = config.get("statsd_port") if "statsd_port" in config else port
         self._dest_addr: Final = (_host, _port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags: Final = config.get("tags", {})

@@ -19,7 +19,7 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi  # pylint: disable=deprecated-module
+import cgi
 import hashlib
 import logging
 import re
@@ -277,7 +277,6 @@ class RestApp:
 
         try:
             if request.method == "OPTIONS":
-                # self.metrics.request(0)
                 origin = request.headers.get("Origin")
                 if not origin:
                     raise HTTPResponse(body="OPTIONS missing Origin", status=HTTPStatus.BAD_REQUEST)

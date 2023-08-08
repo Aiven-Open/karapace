@@ -10,7 +10,6 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from kafka.metrics import Metrics
 from karapace.config import Config
 from karapace.statsd import StatsClient
 
@@ -33,19 +32,15 @@ class Singleton(type):
 
 class KarapaceMetrics(metaclass=Singleton):
     def __init__(self) -> None:
-        self.active: object | None = None
+        self.active = False
         self.stats_client: StatsClient | None = None
         self.is_ready = False
-        self.metrics = Metrics()
         self.stop_event = threading.Event()
         self.worker_thread = threading.Thread(target=self.worker)
         self.lock = threading.Lock()
-        self.error_count = 0
-        self.app_host = ""
-        self.app_port = 8081
 
     def setup(self, stats_client: StatsClient, config: Config) -> None:
-        self.active = config.get("metrics_extended")
+        self.active = config.get("metrics_extended") or False
         if not self.active:
             return
         with self.lock:
@@ -57,13 +52,6 @@ class KarapaceMetrics(metaclass=Singleton):
         else:
             self.active = False
             return
-        app_host = config.get("host")
-        app_port = config.get("port")
-        if app_host and app_port:
-            self.app_host = app_host
-            self.app_port = app_port
-        else:
-            raise RuntimeError("No application host or port defined in application")
 
         schedule.every(10).seconds.do(self.connections)
         self.worker_thread.start()
@@ -94,27 +82,25 @@ class KarapaceMetrics(metaclass=Singleton):
             return
         if not isinstance(self.stats_client, StatsClient):
             raise RuntimeError("no StatsClient available")
-        self.stats_client.gauge("master-slave-role", latency_ms)
+        self.stats_client.timing("latency_ms", latency_ms)
 
     def error(self) -> None:
         if not self.active:
             return
         if not isinstance(self.stats_client, StatsClient):
             raise RuntimeError("no StatsClient available")
-        self.error_count += 1
-        self.stats_client.gauge("error", self.error_count)
+        self.stats_client.increase("error_total", 1)
 
     def connections(self) -> None:
         if not self.active:
             return
         if not isinstance(self.stats_client, StatsClient):
             raise RuntimeError("no StatsClient available")
-        psutil.Process(os.getpid()).connections()
         connections = 0
-        for conn in psutil.net_connections(kind="tcp"):
-            if not conn.laddr:
-                continue
-            if conn.laddr[0] == self.app_host and conn.laddr[1] == self.app_port and conn.status == "ESTABLISHED":
+        karapace_proc = psutil.Process(os.getpid())
+
+        for conn in karapace_proc.connections(kind="tcp"):
+            if conn.laddr and conn.status == "ESTABLISHED":
                 connections += 1
         self.stats_client.gauge("connections-active", connections)
 
