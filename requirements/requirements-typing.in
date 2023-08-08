@@ -5,3 +5,4 @@ mypy
 types-jsonschema
 sentry-sdk
 types-cachetools
+types-psutil
