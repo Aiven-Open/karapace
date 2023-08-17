@@ -53,7 +53,7 @@ multidict==6.0.4
     # via
     #   aiohttp
     #   yarl
-networkx==2.8.8
+networkx==3.1
     # via -r requirements.in
 packaging==23.1
     # via aiokafka
