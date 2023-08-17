@@ -213,7 +213,7 @@ werkzeug==2.3.6
     #   locust
 wmctrl==0.4
     # via pdbpp
-xxhash==3.2.0
+xxhash==3.3.0
     # via -r requirements.txt
 yarl==1.9.2
     # via
