@@ -110,7 +110,7 @@ kafka-python @ https://github.com/aiven/kafka-python/archive/1b95333c9628152066f
     # via
     #   -r requirements.txt
     #   aiokafka
-locust==2.15.1
+locust==2.16.1
     # via -r requirements-dev.in
 markupsafe==2.1.3
     # via
