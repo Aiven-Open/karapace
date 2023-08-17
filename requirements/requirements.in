@@ -11,7 +11,7 @@ tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
-xxhash~=3.0
+xxhash~=3.3
 rich~=12.6.0
 cachetools==5.3.1
 
