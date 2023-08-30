@@ -1102,7 +1102,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         for schema_version in sorted(subject_data.values(), key=lambda item: item.version, reverse=True):
             try:
                 parsed_typed_schema = ParsedTypedSchema.parse(
-                    schema_version.schema.schema_type, schema_version.schema.schema_str
+                    schema_version.schema.schema_type,
+                    schema_version.schema.schema_str,
+                    references=references,
+                    dependencies=new_schema_dependencies,
                 )
             except InvalidSchema as e:
                 failed_schema_id = schema_version.schema_id

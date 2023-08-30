@@ -93,6 +93,7 @@ SASL_PLAIN_PASSWORD = "sasl_plain_password"
 DEFAULTS: ConfigDefaults = {
     "access_logs_debug": False,
     "access_log_class": None,
+    "advertised_port": None,
     "advertised_hostname": HOSTNAME,
     "advertised_protocol": "http",
     "bootstrap_uri": "127.0.0.1:9092",
@@ -181,7 +182,8 @@ def set_config_defaults(config: ConfigDefaults) -> Config:
     new_config.update(config)
 
     # Fallback to default port if `advertised_port` is not set
-    new_config.setdefault("advertised_port", new_config["port"])
+    if new_config["advertised_port"] is None:
+        new_config["advertised_port"] = new_config["port"]
 
     # Fallback to `advertised_*` constructed URI if not set
     if new_config["rest_base_uri"] is None:
