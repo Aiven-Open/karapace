@@ -218,6 +218,19 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     assert res.status_code == 200
 
     assert "id" in res.json()
+    customer_id = res.json()["id"]
+
+    # Check if the schema has now been registered under the subject
+    res = await registry_async_client.post(
+        "subjects/customer",
+        json={"schemaType": "PROTOBUF", "schema": customer_schema, "references": customer_references},
+    )
+    assert res.status_code == 200
+    assert "subject" in res.json()
+    assert "id" in res.json()
+    assert customer_id == res.json()["id"]
+    assert "version" in res.json()
+    assert "schema" in res.json()
 
     original_schema = """
             |syntax = "proto3";
