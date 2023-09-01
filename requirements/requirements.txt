@@ -57,7 +57,7 @@ networkx==2.8.8
     # via -r requirements.in
 packaging==23.1
     # via aiokafka
-protobuf==3.20.3
+protobuf==4.24.2
     # via -r requirements.in
 pygments==2.15.1
     # via rich
