@@ -84,7 +84,7 @@ geventhttpclient==2.0.9
     # via locust
 greenlet==2.0.2
     # via gevent
-hypothesis==6.79.3
+hypothesis==6.82.7
     # via -r requirements-dev.in
 idna==3.4
     # via
