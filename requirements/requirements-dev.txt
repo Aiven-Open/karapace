@@ -205,7 +205,7 @@ urllib3==2.0.3
     # via
     #   requests
     #   sentry-sdk
-watchfiles==0.19.0
+watchfiles==0.20.0
     # via -r requirements.txt
 werkzeug==2.3.6
     # via
