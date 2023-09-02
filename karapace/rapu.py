@@ -10,7 +10,6 @@ from accept_types import get_best_match
 from http import HTTPStatus
 from karapace.config import Config, create_server_ssl_context
 from karapace.karapacemetrics import KarapaceMetrics
-from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
 from typing import Callable, Dict, NoReturn, Optional, overload, Union
@@ -19,7 +18,7 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi  # pylint: disable=deprecated-module
+import cgi
 import hashlib
 import logging
 import re
@@ -169,10 +168,10 @@ class RestApp:
         self.app_request_metric = f"{app_name}_request"
         self.app = self._create_aiohttp_application(config=config)
         self.log = logging.getLogger(self.app_name)
-        self.stats = StatsClient(config=config)
+        KarapaceMetrics().setup(config)
+        self.stats = KarapaceMetrics().stats_client
         self.app.on_cleanup.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
-        KarapaceMetrics().setup(self.stats, config)
 
     def _create_aiohttp_application(self, *, config: Config) -> aiohttp.web.Application:
         return aiohttp.web.Application(client_max_size=config["http_request_max_size"])
@@ -188,7 +187,6 @@ class RestApp:
         created by the aiohttp library.
         """
         KarapaceMetrics().cleanup()
-        self.stats.close()
 
     @staticmethod
     def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument

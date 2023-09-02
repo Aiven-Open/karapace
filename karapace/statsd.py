@@ -10,22 +10,20 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from karapace.base_stats import StatsClient
 from karapace.config import Config
-from karapace.sentry import get_sentry_client
-from typing import Any, Final, Iterator
+from typing import Any, Final
 
 import datetime
 import logging
 import socket
-import time
 
 STATSD_HOST: Final = "127.0.0.1"
 STATSD_PORT: Final = 8125
 LOG = logging.getLogger(__name__)
 
 
-class StatsClient:
+class StatsdClient(StatsClient):
     def __init__(
         self,
         config: Config,
@@ -36,14 +34,6 @@ class StatsClient:
         _port = config.get("statsd_port") if "statsd_port" in config else port
         self._dest_addr: Final = (_host, _port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags: Final = config.get("tags", {})
-        self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))
-
-    @contextmanager
-    def timing_manager(self, metric: str, tags: dict | None = None) -> Iterator[None]:
-        start_time = time.monotonic()
-        yield
-        self.timing(metric, time.monotonic() - start_time, tags)
 
     def gauge(self, metric: str, value: float, tags: dict | None = None) -> None:
         self._send(metric, b"g", value, tags)
@@ -53,16 +43,6 @@ class StatsClient:
 
     def timing(self, metric: str, value: float, tags: dict | None = None) -> None:
         self._send(metric, b"ms", value, tags)
-
-    def unexpected_exception(self, ex: Exception, where: str, tags: dict | None = None) -> None:
-        all_tags = {
-            "exception": ex.__class__.__name__,
-            "where": where,
-        }
-        all_tags.update(tags or {})
-        self.increase("exception", tags=all_tags)
-        scope_args = {**(tags or {}), "where": where}
-        self.sentry_client.unexpected_exception(error=ex, where=where, tags=scope_args)
 
     def _send(self, metric: str, metric_type: bytes, value: Any, tags: dict | None) -> None:
         if None in self._dest_addr:
@@ -95,4 +75,4 @@ class StatsClient:
 
     def close(self) -> None:
         self._socket.close()
-        self.sentry_client.close()
+        super().close()

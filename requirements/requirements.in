@@ -13,6 +13,7 @@ ujson<6
 watchfiles<1
 schedule
 psutil
+prometheus-client
 xxhash~=3.3
 rich~=12.6.0
 cachetools==5.3.1

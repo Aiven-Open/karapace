@@ -10,14 +10,20 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from karapace.base_stats import StatsClient
 from karapace.config import Config
-from karapace.statsd import StatsClient
+from karapace.prometheus import PrometheusClient
+from karapace.statsd import StatsdClient
 
 import os
 import psutil
 import schedule
 import threading
 import time
+
+
+class MetricsException(Exception):
+    pass
 
 
 class Singleton(type):
@@ -33,14 +39,22 @@ class Singleton(type):
 class KarapaceMetrics(metaclass=Singleton):
     def __init__(self) -> None:
         self.active = False
-        self.stats_client: StatsClient | None = None
+        self.stats_client: StatsClient | None
         self.is_ready = False
         self.stop_event = threading.Event()
         self.worker_thread = threading.Thread(target=self.worker)
         self.lock = threading.Lock()
 
     def setup(self, stats_client: StatsClient, config: Config) -> None:
-        self.active = config.get("metrics_extended") or False
+        stats_service = config.get("stats_service")
+        if stats_service == "statsd":
+            self.stats_client = StatsdClient(config=config)
+        elif stats_service == "prometheus":
+            self.stats_client = PrometheusClient(config=config)
+        else:
+            raise MetricsException('Config variable "stats_service" is not defined')
+
+        self.active = config.get("metrics_extended")
         if not self.active:
             return
         with self.lock:
@@ -112,6 +126,8 @@ class KarapaceMetrics(metaclass=Singleton):
             time.sleep(1)
 
     def cleanup(self) -> None:
+        if self.stats_client:
+            self.stats_client.close()
         if not self.active:
             return
         self.stop_event.set()
