@@ -101,7 +101,7 @@ typing-extensions==4.7.1
     #   rich
 ujson==5.8.0
     # via -r requirements.in
-watchfiles==0.19.0
+watchfiles==0.20.0
     # via -r requirements.in
 xxhash==3.3.0
     # via -r requirements.in

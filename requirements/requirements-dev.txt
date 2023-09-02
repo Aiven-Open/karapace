@@ -90,7 +90,7 @@ geventhttpclient==2.0.9
     # via locust
 greenlet==2.0.2
     # via gevent
-hypothesis==6.82.3
+hypothesis==6.82.7
     # via -r requirements-dev.in
 idna==3.4
     # via
@@ -201,7 +201,7 @@ rpds-py==0.9.2
     #   referencing
 schedule==1.2.0
     # via -r requirements.txt
-sentry-sdk==1.29.2
+sentry-sdk==1.30.0
     # via -r requirements-dev.in
 six==1.16.0
     # via
@@ -230,7 +230,7 @@ urllib3==2.0.4
     # via
     #   requests
     #   sentry-sdk
-watchfiles==0.19.0
+watchfiles==0.20.0
     # via -r requirements.txt
 werkzeug==2.3.6
     # via
