@@ -30,7 +30,7 @@ class Singleton(type):
         return cls._instance
 
 
-class KarapaceMetrics(metaclass=Singleton):
+class Metrics(metaclass=Singleton):
     def __init__(self) -> None:
         self.active = False
         self.stats_client: StatsClient | None = None
