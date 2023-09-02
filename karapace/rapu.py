@@ -9,7 +9,7 @@ See LICENSE for details
 from accept_types import get_best_match
 from http import HTTPStatus
 from karapace.config import Config, create_server_ssl_context
-from karapace.karapacemetrics import KarapaceMetrics
+from karapace.metrics import Metrics
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
 from typing import Callable, Dict, NoReturn, Optional, overload, Union
@@ -135,7 +135,7 @@ class HTTPResponse(Exception):
             self.headers["Content-Type"] = content_type
         super().__init__(f"HTTPResponse {status.value}")
         if not is_success(status):
-            KarapaceMetrics().error()
+            Metrics().error()
 
     def ok(self) -> bool:
         """True if resposne has a 2xx status_code"""
@@ -168,8 +168,8 @@ class RestApp:
         self.app_request_metric = f"{app_name}_request"
         self.app = self._create_aiohttp_application(config=config)
         self.log = logging.getLogger(self.app_name)
-        KarapaceMetrics().setup(config)
-        self.stats = KarapaceMetrics().stats_client
+        Metrics().setup(config)
+        self.stats = Metrics().stats_client
         self.app.on_cleanup.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
 
@@ -186,7 +186,7 @@ class RestApp:
         set as hook because the awaitables have to run inside the event loop
         created by the aiohttp library.
         """
-        KarapaceMetrics().cleanup()
+        Metrics().cleanup()
 
     @staticmethod
     def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument
@@ -284,9 +284,9 @@ class RestApp:
 
             body = await request.read()
             if body:
-                KarapaceMetrics().request(len(body))
+                Metrics().request(len(body))
             else:
-                KarapaceMetrics().request(0)
+                Metrics().request(0)
             if json_request:
                 if not body:
                     raise HTTPResponse(body="Missing request JSON body", status=HTTPStatus.BAD_REQUEST)
@@ -403,8 +403,8 @@ class RestApp:
             self.log.exception("Unexpected error handling user request: %s %s", request.method, request.url)
             resp = aiohttp.web.Response(text="Internal Server Error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)
         finally:
-            KarapaceMetrics().response(resp.content_length)
-            KarapaceMetrics().latency((time.monotonic() - start_time) * 1000)
+            Metrics().response(resp.content_length)
+            Metrics().latency((time.monotonic() - start_time) * 1000)
             self.stats.timing(
                 self.app_request_metric,
                 time.monotonic() - start_time,

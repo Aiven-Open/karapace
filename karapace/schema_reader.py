@@ -24,9 +24,9 @@ from karapace.config import Config
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
-from karapace.karapacemetrics import KarapaceMetrics
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
+from karapace.metrics import Metrics
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
@@ -127,7 +127,7 @@ class KafkaSchemaReader(Thread):
         self.topic_replication_factor = self.config["replication_factor"]
         self.consumer: KafkaConsumer | None = None
         self._offset_watcher = offset_watcher
-        self.stats = KarapaceMetrics().stats_client
+        self.stats = Metrics().stats_client
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
