@@ -22,10 +22,10 @@ from karapace.errors import (
     VersionNotFoundException,
 )
 from karapace.in_memory_database import InMemoryDatabase
-from karapace.metrics import Metrics
 from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
+from karapace.metrics import Metrics
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
