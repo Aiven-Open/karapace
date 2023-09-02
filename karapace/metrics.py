@@ -39,13 +39,13 @@ class Singleton(type):
 class Metrics(metaclass=Singleton):
     def __init__(self) -> None:
         self.active = False
-        self.stats_client: StatsClient | None
+        self.stats_client: StatsClient
         self.is_ready = False
         self.stop_event = threading.Event()
         self.worker_thread = threading.Thread(target=self.worker)
         self.lock = threading.Lock()
 
-    def setup(self, stats_client: StatsClient, config: Config) -> None:
+    def setup(self, config: Config) -> None:
         stats_service = config.get("stats_service")
         if stats_service == "statsd":
             self.stats_client = StatsdClient(config=config)
@@ -53,8 +53,8 @@ class Metrics(metaclass=Singleton):
             self.stats_client = PrometheusClient(config=config)
         else:
             raise MetricsException('Config variable "stats_service" is not defined')
-
-        self.active = config.get("metrics_extended")
+        if config.get("metrics_extended"): # for mypy check pass
+            self.active = True
         if not self.active:
             return
         with self.lock:

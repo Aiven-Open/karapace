@@ -23,7 +23,6 @@ class StatsClient(ABC):
         self,
         config: Config,
     ) -> None:
-        self._tags: Final = config.get("tags", {})
         self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))
 
     @contextmanager
