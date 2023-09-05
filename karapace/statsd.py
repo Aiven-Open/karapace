@@ -30,7 +30,6 @@ class StatsdClient(StatsClient):
         host: str = STATSD_HOST,
         port: int = STATSD_PORT,
     ) -> None:
-
         super().__init__(config)
         self._tags: Final[dict] = config.get("tags", {})
         _host = config.get("statsd_host") if "statsd_host" in config else host

@@ -52,8 +52,9 @@ class Metrics(metaclass=Singleton):
         elif stats_service == "prometheus":
             self.stats_client = PrometheusClient(config=config)
         else:
+            self.active = False
             raise MetricsException('Config variable "stats_service" is not defined')
-        if config.get("metrics_extended"): # for mypy check pass
+        if config.get("metrics_extended"):  # for mypy check pass
             self.active = True
         if not self.active:
             return
@@ -61,11 +62,6 @@ class Metrics(metaclass=Singleton):
             if self.is_ready:
                 return
             self.is_ready = True
-        if not self.stats_client:
-            self.stats_client = stats_client
-        else:
-            self.active = False
-            return
 
         schedule.every(10).seconds.do(self.connections)
         self.worker_thread.start()
