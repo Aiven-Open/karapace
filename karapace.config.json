@@ -33,7 +33,6 @@
     "statsd_host": "127.0.0.1",
     "statsd_port": 8125,
     "prometheus_host": "127.0.0.1",
-    "prometheus_port": 8005
-
+    "prometheus_port": 8005,
 
 }

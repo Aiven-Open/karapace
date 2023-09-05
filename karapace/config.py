@@ -82,9 +82,8 @@ class Config(TypedDict):
     prometheus_host: str | None
     prometheus_port: int | None
 
-
-sentry: NotRequired[Mapping[str, object]]
-tags: NotRequired[Mapping[str, object]]
+    sentry: NotRequired[Mapping[str, object]]
+    tags: NotRequired[Mapping[str, object]]
 
 
 class ConfigDefaults(Config, total=False):
