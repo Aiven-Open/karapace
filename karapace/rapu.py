@@ -18,7 +18,7 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi # pylint: disable=deprecated-module
+import cgi  # pylint: disable=deprecated-module
 import hashlib
 import logging
 import re
