@@ -28,7 +28,11 @@
     "topic_name": "_schemas",
     "protobuf_runtime_directory": "runtime",
     "session_timeout_ms": 10000,
+    "stats_service": "statsd",
     "metrics_extended": true,
     "statsd_host": "127.0.0.1",
-    "statsd_port": 8125
+    "statsd_port": 8125,
+    "prometheus_host": "127.0.0.1",
+    "prometheus_port": 8005,
+
 }
