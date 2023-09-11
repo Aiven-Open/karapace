@@ -5,7 +5,7 @@ aiokafka<1
 isodate<1
 jsonschema<5
 networkx<4
-protobuf<4
+protobuf<5
 python-dateutil<3
 tenacity<9
 typing-extensions
