@@ -123,7 +123,7 @@ multidict==6.0.4
     #   -r requirements.txt
     #   aiohttp
     #   yarl
-networkx==2.8.8
+networkx==3.1
     # via -r requirements.txt
 packaging==23.1
     # via
