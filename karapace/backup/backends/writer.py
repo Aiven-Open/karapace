@@ -5,6 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from kafka.consumer.fetcher import ConsumerRecord
+from karapace.backup.errors import EmptyPartition
 from karapace.backup.safe_writer import bytes_writer, str_writer
 from pathlib import Path
 from typing import ContextManager, Generic, IO, Iterator, Literal, Mapping, Sequence, TypeVar
@@ -72,6 +73,22 @@ class BackupWriter(Generic[B, F], abc.ABC):
 
         Overriding this is optional.
         """
+
+    def finalize_empty_partition(
+        self,
+        index: int,
+        filename: str,
+        start_offset: int,
+        end_offset: int,
+    ) -> F:
+        """
+        Hook called for empty partitions. Per partition calls to this hook are mutually
+        exclusive with `.finalize_partition()`.
+
+        Overriding this is optional. The default behavior is to raise EmptyPartition
+        which will cause API layer to log a warning and stop execution.
+        """
+        raise EmptyPartition(start_offset, end_offset)
 
     def store_metadata(
         self,

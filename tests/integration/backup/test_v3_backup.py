@@ -276,7 +276,7 @@ def test_roundtrip_empty_topic(
     # from temporary files.
     (backup_directory,) = tmp_path.iterdir()
     assert backup_directory.name == "backup"
-    (metadata_path,) = backup_directory.iterdir()
+    (metadata_path,) = backup_directory.glob("*.metadata")
 
     # Delete the source topic.
     admin_client.delete_topics([new_topic.name], timeout_ms=10_000)
@@ -582,11 +582,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
     else:
         print("Deleted topic from previous run.")
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-        }
-    )
+    config = set_config_defaults({"bootstrap_uri": kafka_servers.bootstrap_servers})
 
     class LowTimeoutProducer:
         def __init__(self):

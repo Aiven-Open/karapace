@@ -225,6 +225,9 @@ class _PartitionStats:
             self.min_offset = record_offset
         self.max_offset = record_offset
 
+    def is_empty(self) -> bool:
+        return self.min_offset is None and self.max_offset is None and self.records_written == 0
+
 
 class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
     def __init__(
@@ -274,13 +277,37 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         self._partition_stats[index] = _PartitionStats(running_checksum=self._checksum_implementation())
         return self._build_data_file_name(path, topic_name, index)
 
-    def finalize_partition(self, index: int, filename: str) -> DataFile:
+    def finalize_empty_partition(
+        self,
+        index: int,
+        filename: str,
+        start_offset: int,
+        end_offset: int,
+    ) -> DataFile:
         stats = self._partition_stats.pop(index)
-        if stats.min_offset is None or stats.max_offset is None:
-            raise RuntimeError(
-                "Cannot call .finalize_partition() before storing partition records. "
-                "For empty topics, this method should never be called."
-            )
+
+        if not stats.is_empty():
+            raise RuntimeError("Found non-empty partition stats for empty partition.")
+
+        return DataFile(
+            filename=filename,
+            partition=index,
+            checksum=stats.running_checksum.digest(),
+            record_count=0,
+            start_offset=start_offset,
+            end_offset=end_offset,
+        )
+
+    def finalize_partition(
+        self,
+        index: int,
+        filename: str,
+    ) -> DataFile:
+        stats = self._partition_stats.pop(index)
+
+        if stats.is_empty():
+            raise RuntimeError("Found empty partition stats for non-empty partition.")
+
         return DataFile(
             filename=filename,
             partition=index,
@@ -304,9 +331,6 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
     ) -> None:
         assert isinstance(path, Path)
         metadata_path = path / f"{topic_name}.metadata"
-
-        if len(data_files) > 1:
-            raise RuntimeError("Cannot backup multi-partition topics")
 
         if self._partition_stats and data_files:
             raise RuntimeError("Cannot write metadata when not all partitions are finalized")

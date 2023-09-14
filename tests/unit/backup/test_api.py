@@ -4,30 +4,25 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import NewTopic
 from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.structs import PartitionMetadata
 from karapace import config
 from karapace.backup.api import (
     _admin,
-    _consumer,
     _handle_restore_topic,
     _handle_restore_topic_legacy,
     _maybe_create_topic,
-    _producer,
     locate_backup_file,
     normalize_location,
     normalize_topic_name,
 )
 from karapace.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
 from karapace.backup.backends.writer import StdOut
-from karapace.backup.errors import BackupError, PartitionCountError
+from karapace.backup.errors import BackupError
 from karapace.config import Config
 from karapace.constants import DEFAULT_SCHEMA_TOPIC, TOPIC_CREATION_TIMEOUT_MS
 from pathlib import Path
-from types import FunctionType
-from typing import Callable, cast, ContextManager
+from typing import cast
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -158,55 +153,6 @@ class TestHandleRestoreTopic:
         )
 
         create_topics.assert_not_called()
-
-
-class TestClients:
-    @staticmethod
-    def _partition_metadata(c: int = 1) -> set[PartitionMetadata]:
-        return {PartitionMetadata("topic", i, 0, tuple(), tuple(), None) for i in range(0, c)}
-
-    @pytest.mark.parametrize(
-        "ctx_mng,client_class,partitions_method",
-        (
-            (_consumer, KafkaConsumer, KafkaConsumer.partitions_for_topic),
-            (_producer, KafkaProducer, KafkaProducer.partitions_for),
-        ),
-    )
-    def test_auto_closing(
-        self,
-        ctx_mng: Callable[[Config, str], ContextManager[KafkaConsumer | KafkaProducer]],
-        client_class: type[KafkaConsumer | KafkaProducer],
-        partitions_method: FunctionType,
-    ) -> None:
-        with mock.patch(f"{client_class.__module__}.{client_class.__qualname__}.__new__", autospec=True) as client_ctor:
-            client_mock = client_ctor.return_value
-            getattr(client_mock, partitions_method.__name__).return_value = self._partition_metadata()
-            with ctx_mng(config.DEFAULTS, "topic") as client:
-                assert client is client_mock
-            assert client_mock.close.call_count == 1
-
-    @pytest.mark.parametrize("partition_count", (0, 2))
-    @pytest.mark.parametrize(
-        "ctx_mng,client_class,partitions_method",
-        (
-            (_consumer, KafkaConsumer, KafkaConsumer.partitions_for_topic),
-            (_producer, KafkaProducer, KafkaProducer.partitions_for),
-        ),
-    )
-    def test_raises_partition_count_error_for_unexpected_count(
-        self,
-        ctx_mng: Callable[[Config, str], KafkaConsumer | KafkaProducer],
-        client_class: type[KafkaConsumer | KafkaProducer],
-        partitions_method: FunctionType,
-        partition_count: int,
-    ) -> None:
-        with mock.patch(f"{client_class.__module__}.{client_class.__qualname__}.__new__", autospec=True) as client_ctor:
-            client_mock = client_ctor.return_value
-            getattr(client_mock, partitions_method.__name__).return_value = self._partition_metadata(partition_count)
-            with pytest.raises(PartitionCountError):
-                with ctx_mng(config.DEFAULTS, "topic") as client:
-                    assert client == client_mock
-            assert client_mock.close.call_count == 1
 
 
 class TestNormalizeLocation:

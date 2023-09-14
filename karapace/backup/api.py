@@ -11,14 +11,7 @@ from .backends.v3.constants import V3_MARKER
 from .backends.v3.schema import ChecksumAlgorithm
 from .backends.writer import BackupWriter, StdOut
 from .encoders import encode_key, encode_value
-from .errors import (
-    BackupDataRestorationError,
-    BackupError,
-    BackupTopicAlreadyExists,
-    EmptyPartition,
-    PartitionCountError,
-    StaleConsumerError,
-)
+from .errors import BackupDataRestorationError, BackupError, BackupTopicAlreadyExists, EmptyPartition, StaleConsumerError
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
 from enum import Enum
@@ -27,7 +20,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.structs import PartitionMetadata, TopicPartition
+from kafka.structs import TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
@@ -39,7 +32,7 @@ from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, TypeVar
+from typing import Callable, Collection, Iterator, Literal, Mapping, NewType, TypeVar
 
 import contextlib
 import datetime
@@ -171,21 +164,6 @@ def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
     return before_sleep
 
 
-def __check_partition_count(topic: str, supplier: Callable[[str], AbstractSet[PartitionMetadata]]) -> None:
-    """Checks that the given topic has exactly one partition.
-
-    :param topic: to check.
-    :param supplier: of topic partition metadata.
-    :raises PartitionCountError: if the topic does not have exactly one partition.
-    """
-    partition_count = len(supplier(topic))
-    if partition_count != 1:
-        raise PartitionCountError(
-            f"Topic {topic!r} has {partition_count} partitions, but only topics with exactly 1 partition can be backed "
-            "up. The schemas topic MUST have exactly 1 partition to ensure perfect ordering of schema updates."
-        )
-
-
 @contextlib.contextmanager
 def _admin(config: Config) -> KafkaAdminClient:
     """Creates an automatically closing Kafka admin client.
@@ -247,35 +225,6 @@ def _maybe_create_topic(
         return True
 
 
-@contextlib.contextmanager
-def _consumer(config: Config, topic: str) -> Iterator[KafkaConsumer]:
-    """Creates an automatically closing Kafka consumer client.
-
-    :param config: for the client.
-    :param topic: to consume from.
-    :raises PartitionCountError: if the topic does not have exactly one partition.
-    :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
-    """
-
-    with kafka_consumer_from_config(config, topic) as consumer:
-        __check_partition_count(topic, consumer.partitions_for_topic)
-        yield consumer
-
-
-@contextlib.contextmanager
-def _producer(config: Config, topic: str) -> Iterator[KafkaProducer]:
-    """Creates an automatically closing Kafka producer client.
-
-    :param config: for the client.
-    :param topic: to produce to.
-    :raises PartitionCountError: if the topic does not have exactly one partition.
-    :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
-    """
-    with kafka_producer_from_config(config) as producer:
-        __check_partition_count(topic, producer.partitions_for)
-        yield producer
-
-
 def _normalize_location(input_location: str) -> Path | StdOut:
     if input_location in ("", "-"):
         return "-"
@@ -300,7 +249,7 @@ def _consume_records(
     )
 
     if start_offset >= end_offset:
-        raise EmptyPartition
+        raise EmptyPartition(start_offset, end_offset)
 
     end_offset -= 1  # high watermark to actual end offset
 
@@ -328,12 +277,21 @@ def _write_partition(
         topic_name=topic_partition.topic,
         index=topic_partition.partition,
     )
+    filename = file_path.name if isinstance(file_path, Path) else file_path
 
     with backend.safe_writer(file_path, allow_overwrite) as buffer:
-        for record in _consume_records(consumer, topic_partition, poll_timeout):
-            backend.store_record(buffer, record)
+        try:
+            for record in _consume_records(consumer, topic_partition, poll_timeout):
+                backend.store_record(buffer, record)
+        except EmptyPartition as exception:
+            # fixme: Need to maintain current behavior for pre-v3.
+            return backend.finalize_empty_partition(
+                index=topic_partition.partition,
+                filename=filename,
+                start_offset=exception.start_offset,
+                end_offset=exception.end_offset,
+            )
 
-    filename = file_path.name if isinstance(file_path, Path) else file_path
     return backend.finalize_partition(
         index=topic_partition.partition,
         filename=filename,
@@ -451,17 +409,17 @@ def restore_backup(
         for instruction in backend.read(backup_location, topic_name):
             if isinstance(instruction, RestoreTopicLegacy):
                 _handle_restore_topic_legacy(instruction, config, skip_topic_creation)
-                producer = stack.enter_context(_producer(config, instruction.topic_name))
+                producer = stack.enter_context(kafka_producer_from_config(config))
             elif isinstance(instruction, RestoreTopic):
                 _handle_restore_topic(instruction, config, skip_topic_creation)
-                producer = stack.enter_context(_producer(config, instruction.topic_name))
+                producer = stack.enter_context(kafka_producer_from_config(config))
             elif isinstance(instruction, ProducerSend):
                 if producer is None:
                     raise RuntimeError("Backend has not yet sent RestoreTopic.")
                 _handle_producer_send(instruction, producer, _producer_error_callback)
-                # Immediately check if producer.send() generated an exception. This call is
-                # only an optimization, as producing is asynchronous and no sends might
-                # have been executed once we reach this line.
+                # Immediately check if producer.send() generated an exception. This call
+                # is only an optimization, as producing is asynchronous and no sends
+                # might have been executed once we reach this line.
                 _check_producer_exception()
             else:
                 assert_never(instruction)
@@ -524,34 +482,29 @@ def create_backup(
                 config_source_filter={ConfigSource.TOPIC_CONFIG},
             )
 
-        # Note: It's expected that we at some point want to introduce handling of
-        # multi-partition topics here. The backend interface is built with that in
-        # mind, so that .store_metadata() accepts a sequence of data files.
-        with _consumer(config, topic_name) as consumer:
-            (partition,) = consumer.partitions_for_topic(topic_name)
-            topic_partition = TopicPartition(topic_name, partition)
-
-            try:
-                data_file = _write_partition(
-                    path=prepared_location,
-                    backend=backend,
-                    consumer=consumer,
-                    topic_partition=topic_partition,
-                    poll_timeout=poll_timeout,
-                    allow_overwrite=overwrite,
-                )
-            except EmptyPartition:
-                if version is not BackupVersion.V3:
+        data_files = []
+        with kafka_consumer_from_config(config, topic_name) as consumer:
+            partitions = consumer.partitions_for_topic(topic_name)
+            for partition in partitions:
+                topic_partition = TopicPartition(topic_name, partition)
+                try:
+                    data_files.append(
+                        _write_partition(
+                            path=prepared_location,
+                            backend=backend,
+                            consumer=consumer,
+                            topic_partition=topic_partition,
+                            poll_timeout=poll_timeout,
+                            allow_overwrite=overwrite,
+                        )
+                    )
+                except EmptyPartition:
+                    assert version is not BackupVersion.V3
                     LOG.warning(
                         "Topic partition '%s' is empty, nothing to back up.",
                         topic_partition,
                     )
                     return
-                LOG.warning(
-                    "Topic partition '%s' is empty, only backing up metadata.",
-                    topic_partition,
-                )
-                data_file = None
 
         end_time = datetime.datetime.now(datetime.timezone.utc)
         backend.store_metadata(
@@ -560,10 +513,10 @@ def create_backup(
             topic_id=None,
             started_at=start_time,
             finished_at=end_time,
-            partition_count=1,
+            partition_count=len(partitions),
             replication_factor=replication_factor if replication_factor is not None else config["replication_factor"],
             topic_configurations=topic_configurations,
-            data_files=[data_file] if data_file else [],
+            data_files=data_files,
         )
 
     LOG.info(

@@ -60,10 +60,9 @@ class Metadata(AvroModel):
     checksum_algorithm: ChecksumAlgorithm = ChecksumAlgorithm.unknown
 
     def __post_init__(self) -> None:
-        assert len(self.data_files) <= self.partition_count
+        assert len(self.data_files) == self.partition_count
         assert self.topic_name
         assert self.finished_at >= self.started_at
-        assert self.partition_count == 1
         assert self.version == 3
         assert self.record_count == sum(data_file.record_count for data_file in self.data_files)
 

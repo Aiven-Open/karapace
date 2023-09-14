@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from kafka.structs import TopicPartition
 from karapace.backup.poll_timeout import PollTimeout
+from typing import Final
 
 __all__ = ["BackupError", "BackupTopicAlreadyExists", "EmptyPartition", "PartitionCountError", "StaleConsumerError"]
 
@@ -13,11 +14,10 @@ class BackupError(Exception):
 
 
 class EmptyPartition(BackupError):
-    ...
-
-
-class PartitionCountError(BackupError):
-    pass
+    def __init__(self, start_offset: int, end_offset: int) -> None:
+        assert start_offset == end_offset
+        self.start_offset: Final = start_offset
+        self.end_offset: Final = end_offset
 
 
 class BackupTopicAlreadyExists(BackupError):
