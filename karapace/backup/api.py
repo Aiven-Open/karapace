@@ -47,7 +47,6 @@ import enum
 import json
 import logging
 import math
-import sys
 import textwrap
 
 __all__ = (
@@ -166,7 +165,7 @@ def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
             result = f"failed ({outcome.exception()})"
         else:
             result = f"returned {outcome.result()!r}"
-        print(f"{description} {result}, retrying... (Ctrl+C to abort)", file=sys.stderr)
+        LOG.info(f"{description} {result}, retrying... (Ctrl+C to abort)")  # pylint: disable=logging-fstring-interpolation
 
     return before_sleep
 
@@ -627,12 +626,14 @@ class VerifyLevel(enum.Enum):
 
 
 def verify(backup_location: ExistingFile, level: VerifyLevel) -> None:
+    console = Console()
+    error_console = Console(stderr=True)
+
     backup_version = BackupVersion.identify(backup_location)
 
     if backup_version is not BackupVersion.V3:
-        print(
-            f"Only backups using format {BackupVersion.V3.name} can be verified, found {backup_version.name}.",
-            file=sys.stderr,
+        error_console.print(
+            f"Only backups using format {BackupVersion.V3.name} can be verified, found {backup_version.name}."
         )
         raise SystemExit(1)
 
@@ -646,7 +647,6 @@ def verify(backup_location: ExistingFile, level: VerifyLevel) -> None:
     else:
         assert_never(level)
 
-    console = Console()
     success = True
     verified_files = 0
 
