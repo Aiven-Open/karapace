@@ -30,12 +30,15 @@ from unittest.mock import patch
 
 import datetime
 import json
+import logging
 import os
 import pytest
 import secrets
 import shutil
 import subprocess
 import textwrap
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function", name="karapace_config")
@@ -350,9 +353,9 @@ def test_exits_with_return_code_3_for_data_restoration_error(
     try:
         admin_client.delete_topics([topic_name])
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     admin_client.create_topics([NewTopic(topic_name, 1, 1)])
     with pytest.raises(subprocess.CalledProcessError) as er:
@@ -390,9 +393,9 @@ def test_roundtrip_from_file(
     try:
         admin_client.delete_topics([topic_name])
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     # Execute backup restoration.
     subprocess.run(
@@ -483,9 +486,9 @@ def test_roundtrip_from_file_skipping_topic_creation(
     try:
         admin_client.delete_topics([topic_name])
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     admin_client.create_topics(
         [NewTopic(topic_name, 1, 1)],
@@ -578,9 +581,9 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
     try:
         admin_client.delete_topics([topic_name])
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     config = set_config_defaults(
         {
@@ -632,9 +635,9 @@ def test_producer_raises_exceptions(
     try:
         admin_client.delete_topics([topic_name])
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     config = set_config_defaults(
         {
