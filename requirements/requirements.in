@@ -4,20 +4,19 @@ aiohttp<4
 aiokafka<1
 isodate<1
 jsonschema<5
-networkx<3
+networkx<4
 protobuf<4
 python-dateutil<3
 tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
-schedule
-psutil
-prometheus-client
 xxhash~=3.3
 rich~=12.6.0
 cachetools==5.3.1
-
+schedule
+psutil
+prometheus-client
 
 # Patched dependencies
 #
