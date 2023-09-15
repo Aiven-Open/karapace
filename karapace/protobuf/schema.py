@@ -161,6 +161,9 @@ class ProtobufSchema:
     ):
         verifier.add_declared_type(package_name + "." + parent_name + "." + element_type.name)
         verifier.add_declared_type(parent_name + "." + element_type.name)
+        ancestor_only = parent_name.find(".")
+        if ancestor_only != -1:
+            verifier.add_declared_type(parent_name[:ancestor_only] + "." + element_type.name)
 
         if isinstance(element_type, MessageElement):
             for one_of in element_type.one_ofs:
@@ -169,7 +172,17 @@ class ProtobufSchema:
                 one_of_parent_name = parent_name + "." + element_type.name
                 process_one_of(verifier, package_name, one_of_parent_name, one_of)
             for field in element_type.fields:
-                verifier.add_used_type(parent_name, field.element_type)
+                # since we declare the subtype in the same level of the scope, it's legit
+                # use the same scoping when declare the dependent type.
+                if field.element_type in [defined_in_same_scope.name for defined_in_same_scope in element_type.nested_types]:
+                    verifier.add_used_type(parent_name + "." + element_type.name, field.element_type)
+                else:
+                    ancestor_only = parent_name.find(".")
+                    if ancestor_only != -1:
+                        verifier.add_used_type(parent_name[:ancestor_only], field.element_type)
+                    else:
+                        verifier.add_used_type(parent_name, field.element_type)
+
         for nested_type in element_type.nested_types:
             self._process_nested_type(verifier, package_name, parent_name + "." + element_type.name, nested_type)
 
