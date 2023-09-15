@@ -60,6 +60,7 @@ def kafka_producer_from_config(config: Config) -> KafkaProducer:
         sasl_plain_username=config["sasl_plain_username"],
         sasl_plain_password=config["sasl_plain_password"],
         kafka_client=KarapaceKafkaClient,
+        retries=0,
     )
     try:
         yield producer
