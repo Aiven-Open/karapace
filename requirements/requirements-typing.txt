@@ -16,20 +16,18 @@ sentry-sdk==1.30.0
     # via
     #   -c requirements-dev.txt
     #   -r requirements-typing.in
-tomli==2.0.1
-    # via
-    #   -c requirements-dev.txt
-    #   mypy
 types-cachetools==5.3.0.6
     # via -r requirements-typing.in
 types-jsonschema==4.17.0.10
     # via -r requirements-typing.in
-typing-extensions==4.7.1
+typing-extensions==4.6.3
     # via
     #   -c requirements-dev.txt
     #   -c requirements.txt
     #   mypy
-urllib3==2.0.4
+urllib3==2.0.3
     # via
     #   -c requirements-dev.txt
     #   sentry-sdk
+types-psutil==5.9.5.16
+    # via -r requirements-typing.in
