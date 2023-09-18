@@ -2,7 +2,9 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from _pytest.python_api import raises
 from karapace.protobuf.compare_result import CompareResult
+from karapace.protobuf.dependency import FieldNotUniquelyIdentifiableException
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.schema import ProtobufSchema
@@ -376,3 +378,35 @@ def test_protobuf_self_referencing_schema():
         """
 
     assert isinstance(ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto4).schema, ProtobufSchema)
+
+
+def test_illegal_redefine_objects_in_same_scope():
+    proto1 = """\
+            syntax = "proto3";
+
+            package fancy.company.in.party.v1;
+            message AnotherMessage {
+              enum BamFancyEnum {
+                // Hei! This is a comment!
+                MY_AWESOME_FIELD = 0;
+              }
+              message WowANestedMessage {
+                message DeeplyNestedMsg {
+                  enum BamFancyEnum {
+                  // Hei! This is a comment!
+                     MY_AWESOME_FIELD = 0;
+                  }
+                  message AnotherLevelOfNesting {
+                     BamFancyEnum im_tricky_im_referring_to_the_previous_enum = 1;
+                  }
+                }
+              }
+            }
+            """
+    with raises(FieldNotUniquelyIdentifiableException) as e:
+        assert isinstance(ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema, ProtobufSchema)
+
+    assert (
+        e.value.args[0] == "AnotherMessage.BamFancyEnum is not currently identifiable from the parser, "
+        "validating this message lead to break the schema evolution!"
+    )

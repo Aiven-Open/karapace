@@ -161,9 +161,10 @@ class ProtobufSchema:
     ):
         verifier.add_declared_type(package_name + "." + parent_name + "." + element_type.name)
         verifier.add_declared_type(parent_name + "." + element_type.name)
-        ancestor_only = parent_name.find(".")
-        if ancestor_only != -1:
-            verifier.add_declared_type(parent_name[:ancestor_only] + "." + element_type.name)
+        anchestor_only = parent_name.find(".")
+        if anchestor_only != -1:
+            # adding the first father and the type name, this should be unique to identify which is which.
+            verifier.add_declared_type(parent_name[:anchestor_only] + "." + element_type.name, uniquely=True)
 
         if isinstance(element_type, MessageElement):
             for one_of in element_type.one_ofs:
