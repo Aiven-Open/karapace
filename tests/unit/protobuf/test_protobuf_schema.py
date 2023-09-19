@@ -293,3 +293,86 @@ def test_protobuf_field_compatible_alter_to_oneof():
     protobuf_schema1.compare(protobuf_schema2, result)
 
     assert result.is_compatible()
+
+
+def test_protobuf_self_referencing_schema():
+    proto1 = """\
+    syntax = "proto3";
+
+    package fancy.company.in.party.v1;
+    message MyFirstMessage {
+      string my_fancy_string = 1;
+    }
+    message AnotherMessage {
+      message WowANestedMessage {
+        enum BamFancyEnum {
+          // Hei! This is a comment!
+          MY_AWESOME_FIELD = 0;
+        }
+        BamFancyEnum im_tricky_im_referring_to_the_previous_enum = 1;
+      }
+    }
+    """
+
+    assert isinstance(ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto1).schema, ProtobufSchema)
+
+    proto2 = """\
+    syntax = "proto3";
+
+    package fancy.company.in.party.v1;
+    message AnotherMessage {
+      enum BamFancyEnum {
+        // Hei! This is a comment!
+        MY_AWESOME_FIELD = 0;
+      }
+      message WowANestedMessage {
+        message DeeplyNestedMsg {
+          BamFancyEnum im_tricky_im_referring_to_the_previous_enum = 1;
+        }
+      }
+    }
+    """
+
+    assert isinstance(ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto2).schema, ProtobufSchema)
+
+    proto3 = """\
+        syntax = "proto3";
+
+        package fancy.company.in.party.v1;
+        message AnotherMessage {
+          enum BamFancyEnum {
+            // Hei! This is a comment!
+            MY_AWESOME_FIELD = 0;
+          }
+          message WowANestedMessage {
+            message DeeplyNestedMsg {
+              message AnotherLevelOfNesting {
+                 BamFancyEnum im_tricky_im_referring_to_the_previous_enum = 1;
+              }
+            }
+          }
+        }
+        """
+
+    assert isinstance(ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto3).schema, ProtobufSchema)
+
+    proto4 = """\
+        syntax = "proto3";
+
+        package fancy.company.in.party.v1;
+        message AnotherMessage {
+          message WowANestedMessage {
+            enum BamFancyEnum {
+              // Hei! This is a comment!
+              MY_AWESOME_FIELD = 0;
+            }
+            message DeeplyNestedMsg {
+              message AnotherLevelOfNesting {
+                 BamFancyEnum im_tricky_im_referring_to_the_previous_enum = 1;
+              }
+            }
+          }
+        }
+        """
+
+    assert isinstance(ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto4).schema, ProtobufSchema)
