@@ -54,10 +54,14 @@ Using Docker
 To get you up and running with the latest build of Karapace, a docker image is available::
 
   # Fetch the latest build from main branch
-  docker pull ghcr.io/aiven/karapace:develop
+  docker pull ghcr.io/aiven-open/karapace:develop
 
   # Fetch the latest release
-  docker pull ghcr.io/aiven/karapace:latest
+  docker pull ghcr.io/aiven-open/karapace:latest
+
+Versions `3.7.1` and earlier are available from the `ghcr.io/aiven` registry::
+
+  docker pull ghcr.io/aiven/karapace:3.7.1
 
 An example setup including configuration and Kafka connection is available as compose example::
 
