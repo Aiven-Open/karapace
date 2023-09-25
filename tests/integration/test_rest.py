@@ -5,6 +5,8 @@ See LICENSE for details
 from __future__ import annotations
 
 from kafka.errors import UnknownTopicOrPartitionError
+from karapace.client import Client
+from karapace.kafka_rest_apis import KafkaRestAdminClient
 from pytest import raises
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
@@ -185,6 +187,56 @@ async def test_avro_publish(rest_async_client, registry_async_client, admin_clie
             # res = await rest_client.post(url, json=mismatch_payload, headers=header)
             # assert res.status_code == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
+
+async def test_another_avro_publish(
+    rest_async_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaRestAdminClient,
+):
+    topic = new_topic(admin_client)
+    other_tn = new_topic(admin_client)
+
+    await wait_for_topics(rest_async_client, topic_names=[topic, other_tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    header = REST_HEADERS["avro"]
+
+    tested_avro_schema = {
+        "type": "record",
+        "name": "example",
+        "namespace": "example",
+        "doc": "example",
+        "fields": [{"type": "int", "name": "test", "doc": "my test number", "namespace": "test", "default": "5"}],
+    }
+
+    schema_str = json.dumps(tested_avro_schema)
+
+    # check succeeds with 1 record and brand new schema]
+    res = await registry_async_client.post(
+        f"subjects/{topic}-key/versions", json={"schema": schema_str, "schemaType": "AVRO"}
+    )
+    assert res.ok
+
+    key_schema_id = res.json()["id"]
+
+    res = await registry_async_client.post(
+        f"subjects/{topic}-value/versions", json={"schema": schema_str, "schemaType": "AVRO"}
+    )
+    assert res.ok
+
+    value_schema_id = res.json()["id"]
+
+    key_body = {"test": 5}
+
+    value_body = {"test": 5}
+
+    body = {
+        "key_schema_id": key_schema_id,
+        "value_schema_id": value_schema_id,
+        "records": [{"key": key_body, "value": value_body}],
+    }
+
+    url = f"/topics/{topic}"
+    res = await rest_async_client.post(url, json=body, headers=header)
+    assert res.ok
 
 async def test_admin_client(admin_client, producer):
     topic_names = [new_topic(admin_client) for i in range(10, 13)]
