@@ -11,22 +11,13 @@ from karapace.protobuf.one_of_element import OneOfElement
 from typing import List, Optional, Set
 
 
-class FieldNotUniquelyIdentifiableException(Exception):
-    pass
-
-
 class ProtobufDependencyVerifier:
     def __init__(self) -> None:
         self.declared_types: List[str] = []
         self.used_types: List[str] = []
         self.import_path: List[str] = []
 
-    def add_declared_type(self, full_name: str, uniquely: bool = False) -> None:
-        if uniquely and full_name in self.declared_types:
-            raise FieldNotUniquelyIdentifiableException(
-                f"{full_name} is not currently identifiable from the parser, "
-                f"validating this message lead to break the schema evolution!"
-            )
+    def add_declared_type(self, full_name: str) -> None:
         self.declared_types.append(full_name)
 
     def add_used_type(self, parent: str, element_type: str) -> None:
