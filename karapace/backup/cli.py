@@ -11,10 +11,15 @@ from .errors import BackupDataRestorationError, StaleConsumerError
 from .poll_timeout import PollTimeout
 from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
+from typing import Iterator
 
 import argparse
+import contextlib
+import logging
 import sys
 import traceback
+
+logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,8 +34,10 @@ def parse_args() -> argparse.Namespace:
         "export-anonymized-avro-schemas", help="Export anonymized Avro schemas into a file"
     )
 
+    # Options shared by all subparsers.
     for p in (parser_get, parser_restore, parser_inspect, parser_verify, parser_export_anonymized_avro_schemas):
         p.add_argument("--location", default="", help="File path for the backup file")
+        p.add_argument("--verbose", default=False, action="store_true", help="Enable debug logging.")
 
     for p in (parser_get, parser_restore, parser_export_anonymized_avro_schemas):
         p.add_argument("--config", help="Configuration file path", required=True)
@@ -77,6 +84,11 @@ def get_config(args: argparse.Namespace) -> Config:
 
 
 def dispatch(args: argparse.Namespace) -> None:
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.DEBUG if args.verbose else logging.INFO,
+    )
+
     location = api.normalize_location(args.location)
 
     if args.command == "get":
@@ -124,28 +136,33 @@ def dispatch(args: argparse.Namespace) -> None:
         raise NotImplementedError(f"Unknown command: {args.command!r}")
 
 
-def main() -> None:
+@contextlib.contextmanager
+def handle_keyboard_interrupt() -> Iterator[None]:
     try:
-        args = parse_args()
-
-        try:
-            dispatch(args)
-        # TODO: This specific treatment of StaleConsumerError looks quite misplaced
-        #  here, and should probably be pushed down into the (internal) API layer.
-        except StaleConsumerError as e:
-            print(
-                f"The Kafka consumer did not receive any records for partition {e.topic_partition.partition} of topic "
-                f"{e.topic_partition.topic!r} "
-                f"within the poll timeout ({e.poll_timeout} seconds) while trying to reach offset {e.end_offset:,} "
-                f"(start was {e.start_offset:,} and the last seen offset was {e.last_offset:,}).\n"
-                "\n"
-                "Try increasing --poll-timeout to give the broker more time.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1) from e
+        yield
     except KeyboardInterrupt as e:
         # Not an error -- user choice -- and thus should not end up in a Python stacktrace.
         raise SystemExit(2) from e
+
+
+@handle_keyboard_interrupt()
+def main() -> None:
+    args = parse_args()
+
+    try:
+        dispatch(args)
+    # TODO: This specific treatment of StaleConsumerError looks quite misplaced
+    #  here, and should probably be pushed down into the (internal) API layer.
+    except StaleConsumerError as e:
+        logger.error(  # pylint: disable=logging-fstring-interpolation
+            f"The Kafka consumer did not receive any records for partition {e.topic_partition.partition} of topic "
+            f"{e.topic_partition.topic!r} "
+            f"within the poll timeout ({e.poll_timeout} seconds) while trying to reach offset {e.end_offset:,} "
+            f"(start was {e.start_offset:,} and the last seen offset was {e.last_offset:,}).\n"
+            "\n"
+            "Try increasing --poll-timeout to give the broker more time.",
+        )
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":
