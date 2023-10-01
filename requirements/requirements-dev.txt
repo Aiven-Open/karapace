@@ -193,7 +193,7 @@ sniffio==1.3.0
     #   anyio
 sortedcontainers==2.4.0
     # via hypothesis
-tenacity==8.2.2
+tenacity==8.2.3
     # via -r requirements.txt
 typing-extensions==4.6.3
     # via

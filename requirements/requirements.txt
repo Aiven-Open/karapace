@@ -79,7 +79,7 @@ six==1.16.0
     #   python-dateutil
 sniffio==1.3.0
     # via anyio
-tenacity==8.2.2
+tenacity==8.2.3
     # via -r requirements.in
 typing-extensions==4.6.3
     # via -r requirements.in
