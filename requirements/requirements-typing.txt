@@ -12,7 +12,7 @@ mypy==1.4.1
     # via -r requirements-typing.in
 mypy-extensions==1.0.0
     # via mypy
-sentry-sdk==1.30.0
+sentry-sdk==1.31.0
     # via
     #   -c requirements-dev.txt
     #   -r requirements-typing.in
