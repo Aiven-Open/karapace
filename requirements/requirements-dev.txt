@@ -201,7 +201,7 @@ typing-extensions==4.6.3
     #   locust
 ujson==5.8.0
     # via -r requirements.txt
-urllib3==2.0.3
+urllib3==2.0.6
     # via
     #   requests
     #   sentry-sdk
