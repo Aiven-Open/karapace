@@ -5,6 +5,7 @@ from collections import namedtuple
 from contextlib import AsyncExitStack, closing
 from http import HTTPStatus
 from kafka.errors import (
+    AuthenticationFailedError,
     BrokerResponseError,
     KafkaTimeoutError,
     NoBrokersAvailable,
@@ -15,11 +16,12 @@ from kafka.errors import (
 from karapace.config import Config, create_client_ssl_context
 from karapace.errors import InvalidSchema
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
+from karapace.kafka_rest_apis.authentication import get_auth_config_from_header, get_kafka_client_auth_parameters_from_config
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest, HTTPResponse, JSON_CONTENT_TYPE
+from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from karapace.schema_models import TypedSchema, ValidatedTypedSchema
 from karapace.schema_type import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
@@ -27,7 +29,6 @@ from karapace.typing import SchemaId, Subject
 from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import aiohttp.web
 import asyncio
 import base64
 import logging
@@ -271,33 +272,24 @@ class KafkaRest(KarapaceBase):
             try:
                 if self.config.get("rest_authorization", False):
                     auth_header = request.headers.get("Authorization")
+                    auth_config = get_auth_config_from_header(auth_header, self.config)
 
-                    if auth_header is None:
-                        raise HTTPResponse(
-                            body='{"message": "Unauthorized"}',
-                            status=HTTPStatus.UNAUTHORIZED,
-                            content_type=JSON_CONTENT_TYPE,
-                            headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
-                        )
                     key = auth_header
                     if self.proxies.get(key) is None:
-                        auth = aiohttp.BasicAuth.decode(auth_header)
                         config = self.config.copy()
                         config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
                         config["security_protocol"] = (
                             "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
                         )
-                        if config["sasl_mechanism"] is None:
-                            config["sasl_mechanism"] = "PLAIN"
-                        config["sasl_plain_username"] = auth.login
-                        config["sasl_plain_password"] = auth.password
+                        config.update(auth_config)
                         self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
                 else:
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
-            except NoBrokersAvailable:
-                # This can be caused also due misconfigration, but kafka-python's
-                # KafkaAdminClient cannot currently distinguish those two cases
+            except (NoBrokersAvailable, AuthenticationFailedError):
+                # NoBrokersAvailable can be caused also due to misconfigration, but kafka-python's
+                # KafkaAdminClient cannot currently distinguish those two cases.
+                # A more expressive AuthenticationFailedError is raised in case of OAuth2
                 log.exception("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
@@ -471,9 +463,7 @@ class UserRestProxy:
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     security_protocol=self.config["security_protocol"],
                     ssl_context=ssl_context,
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
+                    **get_kafka_client_auth_parameters_from_config(self.config),
                 )
 
                 try:
@@ -626,13 +616,11 @@ class UserRestProxy:
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
                     kafka_client=KarapaceKafkaClient,
+                    **get_kafka_client_auth_parameters_from_config(self.config, async_client=False),
                 )
                 break
             except:  # pylint: disable=bare-except
