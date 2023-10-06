@@ -107,26 +107,21 @@ class KnownDependency:
                 cls.index_simple[item] = key
 
 
-@static_init
 class DependenciesHardcoded:
-    index: Set = set()
-
-    @classmethod
-    def static_init(cls) -> None:
-        cls.index = {
-            "bool",
-            "bytes",
-            "double",
-            "float",
-            "fixed32",
-            "fixed64",
-            "int32",
-            "int64",
-            "sfixed32",
-            "sfixed64",
-            "sint32",
-            "sint64",
-            "string",
-            "uint32",
-            "uint64",
-        }
+    index: Set[str] = {
+        "bool",
+        "bytes",
+        "double",
+        "float",
+        "fixed32",
+        "fixed64",
+        "int32",
+        "int64",
+        "sfixed32",
+        "sfixed64",
+        "sint32",
+        "sint64",
+        "string",
+        "uint32",
+        "uint64",
+    }
