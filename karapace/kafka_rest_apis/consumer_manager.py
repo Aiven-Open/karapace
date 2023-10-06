@@ -7,7 +7,13 @@ from asyncio import Lock
 from collections import defaultdict, namedtuple
 from functools import partial
 from http import HTTPStatus
-from kafka.errors import GroupAuthorizationFailedError, IllegalStateError, KafkaConfigurationError, KafkaError
+from kafka.errors import (
+    GroupAuthorizationFailedError,
+    IllegalStateError,
+    KafkaConfigurationError,
+    KafkaError,
+    TopicAuthorizationFailedError,
+)
 from kafka.structs import TopicPartition
 from karapace.config import Config, create_client_ssl_context
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
@@ -482,7 +488,7 @@ class ConsumerManager:
                 timeout_left = max(0, (start_time - time.monotonic()) * 1000 + timeout)
                 try:
                     data = await consumer.getmany(timeout_ms=timeout_left, max_records=1)
-                except GroupAuthorizationFailedError:
+                except (GroupAuthorizationFailedError, TopicAuthorizationFailedError):
                     KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
                 except KafkaError as ex:
                     KarapaceBase.internal_error(
