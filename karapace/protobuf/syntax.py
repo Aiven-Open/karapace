@@ -18,7 +18,7 @@ class Syntax(Enum):
         raise IllegalArgumentException(f"unexpected syntax: {value}")
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
     def __repr__(self) -> str:
         return self.value
