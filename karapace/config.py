@@ -73,6 +73,7 @@ class Config(TypedDict):
     session_timeout_ms: int
     karapace_rest: bool
     karapace_registry: bool
+    name_strategy: str
     master_election_strategy: str
     protobuf_runtime_directory: str
 
@@ -142,6 +143,7 @@ DEFAULTS: ConfigDefaults = {
     "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
+    "name_strategy": "topic_name",
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
 }
@@ -156,6 +158,13 @@ class InvalidConfiguration(Exception):
 class ElectionStrategy(Enum):
     highest = "highest"
     lowest = "lowest"
+
+
+@unique
+class NameStrategy(Enum):
+    topic_name = "topic_name"
+    record_name = "record_name"
+    topic_record_name = "topic_record_name"
 
 
 def parse_env_value(value: str) -> str | int | bool:
@@ -255,6 +264,13 @@ def validate_config(config: Config) -> None:
         raise InvalidConfiguration(
             f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
         ) from None
+
+    name_strategy = config["name_strategy"]
+    try:
+        NameStrategy(name_strategy)
+    except ValueError:
+        valid_strategies = [strategy.value for strategy in NameStrategy]
+        raise InvalidConfiguration(f"Invalid name strategy: {name_strategy}, valid values are {valid_strategies}") from None
 
     if config["rest_authorization"] and config["sasl_bootstrap_uri"] is None:
         raise InvalidConfiguration(
