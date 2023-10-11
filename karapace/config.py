@@ -74,6 +74,7 @@ class Config(TypedDict):
     karapace_rest: bool
     karapace_registry: bool
     name_strategy: str
+    name_strategy_validation: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
 
@@ -144,6 +145,7 @@ DEFAULTS: ConfigDefaults = {
     "karapace_rest": False,
     "karapace_registry": False,
     "name_strategy": "topic_name",
+    "name_strategy_validation": True,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
 }
