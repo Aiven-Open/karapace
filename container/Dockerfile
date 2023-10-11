@@ -32,7 +32,7 @@ RUN groupadd --system karapace \
  && chown --recursive karapace:karapace /opt/karapace /var/log/karapace
 
 # Install protobuf compiler.
-ARG PROTOBUF_COMPILER_VERSION="3.12.4-1"
+ARG PROTOBUF_COMPILER_VERSION="3.12.4-1+deb11u1"
 RUN apt-get update \
  && apt-get install --assume-yes --no-install-recommends \
     protobuf-compiler=$PROTOBUF_COMPILER_VERSION \
