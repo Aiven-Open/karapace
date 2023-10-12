@@ -559,6 +559,70 @@ async def test_publish_with_schema_id_of_another_subject(rest_async_client, regi
     assert res.status_code == 200
 
 
+async def test_publish_with_schema_id_of_another_subject_novalidation(
+    rest_async_novalidation_client, registry_async_client, admin_client
+):
+    """
+    Same as above but with name_strategy_validation disabled as config
+    """
+    topic_name = new_topic(admin_client)
+    subject_1 = f"{topic_name}-value"
+    subject_2 = "some-other-subject-value"
+
+    await wait_for_topics(rest_async_novalidation_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    url = f"/topics/{topic_name}"
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+    schema_2 = {
+        "type": "record",
+        "name": "Schema2",
+        "fields": [
+            {
+                "name": "temperature",
+                "type": "int",
+            },
+        ],
+    }
+
+    # Register schemas to get the ids
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}/versions",
+        json={"schema": json.dumps(schema_1)},
+    )
+    assert res.status_code == 200
+    schema_1_id = res.json()["id"]
+
+    res = await registry_async_client.post(
+        f"subjects/{subject_2}/versions",
+        json={"schema": json.dumps(schema_2)},
+    )
+    assert res.status_code == 200
+    schema_2_id = res.json()["id"]
+
+    res = await rest_async_novalidation_client.post(
+        url,
+        json={"value_schema_id": schema_2_id, "records": [{"value": {"temperature": 25}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200  # This is fine if name_strategy_validation is disabled
+
+    res = await rest_async_novalidation_client.post(
+        url,
+        json={"value_schema_id": schema_1_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+
+
 async def test_brokers(rest_async_client):
     res = await rest_async_client.get("/brokers")
     assert res.ok

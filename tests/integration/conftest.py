@@ -287,6 +287,80 @@ async def fixture_rest_async_client(
         await client.close()
 
 
+@pytest.fixture(scope="function", name="rest_async_novalidation")
+async def fixture_rest_async_novalidation(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    tmp_path: Path,
+    kafka_servers: KafkaServers,
+    registry_async_client: Client,
+) -> AsyncIterator[Optional[KafkaRest]]:
+    # Do not start a REST api when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    rest_url = request.config.getoption("rest_url")
+    if rest_url:
+        yield None
+        return
+
+    config_path = tmp_path / "karapace_config.json"
+
+    config = set_config_defaults(
+        {
+            "admin_metadata_max_age": 2,
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            # Use non-default max request size for REST producer.
+            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
+            "name_strategy_validation": False,  # This should be only difference from rest_async
+        }
+    )
+    write_config(config_path, config)
+    rest = KafkaRest(config=config)
+
+    assert rest.serializer.registry_client
+    rest.serializer.registry_client.client = registry_async_client
+    try:
+        yield rest
+    finally:
+        await rest.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_novalidation_client")
+async def fixture_rest_async_novalidationclient(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    rest_async_novalidation: KafkaRest,
+    aiohttp_client: AiohttpClient,
+) -> AsyncIterator[Client]:
+    rest_url = request.config.getoption("rest_url")
+
+    # client and server_uri are incompatible settings.
+    if rest_url:
+        client = Client(server_uri=rest_url)
+    else:
+
+        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+            return await aiohttp_client(rest_async_novalidation.app)
+
+        client = Client(client_factory=get_client)
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "brokers",
+            json_data=None,
+            headers=None,
+            error_msg="REST API is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
+
+
 @pytest.fixture(scope="function", name="rest_async_registry_auth")
 async def fixture_rest_async_registry_auth(
     request: SubRequest,

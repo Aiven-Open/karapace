@@ -229,8 +229,6 @@ class SchemaRegistrySerializer:
     def __init__(
         self,
         config: dict,
-        name_strategy: str = "topic_name",
-        **cfg,  # pylint: disable=unused-argument
     ) -> None:
         self.config = config
         self.state_lock = asyncio.Lock()
@@ -245,7 +243,8 @@ class SchemaRegistrySerializer:
         else:
             registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
             registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth)
-        self.subject_name_strategy = NAME_STRATEGIES[name_strategy]
+        name_strategy = config.get("name_strategy", "topic_name")
+        self.subject_name_strategy = NAME_STRATEGIES.get(name_strategy, topic_name_strategy)
         self.registry_client: Optional[SchemaRegistryClient] = registry_client
         self.ids_to_schemas: Dict[int, TypedSchema] = {}
         self.ids_to_subjects: MutableMapping[int, List[Subject]] = TTLCache(maxsize=10000, ttl=600)

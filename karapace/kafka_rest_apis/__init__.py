@@ -779,7 +779,7 @@ class UserRestProxy:
                 need_new_call=subject_not_included,
             )
 
-            if subject_not_included(parsed_schema, valid_subjects):
+            if self.config["name_strategy_validation"] and subject_not_included(parsed_schema, valid_subjects):
                 raise InvalidSchema()
 
         return schema_id
