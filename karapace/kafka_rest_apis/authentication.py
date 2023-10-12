@@ -13,7 +13,9 @@ from typing import NoReturn, TypedDict
 
 import aiohttp
 import dataclasses
+import datetime
 import enum
+import jwt
 
 
 @enum.unique
@@ -42,6 +44,11 @@ class SASLOauthConfig(TypedDict):
     sasl_oauth_token: str | None
 
 
+def _split_auth_header(auth_header: str) -> tuple[str, str]:
+    token_type, _separator, token = auth_header.partition(" ")
+    return (token_type, token)
+
+
 def get_auth_config_from_header(
     auth_header: str | None,
     config: Config,
@@ -57,7 +64,7 @@ def get_auth_config_from_header(
     if auth_header is None:
         raise_unauthorized()
 
-    token_type, _separator, token = auth_header.partition(" ")
+    token_type, token = _split_auth_header(auth_header)
 
     if token_type == TokenType.BEARER.value:
         return {"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token": token}
@@ -75,6 +82,28 @@ def get_auth_config_from_header(
         }
 
     raise_unauthorized()
+
+
+def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | None:
+    """Extract expiration from Authorization HTTP header.
+
+    In case of an OAuth Bearer token, the `exp` claim is extracted and returned as a
+    `datetime.datetime` object. Otherwise it's safely assumed that the authentication
+    method is Basic, thus no expiry of the credentials.
+
+    The signature is not verified as it is done by the Kafka clients using it and
+    discarding the token in case of any issues.
+
+    :param auth_header: The Authorization header extracted from an HTTP request
+    """
+    token_type, token = _split_auth_header(auth_header)
+
+    if token_type == TokenType.BEARER.value:
+        exp_claim = jwt.decode(token, options={"verify_signature": False}).get("exp")
+        if exp_claim is not None:
+            return datetime.datetime.fromtimestamp(exp_claim, datetime.timezone.utc)
+
+    return None
 
 
 @dataclasses.dataclass

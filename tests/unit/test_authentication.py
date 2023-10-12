@@ -8,6 +8,7 @@ from http import HTTPStatus
 from karapace.config import ConfigDefaults, set_config_defaults
 from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
+    get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
     SimpleOauthTokenProvider,
     SimpleOauthTokenProviderAsync,
@@ -15,6 +16,8 @@ from karapace.kafka_rest_apis.authentication import (
 from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 
 import base64
+import datetime
+import jwt
 import pytest
 
 
@@ -66,6 +69,23 @@ def test_get_auth_config_from_header(
     config = set_config_defaults(config_override)
     auth_config = get_auth_config_from_header(auth_header, config)
     assert auth_config == expected_auth_config
+
+
+@pytest.mark.parametrize(
+    ("auth_header", "expected_expiration"),
+    (
+        (f"Basic {base64.b64encode(b'username:password').decode()}", None),
+        (
+            f"Bearer {jwt.encode({'exp': 1697013997}, 'secret')}",
+            datetime.datetime.fromtimestamp(1697013997, datetime.timezone.utc),
+        ),
+        (f"Bearer {jwt.encode({}, 'secret')}", None),
+    ),
+)
+def test_get_expiration_time_from_header(auth_header: str, expected_expiration: datetime.datetime) -> None:
+    expiration = get_expiration_time_from_header(auth_header)
+
+    assert expiration == expected_expiration
 
 
 def test_simple_oauth_token_provider_returns_configured_token() -> None:

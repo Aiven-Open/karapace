@@ -61,6 +61,8 @@ protobuf==3.20.3
     # via -r requirements.in
 pygments==2.15.1
     # via rich
+pyjwt==2.8.0
+    # via -r requirements.in
 python-dateutil==2.8.2
     # via -r requirements.in
 referencing==0.30.0
