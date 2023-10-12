@@ -6,6 +6,7 @@ isodate<1
 jsonschema<5
 networkx<4
 protobuf<4
+pyjwt>=2.4.0<3
 python-dateutil<3
 tenacity<9
 typing-extensions
