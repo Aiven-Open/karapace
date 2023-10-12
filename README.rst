@@ -565,6 +565,24 @@ Example of complete authorization file
         ]
     }
 
+OAuth2 authentication and authorization of Karapace REST proxy
+===================================================================
+
+The Karapace REST proxy supports passing OAuth2 credentials to the underlying Kafka service (defined in the ``sasl_bootstrap_uri`` configuration parameter). The JSON Web Token (JWT) is extracted from the ``Authorization`` HTTP header if the authorization scheme is ``Bearer``,
+eg. ``Authorization: Bearer $JWT``. If a ``Bearer`` token is present, the Kafka clients managed by Karapace will be created to use the SASL ``OAUTHBEARER`` mechanism and the JWT will be passed along. The Karapace REST proxy does not verify the token, that is done by
+the underlying Kafka service itself, if it's configured accordingly.
+
+Authorization is also done by Kafka itself, typically using the ``sub`` claim (although it's configurable) from the JWT as the username, checked against the configured ACLs.
+
+OAuth2 and ``Bearer`` token usage is dependent on the ``rest_authorization`` configuration parameter being ``true``.
+
+Token expiry
+------------
+
+The REST proxy process manages a set of producer and consumer clients, which are identified by the OAuth2 JWT token. These are periodically cleaned up if they are idle, as well as *before* the JWT token expires (the clean up currently runs every 5 minutes).
+
+Before a client refreshes its OAuth2 JWT token, it is expected to remove currently running consumers (eg. after committing their offsets) and producers using the current token.
+
 Uninstall
 =========
 
