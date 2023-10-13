@@ -5,6 +5,7 @@ from collections import namedtuple
 from contextlib import AsyncExitStack, closing
 from http import HTTPStatus
 from kafka.errors import (
+    AuthenticationFailedError,
     BrokerResponseError,
     KafkaTimeoutError,
     NoBrokersAvailable,
@@ -15,11 +16,16 @@ from kafka.errors import (
 from karapace.config import Config, create_client_ssl_context
 from karapace.errors import InvalidSchema
 from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
+from karapace.kafka_rest_apis.authentication import (
+    get_auth_config_from_header,
+    get_expiration_time_from_header,
+    get_kafka_client_auth_parameters_from_config,
+)
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest, HTTPResponse, JSON_CONTENT_TYPE
+from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from karapace.schema_models import TypedSchema, ValidatedTypedSchema
 from karapace.schema_type import SchemaType
 from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
@@ -27,9 +33,9 @@ from karapace.typing import SchemaId, Subject
 from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import aiohttp.web
 import asyncio
 import base64
+import datetime
 import logging
 import time
 
@@ -41,6 +47,7 @@ OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 SCHEMA_MAPPINGS = {"avro": SchemaType.AVRO, "jsonschema": SchemaType.JSONSCHEMA, "protobuf": SchemaType.PROTOBUF}
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
 IDLE_PROXY_TIMEOUT = 5 * 60
+AUTH_EXPIRY_TOLERANCE = datetime.timedelta(seconds=IDLE_PROXY_TIMEOUT)
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +93,13 @@ class KafkaRest(KarapaceBase):
         async with self._proxy_lock:
             # Always clean one at time, don't mutate dict while iterating
             for _key, _proxy in self.proxies.items():
+                # In case of an OAuth2/OIDC token, the proxy is to be cleaned up _before_ the token expires
+                # If the token is still valid within the tolerance time, idleness is still checked
+                now = datetime.datetime.now(datetime.timezone.utc)
+                if _proxy.auth_expiry and _proxy.auth_expiry < now + AUTH_EXPIRY_TOLERANCE:
+                    key, proxy = _key, _proxy
+                    log.warning("Releasing unused connection for %s due to token expiry at %s", _proxy, _proxy.auth_expiry)
+                    break
                 # If UserRestProxy has consumers with state, disconnecting loses state
                 if _proxy.num_consumers() > 0:
                     if idle_consumer_timeout > 0 and _proxy.last_used + idle_consumer_timeout < time.monotonic():
@@ -271,33 +285,25 @@ class KafkaRest(KarapaceBase):
             try:
                 if self.config.get("rest_authorization", False):
                     auth_header = request.headers.get("Authorization")
+                    auth_config = get_auth_config_from_header(auth_header, self.config)
+                    auth_expiry = get_expiration_time_from_header(auth_header)
 
-                    if auth_header is None:
-                        raise HTTPResponse(
-                            body='{"message": "Unauthorized"}',
-                            status=HTTPStatus.UNAUTHORIZED,
-                            content_type=JSON_CONTENT_TYPE,
-                            headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
-                        )
                     key = auth_header
                     if self.proxies.get(key) is None:
-                        auth = aiohttp.BasicAuth.decode(auth_header)
                         config = self.config.copy()
                         config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
                         config["security_protocol"] = (
                             "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
                         )
-                        if config["sasl_mechanism"] is None:
-                            config["sasl_mechanism"] = "PLAIN"
-                        config["sasl_plain_username"] = auth.login
-                        config["sasl_plain_password"] = auth.password
-                        self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
+                        config.update(auth_config)
+                        self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer, auth_expiry)
                 else:
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
-            except NoBrokersAvailable:
-                # This can be caused also due misconfigration, but kafka-python's
-                # KafkaAdminClient cannot currently distinguish those two cases
+            except (NoBrokersAvailable, AuthenticationFailedError):
+                # NoBrokersAvailable can be caused also due to misconfigration, but kafka-python's
+                # KafkaAdminClient cannot currently distinguish those two cases.
+                # A more expressive AuthenticationFailedError is raised in case of OAuth2
                 log.exception("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
@@ -408,7 +414,13 @@ class KafkaRest(KarapaceBase):
 
 
 class UserRestProxy:
-    def __init__(self, config: Config, kafka_timeout: int, serializer):
+    def __init__(
+        self,
+        config: Config,
+        kafka_timeout: int,
+        serializer: SchemaRegistrySerializer,
+        auth_expiry: Optional[datetime.datetime] = None,
+    ):
         self.config = config
         self.kafka_timeout = kafka_timeout
         self.serializer = serializer
@@ -423,6 +435,7 @@ class UserRestProxy:
         self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
         self.init_admin_client()
         self._last_used = time.monotonic()
+        self._auth_expiry = auth_expiry
 
         self._async_producer_lock = asyncio.Lock()
         self._async_producer: Optional[AIOKafkaProducer] = None
@@ -436,6 +449,10 @@ class UserRestProxy:
 
     def mark_used(self) -> None:
         self._last_used = time.monotonic()
+
+    @property
+    def auth_expiry(self) -> datetime.datetime:
+        return self._auth_expiry
 
     def num_consumers(self) -> int:
         return len(self.consumer_manager.consumers)
@@ -471,9 +488,7 @@ class UserRestProxy:
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     security_protocol=self.config["security_protocol"],
                     ssl_context=ssl_context,
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
+                    **get_kafka_client_auth_parameters_from_config(self.config),
                 )
 
                 try:
@@ -626,13 +641,11 @@ class UserRestProxy:
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
                     kafka_client=KarapaceKafkaClient,
+                    **get_kafka_client_auth_parameters_from_config(self.config, async_client=False),
                 )
                 break
             except:  # pylint: disable=bare-except

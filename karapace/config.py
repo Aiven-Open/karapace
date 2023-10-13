@@ -62,6 +62,7 @@ class Config(TypedDict):
     sasl_mechanism: str | None
     sasl_plain_username: str | None
     sasl_plain_password: str | None
+    sasl_oauth_token: str | None
     topic_name: str
     metadata_max_age_ms: int
     admin_metadata_max_age: int
@@ -133,6 +134,7 @@ DEFAULTS: ConfigDefaults = {
     "sasl_mechanism": None,
     "sasl_plain_username": None,
     SASL_PLAIN_PASSWORD: None,
+    "sasl_oauth_token": None,
     "topic_name": DEFAULT_SCHEMA_TOPIC,
     "metadata_max_age_ms": 60000,
     "admin_metadata_max_age": 5,

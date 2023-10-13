@@ -30,6 +30,7 @@ setup(
         "kafka-python",
         "networkx",
         "protobuf",
+        "pyjwt",
         "python-dateutil",
     ],
     extras_require={
