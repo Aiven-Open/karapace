@@ -146,6 +146,8 @@ pygments==2.15.1
     #   -r requirements.txt
     #   pdbpp
     #   rich
+pyjwt==2.8.0
+    # via -r requirements-dev.in
 pyrepl==0.9.0
     # via fancycompleter
 pytest==7.4.0
