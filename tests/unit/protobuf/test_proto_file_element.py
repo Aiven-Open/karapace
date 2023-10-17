@@ -11,7 +11,7 @@ from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.option_element import OptionElement, PACKED_OPTION_ELEMENT
-from karapace.protobuf.proto_file_element import ProtoFileElement
+from karapace.protobuf.proto_file_element import PackageName, ProtoFileElement, TypeName
 from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
@@ -58,7 +58,7 @@ def test_simple_to_schema():
 
 def test_simple_with_imports_to_schema():
     element = MessageElement(location=location, name="Message")
-    file = ProtoFileElement(location=location, imports=["example.other"], types=[element])
+    file = ProtoFileElement(location=location, imports=[TypeName("example.other")], types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -73,13 +73,15 @@ def test_simple_with_imports_to_schema():
 
 def test_add_multiple_dependencies():
     element = MessageElement(location=location, name="Message")
-    file = ProtoFileElement(location=location, imports=["example.other", "example.another"], types=[element])
+    file = ProtoFileElement(
+        location=location, imports=[TypeName("example.other"), TypeName("example.another")], types=[element]
+    )
     assert len(file.imports) == 2
 
 
 def test_simple_with_public_imports_to_schema():
     element = MessageElement(location=location, name="Message")
-    file = ProtoFileElement(location=location, public_imports=["example.other"], types=[element])
+    file = ProtoFileElement(location=location, public_imports=[TypeName("example.other")], types=[element])
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -94,14 +96,18 @@ def test_simple_with_public_imports_to_schema():
 
 def test_add_multiple_public_dependencies():
     element = MessageElement(location=location, name="Message")
-    file = ProtoFileElement(location=location, public_imports=["example.other", "example.another"], types=[element])
+    file = ProtoFileElement(
+        location=location, public_imports=[TypeName("example.other"), TypeName("example.another")], types=[element]
+    )
 
     assert len(file.public_imports) == 2
 
 
 def test_simple_with_both_imports_to_schema():
     element = MessageElement(location=location, name="Message")
-    file = ProtoFileElement(location=location, imports=["example.thing"], public_imports=["example.other"], types=[element])
+    file = ProtoFileElement(
+        location=location, imports=[TypeName("example.thing")], public_imports=[TypeName("example.other")], types=[element]
+    )
     expected = """
         |// Proto schema formatted by Wire, do not edit.
         |// Source: file.proto
@@ -198,9 +204,9 @@ def test_multiple_everything_to_schema():
     service2 = ServiceElement(location=location.at(22, 1), name="Service2")
     file = ProtoFileElement(
         location=location,
-        package_name="example.simple",
-        imports=["example.thing"],
-        public_imports=["example.other"],
+        package_name=PackageName("example.simple"),
+        imports=[TypeName("example.thing")],
+        public_imports=[TypeName("example.other")],
         types=[element1, element2],
         services=[service1, service2],
         extend_declarations=[extend1, extend2],
@@ -266,9 +272,9 @@ def test_default_is_set_in_proto2():
     file = ProtoFileElement(
         syntax=Syntax.PROTO_2,
         location=location,
-        package_name="example.simple",
-        imports=["example.thing"],
-        public_imports=["example.other"],
+        package_name=PackageName("example.simple"),
+        imports=[TypeName("example.thing")],
+        public_imports=[TypeName("example.other")],
         types=[message],
     )
     expected = """

@@ -7,10 +7,13 @@ See LICENSE for details
 from karapace.dependency import Dependency
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
+from karapace.protobuf.extend_element import ExtendElement
 from karapace.protobuf.location import Location
+from karapace.protobuf.option_element import OptionElement
+from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, Optional
+from typing import Dict, List, NewType, Optional
 
 
 def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
@@ -29,18 +32,22 @@ def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optio
         _collect_dependencies_types(compare_types, sub_deps, is_self)
 
 
+TypeName = NewType("TypeName", str)
+PackageName = NewType("PackageName", str)
+
+
 class ProtoFileElement:
     def __init__(
         self,
         location: Location,
-        package_name: Optional[str] = None,
+        package_name: Optional[PackageName] = None,
         syntax: Optional[Syntax] = None,
-        imports: Optional[list] = None,
-        public_imports: Optional[list] = None,
+        imports: Optional[List[TypeName]] = None,
+        public_imports: Optional[List[TypeName]] = None,
         types: Optional[List[TypeElement]] = None,
-        services: Optional[list] = None,
-        extend_declarations: Optional[list] = None,
-        options: Optional[list] = None,
+        services: Optional[List[ServiceElement]] = None,
+        extend_declarations: Optional[List[ExtendElement]] = None,
+        options: Optional[List[OptionElement]] = None,
     ) -> None:
         if types is None:
             types = list()
