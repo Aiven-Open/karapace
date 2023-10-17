@@ -147,7 +147,7 @@ pygments==2.15.1
     #   pdbpp
     #   rich
 pyjwt==2.8.0
-    # via -r requirements-dev.in
+    # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
 pytest==7.4.0
@@ -203,7 +203,7 @@ typing-extensions==4.6.3
     #   locust
 ujson==5.8.0
     # via -r requirements.txt
-urllib3==2.0.6
+urllib3==2.0.7
     # via
     #   requests
     #   sentry-sdk
