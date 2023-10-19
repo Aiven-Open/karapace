@@ -210,6 +210,8 @@ Delete consumer::
 Backing up your Karapace
 ========================
 
+⚠️ The Karapace backup tool is deprecated and will be removed in Karapace 4.0.
+
 Karapace natively stores its data in a Kafka topic the name of which you can
 configure freely but which by default is called _schemas.
 
@@ -224,6 +226,8 @@ consumer::
 
 Restoring Karapace from backup
 ==============================
+
+⚠️ The Karapace backup tool is deprecated and will be removed in Karapace 4.0.
 
 Your backup can be restored with Karapace by running::
 
