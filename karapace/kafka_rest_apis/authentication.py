@@ -99,7 +99,11 @@ def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | Non
     token_type, token = _split_auth_header(auth_header)
 
     if token_type == TokenType.BEARER.value:
-        exp_claim = jwt.decode(token, options={"verify_signature": False}).get("exp")
+        try:
+            exp_claim = jwt.decode(token, options={"verify_signature": False}).get("exp")
+        except jwt.exceptions.DecodeError:
+            raise_unauthorized()
+
         if exp_claim is not None:
             return datetime.datetime.fromtimestamp(exp_claim, datetime.timezone.utc)
 
