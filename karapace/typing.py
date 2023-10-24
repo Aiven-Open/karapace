@@ -46,6 +46,7 @@ class NameStrategy(StrEnum, Enum):
 @unique
 class SubjectType(StrEnum, Enum):
     key = "key"
-    value = "value"
+    # value it's a property of the Enum class, avoiding the collision.
+    value_ = "value"
     # partition it's a function of `str` and StrEnum its inherits from it.
     partition_ = "partition"

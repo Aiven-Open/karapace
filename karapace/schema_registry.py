@@ -27,9 +27,9 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
-from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_reader import KafkaSchemaReader, MessageType
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, TopicName, Version
 from typing import Mapping, Sequence
 
 import asyncio
@@ -464,6 +464,19 @@ class KarapaceSchemaRegistry:
                 value["schemaType"] = schema.schema_type
         else:
             value = None
+        self.producer.send_message(key=key, value=value)
+
+    def is_topic_requiring_validation(self, *, topic_name: TopicName) -> bool:
+        return self.database.is_topic_requiring_validation(topic_name=topic_name)
+
+    def update_require_validation_for_topic(
+        self,
+        *,
+        topic_name: TopicName,
+        skip_validation: bool,
+    ) -> None:
+        key = {"topic": topic_name, "keytype": str(MessageType.schema_validation), "magic": 0}
+        value = {"skip_validation": skip_validation, "topic": topic_name}
         self.producer.send_message(key=key, value=value)
 
     def send_config_message(self, compatibility_level: CompatibilityModes, subject: Subject | None = None) -> None:

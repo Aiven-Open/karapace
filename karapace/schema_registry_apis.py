@@ -7,6 +7,7 @@ from __future__ import annotations
 from avro.errors import SchemaParseException
 from contextlib import AsyncExitStack
 from enum import Enum, unique
+from functools import partial
 from http import HTTPStatus
 from karapace.auth import HTTPAuthorizer, Operation, User
 from karapace.compatibility import check_compatibility, CompatibilityModes
@@ -28,18 +29,28 @@ from karapace.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.karapace import KarapaceBase
+from karapace.karapace import empty_response, KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId
+from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, TopicName
 from karapace.utils import JSONDecodeError
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 import async_timeout
+
+
+def compute_forwarded_url(master_url: str, request_url: str) -> str:
+    parsed_master_url = urlparse(master_url)
+    parser_request_url = urlparse(request_url)
+    return parser_request_url._replace(
+        scheme=parsed_master_url.scheme,
+        netloc=parsed_master_url.netloc,
+    ).geturl()
 
 
 @unique
@@ -301,6 +312,33 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             with_request=True,
             json_body=False,
             auth=self._auth,
+        )
+        self.route(
+            "/topics/<topic:path>/require_validation",
+            callback=self.is_topic_requiring_validation,
+            method="GET",
+            schema_request=True,
+            with_request=False,
+            json_body=False,
+            auth=None,
+        )
+        self.route(
+            "/topics/<topic:path>/disable_validation",
+            callback=partial(self.set_topic_require_validation, skip_validation=True),
+            method="POST",
+            schema_request=True,
+            with_request=True,
+            json_body=False,
+            auth=None,
+        )
+        self.route(
+            "/topics/<topic:path>/enable_validation",
+            callback=partial(self.set_topic_require_validation, skip_validation=False),
+            method="POST",
+            schema_request=True,
+            with_request=True,
+            json_body=False,
+            auth=None,
         )
 
     async def close(self) -> None:
@@ -1243,6 +1281,48 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         else:
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
+
+    async def is_topic_requiring_validation(self, content_type: str, *, topic: str) -> None:
+        require_validation = self.schema_registry.is_topic_requiring_validation(topic_name=TopicName(topic))
+        reply = {"require_validation": require_validation}
+        self.r(reply, content_type)
+
+    async def set_topic_require_validation(
+        self,
+        content_type: str,
+        request: HTTPRequest,
+        *,
+        topic: str,
+        skip_validation: bool,
+    ) -> None:
+        topic_name = TopicName(topic)
+
+        already_skipping_validation = skip_validation and not self.schema_registry.database.is_topic_requiring_validation(
+            topic_name=topic_name
+        )
+        already_validating = not skip_validation and self.schema_registry.database.is_topic_requiring_validation(
+            topic_name=topic_name
+        )
+
+        if already_validating or already_skipping_validation:
+            empty_response()
+
+        are_we_master, master_url = await self.schema_registry.get_master()
+
+        if are_we_master:
+            self.schema_registry.update_require_validation_for_topic(
+                topic_name=topic_name,
+                skip_validation=skip_validation,
+            )
+            empty_response()
+        else:
+            await self._forward_request_remote(
+                request=request,
+                body=None,
+                url=compute_forwarded_url(master_url=master_url, request_url=request.url),
+                content_type=content_type,
+                method="POST",
+            )
 
     def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema, include_deleted: bool) -> SchemaId | None:
         schema_id = self.schema_registry.database.get_schema_id_if_exists(

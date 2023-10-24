@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from avro.schema import Schema as AvroSchema
 from contextlib import closing, ExitStack
-from enum import Enum
 from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer, TopicPartition
 from kafka.errors import (
@@ -32,7 +31,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, StrEnum, Subject, TopicName
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
@@ -59,10 +58,11 @@ METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects"
 METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions"
 
 
-class MessageType(Enum):
+class MessageType(StrEnum):
     config = "CONFIG"
     schema = "SCHEMA"
     delete_subject = "DELETE_SUBJECT"
+    schema_validation = "SCHEMA_VALIDATION"
     no_operation = "NOOP"
 
 
@@ -429,6 +429,11 @@ class KafkaSchemaReader(Thread):
             LOG.info("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
 
+    def _handle_msg_schema_validation(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
+        assert isinstance(value, dict)
+        topic, skip_validation = TopicName(value["topic"]), bool(value["skip_validation"])
+        self.database.override_topic_validation(topic_name=topic, skip_validation=skip_validation)
+
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
         subject, version = key["subject"], key["version"]
 
@@ -532,6 +537,8 @@ class KafkaSchemaReader(Thread):
                     self._handle_msg_schema(key, value)
                 elif message_type == MessageType.delete_subject:
                     self._handle_msg_delete_subject(key, value)
+                elif message_type == MessageType.schema_validation:
+                    self._handle_msg_schema_validation(key, value)
                 elif message_type == MessageType.no_operation:
                     pass
             except ValueError:

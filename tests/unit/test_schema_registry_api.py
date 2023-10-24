@@ -5,7 +5,7 @@ See LICENSE for details
 from aiohttp.test_utils import TestClient, TestServer
 from karapace.config import DEFAULTS, set_config_defaults
 from karapace.rapu import HTTPResponse
-from karapace.schema_registry_apis import KarapaceSchemaRegistryController
+from karapace.schema_registry_apis import compute_forwarded_url, KarapaceSchemaRegistryController
 from unittest.mock import ANY, Mock, patch, PropertyMock
 
 import asyncio
@@ -52,3 +52,13 @@ async def test_forward_when_not_ready():
             mock_forward_func.assert_called_once_with(
                 request=ANY, body=None, url="http://primary-url/schemas/ids/1", content_type="application/json", method="GET"
             )
+
+
+def test_compute_forwarded_url() -> None:
+    assert (
+        compute_forwarded_url(
+            master_url="http://localhost:8081/another/fancy/path",
+            request_url="https://docs.python.org/3/library/urllib.parse.html",
+        )
+        == "http://localhost:8081/3/library/urllib.parse.html"
+    )

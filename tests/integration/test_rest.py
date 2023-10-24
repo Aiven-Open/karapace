@@ -8,6 +8,8 @@ from kafka import KafkaProducer
 from karapace.client import Client
 from karapace.kafka_admin import KafkaAdminClient
 from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
+from karapace.schema_models import ValidatedTypedSchema
+from karapace.schema_type import SchemaType
 from karapace.version import __version__
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
@@ -608,6 +610,43 @@ async def test_publish_with_schema_id_of_another_subject_novalidation(
         headers=REST_HEADERS["avro"],
     )
     assert res.status_code == 200
+
+
+async def test_can_produce_anything_with_no_validation_policy(
+    rest_async_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaRestAdminClient,
+) -> None:
+    first_topic = new_topic(admin_client)
+    second_topic = new_topic(admin_client)
+
+    await wait_for_topics(rest_async_client, topic_names=[first_topic, second_topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    typed_schema = ValidatedTypedSchema.parse(
+        SchemaType.AVRO,
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Schema1",
+                "fields": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                    },
+                ],
+            }
+        ),
+    )
+
+    res = await registry_async_client.post(
+        "subjects/random_subject_name/versions",
+        json={"schema": str(typed_schema)},
+    )
+    assert res.status_code == 200
+
+    # with the no_validation strategy we can produce even if we use a totally random subject name
+    res = await registry_async_client.post(f"/topics/{first_topic}/disable_validation", json={})
+    assert res.ok
 
 
 async def test_brokers(rest_async_client: Client) -> None:

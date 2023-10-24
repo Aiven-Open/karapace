@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from karapace.schema_models import SchemaVersion, TypedSchema
 from karapace.schema_references import Reference, Referents
-from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.typing import ResolvedVersion, SchemaId, Subject, TopicName
 from threading import Lock, RLock
 from typing import Iterable, Sequence
 
@@ -32,6 +32,7 @@ class InMemoryDatabase:
         self.schemas: dict[SchemaId, TypedSchema] = {}
         self.schema_lock_thread = RLock()
         self.referenced_by: dict[tuple[Subject, ResolvedVersion], Referents] = {}
+        self.topic_without_validation: set[TopicName] = set()
 
         # Content based deduplication of schemas. This is used to reduce memory
         # usage when the same schema is produce multiple times to the same or
@@ -228,6 +229,15 @@ class InMemoryDatabase:
                 for version_id, schema_version in self.subjects[subject].schemas.items()
                 if schema_version.deleted is False
             }
+
+    def is_topic_requiring_validation(self, *, topic_name: TopicName) -> bool:
+        return topic_name not in self.topic_without_validation
+
+    def override_topic_validation(self, *, topic_name: TopicName, skip_validation: bool) -> None:
+        if skip_validation:
+            self.topic_without_validation.add(topic_name)
+        else:
+            self.topic_without_validation.discard(topic_name)
 
     def delete_subject(self, *, subject: Subject, version: ResolvedVersion) -> None:
         with self.schema_lock_thread:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
@@ -31,12 +33,13 @@ from karapace.serialization import (
     get_subject_name,
     InvalidMessageSchema,
     InvalidPayload,
+    SchemaRegistryClient,
     SchemaRegistrySerializer,
     SchemaRetrievalError,
 )
-from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
+from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType, TopicName
 from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Final, MutableMapping, NewType
 
 import asyncio
 import base64
@@ -44,7 +47,7 @@ import datetime
 import logging
 import time
 
-SUBJECT_VALID_POSTFIX = [SubjectType.key, SubjectType.value]
+SUBJECT_VALID_POSTFIX = [SubjectType.key, SubjectType.value_]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
 RECORD_CODES = [42201, 42202]
 KNOWN_FORMATS = {"json", "avro", "protobuf", "binary"}
@@ -66,10 +69,10 @@ class KafkaRest(KarapaceBase):
         super().__init__(config=config)
         self._add_kafka_rest_routes()
         self.serializer = SchemaRegistrySerializer(config=config)
-        self.proxies: Dict[str, "UserRestProxy"] = {}
+        self.proxies: dict[str, UserRestProxy] = {}
         self._proxy_lock = asyncio.Lock()
         log.info("REST proxy starting with (delegated authorization=%s)", self.config.get("rest_authorization", False))
-        self._idle_proxy_janitor_task: Optional[asyncio.Task] = None
+        self._idle_proxy_janitor_task: asyncio.Task | None = None
 
     async def close(self) -> None:
         if self._idle_proxy_janitor_task is not None:
@@ -415,13 +418,56 @@ class KafkaRest(KarapaceBase):
         await proxy.topic_publish(topic, content_type, request=request)
 
 
+LastTimeCheck = NewType("LastTimeCheck", float)
+
+DEFAULT_CACHE_INTERVAL_NS: Final = 120 * 1_000_000_000  # 120 seconds
+
+
+class ValidationCheckWrapper:
+    def __init__(
+        self,
+        registry_client: SchemaRegistryClient,
+        topic_name: TopicName,
+        cache_interval_ns: float = DEFAULT_CACHE_INTERVAL_NS,
+    ):
+        self._last_check = 0
+        # by default if not specified otherwise, let's be conservative
+        self._require_validation = True
+        self._topic_name = topic_name
+        self._registry_client = registry_client
+        self._cache_interval_ns = cache_interval_ns
+
+    async def _query_registry(self) -> bool:
+        require_validation = await self._registry_client.topic_require_validation(self._topic_name)
+        return require_validation
+
+    async def require_validation(self) -> bool:
+        if (time.monotonic_ns() - self._last_check) > self._cache_interval_ns:
+            self._require_validation = await self._query_registry()
+            self._last_check = time.monotonic_ns()
+
+        return self._require_validation
+
+    @classmethod
+    async def construct_new(
+        cls,
+        registry_client: SchemaRegistryClient,
+        topic_name: TopicName,
+        cache_interval_ns: float = DEFAULT_CACHE_INTERVAL_NS,
+    ) -> ValidationCheckWrapper:
+        validation_checker = cls(registry_client, topic_name, cache_interval_ns)
+        validation_checker._require_validation = await validation_checker._query_registry()
+        validation_checker._last_check = time.monotonic_ns()
+        return validation_checker
+
+
 class UserRestProxy:
     def __init__(
         self,
         config: Config,
         kafka_timeout: int,
         serializer: SchemaRegistrySerializer,
-        auth_expiry: Optional[datetime.datetime] = None,
+        auth_expiry: datetime.datetime | None = None,
     ):
         self.config = config
         self.kafka_timeout = kafka_timeout
@@ -440,8 +486,18 @@ class UserRestProxy:
         self._auth_expiry = auth_expiry
 
         self._async_producer_lock = asyncio.Lock()
-        self._async_producer: Optional[AIOKafkaProducer] = None
+        self._async_producer: AIOKafkaProducer | None = None
         self.naming_strategy = NameStrategy(self.config["name_strategy"])
+        self.topic_validation: MutableMapping[TopicName,] = {}
+
+    async def is_validation_required(self, topic_name: TopicName) -> bool:
+        if topic_name not in self.topic_validation:
+            self.topic_validation[topic_name] = await ValidationCheckWrapper.construct_new(
+                self.serializer.registry_client,
+                topic_name,
+            )
+
+        return await self.topic_validation[topic_name].require_validation()
 
     def __str__(self) -> str:
         return f"UserRestProxy(username={self.config['sasl_plain_username']})"
@@ -601,7 +657,7 @@ class UserRestProxy:
         async with self.admin_lock:
             return self.admin_client.get_topic_config(topic)
 
-    async def cluster_metadata(self, topics: Optional[List[str]] = None) -> dict:
+    async def cluster_metadata(self, topics: list[str] | None = None) -> dict:
         async with self.admin_lock:
             if self._metadata_birth is None or time.monotonic() - self._metadata_birth > self.metadata_max_age:
                 self._cluster_metadata = None
@@ -671,7 +727,7 @@ class UserRestProxy:
             self.admin_client = None
             self.consumer_manager = None
 
-    async def publish(self, topic: str, partition_id: Optional[str], content_type: str, request: HTTPRequest) -> None:
+    async def publish(self, topic: str, partition_id: str | None, content_type: str, request: HTTPRequest) -> None:
         formats: dict = request.content_type
         data: dict = request.json
         _ = await self.get_topic_info(topic, content_type)
@@ -769,7 +825,7 @@ class UserRestProxy:
         :raises InvalidSchema:
         """
         log.debug("[resolve schema id] Retrieving schema id for %r", data)
-        schema_id: Union[SchemaId, None] = (
+        schema_id: SchemaId | None = (
             SchemaId(int(data[f"{subject_type}_schema_id"])) if f"{subject_type}_schema_id" in data else None
         )
         schema_str = data.get(f"{subject_type}_schema")
@@ -788,8 +844,9 @@ class UserRestProxy:
             )
             schema_id = await self._query_schema_id_from_cache_or_registry(parsed_schema, schema_str, subject_name)
         else:
+            is_validation_required = await self.is_validation_required(topic_name=TopicName(topic))
 
-            def subject_not_included(schema: TypedSchema, subjects: List[Subject]) -> bool:
+            def subject_not_included(schema: TypedSchema, subjects: list[Subject]) -> bool:
                 subject = get_subject_name(topic, schema, subject_type, self.naming_strategy)
                 return subject not in subjects
 
@@ -798,14 +855,18 @@ class UserRestProxy:
                 need_new_call=subject_not_included,
             )
 
-            if self.config["name_strategy_validation"] and subject_not_included(parsed_schema, valid_subjects):
+            if (
+                self.config["name_strategy_validation"]
+                and is_validation_required
+                and subject_not_included(parsed_schema, valid_subjects)
+            ):
                 raise InvalidSchema()
 
         return schema_id
 
     async def _query_schema_and_subjects(
-        self, schema_id: SchemaId, *, need_new_call: Optional[Callable[[TypedSchema, List[Subject]], bool]]
-    ) -> Tuple[TypedSchema, List[Subject]]:
+        self, schema_id: SchemaId, *, need_new_call: Callable[[TypedSchema, list[Subject]], bool] | None
+    ) -> tuple[TypedSchema, list[Subject]]:
         try:
             return await self.serializer.get_schema_for_id(schema_id, need_new_call=need_new_call)
         except SchemaRetrievalError as schema_error:
@@ -896,10 +957,10 @@ class UserRestProxy:
         content_type: str,
         data: dict,
         ser_format: str,
-        key_schema_id: Optional[int],
-        value_schema_id: Optional[int],
-        default_partition: Optional[int] = None,
-    ) -> List[Tuple]:
+        key_schema_id: int | None,
+        value_schema_id: int | None,
+        default_partition: int | None = None,
+    ) -> list[tuple]:
         prepared_records = []
         for record in data["records"]:
             key = record.get("key")
@@ -950,8 +1011,8 @@ class UserRestProxy:
         self,
         content_type: str,
         obj=None,
-        ser_format: Optional[str] = None,
-        schema_id: Optional[int] = None,
+        ser_format: str | None = None,
+        schema_id: int | None = None,
     ) -> bytes:
         if not obj:
             return b""
@@ -975,7 +1036,7 @@ class UserRestProxy:
             return await self.schema_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
 
-    async def schema_serialize(self, obj: dict, schema_id: Optional[int]) -> bytes:
+    async def schema_serialize(self, obj: dict, schema_id: int | None) -> bytes:
         schema, _ = await self.serializer.get_schema_for_id(schema_id)
         bytes_ = await self.serializer.serialize(schema, obj)
         return bytes_
@@ -1038,7 +1099,7 @@ class UserRestProxy:
                         sub_code=RESTErrorCodes.INVALID_DATA.value,
                     )
 
-    async def produce_messages(self, *, topic: str, prepared_records: List) -> List:
+    async def produce_messages(self, *, topic: str, prepared_records: list) -> list:
         producer = await self._maybe_create_async_producer()
 
         produce_futures = []
