@@ -2,10 +2,13 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.config import DEFAULTS, read_config
+from karapace.client import Path
+from karapace.config import DEFAULTS, NameStrategy, read_config, SubjectType
+from karapace.kafka_rest_apis import SUBJECT_VALID_POSTFIX
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.serialization import (
     flatten_unions,
+    get_subject_name,
     HEADER_FORMAT,
     InvalidMessageHeader,
     InvalidMessageSchema,
@@ -29,6 +32,27 @@ import struct
 
 log = logging.getLogger(__name__)
 
+TYPED_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.data",
+            "name": "Test",
+            "type": "record",
+            "fields": [
+                {
+                    "name": "attr1",
+                    "type": ["null", "string"],
+                },
+                {
+                    "name": "attr2",
+                    "type": ["null", "string"],
+                },
+            ],
+        }
+    ),
+)
+
 
 async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySerializer:
     with open(config_path, encoding="utf8") as handler:
@@ -39,7 +63,7 @@ async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySeriali
     return serializer
 
 
-async def test_happy_flow(default_config_path):
+async def test_happy_flow(default_config_path: Path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
@@ -62,32 +86,12 @@ async def test_happy_flow(default_config_path):
 
 
 def test_flatten_unions_record() -> None:
-    typed_schema = ValidatedTypedSchema.parse(
-        SchemaType.AVRO,
-        json.dumps(
-            {
-                "namespace": "io.aiven.data",
-                "name": "Test",
-                "type": "record",
-                "fields": [
-                    {
-                        "name": "attr1",
-                        "type": ["null", "string"],
-                    },
-                    {
-                        "name": "attr2",
-                        "type": ["null", "string"],
-                    },
-                ],
-            }
-        ),
-    )
     record = {"attr1": {"string": "sample data"}, "attr2": None}
     flatten_record = {"attr1": "sample data", "attr2": None}
-    assert flatten_unions(typed_schema.schema, record) == flatten_record
+    assert flatten_unions(TYPED_SCHEMA.schema, record) == flatten_record
 
     record = {"attr1": None, "attr2": None}
-    assert flatten_unions(typed_schema.schema, record) == record
+    assert flatten_unions(TYPED_SCHEMA.schema, record) == record
 
 
 def test_flatten_unions_array() -> None:
@@ -248,7 +252,7 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
 
-async def test_serialization_fails(default_config_path):
+async def test_serialization_fails(default_config_path: Path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
@@ -264,7 +268,7 @@ async def test_serialization_fails(default_config_path):
     assert mock_registry_client.method_calls == [call.get_schema("topic")]
 
 
-async def test_deserialization_fails(default_config_path):
+async def test_deserialization_fails(default_config_path: Path):
     mock_registry_client = Mock()
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
@@ -310,3 +314,31 @@ async def test_deserialization_fails(default_config_path):
         await deserializer.deserialize(enc_bytes)
 
     assert mock_registry_client.method_calls == [call.get_schema_for_id(1)]
+
+
+@pytest.mark.parametrize(
+    "expected_subject,strategy,subject_type",
+    (
+        (Subject("foo-key"), NameStrategy.topic_name, SUBJECT_VALID_POSTFIX[0]),
+        (Subject("io.aiven.data-key"), NameStrategy.record_name, SUBJECT_VALID_POSTFIX[0]),
+        (Subject("foo-io.aiven.data-key"), NameStrategy.topic_record_name, SUBJECT_VALID_POSTFIX[0]),
+        (
+            Subject("__auto_registration_anonymous_foo-io.aiven.data-key"),
+            NameStrategy.no_validation,
+            SUBJECT_VALID_POSTFIX[0],
+        ),
+        (Subject("foo-value"), NameStrategy.topic_name, SUBJECT_VALID_POSTFIX[1]),
+        (Subject("io.aiven.data-value"), NameStrategy.record_name, SUBJECT_VALID_POSTFIX[1]),
+        (Subject("foo-io.aiven.data-value"), NameStrategy.topic_record_name, SUBJECT_VALID_POSTFIX[1]),
+        (
+            Subject("__auto_registration_anonymous_foo-io.aiven.data-value"),
+            NameStrategy.no_validation,
+            SUBJECT_VALID_POSTFIX[1],
+        ),
+    ),
+)
+def test_name_strategy(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):
+    assert (
+        get_subject_name(topic_name="foo", schema=TYPED_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
+        == expected_subject
+    )

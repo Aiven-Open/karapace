@@ -9,13 +9,15 @@ from functools import lru_cache
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
+from karapace.config import NameStrategy
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences
+from karapace.kafka_rest_apis import SubjectType
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
-from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.typing import ResolvedVersion, SchemaId, Subject, TopicName
 from karapace.utils import json_decode, json_encode
 from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Tuple
 from urllib.parse import quote
@@ -71,10 +73,15 @@ def topic_record_name_strategy(topic_name: str, record_name: str) -> str:
     return topic_name + "-" + record_name
 
 
+def no_validation_strategy(topic_name: str, record_name: str) -> str:
+    return f"__auto_registration_anonymous_{topic_record_name_strategy(topic_name, record_name)}"
+
+
 NAME_STRATEGIES = {
-    "topic_name": topic_name_strategy,
-    "record_name": record_name_strategy,
-    "topic_record_name": topic_record_name_strategy,
+    NameStrategy.topic_name: topic_name_strategy,
+    NameStrategy.record_name: record_name_strategy,
+    NameStrategy.topic_record_name: topic_record_name_strategy,
+    NameStrategy.no_validation: no_validation_strategy,
 }
 
 
@@ -103,7 +110,7 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(result.json())
         return SchemaId(result.json()["id"])
 
-    async def _get_schema_r(
+    async def _get_schema_recursive(
         self,
         subject: Subject,
         explored_schemas: Set[Tuple[Subject, Optional[ResolvedVersion]]],
@@ -131,7 +138,7 @@ class SchemaRegistryClient:
             references = [Reference.from_dict(data) for data in json_result["references"]]
             dependencies = {}
             for reference in references:
-                _, schema, version = await self._get_schema_r(reference.subject, explored_schemas, reference.version)
+                _, schema, version = await self._get_schema_recursive(reference.subject, explored_schemas, reference.version)
                 dependencies[reference.name] = Dependency(
                     name=reference.name, subject=reference.subject, version=version, target_schema=schema
                 )
@@ -174,7 +181,7 @@ class SchemaRegistryClient:
                 - ValidatedTypedSchema: The retrieved schema, validated and typed.
                 - ResolvedVersion: The version of the schema that was retrieved.
         """
-        return await self._get_schema_r(subject, set(), version)
+        return await self._get_schema_recursive(subject, set(), version)
 
     async def get_schema_for_id(self, schema_id: SchemaId) -> Tuple[TypedSchema, List[Subject]]:
         result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
@@ -225,6 +232,25 @@ class SchemaRegistryClient:
         await self.client.close()
 
 
+def get_subject_name(
+    topic_name: str,
+    schema: TypedSchema,
+    subject_type: SubjectType,
+    naming_strategy: NameStrategy,
+) -> Subject:
+    namespace = "dummy"
+    if schema.schema_type is SchemaType.AVRO:
+        if isinstance(schema.schema, avro.schema.NamedSchema):
+            namespace = schema.schema.namespace or ""
+    if schema.schema_type is SchemaType.JSONSCHEMA:
+        namespace = schema.to_dict().get("namespace", "dummy")
+    #  Protobuf does not use namespaces in terms of AVRO
+    if schema.schema_type is SchemaType.PROTOBUF:
+        namespace = ""
+    naming_strategy = NAME_STRATEGIES[naming_strategy]
+    return Subject(f"{naming_strategy(topic_name, namespace)}-{subject_type}")
+
+
 class SchemaRegistrySerializer:
     def __init__(
         self,
@@ -243,36 +269,26 @@ class SchemaRegistrySerializer:
         else:
             registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
             registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth)
-        name_strategy = config.get("name_strategy", "topic_name")
-        self.subject_name_strategy = NAME_STRATEGIES.get(name_strategy, topic_name_strategy)
         self.registry_client: Optional[SchemaRegistryClient] = registry_client
         self.ids_to_schemas: Dict[int, TypedSchema] = {}
         self.ids_to_subjects: MutableMapping[int, List[Subject]] = TTLCache(maxsize=10000, ttl=600)
         self.schemas_to_ids: Dict[str, SchemaId] = {}
+        self._topic_strategy_cache: MutableMapping[TopicName, NameStrategy] = TTLCache(maxsize=10000, ttl=600)
 
     async def close(self) -> None:
         if self.registry_client:
             await self.registry_client.close()
             self.registry_client = None
 
-    def get_subject_name(
-        self,
-        topic_name: str,
-        schema: TypedSchema,
-        subject_type: str,
-        schema_type: SchemaType,
-    ) -> Subject:
-        namespace = "dummy"
-        if schema_type is SchemaType.AVRO:
-            if isinstance(schema.schema, avro.schema.NamedSchema):
-                namespace = schema.schema.namespace
-        if schema_type is SchemaType.JSONSCHEMA:
-            namespace = schema.to_dict().get("namespace", "dummy")
-        #  Protobuf does not use namespaces in terms of AVRO
-        if schema_type is SchemaType.PROTOBUF:
-            namespace = ""
+    async def get_topic_strategy_name(self, topic_name: TopicName) -> NameStrategy:
+        assert self.registry_client, "must not call this method after the object is closed."
+        if topic_name in self._topic_strategy_cache:
+            return self._topic_strategy_cache[topic_name]
+        result = await self.registry_client.client.get(f"topic/{topic_name}/name_strategy")
 
-        return Subject(f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}")
+        strategy = NameStrategy(result.json()["strategy"])
+        self._topic_strategy_cache[topic_name] = strategy
+        return strategy
 
     async def get_schema_for_subject(self, subject: Subject) -> TypedSchema:
         assert self.registry_client, "must not call this method after the object is closed."

@@ -7,9 +7,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from karapace.config import NameStrategy
 from karapace.schema_models import SchemaVersion, TypedSchema
 from karapace.schema_references import Reference, Referents
-from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.typing import ResolvedVersion, SchemaId, Subject, TopicName
 from threading import Lock, RLock
 from typing import Iterable, Sequence
 
@@ -32,6 +33,7 @@ class InMemoryDatabase:
         self.schemas: dict[SchemaId, TypedSchema] = {}
         self.schema_lock_thread = RLock()
         self.referenced_by: dict[tuple[Subject, ResolvedVersion], Referents] = {}
+        self.topic_validation_strategies: dict[TopicName, NameStrategy] = {}
 
         # Content based deduplication of schemas. This is used to reduce memory
         # usage when the same schema is produce multiple times to the same or
@@ -228,6 +230,15 @@ class InMemoryDatabase:
                 for version_id, schema_version in self.subjects[subject].schemas.items()
                 if schema_version.deleted is False
             }
+
+    def get_topic_strategy(self, *, topic_name: TopicName) -> NameStrategy | None:
+        if topic_name not in self.topic_validation_strategies:
+            return None
+
+        return self.topic_validation_strategies[topic_name]
+
+    def override_topic_strategy(self, *, topic_name: TopicName, name_strategy: NameStrategy) -> None:
+        self.topic_validation_strategies[topic_name] = name_strategy
 
     def delete_subject(self, *, subject: Subject, version: ResolvedVersion) -> None:
         with self.schema_lock_thread:

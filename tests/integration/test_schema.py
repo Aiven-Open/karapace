@@ -7,6 +7,7 @@ See LICENSE for details
 from http import HTTPStatus
 from kafka import KafkaProducer
 from karapace.client import Client
+from karapace.config import ConfigDefaults, NameStrategy
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import SchemaErrorMessages
 from karapace.utils import json_encode
@@ -18,7 +19,7 @@ from tests.utils import (
     create_subject_name_factory,
     repeat_until_successful_request,
 )
-from typing import List, Tuple
+from typing import AsyncIterator, Callable, List, Tuple
 
 import asyncio
 import json
@@ -1077,6 +1078,38 @@ async def assert_schema_versions_failed(client: Client, trail: str, schema_id: i
     """
     res = await client.get(f"/schemas/ids/{schema_id}/versions{trail}")
     assert res.status_code == response_code
+
+
+@pytest.mark.parametrize(
+    "strategy",
+    (
+        NameStrategy.topic_name,
+        NameStrategy.record_name,
+        NameStrategy.topic_record_name,
+        NameStrategy.no_validation,
+    ),
+)
+async def test_default_name_strategy_no_validation(
+    registry_async_client_from_custom_config: Callable[[ConfigDefaults], AsyncIterator[RegistryDescription]],
+    strategy: NameStrategy,
+) -> None:
+    async with registry_async_client_from_custom_config({"default_name_strategy": strategy}) as registry_client:
+        res = await registry_client.get("/topic/foo/name_strategy")
+        assert res.ok
+        assert res.json() == {"strategy": strategy.value}
+
+
+async def test_set_name_strategy(registry_async_client: Client) -> None:
+    res = await registry_async_client.get("/topic/foo/name_strategy")
+    assert res.ok
+    assert res.json() == {"strategy": NameStrategy.topic_name}
+
+    res = await registry_async_client.post(f"/topic/foo/name_strategy/{NameStrategy.record_name}", json={})
+    assert res.ok
+
+    res = await registry_async_client.get("/topic/foo/name_strategy")
+    assert res.ok
+    assert res.json() == {"strategy": NameStrategy.record_name}
 
 
 async def register_schema(registry_async_client: Client, trail, subject: str, schema_str: str) -> Tuple[int, int]:

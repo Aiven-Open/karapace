@@ -7,7 +7,7 @@ from __future__ import annotations
 from contextlib import AsyncExitStack, closing
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
-from karapace.config import Config
+from karapace.config import Config, NameStrategy
 from karapace.dependency import Dependency
 from karapace.errors import (
     IncompatibleSchema,
@@ -27,9 +27,9 @@ from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
-from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_reader import KafkaSchemaReader, MessageType
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, TopicName, Version
 from typing import Mapping, Sequence
 
 import asyncio
@@ -464,6 +464,20 @@ class KarapaceSchemaRegistry:
                 value["schemaType"] = schema.schema_type
         else:
             value = None
+        self.producer.send_message(key=key, value=value)
+
+    def get_validation_strategy_for_topic(self, *, topic_name: TopicName) -> NameStrategy:
+        strategy = self.database.get_topic_strategy(topic_name=topic_name)
+        return strategy if strategy is not None else NameStrategy(self.config["default_name_strategy"])
+
+    def send_validation_strategy_for_topic(
+        self,
+        *,
+        topic_name: TopicName,
+        validation_strategy: NameStrategy,
+    ) -> None:
+        key = {"topic": topic_name, "keytype": MessageType.schema_strategy.value, "magic": 0}
+        value = {"strategy": validation_strategy.value, "topic": topic_name}
         self.producer.send_message(key=key, value=value)
 
     def send_config_message(self, compatibility_level: CompatibilityModes, subject: Subject | None = None) -> None:

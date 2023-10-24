@@ -11,7 +11,7 @@ from http import HTTPStatus
 from karapace.auth import HTTPAuthorizer, Operation, User
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
-from karapace.config import Config
+from karapace.config import Config, NameStrategy
 from karapace.errors import (
     IncompatibleSchema,
     InvalidReferences,
@@ -28,13 +28,13 @@ from karapace.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.karapace import KarapaceBase
+from karapace.karapace import empty_response, KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId
+from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, TopicName
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -300,6 +300,23 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             with_request=True,
             json_body=False,
             auth=self._auth,
+        )
+        self.route(
+            "/topic/<topic:path>/name_strategy",
+            callback=self.subject_validation_strategy_get,
+            method="GET",
+            schema_request=True,
+            json_body=False,
+            auth=None,
+        )
+        self.route(
+            "/topic/<topic:path>/name_strategy/<strategy:path>",
+            callback=self.subject_validation_strategy_set,
+            method="POST",
+            schema_request=True,
+            with_request=True,
+            json_body=False,
+            auth=None,
         )
 
     async def close(self) -> None:
@@ -985,6 +1002,38 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
         return schema_type
 
+    def _validate_topic_name(self, topic: str) -> TopicName:
+        valid_topic_names = self.schema_registry.schema_reader.admin_client.list_topics()
+
+        if topic in valid_topic_names:
+            return TopicName(topic)
+
+        self.r(
+            body={
+                "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                "message": f"The topic {topic} isn't existing, proceed with creating it first",
+            },
+            content_type=JSON_CONTENT_TYPE,
+            status=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
+    def _validate_name_strategy(self, name_strategy: str) -> NameStrategy:
+        try:
+            strategy = NameStrategy(name_strategy)
+            return strategy
+        except ValueError:
+            valid_strategies = list(NameStrategy)
+            error_message = f"Invalid name strategy: {name_strategy}, valid values are {valid_strategies}"
+
+        self.r(
+            body={
+                "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                "message": error_message,
+            },
+            content_type=JSON_CONTENT_TYPE,
+            status=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
     def _validate_schema_key(self, content_type: str, body: dict) -> None:
         if "schema" not in body:
             self.r(
@@ -1237,6 +1286,44 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         else:
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
+
+    async def subject_validation_strategy_get(self, content_type: str, *, topic: str) -> None:
+        strategy_name = self.schema_registry.get_validation_strategy_for_topic(topic_name=TopicName(topic)).value
+        reply = {"strategy": strategy_name}
+        self.r(reply, content_type)
+
+    async def subject_validation_strategy_set(
+        self,
+        content_type: str,
+        request: HTTPRequest,
+        *,
+        topic: str,
+        strategy: str,
+    ) -> None:
+        # proceeding with the strategy first since it's cheaper
+        strategy_name = self._validate_name_strategy(strategy)
+        # real validation of the topic name commented, do we need to do that? does it make sense?
+        topic_name = TopicName(topic)  # self._validate_topic_name(topic)
+
+        are_we_master, master_url = await self.schema_registry.get_master()
+        if are_we_master:
+            self.schema_registry.send_validation_strategy_for_topic(
+                topic_name=topic_name,
+                validation_strategy=strategy_name,
+            )
+            empty_response()
+        else:
+            # I don't really like it, in theory we should parse the URL and change only the host portion while
+            #  keeping the rest the same
+            url = f"{master_url}/topic/{topic}/name_strategy"
+
+            await self._forward_request_remote(
+                request=request,
+                body=None,
+                url=url,
+                content_type=content_type,
+                method="POST",
+            )
 
     def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema, include_deleted: bool) -> SchemaId | None:
         schema_id = self.schema_registry.database.get_schema_id_if_exists(

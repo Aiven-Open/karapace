@@ -7,12 +7,12 @@ See LICENSE for details
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
-from contextlib import closing, ExitStack
+from contextlib import asynccontextmanager, closing, ExitStack
 from dataclasses import asdict
 from filelock import FileLock
 from kafka import KafkaProducer
 from karapace.client import Client
-from karapace.config import Config, set_config_defaults, write_config
+from karapace.config import Config, ConfigDefaults, set_config_defaults, write_config
 from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
@@ -29,7 +29,7 @@ from tests.integration.utils.process import stop_process, wait_for_port_subproce
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
-from typing import AsyncIterator, Iterator, List, Optional
+from typing import AsyncContextManager, AsyncIterator, Callable, Iterator, List, Optional
 from urllib.parse import urlparse
 
 import asyncio
@@ -452,13 +452,14 @@ async def fixture_registry_async_pair(
         yield [server.endpoint.to_url() for server in endpoints]
 
 
-@pytest.fixture(scope="function", name="registry_cluster")
-async def fixture_registry_cluster(
+@asynccontextmanager
+async def _registry_cluster(
     request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
+    custom_values: Optional[ConfigDefaults] = None,
 ) -> AsyncIterator[RegistryDescription]:
     # Do not start a registry when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
@@ -476,12 +477,56 @@ async def fixture_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
         port_range=port_range,
+        custom_values=custom_values,
     ) as servers:
         yield servers[0]
 
 
-@pytest.fixture(scope="function", name="registry_async_client")
-async def fixture_registry_async_client(
+@pytest.fixture(scope="function", name="registry_cluster")
+async def fixture_registry_cluster(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+    custom_values: Optional[ConfigDefaults] = None,
+) -> AsyncIterator[RegistryDescription]:
+    async with _registry_cluster(
+        request,
+        loop,
+        session_logdir,
+        kafka_servers,
+        port_range,
+        custom_values,
+    ) as registry_description:
+        yield registry_description
+
+
+@pytest.fixture(scope="function", name="registry_cluster_from_custom_config")
+def fixture_registry_cluster_with_custom_config(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    port_range: PortRangeInclusive,
+) -> Callable[[ConfigDefaults], AsyncContextManager[RegistryDescription]]:
+    @asynccontextmanager
+    async def registry_from_custom_config(config: ConfigDefaults) -> RegistryDescription:
+        async with _registry_cluster(
+            request,
+            loop,
+            session_logdir,
+            kafka_servers,
+            port_range,
+            config,
+        ) as registry_description:
+            yield registry_description
+
+    return registry_from_custom_config
+
+
+@asynccontextmanager
+async def _registry_async_client(
     request: SubRequest,
     registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
@@ -505,6 +550,37 @@ async def fixture_registry_async_client(
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client")
+async def fixture_registry_async_client(
+    request: SubRequest,
+    registry_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+) -> Client:
+    async with _registry_async_client(
+        request,
+        registry_cluster,
+        loop,
+    ) as client:
+        yield client
+
+
+@pytest.fixture(scope="function", name="registry_async_client_from_custom_config")
+def fixture_registry_async_client_custom_config(
+    request: SubRequest,
+    registry_cluster_from_custom_config: Callable[[ConfigDefaults], AsyncIterator[RegistryDescription]],
+    loop: asyncio.AbstractEventLoop,
+) -> Callable[[ConfigDefaults], AsyncContextManager[Client]]:
+    @asynccontextmanager
+    async def client_from_custom_config(config: ConfigDefaults) -> Client:
+        async with (
+            registry_cluster_from_custom_config(config) as registry_description,
+            _registry_async_client(request, registry_description, loop) as client,
+        ):
+            yield client
+
+    return client_from_custom_config
 
 
 @pytest.fixture(scope="function", name="credentials_folder")

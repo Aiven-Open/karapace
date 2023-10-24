@@ -459,12 +459,12 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``protobuf_runtime_directory``
      - ``runtime``
      - Runtime directory for the ``protoc`` protobuf schema parser and code generator
-   * - ``name_strategy``
-     - ``topic_name``
-     - Name strategy to use when storing schemas from the kafka rest proxy service
+   * - ``default_name_strategy``
+     - ``topic_name``, ``record_name``, ``topic_record_name``, ``no_validation``
+     - Default name strategy to use when storing schemas from the kafka rest proxy service, could be overriden for each topic by calling the `/topic/{topic}/name_strategy/{strategy}` endpoint
    * - ``name_strategy_validation``
      - ``true``
-     - If enabled, validate that given schema is registered under used name strategy when producing messages from Kafka Rest
+     - If enabled, validate that given schema is registered under the expected subjects requireds by the specified name strategy (default or overridden) when producing messages from Kafka Rest
    * - ``master_election_strategy``
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
