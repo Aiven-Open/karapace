@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from enum import Enum, unique
 from typing import Dict, List, Mapping, NewType, Sequence, Union
 from typing_extensions import TypeAlias
 
@@ -22,3 +23,29 @@ ResolvedVersion = NewType("ResolvedVersion", int)
 # basically the same SchemaID refer always to the same TypedSchema.
 SchemaId = NewType("SchemaId", int)
 TopicName = NewType("TopicName", str)
+
+
+class StrEnum(str, Enum):
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@unique
+class ElectionStrategy(Enum):
+    highest = "highest"
+    lowest = "lowest"
+
+
+@unique
+class NameStrategy(StrEnum, Enum):
+    topic_name = "topic_name"
+    record_name = "record_name"
+    topic_record_name = "topic_record_name"
+
+
+@unique
+class SubjectType(StrEnum, Enum):
+    key = "key"
+    value = "value"
+    # partition it's a function of `str` and StrEnum its inherits from it.
+    partition_ = "partition"
