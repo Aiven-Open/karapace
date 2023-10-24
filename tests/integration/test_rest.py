@@ -7,7 +7,7 @@ from __future__ import annotations
 from kafka import KafkaProducer
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
+from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient, SUBJECT_VALID_POSTFIX
 from karapace.version import __version__
 from pytest import raises
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
@@ -172,9 +172,9 @@ async def test_avro_publish(
     new_schema_id = res.json()["id"]
 
     # test checks schema id use for key and value, register schema for both with topic naming strategy
-    for pl_type in ["key", "value"]:
+    for pl_type in SUBJECT_VALID_POSTFIX:
         res = await registry_async_client.post(
-            f"subjects/{tn}-{pl_type}/versions", json={"schema": schema_avro_json_evolution}
+            f"subjects/{tn}-{pl_type.value}/versions", json={"schema": schema_avro_json_evolution}
         )
         assert res.ok
         assert res.json()["id"] == new_schema_id

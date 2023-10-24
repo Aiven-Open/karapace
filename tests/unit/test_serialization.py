@@ -2,10 +2,12 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.client import Path
 from karapace.config import DEFAULTS, read_config
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.serialization import (
     flatten_unions,
+    get_subject_name,
     HEADER_FORMAT,
     InvalidMessageHeader,
     InvalidMessageSchema,
@@ -14,7 +16,7 @@ from karapace.serialization import (
     START_BYTE,
     write_value,
 )
-from karapace.typing import ResolvedVersion, Subject
+from karapace.typing import NameStrategy, ResolvedVersion, Subject, SubjectType
 from tests.utils import schema_avro_json, test_objects_avro
 from unittest.mock import call, Mock
 
@@ -29,6 +31,71 @@ import struct
 
 log = logging.getLogger(__name__)
 
+TYPED_AVRO_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.data",
+            "name": "Test",
+            "type": "record",
+            "fields": [
+                {
+                    "name": "attr1",
+                    "type": ["null", "string"],
+                },
+                {
+                    "name": "attr2",
+                    "type": ["null", "string"],
+                },
+            ],
+        }
+    ),
+)
+
+TYPED_JSON_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.JSONSCHEMA,
+    json.dumps(
+        {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "title": "Test",
+            "type": "object",
+            "properties": {"attr1": {"type": ["null", "string"]}, "attr2": {"type": ["null", "string"]}},
+        }
+    ),
+)
+
+TYPED_AVRO_SCHEMA_WITHOUT_NAMESPACE = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "name": "Test",
+            "type": "record",
+            "fields": [
+                {
+                    "name": "attr1",
+                    "type": ["null", "string"],
+                },
+                {
+                    "name": "attr2",
+                    "type": ["null", "string"],
+                },
+            ],
+        }
+    ),
+)
+
+TYPED_PROTOBUF_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.PROTOBUF,
+    """\
+    syntax = "proto3";
+
+    message Test {
+        string attr1 = 1;
+        string attr2 = 2;
+    }\
+    """,
+)
+
 
 async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySerializer:
     with open(config_path, encoding="utf8") as handler:
@@ -39,7 +106,7 @@ async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySeriali
     return serializer
 
 
-async def test_happy_flow(default_config_path):
+async def test_happy_flow(default_config_path: Path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
@@ -62,32 +129,12 @@ async def test_happy_flow(default_config_path):
 
 
 def test_flatten_unions_record() -> None:
-    typed_schema = ValidatedTypedSchema.parse(
-        SchemaType.AVRO,
-        json.dumps(
-            {
-                "namespace": "io.aiven.data",
-                "name": "Test",
-                "type": "record",
-                "fields": [
-                    {
-                        "name": "attr1",
-                        "type": ["null", "string"],
-                    },
-                    {
-                        "name": "attr2",
-                        "type": ["null", "string"],
-                    },
-                ],
-            }
-        ),
-    )
     record = {"attr1": {"string": "sample data"}, "attr2": None}
     flatten_record = {"attr1": "sample data", "attr2": None}
-    assert flatten_unions(typed_schema.schema, record) == flatten_record
+    assert flatten_unions(TYPED_AVRO_SCHEMA.schema, record) == flatten_record
 
     record = {"attr1": None, "attr2": None}
-    assert flatten_unions(typed_schema.schema, record) == record
+    assert flatten_unions(TYPED_AVRO_SCHEMA.schema, record) == record
 
 
 def test_flatten_unions_array() -> None:
@@ -248,7 +295,7 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
 
-async def test_serialization_fails(default_config_path):
+async def test_serialization_fails(default_config_path: Path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
@@ -264,7 +311,7 @@ async def test_serialization_fails(default_config_path):
     assert mock_registry_client.method_calls == [call.get_schema("topic")]
 
 
-async def test_deserialization_fails(default_config_path):
+async def test_deserialization_fails(default_config_path: Path):
     mock_registry_client = Mock()
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
@@ -310,3 +357,73 @@ async def test_deserialization_fails(default_config_path):
         await deserializer.deserialize(enc_bytes)
 
     assert mock_registry_client.method_calls == [call.get_schema_for_id(1)]
+
+
+@pytest.mark.parametrize(
+    "expected_subject,strategy,subject_type",
+    (
+        (Subject("foo-key"), NameStrategy.topic_name, SubjectType.key),
+        (Subject("io.aiven.data.Test"), NameStrategy.record_name, SubjectType.key),
+        (Subject("foo-io.aiven.data.Test"), NameStrategy.topic_record_name, SubjectType.key),
+        (Subject("foo-value"), NameStrategy.topic_name, SubjectType.value),
+        (Subject("io.aiven.data.Test"), NameStrategy.record_name, SubjectType.value),
+        (Subject("foo-io.aiven.data.Test"), NameStrategy.topic_record_name, SubjectType.value),
+    ),
+)
+def test_name_strategy_for_avro(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):
+    assert (
+        get_subject_name(topic_name="foo", schema=TYPED_AVRO_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
+        == expected_subject
+    )
+
+
+@pytest.mark.parametrize(
+    "expected_subject,strategy,subject_type",
+    (
+        (Subject("Test"), NameStrategy.record_name, SubjectType.key),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.key),
+        (Subject("Test"), NameStrategy.record_name, SubjectType.value),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value),
+    ),
+)
+def test_name_strategy_for_json_schema(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):
+    assert (
+        get_subject_name(topic_name="foo", schema=TYPED_JSON_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
+        == expected_subject
+    )
+
+
+@pytest.mark.parametrize(
+    "expected_subject,strategy,subject_type",
+    (
+        (Subject("Test"), NameStrategy.record_name, SubjectType.key),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.key),
+        (Subject("Test"), NameStrategy.record_name, SubjectType.value),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value),
+    ),
+)
+def test_name_strategy_for_avro_without_namespace(
+    expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType
+):
+    assert (
+        get_subject_name(
+            topic_name="foo", schema=TYPED_AVRO_SCHEMA_WITHOUT_NAMESPACE, subject_type=subject_type, naming_strategy=strategy
+        )
+        == expected_subject
+    )
+
+
+@pytest.mark.parametrize(
+    "expected_subject,strategy,subject_type",
+    (
+        (Subject("Test"), NameStrategy.record_name, SubjectType.key),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.key),
+        (Subject("Test"), NameStrategy.record_name, SubjectType.value),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value),
+    ),
+)
+def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):
+    assert (
+        get_subject_name(topic_name="foo", schema=TYPED_PROTOBUF_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
+        == expected_subject
+    )
