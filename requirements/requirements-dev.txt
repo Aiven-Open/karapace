@@ -147,7 +147,7 @@ pygments==2.15.1
     #   pdbpp
     #   rich
 pyjwt==2.8.0
-    # via -r requirements-dev.in
+    # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
 pytest==7.4.0
@@ -209,7 +209,7 @@ urllib3==2.0.6
     #   sentry-sdk
 watchfiles==0.20.0
     # via -r requirements.txt
-werkzeug==2.3.6
+werkzeug==3.0.1
     # via
     #   flask
     #   locust
