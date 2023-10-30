@@ -574,11 +574,9 @@ def fixture_registry_async_client_custom_config(
 ) -> Callable[[ConfigDefaults], AsyncContextManager[Client]]:
     @asynccontextmanager
     async def client_from_custom_config(config: ConfigDefaults) -> Client:
-        async with (
-            registry_cluster_from_custom_config(config) as registry_description,
-            _registry_async_client(request, registry_description, loop) as client,
-        ):
-            yield client
+        async with registry_cluster_from_custom_config(config) as registry_description:
+            async with _registry_async_client(request, registry_description, loop) as client:
+                yield client
 
     return client_from_custom_config
 

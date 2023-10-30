@@ -77,7 +77,14 @@ async def start_schema_registry_cluster(
             log_path = group_dir / f"{pos}.log"
             error_path = group_dir / f"{pos}.error"
 
-            config = set_config_defaults(config) if custom_values is None else set_config_defaults(config) | custom_values
+            config = (
+                set_config_defaults(config)
+                if custom_values is None
+                else {
+                    **dict(item for item in set_config_defaults(config).items() if item[0] not in custom_values),
+                    **custom_values,
+                }
+            )
             write_config(config_path, config)
 
             logfile = stack.enter_context(open(log_path, "w"))
