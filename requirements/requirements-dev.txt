@@ -6,7 +6,7 @@
 #
 accept-types==0.4.1
     # via -r requirements.txt
-aiohttp==3.8.5
+aiohttp==3.8.6
     # via -r requirements.txt
 aiokafka==0.8.1
     # via -r requirements.txt
@@ -58,6 +58,7 @@ configargparse==1.5.3
     # via locust
 exceptiongroup==1.1.3
     # via
+    #   -r requirements.txt
     #   anyio
     #   hypothesis
     #   pytest
@@ -101,6 +102,7 @@ importlib-metadata==6.8.0
     # via flask
 importlib-resources==6.1.0
     # via
+    #   -r requirements.txt
     #   jsonschema
     #   jsonschema-specifications
 iniconfig==2.0.0
@@ -144,7 +146,9 @@ packaging==23.1
 pdbpp==0.10.3
     # via -r requirements-dev.in
 pkgutil-resolve-name==1.3.10
-    # via jsonschema
+    # via
+    #   -r requirements.txt
+    #   jsonschema
 pluggy==1.2.0
     # via pytest
 protobuf==3.20.3
@@ -239,6 +243,7 @@ yarl==1.9.2
     #   aiohttp
 zipp==3.17.0
     # via
+    #   -r requirements.txt
     #   importlib-metadata
     #   importlib-resources
 zope-event==5.0
