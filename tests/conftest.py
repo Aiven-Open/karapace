@@ -160,7 +160,7 @@ def fixture_session_logdir(request, tmp_path_factory, worker_id) -> Path:
 
 
 @pytest.fixture(scope="session", name="default_config_path")
-def fixture_default_config(session_logdir: Path) -> str:
+def fixture_default_config(session_logdir: Path) -> Path:
     path = session_logdir / "karapace_config.json"
     content = json.dumps({"registry_host": "localhost", "registry_port": 8081}).encode()
     content_len = len(content)
@@ -170,7 +170,7 @@ def fixture_default_config(session_logdir: Path) -> str:
             raise OSError(f"Writing config failed, tried to write {content_len} bytes, but only {written} were written")
         fp.flush()
         os.fsync(fp)
-    return str(path)
+    return path
 
 
 @pytest.fixture(name="tmp_file", scope="function")

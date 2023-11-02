@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from avro.schema import Schema as AvroSchema
 from contextlib import closing, ExitStack
+from enum import Enum
 from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer, TopicPartition
 from kafka.admin import KafkaAdminClient, NewTopic
@@ -20,7 +21,7 @@ from kafka.errors import (
     TopicAlreadyExistsError,
 )
 from karapace import constants
-from karapace.config import Config
+from karapace.config import Config, NameStrategy
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
@@ -31,7 +32,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, TopicName
 from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
@@ -56,6 +57,14 @@ METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE: Final = "karapace_schema_reader_r
 METRIC_SCHEMAS_GAUGE: Final = "karapace_schema_reader_schemas"
 METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects"
 METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions"
+
+
+class MessageType(Enum):
+    config = "CONFIG"
+    schema = "SCHEMA"
+    delete_subject = "DELETE_SUBJECT"
+    schema_strategy = "SCHEMA_STRATEGY"
+    no_operation = "NOOP"
 
 
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
@@ -429,6 +438,11 @@ class KafkaSchemaReader(Thread):
             LOG.info("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
 
+    def _handle_msg_schema_strategy(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
+        assert isinstance(value, dict)
+        topic, strategy = value["topic"], value["strategy"]
+        self.database.override_topic_strategy(topic_name=TopicName(topic), name_strategy=NameStrategy(strategy))
+
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
         subject, version = key["subject"], key["version"]
 
@@ -522,14 +536,27 @@ class KafkaSchemaReader(Thread):
                 self.database.insert_referenced_by(subject=ref.subject, version=ref.version, schema_id=schema_id)
 
     def handle_msg(self, key: dict, value: dict | None) -> None:
-        if key["keytype"] == "CONFIG":
-            self._handle_msg_config(key, value)
-        elif key["keytype"] == "SCHEMA":
-            self._handle_msg_schema(key, value)
-        elif key["keytype"] == "DELETE_SUBJECT":
-            self._handle_msg_delete_subject(key, value)
-        elif key["keytype"] == "NOOP":  # for spec completeness
-            pass
+        if "keytype" in key:
+            try:
+                message_type = MessageType(key["keytype"])
+
+                if message_type == MessageType.config:
+                    self._handle_msg_config(key, value)
+                elif message_type == MessageType.schema:
+                    self._handle_msg_schema(key, value)
+                elif message_type == MessageType.delete_subject:
+                    self._handle_msg_delete_subject(key, value)
+                elif message_type == MessageType.schema_strategy:
+                    self._handle_msg_schema_strategy(key, value)
+                elif message_type == MessageType.no_operation:
+                    pass
+            except ValueError:
+                LOG.error("The message %s-%s has been discarded because the %s is not managed", key, value, key["keytype"])
+
+        else:
+            LOG.error(
+                "The message %s-%s has been discarded because doesn't contain the `keytype` key in the key", key, value
+            )
 
     def remove_referenced_by(
         self,

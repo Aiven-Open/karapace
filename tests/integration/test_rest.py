@@ -7,7 +7,11 @@ from __future__ import annotations
 from kafka import KafkaProducer
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
+from karapace.config import NameStrategy, SubjectType
+from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient, SUBJECT_VALID_POSTFIX
+from karapace.schema_models import ValidatedTypedSchema
+from karapace.schema_type import SchemaType
+from karapace.serialization import get_subject_name
 from karapace.version import __version__
 from pytest import raises
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
@@ -26,6 +30,7 @@ from tests.utils import (
 import asyncio
 import base64
 import json
+import pytest
 import time
 
 NEW_TOPIC_TIMEOUT = 10
@@ -172,9 +177,9 @@ async def test_avro_publish(
     new_schema_id = res.json()["id"]
 
     # test checks schema id use for key and value, register schema for both with topic naming strategy
-    for pl_type in ["key", "value"]:
+    for pl_type in SUBJECT_VALID_POSTFIX:
         res = await registry_async_client.post(
-            f"subjects/{tn}-{pl_type}/versions", json={"schema": schema_avro_json_evolution}
+            f"subjects/{tn}-{pl_type.value}/versions", json={"schema": schema_avro_json_evolution}
         )
         assert res.ok
         assert res.json()["id"] == new_schema_id
@@ -646,6 +651,124 @@ async def test_publish_with_schema_id_of_another_subject_novalidation(
     res = await rest_async_novalidation_client.post(
         url,
         json={"value_schema_id": schema_1_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "strategy",
+    (
+        NameStrategy.topic_name,
+        NameStrategy.record_name,
+        NameStrategy.topic_record_name,
+    ),
+)
+async def test_produce_subjects_with_different_name_strategies(
+    rest_async_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaRestAdminClient,
+    strategy: NameStrategy,
+) -> None:
+    topic_name = new_topic(admin_client)
+
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    create_messages_url = f"/topics/{topic_name}"
+
+    typed_schema = ValidatedTypedSchema.parse(
+        SchemaType.AVRO,
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Schema1",
+                "fields": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                    },
+                ],
+            }
+        ),
+    )
+
+    res = await registry_async_client.post(f"/topic/{topic_name}/name_strategy/{strategy}", json={})
+    assert res.ok
+
+    # without the right subject it should fail even if the schema it's correct
+    res = await registry_async_client.post(
+        "subjects/random_subject_name/versions",
+        json={"schema": str(typed_schema)},
+    )
+    assert res.status_code == 200
+    random_subject_name_id = res.json()["id"]
+
+    res = await rest_async_client.post(
+        create_messages_url,
+        json={"value_schema_id": random_subject_name_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 422
+
+    # registering the required subject
+    subject_to_create = get_subject_name(topic_name, typed_schema, SubjectType.value, strategy)
+
+    res = await registry_async_client.post(
+        f"subjects/{subject_to_create}/versions",
+        json={"schema": str(typed_schema)},
+    )
+    assert res.status_code == 200
+    schema_id = res.json()["id"]
+
+    # trying to produce with the subject correctly registered
+    res = await rest_async_client.post(
+        create_messages_url,
+        json={"value_schema_id": schema_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+
+
+async def test_can_produce_anything_with_no_validation_policy(
+    rest_async_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaRestAdminClient,
+) -> None:
+    topic_name = new_topic(admin_client)
+
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    typed_schema = ValidatedTypedSchema.parse(
+        SchemaType.AVRO,
+        json.dumps(
+            {
+                "type": "record",
+                "name": "Schema1",
+                "fields": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                    },
+                ],
+            }
+        ),
+    )
+
+    res = await registry_async_client.post(f"/topic/{topic_name}/name_strategy/{NameStrategy.no_validation}", json={})
+    assert res.ok
+
+    # with the no_validation strategy we can produce even if we use a totally random subject name
+    create_messages_url = f"/topics/{topic_name}"
+
+    res = await registry_async_client.post(
+        "subjects/random_subject_name/versions",
+        json={"schema": str(typed_schema)},
+    )
+    assert res.status_code == 200
+    random_subject_name_id = res.json()["id"]
+
+    res = await rest_async_client.post(
+        create_messages_url,
+        json={"value_schema_id": random_subject_name_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
         headers=REST_HEADERS["avro"],
     )
     assert res.status_code == 200
