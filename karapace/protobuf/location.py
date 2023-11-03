@@ -48,3 +48,6 @@ class Location:
                 result += str(self.column)
 
         return result
+
+
+DEFAULT_LOCATION = Location("", "")
