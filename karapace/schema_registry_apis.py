@@ -506,7 +506,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-        response_body = {"schema": schema.schema_str}
+        schema_str = schema.schema_str
+        format_serialized = request.query.get("format", "").lower() == "serialized"
+        if format_serialized and schema.schema_type == SchemaType.PROTOBUF:
+            parsed_schema = ParsedTypedSchema.parse(schema_type=schema.schema_type, schema_str=schema_str)
+            schema_str = parsed_schema.serialize()
+        response_body = {"schema": schema_str}
 
         if include_subjects:
             response_body["subjects"] = self.schema_registry.database.subjects_for_schema(parsed_schema_id)

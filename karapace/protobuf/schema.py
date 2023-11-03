@@ -15,17 +15,19 @@ from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.known_dependency import DependenciesHardcoded, KnownDependency
-from karapace.protobuf.location import Location
+from karapace.protobuf.location import DEFAULT_LOCATION
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
+from karapace.protobuf.serialization import deserialize, serialize
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
 from karapace.schema_references import Reference
 from typing import Iterable, Mapping, Sequence
 
+import binascii
 import itertools
 
 
@@ -247,19 +249,25 @@ def add_new_type(
 
 
 class ProtobufSchema:
-    DEFAULT_LOCATION = Location("", "")
-
     def __init__(
         self,
         schema: str,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        proto_file_element: ProtoFileElement | None = None,
     ) -> None:
         if type(schema).__name__ != "str":
             raise IllegalArgumentException("Non str type of schema string")
-        self.dirty = schema
         self.cache_string = ""
-        self.proto_file_element = ProtoParser.parse(self.DEFAULT_LOCATION, schema)
+
+        if proto_file_element is not None:
+            self.proto_file_element = proto_file_element
+        else:
+            try:
+                self.proto_file_element = deserialize(schema)
+            except binascii.Error:  # If not base64 formatted
+                self.proto_file_element = ProtoParser.parse(DEFAULT_LOCATION, schema)
+
         self.references = references
         self.dependencies = dependencies
 
@@ -573,3 +581,6 @@ class ProtobufSchema:
             self_dependencies=self.dependencies,
             other_dependencies=other.dependencies,
         )
+
+    def serialize(self) -> str:
+        return serialize(self.proto_file_element)

@@ -4,6 +4,10 @@
 #
 #    'make requirements'
 #
+attrs==23.1.0
+    # via
+    #   -c requirements-dev.txt
+    #   referencing
 certifi==2023.7.22
     # via
     #   -c requirements-dev.txt
@@ -12,18 +16,25 @@ mypy==1.6.1
     # via -r requirements-typing.in
 mypy-extensions==1.0.0
     # via mypy
-sentry-sdk==1.31.0
+referencing==0.30.0
     # via
     #   -c requirements-dev.txt
-    #   -r requirements-typing.in
-types-cachetools==5.3.0.6
+    #   types-jsonschema
+rpds-py==0.9.2
+    # via
+    #   -c requirements-dev.txt
+    #   referencing
+sentry-sdk==1.31.0
     # via -r requirements-typing.in
-types-jsonschema==4.17.0.10
+types-cachetools==5.3.0.7
+    # via -r requirements-typing.in
+types-jsonschema==4.19.0.4
+    # via -r requirements-typing.in
+types-protobuf==3.20.3
     # via -r requirements-typing.in
 typing-extensions==4.6.3
     # via
     #   -c requirements-dev.txt
-    #   -c requirements.txt
     #   mypy
 urllib3==2.0.7
     # via

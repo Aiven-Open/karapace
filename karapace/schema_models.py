@@ -291,6 +291,11 @@ class ParsedTypedSchema(TypedSchema):
     def get_references(self) -> Sequence[Reference] | None:
         return self.references
 
+    def serialize(self) -> str:
+        if isinstance(self.schema, ProtobufSchema):
+            return self.schema.serialize()
+        return self.schema_str
+
 
 class ValidatedTypedSchema(ParsedTypedSchema):
     """Validated schema resource.
