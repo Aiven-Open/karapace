@@ -291,6 +291,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.subject_version_referencedby_get,
             method="GET",
             schema_request=True,
+            auth=self._auth,
         )
         self.route(
             "/subjects/<subject:path>",

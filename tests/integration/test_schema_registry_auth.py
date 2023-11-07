@@ -94,6 +94,9 @@ async def test_sr_auth_endpoints(registry_async_client_auth: Client) -> None:
     res = await registry_async_client_auth.get(f"subjects/{quote(subject)}/versions/1/schema")
     assert res.status_code == 401
 
+    res = await registry_async_client_auth.get(f"subjects/{quote(subject)}/versions/1/referencedby")
+    assert res.status_code == 401
+
     res = await registry_async_client_auth.delete(f"subjects/{quote(subject)}")
     assert res.status_code == 401
 
