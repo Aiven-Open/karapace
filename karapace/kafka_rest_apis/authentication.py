@@ -84,6 +84,10 @@ def get_auth_config_from_header(
     raise_unauthorized()
 
 
+def get_expiration_timestamp_from_jwt(token: str) -> int | None:
+    return jwt.decode(token, options={"verify_signature": False}).get("exp")
+
+
 def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | None:
     """Extract expiration from Authorization HTTP header.
 
@@ -100,7 +104,7 @@ def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | Non
 
     if token_type == TokenType.BEARER.value:
         try:
-            exp_claim = jwt.decode(token, options={"verify_signature": False}).get("exp")
+            exp_claim = get_expiration_timestamp_from_jwt(token)
         except jwt.exceptions.DecodeError:
             raise_unauthorized()
 
@@ -117,10 +121,13 @@ class SimpleOauthTokenProvider(AbstractTokenProvider):
     The token is meant to be extracted from an HTTP Authorization header.
     """
 
-    _token: str
+    _token: str = dataclasses.field(repr=False)
 
     def token(self) -> str:
         return self._token
+
+    def token_with_expiry(self, _config: str | None = None) -> tuple[str, int | None]:
+        return (self._token, get_expiration_timestamp_from_jwt(self._token))
 
 
 @dataclasses.dataclass
@@ -130,7 +137,7 @@ class SimpleOauthTokenProviderAsync(AbstractTokenProviderAsync):
     The token is meant to be extracted from an HTTP Authorization header.
     """
 
-    _token: str
+    _token: str = dataclasses.field(repr=False)
 
     async def token(self) -> str:
         return self._token
