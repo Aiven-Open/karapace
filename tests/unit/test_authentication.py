@@ -107,6 +107,14 @@ def test_simple_oauth_token_provider_returns_configured_token() -> None:
     assert token_provider.token() == "TOKEN"
 
 
+def test_simple_oauth_token_provider_returns_configured_token_and_expiry() -> None:
+    expiry_timestamp = 1697013997
+    token = jwt.encode({"exp": expiry_timestamp}, "secret")
+    token_provider = SimpleOauthTokenProvider(token)
+
+    assert token_provider.token_with_expiry() == (token, expiry_timestamp)
+
+
 async def test_simple_oauth_token_provider_async_returns_configured_token() -> None:
     token_provider = SimpleOauthTokenProviderAsync("TOKEN")
     assert await token_provider.token() == "TOKEN"
