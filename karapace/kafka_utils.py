@@ -2,10 +2,10 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from . import constants
 from .config import Config
 from .utils import KarapaceKafkaClient
-from kafka import KafkaAdminClient, KafkaConsumer, KafkaProducer
+from kafka import KafkaConsumer, KafkaProducer
+from karapace.kafka_admin import KafkaAdminClient
 from typing import Iterator
 
 import contextlib
@@ -13,7 +13,6 @@ import contextlib
 
 def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
     return KafkaAdminClient(
-        api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
         bootstrap_servers=config["bootstrap_uri"],
         client_id=config["client_id"],
         security_protocol=config["security_protocol"],
@@ -23,7 +22,6 @@ def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
         ssl_cafile=config["ssl_cafile"],
         ssl_certfile=config["ssl_certfile"],
         ssl_keyfile=config["ssl_keyfile"],
-        kafka_client=KarapaceKafkaClient,
     )
 
 

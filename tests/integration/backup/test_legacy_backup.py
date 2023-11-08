@@ -12,7 +12,7 @@ from karapace.backup.errors import StaleConsumerError
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from karapace.kafka_admin import KafkaAdminClient
 from karapace.key_format import is_key_in_canonical_format
 from karapace.utils import Expiration
 from pathlib import Path
@@ -80,7 +80,7 @@ async def test_backup_get(
 
 
 async def test_backup_restore_and_get_non_schema_topic(
-    kafka_servers: KafkaServers, tmp_path: Path, admin_client: KafkaRestAdminClient
+    kafka_servers: KafkaServers, tmp_path: Path, admin_client: KafkaAdminClient
 ) -> None:
     test_topic_name = new_random_name("non-schemas")
 

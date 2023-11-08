@@ -52,6 +52,8 @@ click==8.1.3
     # via flask
 configargparse==1.5.3
     # via locust
+confluent-kafka==2.3.0
+    # via -r requirements.txt
 exceptiongroup==1.1.3
     # via
     #   -r requirements.txt
