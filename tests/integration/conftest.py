@@ -13,7 +13,8 @@ from filelock import FileLock
 from kafka import KafkaProducer
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
-from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
+from karapace.kafka_admin import KafkaAdminClient, NewTopic
+from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
 from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint, start_schema_registry_cluster
@@ -38,6 +39,7 @@ import os
 import pathlib
 import pytest
 import re
+import secrets
 import string
 import time
 
@@ -209,9 +211,8 @@ def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
 
 
 @pytest.fixture(scope="function", name="admin_client")
-def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]:
-    with closing(KafkaRestAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)) as cli:
-        yield cli
+def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaAdminClient]:
+    yield KafkaAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)
 
 
 @pytest.fixture(scope="function", name="rest_async")
@@ -671,3 +672,12 @@ async def fixture_registry_async_auth_pair(
         port_range=port_range,
     ) as endpoints:
         yield [server.endpoint.to_url() for server in endpoints]
+
+
+@pytest.fixture(scope="function", name="new_topic")
+def topic_fixture(admin_client: KafkaAdminClient) -> NewTopic:
+    topic_name = secrets.token_hex(4)
+    try:
+        yield admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
+    finally:
+        admin_client.delete_topic(topic_name)

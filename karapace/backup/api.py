@@ -24,7 +24,6 @@ from .topic_configurations import ConfigSource, get_topic_configurations
 from enum import Enum
 from functools import partial
 from kafka import KafkaConsumer, KafkaProducer
-from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
 from kafka.structs import PartitionMetadata, TopicPartition
@@ -33,6 +32,7 @@ from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
+from karapace.kafka_admin import KafkaAdminClient
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
 from karapace.utils import assert_never
@@ -186,7 +186,7 @@ def __check_partition_count(topic: str, supplier: Callable[[str], AbstractSet[Pa
 
 
 @contextlib.contextmanager
-def _admin(config: Config) -> KafkaAdminClient:
+def _admin(config: Config) -> Iterator[KafkaAdminClient]:
     """Creates an automatically closing Kafka admin client.
 
     :param config: for the client.
@@ -201,10 +201,7 @@ def _admin(config: Config) -> KafkaAdminClient:
         retry=retry_if_exception_type(KafkaError),
     )(kafka_admin_from_config)(config)
 
-    try:
-        yield admin
-    finally:
-        admin.close()
+    yield admin
 
 
 @retry(
@@ -222,26 +219,24 @@ def _maybe_create_topic(
     topic_configs: Mapping[str, str],
 ) -> bool:
     """Returns True if topic creation was successful, False if topic already exists"""
-    topic = NewTopic(
-        name=name,
-        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-        replication_factor=replication_factor,
-        topic_configs=topic_configs,
-    )
-
     with _admin(config) as admin:
         try:
-            admin.create_topics([topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
+            admin.new_topic(
+                name,
+                num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+                replication_factor=replication_factor,
+                config=dict(topic_configs),
+            )
         except TopicAlreadyExistsError:
-            LOG.debug("Topic %r already exists", topic.name)
+            LOG.debug("Topic %r already exists", name)
             return False
 
         LOG.info(
             "Created topic %r (partition count: %s, replication factor: %s, config: %s)",
-            topic.name,
-            topic.num_partitions,
-            topic.replication_factor,
-            topic.topic_configs,
+            name,
+            constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+            replication_factor,
+            topic_configs,
         )
         return True
 
@@ -520,7 +515,7 @@ def create_backup(
             topic_configurations = get_topic_configurations(
                 admin=admin,
                 topic_name=topic_name,
-                config_source_filter={ConfigSource.TOPIC_CONFIG},
+                config_source_filter={ConfigSource.DYNAMIC_TOPIC_CONFIG},
             )
 
         # Note: It's expected that we at some point want to introduce handling of
