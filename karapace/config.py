@@ -6,8 +6,8 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from enum import Enum, unique
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
+from karapace.typing import ElectionStrategy, NameStrategy
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
 from typing import IO, Mapping
@@ -158,19 +158,6 @@ class InvalidConfiguration(Exception):
     pass
 
 
-@unique
-class ElectionStrategy(Enum):
-    highest = "highest"
-    lowest = "lowest"
-
-
-@unique
-class NameStrategy(Enum):
-    topic_name = "topic_name"
-    record_name = "record_name"
-    topic_record_name = "topic_record_name"
-
-
 def parse_env_value(value: str) -> str | int | bool:
     # we only have ints, strings and bools in the config
     try:
@@ -273,8 +260,10 @@ def validate_config(config: Config) -> None:
     try:
         NameStrategy(name_strategy)
     except ValueError:
-        valid_strategies = [strategy.value for strategy in NameStrategy]
-        raise InvalidConfiguration(f"Invalid name strategy: {name_strategy}, valid values are {valid_strategies}") from None
+        valid_strategies = list(NameStrategy)
+        raise InvalidConfiguration(
+            f"Invalid default name strategy: {name_strategy}, valid values are {valid_strategies}"
+        ) from None
 
     if config["rest_authorization"] and config["sasl_bootstrap_uri"] is None:
         raise InvalidConfiguration(
