@@ -2,6 +2,9 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
+from __future__ import annotations
+
 from karapace.dataclasses import default_dataclass
 
 # Ported from square/wire:
@@ -21,7 +24,7 @@ from karapace.protobuf.proto_parser import ProtoParser
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
 from karapace.schema_references import Reference
-from typing import Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Iterable, Mapping, Sequence
 
 import itertools
 
@@ -126,10 +129,10 @@ class SourceFileReference:
 @default_dataclass
 class TypeTree:
     token: str
-    children: List["TypeTree"]
-    source_reference: Optional[SourceFileReference]
+    children: list[TypeTree]
+    source_reference: SourceFileReference | None
 
-    def source_reference_tree_recursive(self) -> Iterable[Optional[SourceFileReference]]:
+    def source_reference_tree_recursive(self) -> Iterable[SourceFileReference | None]:
         sources = [] if self.source_reference is None else [self.source_reference]
         for child in self.children:
             sources = itertools.chain(sources, child.source_reference_tree())
@@ -201,7 +204,7 @@ class TypeTree:
 
 def _add_new_type_recursive(
     parent_tree: TypeTree,
-    remaining_tokens: List[str],
+    remaining_tokens: list[str],
     file: str,
     inserted_elements: int,
 ) -> None:
@@ -249,8 +252,8 @@ class ProtobufSchema:
     def __init__(
         self,
         schema: str,
-        references: Optional[Sequence[Reference]] = None,
-        dependencies: Optional[Mapping[str, Dependency]] = None,
+        references: Sequence[Reference] | None = None,
+        dependencies: Mapping[str, Dependency] | None = None,
     ) -> None:
         if type(schema).__name__ != "str":
             raise IllegalArgumentException("Non str type of schema string")
@@ -260,7 +263,7 @@ class ProtobufSchema:
         self.references = references
         self.dependencies = dependencies
 
-    def type_in_tree(self, tree: TypeTree, remaining_tokens: List[str]) -> Optional[TypeTree]:
+    def type_in_tree(self, tree: TypeTree, remaining_tokens: list[str]) -> TypeTree | None:
         if remaining_tokens:
             to_seek = remaining_tokens.pop()
 
@@ -270,10 +273,33 @@ class ProtobufSchema:
             return None
         return tree
 
-    def type_exist_in_tree(self, tree: TypeTree, remaining_tokens: List[str]) -> bool:
+    def record_name(self) -> str | None:
+        if len(self.proto_file_element.types) == 0:
+            return None
+
+        package_name = (
+            self.proto_file_element.package_name + "." if self.proto_file_element.package_name not in [None, ""] else ""
+        )
+
+        first_element = None
+        first_enum = None
+
+        for inspected_type in self.proto_file_element.types:
+            if isinstance(inspected_type, MessageElement):
+                first_element = inspected_type
+                break
+
+            if first_enum is None and isinstance(inspected_type, EnumElement):
+                first_enum = inspected_type
+
+        naming_element = first_element if first_element is not None else first_enum
+
+        return package_name + naming_element.name
+
+    def type_exist_in_tree(self, tree: TypeTree, remaining_tokens: list[str]) -> bool:
         return self.type_in_tree(tree, remaining_tokens) is not None
 
-    def recursive_imports(self) -> Set[str]:
+    def recursive_imports(self) -> set[str]:
         imports = set(self.proto_file_element.imports)
 
         if self.dependencies:
@@ -282,7 +308,7 @@ class ProtobufSchema:
 
         return imports
 
-    def are_type_usage_valid(self, root_type_tree: TypeTree, used_types: List[UsedType]) -> Tuple[bool, Optional[str]]:
+    def are_type_usage_valid(self, root_type_tree: TypeTree, used_types: list[UsedType]) -> tuple[bool, str | None]:
         # Please note that this check only ensures the requested type exists. However, for performance reasons, it works in
         # the opposite way of how specificity works in Protobuf. In Protobuf, the type is matched not only to check if it
         # exists, but also based on the order of search: local definition comes before imported types. In this code, we
@@ -408,7 +434,7 @@ class ProtobufSchema:
         return root_tree
 
     @staticmethod
-    def used_type(parent: str, element_type: str) -> List[UsedType]:
+    def used_type(parent: str, element_type: str) -> list[UsedType]:
         if element_type.find("map<") == 0:
             end = element_type.find(">")
             virgule = element_type.find(",")
@@ -426,7 +452,7 @@ class ProtobufSchema:
         package_name: str,
         parent_name: str,
         one_of: OneOfElement,
-    ) -> List[UsedType]:
+    ) -> list[UsedType]:
         parent = package_name + "." + parent_name
         dependencies = []
         for field in one_of.fields:
@@ -438,7 +464,7 @@ class ProtobufSchema:
             )
         return dependencies
 
-    def used_types(self) -> List[UsedType]:
+    def used_types(self) -> list[UsedType]:
         dependencies_used_types = []
         if self.dependencies:
             for key in self.dependencies:
@@ -469,7 +495,7 @@ class ProtobufSchema:
         package_name: str,
         parent_name: str,
         element_type: TypeElement,
-    ) -> List[str]:
+    ) -> list[str]:
         used_types = []
 
         if isinstance(element_type, MessageElement):
@@ -540,7 +566,7 @@ class ProtobufSchema:
 
         return "".join(strings)
 
-    def compare(self, other: "ProtobufSchema", result: CompareResult) -> CompareResult:
+    def compare(self, other: ProtobufSchema, result: CompareResult) -> CompareResult:
         return self.proto_file_element.compare(
             other.proto_file_element,
             result,

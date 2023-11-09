@@ -15,6 +15,7 @@ from karapace.serialization import (
     START_BYTE,
 )
 from karapace.typing import ResolvedVersion, Subject
+from pathlib import Path
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
 from unittest.mock import call, Mock
 
@@ -35,7 +36,7 @@ async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySeriali
     return serializer
 
 
-async def test_happy_flow(default_config_path):
+async def test_happy_flow(default_config_path: Path):
     mock_protobuf_registry_client = Mock()
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result(
@@ -61,7 +62,7 @@ async def test_happy_flow(default_config_path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-async def test_happy_flow_references(default_config_path):
+async def test_happy_flow_references(default_config_path: Path):
     no_ref_schema_str = """
     |syntax = "proto3";
     |
@@ -129,7 +130,7 @@ async def test_happy_flow_references(default_config_path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-async def test_happy_flow_references_two(default_config_path):
+async def test_happy_flow_references_two(default_config_path: Path):
     no_ref_schema_str = """
     |syntax = "proto3";
     |
@@ -216,7 +217,7 @@ async def test_happy_flow_references_two(default_config_path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-async def test_serialization_fails(default_config_path):
+async def test_serialization_fails(default_config_path: Path):
     mock_protobuf_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
@@ -239,7 +240,7 @@ async def test_serialization_fails(default_config_path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top")]
 
 
-async def test_deserialization_fails(default_config_path):
+async def test_deserialization_fails(default_config_path: Path):
     mock_protobuf_registry_client = Mock()
 
     deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
@@ -258,7 +259,7 @@ async def test_deserialization_fails(default_config_path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema_for_id(500)]
 
 
-async def test_deserialization_fails2(default_config_path):
+async def test_deserialization_fails2(default_config_path: Path):
     mock_protobuf_registry_client = Mock()
 
     deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)

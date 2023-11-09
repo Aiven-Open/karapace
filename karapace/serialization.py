@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from aiohttp import BasicAuth
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from cachetools import TTLCache
@@ -13,11 +15,12 @@ from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
-from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.typing import NameStrategy, ResolvedVersion, SchemaId, Subject, SubjectType
 from karapace.utils import json_decode, json_encode
-from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Tuple
+from typing import Any, Callable, MutableMapping
 from urllib.parse import quote
 
 import asyncio
@@ -59,22 +62,44 @@ class SchemaUpdateError(SchemaError):
     pass
 
 
-def topic_name_strategy(topic_name: str, record_name: str) -> str:  # pylint: disable=unused-argument
-    return topic_name
+class InvalidRecord(Exception):
+    pass
 
 
-def record_name_strategy(topic_name: str, record_name: str) -> str:  # pylint: disable=unused-argument
-    return record_name
+def topic_name_strategy(
+    topic_name: str,
+    record_name: str | None,  # pylint: disable=unused-argument
+    subject_type: SubjectType,
+) -> Subject:
+    return Subject(f"{topic_name}-{subject_type}")
 
 
-def topic_record_name_strategy(topic_name: str, record_name: str) -> str:
-    return topic_name + "-" + record_name
+def record_name_strategy(
+    topic_name: str,  # pylint: disable=unused-argument,
+    record_name: str | None,
+    subject_type: SubjectType,  # pylint: disable=unused-argument
+) -> Subject:
+    if record_name is None:
+        raise InvalidRecord(
+            "The provided record doesn't have a valid `record_name`, use another naming strategy or fix the schema"
+        )
+
+    return Subject(record_name)
+
+
+def topic_record_name_strategy(
+    topic_name: str,
+    record_name: str | None,
+    subject_type: SubjectType,
+) -> Subject:
+    validated_record_name = record_name_strategy(topic_name, record_name, subject_type)
+    return Subject(f"{topic_name}-{validated_record_name}")
 
 
 NAME_STRATEGIES = {
-    "topic_name": topic_name_strategy,
-    "record_name": record_name_strategy,
-    "topic_record_name": topic_record_name_strategy,
+    NameStrategy.topic_name: topic_name_strategy,
+    NameStrategy.record_name: record_name_strategy,
+    NameStrategy.topic_record_name: topic_record_name_strategy,
 }
 
 
@@ -82,14 +107,14 @@ class SchemaRegistryClient:
     def __init__(
         self,
         schema_registry_url: str = "http://localhost:8081",
-        server_ca: Optional[str] = None,
-        session_auth: Optional[BasicAuth] = None,
+        server_ca: str | None = None,
+        session_auth: BasicAuth | None = None,
     ):
         self.client = Client(server_uri=schema_registry_url, server_ca=server_ca, session_auth=session_auth)
         self.base_url = schema_registry_url
 
     async def post_new_schema(
-        self, subject: str, schema: ValidatedTypedSchema, references: Optional[Reference] = None
+        self, subject: str, schema: ValidatedTypedSchema, references: Reference | None = None
     ) -> SchemaId:
         if schema.schema_type is SchemaType.PROTOBUF:
             if references:
@@ -103,12 +128,12 @@ class SchemaRegistryClient:
             raise SchemaRetrievalError(result.json())
         return SchemaId(result.json()["id"])
 
-    async def _get_schema_r(
+    async def _get_schema_recursive(
         self,
         subject: Subject,
-        explored_schemas: Set[Tuple[Subject, Optional[ResolvedVersion]]],
-        version: Optional[ResolvedVersion] = None,
-    ) -> Tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
+        explored_schemas: set[tuple[Subject, ResolvedVersion | None]],
+        version: ResolvedVersion | None = None,
+    ) -> tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
         if (subject, version) in explored_schemas:
             raise InvalidSchema(
                 f"The schema has at least a cycle in dependencies, "
@@ -131,7 +156,7 @@ class SchemaRegistryClient:
             references = [Reference.from_dict(data) for data in json_result["references"]]
             dependencies = {}
             for reference in references:
-                _, schema, version = await self._get_schema_r(reference.subject, explored_schemas, reference.version)
+                _, schema, version = await self._get_schema_recursive(reference.subject, explored_schemas, reference.version)
                 dependencies[reference.name] = Dependency(
                     name=reference.name, subject=reference.subject, version=version, target_schema=schema
                 )
@@ -158,8 +183,8 @@ class SchemaRegistryClient:
     async def get_schema(
         self,
         subject: Subject,
-        version: Optional[ResolvedVersion] = None,
-    ) -> Tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
+        version: ResolvedVersion | None = None,
+    ) -> tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
         """
         Retrieves the schema and its dependencies for the specified subject.
 
@@ -174,9 +199,9 @@ class SchemaRegistryClient:
                 - ValidatedTypedSchema: The retrieved schema, validated and typed.
                 - ResolvedVersion: The version of the schema that was retrieved.
         """
-        return await self._get_schema_r(subject, set(), version)
+        return await self._get_schema_recursive(subject, set(), version)
 
-    async def get_schema_for_id(self, schema_id: SchemaId) -> Tuple[TypedSchema, List[Subject]]:
+    async def get_schema_for_id(self, schema_id: SchemaId) -> tuple[TypedSchema, list[Subject]]:
         result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
@@ -225,6 +250,31 @@ class SchemaRegistryClient:
         await self.client.close()
 
 
+def get_subject_name(
+    topic_name: str,
+    schema: TypedSchema,
+    subject_type: SubjectType,
+    naming_strategy: NameStrategy,
+) -> Subject:
+    record_name = None
+
+    if schema.schema_type is SchemaType.AVRO:
+        if isinstance(schema.schema, avro.schema.NamedSchema):
+            record_name = schema.schema.fullname
+        else:
+            record_name = None
+
+    if schema.schema_type is SchemaType.JSONSCHEMA:
+        record_name = schema.to_dict().get("title", None)
+
+    if schema.schema_type is SchemaType.PROTOBUF:
+        assert isinstance(schema.schema, ProtobufSchema), "Expecting a protobuf schema"
+        record_name = schema.schema.record_name()
+
+    naming_strategy = NAME_STRATEGIES[naming_strategy]
+    return naming_strategy(topic_name, record_name, subject_type)
+
+
 class SchemaRegistrySerializer:
     def __init__(
         self,
@@ -232,7 +282,7 @@ class SchemaRegistrySerializer:
     ) -> None:
         self.config = config
         self.state_lock = asyncio.Lock()
-        session_auth: Optional[BasicAuth] = None
+        session_auth: BasicAuth | None = None
         if self.config.get("registry_user") and self.config.get("registry_password"):
             session_auth = BasicAuth(self.config.get("registry_user"), self.config.get("registry_password"), encoding="utf8")
         if self.config.get("registry_ca"):
@@ -243,36 +293,15 @@ class SchemaRegistrySerializer:
         else:
             registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
             registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth)
-        name_strategy = config.get("name_strategy", "topic_name")
-        self.subject_name_strategy = NAME_STRATEGIES.get(name_strategy, topic_name_strategy)
-        self.registry_client: Optional[SchemaRegistryClient] = registry_client
-        self.ids_to_schemas: Dict[int, TypedSchema] = {}
-        self.ids_to_subjects: MutableMapping[int, List[Subject]] = TTLCache(maxsize=10000, ttl=600)
-        self.schemas_to_ids: Dict[str, SchemaId] = {}
+        self.registry_client: SchemaRegistryClient | None = registry_client
+        self.ids_to_schemas: dict[int, TypedSchema] = {}
+        self.ids_to_subjects: MutableMapping[int, list[Subject]] = TTLCache(maxsize=10000, ttl=600)
+        self.schemas_to_ids: dict[str, SchemaId] = {}
 
     async def close(self) -> None:
         if self.registry_client:
             await self.registry_client.close()
             self.registry_client = None
-
-    def get_subject_name(
-        self,
-        topic_name: str,
-        schema: TypedSchema,
-        subject_type: str,
-        schema_type: SchemaType,
-    ) -> Subject:
-        namespace = "dummy"
-        if schema_type is SchemaType.AVRO:
-            if isinstance(schema.schema, avro.schema.NamedSchema):
-                namespace = schema.schema.namespace
-        if schema_type is SchemaType.JSONSCHEMA:
-            namespace = schema.to_dict().get("namespace", "dummy")
-        #  Protobuf does not use namespaces in terms of AVRO
-        if schema_type is SchemaType.PROTOBUF:
-            namespace = ""
-
-        return Subject(f"{self.subject_name_strategy(topic_name, namespace)}-{subject_type}")
 
     async def get_schema_for_subject(self, subject: Subject) -> TypedSchema:
         assert self.registry_client, "must not call this method after the object is closed."
@@ -303,8 +332,8 @@ class SchemaRegistrySerializer:
         self,
         schema_id: SchemaId,
         *,
-        need_new_call: Optional[Callable[[TypedSchema, List[Subject]], bool]] = None,
-    ) -> Tuple[TypedSchema, List[Subject]]:
+        need_new_call: Callable[[TypedSchema, list[Subject]], bool] | None = None,
+    ) -> tuple[TypedSchema, list[Subject]]:
         assert self.registry_client, "must not call this method after the object is closed."
         if schema_id in self.ids_to_subjects:
             if need_new_call is None or not need_new_call(self.ids_to_schemas[schema_id], self.ids_to_subjects[schema_id]):
