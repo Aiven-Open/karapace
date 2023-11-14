@@ -5,6 +5,8 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/MessageElement.kt
 # compatibility routine added
+from __future__ import annotations
+
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
@@ -17,7 +19,6 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import List
 
 
 class MessageElement(TypeElement):
@@ -26,13 +27,13 @@ class MessageElement(TypeElement):
         location: Location,
         name: str,
         documentation: str = "",
-        nested_types: List[TypeElement] = None,
-        options: List[OptionElement] = None,
-        reserveds: List[ReservedElement] = None,
-        fields: List[FieldElement] = None,
-        one_ofs: List[OneOfElement] = None,
-        extensions: List[ExtensionsElement] = None,
-        groups: List[GroupElement] = None,
+        nested_types: list[TypeElement] | None = None,
+        options: list[OptionElement] | None = None,
+        reserveds: list[ReservedElement] | None = None,
+        fields: list[FieldElement] | None = None,
+        one_ofs: list[OneOfElement] | None = None,
+        extensions: list[ExtensionsElement] | None = None,
+        groups: list[GroupElement] | None = None,
     ) -> None:
         super().__init__(location, name, documentation, options or [], nested_types or [])
         self.reserveds = reserveds or []
@@ -42,7 +43,7 @@ class MessageElement(TypeElement):
         self.groups = groups or []
 
     def to_schema(self) -> str:
-        result = []
+        result: list[str] = []
         append_documentation(result, self.documentation)
         result.append(f"message {self.name} {{")
         if self.reserveds:
@@ -83,7 +84,7 @@ class MessageElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: "MessageElement", result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: MessageElement, result: CompareResult, types: CompareTypes) -> None:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 
         if types.lock_message(self):

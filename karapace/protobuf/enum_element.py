@@ -4,6 +4,8 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/EnumElement.kt
+from __future__ import annotations
+
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
@@ -12,7 +14,6 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import List
 
 
 class EnumElement(TypeElement):
@@ -21,8 +22,8 @@ class EnumElement(TypeElement):
         location: Location,
         name: str,
         documentation: str = "",
-        options: List[OptionElement] = None,
-        constants: List[EnumConstantElement] = None,
+        options: list[OptionElement] | None = None,
+        constants: list[EnumConstantElement] | None = None,
     ) -> None:
         # Enums do not allow nested type declarations.
         super().__init__(location, name, documentation, options or [], [])
@@ -47,7 +48,7 @@ class EnumElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: "EnumElement", result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: EnumElement, result: CompareResult, types: CompareTypes) -> None:
         self_tags = {}
         other_tags = {}
         constant: EnumConstantElement
