@@ -1104,3 +1104,54 @@ message Customer {
     res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
 
     assert res.status_code == 200
+
+
+async def test_protobuf_binary_serialized(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_binary_serialized")()
+
+    schema_plain = """\
+syntax = "proto3";
+
+message Key {
+  int32 id = 1;
+}
+message Dog {
+  string name = 1;
+  int32 weight = 2;
+  repeated string toys = 4;
+}
+"""
+    schema_serialized = (
+        "Cg5tZXNzYWdlcy5wcm90byIRCgNLZXkSCgoCaWQYASABKAUiMQoDRG9nEgwKBG5hbW"
+        + "UYASABKAkSDgoGd2VpZ2h0GAIgASgFEgwKBHRveXMYBCADKAliBnByb3RvMw=="
+    )
+
+    body = {"schemaType": "PROTOBUF", "schema": schema_serialized}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    body = {"schemaType": "PROTOBUF", "schema": schema_plain}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"]
+
+    res = await registry_async_client.get(f"/schemas/ids/{schema_id}")
+    assert res.status_code == 200
+    assert "schema" in res.json()
+    assert res.json()["schema"] == schema_plain
+
+    res = await registry_async_client.get(f"/schemas/ids/{schema_id}?format=serialized")
+    assert res.status_code == 200
+    assert "schema" in res.json()
+    assert res.json()["schema"]
+
+    body = {"schemaType": "PROTOBUF", "schema": res.json()["schema"]}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert schema_id == res.json()["id"]
