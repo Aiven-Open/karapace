@@ -4,9 +4,11 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
+from __future__ import annotations
+
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from karapace.protobuf.compare_result import CompareResult
@@ -19,8 +21,8 @@ class TypeElement:
     location: Location
     name: str
     documentation: str
-    options: List["OptionElement"]
-    nested_types: List["TypeElement"]
+    options: list[OptionElement]
+    nested_types: list[TypeElement]
 
     def to_schema(self) -> str:
         """Convert the object to valid protobuf syntax.
@@ -37,5 +39,5 @@ class TypeElement:
         mytype = type(self)
         return f"{mytype}({self.to_schema()})"
 
-    def compare(self, other: "TypeElement", result: "CompareResult", types: "CompareTypes") -> None:
+    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
         pass
