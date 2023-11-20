@@ -84,13 +84,14 @@ class MessageElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: MessageElement, result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 
+        if not isinstance(other, MessageElement):
+            result.add_modification(Modification.TYPE_ALTER)
+            return
+
         if types.lock_message(self):
-            field: FieldElement
-            subfield: FieldElement
-            one_of: OneOfElement
             self_tags = {}
             other_tags = {}
             self_one_ofs = {}
@@ -108,10 +109,10 @@ class MessageElement(TypeElement):
             for one_of in other.one_ofs:
                 other_one_ofs[one_of.name] = one_of
 
-            for field in other.one_ofs:
-                result.push_path(str(field.name))
+            for oneof in other.one_ofs:
+                result.push_path(str(oneof.name))
                 convert_count = 0
-                for subfield in field.fields:
+                for subfield in oneof.fields:
                     tag = subfield.tag
                     if self_tags.get(tag):
                         self_tags.pop(tag)
