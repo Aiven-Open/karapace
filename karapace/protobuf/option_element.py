@@ -4,6 +4,7 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/OptionElement.kt
+from __future__ import annotations
 
 from enum import Enum
 from karapace.protobuf.utils import append_indented, append_options, try_to_schema
@@ -19,12 +20,12 @@ class OptionElement:
         LIST = 6
         OPTION = 7
 
-    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = None) -> None:
+    def __init__(self, name: str, kind: Kind, value, is_parenthesized: bool = False) -> None:
         self.name = name
         self.kind = kind
         self.value = value
         """ If true, this [OptionElement] is a custom option. """
-        self.is_parenthesized = is_parenthesized or False
+        self.is_parenthesized = is_parenthesized
         self.formattedName = f"({self.name})" if is_parenthesized else self.name
 
     def to_schema(self) -> str:
@@ -49,14 +50,14 @@ class OptionElement:
 
     @staticmethod
     def append_options(options: list) -> str:
-        data = []
+        data: list[str] = []
         append_options(data, options)
         return "".join(data)
 
     def format_option_map(self, value: dict) -> str:
         keys = list(value.keys())
         last_index = len(keys) - 1
-        result = []
+        result: list[str] = []
         for index, key in enumerate(keys):
             endl = "," if (index != last_index) else ""
             append_indented(result, f"{key}: {self.format_option_map_value(value[key])}{endl}")
@@ -79,7 +80,7 @@ class OptionElement:
 
     def format_list_map_value(self, value) -> str:
         last_index = len(value) - 1
-        result = []
+        result: list[str] = []
         for index, elm in enumerate(value):
             endl = "," if (index != last_index) else ""
             append_indented(result, f"{self.format_option_map_value(elm)}{endl}")
