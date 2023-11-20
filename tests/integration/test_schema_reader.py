@@ -4,10 +4,11 @@ See LICENSE for details
 """
 from contextlib import closing
 from dataclasses import dataclass
-from kafka import KafkaAdminClient, KafkaProducer
+from kafka import KafkaProducer
 from karapace.config import set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.in_memory_database import InMemoryDatabase
+from karapace.kafka_admin import KafkaAdminClient
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher

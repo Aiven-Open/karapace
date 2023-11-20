@@ -5,7 +5,7 @@ See LICENSE for details
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from kafka.errors import TopicAlreadyExistsError
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from karapace.kafka_admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
@@ -224,7 +224,7 @@ def create_id_factory(prefix: str) -> Callable[[], str]:
     return create_name
 
 
-def new_topic(admin_client: KafkaRestAdminClient, prefix: str = "topic", *, num_partitions: int = 1) -> str:
+def new_topic(admin_client: KafkaAdminClient, prefix: str = "topic", *, num_partitions: int = 1) -> str:
     topic_name = f"{new_random_name(prefix)}"
     try:
         admin_client.new_topic(topic_name, num_partitions=num_partitions)

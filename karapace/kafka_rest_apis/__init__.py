@@ -2,20 +2,19 @@ from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
-from contextlib import AsyncExitStack, closing
+from contextlib import AsyncExitStack
 from http import HTTPStatus
 from kafka.errors import (
     AuthenticationFailedError,
     BrokerResponseError,
     KafkaTimeoutError,
     NoBrokersAvailable,
-    NodeNotReadyError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
 from karapace.config import Config, create_client_ssl_context
 from karapace.errors import InvalidSchema
-from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
+from karapace.kafka_admin import KafkaAdminClient, KafkaException
 from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
@@ -307,9 +306,6 @@ class KafkaRest(KarapaceBase):
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
             except (NoBrokersAvailable, AuthenticationFailedError):
-                # NoBrokersAvailable can be caused also due to misconfigration, but kafka-python's
-                # KafkaAdminClient cannot currently distinguish those two cases.
-                # A more expressive AuthenticationFailedError is raised in case of OAuth2
                 log.exception("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
@@ -627,7 +623,7 @@ class UserRestProxy:
                 self._metadata_birth = metadata_birth
                 self._cluster_metadata = metadata
                 self._cluster_metadata_complete = topics is None
-            except NodeNotReadyError:
+            except KafkaException:
                 log.exception("Could not refresh cluster metadata")
                 KafkaRest.r(
                     body={
@@ -642,7 +638,7 @@ class UserRestProxy:
     def init_admin_client(self):
         for retry in [True, True, False]:
             try:
-                self.admin_client = KafkaRestAdminClient(
+                self.admin_client = KafkaAdminClient(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
                     ssl_cafile=self.config["ssl_cafile"],
@@ -668,9 +664,6 @@ class UserRestProxy:
             if self._async_producer is not None:
                 log.info("Disposing async producer")
                 stack.push_async_callback(self._async_producer.stop)
-
-            if self.admin_client is not None:
-                stack.enter_context(closing(self.admin_client))
 
             if self.consumer_manager is not None:
                 stack.push_async_callback(self.consumer_manager.aclose)

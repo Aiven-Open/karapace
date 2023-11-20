@@ -5,7 +5,6 @@ See LICENSE for details
 from __future__ import annotations
 
 from kafka import KafkaConsumer, KafkaProducer
-from kafka.admin import NewTopic
 from kafka.errors import KafkaError, TopicAlreadyExistsError
 from kafka.structs import PartitionMetadata
 from karapace import config
@@ -24,7 +23,7 @@ from karapace.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
 from karapace.backup.backends.writer import StdOut
 from karapace.backup.errors import BackupError, PartitionCountError
 from karapace.config import Config
-from karapace.constants import DEFAULT_SCHEMA_TOPIC, TOPIC_CREATION_TIMEOUT_MS
+from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from pathlib import Path
 from types import FunctionType
 from typing import Callable, cast, ContextManager
@@ -40,13 +39,6 @@ patch_admin_new = mock.patch(
 
 
 class TestAdmin:
-    @patch_admin_new
-    def test_auto_closing(self, admin_new: MagicMock) -> None:
-        admin_mock = admin_new.return_value
-        with _admin(config.DEFAULTS) as admin:
-            assert admin is admin_mock
-        assert admin_mock.close.call_count == 1
-
     @mock.patch("time.sleep", autospec=True)
     @patch_admin_new
     def test_retries_on_kafka_error(self, admin_new: MagicMock, sleep_mock: MagicMock) -> None:
@@ -55,7 +47,6 @@ class TestAdmin:
         with _admin(config.DEFAULTS) as admin:
             assert admin is admin_mock
         assert sleep_mock.call_count == 2  # proof that we waited between retries
-        assert admin_mock.close.call_count == 1
 
     @pytest.mark.parametrize("e", (KeyboardInterrupt, SystemExit, RuntimeError, MemoryError))
     @mock.patch("time.sleep", autospec=True)
@@ -75,52 +66,51 @@ class TestAdmin:
 class TestHandleRestoreTopic:
     @patch_admin_new
     def test_calls_admin_create_topics(self, admin_new: MagicMock) -> None:
-        create_topics: MagicMock = admin_new.return_value.create_topics
+        new_topic: MagicMock = admin_new.return_value.new_topic
         topic_configs = {"cleanup.policy": "compact"}
         _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs=topic_configs)
 
-        create_topics.assert_called_once_with(mock.ANY, timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
-        ((new_topic,),) = create_topics.call_args.args
-        assert isinstance(new_topic, NewTopic)
-        assert new_topic.name == DEFAULT_SCHEMA_TOPIC
-        assert new_topic.num_partitions == 1
-        assert new_topic.replication_factor == config.DEFAULTS["replication_factor"]
-        assert new_topic.topic_configs == topic_configs
+        new_topic.assert_called_once_with(
+            DEFAULT_SCHEMA_TOPIC,
+            num_partitions=1,
+            replication_factor=config.DEFAULTS["replication_factor"],
+            config=topic_configs,
+        )
 
     @patch_admin_new
     def test_gracefully_handles_topic_already_exists_error(self, admin_new: MagicMock) -> None:
-        create_topics: MagicMock = admin_new.return_value.create_topics
-        create_topics.side_effect = TopicAlreadyExistsError()
+        new_topic: MagicMock = admin_new.return_value.new_topic
+        new_topic.side_effect = TopicAlreadyExistsError()
         _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs={})
-        create_topics.assert_called_once()
+        new_topic.assert_called_once()
 
     @patch_admin_new
     def test_retries_for_kafka_errors(self, admin_new: MagicMock) -> None:
-        create_topics: MagicMock = admin_new.return_value.create_topics
-        create_topics.side_effect = [KafkaError("1"), KafkaError("2"), None]
+        new_topic: MagicMock = admin_new.return_value.new_topic
+        new_topic.side_effect = [KafkaError("1"), KafkaError("2"), None]
 
         with mock.patch("time.sleep", autospec=True):
             _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs={})
 
-        assert create_topics.call_count == 3
+        assert new_topic.call_count == 3
 
     @patch_admin_new
     def test_noop_for_custom_name_on_legacy_versions(
         self,
         admin_new: MagicMock,
     ) -> None:
-        create_topics: MagicMock = admin_new.return_value.create_topics
+        new_topic: MagicMock = admin_new.return_value.new_topic
         assert "custom-name" != DEFAULT_SCHEMA_TOPIC
         instruction = RestoreTopicLegacy(topic_name="custom-name", partition_count=1)
         _handle_restore_topic_legacy(instruction, config.DEFAULTS)
-        create_topics.assert_not_called()
+        new_topic.assert_not_called()
 
     @patch_admin_new
     def test_allows_custom_name_on_v3(
         self,
         admin_new: MagicMock,
     ) -> None:
-        create_topics: MagicMock = admin_new.return_value.create_topics
+        new_topic: MagicMock = admin_new.return_value.new_topic
         topic_name = "custom-name"
         assert topic_name != DEFAULT_SCHEMA_TOPIC
         topic_configs = {"segment.bytes": "1000"}
@@ -129,20 +119,14 @@ class TestHandleRestoreTopic:
         )
         _handle_restore_topic(instruction, config.DEFAULTS)
 
-        create_topics.assert_called_once_with(mock.ANY, timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
-        ((new_topic,),) = create_topics.call_args.args
-        assert isinstance(new_topic, NewTopic)
-        assert new_topic.name == topic_name
-        assert new_topic.num_partitions == 1
-        assert new_topic.replication_factor == 2
-        assert new_topic.topic_configs == topic_configs
+        new_topic.assert_called_once_with(topic_name, num_partitions=1, replication_factor=2, config=topic_configs)
 
     @patch_admin_new
     def test_skip_topic_creation(
         self,
         admin_new: MagicMock,
     ) -> None:
-        create_topics: MagicMock = admin_new.return_value.create_topics
+        new_topic: MagicMock = admin_new.return_value.new_topic
         _handle_restore_topic(
             RestoreTopic(topic_name="custom-name", partition_count=1, replication_factor=2, topic_configs={}),
             config.DEFAULTS,
@@ -157,7 +141,7 @@ class TestHandleRestoreTopic:
             skip_topic_creation=True,
         )
 
-        create_topics.assert_not_called()
+        new_topic.assert_not_called()
 
 
 class TestClients:
