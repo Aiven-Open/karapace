@@ -30,7 +30,7 @@ class EnumElement(TypeElement):
         self.constants = constants or []
 
     def to_schema(self) -> str:
-        result = []
+        result: list[str] = []
         append_documentation(result, self.documentation)
         result.append(f"enum {self.name} {{")
 
@@ -48,12 +48,15 @@ class EnumElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: EnumElement, result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
         self_tags = {}
         other_tags = {}
-        constant: EnumConstantElement
         if types:
             pass
+
+        if not isinstance(other, EnumElement):
+            result.add_modification(Modification.TYPE_ALTER)
+            return
 
         for constant in self.constants:
             self_tags[constant.tag] = constant
@@ -63,11 +66,13 @@ class EnumElement(TypeElement):
 
         for tag in chain(self_tags.keys(), other_tags.keys() - self_tags.keys()):
             result.push_path(str(tag))
-            if self_tags.get(tag) is None:
+            self_tag = self_tags.get(tag)
+            other_tag = other_tags.get(tag)
+            if self_tag is None:
                 result.add_modification(Modification.ENUM_CONSTANT_ADD)
-            elif other_tags.get(tag) is None:
+            elif other_tag is None:
                 result.add_modification(Modification.ENUM_CONSTANT_DROP)
             else:
-                if self_tags.get(tag).name == other_tags.get(tag).name:
+                if self_tag.name == other_tag.name:
                     result.add_modification(Modification.ENUM_CONSTANT_ALTER)
             result.pop_path()
