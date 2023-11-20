@@ -11,7 +11,6 @@ from contextlib import closing, ExitStack
 from enum import Enum
 from jsonschema.validators import Draft7Validator
 from kafka import KafkaConsumer, TopicPartition
-from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import (
     InvalidReplicationFactorError,
     KafkaConfigurationError,
@@ -25,6 +24,7 @@ from karapace.config import Config
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
+from karapace.kafka_admin import KafkaAdminClient
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
@@ -94,7 +94,6 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
 
 def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
     return KafkaAdminClient(
-        api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
         bootstrap_servers=config["bootstrap_uri"],
         client_id=config["client_id"],
         security_protocol=config["security_protocol"],
@@ -104,15 +103,6 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
         sasl_mechanism=config["sasl_mechanism"],
         sasl_plain_username=config["sasl_plain_username"],
         sasl_plain_password=config["sasl_plain_password"],
-    )
-
-
-def new_schema_topic_from_config(config: Config) -> NewTopic:
-    return NewTopic(
-        name=config["topic_name"],
-        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-        replication_factor=config["replication_factor"],
-        topic_configs={"cleanup.policy": "compact"},
     )
 
 
@@ -174,7 +164,6 @@ class KafkaSchemaReader(Thread):
             while not self._stop.is_set() and self.admin_client is None:
                 try:
                     self.admin_client = _create_admin_client_from_config(self.config)
-                    stack.enter_context(closing(self.admin_client))
                 except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                     LOG.warning("[Admin Client] No Brokers available yet. Retrying")
                     self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
@@ -206,25 +195,28 @@ class KafkaSchemaReader(Thread):
             assert self.consumer is not None
 
             schema_topic_exists = False
-            schema_topic = new_schema_topic_from_config(self.config)
-            schema_topic_create = [schema_topic]
             while not self._stop.is_set() and not schema_topic_exists:
                 try:
-                    LOG.info("[Schema Topic] Creating %r", schema_topic.name)
-                    self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-                    LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
+                    LOG.info("[Schema Topic] Creating %r", self.config["topic_name"])
+                    topic = self.admin_client.new_topic(
+                        name=self.config["topic_name"],
+                        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+                        replication_factor=self.config["replication_factor"],
+                        config={"cleanup.policy": "compact"},
+                    )
+                    LOG.info("[Schema Topic] Successfully created %r", topic.topic)
                     schema_topic_exists = True
                 except TopicAlreadyExistsError:
-                    LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
+                    LOG.warning("[Schema Topic] Already exists %r", self.config["topic_name"])
                     schema_topic_exists = True
                 except InvalidReplicationFactorError:
                     LOG.info(
                         "[Schema Topic] Failed to create topic %r, not enough Kafka brokers ready yet, retrying",
-                        schema_topic.name,
+                        topic.topic,
                     )
                     self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
                 except:  # pylint: disable=bare-except
-                    LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
+                    LOG.exception("[Schema Topic] Failed to create %r, retrying", topic.topic)
                     self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
 
             while not self._stop.is_set():

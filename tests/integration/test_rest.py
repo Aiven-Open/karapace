@@ -5,11 +5,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from kafka import KafkaProducer
-from kafka.errors import UnknownTopicOrPartitionError
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient, SUBJECT_VALID_POSTFIX
+from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
 from karapace.version import __version__
-from pytest import raises
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
     new_random_name,
@@ -54,7 +53,7 @@ async def test_health_endpoint(rest_async_client: Client) -> None:
     assert response["karapace_version"] == __version__
 
 
-async def test_request_body_too_large(rest_async_client: KafkaRestAdminClient, admin_client: Client) -> None:
+async def test_request_body_too_large(rest_async_client: KafkaAdminClient, admin_client: Client) -> None:
     tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     pl = {"records": [{"value": 1_048_576 * "a"}]}
@@ -62,7 +61,7 @@ async def test_request_body_too_large(rest_async_client: KafkaRestAdminClient, a
     assert res.status_code == 413
 
 
-async def test_content_types(rest_async_client: KafkaRestAdminClient, admin_client: Client) -> None:
+async def test_content_types(rest_async_client: KafkaAdminClient, admin_client: Client) -> None:
     tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     valid_headers = [
@@ -134,7 +133,7 @@ async def test_content_types(rest_async_client: KafkaRestAdminClient, admin_clie
         assert not res.ok
 
 
-async def test_avro_publish_primitive_schema(rest_async_client: KafkaRestAdminClient, admin_client: Client) -> None:
+async def test_avro_publish_primitive_schema(rest_async_client: KafkaAdminClient, admin_client: Client) -> None:
     topic_str = new_topic(admin_client)
     topic_int = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic_str, topic_int], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
@@ -159,7 +158,7 @@ async def test_avro_publish_primitive_schema(rest_async_client: KafkaRestAdminCl
 async def test_avro_publish(
     rest_async_client: Client,
     registry_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
 ) -> None:
     tn = new_topic(admin_client)
     other_tn = new_topic(admin_client)
@@ -204,47 +203,7 @@ async def test_avro_publish(
             # assert res.status_code == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
 
-async def test_admin_client(admin_client: KafkaRestAdminClient, producer: KafkaProducer) -> None:
-    topic_names = [new_topic(admin_client) for i in range(10, 13)]
-    topic_info = admin_client.cluster_metadata()
-    retrieved_names = list(topic_info["topics"].keys())
-    assert (
-        set(topic_names).difference(set(retrieved_names)) == set()
-    ), "Returned value {!r} differs from written one {!r}".format(
-        retrieved_names,
-        topic_names,
-    )
-    assert len(topic_info["brokers"]) == 1, "Only one broker during tests"
-    for t in topic_names:
-        v = topic_info["topics"][t]
-        assert len(v["partitions"]) == 1, "Should only have data for one partition"
-        details = v["partitions"][0]
-        assert len(details["replicas"]) == 1, "Should have only 1 replica"
-    one_topic_info = admin_client.cluster_metadata(topic_names[:1])
-    retrieved_names = list(one_topic_info["topics"].keys())
-    assert len(retrieved_names) == 1
-    assert retrieved_names[0] == topic_names[0], f"Returned value %r differs from expected {retrieved_names[0]}"
-    cfg = admin_client.get_topic_config(topic_names[0])
-    assert "cleanup.policy" in cfg
-    for _ in range(5):
-        fut = producer.send(topic_names[0], value=b"foo_val")
-        producer.flush()
-        _ = fut.get()
-    offsets = admin_client.get_offsets(topic_names[0], 0)
-    assert offsets["beginning_offset"] == 0, f"Start offset should be 0 for {topic_names[0]}, partition 0"
-    assert offsets["end_offset"] == 5, f"End offset should be 0 for {topic_names[0]}, partition 0"
-    # invalid requests
-    with raises(UnknownTopicOrPartitionError):
-        admin_client.get_offsets("invalid_topic", 0)
-    with raises(UnknownTopicOrPartitionError):
-        admin_client.get_offsets(topic_names[0], 10)
-    with raises(UnknownTopicOrPartitionError):
-        admin_client.get_topic_config("another_invalid_name")
-    with raises(UnknownTopicOrPartitionError):
-        admin_client.cluster_metadata(topics=["another_invalid_name"])
-
-
-async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaRestAdminClient) -> None:
+async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaAdminClient) -> None:
     topic_name = new_topic(admin_client)
     prepared_records = [
         [b"key", b"value", 0],
@@ -277,7 +236,7 @@ async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaRestAdm
     assert rest_async_proxy.all_empty({"records": [{"value": {"foo": "bar"}}]}, "key") is True
 
 
-async def test_topics(rest_async_client: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_topics(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     topic_foo = "foo"
     tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
@@ -317,7 +276,7 @@ async def test_list_topics(rest_async_client, admin_client) -> None:
     assert tn1 in topic_list and tn2 in topic_list, f"Topic list contains all topics tn1={tn1} and tn2={tn2}"
 
 
-async def test_publish(rest_async_client: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_publish(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     topic = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     topic_url = f"/topics/{topic}"
@@ -337,7 +296,7 @@ async def test_publish(rest_async_client: Client, admin_client: KafkaRestAdminCl
 
 # Produce messages to a topic without key and without explicit partition to verify that
 # partitioner assigns partition randomly
-async def test_publish_random_partitioning(rest_async_client: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_publish_random_partitioning(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     topic = new_topic(admin_client, num_partitions=100)
     await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     topic_url = f"/topics/{topic}"
@@ -356,7 +315,7 @@ async def test_publish_random_partitioning(rest_async_client: Client, admin_clie
     assert len(partitions_seen) >= 2, "Partitioner should randomly assign to different partitions if no key given"
 
 
-async def test_publish_malformed_requests(rest_async_client: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_publish_malformed_requests(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     topic_name = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     for url in [f"/topics/{topic_name}", f"/topics/{topic_name}/partitions/0"]:
@@ -394,7 +353,7 @@ async def test_publish_malformed_requests(rest_async_client: Client, admin_clien
         assert res.status_code == 422
 
 
-async def test_too_large_record(rest_async_client: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_too_large_record(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     tn = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     # Record batch overhead is 22 bytes, reduce just above
@@ -426,7 +385,7 @@ async def test_publish_to_nonexisting_topic(rest_async_client: Client) -> None:
 async def test_publish_with_incompatible_data(
     rest_async_client: Client,
     registry_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
 ) -> None:
     topic_name = new_topic(admin_client)
     subject_1 = f"{topic_name}-value"
@@ -470,7 +429,7 @@ async def test_publish_with_incompatible_data(
     assert "Object does not fit to stored schema" in res_json["message"]
 
 
-async def test_publish_with_incompatible_schema(rest_async_client: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_publish_with_incompatible_schema(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     topic_name = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     url = f"/topics/{topic_name}"
@@ -518,7 +477,7 @@ async def test_publish_with_incompatible_schema(rest_async_client: Client, admin
 async def test_publish_with_schema_id_of_another_subject(
     rest_async_client: Client,
     registry_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
 ) -> None:
     """
     Karapace issue 658: https://github.com/aiven/karapace/issues/658
@@ -588,7 +547,7 @@ async def test_publish_with_schema_id_of_another_subject(
 async def test_publish_with_schema_id_of_another_subject_novalidation(
     rest_async_novalidation_client: Client,
     registry_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
 ) -> None:
     """
     Same as above but with name_strategy_validation disabled as config
@@ -659,7 +618,7 @@ async def test_brokers(rest_async_client: Client) -> None:
 
 async def test_partitions(
     rest_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
     producer: KafkaProducer,
 ) -> None:
     # TODO -> This seems to be the only combination accepted by the offsets endpoint
