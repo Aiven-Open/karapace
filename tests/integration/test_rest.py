@@ -6,12 +6,16 @@ from __future__ import annotations
 
 from kafka import KafkaProducer
 from karapace.client import Client
+from karapace.config import ConfigDefaults
 from karapace.kafka_admin import KafkaAdminClient
 from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
 from karapace.schema_models import ValidatedTypedSchema
 from karapace.schema_type import SchemaType
+from karapace.serialization import get_subject_name
+from karapace.typing import NameStrategy, SubjectType
 from karapace.version import __version__
-from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
+from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES, RestClientAndRegistryClient
+from tests.unit.test_serialization import TYPED_AVRO_SCHEMA, TYPED_PROTOBUF_SCHEMA
 from tests.utils import (
     new_random_name,
     new_topic,
@@ -23,10 +27,12 @@ from tests.utils import (
     test_objects_avro_evolution,
     wait_for_topics,
 )
+from typing import AsyncContextManager, Callable
 
 import asyncio
 import base64
 import json
+import pytest
 import time
 
 NEW_TOPIC_TIMEOUT = 10
@@ -278,22 +284,289 @@ async def test_list_topics(rest_async_client, admin_client) -> None:
     assert tn1 in topic_list and tn2 in topic_list, f"Topic list contains all topics tn1={tn1} and tn2={tn2}"
 
 
-async def test_publish(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
+async def test_publish_topic_json(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
+    topic = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    partition_url = f"/topics/{topic}/partitions/0"
+    res = await rest_async_client.post(
+        partition_url,
+        json={"records": [{"value": {"foo": "bar"}}]},
+        headers=REST_HEADERS["json"],
+    )
+    res_json = res.json()
+    assert res.ok
+    assert "offsets" in res_json
+    for o in res_json["offsets"]:
+        assert "partition" in o
+        assert int(o["partition"]) == 0
+
+
+async def test_publish_topic_binary(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
+    topic = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    partition_url = f"/topics/{topic}/partitions/0"
+    res = await rest_async_client.post(
+        partition_url, json={"records": [{"value": "Zm9vCg=="}]}, headers=REST_HEADERS["binary"]
+    )
+    res_json = res.json()
+    assert res.ok
+    assert "offsets" in res_json
+    for o in res_json["offsets"]:
+        assert "partition" in o
+        assert int(o["partition"]) == 0
+
+
+async def test_publish_partition_json(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
     topic = new_topic(admin_client)
     await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     topic_url = f"/topics/{topic}"
-    partition_url = f"/topics/{topic}/partitions/0"
-    # Proper Json / Binary
-    for url in [topic_url, partition_url]:
-        for payload, h in [({"value": {"foo": "bar"}}, "json"), ({"value": "Zm9vCg=="}, "binary")]:
-            res = await rest_async_client.post(url, json={"records": [payload]}, headers=REST_HEADERS[h])
-            res_json = res.json()
-            assert res.ok
-            assert "offsets" in res_json
-            if "partition" in url:
-                for o in res_json["offsets"]:
-                    assert "partition" in o
-                    assert o["partition"] == 0
+
+    res = await rest_async_client.post(
+        topic_url,
+        json={"records": [{"value": {"foo": "bar"}}]},
+        headers=REST_HEADERS["json"],
+    )
+    res_json = res.json()
+    assert res.ok
+    assert "offsets" in res_json
+
+
+async def test_publish_partition_binary(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
+    topic = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    topic_url = f"/topics/{topic}"
+    res = await rest_async_client.post(
+        topic_url,
+        json={"records": [{"value": "Zm9vCg=="}]},
+        headers=REST_HEADERS["binary"],
+    )
+    res_json = res.json()
+    assert res.ok
+    for o in res_json["offsets"]:
+        assert "partition" in o
+        assert int(o["partition"]) == 0
+
+
+@pytest.mark.parametrize(
+    "name_strategy",
+    (
+        (NameStrategy.topic_name),
+        (NameStrategy.record_name),
+        (NameStrategy.topic_record_name),
+    ),
+)
+async def test_publish_partition_protobuf(
+    rest_async_client_and_rest_async_client_from_config: Callable[
+        [ConfigDefaults], AsyncContextManager[RestClientAndRegistryClient]
+    ],
+    admin_client: KafkaAdminClient,
+    name_strategy: NameStrategy,
+) -> None:
+    topic = new_topic(admin_client)
+    async with rest_async_client_and_rest_async_client_from_config(
+        {"name_strategy": name_strategy}
+    ) as async_rest_and_registry_client:
+        registry_async_client = async_rest_and_registry_client.registry_client
+        rest_async_client = async_rest_and_registry_client.rest_client
+
+        await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+        topic_url = f"/topics/{topic}/partitions/0"
+
+        res = await registry_async_client.post(
+            f"subjects/{new_random_name('random_subject')}/versions",
+            json={"schemaType": "PROTOBUF", "schema": TYPED_PROTOBUF_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        message = [{"value": {"attr1": "Value for attr1", "attr2": "Value for attr2"}}]
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["protobuf"],
+        )
+        assert res.status_code == 422
+
+        res = await registry_async_client.post(
+            f"subjects/{get_subject_name(topic, TYPED_PROTOBUF_SCHEMA, SubjectType.value_, name_strategy)}/versions",
+            json={"schemaType": "PROTOBUF", "schema": TYPED_PROTOBUF_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["protobuf"],
+        )
+        assert res.ok
+        for o in res.json()["offsets"]:
+            assert "partition" in o
+            assert int(o["partition"]) == 0
+
+
+@pytest.mark.parametrize(
+    "name_strategy",
+    (
+        (NameStrategy.topic_name),
+        (NameStrategy.record_name),
+        (NameStrategy.topic_record_name),
+    ),
+)
+async def test_publish_topic_protobuf(
+    rest_async_client_and_rest_async_client_from_config: Callable[
+        [ConfigDefaults], AsyncContextManager[RestClientAndRegistryClient]
+    ],
+    admin_client: KafkaAdminClient,
+    name_strategy: NameStrategy,
+) -> None:
+    topic = new_topic(admin_client)
+    async with rest_async_client_and_rest_async_client_from_config(
+        {"name_strategy": name_strategy}
+    ) as async_rest_and_registry_client:
+        registry_async_client = async_rest_and_registry_client.registry_client
+        rest_async_client = async_rest_and_registry_client.rest_client
+
+        await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+        topic_url = f"/topics/{topic}/partitions/0"
+
+        res = await registry_async_client.post(
+            f"subjects/{new_random_name('random_subject')}/versions",
+            json={"schemaType": "PROTOBUF", "schema": TYPED_PROTOBUF_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        message = [{"value": {"attr1": "Value for attr1", "attr2": "Value for attr2"}}]
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["protobuf"],
+        )
+        assert res.status_code == 422
+
+        res = await registry_async_client.post(
+            f"subjects/{get_subject_name(topic, TYPED_PROTOBUF_SCHEMA, SubjectType.value_, name_strategy)}/versions",
+            json={"schemaType": "PROTOBUF", "schema": TYPED_PROTOBUF_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["protobuf"],
+        )
+        assert res.ok
+
+
+@pytest.mark.parametrize(
+    "name_strategy",
+    (
+        (NameStrategy.topic_name),
+        (NameStrategy.record_name),
+        (NameStrategy.topic_record_name),
+    ),
+)
+async def test_publish_topic_avro(
+    rest_async_client_and_rest_async_client_from_config: Callable[
+        [ConfigDefaults], AsyncContextManager[RestClientAndRegistryClient]
+    ],
+    admin_client: KafkaAdminClient,
+    name_strategy: NameStrategy,
+) -> None:
+    topic = new_topic(admin_client)
+    async with rest_async_client_and_rest_async_client_from_config(
+        {"name_strategy": name_strategy}
+    ) as async_rest_and_registry_client:
+        registry_async_client = async_rest_and_registry_client.registry_client
+        rest_async_client = async_rest_and_registry_client.rest_client
+
+        await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+        topic_url = f"/topics/{topic}/partitions/0"
+
+        res = await registry_async_client.post(
+            f"subjects/{new_random_name('random_subject')}/versions",
+            json={"schemaType": "AVRO", "schema": TYPED_AVRO_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        message = [{"value": {"attr1": {"string": "sample data"}, "attr2": None}}]
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["avro"],
+        )
+        assert res.status_code == 422
+
+        res = await registry_async_client.post(
+            f"subjects/{get_subject_name(topic, TYPED_AVRO_SCHEMA, SubjectType.value_, name_strategy)}/versions",
+            json={"schemaType": "AVRO", "schema": TYPED_AVRO_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["avro"],
+        )
+        assert res.ok
+
+
+@pytest.mark.parametrize(
+    "name_strategy",
+    (
+        (NameStrategy.topic_name),
+        (NameStrategy.record_name),
+        (NameStrategy.topic_record_name),
+    ),
+)
+async def test_publish_partition_avro(
+    rest_async_client_and_rest_async_client_from_config: Callable[
+        [ConfigDefaults], AsyncContextManager[RestClientAndRegistryClient]
+    ],
+    admin_client: KafkaAdminClient,
+    name_strategy: NameStrategy,
+) -> None:
+    topic = new_topic(admin_client)
+    async with rest_async_client_and_rest_async_client_from_config(
+        {"name_strategy": name_strategy}
+    ) as async_rest_and_registry_client:
+        registry_async_client = async_rest_and_registry_client.registry_client
+        rest_async_client = async_rest_and_registry_client.rest_client
+
+        await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+        topic_url = f"/topics/{topic}/partitions/0"
+
+        res = await registry_async_client.post(
+            f"subjects/{new_random_name('random_subject')}/versions",
+            json={"schemaType": "AVRO", "schema": TYPED_AVRO_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        message = [{"value": {"attr1": {"string": "sample data"}, "attr2": None}}]
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["avro"],
+        )
+        assert res.status_code == 422
+
+        res = await registry_async_client.post(
+            f"subjects/{get_subject_name(topic, TYPED_AVRO_SCHEMA, SubjectType.value_, name_strategy)}/versions",
+            json={"schemaType": "AVRO", "schema": TYPED_AVRO_SCHEMA.schema_str},
+        )
+        assert res.ok
+
+        res = await rest_async_client.post(
+            topic_url,
+            json={"value_schema_id": res.json()["id"], "records": message},
+            headers=REST_HEADERS["avro"],
+        )
+        assert res.ok
+        for o in res.json()["offsets"]:
+            assert "partition" in o
+            assert int(o["partition"]) == 0
 
 
 # Produce messages to a topic without key and without explicit partition to verify that
@@ -615,12 +888,12 @@ async def test_publish_with_schema_id_of_another_subject_novalidation(
 async def test_can_produce_anything_with_no_validation_policy(
     rest_async_client: Client,
     registry_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
 ) -> None:
-    first_topic = new_topic(admin_client)
-    second_topic = new_topic(admin_client)
+    topic = new_topic(admin_client)
+    url = f"/topics/{topic}"
 
-    await wait_for_topics(rest_async_client, topic_names=[first_topic, second_topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
     typed_schema = ValidatedTypedSchema.parse(
         SchemaType.AVRO,
@@ -643,9 +916,25 @@ async def test_can_produce_anything_with_no_validation_policy(
         json={"schema": str(typed_schema)},
     )
     assert res.status_code == 200
+    schema_id = res.json()["id"]
+
+    res = await rest_async_client.post(
+        url,
+        json={"value_schema_id": schema_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert not res.ok
+    assert res.status_code == 422
 
     # with the no_validation strategy we can produce even if we use a totally random subject name
-    res = await registry_async_client.post(f"/topics/{first_topic}/disable_validation", json={})
+    res = await registry_async_client.post(f"/topics/{topic}/disable_validation", json={})
+    assert res.ok
+
+    await rest_async_client.post(
+        url,
+        json={"value_schema_id": schema_id, "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
     assert res.ok
 
 

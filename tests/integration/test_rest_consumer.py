@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.client import Client
 from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.utils import (
     consumer_valid_payload,
@@ -22,7 +23,7 @@ import time
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_create_and_delete(rest_async_client, trail):
+async def test_create_and_delete(rest_async_client: Client, trail: str):
     header = REST_HEADERS["json"]
     group_name = "test_group"
     resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=consumer_valid_payload, headers=header)
