@@ -5,7 +5,7 @@ See LICENSE for details
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from kafka.errors import TopicAlreadyExistsError
 from karapace.client import Client
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path

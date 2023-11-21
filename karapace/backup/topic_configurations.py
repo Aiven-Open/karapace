@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from karapace.kafka_admin import ConfigSource, KafkaAdminClient
+from karapace.kafka.admin import ConfigSource, KafkaAdminClient
 from typing import Container, Final
 
 ALL_CONFIG_SOURCES: Final = ConfigSource

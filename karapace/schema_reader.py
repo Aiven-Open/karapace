@@ -24,7 +24,7 @@ from karapace.config import Config
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher

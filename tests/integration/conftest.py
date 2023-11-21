@@ -7,13 +7,13 @@ See LICENSE for details
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
-from contextlib import closing, ExitStack
+from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
-from kafka import KafkaProducer
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
-from karapace.kafka_admin import KafkaAdminClient, NewTopic
+from karapace.kafka.admin import KafkaAdminClient, NewTopic
+from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
@@ -206,8 +206,7 @@ def fixture_kafka_server(
 
 @pytest.fixture(scope="function", name="producer")
 def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
-    with closing(KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)) as prod:
-        yield prod
+    yield KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
 
 
 @pytest.fixture(scope="function", name="admin_client")

@@ -4,13 +4,13 @@ karapace - Karapace producer
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from kafka import KafkaProducer
 from kafka.errors import MessageSizeTooLargeError
 from karapace.config import Config
 from karapace.errors import SchemaTooLargeException
+from karapace.kafka.producer import KafkaProducer
 from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
-from karapace.utils import json_encode, KarapaceKafkaClient
+from karapace.utils import json_encode
 from karapace.version import __version__
 from typing import Any, Dict, Final, Optional, Union
 
@@ -38,6 +38,7 @@ class KarapaceProducer:
             try:
                 self._producer = KafkaProducer(
                     bootstrap_servers=self._config["bootstrap_uri"],
+                    verify_connection=False,
                     security_protocol=self._config["security_protocol"],
                     ssl_cafile=self._config["ssl_cafile"],
                     ssl_certfile=self._config["ssl_certfile"],
@@ -45,11 +46,9 @@ class KarapaceProducer:
                     sasl_mechanism=self._config["sasl_mechanism"],
                     sasl_plain_username=self._config["sasl_plain_username"],
                     sasl_plain_password=self._config["sasl_plain_password"],
-                    api_version=(1, 0, 0),
                     metadata_max_age_ms=self._config["metadata_max_age_ms"],
-                    max_block_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
+                    socket_timeout_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
                     connections_max_idle_ms=self._config["connections_max_idle_ms"],  # helps through cluster upgrades ??
-                    kafka_client=KarapaceKafkaClient,
                 )
                 return
             except:  # pylint: disable=bare-except
@@ -57,8 +56,9 @@ class KarapaceProducer:
                 time.sleep(1)
 
     def close(self) -> None:
+        LOG.info("Closing karapace_producer")
         if self._producer is not None:
-            self._producer.close()
+            self._producer.flush()
 
     def _send_kafka_message(self, key: Union[bytes, str], value: Union[bytes, str]) -> None:
         assert self._producer is not None
@@ -76,14 +76,14 @@ class KarapaceProducer:
         )
         self._producer.flush(timeout=self._kafka_timeout)
         try:
-            msg = future.get(self._kafka_timeout)
+            msg = future.result(self._kafka_timeout)
         except MessageSizeTooLargeError as ex:
             raise SchemaTooLargeException from ex
 
-        sent_offset = msg.offset
+        sent_offset = msg.offset()
 
         LOG.info(
-            "Waiting for schema reader to caught up. key: %r, value: %r, offset: %r",
+            "Waiting for schema reader to catch up. key: %r, value: %r, offset: %r",
             key,
             value,
             sent_offset,

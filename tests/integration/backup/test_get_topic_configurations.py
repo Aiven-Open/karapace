@@ -5,7 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.backup.topic_configurations import ALL_CONFIG_SOURCES, ConfigSource, DEFAULT_CONFIGS, get_topic_configurations
-from karapace.kafka_admin import KafkaAdminClient, NewTopic
+from karapace.kafka.admin import KafkaAdminClient, NewTopic
 
 import pytest
 
