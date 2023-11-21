@@ -21,25 +21,27 @@ from .errors import (
 )
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
+from concurrent.futures import Future
 from enum import Enum
 from functools import partial
-from kafka import KafkaConsumer, KafkaProducer
+from kafka import KafkaConsumer
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.structs import PartitionMetadata, TopicPartition
+from kafka.structs import TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
 from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, TypeVar
+from typing import Callable, Collection, Iterator, Literal, Mapping, NewType, Sized, TypeVar
 
 import contextlib
 import datetime
@@ -170,7 +172,7 @@ def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
     return before_sleep
 
 
-def __check_partition_count(topic: str, supplier: Callable[[str], AbstractSet[PartitionMetadata]]) -> None:
+def __check_partition_count(topic: str, supplier: Callable[[str], Sized]) -> None:
     """Checks that the given topic has exactly one partition.
 
     :param topic: to check.
@@ -375,7 +377,7 @@ def _handle_restore_topic(
 def _handle_producer_send(
     instruction: ProducerSend,
     producer: KafkaProducer,
-    producer_error_callback: Callable[[Exception], None],
+    producer_callback: Callable[[Future], None],
 ) -> None:
     LOG.debug(
         "Sending kafka msg key: %r, value: %r",
@@ -388,11 +390,11 @@ def _handle_producer_send(
             key=instruction.key,
             value=instruction.value,
             partition=instruction.partition_index,
-            headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
-            timestamp_ms=instruction.timestamp,
-        ).add_errback(producer_error_callback)
-    except (KafkaError, AssertionError) as ex:
-        raise BackupDataRestorationError("Error while calling send on restoring messages") from ex
+            headers=[(key.decode(), value) for key, value in instruction.headers if key is not None],
+            timestamp=instruction.timestamp,
+        ).add_done_callback(producer_callback)
+    except (KafkaError, AssertionError) as exc:
+        raise BackupDataRestorationError("Error while calling send on restoring messages") from exc
 
 
 def restore_backup(
@@ -433,10 +435,12 @@ def restore_backup(
     with contextlib.ExitStack() as stack:
         producer = None
 
-        def _producer_error_callback(exception: Exception) -> None:
-            LOG.error("Producer error", exc_info=exception)
-            nonlocal _producer_exception
-            _producer_exception = exception
+        def _producer_callback(future: Future) -> None:
+            exception = future.exception()
+            if exception is not None:
+                LOG.error("Producer error", exc_info=exception)
+                nonlocal _producer_exception
+                _producer_exception = exception
 
         def _check_producer_exception() -> None:
             if _producer_exception is not None:
@@ -452,7 +456,7 @@ def restore_backup(
             elif isinstance(instruction, ProducerSend):
                 if producer is None:
                     raise RuntimeError("Backend has not yet sent RestoreTopic.")
-                _handle_producer_send(instruction, producer, _producer_error_callback)
+                _handle_producer_send(instruction, producer, _producer_callback)
                 # Immediately check if producer.send() generated an exception. This call is
                 # only an optimization, as producing is asynchronous and no sends might
                 # have been executed once we reach this line.
