@@ -156,11 +156,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     status=HTTPStatus.SERVICE_UNAVAILABLE,
                 )
             else:
-                url = f"{master_url}{request.url.path}"
                 await self._forward_request_remote(
                     request=request,
                     body=request.json,
-                    url=url,
+                    url=compute_forwarded_url(master_url=master_url, request_url=str(request.url)),
                     content_type=request.get_header("Content-Type"),
                     method=request.method,
                 )
@@ -320,7 +319,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             schema_request=True,
             with_request=False,
             json_body=False,
-            auth=None,
+            auth=self._auth,
         )
         self.route(
             "/topics/<topic:path>/disable_validation",
@@ -329,7 +328,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             schema_request=True,
             with_request=True,
             json_body=False,
-            auth=None,
+            auth=self._auth,
         )
         self.route(
             "/topics/<topic:path>/enable_validation",
@@ -338,7 +337,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             schema_request=True,
             with_request=True,
             json_body=False,
-            auth=None,
+            auth=self._auth,
         )
 
     async def close(self) -> None:
@@ -621,8 +620,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/config"
-            await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="PUT")
+            await self._forward_request_remote(
+                request=request,
+                body=body,
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url)),
+                content_type=content_type,
+                method="PUT",
+            )
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
 
@@ -692,9 +696,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/config/{subject}"
             await self._forward_request_remote(
-                request=request, body=request.json, url=url, content_type=content_type, method="PUT"
+                request=request,
+                body=request.json,
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url)),
+                content_type=content_type,
+                method="PUT",
             )
 
         self.r({"compatibility": compatibility_level.value}, content_type)
@@ -717,9 +724,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/config/{subject}"
             await self._forward_request_remote(
-                request=request, body=request.json, url=url, content_type=content_type, method="PUT"
+                request=request,
+                body=request.json,
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url)),
+                content_type=content_type,
+                method="PUT",
             )
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
@@ -791,8 +801,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}?permanent={permanent}"
-            await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
+            await self._forward_request_remote(
+                request=request,
+                body={},
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url) + f"?permanent={permanent}"),
+                content_type=content_type,
+                method="DELETE",
+            )
 
     async def subject_version_get(
         self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
@@ -894,8 +909,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
-            await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
+            await self._forward_request_remote(
+                request=request,
+                body={},
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url) + f"?permanent={permanent}"),
+                content_type=content_type,
+                method="DELETE",
+            )
 
     async def subject_version_schema_get(
         self, content_type: str, *, subject: str, version: str, user: User | None = None
@@ -1279,10 +1299,22 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}/versions"
-            await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
+            await self._forward_request_remote(
+                request=request,
+                body=body,
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url)),
+                content_type=content_type,
+                method="POST",
+            )
 
-    async def is_topic_requiring_validation(self, content_type: str, *, topic: str) -> None:
+    async def is_topic_requiring_validation(
+        self,
+        content_type: str,
+        *,
+        topic: str,
+        user: User | None = None,
+    ) -> None:
+        self._check_authorization(user, Operation.Read, "Config:")
         require_validation = self.schema_registry.is_topic_requiring_validation(topic_name=TopicName(topic))
         reply = {"require_validation": require_validation}
         self.r(reply, content_type)
@@ -1294,7 +1326,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         *,
         topic: str,
         skip_validation: bool,
+        user: User | None = None,
     ) -> None:
+        self._check_authorization(user, Operation.Write, "Config:")
+
         topic_name = TopicName(topic)
 
         already_skipping_validation = skip_validation and not self.schema_registry.database.is_topic_requiring_validation(
@@ -1319,7 +1354,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             await self._forward_request_remote(
                 request=request,
                 body=None,
-                url=compute_forwarded_url(master_url=master_url, request_url=request.url),
+                url=compute_forwarded_url(master_url=master_url, request_url=str(request.url)),
                 content_type=content_type,
                 method="POST",
             )

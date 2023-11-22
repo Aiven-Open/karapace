@@ -429,9 +429,10 @@ class KafkaSchemaReader(Thread):
             LOG.info("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
 
-    def _handle_msg_schema_validation(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
+    def _handle_msg_schema_validation(self, key: dict, value: dict | None) -> None:
         assert isinstance(value, dict)
-        topic, skip_validation = TopicName(value["topic"]), bool(value["skip_validation"])
+        topic = TopicName(key["topic"])
+        skip_validation = bool(value["skip_validation"])
         self.database.override_topic_validation(topic_name=topic, skip_validation=skip_validation)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:

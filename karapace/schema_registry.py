@@ -476,7 +476,7 @@ class KarapaceSchemaRegistry:
         skip_validation: bool,
     ) -> None:
         key = {"topic": topic_name, "keytype": str(MessageType.schema_validation), "magic": 0}
-        value = {"skip_validation": skip_validation, "topic": topic_name}
+        value = {"skip_validation": skip_validation}
         self.producer.send_message(key=key, value=value)
 
     def send_config_message(self, compatibility_level: CompatibilityModes, subject: Subject | None = None) -> None:
