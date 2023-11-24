@@ -63,6 +63,7 @@ def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
     if not os.path.exists(kafka_description.install_dir):
         log.info("Downloading Kafka '%s'", kafka_description.download_url)
         download = requests.get(kafka_description.download_url, stream=True)
+        kafka_description.kafka_tgz.parent.mkdir(parents=True, exist_ok=True)
         with open(kafka_description.kafka_tgz, "wb") as fd:
             for chunk in download.iter_content(chunk_size=None):
                 fd.write(chunk)
