@@ -6,7 +6,7 @@
 #
 accept-types==0.4.1
     # via -r requirements.in
-aiohttp==3.8.6
+aiohttp==3.9.0
     # via -r requirements.in
 aiokafka==0.8.1
     # via -r requirements.in
@@ -27,8 +27,6 @@ avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c
     # via -r requirements.in
 cachetools==5.3.1
     # via -r requirements.in
-charset-normalizer==3.1.0
-    # via aiohttp
 confluent-kafka==2.3.0
     # via -r requirements.in
 exceptiongroup==1.1.3
