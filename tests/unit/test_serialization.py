@@ -365,9 +365,9 @@ async def test_deserialization_fails(default_config_path: Path):
         (Subject("foo-key"), NameStrategy.topic_name, SubjectType.key),
         (Subject("io.aiven.data.Test"), NameStrategy.record_name, SubjectType.key),
         (Subject("foo-io.aiven.data.Test"), NameStrategy.topic_record_name, SubjectType.key),
-        (Subject("foo-value"), NameStrategy.topic_name, SubjectType.value),
-        (Subject("io.aiven.data.Test"), NameStrategy.record_name, SubjectType.value),
-        (Subject("foo-io.aiven.data.Test"), NameStrategy.topic_record_name, SubjectType.value),
+        (Subject("foo-value"), NameStrategy.topic_name, SubjectType.value_),
+        (Subject("io.aiven.data.Test"), NameStrategy.record_name, SubjectType.value_),
+        (Subject("foo-io.aiven.data.Test"), NameStrategy.topic_record_name, SubjectType.value_),
     ),
 )
 def test_name_strategy_for_avro(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):
@@ -382,8 +382,8 @@ def test_name_strategy_for_avro(expected_subject: Subject, strategy: NameStrateg
     (
         (Subject("Test"), NameStrategy.record_name, SubjectType.key),
         (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.key),
-        (Subject("Test"), NameStrategy.record_name, SubjectType.value),
-        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value),
+        (Subject("Test"), NameStrategy.record_name, SubjectType.value_),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value_),
     ),
 )
 def test_name_strategy_for_json_schema(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):
@@ -398,8 +398,8 @@ def test_name_strategy_for_json_schema(expected_subject: Subject, strategy: Name
     (
         (Subject("Test"), NameStrategy.record_name, SubjectType.key),
         (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.key),
-        (Subject("Test"), NameStrategy.record_name, SubjectType.value),
-        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value),
+        (Subject("Test"), NameStrategy.record_name, SubjectType.value_),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value_),
     ),
 )
 def test_name_strategy_for_avro_without_namespace(
@@ -418,8 +418,8 @@ def test_name_strategy_for_avro_without_namespace(
     (
         (Subject("Test"), NameStrategy.record_name, SubjectType.key),
         (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.key),
-        (Subject("Test"), NameStrategy.record_name, SubjectType.value),
-        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value),
+        (Subject("Test"), NameStrategy.record_name, SubjectType.value_),
+        (Subject("foo-Test"), NameStrategy.topic_record_name, SubjectType.value_),
     ),
 )
 def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStrategy, subject_type: SubjectType):

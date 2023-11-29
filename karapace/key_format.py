@@ -70,6 +70,9 @@ class KeyFormatter:
             corrected_key["subject"] = key["subject"]
         if "version" in key:
             corrected_key["version"] = key["version"]
+        if "topic" in key:
+            corrected_key["topic"] = key["topic"]
+
         # Magic is the last element
         corrected_key["magic"] = key["magic"]
         return json_encode(corrected_key, binary=True, sort_keys=False, compact=True)

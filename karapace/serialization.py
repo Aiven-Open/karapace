@@ -11,6 +11,7 @@ from functools import lru_cache
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
+from karapace.config import NameStrategy
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
@@ -18,7 +19,7 @@ from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
-from karapace.typing import NameStrategy, ResolvedVersion, SchemaId, Subject, SubjectType
+from karapace.typing import ResolvedVersion, SchemaId, Subject, SubjectType, TopicName
 from karapace.utils import json_decode, json_encode
 from typing import Any, Callable, MutableMapping
 from urllib.parse import quote
@@ -200,6 +201,13 @@ class SchemaRegistryClient:
                 - ResolvedVersion: The version of the schema that was retrieved.
         """
         return await self._get_schema_recursive(subject, set(), version)
+
+    async def topic_require_validation(self, topic_name: TopicName) -> bool:
+        result = await self.client.get(f"/topics/{topic_name}/require_validation")
+        if not result.ok or "require_validation" not in result.json():
+            raise SchemaRetrievalError(result.json()["message"])
+
+        return bool(result.json()["require_validation"])
 
     async def get_schema_for_id(self, schema_id: SchemaId) -> tuple[TypedSchema, list[Subject]]:
         result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})

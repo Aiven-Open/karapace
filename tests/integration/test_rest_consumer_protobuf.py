@@ -23,7 +23,12 @@ import pytest
 
 @pytest.mark.parametrize("schema_type", ["protobuf"])
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_publish_consume_protobuf(rest_async_client, admin_client, trail, schema_type):
+async def test_publish_consume_protobuf(
+    rest_async_client: Client,
+    admin_client: KafkaAdminClient,
+    trail: str,
+    schema_type: str,
+):
     header = REST_HEADERS[schema_type]
     group_name = "e2e_protobuf_group"
     instance_id = await new_consumer(rest_async_client, group_name, fmt=schema_type, trail=trail)
@@ -54,7 +59,12 @@ async def test_publish_consume_protobuf(rest_async_client, admin_client, trail, 
 
 @pytest.mark.parametrize("schema_type", ["protobuf"])
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_publish_consume_protobuf_second(rest_async_client, admin_client, trail, schema_type):
+async def test_publish_consume_protobuf_second(
+    rest_async_client: Client,
+    admin_client: KafkaAdminClient,
+    trail: str,
+    schema_type: str,
+):
     header = REST_HEADERS[schema_type]
     group_name = "e2e_proto_second"
     instance_id = await new_consumer(rest_async_client, group_name, fmt=schema_type, trail=trail)

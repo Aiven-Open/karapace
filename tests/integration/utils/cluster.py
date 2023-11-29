@@ -2,14 +2,16 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from contextlib import asynccontextmanager, ExitStack
 from dataclasses import dataclass
-from karapace.config import Config, set_config_defaults, write_config
+from karapace.config import Config, ConfigDefaults, set_config_defaults, write_config
 from pathlib import Path
 from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.utils import new_random_name, popen_karapace_all
-from typing import AsyncIterator, List
+from typing import AsyncIterator
 
 
 @dataclass(frozen=True)
@@ -30,10 +32,11 @@ class RegistryDescription:
 
 @asynccontextmanager
 async def start_schema_registry_cluster(
-    config_templates: List[Config],
+    config_templates: list[Config],
     data_dir: Path,
     port_range: PortRangeInclusive,
-) -> AsyncIterator[List[RegistryDescription]]:
+    custom_values: ConfigDefaults | None = None,
+) -> AsyncIterator[list[RegistryDescription]]:
     """Start a cluster of schema registries, one process per `config_templates`."""
     for template in config_templates:
         assert "bootstrap_uri" in template, "base_config must have the value `bootstrap_uri` set"
@@ -75,6 +78,9 @@ async def start_schema_registry_cluster(
             config_path = group_dir / f"{pos}.config.json"
             log_path = group_dir / f"{pos}.log"
             error_path = group_dir / f"{pos}.error"
+
+            if custom_values is not None:
+                config.update(custom_values)
 
             config = set_config_defaults(config)
             write_config(config_path, config)
