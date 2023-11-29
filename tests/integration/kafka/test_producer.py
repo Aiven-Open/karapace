@@ -5,9 +5,10 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from confluent_kafka.admin import NewTopic
 from kafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
-from karapace.kafka.admin import NewTopic
 from karapace.kafka.producer import KafkaProducer
+from karapace.kafka.types import Timestamp
 
 import pytest
 import time
@@ -37,6 +38,7 @@ class TestSend:
         assert message.topic() == new_topic.topic
         assert message.key() == key
         assert message.value() == value
+        assert message.timestamp()[0] == Timestamp.CREATE_TIME
         assert message.timestamp()[1] == timestamp
 
     def test_send_raises_for_unknown_topic(self, producer: KafkaProducer) -> None:
