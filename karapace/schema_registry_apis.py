@@ -304,6 +304,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def close(self) -> None:
+        self.log.info("Closing karapace_schema_registry_controller")
         async with AsyncExitStack() as stack:
             stack.push_async_callback(super().close)
             stack.push_async_callback(self.schema_registry.close)

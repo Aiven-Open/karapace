@@ -1,4 +1,4 @@
 from ._model import IsolationLevel
-from .cimpl import TopicPartition
+from .cimpl import Message, Producer, TopicPartition
 
-__all__ = ("IsolationLevel", "TopicPartition")
+__all__ = ("IsolationLevel", "Message", "Producer", "TopicPartition")

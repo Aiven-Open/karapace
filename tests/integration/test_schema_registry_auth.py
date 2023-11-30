@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.client import Client
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from tests.utils import (
     new_random_name,

@@ -102,7 +102,8 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
         "topics" in data and len(data["topics"]) == 1 and data["topics"][0] == topic_name
     ), f"expecting {topic_name} in {data}"
     for _ in range(3):
-        producer.send(topic_name, b"foo").get()
+        producer.send(topic_name, value=b"foo")
+    producer.flush()
     resp = await rest_async_client.get(consume_path, headers=header)
     data = resp.json()
     assert resp.ok, f"Expected a successful response: {data['message']}"
@@ -136,7 +137,8 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     # writing to all 3 will get us results from all 3
     for t in pattern_topics:
         for _ in range(3):
-            producer.send(t, b"bar").get()
+            producer.send(t, value=b"bar")
+        producer.flush()
     resp = await rest_async_client.get(consume_path, headers=header)
     data = resp.json()
     assert resp.ok, f"Expected a successful response: {data['message']}"
@@ -266,7 +268,8 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
         res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
         assert res.ok
         for i in range(len(values[fmt])):
-            producer.send(topic_name, value=values[fmt][i]).get()
+            producer.send(topic_name, value=values[fmt][i])
+        producer.flush()
         seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
         resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
         assert resp.ok
@@ -303,7 +306,8 @@ async def test_consume_timeout(rest_async_client, admin_client, producer):
         res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
         assert res.ok
         for i in range(len(values[fmt])):
-            producer.send(topic_name, value=values[fmt][i]).get()
+            producer.send(topic_name, value=values[fmt][i])
+        producer.flush()
         seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
         resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
         assert resp.ok

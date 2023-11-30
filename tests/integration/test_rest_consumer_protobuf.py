@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from karapace.client import Client
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from tests.integration.test_rest import NEW_TOPIC_TIMEOUT
 from tests.utils import (

@@ -1,7 +1,7 @@
 from ..cimpl import NewTopic
 from ._config import ConfigEntry, ConfigResource, ConfigSource
 from ._listoffsets import ListOffsetsResultInfo, OffsetSpec
-from ._metadata import BrokerMetadata, ClusterMetadata, TopicMetadata
+from ._metadata import BrokerMetadata, ClusterMetadata, PartitionMetadata, TopicMetadata
 from ._resource import ResourceType
 from concurrent.futures import Future
 from confluent_kafka import IsolationLevel, TopicPartition
@@ -15,13 +15,14 @@ __all__ = (
     "ConfigSource",
     "NewTopic",
     "OffsetSpec",
+    "PartitionMetadata",
     "ResourceType",
     "TopicMetadata",
 )
 
 class AdminClient:
     def __init__(self, config: dict[str, str | int | Callable]) -> None: ...
-    def poll(self, timeout: float) -> int: ...
+    def poll(self, timeout: float = -1) -> int: ...
     def list_topics(self, topic: str | None = None, timeout: float = -1) -> ClusterMetadata: ...
     def create_topics(
         self,

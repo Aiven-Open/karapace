@@ -5,9 +5,9 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from kafka import KafkaProducer
 from kafka.errors import InvalidReplicationFactorError, TopicAlreadyExistsError, UnknownTopicOrPartitionError
-from karapace.kafka_admin import ConfigSource, KafkaAdminClient, NewTopic
+from karapace.kafka.admin import ConfigSource, KafkaAdminClient, NewTopic
+from karapace.kafka.producer import KafkaProducer
 from tests.utils import new_topic as create_new_topic
 
 import pytest
@@ -122,9 +122,8 @@ class TestGetOffsets:
         partition_id = 0
         number_of_messages = 5
         for _ in range(number_of_messages):
-            fut = producer.send(topic_name, value=b"test-message")
-            producer.flush()
-            fut.get()
+            producer.send(topic_name)
+        producer.flush()
 
         offsets = admin_client.get_offsets(topic_name, partition_id)
 

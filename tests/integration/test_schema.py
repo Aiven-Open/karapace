@@ -5,8 +5,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from http import HTTPStatus
-from kafka import KafkaProducer
 from karapace.client import Client
+from karapace.kafka.producer import KafkaProducer
 from karapace.rapu import is_success
 from karapace.schema_registry_apis import SchemaErrorMessages
 from karapace.utils import json_encode
@@ -2382,7 +2382,8 @@ async def test_malformed_kafka_message(
     message_value.update(payload)
     producer.send(
         registry_cluster.schemas_topic, key=json.dumps(message_key).encode(), value=json.dumps(message_value).encode()
-    ).get()
+    )
+    producer.flush()
 
     path = f"schemas/ids/{schema_id}"
     res = await repeat_until_successful_request(
@@ -2876,9 +2877,10 @@ async def test_schema_recreate_after_odd_hard_delete(
         registry_cluster.schemas_topic,
         key=message_key,
         value=json_encode(message_value, sort_keys=False, compact=True, binary=True),
-    ).get()
+    )
     # Produce manual hard delete without soft delete first
-    producer.send(registry_cluster.schemas_topic, key=message_key, value=None).get()
+    producer.send(registry_cluster.schemas_topic, key=message_key, value=None)
+    producer.flush()
 
     res = await registry_async_client.put("config", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
@@ -3018,7 +3020,8 @@ async def test_schema_non_compliant_namespace_in_existing(
         registry_cluster.schemas_topic,
         key=message_key,
         value=json_encode(message_value, sort_keys=False, compact=True, binary=True),
-    ).get()
+    )
+    producer.flush()
 
     evolved_schema = {
         "type": "record",
@@ -3114,7 +3117,8 @@ async def test_schema_non_compliant_name_in_existing(
         registry_cluster.schemas_topic,
         key=message_key,
         value=json_encode(message_value, sort_keys=False, compact=True, binary=True),
-    ).get()
+    )
+    producer.flush()
 
     evolved_schema = {
         "type": "record",
