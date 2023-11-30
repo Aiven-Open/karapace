@@ -4,9 +4,9 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from kafka import KafkaProducer
 from karapace.client import Client
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
 from karapace.version import __version__
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
@@ -660,7 +660,8 @@ async def test_partitions(
     assert res.status_code == 404
     assert res.json()["error_code"] == 40402
     for _ in range(5):
-        producer.send(topic_name, value=b"foo_val").get()
+        producer.send(topic_name, value=b"foo_val")
+    producer.flush()
     offset_res = await rest_async_client.get(f"/topics/{topic_name}/partitions/0/offsets", headers=header)
     assert offset_res.ok, f"Status code {offset_res.status_code!r} is not expected: {offset_res.json()!r}"
     data = offset_res.json()

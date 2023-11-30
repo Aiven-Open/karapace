@@ -5,7 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from dataclasses import fields
-from kafka import KafkaProducer, TopicPartition
+from kafka import TopicPartition
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup import api
@@ -16,9 +16,9 @@ from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
-from karapace.kafka_admin import KafkaAdminClient, NewTopic
-from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
-from karapace.utils import KarapaceKafkaClient
+from karapace.kafka.admin import KafkaAdminClient, NewTopic
+from karapace.kafka.producer import KafkaProducer
+from karapace.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
 from karapace.version import __version__
 from pathlib import Path
 from tempfile import mkdtemp
@@ -75,15 +75,6 @@ def config_file_fixture(
         shutil.rmtree(directory_path)
 
 
-@pytest.fixture(scope="function", name="kafka_admin")
-def admin_fixture(karapace_config: Config) -> Iterator[KafkaAdminClient]:
-    admin = kafka_admin_from_config(karapace_config)
-    try:
-        yield admin
-    finally:
-        admin.close()
-
-
 @pytest.fixture(scope="function", name="producer")
 def producer_fixture(karapace_config: Config) -> Iterator[KafkaProducer]:
     with kafka_producer_from_config(karapace_config) as producer:
@@ -111,8 +102,8 @@ def test_roundtrip_from_kafka_state(
         key=b"bar",
         value=b"foo",
         partition=0,
-        timestamp_ms=1683474641,
-    ).add_errback(_raise)
+        timestamp=1683474641,
+    )
     producer.send(
         new_topic.topic,
         key=b"foo",
@@ -122,8 +113,8 @@ def test_roundtrip_from_kafka_state(
             ("some-header", b"some header value"),
             ("other-header", b"some other header value"),
         ],
-        timestamp_ms=1683474657,
-    ).add_errback(_raise)
+        timestamp=1683474657,
+    )
     producer.flush()
 
     topic_config = get_topic_configurations(admin_client, new_topic.topic, {ConfigSource.DYNAMIC_TOPIC_CONFIG})
@@ -571,15 +562,14 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
                 sasl_mechanism=config["sasl_mechanism"],
                 sasl_plain_username=config["sasl_plain_username"],
                 sasl_plain_password=config["sasl_plain_password"],
-                kafka_client=KarapaceKafkaClient,
-                max_block_ms=5000,
+                socket_timeout_ms=5000,
             )
 
         def __enter__(self):
             return self._producer
 
         def __exit__(self, exc_type, exc_value, exc_traceback):
-            self._producer.close()
+            self._producer.flush()
 
     with patch("karapace.backup.api._producer") as p:
         p.return_value = LowTimeoutProducer()
@@ -592,7 +582,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
             )
 
 
-def test_producer_raises_exceptions(
+def test_backup_restoration_fails_when_producer_send_fails(
     admin_client: KafkaAdminClient,
     kafka_servers: KafkaServers,
 ) -> None:
@@ -614,8 +604,31 @@ def test_producer_raises_exceptions(
         }
     )
 
-    with patch("kafka.producer.record_accumulator.RecordAccumulator.append") as p:
-        p.side_effect = UnknownTopicOrPartitionError()
+    class FailToSendProducer(KafkaProducer):
+        def send(self, *args, **kwargs):
+            raise UnknownTopicOrPartitionError()
+
+    class FailToSendProducerContext:
+        def __init__(self):
+            self._producer = FailToSendProducer(
+                bootstrap_servers=config["bootstrap_uri"],
+                security_protocol=config["security_protocol"],
+                ssl_cafile=config["ssl_cafile"],
+                ssl_certfile=config["ssl_certfile"],
+                ssl_keyfile=config["ssl_keyfile"],
+                sasl_mechanism=config["sasl_mechanism"],
+                sasl_plain_username=config["sasl_plain_username"],
+                sasl_plain_password=config["sasl_plain_password"],
+            )
+
+        def __enter__(self):
+            return self._producer
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self._producer.flush()
+
+    with patch("karapace.backup.api._producer") as p:
+        p.return_value = FailToSendProducerContext()
         with pytest.raises(BackupDataRestorationError):
             api.restore_backup(
                 config=config,
@@ -839,7 +852,7 @@ class TestVerify:
                 key=1000 * b"a",
                 value=1000 * b"b",
                 partition=0,
-            ).add_errback(_raise)
+            )
         producer.flush()
 
         # Execute backup creation.
@@ -894,7 +907,7 @@ class TestVerify:
                 key=1000 * b"a",
                 value=1000 * b"b",
                 partition=0,
-            ).add_errback(_raise)
+            )
         producer.flush()
 
         # Execute backup creation.

@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from dataclasses import dataclass
 from kafka.errors import AuthenticationFailedError, NoBrokersAvailable
-from karapace.kafka_admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
