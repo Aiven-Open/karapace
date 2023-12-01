@@ -154,7 +154,7 @@ pkgutil-resolve-name==1.3.10
     #   jsonschema
 pluggy==1.2.0
     # via pytest
-protobuf==3.20.3
+protobuf==4.25.1
     # via -r requirements.txt
 psutil==5.9.5
     # via
