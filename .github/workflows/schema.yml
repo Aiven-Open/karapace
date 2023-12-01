@@ -19,6 +19,8 @@ jobs:
           cache: pip
           cache-dependency-path:
             requirements.txt
+      - name: Install libsnappy-dev
+        run: sudo apt install libsnappy-dev
       - run: pip install -r requirements/requirements.txt
       # Compare with latest release when running on main.
       - run: make schema against=$(git describe --abbrev=0 --tags)
