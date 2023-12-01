@@ -31,7 +31,6 @@ class EnumType(TypedDict):
 
 
 class MapType(TypedDict):
-    name: str
     type: Literal["map"]
     values: AvroType
     default: NotRequired[Mapping[str, AvroType]]
