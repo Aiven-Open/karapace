@@ -24,6 +24,8 @@ jobs:
       with:
         cache: pip
         python-version: '3.11'
+    - name: Install libsnappy-dev
+      run: sudo apt install libsnappy-dev
     # required for pylint
     - run: make karapace/version.py
     - run: pip install pre-commit
@@ -41,6 +43,8 @@ jobs:
       with:
         cache: pip
         python-version: '3.11'
+    - name: Install libsnappy-dev
+      run: sudo apt install libsnappy-dev
     - run: pip install -r requirements/requirements.txt -r requirements/requirements-typing.txt
     - run: make karapace/version.py
     - run: mypy
