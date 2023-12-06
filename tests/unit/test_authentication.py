@@ -120,6 +120,14 @@ async def test_simple_oauth_token_provider_async_returns_configured_token() -> N
     assert await token_provider.token() == "TOKEN"
 
 
+def test_simple_oauth_token_provider_async_returns_configured_token_and_expiry() -> None:
+    expiry_timestamp = 1697013997
+    token = jwt.encode({"exp": expiry_timestamp}, "secret")
+    token_provider = SimpleOauthTokenProviderAsync(token)
+
+    assert token_provider.token_with_expiry() == (token, expiry_timestamp)
+
+
 def test_get_client_auth_parameters_from_config_sasl_plain() -> None:
     config = set_config_defaults(
         {"sasl_mechanism": "PLAIN", "sasl_plain_username": "username", "sasl_plain_password": "password"}
