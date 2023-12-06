@@ -142,6 +142,9 @@ class SimpleOauthTokenProviderAsync(AbstractTokenProviderAsync):
     async def token(self) -> str:
         return self._token
 
+    def token_with_expiry(self, _config: str | None = None) -> tuple[str, int | None]:
+        return (self._token, get_expiration_timestamp_from_jwt(self._token))
+
 
 class SASLOauthParams(TypedDict):
     sasl_mechanism: str

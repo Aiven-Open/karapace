@@ -227,9 +227,9 @@ async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaAdminCl
     assert len(results) == 1
     for result in results:
         assert "error" in result, "Invalid result missing 'error' key"
-        assert result["error"] == "Unrecognized partition"
+        assert result["error"] == "This request is for a topic or partition that does not exist on this broker."
         assert "error_code" in result, "Invalid result missing 'error_code' key"
-        assert result["error_code"] == 1
+        assert result["error_code"] == 2
 
     assert rest_async_proxy.all_empty({"records": [{"key": {"foo": "bar"}}]}, "key") is False
     assert rest_async_proxy.all_empty({"records": [{"value": {"foo": "bar"}}]}, "value") is False
