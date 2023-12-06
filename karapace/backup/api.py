@@ -390,7 +390,7 @@ def _handle_producer_send(
             key=instruction.key,
             value=instruction.value,
             partition=instruction.partition_index,
-            headers=[(key.decode(), value) for key, value in instruction.headers if key is not None],
+            headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
             timestamp=instruction.timestamp,
         ).add_done_callback(producer_callback)
     except (KafkaError, AssertionError) as exc:

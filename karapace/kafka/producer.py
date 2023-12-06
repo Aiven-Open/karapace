@@ -32,7 +32,7 @@ class ProducerSendParams(TypedDict, total=False):
     key: str | bytes | None
     partition: int
     timestamp: int | None
-    headers: dict[str, bytes | None] | list[tuple[str, bytes | None]] | None
+    headers: dict[str | None, bytes | None] | list[tuple[str | None, bytes | None]] | None
 
 
 class KafkaProducer(_KafkaConfigMixin, Producer):

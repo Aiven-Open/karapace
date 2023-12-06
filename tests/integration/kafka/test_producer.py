@@ -19,7 +19,7 @@ class TestSend:
         value = b"value"
         partition = 0
         timestamp = int(time.time() * 1000)
-        headers = [(b"something", b"123")]
+        headers = [("something", b"123"), (None, "foobar")]
 
         fut = producer.send(
             new_topic.topic,
