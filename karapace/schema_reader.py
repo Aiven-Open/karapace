@@ -212,11 +212,11 @@ class KafkaSchemaReader(Thread):
                 except InvalidReplicationFactorError:
                     LOG.info(
                         "[Schema Topic] Failed to create topic %r, not enough Kafka brokers ready yet, retrying",
-                        topic.topic,
+                        self.config["topic_name"],
                     )
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
                 except:  # pylint: disable=bare-except
-                    LOG.exception("[Schema Topic] Failed to create %r, retrying", topic.topic)
+                    LOG.exception("[Schema Topic] Failed to create %r, retrying", self.config["topic_name"])
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
 
             while not self._stop_schema_reader.is_set():
