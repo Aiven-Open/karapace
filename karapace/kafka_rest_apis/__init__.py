@@ -72,6 +72,7 @@ class KafkaRest(KarapaceBase):
         self._idle_proxy_janitor_task: Optional[asyncio.Task] = None
 
     async def close(self) -> None:
+        log.info("Closing REST proxy application")
         if self._idle_proxy_janitor_task is not None:
             self._idle_proxy_janitor_task.cancel()
             self._idle_proxy_janitor_task = None
