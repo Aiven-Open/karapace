@@ -2,6 +2,7 @@ from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from confluent_kafka.error import KafkaException
 from contextlib import AsyncExitStack
 from http import HTTPStatus
 from kafka.errors import (
@@ -14,7 +15,7 @@ from kafka.errors import (
 )
 from karapace.config import Config, create_client_ssl_context
 from karapace.errors import InvalidSchema
-from karapace.kafka.admin import KafkaAdminClient, KafkaException
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,

@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
 from kafka.errors import AuthenticationFailedError, for_code, NoBrokersAvailable, UnknownTopicOrPartitionError
-from typing import Any, Callable, NoReturn, Protocol, TypedDict, TypeVar
+from typing import Any, Callable, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
 import logging
@@ -85,6 +85,12 @@ class KafkaClientParams(TypedDict, total=False):
     ssl_certfile: str | None
     ssl_keyfile: str | None
     sasl_oauth_token_provider: TokenWithExpiryProvider
+    # Consumer-only
+    auto_offset_reset: Literal["smallest", "earliest", "beginning", "largest", "latest", "end", "error"]
+    enable_auto_commit: bool
+    fetch_max_wait_ms: int
+    group_id: str
+    session_timeout_ms: int
 
 
 class _KafkaConfigMixin:
@@ -128,6 +134,12 @@ class _KafkaConfigMixin:
             "ssl.certificate.location": params.get("ssl_certfile"),
             "ssl.key.location": params.get("ssl_keyfile"),
             "error_cb": self._error_callback,
+            # Consumer-only
+            "auto.offset.reset": params.get("auto_offset_reset"),
+            "enable.auto.commit": params.get("enable_auto_commit"),
+            "fetch.wait.max.ms": params.get("fetch_max_wait_ms"),
+            "group.id": params.get("group_id"),
+            "session.timeout.ms": params.get("session_timeout_ms"),
         }
         config = {key: value for key, value in config.items() if value is not None}
 
