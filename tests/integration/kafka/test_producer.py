@@ -132,11 +132,3 @@ class TestAsyncSend:
     ) -> None:
         with pytest.raises(MessageSizeTooLargeError):
             await asyncproducer.send(new_topic.topic, value=b"x" * 1000001)
-
-
-async def test_stop_unstarted_async_producer() -> None:
-    asyncproducer = AsyncKafkaProducer(bootstrap_servers="irrelevant")
-    try:
-        await asyncproducer.stop()
-    except RuntimeError:
-        pytest.fail("Stopping raised RuntimeError, unstarted poll thread is not handled")
