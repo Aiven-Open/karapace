@@ -28,9 +28,9 @@ def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
 @contextlib.contextmanager
 def kafka_consumer_from_config(config: Config, topic: str) -> Iterator[KafkaConsumer]:
     consumer = KafkaConsumer(
-        topic,
-        enable_auto_commit=False,
         bootstrap_servers=config["bootstrap_uri"],
+        topic=topic,
+        enable_auto_commit=False,
         client_id=config["client_id"],
         security_protocol=config["security_protocol"],
         ssl_cafile=config["ssl_cafile"],

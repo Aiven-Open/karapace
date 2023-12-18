@@ -14,6 +14,7 @@ from filelock import FileLock
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
 from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
@@ -213,6 +214,19 @@ def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
 @pytest.fixture(scope="function", name="admin_client")
 def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaAdminClient]:
     yield KafkaAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)
+
+
+@pytest.fixture(scope="function", name="consumer")
+def fixture_consumer(
+    kafka_servers: KafkaServers,
+) -> Iterator[KafkaConsumer]:
+    consumer = KafkaConsumer(
+        bootstrap_servers=kafka_servers.bootstrap_servers,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+    )
+    yield consumer
+    consumer.close()
 
 
 @pytest.fixture(scope="function", name="rest_async")
