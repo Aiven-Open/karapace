@@ -15,20 +15,10 @@ import pytest
 
 
 class TestPartitionsForTopic:
-    def test_partitions_for_returns_empty_for_unknown_topic(self, kafka_servers: KafkaServers) -> None:
-        consumer = KafkaConsumer(
-            bootstrap_servers=kafka_servers.bootstrap_servers,
-            topic="nonexistent",
-        )
-
+    def test_partitions_for_returns_empty_for_unknown_topic(self, consumer: KafkaConsumer) -> None:
         assert consumer.partitions_for_topic("nonexistent") == {}
 
-    def test_partitions_for(self, kafka_servers: KafkaServers, new_topic: NewTopic) -> None:
-        consumer = KafkaConsumer(
-            bootstrap_servers=kafka_servers.bootstrap_servers,
-            topic=new_topic.topic,
-        )
-
+    def test_partitions_for(self, consumer: KafkaConsumer, new_topic: NewTopic) -> None:
         partitions = consumer.partitions_for_topic(new_topic.topic)
 
         assert len(partitions) == 1
@@ -47,13 +37,7 @@ class TestGetWatermarkOffsets:
         with pytest.raises(UnknownTopicOrPartitionError):
             _, _ = consumer.get_watermark_offsets(TopicPartition("nonexistent", 0))
 
-    def test_get_watermark_offsets_empty_topic(self, kafka_servers: KafkaServers, new_topic: NewTopic) -> None:
-        consumer = KafkaConsumer(
-            bootstrap_servers=kafka_servers.bootstrap_servers,
-            topic=new_topic.topic,
-            auto_offset_reset="earliest",
-        )
-
+    def test_get_watermark_offsets_empty_topic(self, consumer: KafkaConsumer, new_topic: NewTopic) -> None:
         beginning, end = consumer.get_watermark_offsets(TopicPartition(new_topic.topic, 0))
 
         assert beginning == 0
@@ -61,15 +45,10 @@ class TestGetWatermarkOffsets:
 
     def test_get_watermark_offsets_topic_with_one_message(
         self,
-        kafka_servers: KafkaServers,
+        consumer: KafkaConsumer,
         producer: KafkaProducer,
         new_topic: NewTopic,
     ) -> None:
-        consumer = KafkaConsumer(
-            bootstrap_servers=kafka_servers.bootstrap_servers,
-            topic=new_topic.topic,
-            auto_offset_reset="earliest",
-        )
         producer.send(new_topic.topic)
         producer.flush()
 

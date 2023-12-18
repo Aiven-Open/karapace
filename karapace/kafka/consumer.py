@@ -19,8 +19,8 @@ import secrets
 class KafkaConsumer(_KafkaConfigMixin, Consumer):
     def __init__(
         self,
-        topic: str,
         bootstrap_servers: Iterable[str] | str,
+        topic: str | None = None,
         verify_connection: bool = True,
         **params: Unpack[KafkaClientParams],
     ) -> None:
@@ -32,7 +32,8 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
 
         super().__init__(bootstrap_servers, verify_connection, **params)
 
-        self.subscribe([topic])
+        if topic is not None:
+            self.subscribe([topic])
 
     @staticmethod
     def _create_group_id() -> str:
