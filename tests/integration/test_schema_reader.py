@@ -4,10 +4,11 @@ See LICENSE for details
 """
 from contextlib import closing
 from dataclasses import dataclass
-from kafka import KafkaAdminClient, KafkaProducer
 from karapace.config import set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.in_memory_database import InMemoryDatabase
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import KafkaProducer
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
@@ -104,9 +105,10 @@ def test_regression_soft_delete_schemas_should_be_registered(
             key=json_encode(key, binary=True),
             value=json_encode(value, binary=True),
         )
-        msg = future.get()
+        producer.flush()
+        msg = future.result()
 
-        schema_reader._offset_watcher.wait_for_offset(msg.offset, timeout=5)  # pylint: disable=protected-access
+        schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
 
         schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
         assert len(schemas) == 1, "Deleted schemas must have been registered"
@@ -131,11 +133,11 @@ def test_regression_soft_delete_schemas_should_be_registered(
             key=json_encode(key, binary=True),
             value=json_encode(value, binary=True),
         )
-        msg = future.get()
+        producer.flush()
+        msg = future.result()
 
-        assert (
-            schema_reader._offset_watcher.wait_for_offset(msg.offset, timeout=5) is True  # pylint: disable=protected-access
-        )
+        seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+        assert seen is True
         assert database.global_schema_id == test_global_schema_id
 
         schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
@@ -186,11 +188,11 @@ def test_regression_config_for_inexisting_object_should_not_throw(
             key=json_encode(key, binary=True),
             value=json_encode(value, binary=True),
         )
-        msg = future.get()
+        producer.flush()
+        msg = future.result()
 
-        assert (
-            schema_reader._offset_watcher.wait_for_offset(msg.offset, timeout=5) is True  # pylint: disable=protected-access
-        )
+        seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+        assert seen is True
         assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
 
 
@@ -243,12 +245,11 @@ def test_key_format_detection(
     test_topic = new_topic(admin_client)
 
     for message in testcase.raw_msgs:
-        future = producer.send(
+        producer.send(
             test_topic,
             key=message[0],
             value=message[1],
         )
-        future.get()
     producer.flush()
 
     config = set_config_defaults(

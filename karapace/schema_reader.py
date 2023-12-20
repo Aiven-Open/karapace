@@ -7,10 +7,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from avro.schema import Schema as AvroSchema
+from confluent_kafka import Message, TopicPartition
 from contextlib import closing, ExitStack
+from enum import Enum
 from jsonschema.validators import Draft7Validator
-from kafka import KafkaConsumer, TopicPartition
-from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import (
     InvalidReplicationFactorError,
     KafkaConfigurationError,
@@ -24,6 +24,8 @@ from karapace.config import Config
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.metrics import Metrics
@@ -32,7 +34,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
-from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
+from karapace.utils import json_decode, JSONDecodeError
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
 
@@ -58,14 +60,19 @@ METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects"
 METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions"
 
 
+class MessageType(Enum):
+    config = "CONFIG"
+    schema = "SCHEMA"
+    delete_subject = "DELETE_SUBJECT"
+    no_operation = "NOOP"
+
+
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
     session_timeout_ms = config["session_timeout_ms"]
-    request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
     return KafkaConsumer(
         config["topic_name"],
         enable_auto_commit=False,
-        api_version=(1, 0, 0),
         bootstrap_servers=config["bootstrap_uri"],
         client_id=config["client_id"],
         fetch_max_wait_ms=50,
@@ -78,15 +85,12 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         sasl_plain_password=config["sasl_plain_password"],
         auto_offset_reset="earliest",
         session_timeout_ms=session_timeout_ms,
-        request_timeout_ms=request_timeout_ms,
-        kafka_client=KarapaceKafkaClient,
         metadata_max_age_ms=config["metadata_max_age_ms"],
     )
 
 
 def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
     return KafkaAdminClient(
-        api_version_auto_timeout_ms=constants.API_VERSION_AUTO_TIMEOUT_MS,
         bootstrap_servers=config["bootstrap_uri"],
         client_id=config["client_id"],
         security_protocol=config["security_protocol"],
@@ -96,15 +100,6 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
         sasl_mechanism=config["sasl_mechanism"],
         sasl_plain_username=config["sasl_plain_username"],
         sasl_plain_password=config["sasl_plain_password"],
-    )
-
-
-def new_schema_topic_from_config(config: Config) -> NewTopic:
-    return NewTopic(
-        name=config["topic_name"],
-        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-        replication_factor=config["replication_factor"],
-        topic_configs={"cleanup.policy": "compact"},
     )
 
 
@@ -119,7 +114,7 @@ class KafkaSchemaReader(Thread):
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
-        self.timeout_ms = 200
+        self.timeout_s = 0.2
         self.config = config
 
         self.database = database
@@ -149,7 +144,7 @@ class KafkaSchemaReader(Thread):
 
         # This event controls when the Reader should stop running, it will be
         # set by another thread (e.g. `KarapaceSchemaRegistry`)
-        self._stop = Event()
+        self._stop_schema_reader = Event()
 
         self.key_formatter = key_formatter
 
@@ -160,67 +155,69 @@ class KafkaSchemaReader(Thread):
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
-        self._stop.set()
+        self._stop_schema_reader.set()
 
     def run(self) -> None:
         with ExitStack() as stack:
-            while not self._stop.is_set() and self.admin_client is None:
+            while not self._stop_schema_reader.is_set() and self.admin_client is None:
                 try:
                     self.admin_client = _create_admin_client_from_config(self.config)
-                    stack.enter_context(closing(self.admin_client))
                 except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                     LOG.warning("[Admin Client] No Brokers available yet. Retrying")
-                    self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
+                    self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
                     LOG.exception("[Admin Client] Invalid configuration. Bailing")
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Admin Client] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="admin_client_instantiation")
-                    self._stop.wait(timeout=2.0)
+                    self._stop_schema_reader.wait(timeout=2.0)
 
             assert self.admin_client is not None
 
-            while not self._stop.is_set() and self.consumer is None:
+            while not self._stop_schema_reader.is_set() and self.consumer is None:
                 try:
                     self.consumer = _create_consumer_from_config(self.config)
                     stack.enter_context(closing(self.consumer))
                 except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                     LOG.warning("[Consumer] No Brokers available yet. Retrying")
-                    self._stop.wait(timeout=2.0)
+                    self._stop_schema_reader.wait(timeout=2.0)
                 except KafkaConfigurationError:
                     LOG.exception("[Consumer] Invalid configuration. Bailing")
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
-                    self._stop.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
+                    self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
 
             assert self.consumer is not None
 
             schema_topic_exists = False
-            schema_topic = new_schema_topic_from_config(self.config)
-            schema_topic_create = [schema_topic]
-            while not self._stop.is_set() and not schema_topic_exists:
+            while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
-                    LOG.info("[Schema Topic] Creating %r", schema_topic.name)
-                    self.admin_client.create_topics(schema_topic_create, timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
-                    LOG.info("[Schema Topic] Successfully created %r", schema_topic.name)
+                    LOG.info("[Schema Topic] Creating %r", self.config["topic_name"])
+                    topic = self.admin_client.new_topic(
+                        name=self.config["topic_name"],
+                        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+                        replication_factor=self.config["replication_factor"],
+                        config={"cleanup.policy": "compact"},
+                    )
+                    LOG.info("[Schema Topic] Successfully created %r", topic.topic)
                     schema_topic_exists = True
                 except TopicAlreadyExistsError:
-                    LOG.warning("[Schema Topic] Already exists %r", schema_topic.name)
+                    LOG.warning("[Schema Topic] Already exists %r", self.config["topic_name"])
                     schema_topic_exists = True
                 except InvalidReplicationFactorError:
                     LOG.info(
                         "[Schema Topic] Failed to create topic %r, not enough Kafka brokers ready yet, retrying",
-                        schema_topic.name,
+                        self.config["topic_name"],
                     )
-                    self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
+                    self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
                 except:  # pylint: disable=bare-except
-                    LOG.exception("[Schema Topic] Failed to create %r, retrying", schema_topic.name)
-                    self._stop.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
+                    LOG.exception("[Schema Topic] Failed to create %r, retrying", self.config["topic_name"])
+                    self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
 
-            while not self._stop.is_set():
+            while not self._stop_schema_reader.is_set():
                 if self.offset == OFFSET_UNINITIALIZED:
                     # Handles also a unusual case of purged schemas topic where starting offset can be > 0
                     # and no records to process.
@@ -235,11 +232,13 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            offsets = self.consumer.beginning_offsets([TopicPartition(self.config["topic_name"], 0)])
-            # Offset in the response is the offset for last offset.
-            # Reduce by one for matching on startup.
-            beginning_offset = list(offsets.values())[0] - 1
-            return beginning_offset
+            beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
+            # The `-1` decrement here is due to historical reasons (evolution of schema reader and offset watcher):
+            # * The first `OffsetWatcher` implementation neeeded this for flagging empty offsets
+            # * Then synchronization and locking was changed and this remained
+            # * See https://github.com/Aiven-Open/karapace/pull/364/files
+            # * See `OFFSET_EMPTY` and `OFFSET_UNINITIALIZED`
+            return beginning_offset - 1
         except KafkaTimeoutError:
             LOG.exception("Reading begin offsets timed out.")
         except Exception as e:  # pylint: disable=broad-except
@@ -254,7 +253,7 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            offsets = self.consumer.end_offsets([TopicPartition(self.config["topic_name"], 0)])
+            _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
         except KafkaTimeoutError:
             LOG.exception("Reading end offsets timed out.")
             return False
@@ -264,7 +263,7 @@ class KafkaSchemaReader(Thread):
             return False
         # Offset in the response is the offset for the next upcoming message.
         # Reduce by one for actual highest offset.
-        self._highest_offset = list(offsets.values())[0] - 1
+        self._highest_offset = end_offset - 1
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
         progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
@@ -282,7 +281,7 @@ class KafkaSchemaReader(Thread):
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     @staticmethod
-    def _parse_message_value(raw_value: str) -> JsonObject | None:
+    def _parse_message_value(raw_value: str | bytes) -> JsonObject | None:
         value = json_decode(raw_value)
         if isinstance(value, dict):
             return value
@@ -293,7 +292,7 @@ class KafkaSchemaReader(Thread):
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
 
-        raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
+        msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s)
         if self.ready is False:
             self.ready = self._is_ready()
 
@@ -307,49 +306,52 @@ class KafkaSchemaReader(Thread):
             if are_we_master is True:
                 watch_offsets = True
 
-        for _, msgs in raw_msgs.items():
-            schema_records_processed_keymode_canonical = 0
-            schema_records_processed_keymode_deprecated_karapace = 0
-            for msg in msgs:
+        schema_records_processed_keymode_canonical = 0
+        schema_records_processed_keymode_deprecated_karapace = 0
+        for msg in msgs:
+            try:
+                message_key = msg.key()
+                if message_key is None:
+                    continue
+                key = json_decode(message_key)
+            except JSONDecodeError:
+                LOG.exception("Invalid JSON in msg.key() at offset %s", msg.offset())
+                continue
+
+            assert isinstance(key, dict)
+            msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
+            # Key mode detection happens on startup.
+            # Default keymode is CANONICAL and preferred unless any data consumed
+            # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
+            # the subsequent keys are omitted from detection.
+            if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
+                if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
+                    self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
+
+            value = None
+            message_value = msg.value()
+            if message_value:
                 try:
-                    key = json_decode(msg.key)
+                    value = self._parse_message_value(message_value)
                 except JSONDecodeError:
-                    LOG.exception("Invalid JSON in msg.key")
+                    LOG.exception("Invalid JSON in msg.value() at offset %s", msg.offset())
                     continue
 
-                assert isinstance(key, dict)
-                msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
-                # Key mode detection happens on startup.
-                # Default keymode is CANONICAL and preferred unless any data consumed
-                # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
-                # the subsequent keys are omitted from detection.
-                if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
-                    if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
-                        self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
+            self.handle_msg(key, value)
+            self.offset = msg.offset()
 
-                value = None
-                if msg.value:
-                    try:
-                        value = self._parse_message_value(msg.value)
-                    except JSONDecodeError:
-                        LOG.exception("Invalid JSON in msg.value")
-                        continue
+            if msg_keymode == KeyMode.CANONICAL:
+                schema_records_processed_keymode_canonical += 1
+            else:
+                schema_records_processed_keymode_deprecated_karapace += 1
 
-                self.handle_msg(key, value)
-                self.offset = msg.offset
+            if self.ready and watch_offsets:
+                self._offset_watcher.offset_seen(self.offset)
 
-                if msg_keymode == KeyMode.CANONICAL:
-                    schema_records_processed_keymode_canonical += 1
-                else:
-                    schema_records_processed_keymode_deprecated_karapace += 1
-
-                if self.ready and watch_offsets:
-                    self._offset_watcher.offset_seen(self.offset)
-
-            self._report_schema_metrics(
-                schema_records_processed_keymode_canonical,
-                schema_records_processed_keymode_deprecated_karapace,
-            )
+        self._report_schema_metrics(
+            schema_records_processed_keymode_canonical,
+            schema_records_processed_keymode_deprecated_karapace,
+        )
 
     def _report_schema_metrics(
         self,
@@ -523,14 +525,25 @@ class KafkaSchemaReader(Thread):
                 self.database.insert_referenced_by(subject=ref.subject, version=ref.version, schema_id=schema_id)
 
     def handle_msg(self, key: dict, value: dict | None) -> None:
-        if key["keytype"] == "CONFIG":
-            self._handle_msg_config(key, value)
-        elif key["keytype"] == "SCHEMA":
-            self._handle_msg_schema(key, value)
-        elif key["keytype"] == "DELETE_SUBJECT":
-            self._handle_msg_delete_subject(key, value)
-        elif key["keytype"] == "NOOP":  # for spec completeness
-            pass
+        if "keytype" in key:
+            try:
+                message_type = MessageType(key["keytype"])
+
+                if message_type == MessageType.config:
+                    self._handle_msg_config(key, value)
+                elif message_type == MessageType.schema:
+                    self._handle_msg_schema(key, value)
+                elif message_type == MessageType.delete_subject:
+                    self._handle_msg_delete_subject(key, value)
+                elif message_type == MessageType.no_operation:
+                    pass
+            except ValueError:
+                LOG.error("The message %s-%s has been discarded because the %s is not managed", key, value, key["keytype"])
+
+        else:
+            LOG.error(
+                "The message %s-%s has been discarded because doesn't contain the `keytype` key in the key", key, value
+            )
 
     def remove_referenced_by(
         self,

@@ -4,10 +4,9 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from confluent_kafka import Message, TopicPartition
+from confluent_kafka.admin import NewTopic
 from dataclasses import fields
-from kafka import KafkaAdminClient, KafkaProducer, TopicPartition
-from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
-from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup import api
 from karapace.backup.api import _consume_records, TopicName
@@ -17,9 +16,10 @@ from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
-from karapace.constants import TOPIC_CREATION_TIMEOUT_MS
-from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
-from karapace.utils import KarapaceKafkaClient
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import KafkaProducer
+from karapace.kafka.types import Timestamp
+from karapace.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
 from karapace.version import __version__
 from pathlib import Path
 from tempfile import mkdtemp
@@ -30,12 +30,14 @@ from unittest.mock import patch
 
 import datetime
 import json
+import logging
 import os
 import pytest
-import secrets
 import shutil
 import subprocess
 import textwrap
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function", name="karapace_config")
@@ -74,25 +76,6 @@ def config_file_fixture(
         shutil.rmtree(directory_path)
 
 
-@pytest.fixture(scope="function", name="kafka_admin")
-def admin_fixture(karapace_config: Config) -> Iterator[KafkaAdminClient]:
-    admin = kafka_admin_from_config(karapace_config)
-    try:
-        yield admin
-    finally:
-        admin.close()
-
-
-@pytest.fixture(scope="function", name="new_topic")
-def topic_fixture(kafka_admin: KafkaAdminClient) -> NewTopic:
-    new_topic = NewTopic(secrets.token_hex(4), 1, 1)
-    kafka_admin.create_topics([new_topic], timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
-    try:
-        yield new_topic
-    finally:
-        kafka_admin.delete_topics([new_topic.name], timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
-
-
 @pytest.fixture(scope="function", name="producer")
 def producer_fixture(karapace_config: Config) -> Iterator[KafkaProducer]:
     with kafka_producer_from_config(karapace_config) as producer:
@@ -112,26 +95,18 @@ def test_roundtrip_from_kafka_state(
     karapace_config: Config,
 ) -> None:
     # Configure topic.
-    admin_client.alter_configs(
-        [
-            ConfigResource(
-                ConfigResourceType.TOPIC,
-                new_topic.name,
-                configs={"max.message.bytes": "999"},
-            )
-        ]
-    )
+    admin_client.update_topic_config(new_topic.topic, {"max.message.bytes": "999"})
 
     # Populate topic.
     producer.send(
-        new_topic.name,
+        new_topic.topic,
         key=b"bar",
         value=b"foo",
         partition=0,
-        timestamp_ms=1683474641,
-    ).add_errback(_raise)
+        timestamp=1683474641,
+    )
     producer.send(
-        new_topic.name,
+        new_topic.topic,
         key=b"foo",
         value=b"bar",
         partition=0,
@@ -139,11 +114,11 @@ def test_roundtrip_from_kafka_state(
             ("some-header", b"some header value"),
             ("other-header", b"some other header value"),
         ],
-        timestamp_ms=1683474657,
-    ).add_errback(_raise)
+        timestamp=1683474657,
+    )
     producer.flush()
 
-    topic_config = get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+    topic_config = get_topic_configurations(admin_client, new_topic.topic, {ConfigSource.DYNAMIC_TOPIC_CONFIG})
 
     # Execute backup creation.
     backup_location = tmp_path / "backup"
@@ -155,7 +130,7 @@ def test_roundtrip_from_kafka_state(
             "--config",
             str(config_file),
             "--topic",
-            new_topic.name,
+            new_topic.topic,
             "--replication-factor=1",
             "--location",
             str(backup_location),
@@ -169,14 +144,14 @@ def test_roundtrip_from_kafka_state(
     (backup_directory,) = tmp_path.iterdir()
     assert backup_directory.name == "backup"
     assert sorted(path.name for path in backup_directory.iterdir()) == [
-        f"{new_topic.name}.metadata",
-        f"{new_topic.name}:0.data",
+        f"{new_topic.topic}.metadata",
+        f"{new_topic.topic}:0.data",
     ]
     (metadata_path,) = backup_directory.glob("*.metadata")
     assert metadata_path.exists()
 
     # Delete the source topic.
-    admin_client.delete_topics([new_topic.name], timeout_ms=10_000)
+    admin_client.delete_topic(new_topic.topic)
 
     # todo: assert new topic uuid != old topic uuid?
     # Execute backup restoration.
@@ -187,7 +162,7 @@ def test_roundtrip_from_kafka_state(
             "--config",
             str(config_file),
             "--topic",
-            new_topic.name,
+            new_topic.topic,
             "--location",
             str(backup_directory),
         ],
@@ -196,40 +171,40 @@ def test_roundtrip_from_kafka_state(
     )
 
     # Verify configuration is identical.
-    assert topic_config == get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG})
+    assert topic_config == get_topic_configurations(admin_client, new_topic.topic, {ConfigSource.DYNAMIC_TOPIC_CONFIG})
 
     # Verify records of restored topic.
-    with kafka_consumer_from_config(karapace_config, new_topic.name) as consumer:
-        (partition,) = consumer.partitions_for_topic(new_topic.name)
+    with kafka_consumer_from_config(karapace_config, new_topic.topic) as consumer:
+        (partition,) = consumer.partitions_for_topic(new_topic.topic)
         first_record, second_record = _consume_records(
             consumer=consumer,
-            topic_partition=TopicPartition(new_topic.name, partition),
+            topic_partition=TopicPartition(new_topic.topic, partition),
             poll_timeout=PollTimeout.default(),
         )
 
     # First record.
-    assert isinstance(first_record, ConsumerRecord)
-    assert first_record.topic == new_topic.name
-    assert first_record.partition == partition
+    assert isinstance(first_record, Message)
+    assert first_record.topic() == new_topic.topic
+    assert first_record.partition() == partition
     # Note: This might be unreliable due to not using idempotent producer, i.e. we have
     # no guarantee against duplicates currently.
-    assert first_record.offset == 0
-    assert first_record.timestamp == 1683474641
-    assert first_record.timestamp_type == 0
-    assert first_record.key == b"bar"
-    assert first_record.value == b"foo"
-    assert first_record.headers == []
+    assert first_record.offset() == 0
+    assert first_record.timestamp()[1] == 1683474641
+    assert first_record.timestamp()[0] == Timestamp.CREATE_TIME
+    assert first_record.key() == b"bar"
+    assert first_record.value() == b"foo"
+    assert first_record.headers() is None
 
     # Second record.
-    assert isinstance(second_record, ConsumerRecord)
-    assert second_record.topic == new_topic.name
-    assert second_record.partition == partition
-    assert second_record.offset == 1
-    assert second_record.timestamp == 1683474657
-    assert second_record.timestamp_type == 0
-    assert second_record.key == b"foo"
-    assert second_record.value == b"bar"
-    assert second_record.headers == [
+    assert isinstance(second_record, Message)
+    assert second_record.topic() == new_topic.topic
+    assert second_record.partition() == partition
+    assert second_record.offset() == 1
+    assert second_record.timestamp()[1] == 1683474657
+    assert second_record.timestamp()[0] == Timestamp.CREATE_TIME
+    assert second_record.key() == b"foo"
+    assert second_record.value() == b"bar"
+    assert second_record.headers() == [
         ("some-header", b"some header value"),
         ("other-header", b"some other header value"),
     ]
@@ -243,15 +218,7 @@ def test_roundtrip_empty_topic(
     karapace_config: Config,
 ) -> None:
     # Configure topic.
-    admin_client.alter_configs(
-        [
-            ConfigResource(
-                ConfigResourceType.TOPIC,
-                new_topic.name,
-                configs={"max.message.bytes": "987"},
-            )
-        ]
-    )
+    admin_client.update_topic_config(new_topic.topic, {"max.message.bytes": "987"})
 
     # Execute backup creation.
     backup_location = tmp_path / "backup"
@@ -263,7 +230,7 @@ def test_roundtrip_empty_topic(
             "--config",
             str(config_file),
             "--topic",
-            new_topic.name,
+            new_topic.topic,
             "--replication-factor=1",
             "--location",
             str(backup_location),
@@ -279,7 +246,7 @@ def test_roundtrip_empty_topic(
     (metadata_path,) = backup_directory.iterdir()
 
     # Delete the source topic.
-    admin_client.delete_topics([new_topic.name], timeout_ms=10_000)
+    admin_client.delete_topic(new_topic.topic)
 
     # Execute backup restoration.
     subprocess.run(
@@ -289,7 +256,7 @@ def test_roundtrip_empty_topic(
             "--config",
             str(config_file),
             "--topic",
-            new_topic.name,
+            new_topic.topic,
             "--location",
             str(metadata_path),
         ],
@@ -298,7 +265,7 @@ def test_roundtrip_empty_topic(
     )
 
     # Verify configuration.
-    assert get_topic_configurations(admin_client, new_topic.name, {ConfigSource.TOPIC_CONFIG}) == {
+    assert get_topic_configurations(admin_client, new_topic.topic, {ConfigSource.DYNAMIC_TOPIC_CONFIG}) == {
         "min.insync.replicas": "1",
         "cleanup.policy": "delete",
         "retention.ms": "604800000",
@@ -307,12 +274,12 @@ def test_roundtrip_empty_topic(
     }
 
     # Verify the restored partition is empty.
-    consumer_ctx = kafka_consumer_from_config(karapace_config, new_topic.name)
+    consumer_ctx = kafka_consumer_from_config(karapace_config, new_topic.topic)
     with consumer_ctx as consumer, pytest.raises(EmptyPartition):
-        (partition,) = consumer.partitions_for_topic(new_topic.name)
+        (partition,) = consumer.partitions_for_topic(new_topic.topic)
         () = _consume_records(
             consumer=consumer,
-            topic_partition=TopicPartition(new_topic.name, partition),
+            topic_partition=TopicPartition(new_topic.topic, partition),
             poll_timeout=PollTimeout.default(),
         )
 
@@ -348,13 +315,13 @@ def test_exits_with_return_code_3_for_data_restoration_error(
 
     # Make sure topic doesn't exist beforehand.
     try:
-        admin_client.delete_topics([topic_name])
+        admin_client.delete_topic(topic_name)
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
-    admin_client.create_topics([NewTopic(topic_name, 1, 1)])
+    admin_client.new_topic(topic_name)
     with pytest.raises(subprocess.CalledProcessError) as er:
         subprocess.run(
             [
@@ -388,11 +355,11 @@ def test_roundtrip_from_file(
 
     # Make sure topic doesn't exist beforehand.
     try:
-        admin_client.delete_topics([topic_name])
+        admin_client.delete_topic(topic_name)
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     # Execute backup restoration.
     subprocess.run(
@@ -481,16 +448,13 @@ def test_roundtrip_from_file_skipping_topic_creation(
 
     # Create topic exactly as it was stored on backup file
     try:
-        admin_client.delete_topics([topic_name])
+        admin_client.delete_topic(topic_name)
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
-    admin_client.create_topics(
-        [NewTopic(topic_name, 1, 1)],
-        timeout_ms=TOPIC_CREATION_TIMEOUT_MS,
-    )
+    admin_client.new_topic(topic_name)
 
     # Execute backup restoration.
     subprocess.run(
@@ -576,11 +540,11 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
 
     # Make sure topic doesn't exist beforehand.
     try:
-        admin_client.delete_topics([topic_name])
+        admin_client.delete_topic(topic_name)
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     config = set_config_defaults(
         {
@@ -599,15 +563,14 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
                 sasl_mechanism=config["sasl_mechanism"],
                 sasl_plain_username=config["sasl_plain_username"],
                 sasl_plain_password=config["sasl_plain_password"],
-                kafka_client=KarapaceKafkaClient,
-                max_block_ms=5000,
+                socket_timeout_ms=5000,
             )
 
         def __enter__(self):
             return self._producer
 
         def __exit__(self, exc_type, exc_value, exc_traceback):
-            self._producer.close()
+            self._producer.flush()
 
     with patch("karapace.backup.api._producer") as p:
         p.return_value = LowTimeoutProducer()
@@ -620,7 +583,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
             )
 
 
-def test_producer_raises_exceptions(
+def test_backup_restoration_fails_when_producer_send_fails(
     admin_client: KafkaAdminClient,
     kafka_servers: KafkaServers,
 ) -> None:
@@ -630,11 +593,11 @@ def test_producer_raises_exceptions(
 
     # Make sure topic doesn't exist beforehand.
     try:
-        admin_client.delete_topics([topic_name])
+        admin_client.delete_topic(topic_name)
     except UnknownTopicOrPartitionError:
-        print("No previously existing topic.")
+        logger.info("No previously existing topic.")
     else:
-        print("Deleted topic from previous run.")
+        logger.info("Deleted topic from previous run.")
 
     config = set_config_defaults(
         {
@@ -642,8 +605,31 @@ def test_producer_raises_exceptions(
         }
     )
 
-    with patch("kafka.producer.record_accumulator.RecordAccumulator.append") as p:
-        p.side_effect = UnknownTopicOrPartitionError()
+    class FailToSendProducer(KafkaProducer):
+        def send(self, *args, **kwargs):
+            raise UnknownTopicOrPartitionError()
+
+    class FailToSendProducerContext:
+        def __init__(self):
+            self._producer = FailToSendProducer(
+                bootstrap_servers=config["bootstrap_uri"],
+                security_protocol=config["security_protocol"],
+                ssl_cafile=config["ssl_cafile"],
+                ssl_certfile=config["ssl_certfile"],
+                ssl_keyfile=config["ssl_keyfile"],
+                sasl_mechanism=config["sasl_mechanism"],
+                sasl_plain_username=config["sasl_plain_username"],
+                sasl_plain_password=config["sasl_plain_password"],
+            )
+
+        def __enter__(self):
+            return self._producer
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self._producer.flush()
+
+    with patch("karapace.backup.api._producer") as p:
+        p.return_value = FailToSendProducerContext()
         with pytest.raises(BackupDataRestorationError):
             api.restore_backup(
                 config=config,
@@ -863,11 +849,11 @@ class TestVerify:
         # Populate the test topic.
         for _ in range(100):
             producer.send(
-                new_topic.name,
+                new_topic.topic,
                 key=1000 * b"a",
                 value=1000 * b"b",
                 partition=0,
-            ).add_errback(_raise)
+            )
         producer.flush()
 
         # Execute backup creation.
@@ -878,14 +864,14 @@ class TestVerify:
                 "get",
                 "--use-format-v3",
                 f"--config={config_file!s}",
-                f"--topic={new_topic.name!s}",
+                f"--topic={new_topic.topic!s}",
                 "--replication-factor=1",
                 f"--location={backup_location!s}",
             ],
             capture_output=True,
             check=True,
         )
-        metadata_path = backup_location / f"{new_topic.name}.metadata"
+        metadata_path = backup_location / f"{new_topic.topic}.metadata"
 
         cp = subprocess.run(
             [
@@ -903,7 +889,7 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             f"""\
-            Integrity of {new_topic.name}:0.data is intact.
+            Integrity of {new_topic.topic}:0.data is intact.
             ✅ Verified 1 data files in backup OK.
             """
         )
@@ -918,11 +904,11 @@ class TestVerify:
         # Populate the test topic.
         for _ in range(100):
             producer.send(
-                new_topic.name,
+                new_topic.topic,
                 key=1000 * b"a",
                 value=1000 * b"b",
                 partition=0,
-            ).add_errback(_raise)
+            )
         producer.flush()
 
         # Execute backup creation.
@@ -933,14 +919,14 @@ class TestVerify:
                 "get",
                 "--use-format-v3",
                 f"--config={config_file!s}",
-                f"--topic={new_topic.name}",
+                f"--topic={new_topic.topic}",
                 "--replication-factor=1",
                 f"--location={backup_location!s}",
             ],
             capture_output=True,
             check=True,
         )
-        metadata_path = backup_location / f"{new_topic.name}.metadata"
+        metadata_path = backup_location / f"{new_topic.topic}.metadata"
 
         cp = subprocess.run(
             [
@@ -958,7 +944,7 @@ class TestVerify:
         assert cp.stderr == b""
         assert cp.stdout.decode() == textwrap.dedent(
             f"""\
-            Integrity of {new_topic.name}:0.data is intact.
+            Integrity of {new_topic.topic}:0.data is intact.
             ✅ Verified 1 data files in backup OK.
             """
         )

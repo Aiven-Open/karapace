@@ -5,12 +5,12 @@ See LICENSE for details
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from kafka.errors import TopicAlreadyExistsError
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from typing import Callable, IO, List, Union
+from typing import Any, Callable, IO, List, Union
 from urllib.parse import quote
 
 import asyncio
@@ -224,7 +224,7 @@ def create_id_factory(prefix: str) -> Callable[[], str]:
     return create_name
 
 
-def new_topic(admin_client: KafkaRestAdminClient, prefix: str = "topic", *, num_partitions: int = 1) -> str:
+def new_topic(admin_client: KafkaAdminClient, prefix: str = "topic", *, num_partitions: int = 1) -> str:
     topic_name = f"{new_random_name(prefix)}"
     try:
         admin_client.new_topic(topic_name, num_partitions=num_partitions)
@@ -307,3 +307,20 @@ def popen_karapace_all(config_path: Union[Path, str], stdout: IO, stderr: IO, **
     kwargs["stdout"] = stdout
     kwargs["stderr"] = stderr
     return Popen([python_exe(), "-m", "karapace.karapace_all", str(config_path)], **kwargs)
+
+
+class StubMessage:
+    """A stub to stand-in for `confluent_kafka.Message` in unittests.
+
+    Since that class cannot be instantiated, thus this is a liberal simulation
+    of its behaviour ie. its attributes are accessible via getter functions:
+    `message.offset()`."""
+
+    def __init__(self, **attrs: Any) -> None:
+        self._attrs = attrs
+
+    def __getattr__(self, key: str) -> None:
+        try:
+            return lambda: self._attrs[key]
+        except KeyError as exc:
+            raise AttributeError from exc

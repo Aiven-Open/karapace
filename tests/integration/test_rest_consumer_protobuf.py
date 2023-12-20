@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from tests.integration.test_rest import NEW_TOPIC_TIMEOUT
 from tests.utils import (
@@ -85,7 +85,7 @@ async def test_publish_consume_protobuf_second(rest_async_client, admin_client, 
 
 async def test_publish_protobuf_with_references(
     rest_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
     registry_async_client: Client,
 ):
     topic_name = new_topic(admin_client)
@@ -146,7 +146,7 @@ async def test_publish_protobuf_with_references(
 
 async def test_publish_and_consume_protobuf_with_recursive_references(
     rest_async_client: Client,
-    admin_client: KafkaRestAdminClient,
+    admin_client: KafkaAdminClient,
     registry_async_client: Client,
 ):
     topic_name = new_topic(admin_client)

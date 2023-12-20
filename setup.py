@@ -30,16 +30,16 @@ setup(
         "kafka-python",
         "networkx",
         "protobuf",
+        "pyjwt",
         "python-dateutil",
+        # compression algorithms supported by AioKafka and KafkaConsumer
+        "lz4",
+        "python-snappy",
+        "zstandard",
     ],
     extras_require={
-        # compression algorithms supported by KafkaConsumer
-        "lz4": ["lz4"],
         "sentry-sdk": ["sentry-sdk>=1.6.0"],
-        # compression algorithms supported by AioKafka and KafkaConsumer
-        "snappy": ["python-snappy"],
         "ujson": ["ujson"],
-        "zstd": ["python-zstandard"],
     },
     dependency_links=[],
     package_data={},

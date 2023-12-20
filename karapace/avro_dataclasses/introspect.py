@@ -5,7 +5,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from .schema import AvroType, FieldSchema, RecordSchema
+from .schema import AvroType, EnumType, FieldSchema, MapType, RecordSchema
 from collections.abc import Mapping
 from dataclasses import Field, fields, is_dataclass, MISSING
 from enum import Enum
@@ -98,15 +98,14 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
 
     # Handle enums.
     if isinstance(type_, type) and issubclass(type_, Enum):
-        return FieldSchema(
-            {
-                # Conditionally set a default.
-                **({"default": field.default.value} if field.default is not MISSING else {}),  # type: ignore[misc]
-                "name": type_.__name__,
-                "type": "enum",
-                "symbols": [value.value for value in type_],
-            }
-        )
+        enum_dict: EnumType = {
+            "name": type_.__name__,
+            "type": "enum",
+            "symbols": [value.value for value in type_],
+        }
+        if field.default is not MISSING:
+            enum_dict["default"] = field.default.value
+        return enum_dict
 
     # Handle map types.
     if origin is Mapping:
@@ -115,17 +114,13 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
             raise UnderspecifiedAnnotation("Key and value types must be specified for map types")
         if args[0] is not str:
             raise UnsupportedAnnotation("Key type must be str")
-        return FieldSchema(
-            {
-                "type": "map",
-                "values": _field_type(field, args[1]),
-                **(
-                    {"default": field.default_factory()}
-                    if field.default_factory is not MISSING
-                    else {}  # type: ignore[misc]
-                ),
-            }
-        )
+        map_dict: MapType = {
+            "type": "map",
+            "values": _field_type(field, args[1]),
+        }
+        if field.default_factory is not MISSING:
+            map_dict["default"] = field.default_factory()
+        return map_dict
 
     raise NotImplementedError(
         f"Found an unknown type {type_!r} while assembling Avro schema for the field "
@@ -134,12 +129,16 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
     )
 
 
-T = TypeVar("T")
+T = TypeVar("T", str, int, bool, Enum, None)
 
 
-def transform_default(type_: type[T], default: T) -> object:
-    if isinstance(type_, type) and issubclass(type_, Enum):
-        return default.value  # type: ignore[attr-defined]
+def transform_default(type_: type[T], default: T) -> str | int | bool | None:
+    if isinstance(default, Enum):
+        assert isinstance(type_, type)
+        assert issubclass(type_, Enum)
+        assert isinstance(default.value, (str, int, bool)) or default.value is None
+        return default.value
+    assert not (isinstance(type_, type) and issubclass(type_, Enum))
     return default
 
 
@@ -150,7 +149,7 @@ def field_schema(field: Field) -> FieldSchema:
     }
     return (
         {
-            **schema,  # type: ignore[misc]
+            **schema,
             "default": transform_default(field.type, field.default),
         }
         if field.default is not MISSING

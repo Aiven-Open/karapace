@@ -2,21 +2,24 @@
 accept-types<1
 aiohttp<4
 aiokafka<1
+confluent-kafka==2.3.0
 isodate<1
 jsonschema<5
+lz4
 networkx<4
 protobuf<4
+pyjwt>=2.4.0<3
 python-dateutil<3
+python-snappy
 tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
 xxhash~=3.3
-rich~=12.6.0
+rich~=13.6.0
 cachetools==5.3.1
-schedule
-psutil
 prometheus-client
+zstandard
 
 # Patched dependencies
 #

@@ -291,6 +291,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             callback=self.subject_version_referencedby_get,
             method="GET",
             schema_request=True,
+            auth=self._auth,
         )
         self.route(
             "/subjects/<subject:path>",
@@ -303,6 +304,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def close(self) -> None:
+        self.log.info("Closing karapace_schema_registry_controller")
         async with AsyncExitStack() as stack:
             stack.push_async_callback(super().close)
             stack.push_async_callback(self.schema_registry.close)
@@ -506,7 +508,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.NOT_FOUND,
             )
 
-        response_body = {"schema": schema.schema_str}
+        schema_str = schema.schema_str
+        format_serialized = request.query.get("format", "").lower() == "serialized"
+        if format_serialized and schema.schema_type == SchemaType.PROTOBUF:
+            parsed_schema = ParsedTypedSchema.parse(schema_type=schema.schema_type, schema_str=schema_str)
+            schema_str = parsed_schema.serialize()
+        response_body = {"schema": schema_str}
 
         if include_subjects:
             response_body["subjects"] = self.schema_registry.database.subjects_for_schema(parsed_schema_id)

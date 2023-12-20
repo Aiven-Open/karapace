@@ -2,24 +2,13 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from kafka import KafkaAdminClient
-from kafka.admin import ConfigResource, ConfigResourceType, NewTopic
+from __future__ import annotations
+
+from confluent_kafka.admin import NewTopic
 from karapace.backup.topic_configurations import ALL_CONFIG_SOURCES, ConfigSource, DEFAULT_CONFIGS, get_topic_configurations
-from karapace.constants import TOPIC_CREATION_TIMEOUT_MS
-from typing import Dict
+from karapace.kafka.admin import KafkaAdminClient
 
 import pytest
-import secrets
-
-
-@pytest.fixture(scope="function", name="new_topic")
-def topic_fixture(admin_client: KafkaAdminClient) -> NewTopic:
-    new_topic = NewTopic(secrets.token_hex(4), 1, 1)
-    admin_client.create_topics([new_topic], timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
-    try:
-        yield new_topic
-    finally:
-        admin_client.delete_topics([new_topic.name], timeout_ms=TOPIC_CREATION_TIMEOUT_MS)
 
 
 class TestTopicConfiguration:
@@ -28,12 +17,12 @@ class TestTopicConfiguration:
         self,
         new_topic: NewTopic,
         admin_client: KafkaAdminClient,
-        custom_topic_configs: Dict[str, str],
+        custom_topic_configs: dict[str, str],
     ) -> None:
-        admin_client.alter_configs([ConfigResource(ConfigResourceType.TOPIC, new_topic.name, configs=custom_topic_configs)])
+        admin_client.update_topic_config(new_topic.topic, custom_topic_configs)
 
         retrieved_configs = get_topic_configurations(
-            admin_client, new_topic.name, config_source_filter={ConfigSource.TOPIC_CONFIG}
+            admin_client, new_topic.topic, config_source_filter={ConfigSource.DYNAMIC_TOPIC_CONFIG}
         )
 
         # Verify that default configs are retrieved, and then remove them
@@ -49,10 +38,9 @@ class TestTopicConfiguration:
         new_topic: NewTopic,
         admin_client: KafkaAdminClient,
     ) -> None:
-        custom_topic_configs = {"segment.bytes": "7890"}
-        admin_client.alter_configs([ConfigResource(ConfigResourceType.TOPIC, new_topic.name, configs=custom_topic_configs)])
+        admin_client.update_topic_config(new_topic.topic, {"segment.bytes": "7890"})
 
-        retrieved_configs = get_topic_configurations(admin_client, new_topic.name, config_source_filter=())
+        retrieved_configs = get_topic_configurations(admin_client, new_topic.topic, config_source_filter=())
 
         # Verify that default configs are retrieved, and then remove them
         for default_config in DEFAULT_CONFIGS:
@@ -67,10 +55,9 @@ class TestTopicConfiguration:
         new_topic: NewTopic,
         admin_client: KafkaAdminClient,
     ) -> None:
-        custom_topic_configs = {"flush.ms": "999"}
-        admin_client.alter_configs([ConfigResource(ConfigResourceType.TOPIC, new_topic.name, configs=custom_topic_configs)])
+        admin_client.update_topic_config(new_topic.topic, {"flush.ms": "999"})
 
-        retrieved_configs = get_topic_configurations(admin_client, new_topic.name, config_source_filter=ALL_CONFIG_SOURCES)
+        retrieved_configs = get_topic_configurations(admin_client, new_topic.topic, config_source_filter=ALL_CONFIG_SOURCES)
 
         # Verify that default configs are retrieved, and then remove them
         for default_config in DEFAULT_CONFIGS:
@@ -78,7 +65,7 @@ class TestTopicConfiguration:
             del retrieved_configs[default_config]
 
         # Verify that all custom topic configs are correctly retrieved, and then remove them
-        for custom_config_key, custom_config_value in custom_topic_configs.items():
+        for custom_config_key, custom_config_value in ({"flush.ms": "999"}).items():
             assert retrieved_configs[custom_config_key] == custom_config_value
             del retrieved_configs[custom_config_key]
 

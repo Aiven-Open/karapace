@@ -3,8 +3,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from dataclasses import dataclass
-from kafka.errors import LeaderNotAvailableError, NoBrokersAvailable, UnrecognizedBrokerVersion
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from kafka.errors import AuthenticationFailedError, NoBrokersAvailable
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
@@ -50,22 +50,8 @@ def wait_for_kafka(
                 server=server,
             )
             try:
-                KafkaRestAdminClient(bootstrap_servers=server).cluster_metadata()
-            # ValueError:
-            # - if the port number is invalid (i.e. not a number)
-            # - if the port is not bound yet
-            # NoBrokersAvailable:
-            # - if the address/port does not point to a running server
-            # LeaderNotAvailableError:
-            # - if there is no leader yet
-            # UnrecognizedBrokerVersion:
-            # - happens during start-up of dockerized Kafka
-            except (
-                NoBrokersAvailable,
-                LeaderNotAvailableError,
-                UnrecognizedBrokerVersion,
-                ValueError,
-            ) as e:
+                KafkaAdminClient(bootstrap_servers=server).cluster_metadata()
+            except (NoBrokersAvailable, AuthenticationFailedError) as e:
                 print(f"Error checking kafka cluster: {e}")
                 time.sleep(2.0)
             else:
@@ -77,6 +63,7 @@ def maybe_download_kafka(kafka_description: KafkaDescription) -> None:
     if not os.path.exists(kafka_description.install_dir):
         log.info("Downloading Kafka '%s'", kafka_description.download_url)
         download = requests.get(kafka_description.download_url, stream=True)
+        kafka_description.kafka_tgz.parent.mkdir(parents=True, exist_ok=True)
         with open(kafka_description.kafka_tgz, "wb") as fd:
             for chunk in download.iter_content(chunk_size=None):
                 fd.write(chunk)

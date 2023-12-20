@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.client import Client
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from tests.utils import (
     new_random_name,
@@ -92,6 +92,9 @@ async def test_sr_auth_endpoints(registry_async_client_auth: Client) -> None:
     assert res.status_code == 401
 
     res = await registry_async_client_auth.get(f"subjects/{quote(subject)}/versions/1/schema")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get(f"subjects/{quote(subject)}/versions/1/referencedby")
     assert res.status_code == 401
 
     res = await registry_async_client_auth.delete(f"subjects/{quote(subject)}")
@@ -204,7 +207,7 @@ async def test_sr_auth_forwarding(registry_async_auth_pair: List[str]) -> None:
 
 
 # Test that Kafka REST API works when configured with Schema Registry requiring authorization
-async def test_rest_api_with_sr_auth(rest_async_client_registry_auth: Client, admin_client: KafkaRestAdminClient) -> None:
+async def test_rest_api_with_sr_auth(rest_async_client_registry_auth: Client, admin_client: KafkaAdminClient) -> None:
     client = rest_async_client_registry_auth
 
     topic = new_topic(admin_client, prefix="cave-rest-")

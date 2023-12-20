@@ -54,10 +54,14 @@ Using Docker
 To get you up and running with the latest build of Karapace, a docker image is available::
 
   # Fetch the latest build from main branch
-  docker pull ghcr.io/aiven/karapace:develop
+  docker pull ghcr.io/aiven-open/karapace:develop
 
   # Fetch the latest release
-  docker pull ghcr.io/aiven/karapace:latest
+  docker pull ghcr.io/aiven-open/karapace:latest
+
+Versions `3.7.1` and earlier are available from the `ghcr.io/aiven` registry::
+
+  docker pull ghcr.io/aiven/karapace:3.7.1
 
 An example setup including configuration and Kafka connection is available as compose example::
 
@@ -456,8 +460,11 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``runtime``
      - Runtime directory for the ``protoc`` protobuf schema parser and code generator
    * - ``name_strategy``
-     - ``subject_name``
-     - Name strategy to use when storing schemas from the kafka rest proxy service
+     - ``topic_name``
+     - Name strategy to use when storing schemas from the kafka rest proxy service. You can opt between ``name_strategy`` , ``record_name`` and ``topic_record_name``
+   * - ``name_strategy_validation``
+     - ``true``
+     - If enabled, validate that given schema is registered under used name strategy when producing messages from Kafka Rest
    * - ``master_election_strategy``
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
@@ -568,6 +575,24 @@ Example of complete authorization file
             }
         ]
     }
+
+OAuth2 authentication and authorization of Karapace REST proxy
+===================================================================
+
+The Karapace REST proxy supports passing OAuth2 credentials to the underlying Kafka service (defined in the ``sasl_bootstrap_uri`` configuration parameter). The JSON Web Token (JWT) is extracted from the ``Authorization`` HTTP header if the authorization scheme is ``Bearer``,
+eg. ``Authorization: Bearer $JWT``. If a ``Bearer`` token is present, the Kafka clients managed by Karapace will be created to use the SASL ``OAUTHBEARER`` mechanism and the JWT will be passed along. The Karapace REST proxy does not verify the token, that is done by
+the underlying Kafka service itself, if it's configured accordingly.
+
+Authorization is also done by Kafka itself, typically using the ``sub`` claim (although it's configurable) from the JWT as the username, checked against the configured ACLs.
+
+OAuth2 and ``Bearer`` token usage is dependent on the ``rest_authorization`` configuration parameter being ``true``.
+
+Token expiry
+------------
+
+The REST proxy process manages a set of producer and consumer clients, which are identified by the OAuth2 JWT token. These are periodically cleaned up if they are idle, as well as *before* the JWT token expires (the clean up currently runs every 5 minutes).
+
+Before a client refreshes its OAuth2 JWT token, it is expected to remove currently running consumers (eg. after committing their offsets) and producers using the current token.
 
 Uninstall
 =========

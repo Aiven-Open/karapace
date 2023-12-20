@@ -86,9 +86,9 @@ cleanest: cleaner
 requirements: export CUSTOM_COMPILE_COMMAND='make requirements'
 requirements:
 	pip install --upgrade pip setuptools pip-tools
-	cd requirements && pip-compile --upgrade --resolver=backtracking requirements.in
-	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-dev.in
-	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-typing.in
+	pip-compile --upgrade --resolver=backtracking requirements/requirements.in -o requirements/requirements.txt
+	pip-compile --upgrade --resolver=backtracking requirements/requirements-dev.in -o requirements/requirements-dev.txt
+	pip-compile --upgrade --resolver=backtracking requirements/requirements-typing.in -o requirements/requirements-typing.txt
 
 .PHONY: schema
 schema: against := origin/main

@@ -21,25 +21,27 @@ from .errors import (
 )
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
+from concurrent.futures import Future
+from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.structs import PartitionMetadata, TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.common import translate_from_kafkaerror
+from karapace.kafka.consumer import KafkaConsumer
+from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
 from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import AbstractSet, Callable, Collection, Iterator, Literal, Mapping, NewType, TypeVar
+from typing import Callable, Iterator, Literal, Mapping, NewType, Sized, TypeVar
 
 import contextlib
 import datetime
@@ -47,7 +49,6 @@ import enum
 import json
 import logging
 import math
-import sys
 import textwrap
 
 __all__ = (
@@ -166,12 +167,12 @@ def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
             result = f"failed ({outcome.exception()})"
         else:
             result = f"returned {outcome.result()!r}"
-        print(f"{description} {result}, retrying... (Ctrl+C to abort)", file=sys.stderr)
+        LOG.info(f"{description} {result}, retrying... (Ctrl+C to abort)")  # pylint: disable=logging-fstring-interpolation
 
     return before_sleep
 
 
-def __check_partition_count(topic: str, supplier: Callable[[str], AbstractSet[PartitionMetadata]]) -> None:
+def __check_partition_count(topic: str, supplier: Callable[[str], Sized]) -> None:
     """Checks that the given topic has exactly one partition.
 
     :param topic: to check.
@@ -187,7 +188,7 @@ def __check_partition_count(topic: str, supplier: Callable[[str], AbstractSet[Pa
 
 
 @contextlib.contextmanager
-def _admin(config: Config) -> KafkaAdminClient:
+def _admin(config: Config) -> Iterator[KafkaAdminClient]:
     """Creates an automatically closing Kafka admin client.
 
     :param config: for the client.
@@ -202,10 +203,7 @@ def _admin(config: Config) -> KafkaAdminClient:
         retry=retry_if_exception_type(KafkaError),
     )(kafka_admin_from_config)(config)
 
-    try:
-        yield admin
-    finally:
-        admin.close()
+    yield admin
 
 
 @retry(
@@ -223,26 +221,24 @@ def _maybe_create_topic(
     topic_configs: Mapping[str, str],
 ) -> bool:
     """Returns True if topic creation was successful, False if topic already exists"""
-    topic = NewTopic(
-        name=name,
-        num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-        replication_factor=replication_factor,
-        topic_configs=topic_configs,
-    )
-
     with _admin(config) as admin:
         try:
-            admin.create_topics([topic], timeout_ms=constants.TOPIC_CREATION_TIMEOUT_MS)
+            admin.new_topic(
+                name,
+                num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+                replication_factor=replication_factor,
+                config=dict(topic_configs),
+            )
         except TopicAlreadyExistsError:
-            LOG.debug("Topic %r already exists", topic.name)
+            LOG.debug("Topic %r already exists", name)
             return False
 
         LOG.info(
             "Created topic %r (partition count: %s, replication factor: %s, config: %s)",
-            topic.name,
-            topic.num_partitions,
-            topic.replication_factor,
-            topic.topic_configs,
+            name,
+            constants.SCHEMA_TOPIC_NUM_PARTITIONS,
+            replication_factor,
+            topic_configs,
         )
         return True
 
@@ -286,9 +282,8 @@ def _consume_records(
     consumer: KafkaConsumer,
     topic_partition: TopicPartition,
     poll_timeout: PollTimeout,
-) -> Iterator[ConsumerRecord]:
-    start_offset: int = consumer.beginning_offsets([topic_partition])[topic_partition]
-    end_offset: int = consumer.end_offsets([topic_partition])[topic_partition]
+) -> Iterator[Message]:
+    start_offset, end_offset = consumer.get_watermark_offsets(topic_partition)
     last_offset = start_offset
 
     LOG.info(
@@ -305,12 +300,15 @@ def _consume_records(
     end_offset -= 1  # high watermark to actual end offset
 
     while True:
-        records: Collection[ConsumerRecord] = consumer.poll(poll_timeout.milliseconds).get(topic_partition, [])
-        if len(records) == 0:
+        record: Message | None = consumer.poll(timeout=poll_timeout.seconds)
+        if record is None:
             raise StaleConsumerError(topic_partition, start_offset, end_offset, last_offset, poll_timeout)
-        for record in records:
-            yield record
-        last_offset = record.offset  # pylint: disable=undefined-loop-variable
+        error = record.error()
+        if error is not None:
+            raise translate_from_kafkaerror(error)
+
+        yield record
+        last_offset = record.offset()
         if last_offset >= end_offset:
             break
 
@@ -381,7 +379,7 @@ def _handle_restore_topic(
 def _handle_producer_send(
     instruction: ProducerSend,
     producer: KafkaProducer,
-    producer_error_callback: Callable[[Exception], None],
+    producer_callback: Callable[[Future], None],
 ) -> None:
     LOG.debug(
         "Sending kafka msg key: %r, value: %r",
@@ -395,10 +393,10 @@ def _handle_producer_send(
             value=instruction.value,
             partition=instruction.partition_index,
             headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
-            timestamp_ms=instruction.timestamp,
-        ).add_errback(producer_error_callback)
-    except (KafkaError, AssertionError) as ex:
-        raise BackupDataRestorationError("Error while calling send on restoring messages") from ex
+            timestamp=instruction.timestamp,
+        ).add_done_callback(producer_callback)
+    except (KafkaError, AssertionError) as exc:
+        raise BackupDataRestorationError("Error while calling send on restoring messages") from exc
 
 
 def restore_backup(
@@ -439,10 +437,12 @@ def restore_backup(
     with contextlib.ExitStack() as stack:
         producer = None
 
-        def _producer_error_callback(exception: Exception) -> None:
-            LOG.error("Producer error", exc_info=exception)
-            nonlocal _producer_exception
-            _producer_exception = exception
+        def _producer_callback(future: Future) -> None:
+            exception = future.exception()
+            if exception is not None:
+                LOG.error("Producer error", exc_info=exception)
+                nonlocal _producer_exception
+                _producer_exception = exception
 
         def _check_producer_exception() -> None:
             if _producer_exception is not None:
@@ -458,7 +458,7 @@ def restore_backup(
             elif isinstance(instruction, ProducerSend):
                 if producer is None:
                     raise RuntimeError("Backend has not yet sent RestoreTopic.")
-                _handle_producer_send(instruction, producer, _producer_error_callback)
+                _handle_producer_send(instruction, producer, _producer_callback)
                 # Immediately check if producer.send() generated an exception. This call is
                 # only an optimization, as producing is asynchronous and no sends might
                 # have been executed once we reach this line.
@@ -521,7 +521,7 @@ def create_backup(
             topic_configurations = get_topic_configurations(
                 admin=admin,
                 topic_name=topic_name,
-                config_source_filter={ConfigSource.TOPIC_CONFIG},
+                config_source_filter={ConfigSource.DYNAMIC_TOPIC_CONFIG},
             )
 
         # Note: It's expected that we at some point want to introduce handling of
@@ -530,6 +530,7 @@ def create_backup(
         with _consumer(config, topic_name) as consumer:
             (partition,) = consumer.partitions_for_topic(topic_name)
             topic_partition = TopicPartition(topic_name, partition)
+            consumer.assign([topic_partition])
 
             try:
                 data_file = _write_partition(
@@ -627,12 +628,14 @@ class VerifyLevel(enum.Enum):
 
 
 def verify(backup_location: ExistingFile, level: VerifyLevel) -> None:
+    console = Console()
+    error_console = Console(stderr=True)
+
     backup_version = BackupVersion.identify(backup_location)
 
     if backup_version is not BackupVersion.V3:
-        print(
-            f"Only backups using format {BackupVersion.V3.name} can be verified, found {backup_version.name}.",
-            file=sys.stderr,
+        error_console.print(
+            f"Only backups using format {BackupVersion.V3.name} can be verified, found {backup_version.name}."
         )
         raise SystemExit(1)
 
@@ -646,7 +649,6 @@ def verify(backup_location: ExistingFile, level: VerifyLevel) -> None:
     else:
         assert_never(level)
 
-    console = Console()
     success = True
     verified_files = 0
 

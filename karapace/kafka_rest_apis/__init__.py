@@ -2,38 +2,50 @@ from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
-from contextlib import AsyncExitStack, closing
+from confluent_kafka.error import KafkaException
+from contextlib import AsyncExitStack
 from http import HTTPStatus
 from kafka.errors import (
+    AuthenticationFailedError,
     BrokerResponseError,
     KafkaTimeoutError,
     NoBrokersAvailable,
-    NodeNotReadyError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
 from karapace.config import Config, create_client_ssl_context
 from karapace.errors import InvalidSchema
-from karapace.kafka_rest_apis.admin import KafkaRestAdminClient
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka_rest_apis.authentication import (
+    get_auth_config_from_header,
+    get_expiration_time_from_header,
+    get_kafka_client_auth_parameters_from_config,
+)
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest, HTTPResponse, JSON_CONTENT_TYPE
+from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from karapace.schema_models import TypedSchema, ValidatedTypedSchema
 from karapace.schema_type import SchemaType
-from karapace.serialization import InvalidMessageSchema, InvalidPayload, SchemaRegistrySerializer, SchemaRetrievalError
-from karapace.typing import SchemaId, Subject
+from karapace.serialization import (
+    get_subject_name,
+    InvalidMessageSchema,
+    InvalidPayload,
+    SchemaRegistrySerializer,
+    SchemaRetrievalError,
+)
+from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
 from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import aiohttp.web
 import asyncio
 import base64
+import datetime
 import logging
 import time
 
-RECORD_KEYS = ["key", "value", "partition"]
+SUBJECT_VALID_POSTFIX = [SubjectType.key, SubjectType.value]
 PUBLISH_KEYS = {"records", "value_schema", "value_schema_id", "key_schema", "key_schema_id"}
 RECORD_CODES = [42201, 42202]
 KNOWN_FORMATS = {"json", "avro", "protobuf", "binary"}
@@ -41,6 +53,7 @@ OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
 SCHEMA_MAPPINGS = {"avro": SchemaType.AVRO, "jsonschema": SchemaType.JSONSCHEMA, "protobuf": SchemaType.PROTOBUF}
 TypedConsumer = namedtuple("TypedConsumer", ["consumer", "serialization_format", "config"])
 IDLE_PROXY_TIMEOUT = 5 * 60
+AUTH_EXPIRY_TOLERANCE = datetime.timedelta(seconds=IDLE_PROXY_TIMEOUT)
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +99,13 @@ class KafkaRest(KarapaceBase):
         async with self._proxy_lock:
             # Always clean one at time, don't mutate dict while iterating
             for _key, _proxy in self.proxies.items():
+                # In case of an OAuth2/OIDC token, the proxy is to be cleaned up _before_ the token expires
+                # If the token is still valid within the tolerance time, idleness is still checked
+                now = datetime.datetime.now(datetime.timezone.utc)
+                if _proxy.auth_expiry and _proxy.auth_expiry < now + AUTH_EXPIRY_TOLERANCE:
+                    key, proxy = _key, _proxy
+                    log.warning("Releasing unused connection for %s due to token expiry at %s", _proxy, _proxy.auth_expiry)
+                    break
                 # If UserRestProxy has consumers with state, disconnecting loses state
                 if _proxy.num_consumers() > 0:
                     if idle_consumer_timeout > 0 and _proxy.last_used + idle_consumer_timeout < time.monotonic():
@@ -271,33 +291,22 @@ class KafkaRest(KarapaceBase):
             try:
                 if self.config.get("rest_authorization", False):
                     auth_header = request.headers.get("Authorization")
+                    auth_config = get_auth_config_from_header(auth_header, self.config)
+                    auth_expiry = get_expiration_time_from_header(auth_header)
 
-                    if auth_header is None:
-                        raise HTTPResponse(
-                            body='{"message": "Unauthorized"}',
-                            status=HTTPStatus.UNAUTHORIZED,
-                            content_type=JSON_CONTENT_TYPE,
-                            headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
-                        )
                     key = auth_header
                     if self.proxies.get(key) is None:
-                        auth = aiohttp.BasicAuth.decode(auth_header)
                         config = self.config.copy()
                         config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
                         config["security_protocol"] = (
                             "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
                         )
-                        if config["sasl_mechanism"] is None:
-                            config["sasl_mechanism"] = "PLAIN"
-                        config["sasl_plain_username"] = auth.login
-                        config["sasl_plain_password"] = auth.password
-                        self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer)
+                        config.update(auth_config)
+                        self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer, auth_expiry)
                 else:
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
-            except NoBrokersAvailable:
-                # This can be caused also due misconfigration, but kafka-python's
-                # KafkaAdminClient cannot currently distinguish those two cases
+            except (NoBrokersAvailable, AuthenticationFailedError):
                 log.exception("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
@@ -408,7 +417,13 @@ class KafkaRest(KarapaceBase):
 
 
 class UserRestProxy:
-    def __init__(self, config: Config, kafka_timeout: int, serializer):
+    def __init__(
+        self,
+        config: Config,
+        kafka_timeout: int,
+        serializer: SchemaRegistrySerializer,
+        auth_expiry: Optional[datetime.datetime] = None,
+    ):
         self.config = config
         self.kafka_timeout = kafka_timeout
         self.serializer = serializer
@@ -423,9 +438,11 @@ class UserRestProxy:
         self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
         self.init_admin_client()
         self._last_used = time.monotonic()
+        self._auth_expiry = auth_expiry
 
         self._async_producer_lock = asyncio.Lock()
         self._async_producer: Optional[AIOKafkaProducer] = None
+        self.naming_strategy = NameStrategy(self.config["name_strategy"])
 
     def __str__(self) -> str:
         return f"UserRestProxy(username={self.config['sasl_plain_username']})"
@@ -436,6 +453,10 @@ class UserRestProxy:
 
     def mark_used(self) -> None:
         self._last_used = time.monotonic()
+
+    @property
+    def auth_expiry(self) -> datetime.datetime:
+        return self._auth_expiry
 
     def num_consumers(self) -> int:
         return len(self.consumer_manager.consumers)
@@ -471,9 +492,7 @@ class UserRestProxy:
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     security_protocol=self.config["security_protocol"],
                     ssl_context=ssl_context,
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
+                    **get_kafka_client_auth_parameters_from_config(self.config),
                 )
 
                 try:
@@ -605,7 +624,7 @@ class UserRestProxy:
                 self._metadata_birth = metadata_birth
                 self._cluster_metadata = metadata
                 self._cluster_metadata_complete = topics is None
-            except NodeNotReadyError:
+            except KafkaException:
                 log.exception("Could not refresh cluster metadata")
                 KafkaRest.r(
                     body={
@@ -620,19 +639,17 @@ class UserRestProxy:
     def init_admin_client(self):
         for retry in [True, True, False]:
             try:
-                self.admin_client = KafkaRestAdminClient(
+                self.admin_client = KafkaAdminClient(
                     bootstrap_servers=self.config["bootstrap_uri"],
                     security_protocol=self.config["security_protocol"],
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
                     api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
                     kafka_client=KarapaceKafkaClient,
+                    **get_kafka_client_auth_parameters_from_config(self.config, async_client=False),
                 )
                 break
             except:  # pylint: disable=bare-except
@@ -648,9 +665,6 @@ class UserRestProxy:
             if self._async_producer is not None:
                 log.info("Disposing async producer")
                 stack.push_async_callback(self._async_producer.stop)
-
-            if self.admin_client is not None:
-                stack.enter_context(closing(self.admin_client))
 
             if self.consumer_manager is not None:
                 stack.push_async_callback(self.consumer_manager.aclose)
@@ -746,7 +760,7 @@ class UserRestProxy:
         self,
         data: dict,
         topic: str,
-        prefix: str,
+        subject_type: SubjectType,
         schema_type: SchemaType,
     ) -> SchemaId:
         """
@@ -757,21 +771,27 @@ class UserRestProxy:
         """
         log.debug("[resolve schema id] Retrieving schema id for %r", data)
         schema_id: Union[SchemaId, None] = (
-            SchemaId(int(data[f"{prefix}_schema_id"])) if f"{prefix}_schema_id" in data else None
+            SchemaId(int(data[f"{subject_type}_schema_id"])) if f"{subject_type}_schema_id" in data else None
         )
-        schema_str = data.get(f"{prefix}_schema")
+        schema_str = data.get(f"{subject_type}_schema")
 
         if schema_id is None and schema_str is None:
             raise InvalidSchema()
 
         if schema_id is None:
             parsed_schema = ValidatedTypedSchema.parse(schema_type, schema_str)
-            subject_name = self.serializer.get_subject_name(topic, parsed_schema, prefix, schema_type)
+
+            subject_name = get_subject_name(
+                topic,
+                parsed_schema,
+                subject_type,
+                self.naming_strategy,
+            )
             schema_id = await self._query_schema_id_from_cache_or_registry(parsed_schema, schema_str, subject_name)
         else:
 
             def subject_not_included(schema: TypedSchema, subjects: List[Subject]) -> bool:
-                subject = self.serializer.get_subject_name(topic, schema, prefix, schema_type)
+                subject = get_subject_name(topic, schema, subject_type, self.naming_strategy)
                 return subject not in subjects
 
             parsed_schema, valid_subjects = await self._query_schema_and_subjects(
@@ -779,7 +799,7 @@ class UserRestProxy:
                 need_new_call=subject_not_included,
             )
 
-            if subject_not_included(parsed_schema, valid_subjects):
+            if self.config["name_strategy_validation"] and subject_not_included(parsed_schema, valid_subjects):
                 raise InvalidSchema()
 
         return schema_id
@@ -820,7 +840,9 @@ class UserRestProxy:
             )
         return schema_id
 
-    async def validate_schema_info(self, data: dict, prefix: str, content_type: str, topic: str, schema_type: str):
+    async def validate_schema_info(
+        self, data: dict, subject_type: SubjectType, content_type: str, topic: str, schema_type: str
+    ):
         try:
             schema_type = SCHEMA_MAPPINGS[schema_type]
         except KeyError:
@@ -835,7 +857,7 @@ class UserRestProxy:
 
         # will do in place updates of id keys, since calling these twice would be expensive
         try:
-            data[f"{prefix}_schema_id"] = await self.get_schema_id(data, topic, prefix, schema_type)
+            data[f"{subject_type}_schema_id"] = await self.get_schema_id(data, topic, subject_type, schema_type)
         except InvalidPayload:
             log.exception("Unable to retrieve schema id")
             KafkaRest.r(
@@ -850,16 +872,17 @@ class UserRestProxy:
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
-                    "message": f"Error when registering schema. format = {schema_type.value}, subject = {topic}-{prefix}",
+                    "message": f"Error when registering schema."
+                    f"format = {schema_type.value}, subject = {topic}-{subject_type}",
                 },
                 content_type=content_type,
                 status=HTTPStatus.REQUEST_TIMEOUT,
             )
         except InvalidSchema:
-            if f"{prefix}_schema" in data:
-                err = f'schema = {data[f"{prefix}_schema"]}'
+            if f"{subject_type}_schema" in data:
+                err = f'schema = {data[f"{subject_type}_schema"]}'
             else:
-                err = f'schema_id = {data[f"{prefix}_schema_id"]}'
+                err = f'schema_id = {data[f"{subject_type}_schema_id"]}'
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.INVALID_DATA.value,
@@ -989,7 +1012,7 @@ class UserRestProxy:
                     status=HTTPStatus.BAD_REQUEST,
                 )
             convert_to_int(r, "partition", content_type)
-            if set(r.keys()).difference(RECORD_KEYS):
+            if set(r.keys()).difference({subject_type.value for subject_type in SubjectType}):
                 KafkaRest.unprocessable_entity(
                     message="Invalid request format",
                     content_type=content_type,
@@ -997,18 +1020,18 @@ class UserRestProxy:
                 )
         # disallow missing id and schema for any key/value list that has at least one populated element
         if formats["embedded_format"] in {"avro", "jsonschema", "protobuf"}:
-            for prefix, code in zip(RECORD_KEYS, RECORD_CODES):
-                if self.all_empty(data, prefix):
+            for subject_type, code in zip(SUBJECT_VALID_POSTFIX, RECORD_CODES):
+                if self.all_empty(data, subject_type):
                     continue
-                if not self.is_valid_schema_request(data, prefix):
+                if not self.is_valid_schema_request(data, subject_type):
                     KafkaRest.unprocessable_entity(
-                        message=f"Request includes {prefix}s and uses a format that requires schemas "
-                        f"but does not include the {prefix}_schema or {prefix}_schema_id fields",
+                        message=f"Request includes {subject_type}s and uses a format that requires schemas "
+                        f"but does not include the {subject_type}_schema or {subject_type.value}_schema_id fields",
                         content_type=content_type,
                         sub_code=code,
                     )
                 try:
-                    await self.validate_schema_info(data, prefix, content_type, topic, formats["embedded_format"])
+                    await self.validate_schema_info(data, subject_type, content_type, topic, formats["embedded_format"])
                 except InvalidMessageSchema as e:
                     KafkaRest.unprocessable_entity(
                         message=str(e),

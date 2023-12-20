@@ -4,21 +4,22 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from datetime import timedelta
-from kafka import KafkaConsumer
+from kafka.errors import InvalidTopicError
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
 from karapace.backup.errors import StaleConsumerError
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.client import Client
 from karapace.config import set_config_defaults
-from karapace.kafka_rest_apis import KafkaRestAdminClient
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.common import KafkaError
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format
 from karapace.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.utils import new_random_name
+from tests.utils import new_random_name, StubMessage
 from unittest import mock
 
 import asyncio
@@ -80,7 +81,7 @@ async def test_backup_get(
 
 
 async def test_backup_restore_and_get_non_schema_topic(
-    kafka_servers: KafkaServers, tmp_path: Path, admin_client: KafkaRestAdminClient
+    kafka_servers: KafkaServers, tmp_path: Path, admin_client: KafkaAdminClient
 ) -> None:
     test_topic_name = new_random_name("non-schemas")
 
@@ -131,18 +132,16 @@ def _assert_canonical_key_format(
         schemas_topic,
         group_id="assert-canonical-key-format-consumer",
         enable_auto_commit=False,
-        api_version=(1, 0, 0),
         bootstrap_servers=bootstrap_servers,
         auto_offset_reset="earliest",
     )
 
-    raw_msgs = consumer.poll(timeout_ms=2000)
-    while raw_msgs:
-        for _, messages in raw_msgs.items():
-            for message in messages:
-                key = json.loads(message.key)
-                assert is_key_in_canonical_format(key), f"Not in canonical format: {key}"
-        raw_msgs = consumer.poll()
+    messages = consumer.consume(timeout=30)
+    while messages:
+        for message in messages:
+            key = json.loads(message.key())
+            assert is_key_in_canonical_format(key), f"Not in canonical format: {key}"
+        messages = consumer.consume(timeout=30)
     consumer.close()
 
 
@@ -174,7 +173,7 @@ async def test_backup_restore(
 
     # The restored karapace should have the previously created subject
     all_subjects = []
-    expiration = Expiration.from_timeout(timeout=10)
+    expiration = Expiration.from_timeout(timeout=30)
     while subject not in all_subjects:
         expiration.raise_timeout_if_expired(
             msg_format="{subject} not in {all_subjects}",
@@ -184,7 +183,7 @@ async def test_backup_restore(
         res = await registry_async_client.get("subjects")
         assert res.status_code == 200
         all_subjects = res.json()
-        time.sleep(0.1)
+        time.sleep(1)
 
     # Test a few exotic scenarios
 
@@ -260,13 +259,35 @@ async def test_stale_consumer(
         # The proper way to test this would be with quotas by throttling our client to death while using a very short
         # poll timeout. However, we have no way to set up quotas because all Kafka clients available to us do not
         # implement the necessary APIs.
-        with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}._poll_once") as poll_once_mock:
-            poll_once_mock.return_value = {}
+        with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}.poll") as poll_mock:
+            poll_mock.return_value = None
             api.create_backup(
                 config=config,
                 backup_location=tmp_path / "backup",
                 topic_name=api.normalize_topic_name(None, config),
                 version=BackupVersion.V2,
-                poll_timeout=PollTimeout(timedelta(seconds=1)),
+                poll_timeout=PollTimeout.of(seconds=1),
             )
     assert str(e.value) == f"{registry_cluster.schemas_topic}:0#0 (0,0) after PT1S"
+
+
+async def test_message_error(
+    kafka_servers: KafkaServers,
+    registry_async_client: Client,
+    registry_cluster: RegistryDescription,
+    tmp_path: Path,
+) -> None:
+    await insert_data(registry_async_client)
+    config = set_config_defaults(
+        {"bootstrap_uri": kafka_servers.bootstrap_servers, "topic_name": registry_cluster.schemas_topic}
+    )
+    with pytest.raises(InvalidTopicError):
+        with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}.poll") as poll_mock:
+            poll_mock.return_value = StubMessage(error=KafkaError(KafkaError.TOPIC_EXCEPTION))
+            api.create_backup(
+                config=config,
+                backup_location=tmp_path / "backup",
+                topic_name=api.normalize_topic_name(None, config),
+                version=BackupVersion.V2,
+                poll_timeout=PollTimeout.of(seconds=1),
+            )

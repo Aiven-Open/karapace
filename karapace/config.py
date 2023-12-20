@@ -6,8 +6,8 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from enum import Enum, unique
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
+from karapace.typing import ElectionStrategy, NameStrategy
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
 from typing import IO, Mapping
@@ -62,6 +62,7 @@ class Config(TypedDict):
     sasl_mechanism: str | None
     sasl_plain_username: str | None
     sasl_plain_password: str | None
+    sasl_oauth_token: str | None
     topic_name: str
     metadata_max_age_ms: int
     admin_metadata_max_age: int
@@ -73,6 +74,8 @@ class Config(TypedDict):
     session_timeout_ms: int
     karapace_rest: bool
     karapace_registry: bool
+    name_strategy: str
+    name_strategy_validation: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
     stats_service: str
@@ -137,6 +140,7 @@ DEFAULTS: ConfigDefaults = {
     "sasl_mechanism": None,
     "sasl_plain_username": None,
     SASL_PLAIN_PASSWORD: None,
+    "sasl_oauth_token": None,
     "topic_name": DEFAULT_SCHEMA_TOPIC,
     "metadata_max_age_ms": 60000,
     "admin_metadata_max_age": 5,
@@ -148,6 +152,8 @@ DEFAULTS: ConfigDefaults = {
     "session_timeout_ms": 10000,
     "karapace_rest": False,
     "karapace_registry": False,
+    "name_strategy": "topic_name",
+    "name_strategy_validation": True,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
     "stats_service": "statsd",
@@ -162,12 +168,6 @@ SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
 class InvalidConfiguration(Exception):
     pass
-
-
-@unique
-class ElectionStrategy(Enum):
-    highest = "highest"
-    lowest = "lowest"
 
 
 def parse_env_value(value: str) -> str | int | bool:
@@ -266,6 +266,15 @@ def validate_config(config: Config) -> None:
         valid_strategies = [strategy.value for strategy in ElectionStrategy]
         raise InvalidConfiguration(
             f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
+        ) from None
+
+    name_strategy = config["name_strategy"]
+    try:
+        NameStrategy(name_strategy)
+    except ValueError:
+        valid_strategies = list(NameStrategy)
+        raise InvalidConfiguration(
+            f"Invalid default name strategy: {name_strategy}, valid values are {valid_strategies}"
         ) from None
 
     if config["rest_authorization"] and config["sasl_bootstrap_uri"] is None:

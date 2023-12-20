@@ -7,13 +7,15 @@ See LICENSE for details
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
-from contextlib import closing, ExitStack
+from confluent_kafka.admin import NewTopic
+from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
-from kafka import KafkaProducer
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
-from karapace.kafka_rest_apis import KafkaRest, KafkaRestAdminClient
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import KafkaProducer
+from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
 from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint, start_schema_registry_cluster
@@ -38,6 +40,7 @@ import os
 import pathlib
 import pytest
 import re
+import secrets
 import string
 import time
 
@@ -204,14 +207,12 @@ def fixture_kafka_server(
 
 @pytest.fixture(scope="function", name="producer")
 def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
-    with closing(KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)) as prod:
-        yield prod
+    yield KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
 
 
 @pytest.fixture(scope="function", name="admin_client")
-def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaRestAdminClient]:
-    with closing(KafkaRestAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)) as cli:
-        yield cli
+def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaAdminClient]:
+    yield KafkaAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)
 
 
 @pytest.fixture(scope="function", name="rest_async")
@@ -268,6 +269,80 @@ async def fixture_rest_async_client(
 
         async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
             return await aiohttp_client(rest_async.app)
+
+        client = Client(client_factory=get_client)
+
+    try:
+        # wait until the server is listening, otherwise the tests may fail
+        await repeat_until_successful_request(
+            client.get,
+            "brokers",
+            json_data=None,
+            headers=None,
+            error_msg="REST API is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_novalidation")
+async def fixture_rest_async_novalidation(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    tmp_path: Path,
+    kafka_servers: KafkaServers,
+    registry_async_client: Client,
+) -> AsyncIterator[Optional[KafkaRest]]:
+    # Do not start a REST api when the user provided an external service. Doing
+    # so would cause this node to join the existing group and participate in
+    # the election process. Without proper configuration for the listeners that
+    # won't work and will cause test failures.
+    rest_url = request.config.getoption("rest_url")
+    if rest_url:
+        yield None
+        return
+
+    config_path = tmp_path / "karapace_config.json"
+
+    config = set_config_defaults(
+        {
+            "admin_metadata_max_age": 2,
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            # Use non-default max request size for REST producer.
+            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
+            "name_strategy_validation": False,  # This should be only difference from rest_async
+        }
+    )
+    write_config(config_path, config)
+    rest = KafkaRest(config=config)
+
+    assert rest.serializer.registry_client
+    rest.serializer.registry_client.client = registry_async_client
+    try:
+        yield rest
+    finally:
+        await rest.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_novalidation_client")
+async def fixture_rest_async_novalidationclient(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    rest_async_novalidation: KafkaRest,
+    aiohttp_client: AiohttpClient,
+) -> AsyncIterator[Client]:
+    rest_url = request.config.getoption("rest_url")
+
+    # client and server_uri are incompatible settings.
+    if rest_url:
+        client = Client(server_uri=rest_url)
+    else:
+
+        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+            return await aiohttp_client(rest_async_novalidation.app)
 
         client = Client(client_factory=get_client)
 
@@ -597,3 +672,12 @@ async def fixture_registry_async_auth_pair(
         port_range=port_range,
     ) as endpoints:
         yield [server.endpoint.to_url() for server in endpoints]
+
+
+@pytest.fixture(scope="function", name="new_topic")
+def topic_fixture(admin_client: KafkaAdminClient) -> NewTopic:
+    topic_name = secrets.token_hex(4)
+    try:
+        yield admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
+    finally:
+        admin_client.delete_topic(topic_name)

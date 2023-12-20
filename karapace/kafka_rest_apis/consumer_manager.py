@@ -7,9 +7,16 @@ from asyncio import Lock
 from collections import defaultdict, namedtuple
 from functools import partial
 from http import HTTPStatus
-from kafka.errors import GroupAuthorizationFailedError, IllegalStateError, KafkaConfigurationError, KafkaError
+from kafka.errors import (
+    GroupAuthorizationFailedError,
+    IllegalStateError,
+    KafkaConfigurationError,
+    KafkaError,
+    TopicAuthorizationFailedError,
+)
 from kafka.structs import TopicPartition
 from karapace.config import Config, create_client_ssl_context
+from karapace.kafka_rest_apis.authentication import get_kafka_client_auth_parameters_from_config
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
 from karapace.serialization import DeserializationError, InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
@@ -205,9 +212,6 @@ class ConsumerManager:
                     client_id=internal_name,
                     security_protocol=self.config["security_protocol"],
                     ssl_context=ssl_context,
-                    sasl_mechanism=self.config["sasl_mechanism"],
-                    sasl_plain_username=self.config["sasl_plain_username"],
-                    sasl_plain_password=self.config["sasl_plain_password"],
                     group_id=group_name,
                     fetch_min_bytes=max(1, fetch_min_bytes),  # Discard earlier negative values
                     fetch_max_bytes=self.config["consumer_request_max_bytes"],
@@ -218,6 +222,7 @@ class ConsumerManager:
                     enable_auto_commit=request_data["auto.commit.enable"],
                     auto_offset_reset=request_data["auto.offset.reset"],
                     session_timeout_ms=session_timeout_ms,
+                    **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 await c.start()
                 return c
@@ -482,7 +487,7 @@ class ConsumerManager:
                 timeout_left = max(0, (start_time - time.monotonic()) * 1000 + timeout)
                 try:
                     data = await consumer.getmany(timeout_ms=timeout_left, max_records=1)
-                except GroupAuthorizationFailedError:
+                except (GroupAuthorizationFailedError, TopicAuthorizationFailedError):
                     KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
                 except KafkaError as ex:
                     KarapaceBase.internal_error(
