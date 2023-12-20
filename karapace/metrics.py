@@ -17,6 +17,7 @@ from karapace.statsd import StatsdClient
 
 import threading
 
+
 class MetricsException(Exception):
     pass
 
