@@ -109,7 +109,11 @@ class TypedSchema:
 
     def fingerprint(self) -> str:
         if self._fingerprint_cached is None:
-            self._fingerprint_cached = hashlib.sha1(str(self).encode("utf8")).hexdigest()
+            fingerprint_str = str(self)
+            if self.references is not None:
+                reference_str = "\n".join([repr(reference) for reference in self.references])
+                fingerprint_str = fingerprint_str + reference_str
+            self._fingerprint_cached = hashlib.sha1(fingerprint_str.encode("utf8")).hexdigest()
         return self._fingerprint_cached
 
     # This is marked @final because __init__ references this statically, hence
