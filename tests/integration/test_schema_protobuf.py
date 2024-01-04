@@ -1010,52 +1010,45 @@ async def test_references(testcase: ReferenceTestCase, registry_async_client: Cl
                 assert fetch_schema_res.status_code == 200
 
 
-@pytest.mark.parametrize(
-    "testcase",
-    [
-        ReferenceTestCase(
-            test_name="With updated reference version",
-            schemas=[
-                TestCaseSchema(
-                    schema_type=SchemaType.PROTOBUF,
-                    schema_str=SCHEMA_NO_REF,
-                    subject="wr_s1",
-                    references=None,
-                    expected=200,
-                ),
-                TestCaseSchema(
-                    schema_type=SchemaType.PROTOBUF,
-                    schema_str=SCHEMA_WITH_REF,
-                    subject="wr_s2",
-                    references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 1}],
-                    expected=200,
-                ),
-                TestCaseSchema(
-                    schema_type=SchemaType.PROTOBUF,
-                    schema_str=SCHEMA_NO_REF_V2,
-                    subject="wr_s1",
-                    references=None,
-                    expected=200,
-                ),
-                TestCaseSchema(
-                    schema_type=SchemaType.PROTOBUF,
-                    schema_str=SCHEMA_WITH_REF,
-                    subject="wr_s2",
-                    references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 2}],
-                    expected=200,
-                ),
-            ],
+async def test_reference_update_creates_new_schema_version(registry_async_client: Client):
+    test_schemas = [
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_NO_REF,
+            subject="wr_s1",
+            references=None,
+            expected=200,
         ),
-    ],
-    ids=str,
-)
-async def test_reference_update_creates_new_schema_version(testcase: ReferenceTestCase, registry_async_client: Client):
-    for testdata in testcase.schemas:
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_WITH_REF,
+            subject="wr_s2",
+            references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 1}],
+            expected=200,
+        ),
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_NO_REF_V2,
+            subject="wr_s1",
+            references=None,
+            expected=200,
+        ),
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_WITH_REF,
+            subject="wr_s2",
+            references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 2}],
+            expected=200,
+        ),
+    ]
+    schema_ids: list[int] = []
+    for testdata in test_schemas:
         body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
         if testdata.references:
             body["references"] = testdata.references
         res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
         assert res.status_code == testdata.expected
+        schema_ids.append(res.json_result.get("id"))
     res = await registry_async_client.get("subjects/wr_s2/versions")
     assert len(res.json_result) == 2, "Expected two versions of schemas as reference was updated."
     res = await registry_async_client.get("subjects/wr_s2/versions/2")
@@ -1064,6 +1057,17 @@ async def test_reference_update_creates_new_schema_version(testcase: ReferenceTe
     assert references[0].get("name") == "NoReference.proto"
     assert references[0].get("subject") == "wr_s1"
     assert references[0].get("version") == 2
+
+    # Assert when querying the schema id with schema version with references correct schema id is returned.
+    for testdata, expected_schema_id in zip(test_schemas, schema_ids):
+        body = {
+            "schemaType": testdata.schema_type,
+            "schema": testdata.schema_str,
+        }
+        if testdata.references:
+            body["references"] = testdata.references
+        res = await registry_async_client.post(f"subjects/{testdata.subject}", json=body)
+        assert res.json_result.get("id") == expected_schema_id
 
 
 async def test_protobuf_error(registry_async_client: Client) -> None:
