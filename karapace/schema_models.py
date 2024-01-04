@@ -285,6 +285,21 @@ class ParsedTypedSchema(TypedSchema):
             return str(self.schema)
         return super().__str__()
 
+    def match(self, other: ParsedTypedSchema) -> bool:
+        """Match the schema with given one.
+
+        Special case function where schema is matched to other. The parsed schema object and references are matched.
+        The parent class equality function works based on the normalized schema string. That does not take into account
+        the canonical forms of any schema type. This function uses the parsed form of the schema to match if schemas
+        are equal. For example Avro schemas `{"type": "int", "name": schema_name}` and `{"type": "int"}` are equal by
+        Avro spec.
+        References are also matched and the refered schemas and the versions of those must match.
+
+        :param other: The schema to match against.
+        :return: True if schema match, False if not.
+        """
+        return self.schema_type is other.schema_type and self.schema == other.schema and self.references == other.references
+
     @property
     def schema(self) -> Draft7Validator | AvroSchema | ProtobufSchema:
         if self._schema_cached is not None:
