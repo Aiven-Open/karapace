@@ -4,9 +4,9 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from confluent_kafka import Message, TopicPartition
-from confluent_kafka.admin import NewTopic
 from dataclasses import fields
+from kafka import TopicPartition
+from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup import api
 from karapace.backup.api import _consume_records, TopicName
@@ -16,9 +16,8 @@ from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
-from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient, NewTopic
 from karapace.kafka.producer import KafkaProducer
-from karapace.kafka.types import Timestamp
 from karapace.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
 from karapace.version import __version__
 from pathlib import Path
@@ -183,28 +182,28 @@ def test_roundtrip_from_kafka_state(
         )
 
     # First record.
-    assert isinstance(first_record, Message)
-    assert first_record.topic() == new_topic.topic
-    assert first_record.partition() == partition
+    assert isinstance(first_record, ConsumerRecord)
+    assert first_record.topic == new_topic.topic
+    assert first_record.partition == partition
     # Note: This might be unreliable due to not using idempotent producer, i.e. we have
     # no guarantee against duplicates currently.
-    assert first_record.offset() == 0
-    assert first_record.timestamp()[1] == 1683474641
-    assert first_record.timestamp()[0] == Timestamp.CREATE_TIME
-    assert first_record.key() == b"bar"
-    assert first_record.value() == b"foo"
-    assert first_record.headers() is None
+    assert first_record.offset == 0
+    assert first_record.timestamp == 1683474641
+    assert first_record.timestamp_type == 0
+    assert first_record.key == b"bar"
+    assert first_record.value == b"foo"
+    assert first_record.headers == []
 
     # Second record.
-    assert isinstance(second_record, Message)
-    assert second_record.topic() == new_topic.topic
-    assert second_record.partition() == partition
-    assert second_record.offset() == 1
-    assert second_record.timestamp()[1] == 1683474657
-    assert second_record.timestamp()[0] == Timestamp.CREATE_TIME
-    assert second_record.key() == b"foo"
-    assert second_record.value() == b"bar"
-    assert second_record.headers() == [
+    assert isinstance(second_record, ConsumerRecord)
+    assert second_record.topic == new_topic.topic
+    assert second_record.partition == partition
+    assert second_record.offset == 1
+    assert second_record.timestamp == 1683474657
+    assert second_record.timestamp_type == 0
+    assert second_record.key == b"foo"
+    assert second_record.value == b"bar"
+    assert second_record.headers == [
         ("some-header", b"some header value"),
         ("other-header", b"some other header value"),
     ]
