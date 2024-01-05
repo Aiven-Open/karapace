@@ -10,7 +10,7 @@ from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, Callable, IO, List, Union
+from typing import Callable, IO, List, Union
 from urllib.parse import quote
 
 import asyncio
@@ -307,20 +307,3 @@ def popen_karapace_all(config_path: Union[Path, str], stdout: IO, stderr: IO, **
     kwargs["stdout"] = stdout
     kwargs["stderr"] = stderr
     return Popen([python_exe(), "-m", "karapace.karapace_all", str(config_path)], **kwargs)
-
-
-class StubMessage:
-    """A stub to stand-in for `confluent_kafka.Message` in unittests.
-
-    Since that class cannot be instantiated, thus this is a liberal simulation
-    of its behaviour ie. its attributes are accessible via getter functions:
-    `message.offset()`."""
-
-    def __init__(self, **attrs: Any) -> None:
-        self._attrs = attrs
-
-    def __getattr__(self, key: str) -> None:
-        try:
-            return lambda: self._attrs[key]
-        except KeyError as exc:
-            raise AttributeError from exc
