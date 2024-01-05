@@ -22,18 +22,18 @@ from .errors import (
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
 from concurrent.futures import Future
-from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
+from kafka import KafkaConsumer
+from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, TopicAlreadyExistsError
+from kafka.structs import TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
 from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.common import translate_from_kafkaerror
-from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
@@ -41,7 +41,7 @@ from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import Callable, Iterator, Literal, Mapping, NewType, Sized, TypeVar
+from typing import Callable, Collection, Iterator, Literal, Mapping, NewType, Sized, TypeVar
 
 import contextlib
 import datetime
@@ -282,8 +282,9 @@ def _consume_records(
     consumer: KafkaConsumer,
     topic_partition: TopicPartition,
     poll_timeout: PollTimeout,
-) -> Iterator[Message]:
-    start_offset, end_offset = consumer.get_watermark_offsets(topic_partition)
+) -> Iterator[ConsumerRecord]:
+    start_offset: int = consumer.beginning_offsets([topic_partition])[topic_partition]
+    end_offset: int = consumer.end_offsets([topic_partition])[topic_partition]
     last_offset = start_offset
 
     LOG.info(
@@ -300,15 +301,12 @@ def _consume_records(
     end_offset -= 1  # high watermark to actual end offset
 
     while True:
-        record: Message | None = consumer.poll(timeout=poll_timeout.seconds)
-        if record is None:
+        records: Collection[ConsumerRecord] = consumer.poll(poll_timeout.milliseconds).get(topic_partition, [])
+        if len(records) == 0:
             raise StaleConsumerError(topic_partition, start_offset, end_offset, last_offset, poll_timeout)
-        error = record.error()
-        if error is not None:
-            raise translate_from_kafkaerror(error)
-
-        yield record
-        last_offset = record.offset()
+        for record in records:
+            yield record
+        last_offset = record.offset  # pylint: disable=undefined-loop-variable
         if last_offset >= end_offset:
             break
 
@@ -530,7 +528,6 @@ def create_backup(
         with _consumer(config, topic_name) as consumer:
             (partition,) = consumer.partitions_for_topic(topic_name)
             topic_partition = TopicPartition(topic_name, partition)
-            consumer.assign([topic_partition])
 
             try:
                 data_file = _write_partition(

@@ -49,8 +49,3 @@ class PollTimeout:
     def milliseconds(self) -> int:
         """Returns this poll timeout in milliseconds, anything smaller than a milliseconds is ignored (no rounding)."""
         return self.__value // timedelta(milliseconds=1)
-
-    @cached_property
-    def seconds(self) -> float:
-        """Returns this poll timeout in seconds."""
-        return self.__value / timedelta(seconds=1)
