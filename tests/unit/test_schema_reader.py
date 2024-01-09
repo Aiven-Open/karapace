@@ -137,9 +137,9 @@ class ReadinessTestCase(BaseTestCase):
 def test_readiness_check(testcase: ReadinessTestCase) -> None:
     key_formatter_mock = Mock()
     consumer_mock = Mock()
-    consumer_mock.poll.return_value = {}
-    # Return dict {partition: offsets}, end offset is the next upcoming record offset
-    consumer_mock.end_offsets.return_value = {0: testcase.end_offset}
+    consumer_mock.consume.return_value = []
+    # Return tuple (beginning, end), end offset is the next upcoming record offset
+    consumer_mock.get_watermark_offsets.return_value = (0, testcase.end_offset)
 
     offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
