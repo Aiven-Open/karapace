@@ -3,7 +3,6 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from dataclasses import replace
-from kafka.consumer.fetcher import ConsumerRecord
 from karapace.backup.backends.reader import ProducerSend, RestoreTopic
 from karapace.backup.backends.v3.backend import _PartitionStats, SchemaBackupV3Reader, SchemaBackupV3Writer
 from karapace.backup.backends.v3.errors import (
@@ -16,7 +15,9 @@ from karapace.backup.backends.v3.errors import (
 )
 from karapace.backup.backends.v3.readers import read_records
 from karapace.backup.backends.v3.schema import ChecksumAlgorithm, DataFile
+from karapace.kafka.types import Timestamp
 from pathlib import Path
+from tests.utils import StubMessage
 from unittest import mock
 
 import datetime
@@ -33,33 +34,23 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
     finished_at = datetime.datetime.now(datetime.timezone.utc)
 
     records = (
-        ConsumerRecord(
+        StubMessage(
             key=b"foo",
             value=b"bar",
             topic=topic_name,
             partition=partition_index,
             offset=10,
-            timestamp=round(time.time()),
-            timestamp_type=None,
-            headers=(),
-            checksum=None,
-            serialized_key_size=None,
-            serialized_value_size=None,
-            serialized_header_size=None,
+            timestamp=(Timestamp.CREATE_TIME, round(time.time())),
+            headers=None,
         ),
-        ConsumerRecord(
+        StubMessage(
             key=b"foo",
             value=b"bar",
             topic=topic_name,
             partition=partition_index,
             offset=14,
-            timestamp=round(time.time()),
-            timestamp_type=None,
-            headers=(("some-key", b"some-value"),),
-            checksum=None,
-            serialized_key_size=None,
-            serialized_value_size=None,
-            serialized_header_size=None,
+            timestamp=(Timestamp.CREATE_TIME, round(time.time())),
+            headers=[("some-key", b"some-value")],
         ),
     )
     topic_configurations = {"max.message.bytes": "1024"}
@@ -124,36 +115,31 @@ def test_writer_reader_roundtrip(tmp_path: Path) -> None:
         ProducerSend(
             topic_name=topic_name,
             partition_index=partition_index,
-            key=records[0].key,
-            value=records[0].value,
+            key=records[0].key(),
+            value=records[0].value(),
             headers=(),
-            timestamp=records[0].timestamp,
+            timestamp=records[0].timestamp()[1],
         ),
         ProducerSend(
             topic_name=topic_name,
             partition_index=partition_index,
-            key=records[1].key,
-            value=records[1].value,
+            key=records[1].key(),
+            value=records[1].value(),
             headers=((b"some-key", b"some-value"),),
-            timestamp=records[0].timestamp,
+            timestamp=records[0].timestamp()[1],
         ),
     )
 
 
-def make_record(topic_name: str, partition_index: int, offset: int) -> ConsumerRecord:
-    return ConsumerRecord(
+def make_record(topic_name: str, partition_index: int, offset: int) -> StubMessage:
+    return StubMessage(
         key=b"foo",
         value=b"bar",
         topic=topic_name,
         partition=partition_index,
         offset=offset,
-        timestamp=round(time.time()),
-        timestamp_type=None,
-        headers=(("some-key", b"some-value"),),
-        checksum=None,
-        serialized_key_size=None,
-        serialized_value_size=None,
-        serialized_header_size=None,
+        timestamp=(Timestamp.CREATE_TIME, round(time.time())),
+        headers=[("some-key", b"some-value")],
     )
 
 

@@ -3,9 +3,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from .config import Config
-from .utils import KarapaceKafkaClient
-from kafka import KafkaConsumer
 from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
 from typing import Iterator
 
@@ -42,7 +41,6 @@ def kafka_consumer_from_config(config: Config, topic: str) -> Iterator[KafkaCons
         sasl_plain_password=config["sasl_plain_password"],
         auto_offset_reset="earliest",
         metadata_max_age_ms=config["metadata_max_age_ms"],
-        kafka_client=KarapaceKafkaClient,
     )
     try:
         yield consumer
