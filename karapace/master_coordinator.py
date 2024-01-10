@@ -5,12 +5,12 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from dataclasses import dataclass
+from kafka import KafkaConsumer
 from kafka.coordinator.base import BaseCoordinator
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 from kafka.metrics import MetricConfig, Metrics
 from karapace import constants
 from karapace.config import Config
-from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
 from karapace.typing import JsonData, JsonObject
 from karapace.utils import json_decode, json_encode, KarapaceKafkaClient
 from karapace.version import __version__
@@ -238,7 +238,7 @@ class MasterCoordinator(Thread):
             election_strategy=self.config.get("master_election_strategy", "lowest"),
             group_id=self.config["group_id"],
             session_timeout_ms=session_timeout_ms,
-            request_timeout_ms=max(session_timeout_ms, DEFAULT_REQUEST_TIMEOUT_MS),
+            request_timeout_ms=max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"]),
         )
         self.schema_coordinator_ready.set()
 

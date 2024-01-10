@@ -5,13 +5,12 @@ See LICENSE for details
 from __future__ import annotations
 
 from functools import partial
+from kafka.consumer.fetcher import ConsumerRecord
 from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer
 from karapace.backup.encoders import encode_key, encode_value
-from karapace.kafka.types import Timestamp
 from karapace.key_format import KeyFormatter
 from pathlib import Path
-from tests.utils import StubMessage
 
 import datetime
 import json
@@ -30,7 +29,7 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
     topic_name = "a-topic"
     partition_index = 123
     records = (
-        StubMessage(
+        ConsumerRecord(
             key=json.dumps(
                 {
                     "keytype": "SCHEMA",
@@ -51,10 +50,15 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
             topic=topic_name,
             partition=partition_index,
             offset=0,
-            timestamp=(Timestamp.CREATE_TIME, round(time.time())),
-            headers=None,
+            timestamp=round(time.time()),
+            timestamp_type=None,
+            headers=(),
+            checksum=None,
+            serialized_key_size=None,
+            serialized_value_size=None,
+            serialized_header_size=None,
         ),
-        StubMessage(
+        ConsumerRecord(
             key=json.dumps(
                 {
                     "keytype": "SCHEMA",
@@ -75,8 +79,13 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
             topic=topic_name,
             partition=partition_index,
             offset=0,
-            timestamp=(Timestamp.CREATE_TIME, round(time.time())),
-            headers=None,
+            timestamp=round(time.time()),
+            timestamp_type=None,
+            headers=(),
+            checksum=None,
+            serialized_key_size=None,
+            serialized_value_size=None,
+            serialized_header_size=None,
         ),
     )
 
@@ -157,7 +166,7 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
     topic_name = "a-topic"
     partition_index = 123
     records = (
-        StubMessage(
+        ConsumerRecord(
             key=json.dumps(
                 {
                     "keytype": "SCHEMA",
@@ -185,10 +194,15 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
             topic=topic_name,
             partition=partition_index,
             offset=0,
-            timestamp=(Timestamp.CREATE_TIME, round(time.time())),
-            headers=None,
+            timestamp=round(time.time()),
+            timestamp_type=None,
+            headers=(),
+            checksum=None,
+            serialized_key_size=None,
+            serialized_value_size=None,
+            serialized_header_size=None,
         ),
-        StubMessage(
+        ConsumerRecord(
             key=json.dumps(
                 {
                     "keytype": "SCHEMA",
@@ -216,8 +230,13 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
             topic=topic_name,
             partition=partition_index,
             offset=0,
-            timestamp=(Timestamp.CREATE_TIME, round(time.time())),
-            headers=None,
+            timestamp=round(time.time()),
+            timestamp_type=None,
+            headers=(),
+            checksum=None,
+            serialized_key_size=None,
+            serialized_value_size=None,
+            serialized_header_size=None,
         ),
     )
 

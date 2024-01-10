@@ -86,7 +86,7 @@ geventhttpclient==2.0.11
     # via locust
 greenlet==3.0.1
     # via gevent
-hypothesis==6.91.0
+hypothesis==6.92.2
     # via -r requirements-dev.in
 idna==3.6
     # via
@@ -173,7 +173,7 @@ pyjwt==2.8.0
     # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
-pytest==7.4.3
+pytest==7.4.4
     # via
     #   -r requirements-dev.in
     #   pytest-timeout

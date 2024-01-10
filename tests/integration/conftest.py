@@ -7,13 +7,12 @@ See LICENSE for details
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
-from confluent_kafka.admin import NewTopic
 from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
-from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.admin import KafkaAdminClient, NewTopic
 from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path

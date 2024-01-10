@@ -7,10 +7,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from avro.schema import Schema as AvroSchema
-from confluent_kafka import Message, TopicPartition
 from contextlib import closing, ExitStack
 from enum import Enum
 from jsonschema.validators import Draft7Validator
+from kafka import KafkaConsumer, TopicPartition
 from kafka.errors import (
     InvalidReplicationFactorError,
     KafkaConfigurationError,
@@ -25,7 +25,6 @@ from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
 from karapace.metrics import Metrics
@@ -34,7 +33,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
-from karapace.utils import json_decode, JSONDecodeError
+from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
 
@@ -70,9 +69,11 @@ class MessageType(Enum):
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
     session_timeout_ms = config["session_timeout_ms"]
+    request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
     return KafkaConsumer(
         config["topic_name"],
         enable_auto_commit=False,
+        api_version=(1, 0, 0),
         bootstrap_servers=config["bootstrap_uri"],
         client_id=config["client_id"],
         fetch_max_wait_ms=50,
@@ -85,6 +86,8 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         sasl_plain_password=config["sasl_plain_password"],
         auto_offset_reset="earliest",
         session_timeout_ms=session_timeout_ms,
+        request_timeout_ms=request_timeout_ms,
+        kafka_client=KarapaceKafkaClient,
         metadata_max_age_ms=config["metadata_max_age_ms"],
     )
 
@@ -114,7 +117,7 @@ class KafkaSchemaReader(Thread):
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
-        self.timeout_s = 0.2
+        self.timeout_ms = 200
         self.config = config
 
         self.database = database
@@ -232,13 +235,11 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
-            # The `-1` decrement here is due to historical reasons (evolution of schema reader and offset watcher):
-            # * The first `OffsetWatcher` implementation neeeded this for flagging empty offsets
-            # * Then synchronization and locking was changed and this remained
-            # * See https://github.com/Aiven-Open/karapace/pull/364/files
-            # * See `OFFSET_EMPTY` and `OFFSET_UNINITIALIZED`
-            return beginning_offset - 1
+            offsets = self.consumer.beginning_offsets([TopicPartition(self.config["topic_name"], 0)])
+            # Offset in the response is the offset for last offset.
+            # Reduce by one for matching on startup.
+            beginning_offset = list(offsets.values())[0] - 1
+            return beginning_offset
         except KafkaTimeoutError:
             LOG.exception("Reading begin offsets timed out.")
         except Exception as e:  # pylint: disable=broad-except
@@ -253,7 +254,7 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
+            offsets = self.consumer.end_offsets([TopicPartition(self.config["topic_name"], 0)])
         except KafkaTimeoutError:
             LOG.exception("Reading end offsets timed out.")
             return False
@@ -263,7 +264,7 @@ class KafkaSchemaReader(Thread):
             return False
         # Offset in the response is the offset for the next upcoming message.
         # Reduce by one for actual highest offset.
-        self._highest_offset = end_offset - 1
+        self._highest_offset = list(offsets.values())[0] - 1
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
         progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
@@ -281,7 +282,7 @@ class KafkaSchemaReader(Thread):
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     @staticmethod
-    def _parse_message_value(raw_value: str | bytes) -> JsonObject | None:
+    def _parse_message_value(raw_value: str) -> JsonObject | None:
         value = json_decode(raw_value)
         if isinstance(value, dict):
             return value
@@ -292,7 +293,7 @@ class KafkaSchemaReader(Thread):
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
 
-        msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s)
+        raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
         if self.ready is False:
             self.ready = self._is_ready()
 
@@ -306,52 +307,49 @@ class KafkaSchemaReader(Thread):
             if are_we_master is True:
                 watch_offsets = True
 
-        schema_records_processed_keymode_canonical = 0
-        schema_records_processed_keymode_deprecated_karapace = 0
-        for msg in msgs:
-            try:
-                message_key = msg.key()
-                if message_key is None:
-                    continue
-                key = json_decode(message_key)
-            except JSONDecodeError:
-                LOG.exception("Invalid JSON in msg.key() at offset %s", msg.offset())
-                continue
-
-            assert isinstance(key, dict)
-            msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
-            # Key mode detection happens on startup.
-            # Default keymode is CANONICAL and preferred unless any data consumed
-            # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
-            # the subsequent keys are omitted from detection.
-            if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
-                if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
-                    self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
-
-            value = None
-            message_value = msg.value()
-            if message_value:
+        for _, msgs in raw_msgs.items():
+            schema_records_processed_keymode_canonical = 0
+            schema_records_processed_keymode_deprecated_karapace = 0
+            for msg in msgs:
                 try:
-                    value = self._parse_message_value(message_value)
+                    key = json_decode(msg.key)
                 except JSONDecodeError:
-                    LOG.exception("Invalid JSON in msg.value() at offset %s", msg.offset())
+                    LOG.exception("Invalid JSON in msg.key")
                     continue
 
-            self.handle_msg(key, value)
-            self.offset = msg.offset()
+                assert isinstance(key, dict)
+                msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
+                # Key mode detection happens on startup.
+                # Default keymode is CANONICAL and preferred unless any data consumed
+                # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
+                # the subsequent keys are omitted from detection.
+                if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
+                    if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
+                        self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
 
-            if msg_keymode == KeyMode.CANONICAL:
-                schema_records_processed_keymode_canonical += 1
-            else:
-                schema_records_processed_keymode_deprecated_karapace += 1
+                value = None
+                if msg.value:
+                    try:
+                        value = self._parse_message_value(msg.value)
+                    except JSONDecodeError:
+                        LOG.exception("Invalid JSON in msg.value")
+                        continue
 
-            if self.ready and watch_offsets:
-                self._offset_watcher.offset_seen(self.offset)
+                self.handle_msg(key, value)
+                self.offset = msg.offset
 
-        self._report_schema_metrics(
-            schema_records_processed_keymode_canonical,
-            schema_records_processed_keymode_deprecated_karapace,
-        )
+                if msg_keymode == KeyMode.CANONICAL:
+                    schema_records_processed_keymode_canonical += 1
+                else:
+                    schema_records_processed_keymode_deprecated_karapace += 1
+
+                if self.ready and watch_offsets:
+                    self._offset_watcher.offset_seen(self.offset)
+
+            self._report_schema_metrics(
+                schema_records_processed_keymode_canonical,
+                schema_records_processed_keymode_deprecated_karapace,
+            )
 
     def _report_schema_metrics(
         self,

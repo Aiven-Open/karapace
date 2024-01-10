@@ -37,6 +37,3 @@ class TestPollTimeout:
 
     def test_milliseconds(self) -> None:
         assert PollTimeout(timedelta(milliseconds=1000.5)).milliseconds == 1000
-
-    def test_seconds(self) -> None:
-        assert PollTimeout(timedelta(milliseconds=1500)).seconds == 1.5

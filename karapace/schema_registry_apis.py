@@ -1111,7 +1111,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 parsed_typed_schema = ParsedTypedSchema.parse(
                     schema_version.schema.schema_type,
                     schema_version.schema.schema_str,
-                    references=references,
+                    references=schema_version.references,
                     dependencies=new_schema_dependencies,
                 )
             except InvalidSchema as e:
@@ -1132,7 +1132,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if schema_type is SchemaType.JSONSCHEMA:
                 schema_valid = parsed_typed_schema.to_dict() == new_schema.to_dict()
             else:
-                schema_valid = parsed_typed_schema.schema == new_schema.schema
+                schema_valid = new_schema.match(parsed_typed_schema)
             if parsed_typed_schema.schema_type == new_schema.schema_type and schema_valid:
                 ret = {
                     "subject": subject,

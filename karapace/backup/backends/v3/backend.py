@@ -9,8 +9,8 @@ from .errors import DecodeError, InconsistentOffset, InvalidChecksum, OffsetMism
 from .readers import read_metadata, read_records
 from .schema import ChecksumAlgorithm, DataFile, Header, Metadata, Record
 from .writers import write_metadata, write_record
-from confluent_kafka import Message
 from dataclasses import dataclass
+from kafka.consumer.fetcher import ConsumerRecord
 from karapace.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
 from karapace.backup.backends.writer import BytesBackupWriter, StdOut
 from karapace.backup.safe_writer import bytes_writer, staging_directory
@@ -334,31 +334,27 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
     def store_record(
         self,
         buffer: IO[bytes],
-        record: Message,
+        record: ConsumerRecord,
     ) -> None:
-        stats: Final = self._partition_stats[record.partition()]
+        stats: Final = self._partition_stats[record.partition]
         checksum_checkpoint: Final = stats.get_checkpoint(
             records_threshold=self._max_records_per_checkpoint,
             bytes_threshold=self._max_bytes_per_checkpoint,
         )
         offset_start: Final = buffer.tell()
-
-        record_key = record.key()
-        record_value = record.value()
-
         write_record(
             buffer,
             record=Record(
-                key=record_key.encode() if isinstance(record_key, str) else record_key,
-                value=record_value.encode() if isinstance(record_value, str) else record_value,
-                headers=tuple(Header(key=key.encode(), value=value) for key, value in record.headers() or []),
-                offset=record.offset(),
-                timestamp=record.timestamp()[1],
+                key=record.key,
+                value=record.value,
+                headers=tuple(Header(key=key.encode(), value=value) for key, value in record.headers),
+                offset=record.offset,
+                timestamp=record.timestamp,
                 checksum_checkpoint=checksum_checkpoint,
             ),
             running_checksum=stats.running_checksum,
         )
         stats.update(
             bytes_offset=buffer.tell() - offset_start,
-            record_offset=record.offset(),
+            record_offset=record.offset,
         )
