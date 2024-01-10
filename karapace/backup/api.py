@@ -530,7 +530,6 @@ def create_backup(
         with _consumer(config, topic_name) as consumer:
             (partition,) = consumer.partitions_for_topic(topic_name)
             topic_partition = TopicPartition(topic_name, partition)
-            consumer.assign([topic_partition])
 
             try:
                 data_file = _write_partition(
