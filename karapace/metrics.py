@@ -40,6 +40,8 @@ class Metrics(metaclass=Singleton):
     ) -> None:
         self.is_ready = False
         self.lock = threading.Lock()
+        self.request_size_total = 0
+        self.request_count = 0
 
     def setup(self, config: Config) -> None:
         with self.lock:
@@ -62,14 +64,16 @@ class Metrics(metaclass=Singleton):
             return
         if not isinstance(self.stats_client, StatsClient):
             raise RuntimeError("no StatsClient available")
-        self.stats_client.gauge("request-size", size)
+        self.stats_client.increase("request-size-total", size)
+        self.stats_client.increase("request-count", 1)
 
     def response(self, size: int) -> None:
         if not self.is_ready or self.stats_client is None:
             return
         if not isinstance(self.stats_client, StatsClient):
             raise RuntimeError("no StatsClient available")
-        self.stats_client.gauge("response-size", size)
+        self.stats_client.increase("response-size-total", size)
+        self.stats_client.increase("response-count", 1)
 
     def are_we_master(self, is_master: bool) -> None:
         if not self.is_ready or self.stats_client is None:
@@ -90,7 +94,7 @@ class Metrics(metaclass=Singleton):
             return
         if not isinstance(self.stats_client, StatsClient):
             raise RuntimeError("no StatsClient available")
-        self.stats_client.increase("error_total", 1)
+        self.stats_client.increase("error-total", 1)
 
     def cleanup(self) -> None:
         if self.stats_client:
