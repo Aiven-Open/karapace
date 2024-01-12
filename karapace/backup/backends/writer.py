@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from kafka.consumer.fetcher import ConsumerRecord
+from confluent_kafka import Message
 from karapace.backup.safe_writer import bytes_writer, str_writer
 from pathlib import Path
 from typing import ContextManager, Generic, IO, Iterator, Literal, Mapping, Sequence, TypeVar
@@ -98,7 +98,7 @@ class BackupWriter(Generic[B, F], abc.ABC):
     def store_record(
         self,
         buffer: IO[B],
-        record: ConsumerRecord,
+        record: Message,
     ) -> None:
         """
         Called in order for each record read from a topic to be backed up. It's safe to
@@ -154,9 +154,16 @@ class BaseKVBackupWriter(StrBackupWriter, abc.ABC):
     def store_record(
         self,
         buffer: IO[str],
-        record: ConsumerRecord,
+        record: Message,
     ) -> None:
-        buffer.write(self.serialize_record(record.key, record.value))
+        record_key = record.key()
+        record_value = record.value()
+        buffer.write(
+            self.serialize_record(
+                record_key.encode() if isinstance(record_key, str) else record_key,
+                record_value.encode() if isinstance(record_value, str) else record_value,
+            )
+        )
 
     @staticmethod
     @abc.abstractmethod
