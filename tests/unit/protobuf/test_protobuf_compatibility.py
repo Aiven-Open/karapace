@@ -2,7 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.protobuf.compare_result import CompareResult
+from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.protobuf.location import Location
 from karapace.protobuf.proto_file_element import ProtoFileElement
@@ -188,3 +188,115 @@ def test_compatibility_enum_add():
     result = CompareResult()
     self_parsed.compare(other_parsed, result)
     assert result.is_compatible()
+
+
+def test_compatibility_ordering_change_msg():
+    self_schema = """\
+syntax = "proto3";
+package tc4;
+
+message Fred {
+  int32 fredfield = 1;
+}
+
+message HodoCode {
+  int32 hodofield = 0;
+}
+"""
+
+    other_schema = """\
+syntax = "proto3";
+package tc4;
+
+message HodoCode {
+  int32 hodofield = 0;
+}
+
+message Fred {
+  int32 fredfield = 1;
+}
+"""
+
+    self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
+    other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
+
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()
+    assert len(result.result) == 0
+
+
+def test_compatibility_ordering_change():
+    self_schema = """\
+syntax = "proto3";
+package tc4;
+
+message Fred {
+  HodoCode hodecode = 1;
+}
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+"""
+
+    other_schema = """\
+syntax = "proto3";
+package tc4;
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+
+message Fred {
+  HodoCode hodecode = 1;
+  string id = 2;
+}
+"""
+
+    self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
+    other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
+
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()
+    assert len(result.result) == 1
+    assert result.result[0].modification == Modification.FIELD_ADD
+
+
+def test_compatibility_ordering_change2():
+    self_schema = """\
+syntax = "proto3";
+package tc4;
+
+message Fred {
+  HodoCode hodecode = 1;
+}
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+"""
+
+    other_schema = """\
+syntax = "proto3";
+package tc4;
+
+message Fred {
+  HodoCode hodecode = 1;
+  string id = 2;
+}
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+"""
+
+    self_parsed: ProtoFileElement = ProtoParser.parse(location, self_schema)
+    other_parsed: ProtoFileElement = ProtoParser.parse(location, other_schema)
+
+    result = CompareResult()
+    self_parsed.compare(other_parsed, result)
+    assert result.is_compatible()
+    assert len(result.result) == 1
+    assert result.result[0].modification == Modification.FIELD_ADD

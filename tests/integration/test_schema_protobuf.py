@@ -1225,3 +1225,48 @@ message Dog {
     assert res.status_code == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
+
+
+async def test_protobuf_update_ordering(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_update_ordering")()
+
+    schema_v1 = """\
+syntax = "proto3";
+package tc4;
+
+message Fred {
+  HodoCode hodecode = 1;
+}
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+"""
+
+    body = {"schemaType": "PROTOBUF", "schema": schema_v1}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    schema_v2 = """\
+syntax = "proto3";
+package tc4;
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+
+message Fred {
+  HodoCode hodecode = 1;
+  string id = 2;
+}
+"""
+
+    body = {"schemaType": "PROTOBUF", "schema": schema_v2}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert schema_id != res.json()["id"]
