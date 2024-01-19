@@ -54,20 +54,13 @@ def compare_type_lists(
             else:
                 raise IllegalStateException("Instance of element is not applicable")
         else:
-            if other_indexes[name] != self_indexes[name]:
-                if isinstance(self_types[name], MessageElement):
-                    # incompatible type
-                    result.add_modification(Modification.MESSAGE_MOVE)
-                else:
-                    raise IllegalStateException("Instance of element is not applicable")
+            if isinstance(self_types[name], MessageElement) and isinstance(other_types[name], MessageElement):
+                self_types[name].compare(other_types[name], result, compare_types)
+            elif isinstance(self_types[name], EnumElement) and isinstance(other_types[name], EnumElement):
+                self_types[name].compare(other_types[name], result, compare_types)
             else:
-                if isinstance(self_types[name], MessageElement) and isinstance(other_types[name], MessageElement):
-                    self_types[name].compare(other_types[name], result, compare_types)
-                elif isinstance(self_types[name], EnumElement) and isinstance(other_types[name], EnumElement):
-                    self_types[name].compare(other_types[name], result, compare_types)
-                else:
-                    # incompatible type
-                    result.add_modification(Modification.TYPE_ALTER)
+                # incompatible type
+                result.add_modification(Modification.TYPE_ALTER)
         result.pop_path(True)
 
     return result
