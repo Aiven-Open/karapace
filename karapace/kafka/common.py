@@ -71,9 +71,12 @@ class TokenWithExpiryProvider(Protocol):
 
 
 class KafkaClientParams(TypedDict, total=False):
+    acks: int | None
     client_id: str | None
     connections_max_idle_ms: int | None
-    max_block_ms: int | None
+    compression_type: str | None
+    linger_ms: int | None
+    message_max_bytes: int | None
     metadata_max_age_ms: int | None
     retries: int | None
     sasl_mechanism: str | None
@@ -83,6 +86,7 @@ class KafkaClientParams(TypedDict, total=False):
     socket_timeout_ms: int | None
     ssl_cafile: str | None
     ssl_certfile: str | None
+    ssl_crlfile: str | None
     ssl_keyfile: str | None
     sasl_oauth_token_provider: TokenWithExpiryProvider
     # Consumer-only
@@ -121,8 +125,12 @@ class _KafkaConfigMixin:
 
         config: dict[str, int | str | Callable | None] = {
             "bootstrap.servers": bootstrap_servers,
+            "acks": params.get("acks"),
             "client.id": params.get("client_id"),
             "connections.max.idle.ms": params.get("connections_max_idle_ms"),
+            "compression.type": params.get("compression_type"),
+            "linger.ms": params.get("linger_ms"),
+            "message.max.bytes": params.get("message_max_bytes"),
             "metadata.max.age.ms": params.get("metadata_max_age_ms"),
             "retries": params.get("retries"),
             "sasl.mechanism": params.get("sasl_mechanism"),
@@ -132,6 +140,7 @@ class _KafkaConfigMixin:
             "socket.timeout.ms": params.get("socket_timeout_ms"),
             "ssl.ca.location": params.get("ssl_cafile"),
             "ssl.certificate.location": params.get("ssl_certfile"),
+            "ssl.crl.location": params.get("ssl_crlfile"),
             "ssl.key.location": params.get("ssl_keyfile"),
             "error_cb": self._error_callback,
             # Consumer-only
