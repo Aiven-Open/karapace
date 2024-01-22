@@ -8,7 +8,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
-from kafka.errors import AuthenticationFailedError, for_code, NoBrokersAvailable, UnknownTopicOrPartitionError
+from kafka.errors import (
+    AuthenticationFailedError,
+    for_code,
+    IllegalStateError,
+    KafkaTimeoutError,
+    NoBrokersAvailable,
+    UnknownTopicOrPartitionError,
+)
 from typing import Any, Callable, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
@@ -47,6 +54,10 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
         KafkaError._UNKNOWN_TOPIC,  # pylint: disable=protected-access
     ):
         return UnknownTopicOrPartitionError()
+    if code == KafkaError._TIMED_OUT:  # pylint: disable=protected-access
+        return KafkaTimeoutError()
+    if code == KafkaError._STATE:  # pylint: disable=protected-access
+        return IllegalStateError()
 
     return for_code(code)
 
@@ -89,12 +100,15 @@ class KafkaClientParams(TypedDict, total=False):
     ssl_crlfile: str | None
     ssl_keyfile: str | None
     sasl_oauth_token_provider: TokenWithExpiryProvider
+    topic_metadata_refresh_interval_ms: int | None
     # Consumer-only
-    auto_offset_reset: Literal["smallest", "earliest", "beginning", "largest", "latest", "end", "error"]
-    enable_auto_commit: bool
-    fetch_max_wait_ms: int
-    group_id: str
-    session_timeout_ms: int
+    auto_offset_reset: Literal["smallest", "earliest", "beginning", "largest", "latest", "end", "error"] | None
+    enable_auto_commit: bool | None
+    fetch_min_bytes: int | None
+    fetch_message_max_bytes: int | None
+    fetch_max_wait_ms: int | None
+    group_id: str | None
+    session_timeout_ms: int | None
 
 
 class _KafkaConfigMixin:
@@ -142,10 +156,13 @@ class _KafkaConfigMixin:
             "ssl.certificate.location": params.get("ssl_certfile"),
             "ssl.crl.location": params.get("ssl_crlfile"),
             "ssl.key.location": params.get("ssl_keyfile"),
+            "topic.metadata.refresh.interval.ms": params.get("topic_metadata_refresh_interval_ms"),
             "error_cb": self._error_callback,
             # Consumer-only
             "auto.offset.reset": params.get("auto_offset_reset"),
             "enable.auto.commit": params.get("enable_auto_commit"),
+            "fetch.min.bytes": params.get("fetch_min_bytes"),
+            "fetch.message.max.bytes": params.get("fetch_message_max_bytes"),
             "fetch.wait.max.ms": params.get("fetch_max_wait_ms"),
             "group.id": params.get("group_id"),
             "session.timeout.ms": params.get("session_timeout_ms"),

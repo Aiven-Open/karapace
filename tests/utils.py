@@ -27,6 +27,7 @@ consumer_valid_payload = {
     "consumer.request.timeout.ms": 11000,
     "fetch.min.bytes": 100000,
     "auto.commit.enable": "true",
+    "topic.metadata.refresh.interval.ms": 100,
 }
 schema_jsonschema_json = json.dumps(
     {

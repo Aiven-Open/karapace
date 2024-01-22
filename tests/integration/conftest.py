@@ -14,8 +14,8 @@ from filelock import FileLock
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
 from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.kafka.producer import KafkaProducer
+from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
+from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
@@ -224,9 +224,40 @@ def fixture_consumer(
         bootstrap_servers=kafka_servers.bootstrap_servers,
         auto_offset_reset="earliest",
         enable_auto_commit=False,
+        # Speed things up for consumer tests to discover topics, etc.
+        topic_metadata_refresh_interval_ms=200,
     )
     yield consumer
     consumer.close()
+
+
+@pytest.fixture(scope="function", name="asyncproducer")
+async def fixture_asyncproducer(
+    kafka_servers: KafkaServers,
+    loop: asyncio.AbstractEventLoop,
+) -> Iterator[AsyncKafkaProducer]:
+    asyncproducer = AsyncKafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers, loop=loop)
+    await asyncproducer.start()
+    yield asyncproducer
+    await asyncproducer.stop()
+
+
+@pytest.fixture(scope="function", name="asyncconsumer")
+async def fixture_asyncconsumer(
+    kafka_servers: KafkaServers,
+    loop: asyncio.AbstractEventLoop,
+) -> Iterator[AsyncKafkaConsumer]:
+    asyncconsumer = AsyncKafkaConsumer(
+        bootstrap_servers=kafka_servers.bootstrap_servers,
+        loop=loop,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        # Speed things up for consumer tests to discover topics, etc.
+        topic_metadata_refresh_interval_ms=200,
+    )
+    await asyncconsumer.start()
+    yield asyncconsumer
+    await asyncconsumer.stop()
 
 
 @pytest.fixture(scope="function", name="rest_async")
