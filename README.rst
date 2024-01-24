@@ -461,7 +461,7 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - Runtime directory for the ``protoc`` protobuf schema parser and code generator
    * - ``name_strategy``
      - ``topic_name``
-     - Name strategy to use when storing schemas from the kafka rest proxy service. You can opt between ``name_strategy`` , ``record_name`` and ``topic_record_name``
+     - Name strategy to use when storing schemas from the kafka rest proxy service. You can opt between ``topic_name`` , ``record_name`` and ``topic_record_name``
    * - ``name_strategy_validation``
      - ``true``
      - If enabled, validate that given schema is registered under used name strategy when producing messages from Kafka Rest
