@@ -652,7 +652,7 @@ class UserRestProxy:
                     ssl_keyfile=self.config["ssl_keyfile"],
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
-                    **get_kafka_client_auth_parameters_from_config(self.config, async_client=False),
+                    **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 break
             except:  # pylint: disable=bare-except
