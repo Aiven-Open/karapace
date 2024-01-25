@@ -1,7 +1,6 @@
-from aiokafka import AIOKafkaProducer
-from aiokafka.errors import KafkaConnectionError
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from confluent_kafka.error import KafkaException
 from contextlib import AsyncExitStack
 from http import HTTPStatus
 from kafka.errors import (
@@ -12,9 +11,10 @@ from kafka.errors import (
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
-from karapace.config import Config, create_client_ssl_context
+from karapace.config import Config
 from karapace.errors import InvalidSchema
-from karapace.kafka.admin import KafkaAdminClient, KafkaException
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import AsyncKafkaProducer
 from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
@@ -35,7 +35,7 @@ from karapace.serialization import (
     SchemaRetrievalError,
 )
 from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
-from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
+from karapace.utils import convert_to_int, json_encode
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import asyncio
@@ -72,6 +72,7 @@ class KafkaRest(KarapaceBase):
         self._idle_proxy_janitor_task: Optional[asyncio.Task] = None
 
     async def close(self) -> None:
+        log.info("Closing REST proxy application")
         if self._idle_proxy_janitor_task is not None:
             self._idle_proxy_janitor_task.cancel()
             self._idle_proxy_janitor_task = None
@@ -440,7 +441,7 @@ class UserRestProxy:
         self._auth_expiry = auth_expiry
 
         self._async_producer_lock = asyncio.Lock()
-        self._async_producer: Optional[AIOKafkaProducer] = None
+        self._async_producer: Optional[AsyncKafkaProducer] = None
         self.naming_strategy = NameStrategy(self.config["name_strategy"])
 
     def __str__(self) -> str:
@@ -460,12 +461,12 @@ class UserRestProxy:
     def num_consumers(self) -> int:
         return len(self.consumer_manager.consumers)
 
-    async def _maybe_create_async_producer(self) -> AIOKafkaProducer:
+    async def _maybe_create_async_producer(self) -> AsyncKafkaProducer:
         if self._async_producer is not None:
             return self._async_producer
 
         if self.config["producer_acks"] == "all":
-            acks = "all"
+            acks = -1
         else:
             acks = int(self.config["producer_acks"])
 
@@ -476,33 +477,34 @@ class UserRestProxy:
 
                 log.info("Creating async producer")
 
-                # Don't retry if creating the SSL context fails, likely a configuration issue with
-                # ciphers or certificate chains
-                ssl_context = create_client_ssl_context(self.config)
-
-                # Don't retry if instantiating the producer fails, likely a configuration error.
-                producer = AIOKafkaProducer(
+                producer = AsyncKafkaProducer(
                     acks=acks,
                     bootstrap_servers=self.config["bootstrap_uri"],
                     compression_type=self.config["producer_compression_type"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
                     linger_ms=self.config["producer_linger_ms"],
-                    max_request_size=self.config["producer_max_request_size"],
+                    message_max_bytes=self.config["producer_max_request_size"],
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     security_protocol=self.config["security_protocol"],
-                    ssl_context=ssl_context,
+                    ssl_cafile=self.config["ssl_cafile"],
+                    ssl_certfile=self.config["ssl_certfile"],
+                    ssl_keyfile=self.config["ssl_keyfile"],
+                    ssl_crlfile=self.config["ssl_crlfile"],
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
-
                 try:
                     await producer.start()
-                except KafkaConnectionError:
+                except (NoBrokersAvailable, AuthenticationFailedError):
+                    await producer.stop()
                     if retry:
                         log.exception("Unable to connect to the bootstrap servers, retrying")
                     else:
                         log.exception("Giving up after trying to connect to the bootstrap servers")
                         raise
                     await asyncio.sleep(1)
+                except Exception:
+                    await producer.stop()
+                    raise
                 else:
                     self._async_producer = producer
 
@@ -644,10 +646,8 @@ class UserRestProxy:
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
-                    api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
-                    kafka_client=KarapaceKafkaClient,
                     **get_kafka_client_auth_parameters_from_config(self.config, async_client=False),
                 )
                 break
@@ -1068,8 +1068,11 @@ class UserRestProxy:
             if not isinstance(result, Exception):
                 produce_results.append(
                     {
-                        "offset": result.offset if result else -1,
-                        "partition": result.topic_partition.partition if result else 0,
+                        # In case the offset is not available, `confluent_kafka.Message.offset()` is
+                        # `None`. To preserve backwards compatibility, we replace this with -1.
+                        # -1 was the default `aiokafka` behaviour.
+                        "offset": result.offset() if result and result.offset() is not None else -1,
+                        "partition": result.partition() if result else 0,
                     }
                 )
 

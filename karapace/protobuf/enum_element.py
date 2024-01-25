@@ -73,6 +73,6 @@ class EnumElement(TypeElement):
             elif other_tag is None:
                 result.add_modification(Modification.ENUM_CONSTANT_DROP)
             else:
-                if self_tag.name == other_tag.name:
+                if self_tag.name != other_tag.name:
                     result.add_modification(Modification.ENUM_CONSTANT_ALTER)
             result.pop_path()

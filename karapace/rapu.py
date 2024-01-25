@@ -170,7 +170,7 @@ class RestApp:
         self.log = logging.getLogger(self.app_name)
         Metrics().setup(config)
         self.stats = Metrics().stats_client
-        self.app.on_cleanup.append(self.close_by_app)
+        self.app.on_shutdown.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
 
     def _create_aiohttp_application(self, *, config: Config) -> aiohttp.web.Application:

@@ -4,9 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from kafka import KafkaConsumer
 from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.structs import PartitionMetadata
 from karapace import config
 from karapace.backup.api import (
     _admin,
@@ -24,6 +22,7 @@ from karapace.backup.backends.writer import StdOut
 from karapace.backup.errors import BackupError, PartitionCountError
 from karapace.config import Config
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.kafka.consumer import KafkaConsumer, PartitionMetadata
 from karapace.kafka.producer import KafkaProducer
 from pathlib import Path
 from types import FunctionType
@@ -148,7 +147,16 @@ class TestHandleRestoreTopic:
 class TestClients:
     @staticmethod
     def _partition_metadata(c: int = 1) -> set[PartitionMetadata]:
-        return {PartitionMetadata("topic", i, 0, tuple(), tuple(), None) for i in range(0, c)}
+        def create(partition) -> PartitionMetadata:
+            metadata = PartitionMetadata()
+            metadata.id = partition
+            metadata.leader = 1
+            metadata.replicas = ()
+            metadata.isrs = ()
+
+            return metadata
+
+        return {create(i) for i in range(c)}
 
     @pytest.mark.parametrize(
         "ctx_mng,client_class,partitions_method,close_method_name",
