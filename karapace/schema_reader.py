@@ -18,6 +18,7 @@ from kafka.errors import (
     NoBrokersAvailable,
     NodeNotReadyError,
     TopicAlreadyExistsError,
+    UnknownTopicOrPartitionError,
 )
 from karapace import constants
 from karapace.config import Config
@@ -240,6 +241,8 @@ class KafkaSchemaReader(Thread):
             return beginning_offset - 1
         except KafkaTimeoutError:
             LOG.warning("Reading begin offsets timed out.")
+        except UnknownTopicOrPartitionError:
+            LOG.warning("Topic does not yet exist.")
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_get_beginning_offset")
             LOG.exception("Unexpected exception when reading begin offsets.")
@@ -255,6 +258,9 @@ class KafkaSchemaReader(Thread):
             _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
         except KafkaTimeoutError:
             LOG.warning("Reading end offsets timed out.")
+            return False
+        except UnknownTopicOrPartitionError:
+            LOG.warning("Topic does not yet exist.")
             return False
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_is_ready")
