@@ -683,7 +683,6 @@ class UserRestProxy:
         await self.validate_publish_request_format(data, formats, content_type, topic)
         status = HTTPStatus.OK
         ser_format = formats["embedded_format"]
-        prepared_records = []
         try:
             prepared_records = await self._prepare_records(
                 content_type=content_type,
