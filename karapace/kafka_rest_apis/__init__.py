@@ -307,7 +307,7 @@ class KafkaRest(KarapaceBase):
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
             except (NoBrokersAvailable, AuthenticationFailedError):
-                log.exception("Failed to connect to Kafka with the credentials")
+                log.warning("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
             proxy.mark_used()
@@ -497,9 +497,9 @@ class UserRestProxy:
                 except (NoBrokersAvailable, AuthenticationFailedError):
                     await producer.stop()
                     if retry:
-                        log.exception("Unable to connect to the bootstrap servers, retrying")
+                        log.warning("Unable to connect to the bootstrap servers, retrying")
                     else:
-                        log.exception("Giving up after trying to connect to the bootstrap servers")
+                        log.warning("Giving up after trying to connect to the bootstrap servers")
                         raise
                     await asyncio.sleep(1)
                 except Exception:
@@ -626,7 +626,7 @@ class UserRestProxy:
                 self._cluster_metadata = metadata
                 self._cluster_metadata_complete = topics is None
             except KafkaException:
-                log.exception("Could not refresh cluster metadata")
+                log.warning("Could not refresh cluster metadata")
                 KafkaRest.r(
                     body={
                         "message": "Kafka node not ready",
@@ -653,9 +653,9 @@ class UserRestProxy:
                 break
             except:  # pylint: disable=bare-except
                 if retry:
-                    log.exception("Unable to start admin client, retrying")
+                    log.warning("Unable to start admin client, retrying")
                 else:
-                    log.exception("Giving up after failing to start admin client")
+                    log.warning("Giving up after failing to start admin client")
                     raise
                 time.sleep(1)
 
@@ -857,7 +857,7 @@ class UserRestProxy:
         try:
             data[f"{subject_type}_schema_id"] = await self.get_schema_id(data, topic, subject_type, schema_type)
         except InvalidPayload:
-            log.exception("Unable to retrieve schema id")
+            log.warning("Unable to retrieve schema id")
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
