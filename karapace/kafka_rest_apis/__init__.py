@@ -462,6 +462,10 @@ class UserRestProxy:
         return len(self.consumer_manager.consumers)
 
     async def _maybe_create_async_producer(self) -> AsyncKafkaProducer:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         if self._async_producer is not None:
             return self._async_producer
 
@@ -672,6 +676,10 @@ class UserRestProxy:
             self.consumer_manager = None
 
     async def publish(self, topic: str, partition_id: Optional[str], content_type: str, request: HTTPRequest) -> None:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         formats: dict = request.content_type
         data: dict = request.json
         _ = await self.get_topic_info(topic, content_type)
@@ -726,11 +734,25 @@ class UserRestProxy:
 
     async def partition_publish(self, topic: str, partition_id: str, content_type: str, *, request: HTTPRequest) -> None:
         log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
-        await self.publish(topic, partition_id, content_type, request)
+        try:
+            await self.publish(topic, partition_id, content_type, request)
+        except (NoBrokersAvailable, AuthenticationFailedError):
+            KafkaRest.service_unavailable(
+                message="Service unavailable",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_SERVICE_UNAVAILABLE.value,
+            )
 
     async def topic_publish(self, topic: str, content_type: str, *, request: HTTPRequest) -> None:
         log.debug("Executing topic publish on topic %s", topic)
-        await self.publish(topic, None, content_type, request)
+        try:
+            await self.publish(topic, None, content_type, request)
+        except (NoBrokersAvailable, AuthenticationFailedError):
+            KafkaRest.service_unavailable(
+                message="Service unavailable",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_SERVICE_UNAVAILABLE.value,
+            )
 
     @staticmethod
     def validate_partition_id(partition_id: str, content_type: str) -> int:
@@ -1039,6 +1061,10 @@ class UserRestProxy:
                     )
 
     async def produce_messages(self, *, topic: str, prepared_records: List) -> List:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         producer = await self._maybe_create_async_producer()
 
         produce_futures = []
