@@ -76,6 +76,17 @@ class KarapaceBase(RestApp):
             content_type=content_type, status=HTTPStatus.NOT_FOUND, body={"message": message, "error_code": sub_code}
         )
 
+    @staticmethod
+    def service_unavailable(message: str, sub_code: int, content_type: str) -> NoReturn:
+        KarapaceBase.r(
+            content_type=content_type,
+            status=HTTPStatus.SERVICE_UNAVAILABLE,
+            body={
+                "message": message,
+                "error_code": sub_code,
+            },
+        )
+
     async def root_get(self) -> NoReturn:
         self.r({}, "application/json")
 
