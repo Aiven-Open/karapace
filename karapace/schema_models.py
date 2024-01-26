@@ -129,7 +129,7 @@ class TypedSchema:
             try:
                 schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
             except JSONDecodeError as e:
-                LOG.error("Schema is not valid JSON")
+                LOG.info("Schema is not valid JSON")
                 raise e
         elif schema_type == SchemaType.PROTOBUF:
             if schema:
@@ -138,7 +138,7 @@ class TypedSchema:
                 try:
                     schema_str = str(parse_protobuf_schema_definition(schema_str, None, None, False))
                 except InvalidSchema as e:
-                    LOG.exception("Schema is not valid ProtoBuf definition")
+                    LOG.info("Schema is not valid ProtoBuf definition")
                     raise e
 
         else:

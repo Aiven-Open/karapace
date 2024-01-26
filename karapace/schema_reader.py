@@ -165,7 +165,7 @@ class KafkaSchemaReader(Thread):
                     LOG.warning("[Admin Client] No Brokers available yet. Retrying")
                     self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
-                    LOG.exception("[Admin Client] Invalid configuration. Bailing")
+                    LOG.info("[Admin Client] Invalid configuration. Bailing")
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Admin Client] Unexpected exception. Retrying")
@@ -182,7 +182,7 @@ class KafkaSchemaReader(Thread):
                     LOG.warning("[Consumer] No Brokers available yet. Retrying")
                     self._stop_schema_reader.wait(timeout=2.0)
                 except KafkaConfigurationError:
-                    LOG.exception("[Consumer] Invalid configuration. Bailing")
+                    LOG.info("[Consumer] Invalid configuration. Bailing")
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
@@ -239,7 +239,7 @@ class KafkaSchemaReader(Thread):
             # * See `OFFSET_EMPTY` and `OFFSET_UNINITIALIZED`
             return beginning_offset - 1
         except KafkaTimeoutError:
-            LOG.exception("Reading begin offsets timed out.")
+            LOG.warning("Reading begin offsets timed out.")
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_get_beginning_offset")
             LOG.exception("Unexpected exception when reading begin offsets.")
@@ -254,7 +254,7 @@ class KafkaSchemaReader(Thread):
         try:
             _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
         except KafkaTimeoutError:
-            LOG.exception("Reading end offsets timed out.")
+            LOG.warning("Reading end offsets timed out.")
             return False
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_is_ready")
