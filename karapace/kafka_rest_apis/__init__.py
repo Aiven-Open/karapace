@@ -1096,7 +1096,6 @@ class UserRestProxy:
                 # cancel is retriable
                 produce_results.append({"error_code": 1, "error": "Publish message cancelled"})
             elif isinstance(result, BrokerResponseError):
-                log.error("Broker error", exc_info=result)
                 resp = {"error_code": 1, "error": result.description}
                 if hasattr(result, "retriable") and result.retriable:
                     resp["error_code"] = 2
