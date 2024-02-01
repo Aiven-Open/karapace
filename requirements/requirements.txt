@@ -25,7 +25,7 @@ attrs==23.1.0
     #   referencing
 avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py
     # via -r requirements.in
-cachetools==5.3.1
+cachetools==5.3.2
     # via -r requirements.in
 confluent-kafka==2.3.0
     # via -r requirements.in
