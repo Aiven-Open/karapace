@@ -426,13 +426,13 @@ class KafkaSchemaReader(Thread):
 
     def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
         if value is None:
-            LOG.error("DELETE_SUBJECT record doesnt have a value, should have")
+            LOG.warning("DELETE_SUBJECT record doesnt have a value, should have")
             return
 
         subject = value["subject"]
         version = value["version"]
         if self.database.find_subject(subject=subject) is None:
-            LOG.error("Subject: %r did not exist, should have", subject)
+            LOG.warning("Subject: %r did not exist, should have", subject)
         else:
             LOG.info("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
@@ -441,9 +441,9 @@ class KafkaSchemaReader(Thread):
         subject, version = key["subject"], key["version"]
 
         if self.database.find_subject(subject=subject) is None:
-            LOG.error("Hard delete: Subject %s did not exist, should have", subject)
+            LOG.warning("Hard delete: Subject %s did not exist, should have", subject)
         elif version not in self.database.find_subject_schemas(subject=subject, include_deleted=True):
-            LOG.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
+            LOG.warning("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
         else:
             LOG.info("Hard delete: subject: %r version: %r", subject, version)
             self.database.delete_subject_schema(subject=subject, version=version)
@@ -468,7 +468,7 @@ class KafkaSchemaReader(Thread):
         try:
             schema_type_parsed = SchemaType(schema_type)
         except ValueError:
-            LOG.error("Invalid schema type: %s", schema_type)
+            LOG.warning("Invalid schema type: %s", schema_type)
             return
 
         # This does two jobs:
@@ -484,7 +484,7 @@ class KafkaSchemaReader(Thread):
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
             except json.JSONDecodeError:
-                LOG.error("Schema is not valid JSON")
+                LOG.warning("Schema is not valid JSON")
                 return
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
@@ -542,11 +542,11 @@ class KafkaSchemaReader(Thread):
                     self._handle_msg_delete_subject(key, value)
                 elif message_type == MessageType.no_operation:
                     pass
-            except ValueError:
-                LOG.error("The message %s-%s has been discarded because the %s is not managed", key, value, key["keytype"])
+            except (KeyError, ValueError):
+                LOG.warning("The message %r-%r has been discarded because the %s is not managed", key, value, key["keytype"])
 
         else:
-            LOG.error(
+            LOG.warning(
                 "The message %s-%s has been discarded because doesn't contain the `keytype` key in the key", key, value
             )
 
