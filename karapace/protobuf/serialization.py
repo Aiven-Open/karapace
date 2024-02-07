@@ -47,9 +47,6 @@ _REVERSE_TYPE_MAP = MappingProxyType({v: k for k, v in _TYPE_MAP.items()})
 
 
 def _deserialize_field(field: Any) -> FieldElement:
-    if field.type not in _TYPE_MAP:
-        raise NotImplementedError(f"Unsupported field type {field.type}")
-
     label = None
     if (field.HasField("proto3_optional") and field.proto3_optional) or Field.Label(field.label) != Field.Label.OPTIONAL:
         label = Field.Label(field.label)
@@ -57,6 +54,8 @@ def _deserialize_field(field: Any) -> FieldElement:
         element_type = field.type_name
     else:
         assert field.HasField("type")
+        if field.type not in _TYPE_MAP:
+            raise NotImplementedError(f"Unsupported field type {field.type}")
         element_type = _TYPE_MAP[field.type]
     return FieldElement(DEFAULT_LOCATION, label=label, element_type=element_type, name=field.name, tag=field.number)
 
