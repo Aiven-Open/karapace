@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from karapace.errors import InvalidSchema
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.field import Field
@@ -53,7 +54,8 @@ def _deserialize_field(field: Any) -> FieldElement:
     if field.HasField("type_name"):
         element_type = field.type_name
     else:
-        assert field.HasField("type")
+        if not field.HasField("type"):
+            raise InvalidSchema(f"field {field.name} has no type_name nor type")
         if field.type not in _TYPE_MAP:
             raise NotImplementedError(f"Unsupported field type {field.type}")
         element_type = _TYPE_MAP[field.type]
