@@ -9,14 +9,18 @@ from tests.schemas.protobuf import (
     schema_protobuf_complex_bin,
     schema_protobuf_container2,
     schema_protobuf_container2_bin,
+    schema_protobuf_nested_field,
+    schema_protobuf_nested_field_bin_protoc,
     schema_protobuf_nested_message4,
     schema_protobuf_nested_message4_bin,
+    schema_protobuf_nested_message4_bin_protoc,
     schema_protobuf_oneof,
     schema_protobuf_oneof_bin,
     schema_protobuf_order_after,
     schema_protobuf_order_after_bin,
     schema_protobuf_plain,
     schema_protobuf_plain_bin,
+    schema_protobuf_plain_bin_protoc,
     schema_protobuf_references,
     schema_protobuf_references2,
     schema_protobuf_references2_bin,
@@ -63,6 +67,21 @@ schema_serialized_normalized = (
     ],
 )
 def test_schema_deserialize(schema_plain, schema_serialized):
+    assert (
+        schema_plain.strip()
+        == ProtobufSchema("", None, None, proto_file_element=deserialize(schema_serialized)).to_schema().strip()
+    )
+
+
+@pytest.mark.parametrize(
+    "schema_plain,schema_serialized",
+    [
+        (schema_protobuf_plain, schema_protobuf_plain_bin_protoc),
+        (schema_protobuf_nested_message4, schema_protobuf_nested_message4_bin_protoc),
+        (schema_protobuf_nested_field, schema_protobuf_nested_field_bin_protoc),
+    ],
+)
+def test_protoc_serialized_schema_deserialize(schema_plain, schema_serialized):
     assert (
         schema_plain.strip()
         == ProtobufSchema("", None, None, proto_file_element=deserialize(schema_serialized)).to_schema().strip()
