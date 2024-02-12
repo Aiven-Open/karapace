@@ -5,16 +5,31 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+from collections import OrderedDict
 from enum import Enum
 from karapace.typing import ArgJsonObject
 from karapace.utils import json_encode
-from typing import Optional
+from types import MappingProxyType
+from typing import Final, Optional
 
-SCHEMA_KEY_ORDER = ["keytype", "subject", "version", "magic"]
-CONFIG_KEY_ORDER = ["keytype", "subject", "magic"]
-NOOP_KEY_ORDER = ["keytype", "magic"]
+# used by the OrderedDict for the relative order of keys.
+SCHEMA_KEY_ORDER: Final[tuple[str, str, str, str]] = ("keytype", "subject", "version", "magic")
+CONFIG_KEY_ORDER: Final[tuple[str, str, str]] = ("keytype", "subject", "magic")
+NOOP_KEY_ORDER: Final[tuple[str, str]] = ("keytype", "magic")
 
-CANONICAL_KEY_ORDERS = [SCHEMA_KEY_ORDER, CONFIG_KEY_ORDER, NOOP_KEY_ORDER]
+KEY_ORDER = MappingProxyType(
+    {
+        tuple(sorted(SCHEMA_KEY_ORDER)): SCHEMA_KEY_ORDER,
+        tuple(sorted(CONFIG_KEY_ORDER)): CONFIG_KEY_ORDER,
+        tuple(sorted(NOOP_KEY_ORDER)): NOOP_KEY_ORDER,
+    }
+)
+
+CANONICAL_KEY_ORDERS: tuple[tuple[str, str, str, str], tuple[str, str, str], tuple[str, str]] = (
+    SCHEMA_KEY_ORDER,
+    CONFIG_KEY_ORDER,
+    NOOP_KEY_ORDER,
+)
 
 
 class KeyMode(Enum):
@@ -72,8 +87,11 @@ class KeyFormatter:
             corrected_key["version"] = key["version"]
         # Magic is the last element
         corrected_key["magic"] = key["magic"]
-        return json_encode(corrected_key, binary=True, sort_keys=False, compact=True)
+
+        fixed_order = KEY_ORDER[tuple(sorted(corrected_key.keys()))]
+        fixed_order_dict = OrderedDict(list(sorted(corrected_key.items(), key=lambda t: fixed_order.index(t[0]))))
+        return json_encode(fixed_order_dict, binary=True, sort_keys=False, compact=True)
 
 
 def is_key_in_canonical_format(key: ArgJsonObject) -> bool:
-    return list(key.keys()) in CANONICAL_KEY_ORDERS
+    return tuple(key.keys()) in CANONICAL_KEY_ORDERS
