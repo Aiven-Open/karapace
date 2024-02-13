@@ -586,7 +586,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
             )
 
 
-def test_backup_restoration_fails_when_producer_send_fails(
+def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_partition(
     admin_client: KafkaAdminClient,
     kafka_servers: KafkaServers,
 ) -> None:
@@ -634,6 +634,64 @@ def test_backup_restoration_fails_when_producer_send_fails(
     with patch("karapace.backup.api._producer") as p:
         p.return_value = FailToSendProducerContext()
         with pytest.raises(BackupDataRestorationError):
+            api.restore_backup(
+                config=config,
+                backup_location=metadata_path,
+                topic_name=TopicName(topic_name),
+            )
+
+
+def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
+    admin_client: KafkaAdminClient,
+    kafka_servers: KafkaServers,
+) -> None:
+    topic_name = "296ddf62"
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
+    metadata_path = backup_directory / f"{topic_name}.metadata"
+
+    # Make sure topic doesn't exist beforehand.
+    try:
+        admin_client.delete_topic(topic_name)
+    except UnknownTopicOrPartitionError:
+        logger.info("No previously existing topic.")
+    else:
+        logger.info("Deleted topic from previous run.")
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+        }
+    )
+
+    class FailToSendProducer(KafkaProducer):
+        def send(self, *args, **kwargs):
+            raise BufferError()
+
+        def poll(self, timeout: float) -> None:  # pylint: disable=unused-argument
+            return
+
+    class FailToSendProducerContext:
+        def __init__(self):
+            self._producer = FailToSendProducer(
+                bootstrap_servers=config["bootstrap_uri"],
+                security_protocol=config["security_protocol"],
+                ssl_cafile=config["ssl_cafile"],
+                ssl_certfile=config["ssl_certfile"],
+                ssl_keyfile=config["ssl_keyfile"],
+                sasl_mechanism=config["sasl_mechanism"],
+                sasl_plain_username=config["sasl_plain_username"],
+                sasl_plain_password=config["sasl_plain_password"],
+            )
+
+        def __enter__(self):
+            return self._producer
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self._producer.flush()
+
+    with patch("karapace.backup.api._producer") as p:
+        p.return_value = FailToSendProducerContext()
+        with pytest.raises(BackupDataRestorationError, match="Kafka producer buffer is full"):
             api.restore_backup(
                 config=config,
                 backup_location=metadata_path,
