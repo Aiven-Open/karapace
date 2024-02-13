@@ -307,7 +307,7 @@ class KafkaRest(KarapaceBase):
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
             except (NoBrokersAvailable, AuthenticationFailedError):
-                log.exception("Failed to connect to Kafka with the credentials")
+                log.warning("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
             proxy.mark_used()
@@ -462,6 +462,10 @@ class UserRestProxy:
         return len(self.consumer_manager.consumers)
 
     async def _maybe_create_async_producer(self) -> AsyncKafkaProducer:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         if self._async_producer is not None:
             return self._async_producer
 
@@ -497,9 +501,9 @@ class UserRestProxy:
                 except (NoBrokersAvailable, AuthenticationFailedError):
                     await producer.stop()
                     if retry:
-                        log.exception("Unable to connect to the bootstrap servers, retrying")
+                        log.warning("Unable to connect to the bootstrap servers, retrying")
                     else:
-                        log.exception("Giving up after trying to connect to the bootstrap servers")
+                        log.warning("Giving up after trying to connect to the bootstrap servers")
                         raise
                     await asyncio.sleep(1)
                 except Exception:
@@ -626,7 +630,7 @@ class UserRestProxy:
                 self._cluster_metadata = metadata
                 self._cluster_metadata_complete = topics is None
             except KafkaException:
-                log.exception("Could not refresh cluster metadata")
+                log.warning("Could not refresh cluster metadata")
                 KafkaRest.r(
                     body={
                         "message": "Kafka node not ready",
@@ -653,9 +657,9 @@ class UserRestProxy:
                 break
             except:  # pylint: disable=bare-except
                 if retry:
-                    log.exception("Unable to start admin client, retrying")
+                    log.warning("Unable to start admin client, retrying")
                 else:
-                    log.exception("Giving up after failing to start admin client")
+                    log.warning("Giving up after failing to start admin client")
                     raise
                 time.sleep(1)
 
@@ -672,6 +676,10 @@ class UserRestProxy:
             self.consumer_manager = None
 
     async def publish(self, topic: str, partition_id: Optional[str], content_type: str, request: HTTPRequest) -> None:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         formats: dict = request.content_type
         data: dict = request.json
         _ = await self.get_topic_info(topic, content_type)
@@ -683,7 +691,6 @@ class UserRestProxy:
         await self.validate_publish_request_format(data, formats, content_type, topic)
         status = HTTPStatus.OK
         ser_format = formats["embedded_format"]
-        prepared_records = []
         try:
             prepared_records = await self._prepare_records(
                 content_type=content_type,
@@ -726,11 +733,25 @@ class UserRestProxy:
 
     async def partition_publish(self, topic: str, partition_id: str, content_type: str, *, request: HTTPRequest) -> None:
         log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
-        await self.publish(topic, partition_id, content_type, request)
+        try:
+            await self.publish(topic, partition_id, content_type, request)
+        except (NoBrokersAvailable, AuthenticationFailedError):
+            KafkaRest.service_unavailable(
+                message="Service unavailable",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_SERVICE_UNAVAILABLE.value,
+            )
 
     async def topic_publish(self, topic: str, content_type: str, *, request: HTTPRequest) -> None:
         log.debug("Executing topic publish on topic %s", topic)
-        await self.publish(topic, None, content_type, request)
+        try:
+            await self.publish(topic, None, content_type, request)
+        except (NoBrokersAvailable, AuthenticationFailedError):
+            KafkaRest.service_unavailable(
+                message="Service unavailable",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_SERVICE_UNAVAILABLE.value,
+            )
 
     @staticmethod
     def validate_partition_id(partition_id: str, content_type: str) -> int:
@@ -858,7 +879,7 @@ class UserRestProxy:
         try:
             data[f"{subject_type}_schema_id"] = await self.get_schema_id(data, topic, subject_type, schema_type)
         except InvalidPayload:
-            log.exception("Unable to retrieve schema id")
+            log.warning("Unable to retrieve schema id")
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
@@ -1039,6 +1060,10 @@ class UserRestProxy:
                     )
 
     async def produce_messages(self, *, topic: str, prepared_records: List) -> List:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         producer = await self._maybe_create_async_producer()
 
         produce_futures = []
@@ -1097,7 +1122,6 @@ class UserRestProxy:
                 # cancel is retriable
                 produce_results.append({"error_code": 1, "error": "Publish message cancelled"})
             elif isinstance(result, BrokerResponseError):
-                log.error("Broker error", exc_info=result)
                 resp = {"error_code": 1, "error": result.description}
                 if hasattr(result, "retriable") and result.retriable:
                     resp["error_code"] = 2

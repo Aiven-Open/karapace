@@ -307,6 +307,14 @@ class RestApp:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
                     )
+
+                # Prevent string, int etc. going further from here
+                if not isinstance(rapu_request.json, dict):
+                    http_error(
+                        message="Malformed request",
+                        content_type=JSON_CONTENT_TYPE,
+                        code=HTTPStatus.BAD_REQUEST,
+                    )
             else:
                 if body not in {b"", b"{}"}:
                     raise HTTPResponse(body="No request body allowed for this operation", status=HTTPStatus.BAD_REQUEST)

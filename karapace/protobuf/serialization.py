@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from karapace.errors import InvalidSchema
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.field import Field
@@ -47,16 +48,16 @@ _REVERSE_TYPE_MAP = MappingProxyType({v: k for k, v in _TYPE_MAP.items()})
 
 
 def _deserialize_field(field: Any) -> FieldElement:
-    if field.type not in _TYPE_MAP:
-        raise NotImplementedError(f"Unsupported field type {field.type}")
-
     label = None
     if (field.HasField("proto3_optional") and field.proto3_optional) or Field.Label(field.label) != Field.Label.OPTIONAL:
         label = Field.Label(field.label)
     if field.HasField("type_name"):
         element_type = field.type_name
     else:
-        assert field.HasField("type")
+        if not field.HasField("type"):
+            raise InvalidSchema(f"field {field.name} has no type_name nor type")
+        if field.type not in _TYPE_MAP:
+            raise NotImplementedError(f"Unsupported field type {field.type}")
         element_type = _TYPE_MAP[field.type]
     return FieldElement(DEFAULT_LOCATION, label=label, element_type=element_type, name=field.name, tag=field.number)
 

@@ -228,9 +228,9 @@ class ConsumerManager:
                 return c
             except:  # pylint: disable=bare-except
                 if retry:
-                    LOG.exception("Unable to create consumer, retrying")
+                    LOG.warning("Unable to create consumer, retrying")
                 else:
-                    LOG.exception("Giving up after failing to create consumer")
+                    LOG.warning("Giving up after failing to create consumer")
                     raise
                 await asyncio.sleep(1)
 

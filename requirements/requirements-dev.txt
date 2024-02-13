@@ -6,7 +6,7 @@
 #
 accept-types==0.4.1
     # via -r requirements.txt
-aiohttp==3.9.1
+aiohttp==3.9.2
     # via -r requirements.txt
 aiokafka==0.8.1
     # via -r requirements.txt
@@ -37,7 +37,7 @@ blinker==1.7.0
     # via flask
 brotli==1.1.0
     # via geventhttpclient
-cachetools==5.3.1
+cachetools==5.3.2
     # via -r requirements.txt
 certifi==2023.11.17
     # via
@@ -109,7 +109,7 @@ itsdangerous==2.1.2
     # via flask
 jinja2==3.1.3
     # via flask
-jsonschema==4.20.0
+jsonschema==4.21.1
     # via -r requirements.txt
 jsonschema-specifications==2023.11.2
     # via
@@ -197,7 +197,7 @@ requests==2.31.0
     # via
     #   -r requirements-dev.in
     #   locust
-rich==13.6.0
+rich==13.7.0
     # via -r requirements.txt
 roundrobin==0.0.4
     # via locust
