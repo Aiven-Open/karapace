@@ -2,9 +2,9 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from aiokafka import AIOKafkaConsumer
 from asyncio import Lock
 from collections import defaultdict, namedtuple
+from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
 from functools import partial
 from http import HTTPStatus
 from kafka.errors import (
@@ -13,9 +13,12 @@ from kafka.errors import (
     KafkaConfigurationError,
     KafkaError,
     TopicAuthorizationFailedError,
+    UnknownTopicOrPartitionError,
 )
-from kafka.structs import TopicPartition
-from karapace.config import Config, create_client_ssl_context
+from karapace.config import Config
+from karapace.kafka.common import translate_from_kafkaerror
+from karapace.kafka.consumer import AsyncKafkaConsumer
+from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS, Timestamp
 from karapace.kafka_rest_apis.authentication import get_kafka_client_auth_parameters_from_config
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.karapace import empty_response, KarapaceBase
@@ -198,30 +201,31 @@ class ConsumerManager:
             KarapaceBase.r(content_type=content_type, body={"base_uri": consumer_base_uri, "instance_id": consumer_name})
 
     async def create_kafka_consumer(self, fetch_min_bytes, group_name, internal_name, request_data):
-        ssl_context = create_client_ssl_context(self.config)
         for retry in [True, True, False]:
             try:
                 session_timeout_ms = self.config["session_timeout_ms"]
                 request_timeout_ms = max(
                     session_timeout_ms,
-                    305000,  # Copy of old default from kafka-python's request_timeout_ms (not exposed by aiokafka)
+                    DEFAULT_REQUEST_TIMEOUT_MS,
                     request_data["consumer.request.timeout.ms"],
                 )
-                c = AIOKafkaConsumer(
+                c = AsyncKafkaConsumer(
                     bootstrap_servers=self.config["bootstrap_uri"],
-                    client_id=internal_name,
-                    security_protocol=self.config["security_protocol"],
-                    ssl_context=ssl_context,
-                    group_id=group_name,
-                    fetch_min_bytes=max(1, fetch_min_bytes),  # Discard earlier negative values
-                    fetch_max_bytes=self.config["consumer_request_max_bytes"],
-                    fetch_max_wait_ms=self.config.get("consumer_fetch_max_wait_ms", 500),  # Copy aiokafka default 500 ms
-                    # This will cause delay if subscription is changed.
-                    consumer_timeout_ms=self.config.get("consumer_timeout_ms", 200),  # Copy aiokafka default 200 ms
-                    request_timeout_ms=request_timeout_ms,
-                    enable_auto_commit=request_data["auto.commit.enable"],
                     auto_offset_reset=request_data["auto.offset.reset"],
+                    client_id=internal_name,
+                    enable_auto_commit=request_data["auto.commit.enable"],
+                    fetch_max_wait_ms=self.config.get("consumer_fetch_max_wait_ms"),
+                    fetch_message_max_bytes=self.config["consumer_request_max_bytes"],
+                    fetch_min_bytes=max(1, fetch_min_bytes),  # Discard earlier negative values
+                    group_id=group_name,
+                    security_protocol=self.config["security_protocol"],
                     session_timeout_ms=session_timeout_ms,
+                    socket_timeout_ms=request_timeout_ms,
+                    ssl_cafile=self.config["ssl_cafile"],
+                    ssl_certfile=self.config["ssl_certfile"],
+                    ssl_crlfile=self.config["ssl_crlfile"],
+                    ssl_keyfile=self.config["ssl_keyfile"],
+                    topic_metadata_refresh_interval_ms=request_data.get("topic.metadata.refresh.interval.ms"),
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 await c.start()
@@ -255,14 +259,20 @@ class ConsumerManager:
         self._assert_consumer_exists(internal_name, content_type)
         if request_data:
             self._assert_has_key(request_data, "offsets", content_type)
-        payload = {}
+        payload = []
         for el in request_data.get("offsets", []):
             for k in ["partition", "offset"]:
                 convert_to_int(el, k, content_type)
             # If we commit for a partition that does not belong to this consumer, then the internal error raised
             # is marked as retriable, and thus the commit method will remain blocked in what looks like an infinite loop
             self._topic_and_partition_valid(cluster_metadata, el, content_type)
-            payload[TopicPartition(el["topic"], el["partition"])] = el["offset"] + 1
+            payload.append(
+                TopicPartition(
+                    topic=el["topic"],
+                    partition=el["partition"],
+                    offset=el["offset"] + 1,
+                ),
+            )
 
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
@@ -284,7 +294,7 @@ class ConsumerManager:
                 convert_to_int(el, "partition", content_type)
                 tp = TopicPartition(el["topic"], el["partition"])
                 try:
-                    offset = await consumer.committed(tp)
+                    [committed_partition] = await consumer.committed([tp])
                 except GroupAuthorizationFailedError:
                     KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
                 except KafkaError as ex:
@@ -292,14 +302,14 @@ class ConsumerManager:
                         message=f"Failed to get offsets: {ex}",
                         content_type=content_type,
                     )
-                if offset is None:
+                if committed_partition is None:
                     continue
                 response["offsets"].append(
                     {
                         "topic": tp.topic,
                         "partition": tp.partition,
                         "metadata": "",
-                        "offset": offset,
+                        "offset": committed_partition.offset,
                     }
                 )
         KarapaceBase.r(body=response, content_type=content_type)
@@ -324,9 +334,9 @@ class ConsumerManager:
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             try:
-                # aiokafka does not verify access to topics subscribed during this call, thus cannot get topic authorzation
-                # error immediately
-                consumer.subscribe(topics=topics, pattern=topics_pattern)
+                # the client does not verify access to topics subscribed during this call,
+                # thus cannot get topic authorization error immediately
+                await consumer.subscribe(topics=topics, patterns=[topics_pattern] if topics_pattern is not None else None)
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(str(e), content_type=content_type)
@@ -338,17 +348,13 @@ class ConsumerManager:
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
-            if consumer.subscription() is None:
-                topics = []
-            else:
-                topics = list(consumer.subscription())
-            KarapaceBase.r(content_type=content_type, body={"topics": topics})
+            KarapaceBase.r(content_type=content_type, body={"topics": list(consumer.subscription())})
 
     async def delete_subscription(self, internal_name: Tuple[str, str], content_type: str):
         LOG.info("Deleting subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
-            self.consumers[internal_name].consumer.unsubscribe()
+            await self.consumers[internal_name].consumer.unsubscribe()
         empty_response()
 
     # ASSIGNMENTS
@@ -364,7 +370,7 @@ class ConsumerManager:
         async with self.consumer_locks[internal_name]:
             try:
                 consumer = self.consumers[internal_name].consumer
-                consumer.assign(partitions)
+                await consumer.assign(partitions)
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(message=str(e), content_type=content_type)
@@ -378,7 +384,7 @@ class ConsumerManager:
             consumer = self.consumers[internal_name].consumer
             KarapaceBase.r(
                 content_type=content_type,
-                body={"partitions": [{"topic": pd.topic, "partition": pd.partition} for pd in consumer.assignment()]},
+                body={"partitions": [{"topic": pd.topic, "partition": pd.partition} for pd in await consumer.assignment()]},
             )
 
     # POSITIONS
@@ -393,13 +399,13 @@ class ConsumerManager:
                 self._assert_has_key(el, k, content_type)
                 convert_to_int(el, k, content_type)
             self._assert_positive_number(el, "offset", content_type)
-            seeks.append((TopicPartition(topic=el["topic"], partition=el["partition"]), el["offset"]))
+            seeks.append(TopicPartition(topic=el["topic"], partition=el["partition"], offset=el["offset"]))
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
-            for part, offset in seeks:
+            for part in seeks:
                 try:
-                    consumer.seek(part, offset)
-                except IllegalStateError:
+                    await consumer.seek(part)
+                except (UnknownTopicOrPartitionError, IllegalStateError):
                     self._illegal_state_fail(f"Partition {part} is unassigned", content_type)
             empty_response()
 
@@ -415,18 +421,27 @@ class ConsumerManager:
             convert_to_int(el, "partition", content_type)
             for k in ["topic", "partition"]:
                 self._assert_has_key(el, k, content_type)
-            resets.append(TopicPartition(topic=el["topic"], partition=el["partition"]))
+            resets.append(
+                TopicPartition(
+                    topic=el["topic"],
+                    partition=el["partition"],
+                    offset=OFFSET_BEGINNING if beginning else OFFSET_END,
+                )
+            )
 
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             try:
-                if beginning:
-                    await consumer.seek_to_beginning(*resets)
-                else:
-                    await consumer.seek_to_end(*resets)
+                await asyncio.gather(*(consumer.seek(topic_partition) for topic_partition in resets))
                 empty_response()
-            except AssertionError:
+            except IllegalStateError:
                 self._illegal_state_fail(f"Trying to reset unassigned partitions to {direction}", content_type)
+            except UnknownTopicOrPartitionError:
+                KarapaceBase.not_found(
+                    message="Unknown topic or partition",
+                    content_type=content_type,
+                    sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
+                )
 
     async def fetch(self, internal_name: Tuple[str, str], content_type: str, formats: dict, query_params: dict):
         LOG.info("Running fetch for name %s with parameters %r and formats %r", internal_name, query_params, formats)
@@ -453,7 +468,11 @@ class ConsumerManager:
                 # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
                 # respecting the max fetch request size
                 # pylint: disable=protected-access
-                max_bytes = int(query_params["max_bytes"]) if "max_bytes" in query_params else consumer._fetch_max_bytes
+                max_bytes = (
+                    int(query_params["max_bytes"])
+                    if "max_bytes" in query_params
+                    else self.config["consumer_request_max_bytes"]
+                )
             except ValueError:
                 KarapaceBase.internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)
             for val in [timeout, max_bytes]:
@@ -470,9 +489,8 @@ class ConsumerManager:
             )
             read_bytes = 0
             start_time = time.monotonic()
-            poll_data = defaultdict(list)
+            poll_data = []
             message_count = 0
-            # Read buffered records with calling getmany() with possibly zero timeout and max_records=1 multiple times
             read_buffered = True
             while read_bytes < max_bytes and (start_time + timeout / 1000 > time.monotonic() or read_buffered):
                 read_buffered = False
@@ -486,56 +504,68 @@ class ConsumerManager:
                 )
                 timeout_left = max(0, (start_time - time.monotonic()) * 1000 + timeout)
                 try:
-                    data = await consumer.getmany(timeout_ms=timeout_left, max_records=1)
+                    message = await consumer.poll(timeout=timeout_left / 1000)
+                    if message is None:
+                        continue
+                    if message.error() is not None:
+                        raise translate_from_kafkaerror(message.error())
                 except (GroupAuthorizationFailedError, TopicAuthorizationFailedError):
                     KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
+                except UnknownTopicOrPartitionError:
+                    KarapaceBase.not_found(
+                        message=f"Unknown topic or partition: {message.error()}",
+                        content_type=content_type,
+                        sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
+                    )
                 except KafkaError as ex:
                     KarapaceBase.internal_error(
                         message=f"Failed to fetch: {ex}",
                         content_type=content_type,
                     )
                 LOG.debug("Successfully polled for messages")
-                for topic, records in data.items():
-                    for rec in records:
-                        message_count += 1
-                        read_bytes += max(0, 0 if rec.key is None else len(rec.key)) + max(
-                            0, 0 if rec.value is None else len(rec.value)
-                        )
-                        poll_data[topic].append(rec)
-                        read_buffered = True
+                message_count += 1
+                key_bytes = 0 if message.key() is None else len(message.key())
+                value_bytes = 0 if message.value() is None else len(message.value())
+                read_bytes += key_bytes + value_bytes
+                poll_data.append(message)
+                read_buffered = True
             LOG.info(
                 "Gathered %d total messages (%d bytes read) in %r",
                 message_count,
                 read_bytes,
                 time.monotonic() - start_time,
             )
-            for tp in poll_data:
-                for msg in poll_data[tp]:
-                    try:
-                        key = await self.deserialize(msg.key, request_format) if msg.key else None
-                    except DeserializationError as e:
-                        KarapaceBase.unprocessable_entity(
-                            message=f"key deserialization error for format {request_format}: {e}",
-                            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                            content_type=content_type,
-                        )
-                    try:
-                        value = await self.deserialize(msg.value, request_format) if msg.value else None
-                    except DeserializationError as e:
-                        KarapaceBase.unprocessable_entity(
-                            message=f"value deserialization error for format {request_format}: {e}",
-                            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                            content_type=content_type,
-                        )
-                    element = {
-                        "topic": tp.topic,
-                        "partition": tp.partition,
-                        "offset": msg.offset,
-                        "timestamp": msg.timestamp,
-                        "key": key,
-                        "value": value,
-                    }
-                    response.append(element)
+            for msg in poll_data:
+                try:
+                    key = await self.deserialize(msg.key(), request_format) if msg.key() else None
+                except DeserializationError as e:
+                    KarapaceBase.unprocessable_entity(
+                        message=f"key deserialization error for format {request_format}: {e}",
+                        sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                        content_type=content_type,
+                    )
+                try:
+                    value = await self.deserialize(msg.value(), request_format) if msg.value() else None
+                except DeserializationError as e:
+                    KarapaceBase.unprocessable_entity(
+                        message=f"value deserialization error for format {request_format}: {e}",
+                        sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                        content_type=content_type,
+                    )
+                element = {
+                    "topic": msg.topic(),
+                    "partition": msg.partition(),
+                    "offset": msg.offset(),
+                    # `confluent_kafka.Message.timestamp()` returns a tuple where the first component is
+                    # the timestamp type, see `karapace.kafka.types.Timestamp`
+                    # In case of the `NOT_AVAILABLE` type whatever the timestamp may be, it cannot be trusted
+                    # and should be ignored according to the confluent-kafka documentation:
+                    # https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/#confluent_kafka.Message
+                    "timestamp": msg.timestamp()[1] if msg.timestamp()[0] != Timestamp.NOT_AVAILABLE else None,
+                    "key": key,
+                    "value": value,
+                }
+                response.append(element)
 
             KarapaceBase.r(content_type=content_type, body=response)
 
