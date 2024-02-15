@@ -32,7 +32,7 @@ setup(
         "protobuf",
         "pyjwt",
         "python-dateutil",
-        # compression algorithms supported by AioKafka and KafkaConsumer
+        # compression algorithms supported by confluent-kafka-python
         "lz4",
         "python-snappy",
         "zstandard",

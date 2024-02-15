@@ -1,7 +1,6 @@
 # PyPI dependencies
 accept-types<1
 aiohttp<4
-aiokafka<1
 confluent-kafka==2.3.0
 isodate<1
 jsonschema<5
