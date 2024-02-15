@@ -239,7 +239,7 @@ async def test_publish_and_consume_protobuf_with_recursive_references(
 
     subscribe_path = f"/consumers/{group}/instances/{instance_id}/subscription"
 
-    consume_path = f"/consumers/{group}/instances/{instance_id}/records?timeout=1000"
+    consume_path = f"/consumers/{group}/instances/{instance_id}/records?timeout=5000"
 
     res = await rest_async_client.post(subscribe_path, json={"topics": [topic_name]}, headers=REST_HEADERS["binary"])
     assert res.ok

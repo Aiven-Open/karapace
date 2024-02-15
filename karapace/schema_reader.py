@@ -72,9 +72,9 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
     session_timeout_ms = config["session_timeout_ms"]
     return KafkaConsumer(
-        config["topic_name"],
-        enable_auto_commit=False,
         bootstrap_servers=config["bootstrap_uri"],
+        topic=config["topic_name"],
+        enable_auto_commit=False,
         client_id=config["client_id"],
         fetch_max_wait_ms=50,
         security_protocol=config["security_protocol"],
