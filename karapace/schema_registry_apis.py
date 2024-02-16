@@ -34,7 +34,7 @@ from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId
+from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, Subject
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -299,6 +299,24 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             method="DELETE",
             schema_request=True,
             with_request=True,
+            json_body=False,
+            auth=self._auth,
+        )
+        self.route(
+            "/mode",
+            callback=self.get_global_mode,
+            method="GET",
+            schema_request=True,
+            with_request=False,
+            json_body=False,
+            auth=self._auth,
+        )
+        self.route(
+            "/mode/<subject:path>",
+            callback=self.get_subject_mode,
+            method="GET",
+            schema_request=True,
+            with_request=False,
             json_body=False,
             auth=self._auth,
         )
@@ -1244,6 +1262,44 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         else:
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
+
+    async def get_global_mode(
+        self,
+        content_type: str,
+        *,
+        user: User | None = None,
+    ) -> None:
+        self._check_authorization(user, Operation.Read, "Config:")
+        self.r(
+            body={"mode": str(self.schema_registry.get_global_mode())},
+            content_type=content_type,
+            status=HTTPStatus.OK,
+        )
+
+    async def get_subject_mode(
+        self,
+        content_type: str,
+        *,
+        subject: str,
+        user: User | None = None,
+    ) -> None:
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
+
+        if self.schema_registry.database.find_subject(subject=Subject(subject)) is None:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+
+        self.r(
+            body={"mode": str(self.schema_registry.get_global_mode())},
+            content_type=content_type,
+            status=HTTPStatus.OK,
+        )
 
     def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema, include_deleted: bool) -> SchemaId | None:
         schema_id = self.schema_registry.database.get_schema_id_if_exists(
