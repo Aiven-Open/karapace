@@ -49,3 +49,8 @@ class SubjectType(StrEnum, Enum):
     value = "value"
     # partition it's a function of `str` and StrEnum its inherits from it.
     partition_ = "partition"
+
+
+@unique
+class Mode(StrEnum):
+    readwrite = "READWRITE"
