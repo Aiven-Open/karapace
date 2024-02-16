@@ -493,29 +493,30 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         include_subjects = request.query.get("includeSubjects", "false").lower() == "true"
-        fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
-        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
 
         def _has_subject_with_id() -> bool:
-            schema_versions = self.schema_registry.database.find_schemas(include_deleted=True, latest_only=False)
-            for subject, schema_versions in schema_versions.items():
-                if not schema_versions:
-                    continue
-                for schema_version in schema_versions:
-                    if (
-                        schema_version.schema_id == parsed_schema_id
-                        and not schema_version.deleted
-                        and self._auth is not None
-                        and self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}")
-                    ):
-                        return True
-            return False
+            # Fast path
+            if self._auth is None or self._auth.check_authorization(user, Operation.Read, "Subject:*"):
+                return True
+
+            subjects = self.schema_registry.database.subjects_for_schema(schema_id=parsed_schema_id)
+            resources = [f"Subject:{subject}" for subject in subjects]
+            return self._auth.check_authorization_any(user=user, operation=Operation.Read, resources=resources)
 
         if self._auth:
             has_subject = _has_subject_with_id()
             if not has_subject:
-                schema = None
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
+                        "message": "Schema not found",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
 
+        fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
+        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
         if not schema:
             self.r(
                 body={
