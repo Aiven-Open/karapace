@@ -100,6 +100,12 @@ async def test_sr_auth_endpoints(registry_async_client_auth: Client) -> None:
     res = await registry_async_client_auth.delete(f"subjects/{quote(subject)}")
     assert res.status_code == 401
 
+    res = await registry_async_client_auth.get("mode")
+    assert res.status_code == 401
+
+    res = await registry_async_client_auth.get(f"mode/{quote(subject)}")
+    assert res.status_code == 401
+
 
 async def test_sr_list_subjects(registry_async_client_auth: Client) -> None:
     cavesubject = new_random_name("cave-")
