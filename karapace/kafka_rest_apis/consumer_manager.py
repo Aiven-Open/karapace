@@ -480,7 +480,6 @@ class ConsumerManager:
                     continue
                 if val <= 0:
                     KarapaceBase.internal_error(message=f"Invalid request parameter {val}", content_type=content_type)
-            response = []
             LOG.info(
                 "Will poll multiple times for a single message with a total timeout of %dms, "
                 "until at least %d bytes have been fetched",
@@ -535,6 +534,7 @@ class ConsumerManager:
                 read_bytes,
                 time.monotonic() - start_time,
             )
+            response = []
             for msg in poll_data:
                 try:
                     key = await self.deserialize(msg.key(), request_format) if msg.key() else None
