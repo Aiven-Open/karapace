@@ -9,10 +9,7 @@ from confluent_kafka.admin import NewTopic
 from kafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka.types import Timestamp
-from tests.integration.utils.kafka_server import KafkaServers
-from typing import Iterator
 
-import asyncio
 import pytest
 import time
 
@@ -74,17 +71,6 @@ class TestPartitionsFor:
         assert partitions[0].id == 0
         assert partitions[0].replicas == [1]
         assert partitions[0].isrs == [1]
-
-
-@pytest.fixture(scope="function", name="asyncproducer")
-async def fixture_asyncproducer(
-    kafka_servers: KafkaServers,
-    loop: asyncio.AbstractEventLoop,
-) -> Iterator[AsyncKafkaProducer]:
-    asyncproducer = AsyncKafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers, loop=loop)
-    await asyncproducer.start()
-    yield asyncproducer
-    await asyncproducer.stop()
 
 
 class TestAsyncSend:

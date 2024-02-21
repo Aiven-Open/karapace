@@ -34,7 +34,7 @@ from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId
+from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, Subject
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -302,6 +302,24 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             json_body=False,
             auth=self._auth,
         )
+        self.route(
+            "/mode",
+            callback=self.get_global_mode,
+            method="GET",
+            schema_request=True,
+            with_request=False,
+            json_body=False,
+            auth=self._auth,
+        )
+        self.route(
+            "/mode/<subject:path>",
+            callback=self.get_subject_mode,
+            method="GET",
+            schema_request=True,
+            with_request=False,
+            json_body=False,
+            auth=self._auth,
+        )
 
     async def close(self) -> None:
         self.log.info("Closing karapace_schema_registry_controller")
@@ -475,29 +493,30 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         include_subjects = request.query.get("includeSubjects", "false").lower() == "true"
-        fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
-        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
 
         def _has_subject_with_id() -> bool:
-            schema_versions = self.schema_registry.database.find_schemas(include_deleted=True, latest_only=False)
-            for subject, schema_versions in schema_versions.items():
-                if not schema_versions:
-                    continue
-                for schema_version in schema_versions:
-                    if (
-                        schema_version.schema_id == parsed_schema_id
-                        and not schema_version.deleted
-                        and self._auth is not None
-                        and self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}")
-                    ):
-                        return True
-            return False
+            # Fast path
+            if self._auth is None or self._auth.check_authorization(user, Operation.Read, "Subject:*"):
+                return True
+
+            subjects = self.schema_registry.database.subjects_for_schema(schema_id=parsed_schema_id)
+            resources = [f"Subject:{subject}" for subject in subjects]
+            return self._auth.check_authorization_any(user=user, operation=Operation.Read, resources=resources)
 
         if self._auth:
             has_subject = _has_subject_with_id()
             if not has_subject:
-                schema = None
+                self.r(
+                    body={
+                        "error_code": SchemaErrorCodes.SCHEMA_NOT_FOUND.value,
+                        "message": "Schema not found",
+                    },
+                    content_type=content_type,
+                    status=HTTPStatus.NOT_FOUND,
+                )
 
+        fetch_max_id = request.query.get("fetchMaxId", "false").lower() == "true"
+        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
         if not schema:
             self.r(
                 body={
@@ -1244,6 +1263,44 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         else:
             url = f"{master_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
+
+    async def get_global_mode(
+        self,
+        content_type: str,
+        *,
+        user: User | None = None,
+    ) -> None:
+        self._check_authorization(user, Operation.Read, "Config:")
+        self.r(
+            body={"mode": str(self.schema_registry.get_global_mode())},
+            content_type=content_type,
+            status=HTTPStatus.OK,
+        )
+
+    async def get_subject_mode(
+        self,
+        content_type: str,
+        *,
+        subject: str,
+        user: User | None = None,
+    ) -> None:
+        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
+
+        if self.schema_registry.database.find_subject(subject=Subject(subject)) is None:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+
+        self.r(
+            body={"mode": str(self.schema_registry.get_global_mode())},
+            content_type=content_type,
+            status=HTTPStatus.OK,
+        )
 
     def get_schema_id_if_exists(self, *, subject: str, schema: TypedSchema, include_deleted: bool) -> SchemaId | None:
         schema_id = self.schema_registry.database.get_schema_id_if_exists(

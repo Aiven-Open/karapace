@@ -63,6 +63,8 @@ __all__ = (
 
 LOG = logging.getLogger(__name__)
 
+MAX_KAFKA_SEND_RETRIES = 10
+
 B = TypeVar("B", str, bytes)
 F = TypeVar("F")
 
@@ -386,17 +388,30 @@ def _handle_producer_send(
         instruction.key,
         instruction.value,
     )
-    try:
-        producer.send(
-            instruction.topic_name,
-            key=instruction.key,
-            value=instruction.value,
-            partition=instruction.partition_index,
-            headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
-            timestamp=instruction.timestamp,
-        ).add_done_callback(producer_callback)
-    except (KafkaError, AssertionError) as exc:
-        raise BackupDataRestorationError("Error while calling send on restoring messages") from exc
+    try_sending = True
+    tries = 0
+    while try_sending:
+        tries += 1
+        try:
+            send_future = producer.send(
+                instruction.topic_name,
+                key=instruction.key,
+                value=instruction.value,
+                partition=instruction.partition_index,
+                headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
+                timestamp=instruction.timestamp,
+            )
+        except (KafkaError, AssertionError) as exc:
+            raise BackupDataRestorationError("Error while calling send on restoring messages") from exc
+        except BufferError as exc:
+            producer.poll(timeout=0.1)
+            try_sending = tries < MAX_KAFKA_SEND_RETRIES
+            if not try_sending:
+                raise BackupDataRestorationError("Kafka producer buffer is full") from exc
+        else:
+            # Record is in the send buffer
+            send_future.add_done_callback(producer_callback)
+            break
 
 
 def restore_backup(

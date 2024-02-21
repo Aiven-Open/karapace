@@ -129,7 +129,7 @@ def _assert_canonical_key_format(
 ) -> None:
     # Consume all records and assert key order is canonical
     consumer = KafkaConsumer(
-        schemas_topic,
+        topic=schemas_topic,
         group_id="assert-canonical-key-format-consumer",
         enable_auto_commit=False,
         bootstrap_servers=bootstrap_servers,

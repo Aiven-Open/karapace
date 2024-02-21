@@ -30,7 +30,7 @@ from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
+from karapace.typing import JsonObject, Mode, ResolvedVersion, SchemaId, Subject, Version
 from typing import Mapping, Sequence
 
 import asyncio
@@ -440,6 +440,12 @@ class KarapaceSchemaRegistry:
             subject_versions.append({"subject": schema_version.subject, "version": schema_version.version})
         subject_versions = sorted(subject_versions, key=lambda s: (s["subject"], s["version"]))
         return subject_versions
+
+    def get_global_mode(self) -> Mode:
+        return Mode.readwrite
+
+    def get_subject_mode(self) -> Mode:
+        return Mode.readwrite
 
     def send_schema_message(
         self,
