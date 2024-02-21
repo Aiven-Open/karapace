@@ -94,14 +94,18 @@ class MessageElement(TypeElement):
         if types.lock_message(self):
             self_tags = {}
             other_tags = {}
+            self_names = {}
+            other_names = {}
             self_one_ofs = {}
             other_one_ofs = {}
 
             for field in self.fields:
                 self_tags[field.tag] = field
+                self_names[field.name] = field
 
             for field in other.fields:
                 other_tags[field.tag] = field
+                other_names[field.name] = field
 
             for one_of in self.one_ofs:
                 self_one_ofs[one_of.name] = one_of
@@ -125,6 +129,20 @@ class MessageElement(TypeElement):
             for tag in chain(self_tags.keys(), other_tags.keys() - self_tags.keys()):
                 result.push_path(str(tag))
 
+                if (
+                    # Check if field tag has been altered
+                    tag in self_tags
+                    and (field_name := self_tags[tag].name)
+                    and (self_field := self_names.get(field_name))
+                    and (other_field := other_names.get(field_name))
+                    and (self_field.tag != other_field.tag)
+                ):
+                    result.pop_path()
+                    result.push_path(field_name)
+                    result.add_modification(Modification.FIELD_TAG_ALTER)
+                    result.pop_path()
+                    result.push_path(str(tag))
+
                 if self_tags.get(tag) is None:
                     result.add_modification(Modification.FIELD_ADD)
                 elif other_tags.get(tag) is None:
@@ -133,6 +151,7 @@ class MessageElement(TypeElement):
                     self_tags[tag].compare(other_tags[tag], result, types)
 
                 result.pop_path()
+
             # Compare OneOfs
             for name in chain(self_one_ofs.keys(), other_one_ofs.keys() - self_one_ofs.keys()):
                 result.push_path(str(name))
