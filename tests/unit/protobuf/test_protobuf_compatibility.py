@@ -331,6 +331,8 @@ message Foo {
     result = CompareResult()
     self_parsed.compare(other_parsed, result)
     assert not result.is_compatible()
-    assert len(result.result) == 3  # FIELD_TAG_ALTER + FIELD_DROP + FIELD_ADD
-    assert result.result[0].modification == Modification.FIELD_TAG_ALTER
-    assert result.result[0].path == "Foo.fieldX"
+    assert {(error.modification, error.path) for error in result.result} == {
+        (Modification.FIELD_TAG_ALTER, "Foo.fieldX"),
+        (Modification.FIELD_DROP, "Foo.4"),
+        (Modification.FIELD_ADD, "Foo.5"),
+    }
