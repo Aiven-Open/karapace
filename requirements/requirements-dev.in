@@ -9,6 +9,7 @@ filelock
 pytest
 pytest-xdist[psutil]
 pytest-timeout
+pytest-random-order
 psutil
 requests
 hypothesis
