@@ -168,8 +168,11 @@ pyrepl==0.9.0
 pytest==7.4.4
     # via
     #   -r requirements/requirements-dev.in
+    #   pytest-random-order
     #   pytest-timeout
     #   pytest-xdist
+pytest-random-order==1.1.1
+    # via -r requirements/requirements-dev.in
 pytest-timeout==2.2.0
     # via -r requirements/requirements-dev.in
 pytest-xdist[psutil]==3.5.0
