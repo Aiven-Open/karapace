@@ -669,3 +669,75 @@ message Customer {
     res = await registry_async_client.post(f"subjects/{subject_customer}/versions", json=body)
 
     assert res.status_code == 200
+
+
+async def test_protobuf_schema_lookup_with_other_version_having_references(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_subject_check")()
+
+    schema = trim_margin(
+        """
+            |syntax = "proto3";
+            |message Foo {
+            |    string bar = 1;
+            |}
+            |"""
+    )
+
+    body = {
+        "schemaType": "PROTOBUF",
+        "schema": schema,
+    }
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    assert res.status_code == 200
+    old_id = res.json()["id"]
+
+    subject_dependency = create_subject_name_factory("test_protobuf_subject_check_dependency")()
+
+    dependency = trim_margin(
+        """
+            |syntax = "proto3";
+            |message Dependency {
+            |    string foo = 1;
+            |}
+            |"""
+    )
+
+    body = {
+        "schemaType": "PROTOBUF",
+        "schema": dependency,
+    }
+    res = await registry_async_client.post(f"subjects/{subject_dependency}/versions", json=body)
+    assert res.status_code == 200
+
+    new_schema = trim_margin(
+        """
+            |syntax = "proto3";
+            |import "dependency.proto";
+            |message Foo {
+            |    string bar = 1;
+            |    Dependency dep = 2;
+            |}
+            |"""
+    )
+
+    body = {
+        "schemaType": "PROTOBUF",
+        "schema": new_schema,
+        "references": [
+            {
+                "name": "dependency.proto",
+                "subject": subject_dependency,
+                "version": -1,
+            }
+        ],
+    }
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    assert res.status_code == 200
+
+    body = {
+        "schemaType": "PROTOBUF",
+        "schema": schema,
+    }
+    res = await registry_async_client.post(f"subjects/{subject}", json=body)
+    assert res.status_code == 200
+    assert res.json()["id"] == old_id
