@@ -43,6 +43,8 @@ def _resolve_version(
     version: Version,
 ) -> ResolvedVersion:
     max_version = max(schema_versions)
+    if version == "-1":
+        return max_version
     if isinstance(version, str) and version == "latest":
         return max_version
     resolved_version = ResolvedVersion(int(version))
@@ -54,6 +56,8 @@ def _resolve_version(
 def validate_version(version: Version) -> Version:
     try:
         version_number = int(version)
+        if version_number == -1:
+            return "latest"
         if version_number > 0:
             return version
         raise InvalidVersion(f"Invalid version {version_number}")
