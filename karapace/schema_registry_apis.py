@@ -1126,12 +1126,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         # Match schemas based on version from latest to oldest
         for schema_version in sorted(subject_data.values(), key=lambda item: item.version, reverse=True):
+            other_references, other_dependencies = self.schema_registry.resolve_references(schema_version.references)
             try:
                 parsed_typed_schema = ParsedTypedSchema.parse(
                     schema_version.schema.schema_type,
                     schema_version.schema.schema_str,
-                    references=schema_version.references,
-                    dependencies=new_schema_dependencies,
+                    references=other_references,
+                    dependencies=other_dependencies,
                 )
             except InvalidSchema as e:
                 failed_schema_id = schema_version.schema_id
