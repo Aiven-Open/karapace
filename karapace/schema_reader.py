@@ -317,6 +317,7 @@ class KafkaSchemaReader(Thread):
             try:
                 message_key = msg.key()
                 if message_key is None:
+                    LOG.warning("Empty message key when consuming from topic %s, error: %s", msg.topic(), msg.error())
                     continue
                 key = json_decode(message_key)
             except JSONDecodeError:
