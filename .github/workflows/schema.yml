@@ -9,11 +9,11 @@ jobs:
   check-generate-schema:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Need fetch-depth 0 to fetch tags, see https://github.com/actions/checkout/issues/701
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
