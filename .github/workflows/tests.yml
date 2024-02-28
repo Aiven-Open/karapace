@@ -37,7 +37,7 @@ jobs:
 
     - run: make install version
     - run: make unit-tests
-    - run: make integration-tests
+    - run: make integration-tests PYTEST_ARGS="--random-order"
 
     - name: Archive logs
       uses: actions/upload-artifact@v4
