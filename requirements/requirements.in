@@ -17,6 +17,7 @@ watchfiles<1
 xxhash~=3.3
 rich~=13.7.0
 cachetools==5.3.2
+prometheus-client
 zstandard
 
 # Patched dependencies

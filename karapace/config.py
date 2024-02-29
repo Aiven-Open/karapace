@@ -78,6 +78,12 @@ class Config(TypedDict):
     name_strategy_validation: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
+    stats_service: str
+    metrics_extended: bool
+    statsd_host: str
+    statsd_port: int
+    prometheus_host: str | None
+    prometheus_port: int | None
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -150,6 +156,12 @@ DEFAULTS: ConfigDefaults = {
     "name_strategy_validation": True,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
+    "stats_service": "statsd",
+    "metrics_extended": True,
+    "statsd_host": "127.0.0.1",
+    "statsd_port": 8125,
+    "prometheus_host": "127.0.0.1",
+    "prometheus_port": 8005,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 

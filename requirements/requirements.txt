@@ -105,3 +105,4 @@ zipp==3.17.0
     # via importlib-resources
 zstandard==0.22.0
     # via -r requirements/requirements.in
+prometheus-client==0.17.1

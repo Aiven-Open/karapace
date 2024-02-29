@@ -9,7 +9,7 @@ See LICENSE for details
 from accept_types import get_best_match
 from http import HTTPStatus
 from karapace.config import Config, create_server_ssl_context
-from karapace.statsd import StatsClient
+from karapace.metrics import Metrics
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
 from typing import Callable, Dict, NoReturn, Optional, overload, Union
@@ -134,6 +134,8 @@ class HTTPResponse(Exception):
         if content_type:
             self.headers["Content-Type"] = content_type
         super().__init__(f"HTTPResponse {status.value}")
+        if not is_success(status):
+            Metrics().error()
 
     def ok(self) -> bool:
         """True if resposne has a 2xx status_code"""
@@ -166,7 +168,8 @@ class RestApp:
         self.app_request_metric = f"{app_name}_request"
         self.app = self._create_aiohttp_application(config=config)
         self.log = logging.getLogger(self.app_name)
-        self.stats = StatsClient(config=config)
+        Metrics().setup(config)
+        self.stats = Metrics().stats_client
         self.app.on_shutdown.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
 
@@ -183,7 +186,7 @@ class RestApp:
         set as hook because the awaitables have to run inside the event loop
         created by the aiohttp library.
         """
-        self.stats.close()
+        Metrics().cleanup()
 
     @staticmethod
     def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument
@@ -269,15 +272,21 @@ class RestApp:
             url=request.url,
             path_for_stats=path_for_stats,
         )
+
         try:
             if request.method == "OPTIONS":
                 origin = request.headers.get("Origin")
                 if not origin:
                     raise HTTPResponse(body="OPTIONS missing Origin", status=HTTPStatus.BAD_REQUEST)
                 headers = self.cors_and_server_headers_for_request(request=rapu_request, origin=origin)
+
                 raise HTTPResponse(body=b"", status=HTTPStatus.OK, headers=headers)
 
             body = await request.read()
+            if body:
+                Metrics().request(len(body))
+            else:
+                Metrics().request(0)
             if json_request:
                 if not body:
                     raise HTTPResponse(body="Missing request JSON body", status=HTTPStatus.BAD_REQUEST)
@@ -393,6 +402,7 @@ class RestApp:
             )
             headers = {"Content-Type": "application/json"}
             resp = aiohttp.web.Response(body=body, status=status.value, headers=headers)
+
         except asyncio.CancelledError:
             self.log.debug("Client closed connection")
             raise
@@ -401,6 +411,8 @@ class RestApp:
             self.log.exception("Unexpected error handling user request: %s %s", request.method, request.url)
             resp = aiohttp.web.Response(text="Internal Server Error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)
         finally:
+            Metrics().response(resp.content_length)
+            Metrics().latency((time.monotonic() - start_time) * 1000)
             self.stats.timing(
                 self.app_request_metric,
                 time.monotonic() - start_time,

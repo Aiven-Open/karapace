@@ -50,3 +50,5 @@ urllib3==2.1.0
     # via
     #   -c requirements/requirements-dev.txt
     #   sentry-sdk
+types-psutil==5.9.5.16
+    # via -r requirements-typing.in
