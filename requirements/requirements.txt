@@ -47,7 +47,7 @@ jsonschema-specifications==2023.11.2
     # via jsonschema
 kafka-python @ https://github.com/aiven/kafka-python/archive/1b95333c9628152066fb8b1092de9da0433401fd.tar.gz
     # via -r requirements.in
-lz4==4.3.2
+lz4==4.3.3
     # via -r requirements.in
 markdown-it-py==3.0.0
     # via rich
