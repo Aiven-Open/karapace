@@ -12,12 +12,14 @@ from contextlib import closing, ExitStack
 from enum import Enum
 from jsonschema.validators import Draft7Validator
 from kafka.errors import (
+    GroupAuthorizationFailedError,
     InvalidReplicationFactorError,
     KafkaConfigurationError,
     KafkaTimeoutError,
     NoBrokersAvailable,
     NodeNotReadyError,
     TopicAlreadyExistsError,
+    TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
 from karapace import constants
@@ -26,6 +28,7 @@ from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.master_coordinator import MasterCoordinator
@@ -316,12 +319,22 @@ class KafkaSchemaReader(Thread):
         for msg in msgs:
             try:
                 message_key = msg.key()
-                if message_key is None:
-                    LOG.warning("Empty message key when consuming from topic %s, error: %s", msg.topic(), msg.error())
-                    continue
+                message_error = msg.error()
+                if message_error is not None:
+                    raise translate_from_kafkaerror(message_error)
+
+                assert message_key is not None
                 key = json_decode(message_key)
             except JSONDecodeError:
                 LOG.exception("Invalid JSON in msg.key() at offset %s", msg.offset())
+                continue
+            except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
+                LOG.error(
+                    "Kafka authorization error when consuming from %s: %s %s",
+                    self.config["topic_name"],
+                    exc,
+                    msg.error(),
+                )
                 continue
 
             assert isinstance(key, dict)
