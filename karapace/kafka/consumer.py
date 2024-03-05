@@ -86,7 +86,10 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
             if message is not None:
                 return super().commit(message=message, asynchronous=False)
 
-            return super().commit(offsets=offsets, asynchronous=False)
+            if offsets is not None:
+                return super().commit(offsets=offsets, asynchronous=False)
+
+            return super().commit(asynchronous=False)
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
