@@ -116,7 +116,7 @@ kafka-python @ https://github.com/aiven/kafka-python/archive/1b95333c9628152066f
     # via -r requirements.txt
 locust==2.19.1
     # via -r requirements-dev.in
-lz4==4.3.2
+lz4==4.3.3
     # via -r requirements.txt
 markdown-it-py==3.0.0
     # via
