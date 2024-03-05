@@ -15,7 +15,7 @@ typing-extensions
 ujson<6
 watchfiles<1
 xxhash~=3.3
-rich~=13.7.0
+rich~=13.7.1
 cachetools==5.3.3
 zstandard
 

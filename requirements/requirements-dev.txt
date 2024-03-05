@@ -189,7 +189,7 @@ requests==2.31.0
     # via
     #   -r requirements-dev.in
     #   locust
-rich==13.7.0
+rich==13.7.1
     # via -r requirements.txt
 roundrobin==0.0.4
     # via locust
