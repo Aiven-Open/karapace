@@ -252,6 +252,80 @@ async def test_offsets(rest_async_client, admin_client, trail):
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
+async def test_offsets_no_payload(rest_async_client, admin_client, producer, trail):
+    group_name = "offset_group_no_payload"
+    fmt = "binary"
+    header = REST_HEADERS[fmt]
+    instance_id = await new_consumer(
+        rest_async_client,
+        group_name,
+        fmt=fmt,
+        trail=trail,
+        # By default this is true
+        payload_override={"auto.commit.enable": "false"},
+    )
+    topic_name = new_topic(admin_client)
+    offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets{trail}"
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=5000"
+
+    res = await rest_async_client.post(
+        assign_path,
+        json={"partitions": [{"topic": topic_name, "partition": 0}]},
+        headers=header,
+    )
+    assert res.ok, f"Unexpected response status for assignment {res}"
+
+    producer.send(topic_name, value=b"message-value")
+    producer.flush()
+
+    resp = await rest_async_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        offsets_path,
+        json_data={},
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=20,
+        sleep=1,
+    )
+
+    res = await rest_async_client.get(
+        offsets_path,
+        headers=header,
+        json={"partitions": [{"topic": topic_name, "partition": 0}]},
+    )
+    assert res.ok, f"Unexpected response status for {res}"
+    data = res.json()
+    assert "offsets" in data and len(data["offsets"]) == 1, f"Unexpected offsets response {res}"
+    data = data["offsets"][0]
+    assert "topic" in data and data["topic"] == topic_name, f"Unexpected topic {data}"
+    assert "offset" in data and data["offset"] == 1, f"Unexpected offset {data}"
+    assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
+    res = await rest_async_client.post(
+        offsets_path,
+        json={"offsets": [{"topic": topic_name, "partition": 0, "offset": 1}]},
+        headers=header,
+    )
+    assert res.ok, f"Unexpected response status for offset commit {res}"
+
+    res = await rest_async_client.get(
+        offsets_path,
+        headers=header,
+        json={"partitions": [{"topic": topic_name, "partition": 0}]},
+    )
+    assert res.ok, f"Unexpected response status for {res}"
+    data = res.json()
+    assert "offsets" in data and len(data["offsets"]) == 1, f"Unexpected offsets response {res}"
+    data = data["offsets"][0]
+    assert "topic" in data and data["topic"] == topic_name, f"Unexpected topic {data}"
+    assert "offset" in data and data["offset"] == 2, f"Unexpected offset {data}"
+    assert "partition" in data and data["partition"] == 0, f"Unexpected partition {data}"
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
 async def test_consume(rest_async_client, admin_client, producer, trail):
     # avro to be handled in a separate testcase ??
     values = {
