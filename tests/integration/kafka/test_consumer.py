@@ -137,6 +137,31 @@ class TestCommit:
         assert committed_partition.partition == 0
         assert committed_partition.offset == 2
 
+    def test_commit_offsets_empty(
+        self,
+        producer: KafkaProducer,
+        consumer: KafkaConsumer,
+        new_topic: NewTopic,
+    ) -> None:
+        consumer.subscribe([new_topic.topic])
+        first_fut = producer.send(new_topic.topic)
+        second_fut = producer.send(new_topic.topic)
+        producer.flush()
+        first_fut.result()
+        second_fut.result()
+        consumer.poll(timeout=POLL_TIMEOUT_S)
+        consumer.poll(timeout=POLL_TIMEOUT_S)
+
+        [topic_partition] = consumer.commit(offsets=None, message=None)  # default parameters
+        [committed_partition] = consumer.committed([TopicPartition(new_topic.topic, partition=0)])
+
+        assert topic_partition.topic == new_topic.topic
+        assert topic_partition.partition == 0
+        assert topic_partition.offset == 2
+        assert committed_partition.topic == new_topic.topic
+        assert committed_partition.partition == 0
+        assert committed_partition.offset == 2
+
     def test_commit_raises_for_unknown_partition(
         self,
         consumer: KafkaConsumer,
