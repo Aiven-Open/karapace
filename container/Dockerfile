@@ -53,3 +53,21 @@ USER karapace
 
 HEALTHCHECK --interval=10s --timeout=30s --retries=3 --start-period=60s \
     CMD python3 healthcheck.py http://localhost:$KARAPACE_PORT/_health || exit 1
+
+
+FROM builder AS dev-builder
+
+# Install dev dependencies.
+COPY ./requirements/requirements-dev.txt /build/
+COPY ./requirements/requirements-typing.txt /build/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r /build/requirements-dev.txt -r /build/requirements-typing.txt
+
+
+# Dev build stage
+FROM karapace AS dev
+
+COPY --from=dev-builder /venv /venv
+
+RUN mkdir /opt/karapace/app
+ENV PYTHONPATH="/opt/karapace/app:${PYTHONPATH}"

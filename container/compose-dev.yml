@@ -1,0 +1,29 @@
+---
+version: '3'
+services:
+  karapace-registry:
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+      target: dev
+    volumes:
+      - ../:/opt/karapace/app
+
+  karapace-rest:
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+      target: dev
+    volumes:
+      - ../:/opt/karapace/app
+
+  karapace-dev:
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+      target: dev
+    volumes:
+      - ../:/opt/karapace/app
+    working_dir: /opt/karapace/app
+    depends_on:
+      - kafka
