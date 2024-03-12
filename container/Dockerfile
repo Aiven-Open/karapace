@@ -67,6 +67,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Dev build stage
 FROM karapace AS dev
 
+# Install linux dependencies
+USER root
+
+RUN apt-get update \
+ && apt-get install --assume-yes --no-install-recommends \
+    openjdk-11-jdk \
+ && rm -rf /var/lib/apt/lists/*
+
+USER karapace
+
+
 COPY --from=dev-builder /venv /venv
 
 RUN mkdir /opt/karapace/app
