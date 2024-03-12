@@ -1461,7 +1461,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
         f"subjects/{subject_1}",
         json={"schema": json.dumps({"type": "invalid_type"})},
     )
-    assert res.status_code == 500, "Invalid schema for existing subject should return 500"
+    assert res.status_code == 422, "Invalid schema for existing subject should return 422"
     assert res.json()["message"] == f"Error while looking up schema under subject {subject_1}"
 
     # Subject is not found
