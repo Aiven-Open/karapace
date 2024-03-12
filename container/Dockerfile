@@ -22,8 +22,8 @@ COPY . /build/karapace-repo
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install /build/karapace-repo
 
-# Karapace image, i.e. production.
-FROM python:3.10.11-slim-bullseye AS karapace
+
+FROM python:3.10.11-slim-bullseye AS karapace-base
 
 # Setup user and directories.
 RUN groupadd --system karapace \
@@ -65,14 +65,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 # Dev build stage
-FROM karapace AS dev
+FROM karapace-base AS dev
 
 # Install linux dependencies
 USER root
 
+ARG OPENJDK_VERSION="11.0.22+7-1~deb11u1"
 RUN apt-get update \
  && apt-get install --assume-yes --no-install-recommends \
-    openjdk-11-jdk \
+    openjdk-11-jdk=$OPENJDK_VERSION \
  && rm -rf /var/lib/apt/lists/*
 
 USER karapace
@@ -82,3 +83,7 @@ COPY --from=dev-builder /venv /venv
 
 RUN mkdir /opt/karapace/app
 ENV PYTHONPATH="/opt/karapace/app:${PYTHONPATH}"
+
+
+# Production build stage (keep last so it's the default)
+FROM karapace-base AS karapace
