@@ -59,6 +59,9 @@ services:
     build:
       context: ..
       dockerfile: container/Dockerfile
+      target: dev
+    volumes:
+      - ../:/opt/karapace/app
     entrypoint:
       - /bin/bash
       - /opt/karapace/start.sh
@@ -84,6 +87,9 @@ services:
     build:
       context: ..
       dockerfile: container/Dockerfile
+      target: dev
+    volumes:
+      - ../:/opt/karapace/app
     entrypoint:
       - /bin/bash
       - /opt/karapace/start.sh
@@ -102,3 +108,15 @@ services:
       KARAPACE_REGISTRY_PORT: 8081
       KARAPACE_ADMIN_METADATA_MAX_AGE: 0
       KARAPACE_LOG_LEVEL: WARNING
+
+  karapace-dev:
+    image: karapace:latest
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+      target: dev
+    volumes:
+      - ../:/opt/karapace/app
+    working_dir: /opt/karapace/app
+    depends_on:
+      - kafka
