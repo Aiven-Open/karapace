@@ -147,7 +147,7 @@ pkgutil-resolve-name==1.3.10
     # via
     #   -r requirements.txt
     #   jsonschema
-pluggy==1.3.0
+pluggy==1.4.0
     # via pytest
 protobuf==3.20.3
     # via -r requirements.txt
@@ -165,7 +165,7 @@ pyjwt==2.8.0
     # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
-pytest==7.4.4
+pytest==8.1.1
     # via
     #   -r requirements-dev.in
     #   pytest-timeout
