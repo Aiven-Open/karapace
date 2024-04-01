@@ -63,12 +63,12 @@ filelock==3.13.1
     # via -r requirements-dev.in
 flask==3.0.0
     # via
-    #   flask-basicauth
     #   flask-cors
+    #   flask-login
     #   locust
-flask-basicauth==0.2.0
-    # via locust
 flask-cors==4.0.0
+    # via locust
+flask-login==0.6.3
     # via locust
 frozenlist==1.4.0
     # via
@@ -114,7 +114,7 @@ jsonschema-specifications==2023.11.2
     #   jsonschema
 kafka-python @ https://github.com/aiven/kafka-python/archive/1b95333c9628152066fb8b1092de9da0433401fd.tar.gz
     # via -r requirements.txt
-locust==2.19.1
+locust==2.24.1
     # via -r requirements-dev.in
 lz4==4.3.3
     # via -r requirements.txt
@@ -215,7 +215,9 @@ sortedcontainers==2.4.0
 tenacity==8.2.3
     # via -r requirements.txt
 tomli==2.0.1
-    # via pytest
+    # via
+    #   locust
+    #   pytest
 typing-extensions==4.8.0
     # via
     #   -r requirements.txt
@@ -231,6 +233,7 @@ watchfiles==0.21.0
 werkzeug==3.0.1
     # via
     #   flask
+    #   flask-login
     #   locust
 wmctrl==0.5
     # via pdbpp
