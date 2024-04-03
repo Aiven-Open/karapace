@@ -1104,14 +1104,14 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 schema_type=schema_type, schema_str=schema_str, references=references, dependencies=new_schema_dependencies
             )
         except InvalidSchema:
-            self.log.exception("No proper parser found")
+            self.log.warning("Invalid schema: %r", schema_str)
             self.r(
                 body={
-                    "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Error while looking up schema under subject {subject}",
                 },
                 content_type=content_type,
-                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         except InvalidReferences:
             human_error = "Provided references is not valid"
@@ -1126,12 +1126,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         # Match schemas based on version from latest to oldest
         for schema_version in sorted(subject_data.values(), key=lambda item: item.version, reverse=True):
+            other_references, other_dependencies = self.schema_registry.resolve_references(schema_version.references)
             try:
                 parsed_typed_schema = ParsedTypedSchema.parse(
                     schema_version.schema.schema_type,
                     schema_version.schema.schema_str,
-                    references=schema_version.references,
-                    dependencies=new_schema_dependencies,
+                    references=other_references,
+                    dependencies=other_dependencies,
                 )
             except InvalidSchema as e:
                 failed_schema_id = schema_version.schema_id

@@ -174,7 +174,7 @@ class InMemoryDatabase:
             for subject, subject_data in self.subjects.items():
                 selected_schemas: list[SchemaVersion] = []
                 schemas = list(subject_data.schemas.values())
-                if latest_only:
+                if latest_only and len(schemas) > 0:
                     # TODO don't include the deleted here?
                     selected_schemas = [schemas[-1]]
                 else:

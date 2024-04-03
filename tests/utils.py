@@ -180,9 +180,11 @@ REST_HEADERS = {
 }
 
 
-async def new_consumer(c, group, fmt="avro", trail=""):
+async def new_consumer(c, group, fmt="avro", trail="", payload_override=None):
     payload = copy.copy(consumer_valid_payload)
     payload["format"] = fmt
+    if payload_override:
+        payload.update(payload_override)
     resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS[fmt])
     assert resp.ok
     return resp.json()["instance_id"]
