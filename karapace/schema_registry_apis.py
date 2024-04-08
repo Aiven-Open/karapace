@@ -1191,6 +1191,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._validate_schema_request_body(content_type, body)
         schema_type = self._validate_schema_type(content_type, body)
         self._validate_schema_key(content_type, body)
+        normalize = request.query.get("normalize", "false").lower() == "true"
         references = self._validate_references(content_type, schema_type, body)
 
         try:
@@ -1200,6 +1201,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 schema_str=body["schema"],
                 references=references,
                 dependencies=resolved_dependencies,
+                normalize=normalize,
             )
         except (InvalidReferences, InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
