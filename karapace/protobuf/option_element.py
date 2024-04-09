@@ -11,6 +11,8 @@ from karapace.protobuf.utils import append_indented, append_options, try_to_sche
 
 
 class OptionElement:
+    name: str
+
     class Kind(Enum):
         STRING = 1
         BOOLEAN = 2

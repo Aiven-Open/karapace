@@ -1097,11 +1097,16 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         references = self._validate_references(content_type, schema_type, body)
         references, new_schema_dependencies = self.schema_registry.resolve_references(references)
+        normalize = request.query.get("normalize", "false").lower() == "true"
         try:
             # When checking if schema is already registered, allow unvalidated schema in as
             # there might be stored schemas that are non-compliant from the past.
             new_schema = ParsedTypedSchema.parse(
-                schema_type=schema_type, schema_str=schema_str, references=references, dependencies=new_schema_dependencies
+                schema_type=schema_type,
+                schema_str=schema_str,
+                references=references,
+                dependencies=new_schema_dependencies,
+                normalize=normalize,
             )
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", schema_str)
@@ -1133,6 +1138,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     schema_version.schema.schema_str,
                     references=other_references,
                     dependencies=other_dependencies,
+                    normalize=normalize,
                 )
             except InvalidSchema as e:
                 failed_schema_id = schema_version.schema_id
