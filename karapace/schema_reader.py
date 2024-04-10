@@ -16,8 +16,10 @@ from kafka.errors import (
     InvalidReplicationFactorError,
     KafkaConfigurationError,
     KafkaTimeoutError,
+    LeaderNotAvailableError,
     NoBrokersAvailable,
     NodeNotReadyError,
+    NotLeaderForPartitionError,
     TopicAlreadyExistsError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
@@ -246,6 +248,8 @@ class KafkaSchemaReader(Thread):
             LOG.warning("Reading begin offsets timed out.")
         except UnknownTopicOrPartitionError:
             LOG.warning("Topic does not yet exist.")
+        except (LeaderNotAvailableError, NotLeaderForPartitionError):
+            LOG.warning("Retrying to find leader for schema topic partition.")
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_get_beginning_offset")
             LOG.exception("Unexpected exception when reading begin offsets.")
@@ -264,6 +268,9 @@ class KafkaSchemaReader(Thread):
             return False
         except UnknownTopicOrPartitionError:
             LOG.warning("Topic does not yet exist.")
+            return False
+        except (LeaderNotAvailableError, NotLeaderForPartitionError):
+            LOG.warning("Retrying to find leader for schema topic partition.")
             return False
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_is_ready")
