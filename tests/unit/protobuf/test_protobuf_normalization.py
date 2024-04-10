@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.location import Location
-from karapace.protobuf.proto_normalizations import normalize_options_ordered
+from karapace.protobuf.proto_normalizations import normalize
 from karapace.protobuf.proto_parser import ProtoParser
 
 import pytest
@@ -366,7 +366,7 @@ message Foo {
 
   string fieldX = 4;
 
-  message NeastedFoo {
+  message NestedFoo {
     string fieldA = 1;
     option (my_option) = "my_value";
     option (my_option2) = "my_value2";
@@ -438,7 +438,7 @@ message Foo {
 
   string fieldX = 4;
 
-  message NeastedFoo {
+  message NestedFoo {
     string fieldA = 1;
     option (my_option2) = "my_value2";
     option (my_option) = "my_value";
@@ -510,11 +510,11 @@ service MyService {
         (PROTO_WITH_COMPLEX_SCHEMA_ORDERED, PROTO_WITH_COMPLEX_SCHEMA_UNORDERED),
     ),
 )
-def test_different_options_order_its_correctly_normalized(ordered_schema: str, unordered_schema: str) -> None:
+def test_differently_ordered_options_normalizes_equally(ordered_schema: str, unordered_schema: str) -> None:
     ordered_proto = ProtoParser.parse(location, ordered_schema)
     unordered_proto = ProtoParser.parse(location, unordered_schema)
 
     result = CompareResult()
-    normalize_options_ordered(ordered_proto).compare(normalize_options_ordered(unordered_proto), result)
+    normalize(ordered_proto).compare(normalize(unordered_proto), result)
     assert result.is_compatible()
-    assert normalize_options_ordered(ordered_proto).to_schema() == normalize_options_ordered(unordered_proto).to_schema()
+    assert normalize(ordered_proto).to_schema() == normalize(unordered_proto).to_schema()

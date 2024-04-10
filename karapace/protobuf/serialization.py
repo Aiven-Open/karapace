@@ -19,7 +19,7 @@ from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Sequence
 
 import base64
 import google.protobuf.descriptor
@@ -269,7 +269,7 @@ def _serialize_msgtype(t: MessageElement) -> google.protobuf.descriptor_pb2.Desc
     return d
 
 
-def _serialize_options(options: list[OptionElement], result: google.protobuf.descriptor_pb2.FileOptions) -> None:
+def _serialize_options(options: Sequence[OptionElement], result: google.protobuf.descriptor_pb2.FileOptions) -> None:
     for opt in options:
         if opt.name == ("java_package"):
             result.java_package = opt.value

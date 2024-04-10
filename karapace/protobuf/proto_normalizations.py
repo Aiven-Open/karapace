@@ -2,6 +2,10 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
+from __future__ import annotations
+
+from karapace.dependency import Dependency
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.extend_element import ExtendElement
@@ -12,23 +16,86 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.rpc_element import RpcElement
+from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.type_element import TypeElement
-from karapace.typing import StrEnum
-from typing import List
+from karapace.schema_references import Reference
+from typing import Mapping, Sequence
 
-
-class ProtobufNormalisationOptions(StrEnum):
-    sort_options = "sort_options"
+import abc
 
 
 def sort_by_name(element: OptionElement) -> str:
     return element.name
 
 
-def type_field_element_with_sorted_options(type_field: FieldElement) -> FieldElement:
+class NormalizedRpcElement(RpcElement):
+    pass
+
+
+class NormalizedServiceElement(ServiceElement):
+    rpcs: Sequence[NormalizedRpcElement] | None = None
+
+
+class NormalizedFieldElement(FieldElement):
+    pass
+
+
+class NormalizedExtendElement(ExtendElement):
+    fields: Sequence[NormalizedFieldElement] | None = None
+
+
+class NormalizedTypeElement(TypeElement, abc.ABC):
+    nested_types: Sequence[NormalizedTypeElement]
+
+
+class NormalizedProtoFileElement(ProtoFileElement):
+    types: Sequence[NormalizedTypeElement]
+    services: Sequence[NormalizedServiceElement]
+    extend_declarations: Sequence[NormalizedExtendElement]
+
+
+class NormalizedMessageElement(MessageElement, NormalizedTypeElement):
+    nested_types: Sequence[NormalizedTypeElement]
+    fields: Sequence[NormalizedFieldElement]
+    one_ofs: Sequence[OneOfElement]
+    groups: Sequence[GroupElement]
+
+
+class NormalizedEnumConstantElement(EnumConstantElement):
+    pass
+
+
+class NormalizedEnumElement(EnumElement, NormalizedTypeElement):
+    constants: Sequence[NormalizedEnumConstantElement]
+
+
+class NormalizedGroupElement(GroupElement):
+    fields: Sequence[NormalizedFieldElement] | None = None
+
+
+class NormalizedProtobufSchema(ProtobufSchema):
+    proto_file_element: NormalizedProtoFileElement
+
+    def __init__(
+        self,
+        schema: str,
+        references: Sequence[Reference] | None = None,
+        dependencies: Mapping[str, Dependency] | None = None,
+        proto_file_element: ProtoFileElement | None = None,
+    ) -> None:
+        super().__init__(schema, references, dependencies, proto_file_element)
+        self.proto_file_element = normalize(self.proto_file_element)
+
+
+class NormalizedOneOfElement(OneOfElement):
+    fields: Sequence[NormalizedFieldElement]
+    groups: Sequence[NormalizedGroupElement]
+
+
+def type_field_element_with_sorted_options(type_field: FieldElement) -> NormalizedFieldElement:
     sorted_options = None if type_field.options is None else list(sorted(type_field.options, key=sort_by_name))
-    return FieldElement(
+    return NormalizedFieldElement(
         location=type_field.location,
         label=type_field.label,
         element_type=type_field.element_type,
@@ -41,9 +108,9 @@ def type_field_element_with_sorted_options(type_field: FieldElement) -> FieldEle
     )
 
 
-def enum_constant_element_with_sorted_options(enum_constant: EnumConstantElement) -> EnumConstantElement:
+def enum_constant_element_with_sorted_options(enum_constant: EnumConstantElement) -> NormalizedEnumConstantElement:
     sorted_options = None if enum_constant.options is None else list(sorted(enum_constant.options, key=sort_by_name))
-    return EnumConstantElement(
+    return NormalizedEnumConstantElement(
         location=enum_constant.location,
         name=enum_constant.name,
         tag=enum_constant.tag,
@@ -52,14 +119,14 @@ def enum_constant_element_with_sorted_options(enum_constant: EnumConstantElement
     )
 
 
-def enum_element_with_sorted_options(enum_element: EnumElement) -> EnumElement:
+def enum_element_with_sorted_options(enum_element: EnumElement) -> NormalizedEnumElement:
     sorted_options = None if enum_element.options is None else list(sorted(enum_element.options, key=sort_by_name))
     constants_with_sorted_options = (
         None
         if enum_element.constants is None
         else [enum_constant_element_with_sorted_options(constant) for constant in enum_element.constants]
     )
-    return EnumElement(
+    return NormalizedEnumElement(
         location=enum_element.location,
         name=enum_element.name,
         documentation=enum_element.documentation,
@@ -68,11 +135,11 @@ def enum_element_with_sorted_options(enum_element: EnumElement) -> EnumElement:
     )
 
 
-def groups_with_sorted_options(group: GroupElement) -> GroupElement:
+def groups_with_sorted_options(group: GroupElement) -> NormalizedGroupElement:
     sorted_fields = (
         None if group.fields is None else [type_field_element_with_sorted_options(field) for field in group.fields]
     )
-    return GroupElement(
+    return NormalizedGroupElement(
         label=group.label,
         location=group.location,
         name=group.name,
@@ -82,12 +149,12 @@ def groups_with_sorted_options(group: GroupElement) -> GroupElement:
     )
 
 
-def one_ofs_with_sorted_options(one_ofs: OneOfElement) -> OneOfElement:
+def one_ofs_with_sorted_options(one_ofs: OneOfElement) -> NormalizedOneOfElement:
     sorted_options = None if one_ofs.options is None else list(sorted(one_ofs.options, key=sort_by_name))
     sorted_fields = [type_field_element_with_sorted_options(field) for field in one_ofs.fields]
     sorted_groups = [groups_with_sorted_options(group) for group in one_ofs.groups]
 
-    return OneOfElement(
+    return NormalizedOneOfElement(
         name=one_ofs.name,
         documentation=one_ofs.documentation,
         fields=sorted_fields,
@@ -96,17 +163,17 @@ def one_ofs_with_sorted_options(one_ofs: OneOfElement) -> OneOfElement:
     )
 
 
-def message_element_with_sorted_options(message_element: MessageElement) -> MessageElement:
+def message_element_with_sorted_options(message_element: MessageElement) -> NormalizedMessageElement:
     sorted_options = None if message_element.options is None else list(sorted(message_element.options, key=sort_by_name))
-    sorted_neasted_types = [type_element_with_sorted_options(nested_type) for nested_type in message_element.nested_types]
+    sorted_nested_types = [type_element_with_sorted_options(nested_type) for nested_type in message_element.nested_types]
     sorted_fields = [type_field_element_with_sorted_options(field) for field in message_element.fields]
     sorted_one_ofs = [one_ofs_with_sorted_options(one_of) for one_of in message_element.one_ofs]
 
-    return MessageElement(
+    return NormalizedMessageElement(
         location=message_element.location,
         name=message_element.name,
         documentation=message_element.documentation,
-        nested_types=sorted_neasted_types,
+        nested_types=sorted_nested_types,
         options=sorted_options,
         reserveds=message_element.reserveds,
         fields=sorted_fields,
@@ -116,19 +183,19 @@ def message_element_with_sorted_options(message_element: MessageElement) -> Mess
     )
 
 
-def type_element_with_sorted_options(type_element: TypeElement) -> TypeElement:
-    sorted_neasted_types: List[TypeElement] = []
+def type_element_with_sorted_options(type_element: TypeElement) -> NormalizedTypeElement:
+    sorted_nested_types: list[TypeElement] = []
 
     for nested_type in type_element.nested_types:
         if isinstance(nested_type, EnumElement):
-            sorted_neasted_types.append(enum_element_with_sorted_options(nested_type))
+            sorted_nested_types.append(enum_element_with_sorted_options(nested_type))
         elif isinstance(nested_type, MessageElement):
-            sorted_neasted_types.append(message_element_with_sorted_options(nested_type))
+            sorted_nested_types.append(message_element_with_sorted_options(nested_type))
         else:
             raise ValueError("Unknown type element")  # tried with assert_never but it did not work
 
     # doing it here since the subtypes do not declare the nested_types property
-    type_element.nested_types = sorted_neasted_types
+    type_element.nested_types = sorted_nested_types
 
     if isinstance(type_element, EnumElement):
         return enum_element_with_sorted_options(type_element)
@@ -139,13 +206,13 @@ def type_element_with_sorted_options(type_element: TypeElement) -> TypeElement:
     raise ValueError("Unknown type element")  # tried with assert_never but it did not work
 
 
-def extends_element_with_sorted_options(extend_element: ExtendElement) -> ExtendElement:
+def extends_element_with_sorted_options(extend_element: ExtendElement) -> NormalizedExtendElement:
     sorted_fields = (
         None
         if extend_element.fields is None
         else [type_field_element_with_sorted_options(field) for field in extend_element.fields]
     )
-    return ExtendElement(
+    return NormalizedExtendElement(
         location=extend_element.location,
         name=extend_element.name,
         documentation=extend_element.documentation,
@@ -153,9 +220,9 @@ def extends_element_with_sorted_options(extend_element: ExtendElement) -> Extend
     )
 
 
-def rpc_element_with_sorted_options(rpc: RpcElement) -> RpcElement:
+def rpc_element_with_sorted_options(rpc: RpcElement) -> NormalizedRpcElement:
     sorted_options = None if rpc.options is None else list(sorted(rpc.options, key=sort_by_name))
-    return RpcElement(
+    return NormalizedRpcElement(
         location=rpc.location,
         name=rpc.name,
         documentation=rpc.documentation,
@@ -167,13 +234,13 @@ def rpc_element_with_sorted_options(rpc: RpcElement) -> RpcElement:
     )
 
 
-def service_element_with_sorted_options(service_element: ServiceElement) -> ServiceElement:
+def service_element_with_sorted_options(service_element: ServiceElement) -> NormalizedServiceElement:
     sorted_options = None if service_element.options is None else list(sorted(service_element.options, key=sort_by_name))
     sorted_rpc = (
         None if service_element.rpcs is None else [rpc_element_with_sorted_options(rpc) for rpc in service_element.rpcs]
     )
 
-    return ServiceElement(
+    return NormalizedServiceElement(
         location=service_element.location,
         name=service_element.name,
         documentation=service_element.documentation,
@@ -182,23 +249,19 @@ def service_element_with_sorted_options(service_element: ServiceElement) -> Serv
     )
 
 
-def normalize_options_ordered(proto_file_element: ProtoFileElement) -> ProtoFileElement:
-    sorted_types = [type_element_with_sorted_options(type_element) for type_element in proto_file_element.types]
-    sorted_options = (
-        None if proto_file_element.options is None else list(sorted(proto_file_element.options, key=sort_by_name))
-    )
-    sorted_services = (
-        None
-        if proto_file_element.services is None
-        else [service_element_with_sorted_options(service) for service in proto_file_element.services]
-    )
-    sorted_extend_declarations = (
-        None
-        if proto_file_element.extend_declarations is None
-        else [extends_element_with_sorted_options(extend) for extend in proto_file_element.extend_declarations]
-    )
+def normalize(proto_file_element: ProtoFileElement) -> NormalizedProtoFileElement:
+    sorted_types: Sequence[NormalizedTypeElement] = [
+        type_element_with_sorted_options(type_element) for type_element in proto_file_element.types
+    ]
+    sorted_options = list(sorted(proto_file_element.options, key=sort_by_name))
+    sorted_services: Sequence[NormalizedServiceElement] = [
+        service_element_with_sorted_options(service) for service in proto_file_element.services
+    ]
+    sorted_extend_declarations: Sequence[NormalizedExtendElement] = [
+        extends_element_with_sorted_options(extend) for extend in proto_file_element.extend_declarations
+    ]
 
-    return ProtoFileElement(
+    return NormalizedProtoFileElement(
         location=proto_file_element.location,
         package_name=proto_file_element.package_name,
         syntax=proto_file_element.syntax,
@@ -209,12 +272,3 @@ def normalize_options_ordered(proto_file_element: ProtoFileElement) -> ProtoFile
         extend_declarations=sorted_extend_declarations,
         options=sorted_options,
     )
-
-
-# if other normalizations are added we will switch to a more generic approach:
-# def normalize_parsed_file(proto_file_element: ProtoFileElement,
-# normalization: ProtobufNormalisationOptions) -> ProtoFileElement:
-#    if normalization == ProtobufNormalisationOptions.sort_options:
-#        return normalize_options_ordered(proto_file_element)
-#    else:
-#        assert_never(normalization)
