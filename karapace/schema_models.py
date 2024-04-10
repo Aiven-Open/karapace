@@ -19,7 +19,7 @@ from karapace.protobuf.exception import (
     ProtobufUnresolvedDependencyException,
     SchemaParseException as ProtobufSchemaParseException,
 )
-from karapace.protobuf.proto_normalizations import normalize_options_ordered
+from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
@@ -71,14 +71,15 @@ def parse_protobuf_schema_definition(
         ProtobufUnresolvedDependencyException if Protobuf dependency cannot be resolved.
 
     """
-    protobuf_schema = ProtobufSchema(schema_definition, references, dependencies)
+    protobuf_schema = (
+        ProtobufSchema(schema_definition, references, dependencies)
+        if not normalize
+        else NormalizedProtobufSchema(schema_definition, references, dependencies)
+    )
     if validate_references:
         result = protobuf_schema.verify_schema_dependencies()
         if not result.result:
             raise ProtobufUnresolvedDependencyException(f"{result.message}")
-
-    if protobuf_schema.proto_file_element is not None and normalize:
-        protobuf_schema.proto_file_element = normalize_options_ordered(protobuf_schema.proto_file_element)
 
     return protobuf_schema
 
@@ -174,6 +175,7 @@ class TypedSchema:
             validate_avro_enum_symbols=True,
             references=self.references,
             dependencies=self.dependencies,
+            normalize=False,
         )
         return parsed_typed_schema.schema
 
@@ -210,7 +212,9 @@ def parse(
 
     elif schema_type is SchemaType.PROTOBUF:
         try:
-            parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies, normalize=normalize)
+            parsed_schema = parse_protobuf_schema_definition(
+                schema_str, references, dependencies, validate_references=True, normalize=normalize
+            )
         except (
             TypeError,
             SchemaError,

@@ -19,21 +19,27 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import Sequence
 
 
 class MessageElement(TypeElement):
+    nested_types: Sequence[TypeElement]
+    fields: Sequence[FieldElement]
+    one_ofs: Sequence[OneOfElement]
+    groups: Sequence[GroupElement]
+
     def __init__(
         self,
         location: Location,
         name: str,
         documentation: str = "",
-        nested_types: list[TypeElement] | None = None,
-        options: list[OptionElement] | None = None,
-        reserveds: list[ReservedElement] | None = None,
-        fields: list[FieldElement] | None = None,
-        one_ofs: list[OneOfElement] | None = None,
-        extensions: list[ExtensionsElement] | None = None,
-        groups: list[GroupElement] | None = None,
+        nested_types: Sequence[TypeElement] | None = None,
+        options: Sequence[OptionElement] | None = None,
+        reserveds: Sequence[ReservedElement] | None = None,
+        fields: Sequence[FieldElement] | None = None,
+        one_ofs: Sequence[OneOfElement] | None = None,
+        extensions: Sequence[ExtensionsElement] | None = None,
+        groups: Sequence[GroupElement] | None = None,
     ) -> None:
         super().__init__(location, name, documentation, options or [], nested_types or [])
         self.reserveds = reserveds or []

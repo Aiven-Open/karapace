@@ -1272,18 +1272,32 @@ message Fred {
     assert schema_id != res.json()["id"]
 
 
-async def test_protobuf_normalization_of_options(registry_async_client: Client) -> None:
-    subject = create_subject_name_factory("test_protobuf_normalization")()
-
-    schema_with_option_unordered_1 = """\
+SCHEMA_WITH_OPTION_UNORDERDERED = """\
 syntax = "proto3";
 package tc4;
 
 option java_package = "com.example";
-option java_outer_classname = "FredProto";
-option java_multiple_files = true;
-option java_generic_services = true;
 option java_generate_equals_and_hash = true;
+option java_string_check_utf8 = true;
+option java_multiple_files = true;
+option java_outer_classname = "FredProto";
+option java_generic_services = true;
+
+message Foo {
+  string code = 1;
+}
+"""
+
+
+SCHEMA_WITH_OPTION_ORDERED = """\
+syntax = "proto3";
+package tc4;
+
+option java_generate_equals_and_hash = true;
+option java_generic_services = true;
+option java_multiple_files = true;
+option java_outer_classname = "FredProto";
+option java_package = "com.example";
 option java_string_check_utf8 = true;
 
 message Foo {
@@ -1291,30 +1305,18 @@ message Foo {
 }
 """
 
-    body = {"schemaType": "PROTOBUF", "schema": schema_with_option_unordered_1}
+
+async def test_registering_normalized_schema(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_normalization")()
+
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
     res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
     original_schema_id = res.json()["id"]
 
-    schema_with_option_unordered_2 = """\
-syntax = "proto3";
-package tc4;
-
-option java_package = "com.example";
-option java_generate_equals_and_hash = true;
-option java_string_check_utf8 = true;
-option java_multiple_files = true;
-option java_outer_classname = "FredProto";
-option java_generic_services = true;
-
-message Foo {
-  string code = 1;
-}
-"""
-
-    body = {"schemaType": "PROTOBUF", "schema": schema_with_option_unordered_2}
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
     res = await registry_async_client.post(f"subjects/{subject}", json=body)
     assert res.status_code == 404
 
@@ -1325,51 +1327,24 @@ message Foo {
     assert original_schema_id == res.json()["id"]
 
 
-async def test_protobuf_normalization_of_options_specify_version(registry_async_client: Client) -> None:
+async def test_normalized_schema_idempotence_produce_and_fetch(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_normalization")()
 
-    schema_with_option_unordered_1 = """\
-syntax = "proto3";
-package tc4;
-
-option java_package = "com.example";
-option java_outer_classname = "FredProto";
-option java_multiple_files = true;
-option java_generic_services = true;
-option java_generate_equals_and_hash = true;
-option java_string_check_utf8 = true;
-
-message Foo {
-  string code = 1;
-}
-"""
-
-    body = {"schemaType": "PROTOBUF", "schema": schema_with_option_unordered_1}
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
     res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
     original_schema_id = res.json()["id"]
 
-    schema_with_option_unordered_2 = """\
-syntax = "proto3";
-package tc4;
-
-option java_package = "com.example";
-option java_generate_equals_and_hash = true;
-option java_string_check_utf8 = true;
-option java_multiple_files = true;
-option java_outer_classname = "FredProto";
-option java_generic_services = true;
-
-message Foo {
-  string code = 1;
-}
-"""
-
-    body = {"schemaType": "PROTOBUF", "schema": schema_with_option_unordered_2}
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
     res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_schema_id == res.json()["id"]
+
+    res = await registry_async_client.get(f"/schemas/ids/{original_schema_id}")
+    assert res.status_code == 200
+    assert "schema" in res.json()
+    assert res.json()["schema"] == SCHEMA_WITH_OPTION_ORDERED
