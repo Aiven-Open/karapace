@@ -597,6 +597,22 @@ The REST proxy process manages a set of producer and consumer clients, which are
 
 Before a client refreshes its OAuth2 JWT token, it is expected to remove currently running consumers (eg. after committing their offsets) and producers using the current token.
 
+Schema Normalization
+--------------------
+
+If specified as a rest parameter for the POST ``/subjects/{subject}/versions?normalize=true`` endpoint and the POST ``subjects/{subject}?normalize=true`` endpoint,
+Karapace uses a schema normalization algorithm to ensure that the schema is stored in a canonical form.
+
+This normalization process is done so that schemas semantically equivalent are stored in the same way and should be considered equal.
+
+Normalization is currently only supported for Protobuf schemas. Karapace does not support all normalization features implemented by Confluent Schema Registry.
+Currently the normalization process is done only for the ordering of the optional fields in the schema.
+Use the feature with the assumption that it will be extended in the future and so two schemas that are semantically equivalent could be considered
+different by the normalization process in different future versions of Karapace.
+The safe choice, when using a normalization process, is always to consider as different two schemas that are semantically equivalent while the problem is when two semantically different schemas are considered equivalent.
+In that view the future extension of the normalization process isn't considered a breaking change but rather an extension of the normalization process.
+
+
 Uninstall
 =========
 
