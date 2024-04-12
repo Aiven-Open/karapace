@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
-from typing import TYPE_CHECKING
+from typing import Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from karapace.protobuf.compare_result import CompareResult
@@ -21,8 +21,8 @@ class TypeElement:
     location: Location
     name: str
     documentation: str
-    options: list[OptionElement]
-    nested_types: list[TypeElement]
+    options: Sequence[OptionElement]
+    nested_types: Sequence[TypeElement]
 
     def to_schema(self) -> str:
         """Convert the object to valid protobuf syntax.

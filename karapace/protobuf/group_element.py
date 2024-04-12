@@ -11,6 +11,7 @@ from karapace.protobuf.field import Field
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import Sequence
 
 
 @dataclass
@@ -20,7 +21,7 @@ class GroupElement:
     name: str
     tag: int
     documentation: str = ""
-    fields: list[FieldElement] | None = None
+    fields: Sequence[FieldElement] | None = None
 
     def to_schema(self) -> str:
         result: list[str] = []

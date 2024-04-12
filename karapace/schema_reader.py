@@ -517,6 +517,7 @@ class KafkaSchemaReader(Thread):
                     resolved_references,
                     resolved_dependencies,
                     validate_references=False,
+                    normalize=False,
                 )
                 schema_str = str(parsed_schema)
             except InvalidSchema:
