@@ -19,6 +19,7 @@ from karapace.protobuf.exception import (
     ProtobufUnresolvedDependencyException,
     SchemaParseException as ProtobufSchemaParseException,
 )
+from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
@@ -62,6 +63,7 @@ def parse_protobuf_schema_definition(
     references: Sequence[Reference] | None = None,
     dependencies: Mapping[str, Dependency] | None = None,
     validate_references: bool = True,
+    normalize: bool = False,
 ) -> ProtobufSchema:
     """Parses and validates `schema_definition`.
 
@@ -69,11 +71,16 @@ def parse_protobuf_schema_definition(
         ProtobufUnresolvedDependencyException if Protobuf dependency cannot be resolved.
 
     """
-    protobuf_schema = ProtobufSchema(schema_definition, references, dependencies)
+    protobuf_schema = (
+        ProtobufSchema(schema_definition, references, dependencies)
+        if not normalize
+        else NormalizedProtobufSchema(schema_definition, references, dependencies)
+    )
     if validate_references:
         result = protobuf_schema.verify_schema_dependencies()
         if not result.result:
             raise ProtobufUnresolvedDependencyException(f"{result.message}")
+
     return protobuf_schema
 
 
@@ -168,6 +175,7 @@ class TypedSchema:
             validate_avro_enum_symbols=True,
             references=self.references,
             dependencies=self.dependencies,
+            normalize=False,
         )
         return parsed_typed_schema.schema
 
@@ -179,6 +187,7 @@ def parse(
     validate_avro_names: bool,
     references: Sequence[Reference] | None = None,
     dependencies: Mapping[str, Dependency] | None = None,
+    normalize: bool = False,
 ) -> ParsedTypedSchema:
     if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
@@ -203,7 +212,9 @@ def parse(
 
     elif schema_type is SchemaType.PROTOBUF:
         try:
-            parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies)
+            parsed_schema = parse_protobuf_schema_definition(
+                schema_str, references, dependencies, validate_references=True, normalize=normalize
+            )
         except (
             TypeError,
             SchemaError,
@@ -270,6 +281,7 @@ class ParsedTypedSchema(TypedSchema):
         schema_str: str,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        normalize: bool = False,
     ) -> ParsedTypedSchema:
         return parse(
             schema_type=schema_type,
@@ -278,6 +290,7 @@ class ParsedTypedSchema(TypedSchema):
             validate_avro_names=False,
             references=references,
             dependencies=dependencies,
+            normalize=normalize,
         )
 
     def __str__(self) -> str:
@@ -352,6 +365,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         schema_str: str,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        normalize: bool = False,
     ) -> ValidatedTypedSchema:
         parsed_schema = parse(
             schema_type=schema_type,
@@ -360,6 +374,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
             validate_avro_names=True,
             references=references,
             dependencies=dependencies,
+            normalize=normalize,
         )
 
         return cast(ValidatedTypedSchema, parsed_schema)

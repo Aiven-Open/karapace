@@ -11,6 +11,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import Sequence
 
 
 @dataclass
@@ -18,8 +19,8 @@ class ServiceElement:
     location: Location
     name: str
     documentation: str = ""
-    rpcs: list[RpcElement] | None = None
-    options: list[OptionElement] | None = None
+    rpcs: Sequence[RpcElement] | None = None
+    options: Sequence[OptionElement] | None = None
 
     def to_schema(self) -> str:
         result: list[str] = []
