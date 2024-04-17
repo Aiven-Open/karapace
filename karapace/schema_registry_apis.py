@@ -75,7 +75,9 @@ class SchemaErrorMessages(Enum):
         "forward, full, backward_transitive, forward_transitive, and "
         "full_transitive"
     )
-    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT = "Subject '%s' does not have subject-level compatibility configured"
+    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT = (
+        "Subject '{subject}' does not have subject-level compatibility configured"
+    )
     REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
 
 
