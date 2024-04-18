@@ -6,7 +6,7 @@
 #
 accept-types==0.4.1
     # via -r requirements.txt
-aiohttp==3.9.2
+aiohttp==3.9.4
     # via -r requirements.txt
 aiosignal==1.3.1
     # via
