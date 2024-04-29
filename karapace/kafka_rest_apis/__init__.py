@@ -712,6 +712,13 @@ class UserRestProxy:
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
+        except InvalidPayload as e:
+            cause = str(e.__cause__)
+            KafkaRest.r(
+                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": cause},
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
         except SchemaRetrievalError as e:
             KafkaRest.r(
                 body={"error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value, "message": str(e)},
