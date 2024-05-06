@@ -47,6 +47,18 @@ TYPED_AVRO_SCHEMA = ValidatedTypedSchema.parse(
                     "name": "attr2",
                     "type": ["null", "string"],
                 },
+                {
+                    "name": "attrArray",
+                    "type": ["null", {"type": "array", "items": "string"}],
+                },
+                {
+                    "name": "attrMap",
+                    "type": ["null", {"type": "map", "values": "string"}],
+                },
+                {
+                    "name": "attrRecord",
+                    "type": ["null", {"type": "record", "name": "Record", "fields": [{"name": "attr1", "type": "string"}]}],
+                },
             ],
         }
     ),
@@ -128,13 +140,18 @@ async def test_happy_flow(default_config_path: Path):
     assert mock_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-def test_flatten_unions_record() -> None:
-    record = {"attr1": {"string": "sample data"}, "attr2": None}
-    flatten_record = {"attr1": "sample data", "attr2": None}
-    assert flatten_unions(TYPED_AVRO_SCHEMA.schema, record) == flatten_record
-
-    record = {"attr1": None, "attr2": None}
-    assert flatten_unions(TYPED_AVRO_SCHEMA.schema, record) == record
+@pytest.mark.parametrize(
+    ["record", "flattened_record"],
+    [
+        [{"attr1": {"string": "sample data"}, "attr2": None}, {"attr1": "sample data", "attr2": None}],
+        [{"attr1": None, "attr2": None}, {"attr1": None, "attr2": None}],
+        [{"attrArray": {"array": ["item1", "item2"]}}, {"attrArray": ["item1", "item2"]}],
+        [{"attrMap": {"map": {"k1": "v1", "k2": "v2"}}}, {"attrMap": {"k1": "v1", "k2": "v2"}}],
+        [{"attrRecord": {"Record": {"attr1": "test"}}}, {"attrRecord": {"attr1": "test"}}],
+    ],
+)
+def test_flatten_unions_record(record, flattened_record) -> None:
+    assert flatten_unions(TYPED_AVRO_SCHEMA.schema, record) == flattened_record
 
 
 def test_flatten_unions_array() -> None:
