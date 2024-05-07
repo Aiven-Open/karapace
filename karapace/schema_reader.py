@@ -150,7 +150,6 @@ class KafkaSchemaReader(Thread):
         self.offset = OFFSET_UNINITIALIZED
         self._highest_offset = OFFSET_UNINITIALIZED
         self.ready = False
-        self.prev_processed_offset = 0
 
         # This event controls when the Reader should stop running, it will be
         # set by another thread (e.g. `KarapaceSchemaRegistry`)
