@@ -2,7 +2,11 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp.web import Request
+from karapace.config import DEFAULTS
+from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
+from unittest.mock import Mock
 
 
 async def test_header_get():
@@ -154,3 +158,21 @@ def test_content_type_re():
         "serialization_format": "json",
         "general_format": None,
     }
+
+
+async def test_raise_connection_error_handling() -> None:
+    request_mock = Mock(spec=Request)
+    request_mock.read.side_effect = ConnectionError("Connection error test.")
+    callback_mock = Mock()
+
+    app = KarapaceBase(config=DEFAULTS)
+
+    response = await app._handle_request(  # pylint: disable=protected-access
+        request=request_mock,
+        path_for_stats="/",
+        callback=callback_mock,
+    )
+
+    assert response.status == 500
+    request_mock.read.assert_has_calls([])
+    callback_mock.assert_not_called()

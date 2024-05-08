@@ -9,8 +9,8 @@ of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html
 
 |Tests| |Contributor Covenant|
 
-.. |Tests| image:: https://github.com/aiven/karapace/actions/workflows/tests.yml/badge.svg?branch=main
-    :target: https://github.com/aiven/karapace/actions/workflows/tests.yml?query=branch%3Amain
+.. |Tests| image:: https://github.com/Aiven-Open/karapace/actions/workflows/tests.yml/badge.svg?branch=main
+    :target: https://github.com/Aiven-Open/karapace/actions/workflows/tests.yml?query=branch%3Amain
 
 .. |Contributor Covenant| image:: https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg
     :target: CODE_OF_CONDUCT.md
