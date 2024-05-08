@@ -501,7 +501,19 @@ class KafkaSchemaReader(Thread):
 
         parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None
         resolved_dependencies: dict[str, Dependency] | None = None
-        if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
+        if schema_type_parsed == SchemaType.AVRO:
+            try:
+                if schema_references:
+                    candidate_references = [reference_from_mapping(reference_data) for reference_data in schema_references]
+                    resolved_references, resolved_dependencies = self.resolve_references(candidate_references)
+                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+            except json.JSONDecodeError:
+                LOG.warning("Schema is not valid JSON")
+                return
+            except InvalidReferences:
+                LOG.exception("Invalid AVRO references")
+                return
+        elif schema_type_parsed == SchemaType.JSONSCHEMA:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
             except json.JSONDecodeError:

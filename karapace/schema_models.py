@@ -138,6 +138,7 @@ class TypedSchema:
             except JSONDecodeError as e:
                 LOG.info("Schema is not valid JSON")
                 raise e
+
         elif schema_type == SchemaType.PROTOBUF:
             if schema:
                 schema_str = str(schema)
@@ -180,6 +181,17 @@ class TypedSchema:
         return parsed_typed_schema.schema
 
 
+def avro_schema_merge(schema_str: str, dependencies: Mapping[str, Dependency]) -> str:
+    """To support references in AVRO we recursively merge all referenced schemas with current schema"""
+    if dependencies:
+        merged_schema = ""
+        for dependency in dependencies.values():
+            merged_schema += avro_schema_merge(dependency.schema.schema_str, dependency.schema.dependencies) + ",\n"
+        merged_schema += schema_str
+        return "[\n" + merged_schema + "\n]"
+    return schema_str
+
+
 def parse(
     schema_type: SchemaType,
     schema_str: str,
@@ -196,7 +208,7 @@ def parse(
     if schema_type is SchemaType.AVRO:
         try:
             parsed_schema = parse_avro_schema_definition(
-                schema_str,
+                avro_schema_merge(schema_str, dependencies),
                 validate_enum_symbols=validate_avro_enum_symbols,
                 validate_names=validate_avro_names,
             )
