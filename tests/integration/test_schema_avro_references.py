@@ -4,9 +4,9 @@ karapace - schema tests
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-import json
-
 from karapace.client import Client
+
+import json
 
 baseurl = "http://localhost:8081"
 
@@ -16,10 +16,7 @@ async def test_avro_references(registry_async_client: Client) -> None:
         "type": "record",
         "name": "Country",
         "namespace": "com.netapp",
-        "fields": [
-            {"name": "name", "type": "string"},
-            {"name": "code", "type": "string"}
-        ]
+        "fields": [{"name": "name", "type": "string"}, {"name": "code", "type": "string"}],
     }
 
     schema_address = {
@@ -30,14 +27,11 @@ async def test_avro_references(registry_async_client: Client) -> None:
             {"name": "street", "type": "string"},
             {"name": "city", "type": "string"},
             {"name": "postalCode", "type": "string"},
-            {"name": "country", "type": "Country"}
-        ]
-
+            {"name": "country", "type": "Country"},
+        ],
     }
 
-    res = await registry_async_client.post(
-        f"subjects/country/versions", json={"schema": json.dumps(schema_country)}
-    )
+    res = await registry_async_client.post("subjects/country/versions", json={"schema": json.dumps(schema_country)})
     assert res.status_code == 200
     assert "id" in res.json()
     country_references = [{"name": "country.proto", "subject": "country", "version": 1}]
