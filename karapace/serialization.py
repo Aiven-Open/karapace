@@ -422,6 +422,8 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
         def get_name(obj) -> str:
             if isinstance(obj, avro.schema.PrimitiveSchema):
                 return obj.fullname
+            if isinstance(obj, (avro.schema.ArraySchema, avro.schema.MapSchema)):
+                return obj.type
             return obj.name
 
         f = next((s for s in schema.schemas if get_name(s) in value), None)
