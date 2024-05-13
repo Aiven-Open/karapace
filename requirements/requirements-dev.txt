@@ -230,7 +230,7 @@ urllib3==2.1.0
     #   sentry-sdk
 watchfiles==0.21.0
     # via -r requirements.txt
-werkzeug==3.0.1
+werkzeug==3.0.3
     # via
     #   flask
     #   flask-login
