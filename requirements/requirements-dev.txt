@@ -6,13 +6,13 @@
 #
 accept-types==0.4.1
     # via -r requirements.txt
-aiohttp==3.9.4
+aiohttp==3.9.5
     # via -r requirements.txt
 aiosignal==1.3.1
     # via
     #   -r requirements.txt
     #   aiohttp
-anyio==4.1.0
+anyio==4.3.0
     # via
     #   -r requirements.txt
     #   watchfiles
@@ -20,7 +20,7 @@ async-timeout==4.0.3
     # via
     #   -r requirements.txt
     #   aiohttp
-attrs==23.1.0
+attrs==23.2.0
     # via
     #   -r requirements.txt
     #   aiohttp
@@ -30,13 +30,13 @@ attrs==23.1.0
     #   wmctrl
 avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py
     # via -r requirements.txt
-blinker==1.7.0
+blinker==1.8.2
     # via flask
 brotli==1.1.0
     # via geventhttpclient
 cachetools==5.3.3
     # via -r requirements.txt
-certifi==2023.11.17
+certifi==2024.2.2
     # via
     #   geventhttpclient
     #   requests
@@ -49,7 +49,11 @@ configargparse==1.7
     # via locust
 confluent-kafka==2.3.0
     # via -r requirements.txt
-exceptiongroup==1.2.0
+cramjam==2.8.3
+    # via
+    #   -r requirements.txt
+    #   python-snappy
+exceptiongroup==1.2.1
     # via
     #   -r requirements.txt
     #   anyio
@@ -59,9 +63,9 @@ execnet==2.1.1
     # via pytest-xdist
 fancycompleter==0.9.1
     # via pdbpp
-filelock==3.13.3
+filelock==3.14.0
     # via -r requirements-dev.in
-flask==3.0.0
+flask==3.0.3
     # via
     #   flask-cors
     #   flask-login
@@ -70,20 +74,20 @@ flask-cors==4.0.1
     # via locust
 flask-login==0.6.3
     # via locust
-frozenlist==1.4.0
+frozenlist==1.4.1
     # via
     #   -r requirements.txt
     #   aiohttp
     #   aiosignal
-gevent==23.9.1
+gevent==24.2.1
     # via
     #   geventhttpclient
     #   locust
-geventhttpclient==2.0.11
+geventhttpclient==2.0.12
     # via locust
-greenlet==3.0.1
+greenlet==3.0.3
     # via gevent
-hypothesis==6.92.2
+hypothesis==6.101.0
     # via -r requirements-dev.in
 idna==3.7
     # via
@@ -91,9 +95,9 @@ idna==3.7
     #   anyio
     #   requests
     #   yarl
-importlib-metadata==6.8.0
+importlib-metadata==7.1.0
     # via flask
-importlib-resources==6.1.1
+importlib-resources==6.4.0
     # via
     #   -r requirements.txt
     #   jsonschema
@@ -102,19 +106,19 @@ iniconfig==2.0.0
     # via pytest
 isodate==0.6.1
     # via -r requirements.txt
-itsdangerous==2.1.2
+itsdangerous==2.2.0
     # via flask
 jinja2==3.1.4
     # via flask
-jsonschema==4.21.1
+jsonschema==4.22.0
     # via -r requirements.txt
-jsonschema-specifications==2023.11.2
+jsonschema-specifications==2023.12.1
     # via
     #   -r requirements.txt
     #   jsonschema
-kafka-python @ https://github.com/aiven/kafka-python/archive/1b95333c9628152066fb8b1092de9da0433401fd.tar.gz
+kafka-python @ https://github.com/aiven/kafka-python/archive/19ff1f4b28e33318b0cd2d916b8399170055b1ca.tar.gz
     # via -r requirements.txt
-locust==2.24.1
+locust==2.25.0
     # via -r requirements-dev.in
 lz4==4.3.3
     # via -r requirements.txt
@@ -122,7 +126,7 @@ markdown-it-py==3.0.0
     # via
     #   -r requirements.txt
     #   rich
-markupsafe==2.1.3
+markupsafe==2.1.5
     # via
     #   jinja2
     #   werkzeug
@@ -130,16 +134,16 @@ mdurl==0.1.2
     # via
     #   -r requirements.txt
     #   markdown-it-py
-msgpack==1.0.7
+msgpack==1.0.8
     # via locust
-multidict==6.0.4
+multidict==6.0.5
     # via
     #   -r requirements.txt
     #   aiohttp
     #   yarl
 networkx==3.1
     # via -r requirements.txt
-packaging==23.2
+packaging==24.0
     # via pytest
 pdbpp==0.10.3
     # via -r requirements-dev.in
@@ -147,7 +151,7 @@ pkgutil-resolve-name==1.3.10
     # via
     #   -r requirements.txt
     #   jsonschema
-pluggy==1.3.0
+pluggy==1.5.0
     # via pytest
 protobuf==3.20.3
     # via -r requirements.txt
@@ -156,7 +160,7 @@ psutil==5.9.8
     #   -r requirements-dev.in
     #   locust
     #   pytest-xdist
-pygments==2.17.2
+pygments==2.18.0
     # via
     #   -r requirements.txt
     #   pdbpp
@@ -165,25 +169,25 @@ pyjwt==2.8.0
     # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
-pytest==7.4.4
+pytest==8.2.0
     # via
-    #   -r requirements/requirements-dev.in
+    #   -r requirements-dev.in
     #   pytest-random-order
     #   pytest-timeout
     #   pytest-xdist
 pytest-random-order==1.1.1
-    # via -r requirements/requirements-dev.in
-pytest-timeout==2.2.0
+    # via -r requirements-dev.in
+pytest-timeout==2.3.1
     # via -r requirements-dev.in
 pytest-xdist[psutil]==3.6.1
     # via -r requirements-dev.in
 python-dateutil==2.9.0.post0
     # via -r requirements.txt
-python-snappy==0.6.1
+python-snappy==0.7.1
     # via -r requirements.txt
-pyzmq==25.1.1
+pyzmq==26.0.3
     # via locust
-referencing==0.31.1
+referencing==0.35.1
     # via
     #   -r requirements.txt
     #   jsonschema
@@ -196,12 +200,12 @@ rich==13.7.1
     # via -r requirements.txt
 roundrobin==0.0.4
     # via locust
-rpds-py==0.13.2
+rpds-py==0.18.1
     # via
     #   -r requirements.txt
     #   jsonschema
     #   referencing
-sentry-sdk==1.38.0
+sentry-sdk==2.1.1
     # via -r requirements-dev.in
 six==1.16.0
     # via
@@ -209,25 +213,26 @@ six==1.16.0
     #   geventhttpclient
     #   isodate
     #   python-dateutil
-sniffio==1.3.0
+sniffio==1.3.1
     # via
     #   -r requirements.txt
     #   anyio
 sortedcontainers==2.4.0
     # via hypothesis
-tenacity==8.2.3
+tenacity==8.3.0
     # via -r requirements.txt
 tomli==2.0.1
     # via
     #   locust
     #   pytest
-typing-extensions==4.8.0
+typing-extensions==4.11.0
     # via
     #   -r requirements.txt
+    #   anyio
     #   rich
 ujson==5.9.0
     # via -r requirements.txt
-urllib3==2.1.0
+urllib3==2.2.1
     # via
     #   requests
     #   sentry-sdk
@@ -242,18 +247,18 @@ wmctrl==0.5
     # via pdbpp
 xxhash==3.4.1
     # via -r requirements.txt
-yarl==1.9.3
+yarl==1.9.4
     # via
     #   -r requirements.txt
     #   aiohttp
-zipp==3.17.0
+zipp==3.18.1
     # via
     #   -r requirements.txt
     #   importlib-metadata
     #   importlib-resources
 zope-event==5.0
     # via gevent
-zope-interface==6.1
+zope-interface==6.3
     # via gevent
 zstandard==0.22.0
     # via -r requirements.txt
