@@ -118,7 +118,9 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     data = res.json()
     assert "topics" in data and len(data["topics"]) == 0, f"expecting {data} to be empty"
     # one pattern sub will get all 3
-    prefix = f"{hash(random.random())}"
+    # use bool(trail) to make topic prefix distinct as there has been collision when
+    # test order is randomized.
+    prefix = f"test_subscription_{bool(trail)}{hash(random.random())}"
     pattern_topics = [new_topic(admin_client, prefix=f"{prefix}{i}") for i in range(3)]
     await wait_for_topics(rest_async_client, topic_names=pattern_topics, timeout=20, sleep=1)
     res = await rest_async_client.post(sub_path, json={"topic_pattern": f"{prefix}.*"}, headers=REST_HEADERS["json"])
