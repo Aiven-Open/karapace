@@ -56,6 +56,8 @@ def validate_version(version: Version) -> Version:
         version_number = int(version)
         if version_number > 0:
             return version
+        if version_number == -1:
+            return "latest"
         raise InvalidVersion(f"Invalid version {version_number}")
     except ValueError as ex:
         if version == "latest":
