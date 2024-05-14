@@ -58,6 +58,16 @@ OFFSET_EMPTY: Final = -1
 KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS: Final = 2.0
 SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS: Final = 5.0
 
+# For good startup performance the consumption of multiple
+# records for each consume round is essential.
+# Consumer default is 1 message for each consume call and after
+# startup the default is a good value. If consumer would expect
+# more messages it would return control back after timeout and
+# making schema storing latency to be `processing time + timeout`.
+MAX_MESSAGES_TO_CONSUME_ON_STARTUP: Final = 1000
+MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP: Final = 1
+MESSAGE_CONSUME_TIMEOUT_SECONDS: Final = 0.2
+
 # Metric names
 METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT: Final = "karapace_schema_reader_records_processed"
 METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE: Final = "karapace_schema_reader_records_per_keymode"
@@ -120,11 +130,8 @@ class KafkaSchemaReader(Thread):
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
-        self.timeout_s = 0.2
-        # Consumer default is 1 message for each consume call
-        # For good startup performance the consumption of multiple
-        # records for each consume round is essential.
-        self.max_messages_to_process = 1000
+        self.timeout_s = MESSAGE_CONSUME_TIMEOUT_SECONDS
+        self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_ON_STARTUP
         self.config = config
 
         self.database = database
@@ -301,6 +308,7 @@ class KafkaSchemaReader(Thread):
         self.startup_previous_processed_offset = self.offset
         ready = self.offset >= self._highest_offset
         if ready:
+            self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
             LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
         return ready
 
