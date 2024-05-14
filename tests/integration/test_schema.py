@@ -1254,7 +1254,7 @@ async def test_schema_delete_latest_version(registry_async_client: Client, trail
     await assert_schema_versions(registry_async_client, trail, schema_id_2, [])
 
     # Deleting the latest version, no schemas left
-    res = await registry_async_client.delete(f"subjects/{subject}/versions/latest")
+    res = await registry_async_client.delete(f"subjects/{subject}/versions/-1")
     assert res.status_code == 200
     assert res.json() == version_1
 
