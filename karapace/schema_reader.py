@@ -26,6 +26,7 @@ from kafka.errors import (
 )
 from karapace import constants
 from karapace.config import Config
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
@@ -33,7 +34,6 @@ from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
-from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
