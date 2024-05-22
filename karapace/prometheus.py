@@ -27,20 +27,20 @@ class PrometheusException(Exception):
 
 
 class PrometheusClient(StatsClient):
-    server_is_active = False
+    server_is_active: bool = False
 
-    def __init__(self, config: Config, host: str = HOST, port: int = PORT) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__(config)
 
-        _host = config.get("prometheus_host") if "prometheus_host" in config else host
-        _port = config.get("prometheus_port") if "prometheus_port" in config else port
+        _host = config.get("prometheus_host",None)
+        _port = config.get("prometheus_port",None)
         if _host is None:
             raise PrometheusException("prometheus_host host is undefined")
         if _port is None:
             raise PrometheusException("prometheus_host port is undefined")
-        if not self.server_is_active:
+        if not PrometheusClient.server_is_active:
             start_http_server(_port, _host)
-            self.server_is_active = True
+            PrometheusClient.server_is_active = True
         else:
             raise PrometheusException("Double instance of Prometheus interface")
         self._gauge: dict[str, Gauge] = dict()

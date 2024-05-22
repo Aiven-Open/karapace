@@ -48,9 +48,9 @@ class Metrics(metaclass=Singleton):
             if self.is_ready:
                 return
 
-            stats_service = config.get("stats_service")
             if not config.get("metrics_extended"):
                 return
+            stats_service = config.get("stats_service")
             if stats_service == "statsd":
                 self.stats_client = StatsdClient(config=config)
             elif stats_service == "prometheus":
