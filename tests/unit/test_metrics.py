@@ -4,15 +4,14 @@ unit test of Metrics module
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from karapace.config import Config
+from karapace.metrics import Metrics, MetricsException, Singleton
+from karapace.prometheus import PrometheusClient
+from karapace.statsd import StatsdClient
 from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
-
-from karapace.config import Config
-from karapace.metrics import Singleton, Metrics, MetricsException
-from karapace.prometheus import PrometheusClient
-from karapace.statsd import StatsdClient
 
 
 @pytest.fixture(autouse=True)
@@ -34,20 +33,14 @@ def test_singleton(metrics):
 
 
 def test_setup_prometheus(metrics):
-    config = cast(Config, {
-        "metrics_extended": True,
-        "stats_service": "prometheus"
-    })
+    config = cast(Config, {"metrics_extended": True, "stats_service": "prometheus"})
     metrics.setup(config)
     assert metrics.is_ready
     assert isinstance(metrics.stats_client, PrometheusClient)
 
 
 def test_setup_invalid_service(metrics):
-    config = cast(Config, {
-        "metrics_extended": True,
-        "stats_service": "invalid_service"
-    })
+    config = cast(Config, {"metrics_extended": True, "stats_service": "invalid_service"})
     with pytest.raises(MetricsException):
         metrics.setup(config)
 

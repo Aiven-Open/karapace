@@ -32,8 +32,8 @@ class PrometheusClient(StatsClient):
     def __init__(self, config: Config) -> None:
         super().__init__(config)
 
-        _host = config.get("prometheus_host",None)
-        _port = config.get("prometheus_port",None)
+        _host = config.get("prometheus_host", None)
+        _port = config.get("prometheus_port", None)
         if _host is None:
             raise PrometheusException("prometheus_host host is undefined")
         if _port is None:
