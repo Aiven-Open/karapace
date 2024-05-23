@@ -51,11 +51,36 @@ schema_serialized_normalized = (
     "CgdkZWZhdWx0Ig8KA0tleRIICgJpZBgBKAUiLQoDRG9nEgoKBG5hbWUYASgJEgwKBndlaWdodBgCKAUSDAoEdG95cxgEIAMoCWIGcHJvdG8z"
 )
 
+schema_serialized2 = (
+    "CiZwcm90by90ZWNoL2Rvam8vZHNwL3YxL2V2ZW50X2tleS5wcm90bxIQdGVjaC5kb2pvLmRzcC52MSIaCghFdmVudEtleRIOCgJpZBgBIAEoCVI"
+    + "CaWRCiAEKFGNvbS50ZWNoLmRvam8uZHNwLnYxQg1FdmVudEtleVByb3RvUAGiAgNURESqAhBUZWNoLkRvam8uRHNwLlYxygIQVGVjaFxEb2pvXER"
+    + "zcFxWMeICHFRlY2hcRG9qb1xEc3BcVjFcR1BCTWV0YWRhdGHqAhNUZWNoOjpEb2pvOjpEc3A6OlYxYgZwcm90bzM="
+)
+
+schema_plain2 = """\
+syntax = "proto3";
+package tech.dojo.dsp.v1;
+
+option java_package = "com.tech.dojo.dsp.v1";
+option java_outer_classname = "EventKeyProto";
+option java_multiple_files = true;
+option objc_class_prefix = "TDD";
+option csharp_namespace = "Tech.Dojo.Dsp.V1";
+option php_namespace = "Tech\\Dojo\\Dsp\\V1";
+option php_metadata_namespace = "Tech\\Dojo\\Dsp\\V1\\GPBMetadata";
+option ruby_package = "Tech::Dojo::Dsp::V1";
+
+message EventKey {
+  string id = 1;
+}
+"""
+
 
 @pytest.mark.parametrize(
     "schema_plain,schema_serialized",
     [
         (schema_plain1, schema_serialized1),
+        (schema_plain2, schema_serialized2),
         (schema_protobuf_plain, schema_protobuf_plain_bin),
         (schema_protobuf_order_after, schema_protobuf_order_after_bin),
         (schema_protobuf_nested_message4, schema_protobuf_nested_message4_bin),
