@@ -12,12 +12,7 @@ import asyncio
 
 
 async def test_forward_when_not_ready():
-    with patch("karapace.schema_registry_apis.aiohttp.ClientSession") as client_session_class, patch(
-        "karapace.schema_registry_apis.KarapaceSchemaRegistry"
-    ) as schema_registry_class:
-        client_session = Mock()
-        client_session_class.return_value = client_session
-
+    with patch("karapace.schema_registry_apis.KarapaceSchemaRegistry") as schema_registry_class:
         schema_reader_mock = Mock()
         ready_property_mock = PropertyMock(return_value=False)
         schema_registry = Mock()
@@ -34,7 +29,6 @@ async def test_forward_when_not_ready():
         close_func = Mock()
         close_func.return_value = close_future_result
         schema_registry.close = close_func
-        client_session.close = close_func
 
         controller = KarapaceSchemaRegistryController(config=set_config_defaults(DEFAULTS))
         mock_forward_func_future = asyncio.Future()

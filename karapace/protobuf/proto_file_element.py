@@ -13,7 +13,7 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, NewType, Optional
+from typing import Dict, List, NewType, Optional, Sequence
 
 
 def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
@@ -37,17 +37,21 @@ PackageName = NewType("PackageName", str)
 
 
 class ProtoFileElement:
+    types: Sequence[TypeElement]
+    services: Sequence[ServiceElement]
+    extend_declarations: Sequence[ExtendElement]
+
     def __init__(
         self,
         location: Location,
         package_name: Optional[PackageName] = None,
         syntax: Optional[Syntax] = None,
-        imports: Optional[List[TypeName]] = None,
-        public_imports: Optional[List[TypeName]] = None,
-        types: Optional[List[TypeElement]] = None,
-        services: Optional[List[ServiceElement]] = None,
-        extend_declarations: Optional[List[ExtendElement]] = None,
-        options: Optional[List[OptionElement]] = None,
+        imports: Optional[Sequence[TypeName]] = None,
+        public_imports: Optional[Sequence[TypeName]] = None,
+        types: Optional[Sequence[TypeElement]] = None,
+        services: Optional[Sequence[ServiceElement]] = None,
+        extend_declarations: Optional[Sequence[ExtendElement]] = None,
+        options: Optional[Sequence[OptionElement]] = None,
     ) -> None:
         if types is None:
             types = list()

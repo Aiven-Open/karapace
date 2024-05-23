@@ -467,7 +467,6 @@ class ConsumerManager:
                 )
                 # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
                 # respecting the max fetch request size
-                # pylint: disable=protected-access
                 max_bytes = (
                     int(query_params["max_bytes"])
                     if "max_bytes" in query_params

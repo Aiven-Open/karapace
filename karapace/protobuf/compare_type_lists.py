@@ -11,12 +11,12 @@ from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.type_element import TypeElement
-from typing import List
+from typing import Sequence
 
 
 def compare_type_lists(
-    self_types_list: List[TypeElement],
-    other_types_list: List[TypeElement],
+    self_types_list: Sequence[TypeElement],
+    other_types_list: Sequence[TypeElement],
     result: CompareResult,
     compare_types: CompareTypes,
 ) -> CompareResult:

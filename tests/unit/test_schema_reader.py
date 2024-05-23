@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from karapace.config import DEFAULTS
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_reader import KafkaSchemaReader, OFFSET_EMPTY, OFFSET_UNINITIALIZED
+from karapace.schema_reader import (
+    KafkaSchemaReader,
+    MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP,
+    MAX_MESSAGES_TO_CONSUME_ON_STARTUP,
+    OFFSET_EMPTY,
+    OFFSET_UNINITIALIZED,
+)
 from tests.base_testcase import BaseTestCase
 from unittest.mock import Mock
 
@@ -154,3 +160,27 @@ def test_readiness_check(testcase: ReadinessTestCase) -> None:
 
     schema_reader.handle_messages()
     assert schema_reader.ready is testcase.expected
+
+
+def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
+    key_formatter_mock = Mock()
+    consumer_mock = Mock()
+    consumer_mock.consume.return_value = []
+    # Return tuple (beginning, end), end offset is the next upcoming record offset
+    consumer_mock.get_watermark_offsets.return_value = (0, 1)
+
+    offset_watcher = OffsetWatcher()
+    schema_reader = KafkaSchemaReader(
+        config=DEFAULTS,
+        offset_watcher=offset_watcher,
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+    )
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = 0
+    assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_ON_STARTUP
+
+    schema_reader.handle_messages()
+    assert schema_reader.ready is True
+    assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP

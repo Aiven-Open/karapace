@@ -16,8 +16,10 @@ from kafka.errors import (
     InvalidReplicationFactorError,
     KafkaConfigurationError,
     KafkaTimeoutError,
+    LeaderNotAvailableError,
     NoBrokersAvailable,
     NodeNotReadyError,
+    NotLeaderForPartitionError,
     TopicAlreadyExistsError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
@@ -55,6 +57,16 @@ OFFSET_EMPTY: Final = -1
 
 KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS: Final = 2.0
 SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS: Final = 5.0
+
+# For good startup performance the consumption of multiple
+# records for each consume round is essential.
+# Consumer default is 1 message for each consume call and after
+# startup the default is a good value. If consumer would expect
+# more messages it would return control back after timeout and
+# making schema storing latency to be `processing time + timeout`.
+MAX_MESSAGES_TO_CONSUME_ON_STARTUP: Final = 1000
+MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP: Final = 1
+MESSAGE_CONSUME_TIMEOUT_SECONDS: Final = 0.2
 
 # Metric names
 METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT: Final = "karapace_schema_reader_records_processed"
@@ -118,7 +130,8 @@ class KafkaSchemaReader(Thread):
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
-        self.timeout_s = 0.2
+        self.timeout_s = MESSAGE_CONSUME_TIMEOUT_SECONDS
+        self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_ON_STARTUP
         self.config = config
 
         self.database = database
@@ -156,6 +169,8 @@ class KafkaSchemaReader(Thread):
         self.processed_canonical_keys_total = 0
         self.processed_deprecated_karapace_keys_total = 0
         self.last_check = time.monotonic()
+        self.start_time = time.monotonic()
+        self.startup_previous_processed_offset = 0
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
@@ -247,6 +262,8 @@ class KafkaSchemaReader(Thread):
             LOG.warning("Reading begin offsets timed out.")
         except UnknownTopicOrPartitionError:
             LOG.warning("Topic does not yet exist.")
+        except (LeaderNotAvailableError, NotLeaderForPartitionError):
+            LOG.warning("Retrying to find leader for schema topic partition.")
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_get_beginning_offset")
             LOG.exception("Unexpected exception when reading begin offsets.")
@@ -266,6 +283,9 @@ class KafkaSchemaReader(Thread):
         except UnknownTopicOrPartitionError:
             LOG.warning("Topic does not yet exist.")
             return False
+        except (LeaderNotAvailableError, NotLeaderForPartitionError):
+            LOG.warning("Retrying to find leader for schema topic partition.")
+            return False
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_is_ready")
             LOG.exception("Unexpected exception when reading end offsets.")
@@ -276,15 +296,22 @@ class KafkaSchemaReader(Thread):
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
         progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
+        startup_processed_message_per_second = (self.offset - self.startup_previous_processed_offset) / time_from_last_check
         LOG.info(
-            "Replay progress (%s): %s/%s (%s %%)",
+            "Replay progress (%s): %s/%s (%s %%) (recs/s %s)",
             round(time_from_last_check, 2),
             self.offset,
             self._highest_offset,
             progress_pct,
+            startup_processed_message_per_second,
         )
         self.last_check = cur_time
-        return self.offset >= self._highest_offset
+        self.startup_previous_processed_offset = self.offset
+        ready = self.offset >= self._highest_offset
+        if ready:
+            self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
+            LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
+        return ready
 
     def highest_offset(self) -> int:
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
@@ -301,7 +328,7 @@ class KafkaSchemaReader(Thread):
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
 
-        msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s)
+        msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s, num_messages=self.max_messages_to_process)
         if self.ready is False:
             self.ready = self._is_ready()
 
@@ -511,6 +538,7 @@ class KafkaSchemaReader(Thread):
                     resolved_references,
                     resolved_dependencies,
                     validate_references=False,
+                    normalize=False,
                 )
                 schema_str = str(parsed_schema)
             except InvalidSchema:
