@@ -31,10 +31,14 @@ class OptionElement:
         self.formattedName = f"({self.name})" if is_parenthesized else self.name
 
     def to_schema(self) -> str:
-        aline = None
+        aline = ""
         if self.kind == self.Kind.STRING:
             aline = f'{self.formattedName} = "{self.value}"'
-        elif self.kind in [self.Kind.BOOLEAN, self.Kind.NUMBER, self.Kind.ENUM]:
+        elif self.kind == self.Kind.BOOLEAN:
+            aline = f"{self.formattedName} = {str(self.value).lower()}"
+        elif self.kind == self.Kind.NUMBER:
+            aline = f"{self.formattedName} = {self.value}"
+        elif self.kind == self.Kind.ENUM:
             aline = f"{self.formattedName} = {self.value}"
         elif self.kind == self.Kind.OPTION:
             aline = f"{self.formattedName}.{try_to_schema(self.value)}"
@@ -42,6 +46,8 @@ class OptionElement:
             aline = [f"{self.formattedName} = {{\n", self.format_option_map(self.value), "}"]
         elif self.kind == self.Kind.LIST:
             aline = [f"{self.formattedName} = ", self.append_options(self.value)]
+        else:
+            raise ValueError("Unknown value Kind.")
 
         if isinstance(aline, list):
             return "".join(aline)
