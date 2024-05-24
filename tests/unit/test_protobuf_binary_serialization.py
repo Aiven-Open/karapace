@@ -66,8 +66,8 @@ option java_outer_classname = "EventKeyProto";
 option java_multiple_files = true;
 option objc_class_prefix = "TDD";
 option csharp_namespace = "Tech.Dojo.Dsp.V1";
-option php_namespace = "Tech\\Dojo\\Dsp\\V1";
-option php_metadata_namespace = "Tech\\Dojo\\Dsp\\V1\\GPBMetadata";
+option php_namespace = "Tech\\\\Dojo\\\\Dsp\\\\V1";
+option php_metadata_namespace = "Tech\\\\Dojo\\\\Dsp\\\\V1\\\\GPBMetadata";
 option ruby_package = "Tech::Dojo::Dsp::V1";
 
 message EventKey {
