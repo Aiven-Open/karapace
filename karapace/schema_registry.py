@@ -63,7 +63,6 @@ class KarapaceSchemaRegistry:
             master_coordinator=self.mc,
             database=self.database,
         )
-        self.schema_version_manager = SchemaVersionManager()
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -204,7 +203,7 @@ class KarapaceSchemaRegistry:
                     for version_id, schema_version in schema_versions.items()
                     if schema_version.deleted is False
                 }
-            resolved_version = self.schema_version_manager.resolve_version(schema_versions=schema_versions, version=version)
+            resolved_version = SchemaVersionManager.resolve_version(schema_versions=schema_versions, version=version)
             schema_version = schema_versions.get(resolved_version, None)
 
             if not schema_version:
@@ -243,11 +242,11 @@ class KarapaceSchemaRegistry:
         return schemas
 
     def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> JsonObject:
-        self.schema_version_manager.validate_version(version)
+        SchemaVersionManager.validate_version(version)
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = self.schema_version_manager.resolve_version(schema_versions=schema_versions, version=version)
+        resolved_version = SchemaVersionManager.resolve_version(schema_versions=schema_versions, version=version)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
 
         if not schema_data:
@@ -275,11 +274,11 @@ class KarapaceSchemaRegistry:
     async def subject_version_referencedby_get(
         self, subject: Subject, version: Version, *, include_deleted: bool = False
     ) -> list:
-        self.schema_version_manager.validate_version(version)
+        SchemaVersionManager.validate_version(version)
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = self.schema_version_manager.resolve_version(schema_versions=schema_versions, version=version)
+        resolved_version = SchemaVersionManager.resolve_version(schema_versions=schema_versions, version=version)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
         if not schema_data:
             raise VersionNotFoundException()
