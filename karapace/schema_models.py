@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
 from karapace.dependency import Dependency
-from karapace.errors import InvalidSchema
+from karapace.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
 from karapace.protobuf.exception import (
     Error as ProtobufError,
     IllegalArgumentException,
@@ -23,8 +23,8 @@ from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
-from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
+from karapace.utils import assert_never, catch_and_raise_error, json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Dict, Final, final, Mapping, Sequence
 
 import hashlib
@@ -388,3 +388,35 @@ class SchemaVersion:
     schema_id: SchemaId
     schema: TypedSchema
     references: Sequence[Reference] | None
+
+
+class SchemaVersionManager:
+    LATEST_SCHEMA_VERSION_TAG: Final = "latest"
+    MINUS_1_SCHEMA_VERSION_TAG: Final = "-1"
+
+    @classmethod
+    def latest_schema_tag_condition(cls, version: Version):
+        return (str(version) == cls.LATEST_SCHEMA_VERSION_TAG) or (str(version) == cls.MINUS_1_SCHEMA_VERSION_TAG)
+
+    @classmethod
+    @catch_and_raise_error(to_catch=(ValueError,), to_raise=VersionNotFoundException)
+    def resolve_version(
+        cls,
+        schema_versions: Mapping[ResolvedVersion, SchemaVersion],
+        version: Version,
+    ) -> ResolvedVersion | None:
+        max_version = max(schema_versions)
+        if cls.latest_schema_tag_condition(version):
+            return max_version
+        if (int(version) <= max_version) and (int(version) >= int(cls.MINUS_1_SCHEMA_VERSION_TAG)):
+            return ResolvedVersion(version)
+        return None
+
+    @classmethod
+    @catch_and_raise_error(to_catch=(ValueError,), to_raise=InvalidVersion)
+    def validate_version(cls, version: Version) -> Version | str | None:
+        if cls.latest_schema_tag_condition(version):
+            return cls.LATEST_SCHEMA_VERSION_TAG
+        if int(version) > 0:
+            return version
+        return None
