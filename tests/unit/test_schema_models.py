@@ -10,12 +10,12 @@ from karapace.errors import InvalidVersion, VersionNotFoundException
 from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, SchemaVersionManager, TypedSchema
 from karapace.schema_type import SchemaType
 from karapace.typing import ResolvedVersion, Version
-from typing import Callable
+from typing import Any, Callable, Dict, Optional
 
 import pytest
 
 # Schema versions factory fixture type
-SVFCallable = Callable[[None], Callable[[ResolvedVersion, dict[str]], dict[ResolvedVersion, SchemaVersion]]]
+SVFCallable = Callable[[None], Callable[[ResolvedVersion, Dict[str, Any]], Dict[ResolvedVersion, SchemaVersion]]]
 
 
 class TestSchemaVersionManager:
@@ -32,10 +32,9 @@ class TestSchemaVersionManager:
         self,
         avro_schema: str,
         avro_schema_parsed: AvroSchema,
-    ) -> Callable[[ResolvedVersion, dict[str]], dict[ResolvedVersion, SchemaVersion]]:
-        def schema_versions(resolved_version: int, schema_version_data: dict[str] | None = None):
-            if schema_version_data is None:
-                schema_version_data = dict()
+    ) -> Callable[[ResolvedVersion, Dict[str, Any]], Dict[ResolvedVersion, SchemaVersion]]:
+        def schema_versions(resolved_version: int, schema_version_data: Optional[Dict[str, Any]] = None):
+            schema_version_data = schema_version_data or dict()
             base_schema_version_data = dict(
                 subject="test-topic",
                 version=resolved_version,
@@ -68,7 +67,7 @@ class TestSchemaVersionManager:
         assert SchemaVersionManager.latest_schema_tag_condition(version) is is_latest
 
     @pytest.mark.parametrize("invalid_version", ["invalid_version", 0])
-    def test_schema_version_manager_validate_version_invalid(self, invalid_version: str | int):
+    def test_schema_version_manager_validate_version_invalid(self, invalid_version: Version):
         with pytest.raises(InvalidVersion):
             SchemaVersionManager.validate_version(invalid_version)
 
@@ -102,7 +101,7 @@ class TestSchemaVersionManager:
     @pytest.mark.parametrize("invalid_version", ["invalid_version", 0, -20, "-10", "100", 2000])
     def test_schema_version_manager_resolve_version_invalid(
         self,
-        invalid_version: str | int,
+        invalid_version: Version,
         schema_versions_factory: SVFCallable,
     ):
         schema_versions = dict()

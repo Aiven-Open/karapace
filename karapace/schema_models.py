@@ -24,7 +24,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
-from karapace.utils import assert_never, catch_and_raise_error, json_decode, json_encode, JSONDecodeError
+from karapace.utils import assert_never, intstr_conversion_guard, json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Dict, Final, final, Mapping, Sequence
 
 import hashlib
@@ -395,11 +395,11 @@ class SchemaVersionManager:
     MINUS_1_SCHEMA_VERSION_TAG: Final = "-1"
 
     @classmethod
-    def latest_schema_tag_condition(cls, version: Version):
+    def latest_schema_tag_condition(cls, version: Version) -> bool:
         return (str(version) == cls.LATEST_SCHEMA_VERSION_TAG) or (str(version) == cls.MINUS_1_SCHEMA_VERSION_TAG)
 
     @classmethod
-    @catch_and_raise_error(to_catch=(ValueError,), to_raise=VersionNotFoundException)
+    @intstr_conversion_guard(to_raise=VersionNotFoundException())
     def resolve_version(
         cls,
         schema_versions: Mapping[ResolvedVersion, SchemaVersion],
@@ -409,11 +409,11 @@ class SchemaVersionManager:
         if cls.latest_schema_tag_condition(version):
             return max_version
         if (int(version) <= max_version) and (int(version) >= int(cls.MINUS_1_SCHEMA_VERSION_TAG)):
-            return ResolvedVersion(version)
+            return ResolvedVersion(int(version))
         return None
 
     @classmethod
-    @catch_and_raise_error(to_catch=(ValueError,), to_raise=InvalidVersion)
+    @intstr_conversion_guard(to_raise=InvalidVersion())
     def validate_version(cls, version: Version) -> Version | str | None:
         if cls.latest_schema_tag_condition(version):
             return cls.LATEST_SCHEMA_VERSION_TAG
