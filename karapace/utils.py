@@ -215,7 +215,7 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
         )
 
 
-def catch_and_raise_error(to_catch: tuple[Exception], to_raise: Exception):
+def intstr_conversion_guard(to_raise: BaseException):
     def wrapper(f):
         @functools.wraps(f)
         def catcher(*args, **kwargs):
@@ -224,7 +224,7 @@ def catch_and_raise_error(to_catch: tuple[Exception], to_raise: Exception):
                 if not value:
                     raise to_raise
                 return value
-            except to_catch as exc:
+            except ValueError as exc:
                 raise to_raise from exc
 
         return catcher

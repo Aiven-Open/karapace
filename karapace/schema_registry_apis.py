@@ -31,9 +31,16 @@ from karapace.errors import (
 from karapace.karapace import KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import (
+    ParsedTypedSchema,
+    SchemaType,
+    SchemaVersion,
+    SchemaVersionManager,
+    TypedSchema,
+    ValidatedTypedSchema,
+)
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
-from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
+from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, Subject
 from karapace.utils import JSONDecodeError
 from typing import Any
@@ -814,7 +821,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-        version = validate_version(version)
+        version = SchemaVersionManager.validate_version(version)
         permanent = request.query.get("permanent", "false").lower() == "true"
 
         are_we_master, master_url = await self.schema_registry.get_master()

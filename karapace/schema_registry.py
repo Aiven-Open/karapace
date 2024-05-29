@@ -11,7 +11,6 @@ from karapace.config import Config
 from karapace.dependency import Dependency
 from karapace.errors import (
     IncompatibleSchema,
-    InvalidVersion,
     ReferenceExistsException,
     SchemasNotFoundException,
     SchemaVersionNotSoftDeletedException,
@@ -26,41 +25,23 @@ from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import (
+    ParsedTypedSchema,
+    SchemaType,
+    SchemaVersion,
+    SchemaVersionManager,
+    TypedSchema,
+    ValidatedTypedSchema,
+)
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, Mode, ResolvedVersion, SchemaId, Subject, Version
-from typing import Mapping, Sequence
+from typing import Sequence
 
 import asyncio
 import logging
 
 LOG = logging.getLogger(__name__)
-
-
-def _resolve_version(
-    schema_versions: Mapping[ResolvedVersion, SchemaVersion],
-    version: Version,
-) -> ResolvedVersion:
-    max_version = max(schema_versions)
-    if isinstance(version, str) and version == "latest":
-        return max_version
-    resolved_version = ResolvedVersion(int(version))
-    if resolved_version <= max_version:
-        return resolved_version
-    raise VersionNotFoundException()
-
-
-def validate_version(version: Version) -> Version:
-    try:
-        version_number = int(version)
-        if version_number > 0:
-            return version
-        raise InvalidVersion(f"Invalid version {version_number}")
-    except ValueError as ex:
-        if version == "latest":
-            return version
-        raise InvalidVersion(f"Invalid version {version}") from ex
 
 
 class KarapaceSchemaRegistry:
@@ -82,6 +63,7 @@ class KarapaceSchemaRegistry:
             master_coordinator=self.mc,
             database=self.database,
         )
+        self.schema_version_manager = SchemaVersionManager()
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -222,7 +204,7 @@ class KarapaceSchemaRegistry:
                     for version_id, schema_version in schema_versions.items()
                     if schema_version.deleted is False
                 }
-            resolved_version = _resolve_version(schema_versions=schema_versions, version=version)
+            resolved_version = self.schema_version_manager.resolve_version(schema_versions=schema_versions, version=version)
             schema_version = schema_versions.get(resolved_version, None)
 
             if not schema_version:
@@ -261,11 +243,11 @@ class KarapaceSchemaRegistry:
         return schemas
 
     def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> JsonObject:
-        validate_version(version)
+        self.schema_version_manager.validate_version(version)
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = _resolve_version(schema_versions=schema_versions, version=version)
+        resolved_version = self.schema_version_manager.resolve_version(schema_versions=schema_versions, version=version)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
 
         if not schema_data:
@@ -293,11 +275,11 @@ class KarapaceSchemaRegistry:
     async def subject_version_referencedby_get(
         self, subject: Subject, version: Version, *, include_deleted: bool = False
     ) -> list:
-        validate_version(version)
+        self.schema_version_manager.validate_version(version)
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = _resolve_version(schema_versions=schema_versions, version=version)
+        resolved_version = self.schema_version_manager.resolve_version(schema_versions=schema_versions, version=version)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
         if not schema_data:
             raise VersionNotFoundException()
