@@ -47,3 +47,5 @@ def test_prometheus_client():
     assert "test_metric3" in client._summary
     # Since we can't access the summary's internal state directly, we assume it's being called
     # Proper testing of this would require more integration or acceptance tests
+    # cleanup PrometheusClient
+    client.close()

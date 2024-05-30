@@ -47,6 +47,7 @@ def test_setup_prometheus(metrics):
     metrics.setup(config)
     assert metrics.is_ready
     assert isinstance(metrics.stats_client, PrometheusClient)
+    metrics.stats_client.close()
 
 
 def test_request(metrics):
