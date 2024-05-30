@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.config import Config
 from karapace.prometheus import HOST, PORT, PrometheusClient, PrometheusException
 from typing import cast
@@ -9,6 +10,7 @@ from typing import cast
 import pytest
 
 
+# pylint: disable=protected-access
 def test_prometheus_client():
     config = cast(Config, {"prometheus_host": HOST, "prometheus_port": PORT})
     client = PrometheusClient(config)

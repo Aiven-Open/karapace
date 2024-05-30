@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
+# pylint: disable=protected-access
 @pytest.fixture(autouse=True)
 def reset_singleton():
     # Reset the Singleton instance before each test
@@ -21,8 +22,8 @@ def reset_singleton():
     yield
 
 
-@pytest.fixture
-def metrics():
+@pytest.fixture(name="metrics")
+def fixture_metrics():
     return Metrics()
 
 
@@ -32,17 +33,20 @@ def test_singleton(metrics):
     assert metrics is metrics2
 
 
-def test_setup_prometheus(metrics):
-    config = cast(Config, {"metrics_extended": True, "stats_service": "prometheus"})
-    metrics.setup(config)
-    assert metrics.is_ready
-    assert isinstance(metrics.stats_client, PrometheusClient)
-
-
 def test_setup_invalid_service(metrics):
     config = cast(Config, {"metrics_extended": True, "stats_service": "invalid_service"})
     with pytest.raises(MetricsException):
         metrics.setup(config)
+
+
+def test_setup_prometheus(metrics):
+    config = cast(
+        Config,
+        {"metrics_extended": True, "stats_service": "prometheus", "prometheus_host": "127.0.0.1", "prometheus_port": 8007},
+    )
+    metrics.setup(config)
+    assert metrics.is_ready
+    assert isinstance(metrics.stats_client, PrometheusClient)
 
 
 def test_request(metrics):
