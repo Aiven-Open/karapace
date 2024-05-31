@@ -121,4 +121,4 @@ class PrometheusClient(StatsClient):
         with self.lock:
             if self.server_is_active:
                 self.stop_server()
-                self.server_is_active = False
+                PrometheusClient.server_is_active = False

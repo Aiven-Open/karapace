@@ -42,7 +42,7 @@ def test_setup_invalid_service(metrics):
 def test_setup_prometheus(metrics):
     config = cast(
         Config,
-        {"metrics_extended": True, "stats_service": "prometheus", "prometheus_host": "127.0.0.1", "prometheus_port": 8007},
+        {"metrics_extended": True, "stats_service": "prometheus", "prometheus_host": "127.0.0.1", "prometheus_port": 8006},
     )
     metrics.setup(config)
     assert metrics.is_ready
