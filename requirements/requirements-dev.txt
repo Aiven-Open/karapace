@@ -169,7 +169,7 @@ pyjwt==2.8.0
     # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
-pytest==8.2.0
+pytest==8.2.1
     # via
     #   -r requirements-dev.in
     #   pytest-random-order
