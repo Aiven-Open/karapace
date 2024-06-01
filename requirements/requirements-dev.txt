@@ -192,7 +192,7 @@ referencing==0.35.1
     #   -r requirements.txt
     #   jsonschema
     #   jsonschema-specifications
-requests==2.31.0
+requests==2.32.3
     # via
     #   -r requirements-dev.in
     #   locust
