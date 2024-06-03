@@ -39,7 +39,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, SchemaId, Subject
 from karapace.utils import json_decode, JSONDecodeError
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
@@ -602,7 +602,7 @@ class KafkaSchemaReader(Thread):
     def get_referenced_by(
         self,
         subject: Subject,
-        version: ResolvedVersion,
+        version: int,
     ) -> Referents | None:
         return self.database.get_referenced_by(subject, version)
 

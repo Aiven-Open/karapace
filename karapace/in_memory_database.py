@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from karapace.schema_models import SchemaVersion, TypedSchema
 from karapace.schema_references import Reference, Referents
-from karapace.typing import ResolvedVersion, SchemaId, Subject
+from karapace.typing import SchemaId, Subject
 from threading import Lock, RLock
 from typing import Iterable, Sequence
 
@@ -20,7 +20,7 @@ LOG = logging.getLogger(__name__)
 
 @dataclass
 class SubjectData:
-    schemas: dict[ResolvedVersion, SchemaVersion] = field(default_factory=dict)
+    schemas: dict[int, SchemaVersion] = field(default_factory=dict)
     compatibility: str | None = None
 
 
@@ -31,7 +31,7 @@ class InMemoryDatabase:
         self.subjects: dict[Subject, SubjectData] = {}
         self.schemas: dict[SchemaId, TypedSchema] = {}
         self.schema_lock_thread = RLock()
-        self.referenced_by: dict[tuple[Subject, ResolvedVersion], Referents] = {}
+        self.referenced_by: dict[tuple[Subject, int], Referents] = {}
 
         # Content based deduplication of schemas. This is used to reduce memory
         # usage when the same schema is produce multiple times to the same or
@@ -100,15 +100,15 @@ class InMemoryDatabase:
     def _get_from_hash_cache(self, *, typed_schema: TypedSchema) -> TypedSchema:
         return self._hash_to_schema.setdefault(typed_schema.fingerprint(), typed_schema)
 
-    def get_next_version(self, *, subject: Subject) -> ResolvedVersion:
-        return ResolvedVersion(max(self.subjects[subject].schemas) + 1)
+    def get_next_version(self, *, subject: Subject) -> int:
+        return max(self.subjects[subject].schemas) + 1
 
     def insert_schema_version(
         self,
         *,
         subject: Subject,
         schema_id: SchemaId,
-        version: ResolvedVersion,
+        version: int,
         deleted: bool,
         schema: TypedSchema,
         references: Sequence[Reference] | None,
@@ -217,7 +217,7 @@ class InMemoryDatabase:
                 subject for subject in self.subjects if self.find_subject_schemas(subject=subject, include_deleted=False)
             ]
 
-    def find_subject_schemas(self, *, subject: Subject, include_deleted: bool) -> dict[ResolvedVersion, SchemaVersion]:
+    def find_subject_schemas(self, *, subject: Subject, include_deleted: bool) -> dict[int, SchemaVersion]:
         if subject not in self.subjects:
             return {}
         if include_deleted:
@@ -229,7 +229,7 @@ class InMemoryDatabase:
                 if schema_version.deleted is False
             }
 
-    def delete_subject(self, *, subject: Subject, version: ResolvedVersion) -> None:
+    def delete_subject(self, *, subject: Subject, version: int) -> None:
         with self.schema_lock_thread:
             for schema_version in self.subjects[subject].schemas.values():
                 if schema_version.version <= version:
@@ -241,7 +241,7 @@ class InMemoryDatabase:
             del self.subjects[subject]
             self._delete_subject_from_schema_id_on_subject(subject=subject)
 
-    def delete_subject_schema(self, *, subject: Subject, version: ResolvedVersion) -> None:
+    def delete_subject_schema(self, *, subject: Subject, version: int) -> None:
         with self.schema_lock_thread:
             self.subjects[subject].schemas.pop(version, None)
 
@@ -263,7 +263,7 @@ class InMemoryDatabase:
                         soft_deleted_versions += 1
         return (live_versions, soft_deleted_versions)
 
-    def insert_referenced_by(self, *, subject: Subject, version: ResolvedVersion, schema_id: SchemaId) -> None:
+    def insert_referenced_by(self, *, subject: Subject, version: int, schema_id: SchemaId) -> None:
         with self.schema_lock_thread:
             referents = self.referenced_by.get((subject, version), None)
             if referents:
@@ -271,7 +271,7 @@ class InMemoryDatabase:
             else:
                 self.referenced_by[(subject, version)] = Referents([schema_id])
 
-    def get_referenced_by(self, subject: Subject, version: ResolvedVersion) -> Referents | None:
+    def get_referenced_by(self, subject: Subject, version: int) -> Referents | None:
         with self.schema_lock_thread:
             return self.referenced_by.get((subject, version), None)
 

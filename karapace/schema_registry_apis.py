@@ -41,7 +41,7 @@ from karapace.schema_models import (
 )
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonData, JsonObject, SchemaId, Subject
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -340,9 +340,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if self._auth is not None:
                 stack.push_async_callback(self._auth.close)
 
-    def _subject_get(
-        self, subject: str, content_type: str, include_deleted: bool = False
-    ) -> dict[ResolvedVersion, SchemaVersion]:
+    def _subject_get(self, subject: str, content_type: str, include_deleted: bool = False) -> dict[int, SchemaVersion]:
         try:
             schema_versions = self.schema_registry.subject_get(subject, include_deleted)
         except SubjectNotFoundException:
