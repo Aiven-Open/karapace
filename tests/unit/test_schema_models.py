@@ -7,7 +7,7 @@ See LICENSE for details
 
 from avro.schema import Schema as AvroSchema
 from karapace.errors import InvalidVersion, VersionNotFoundException
-from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, VersionTEMP
+from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Version
 from karapace.schema_type import SchemaType
 from typing import Any, Callable, Dict, Optional, Union
 
@@ -17,10 +17,10 @@ import pytest
 SVFCallable = Callable[[None], Callable[[int, Dict[str, Any]], Dict[int, SchemaVersion]]]
 
 
-class TestVersionTEMP:
+class TestVersion:
     @pytest.fixture
     def version(self):
-        return VersionTEMP(1)
+        return Version(1)
 
     @pytest.fixture
     def avro_schema(self) -> str:
@@ -54,51 +54,51 @@ class TestVersionTEMP:
 
         return schema_versions
 
-    def test_tags(self, version: VersionTEMP):
+    def test_tags(self, version: Version):
         assert version.LATEST_VERSION_TAG == "latest"
         assert version.MINUS_1_VERSION_TAG == "-1"
 
     @pytest.mark.parametrize(
         "version, is_latest",
-        [(VersionTEMP("latest"), True), (VersionTEMP("-1"), True), (VersionTEMP("-20"), False), (VersionTEMP(10), False)],
+        [(Version("latest"), True), (Version("-1"), True), (Version("-20"), False), (Version(10), False)],
     )
-    def test_is_latest(self, version: VersionTEMP, is_latest: bool):
+    def test_is_latest(self, version: Version, is_latest: bool):
         assert version.is_latest is is_latest
 
-    @pytest.mark.parametrize("version", [VersionTEMP("latest"), VersionTEMP(10), VersionTEMP(-1)])
-    def test_validate(self, version: VersionTEMP):
+    @pytest.mark.parametrize("version", [Version("latest"), Version(10), Version(-1)])
+    def test_validate(self, version: Version):
         version.validate()
 
-    @pytest.mark.parametrize("invalid_version", [VersionTEMP("invalid_version"), VersionTEMP(0), VersionTEMP(-20)])
-    def test_validate_invalid(self, invalid_version: VersionTEMP):
+    @pytest.mark.parametrize("invalid_version", [Version("invalid_version"), Version(0), Version(-20)])
+    def test_validate_invalid(self, invalid_version: Version):
         with pytest.raises(InvalidVersion):
             assert not invalid_version.validate()
 
     @pytest.mark.parametrize(
         "version, resolved_version",
         [
-            (VersionTEMP("latest"), "latest"),
-            (VersionTEMP(-1), "latest"),
-            (VersionTEMP("-1"), "latest"),
-            (VersionTEMP(10), "10"),
+            (Version("latest"), "latest"),
+            (Version(-1), "latest"),
+            (Version("-1"), "latest"),
+            (Version(10), "10"),
         ],
     )
-    def test_resolved(self, version: VersionTEMP, resolved_version: Union[str, int]):
+    def test_resolved(self, version: Version, resolved_version: Union[str, int]):
         assert version.resolved == resolved_version
 
     @pytest.mark.parametrize(
         "version, resolved_version",
         [
-            (VersionTEMP("-1"), 10),
-            (VersionTEMP(-1), 10),
-            (VersionTEMP(1), 1),
-            (VersionTEMP(10), 10),
-            (VersionTEMP("latest"), 10),
+            (Version("-1"), 10),
+            (Version(-1), 10),
+            (Version(1), 1),
+            (Version(10), 10),
+            (Version("latest"), 10),
         ],
     )
     def test_resolve_from_schema_versions(
         self,
-        version: VersionTEMP,
+        version: Version,
         resolved_version: int,
         schema_versions_factory: SVFCallable,
     ):
@@ -111,17 +111,17 @@ class TestVersionTEMP:
     @pytest.mark.parametrize(
         "invalid_version",
         [
-            VersionTEMP("invalid_version"),
-            VersionTEMP(0),
-            VersionTEMP(-20),
-            VersionTEMP("-10"),
-            VersionTEMP("100"),
-            VersionTEMP(2000),
+            Version("invalid_version"),
+            Version(0),
+            Version(-20),
+            Version("-10"),
+            Version("100"),
+            Version(2000),
         ],
     )
     def test_resolve_from_schema_versions_invalid(
         self,
-        invalid_version: VersionTEMP,
+        invalid_version: Version,
         schema_versions_factory: SVFCallable,
     ):
         schema_versions = dict()

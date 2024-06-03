@@ -25,14 +25,7 @@ from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_models import (
-    ParsedTypedSchema,
-    SchemaType,
-    SchemaVersion,
-    TypedSchema,
-    ValidatedTypedSchema,
-    VersionTEMP,
-)
+from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Version
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, Mode, SchemaId, Subject
@@ -194,7 +187,7 @@ class KarapaceSchemaRegistry:
 
             return version_list
 
-    async def subject_version_delete_local(self, subject: Subject, version: VersionTEMP, permanent: bool) -> int:
+    async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> int:
         async with self.schema_lock:
             schema_versions = self.subject_get(subject, include_deleted=True)
             if not permanent and version.is_latest:
@@ -241,7 +234,7 @@ class KarapaceSchemaRegistry:
             raise SchemasNotFoundException
         return schemas
 
-    def subject_version_get(self, subject: Subject, version: VersionTEMP, *, include_deleted: bool = False) -> JsonObject:
+    def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> JsonObject:
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
@@ -271,7 +264,7 @@ class KarapaceSchemaRegistry:
         return ret
 
     async def subject_version_referencedby_get(
-        self, subject: Subject, version: VersionTEMP, *, include_deleted: bool = False
+        self, subject: Subject, version: Version, *, include_deleted: bool = False
     ) -> list:
         version.validate()
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
