@@ -397,6 +397,9 @@ class Version:
     LATEST_VERSION_TAG: Final | ClassVar[str] = "latest"
     MINUS_1_VERSION_TAG: Final | ClassVar[str] = "-1"
 
+    def __post_init__(self):
+        self.validate()
+
     def validate(self):
         try:
             version = int(self.tag)

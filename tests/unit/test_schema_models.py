@@ -60,19 +60,26 @@ class TestVersion:
 
     @pytest.mark.parametrize(
         "version, is_latest",
-        [(Version("latest"), True), (Version("-1"), True), (Version("-20"), False), (Version(10), False)],
+        [(Version("latest"), True), (Version("-1"), True), (Version(10), False)],
     )
     def test_is_latest(self, version: Version, is_latest: bool):
         assert version.is_latest is is_latest
 
     @pytest.mark.parametrize("version", [Version("latest"), Version(10), Version(-1)])
     def test_validate(self, version: Version):
-        version.validate()
+        assert version
 
-    @pytest.mark.parametrize("invalid_version", [Version("invalid_version"), Version(0), Version(-20)])
-    def test_validate_invalid(self, invalid_version: Version):
+    def test_validate_invalid(self):
         with pytest.raises(InvalidVersion):
-            assert not invalid_version.validate()
+            Version("invalid_version")
+        with pytest.raises(InvalidVersion):
+            Version(0)
+        with pytest.raises(InvalidVersion):
+            Version("0")
+        with pytest.raises(InvalidVersion):
+            Version(-20)
+        with pytest.raises(InvalidVersion):
+            Version("-10")
 
     @pytest.mark.parametrize(
         "version, resolved_version",
@@ -108,23 +115,13 @@ class TestVersion:
         schema_versions.update(schema_versions_factory(10))
         assert version.resolve_from_schema_versions(schema_versions) == resolved_version
 
-    @pytest.mark.parametrize(
-        "invalid_version",
-        [
-            Version("invalid_version"),
-            Version(0),
-            Version(-20),
-            Version("-10"),
-            Version("100"),
-            Version(2000),
-        ],
-    )
+    @pytest.mark.parametrize("nonexisting_version", [Version("100"), Version(2000)])
     def test_resolve_from_schema_versions_invalid(
         self,
-        invalid_version: Version,
+        nonexisting_version: Version,
         schema_versions_factory: SVFCallable,
     ):
         schema_versions = dict()
         schema_versions.update(schema_versions_factory(1))
         with pytest.raises(VersionNotFoundException):
-            invalid_version.resolve_from_schema_versions(schema_versions)
+            nonexisting_version.resolve_from_schema_versions(schema_versions)

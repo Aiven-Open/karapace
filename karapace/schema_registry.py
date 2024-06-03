@@ -266,7 +266,6 @@ class KarapaceSchemaRegistry:
     async def subject_version_referencedby_get(
         self, subject: Subject, version: Version, *, include_deleted: bool = False
     ) -> list:
-        version.validate()
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()

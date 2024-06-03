@@ -377,12 +377,11 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
-        version = Version(version)
-        version.validate()
         body = request.json
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         references = self._validate_references(content_type, schema_type, body)
         try:
+            version = Version(version)
             references, new_schema_dependencies = self.schema_registry.resolve_references(references)
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_type,
@@ -783,10 +782,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
-        version = Version(version)
-        version.validate()
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:
+            version = Version(version)
             subject_data = self.schema_registry.subject_version_get(subject, version, include_deleted=deleted)
             if "compatibility" in subject_data:
                 del subject_data["compatibility"]
@@ -816,13 +814,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-        version = Version(version)
-        version.validate()
         permanent = request.query.get("permanent", "false").lower() == "true"
 
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
             try:
+                version = Version(version)
                 resolved_version = await self.schema_registry.subject_version_delete_local(subject, version, permanent)
                 self.r(str(resolved_version), content_type, status=HTTPStatus.OK)
             except (SubjectNotFoundException, SchemasNotFoundException):
@@ -878,6 +875,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 )
+            except InvalidVersion:
+                self._invalid_version(content_type, version.tag)
         elif not master_url:
             self.no_master_error(content_type)
         else:
@@ -917,8 +916,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     async def subject_version_referencedby_get(self, content_type, *, subject, version, user: User | None = None):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
-        version = Version(version)
         try:
+            version = Version(version)
             referenced_by = await self.schema_registry.subject_version_referencedby_get(subject, version)
         except (SubjectNotFoundException, SchemasNotFoundException):
             self.r(
