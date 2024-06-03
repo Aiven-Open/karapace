@@ -390,17 +390,17 @@ class SchemaVersion:
     references: Sequence[Reference] | None
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(frozen=True)
 class Version:
     tag: str | int
 
-    LATEST_VERSION_TAG: Final | ClassVar[str] = "latest"
-    MINUS_1_VERSION_TAG: Final | ClassVar[str] = "-1"
+    LATEST_VERSION_TAG: ClassVar[str] = "latest"
+    MINUS_1_VERSION_TAG: ClassVar[str] = "-1"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.validate()
 
-    def validate(self):
+    def validate(self) -> None:
         try:
             version = int(self.tag)
             if (version < int(self.MINUS_1_VERSION_TAG)) or (version == 0):
@@ -432,3 +432,9 @@ class Version:
         if self.version <= max_version and self.version in schema_versions:
             return self.version
         return None
+
+    def __str__(self) -> str:
+        return str(self.tag)
+
+    def __repr__(self) -> str:
+        return f"Version<{self.tag}>"
