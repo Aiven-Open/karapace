@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 60s # How frequently to scrape targets by default.
+  scrape_timeout: 10s # How long until a scrape request times out.
+  evaluation_interval: 60s # How frequently to evaluate rules.
+
+# A scrape configuration
+scrape_configs:
+  - job_name: prometheus
+    honor_labels: true
+    honor_timestamps: true
+    scheme: http
+    scrape_interval: 60s
+    scrape_timeout: 55s
+    metrics_path: /metrics
+    static_configs:
+    - targets: ['localhost:9090']
