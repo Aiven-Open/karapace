@@ -23,9 +23,9 @@ from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject, Version
-from karapace.utils import assert_never, intstr_conversion_guard, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Dict, Final, final, Mapping, Sequence
+from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.utils import assert_never, intstr_version_guard, json_decode, json_encode, JSONDecodeError
+from typing import Any, cast, ClassVar, Dict, Final, final, Mapping, Sequence
 
 import hashlib
 import logging
@@ -390,33 +390,36 @@ class SchemaVersion:
     references: Sequence[Reference] | None
 
 
-class SchemaVersionManager:
-    LATEST_SCHEMA_VERSION_TAG: Final = "latest"
-    MINUS_1_SCHEMA_VERSION_TAG: Final = "-1"
+@dataclass(slots=True, frozen=True)
+class VersionTEMP:
+    tag: str | int
 
-    @classmethod
-    def latest_schema_tag_condition(cls, version: Version) -> bool:
-        return (str(version) == cls.LATEST_SCHEMA_VERSION_TAG) or (str(version) == cls.MINUS_1_SCHEMA_VERSION_TAG)
+    LATEST_VERSION_TAG: Final | ClassVar[str] = "latest"
+    MINUS_1_VERSION_TAG: Final | ClassVar[str] = "-1"
 
-    @classmethod
-    @intstr_conversion_guard(to_raise=VersionNotFoundException())
-    def resolve_version(
-        cls,
-        schema_versions: Mapping[ResolvedVersion, SchemaVersion],
-        version: Version,
-    ) -> ResolvedVersion | None:
+    @property
+    def is_latest(self) -> bool:
+        return (str(self.tag) == self.LATEST_VERSION_TAG) or (str(self.tag) == self.MINUS_1_VERSION_TAG)
+
+    @property
+    def version(self) -> int:
+        version = int(self.tag)
+        if version <= 0:
+            raise ValueError("Only numeric version tags are directly resolved")
+        return version
+
+    @property
+    @intstr_version_guard(to_raise=InvalidVersion())
+    def resolved(self) -> str:
+        if self.is_latest:
+            return self.LATEST_VERSION_TAG
+        return str(self.version)
+
+    @intstr_version_guard(to_raise=VersionNotFoundException())
+    def resolve_from_schema_versions(self, schema_versions: Mapping[int, SchemaVersion]) -> int | None:
         max_version = max(schema_versions)
-        if cls.latest_schema_tag_condition(version):
+        if self.is_latest:
             return max_version
-        if (int(version) <= max_version) and (int(version) >= int(cls.MINUS_1_SCHEMA_VERSION_TAG)):
-            return ResolvedVersion(int(version))
-        return None
-
-    @classmethod
-    @intstr_conversion_guard(to_raise=InvalidVersion())
-    def validate_version(cls, version: Version) -> Version | str | None:
-        if cls.latest_schema_tag_condition(version):
-            return cls.LATEST_SCHEMA_VERSION_TAG
-        if int(version) > 0:
-            return version
+        if self.version <= max_version:
+            return self.version
         return None

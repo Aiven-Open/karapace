@@ -215,7 +215,7 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
         )
 
 
-def intstr_conversion_guard(to_raise: BaseException):
+def intstr_version_guard(to_raise: BaseException):
     def wrapper(f):
         @functools.wraps(f)
         def catcher(*args, **kwargs):
