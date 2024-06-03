@@ -29,13 +29,13 @@ from karapace.schema_models import (
     ParsedTypedSchema,
     SchemaType,
     SchemaVersion,
-    SchemaVersionManager,
     TypedSchema,
     ValidatedTypedSchema,
+    VersionTEMP,
 )
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, Mode, ResolvedVersion, SchemaId, Subject, Version
+from karapace.typing import JsonObject, Mode, ResolvedVersion, SchemaId, Subject
 from typing import Sequence
 
 import asyncio
@@ -194,16 +194,16 @@ class KarapaceSchemaRegistry:
 
             return version_list
 
-    async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> ResolvedVersion:
+    async def subject_version_delete_local(self, subject: Subject, version: VersionTEMP, permanent: bool) -> int:
         async with self.schema_lock:
             schema_versions = self.subject_get(subject, include_deleted=True)
-            if not permanent and isinstance(version, str) and version == "latest":
+            if not permanent and version.is_latest:
                 schema_versions = {
                     version_id: schema_version
                     for version_id, schema_version in schema_versions.items()
                     if schema_version.deleted is False
                 }
-            resolved_version = SchemaVersionManager.resolve_version(schema_versions=schema_versions, version=version)
+            resolved_version = version.resolve_from_schema_versions(schema_versions=schema_versions)
             schema_version = schema_versions.get(resolved_version, None)
 
             if not schema_version:
@@ -241,12 +241,11 @@ class KarapaceSchemaRegistry:
             raise SchemasNotFoundException
         return schemas
 
-    def subject_version_get(self, subject: Subject, version: Version, *, include_deleted: bool = False) -> JsonObject:
-        SchemaVersionManager.validate_version(version)
+    def subject_version_get(self, subject: Subject, version: VersionTEMP, *, include_deleted: bool = False) -> JsonObject:
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = SchemaVersionManager.resolve_version(schema_versions=schema_versions, version=version)
+        resolved_version = version.resolve_from_schema_versions(schema_versions=schema_versions)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
 
         if not schema_data:
@@ -272,13 +271,13 @@ class KarapaceSchemaRegistry:
         return ret
 
     async def subject_version_referencedby_get(
-        self, subject: Subject, version: Version, *, include_deleted: bool = False
+        self, subject: Subject, version: VersionTEMP, *, include_deleted: bool = False
     ) -> list:
-        SchemaVersionManager.validate_version(version)
+        version.validate()
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = SchemaVersionManager.resolve_version(schema_versions=schema_versions, version=version)
+        resolved_version = version.resolve_from_schema_versions(schema_versions=schema_versions)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
         if not schema_data:
             raise VersionNotFoundException()

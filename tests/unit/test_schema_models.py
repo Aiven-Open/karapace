@@ -65,6 +65,15 @@ class TestVersionTEMP:
     def test_is_latest(self, version: VersionTEMP, is_latest: bool):
         assert version.is_latest is is_latest
 
+    @pytest.mark.parametrize("version", [VersionTEMP("latest"), VersionTEMP(10), VersionTEMP(-1)])
+    def test_validate(self, version: VersionTEMP):
+        version.validate()
+
+    @pytest.mark.parametrize("invalid_version", [VersionTEMP("invalid_version"), VersionTEMP(0), VersionTEMP(-20)])
+    def test_validate_invalid(self, invalid_version: VersionTEMP):
+        with pytest.raises(InvalidVersion):
+            assert not invalid_version.validate()
+
     @pytest.mark.parametrize(
         "version, resolved_version",
         [
@@ -76,11 +85,6 @@ class TestVersionTEMP:
     )
     def test_resolved(self, version: VersionTEMP, resolved_version: Union[str, int]):
         assert version.resolved == resolved_version
-
-    @pytest.mark.parametrize("invalid_version", [VersionTEMP("invalid_version"), VersionTEMP(0)])
-    def test_resolved_invalid(self, invalid_version: VersionTEMP):
-        with pytest.raises(InvalidVersion):
-            assert not invalid_version.resolved
 
     @pytest.mark.parametrize(
         "version, resolved_version",
