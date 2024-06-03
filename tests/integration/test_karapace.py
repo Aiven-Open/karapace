@@ -5,9 +5,11 @@ See LICENSE for details
 from contextlib import ExitStack
 from karapace.config import set_config_defaults
 from pathlib import Path
+from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process
 from tests.utils import popen_karapace_all
+from typing import Iterator
 
 import json
 import socket
@@ -16,6 +18,7 @@ import socket
 def test_regression_server_must_exit_on_exception(
     port_range: PortRangeInclusive,
     tmp_path: Path,
+    kafka_servers: Iterator[KafkaServers],
 ) -> None:
     """Regression test for Karapace properly exiting.
 
@@ -29,6 +32,7 @@ def test_regression_server_must_exit_on_exception(
 
         config = set_config_defaults(
             {
+                "bootstrap_uri": kafka_servers.bootstrap_servers,
                 "karapace_registry": True,
                 "port": port,
             }

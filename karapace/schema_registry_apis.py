@@ -92,9 +92,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self.schema_registry = KarapaceSchemaRegistry(config)
         self._add_schema_registry_routes()
-        self.schema_registry.start()
 
         self._forward_client = None
+        self.app.on_startup.append(self._start_schema_registry)
         self.app.on_startup.append(self._create_forward_client)
         self.health_hooks.append(self.schema_registry_health)
 
@@ -116,6 +116,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         resp["schema_registry_coordinator_running"] = cs.is_running
         resp["schema_registry_coordinator_generation_id"] = cs.group_generation_id
         return resp
+
+    async def _start_schema_registry(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+        """Callback for aiohttp.Application.on_startup"""
+        await self.schema_registry.start()
 
     async def _create_forward_client(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         """Callback for aiohttp.Application.on_startup"""
