@@ -23,7 +23,7 @@ from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, SchemaId, Subject
 from karapace.utils import assert_never, intstr_version_guard, json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, ClassVar, Dict, Final, final, Mapping, Sequence
 
@@ -383,7 +383,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
 @dataclass
 class SchemaVersion:
     subject: Subject
-    version: ResolvedVersion
+    version: int
     deleted: bool
     schema_id: SchemaId
     schema: TypedSchema
