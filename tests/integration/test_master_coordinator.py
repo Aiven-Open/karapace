@@ -4,9 +4,8 @@ karapace - master coordination test
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from contextlib import closing
 from karapace.config import set_config_defaults
-from karapace.master_coordinator import MasterCoordinator
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import PortRangeInclusive
 from tests.utils import new_random_name
@@ -15,12 +14,11 @@ import asyncio
 import json
 import pytest
 import requests
-import time
 
 
-def init_admin(config):
+async def init_admin(config):
     mc = MasterCoordinator(config=config)
-    mc.start()
+    await mc.start()
     return mc
 
 
@@ -30,17 +28,17 @@ def is_master(mc: MasterCoordinator) -> bool:
     This takes care of a race condition were the flag `master` is set but
     `master_url` is not yet set.
     """
-    return bool(mc.sc and mc.sc.are_we_master and mc.sc.master_url)
+    return bool(mc.schema_coordinator and mc.schema_coordinator.are_we_master and mc.schema_coordinator.master_url)
 
 
 def has_master(mc: MasterCoordinator) -> bool:
     """True if `mc` has a master."""
-    return bool(mc.sc and not mc.sc.are_we_master and mc.sc.master_url)
+    return bool(mc.schema_coordinator and not mc.schema_coordinator.are_we_master and mc.schema_coordinator.master_url)
 
 
 @pytest.mark.timeout(60)  # Github workflows need a bit of extra time
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
-def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaServers, strategy: str) -> None:
+async def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaServers, strategy: str) -> None:
     # Use random port to allow for parallel runs.
     with port_range.allocate_port() as port1, port_range.allocate_port() as port2:
         port_aa, port_bb = sorted((port1, port2))
@@ -69,7 +67,9 @@ def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaSe
             }
         )
 
-        with closing(init_admin(config_aa)) as mc_aa, closing(init_admin(config_bb)) as mc_bb:
+        mc_aa = await init_admin(config_aa)
+        mc_bb = await init_admin(config_bb)
+        try:
             if strategy == "lowest":
                 master = mc_aa
                 slave = mc_bb
@@ -79,20 +79,27 @@ def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaSe
 
             # Wait for the election to happen
             while not is_master(master):
-                time.sleep(0.3)
+                await asyncio.sleep(0.5)
 
             while not has_master(slave):
-                time.sleep(0.3)
+                await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
             master_url = f'http://{master.config["host"]}:{master.config["port"]}'
-            assert master.sc.election_strategy == strategy
-            assert slave.sc.election_strategy == strategy
-            assert master.sc.master_url == master_url
-            assert slave.sc.master_url == master_url
+            assert master.schema_coordinator is not None
+            assert slave.schema_coordinator is not None
+            assert master.schema_coordinator.election_strategy == strategy
+            assert slave.schema_coordinator.election_strategy == strategy
+            assert master.schema_coordinator.master_url == master_url
+            assert slave.schema_coordinator.master_url == master_url
+        finally:
+            print(f"expected: {master_url}")
+            print(slave.schema_coordinator.master_url)
+            await mc_aa.close()
+            await mc_bb.close()
 
 
-def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
     """Test that primary selection works when mixed set of roles is configured for Karapace instances.
 
     The Kafka group coordinator leader can be any node, it has no relation to Karapace primary role eligibility.
@@ -134,27 +141,32 @@ def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_ra
             }
         )
 
-        with closing(init_admin(config_non_primary_1)) as non_primary_1, closing(
-            init_admin(config_non_primary_2)
-        ) as non_primary_2, closing(init_admin(config_primary)) as primary:
+        non_primary_1 = await init_admin(config_non_primary_1)
+        non_primary_2 = await init_admin(config_non_primary_2)
+        primary = await init_admin(config_primary)
+        try:
             # Wait for the election to happen
             while not is_master(primary):
-                time.sleep(0.3)
+                await asyncio.sleep(0.5)
 
             while not has_master(non_primary_1):
-                time.sleep(0.3)
+                await asyncio.sleep(0.5)
 
             while not has_master(non_primary_2):
-                time.sleep(0.3)
+                await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
             primary_url = f'http://{primary.config["host"]}:{primary.config["port"]}'
-            assert primary.sc.master_url == primary_url
-            assert non_primary_1.sc.master_url == primary_url
-            assert non_primary_2.sc.master_url == primary_url
+            assert primary.schema_coordinator.master_url == primary_url
+            assert non_primary_1.schema_coordinator.master_url == primary_url
+            assert non_primary_2.schema_coordinator.master_url == primary_url
+        finally:
+            await non_primary_1.close()
+            await non_primary_2.close()
+            await primary.close()
 
 
-def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+async def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
 
@@ -170,14 +182,17 @@ def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeIn
             }
         )
 
-        with closing(init_admin(config_aa)) as mc:
+        mc = await init_admin(config_aa)
+        try:
             # Wait for the election to happen, ie. flag is not None
-            while not mc.sc or mc.sc.are_we_master is None:
-                time.sleep(0.3)
+            while not mc.schema_coordinator or mc.schema_coordinator.are_we_master is None:
+                await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
-            assert mc.sc.are_we_master is False
-            assert mc.sc.master_url is None
+            assert mc.schema_coordinator.are_we_master is False
+            assert mc.schema_coordinator.master_url is None
+        finally:
+            await mc.close()
 
 
 async def test_schema_request_forwarding(registry_async_pair):

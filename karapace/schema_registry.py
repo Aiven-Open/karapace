@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack, closing
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.config import Config
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
 from karapace.errors import (
     IncompatibleSchema,
@@ -23,7 +24,6 @@ from karapace.errors import (
 )
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import KeyFormatter
-from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
@@ -97,14 +97,14 @@ class KarapaceSchemaRegistry:
         schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=include_deleted)
         return list(schema_versions.values())
 
-    def start(self) -> None:
-        self.mc.start()
+    async def start(self) -> None:
+        await self.mc.start()
         self.schema_reader.start()
         self.producer.initialize_karapace_producer()
 
     async def close(self) -> None:
         async with AsyncExitStack() as stack:
-            stack.enter_context(closing(self.mc))
+            stack.push_async_callback(self.mc.close)
             stack.enter_context(closing(self.schema_reader))
             stack.enter_context(closing(self.producer))
 

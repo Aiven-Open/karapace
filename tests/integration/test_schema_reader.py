@@ -6,11 +6,11 @@ from contextlib import closing
 from dataclasses import dataclass
 from karapace.config import set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.producer import KafkaProducer
 from karapace.key_format import KeyFormatter, KeyMode
-from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
@@ -20,11 +20,11 @@ from tests.schemas.json_schemas import FALSE_SCHEMA, TRUE_SCHEMA
 from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name, new_topic
 from typing import List, Tuple
 
+import asyncio
 import pytest
-import time
 
 
-def _wait_until_reader_is_ready_and_master(
+async def _wait_until_reader_is_ready_and_master(
     master_coordinator: MasterCoordinator,
     reader: KafkaSchemaReader,
 ) -> None:
@@ -35,16 +35,16 @@ def _wait_until_reader_is_ready_and_master(
     """
     # Caught up with the topic
     while not reader.ready:
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
 
     # Won master election
     are_we_master = False
     while not are_we_master:
         are_we_master, _ = master_coordinator.get_master_info()
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
 
 
-def test_regression_soft_delete_schemas_should_be_registered(
+async def test_regression_soft_delete_schemas_should_be_registered(
     kafka_servers: KafkaServers,
     producer: KafkaProducer,
 ) -> None:
@@ -71,80 +71,83 @@ def test_regression_soft_delete_schemas_should_be_registered(
         }
     )
     master_coordinator = MasterCoordinator(config=config)
-    master_coordinator.start()
-    database = InMemoryDatabase()
-    offset_watcher = OffsetWatcher()
-    schema_reader = KafkaSchemaReader(
-        config=config,
-        offset_watcher=offset_watcher,
-        key_formatter=KeyFormatter(),
-        master_coordinator=master_coordinator,
-        database=database,
-    )
-    schema_reader.start()
-
-    with closing(master_coordinator), closing(schema_reader):
-        _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
-
-        # Send an initial schema to initialize the subject in the reader, this is preparing the state
-        key = {
-            "subject": subject,
-            "version": 1,
-            "magic": 1,
-            "keytype": "SCHEMA",
-        }
-        value = {
-            "deleted": False,
-            "id": 1,
-            "subject": subject,
-            "version": 1,
-            "schema": json_encode(TRUE_SCHEMA.schema),
-        }
-        future = producer.send(
-            topic_name,
-            key=json_encode(key, binary=True),
-            value=json_encode(value, binary=True),
+    try:
+        await master_coordinator.start()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=KeyFormatter(),
+            master_coordinator=master_coordinator,
+            database=database,
         )
-        producer.flush()
-        msg = future.result()
+        schema_reader.start()
 
-        schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+        with closing(schema_reader):
+            await _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
 
-        schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
-        assert len(schemas) == 1, "Deleted schemas must have been registered"
+            # Send an initial schema to initialize the subject in the reader, this is preparing the state
+            key = {
+                "subject": subject,
+                "version": 1,
+                "magic": 1,
+                "keytype": "SCHEMA",
+            }
+            value = {
+                "deleted": False,
+                "id": 1,
+                "subject": subject,
+                "version": 1,
+                "schema": json_encode(TRUE_SCHEMA.schema),
+            }
+            future = producer.send(
+                topic_name,
+                key=json_encode(key, binary=True),
+                value=json_encode(value, binary=True),
+            )
+            producer.flush()
+            msg = future.result()
 
-        # Produce a soft deleted schema, this is the regression test
-        key = {
-            "subject": subject,
-            "version": 2,
-            "magic": 1,
-            "keytype": "SCHEMA",
-        }
-        test_global_schema_id = 2
-        value = {
-            "deleted": True,
-            "id": test_global_schema_id,
-            "subject": subject,
-            "version": 2,
-            "schema": json_encode(FALSE_SCHEMA.schema),
-        }
-        future = producer.send(
-            topic_name,
-            key=json_encode(key, binary=True),
-            value=json_encode(value, binary=True),
-        )
-        producer.flush()
-        msg = future.result()
+            schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
 
-        seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
-        assert seen is True
-        assert database.global_schema_id == test_global_schema_id
+            schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
+            assert len(schemas) == 1, "Deleted schemas must have been registered"
 
-        schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
-        assert len(schemas) == 2, "Deleted schemas must have been registered"
+            # Produce a soft deleted schema, this is the regression test
+            key = {
+                "subject": subject,
+                "version": 2,
+                "magic": 1,
+                "keytype": "SCHEMA",
+            }
+            test_global_schema_id = 2
+            value = {
+                "deleted": True,
+                "id": test_global_schema_id,
+                "subject": subject,
+                "version": 2,
+                "schema": json_encode(FALSE_SCHEMA.schema),
+            }
+            future = producer.send(
+                topic_name,
+                key=json_encode(key, binary=True),
+                value=json_encode(value, binary=True),
+            )
+            producer.flush()
+            msg = future.result()
+
+            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+            assert seen is True
+            assert database.global_schema_id == test_global_schema_id
+
+            schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
+            assert len(schemas) == 2, "Deleted schemas must have been registered"
+    finally:
+        await master_coordinator.close()
 
 
-def test_regression_config_for_inexisting_object_should_not_throw(
+async def test_regression_config_for_inexisting_object_should_not_throw(
     kafka_servers: KafkaServers,
     producer: KafkaProducer,
 ) -> None:
@@ -160,40 +163,43 @@ def test_regression_config_for_inexisting_object_should_not_throw(
         }
     )
     master_coordinator = MasterCoordinator(config=config)
-    master_coordinator.start()
-    database = InMemoryDatabase()
-    offset_watcher = OffsetWatcher()
-    schema_reader = KafkaSchemaReader(
-        config=config,
-        offset_watcher=offset_watcher,
-        key_formatter=KeyFormatter(),
-        master_coordinator=master_coordinator,
-        database=database,
-    )
-    schema_reader.start()
-
-    with closing(master_coordinator), closing(schema_reader):
-        _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
-
-        # Send an initial schema to initialize the subject in the reader, this is preparing the state
-        key = {
-            "subject": subject,
-            "magic": 0,
-            "keytype": "CONFIG",
-        }
-        value = ""  # Delete the config
-
-        future = producer.send(
-            DEFAULT_SCHEMA_TOPIC,
-            key=json_encode(key, binary=True),
-            value=json_encode(value, binary=True),
+    try:
+        await master_coordinator.start()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=KeyFormatter(),
+            master_coordinator=master_coordinator,
+            database=database,
         )
-        producer.flush()
-        msg = future.result()
+        schema_reader.start()
 
-        seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
-        assert seen is True
-        assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
+        with closing(schema_reader):
+            await _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
+
+            # Send an initial schema to initialize the subject in the reader, this is preparing the state
+            key = {
+                "subject": subject,
+                "magic": 0,
+                "keytype": "CONFIG",
+            }
+            value = ""  # Delete the config
+
+            future = producer.send(
+                DEFAULT_SCHEMA_TOPIC,
+                key=json_encode(key, binary=True),
+                value=json_encode(value, binary=True),
+            )
+            producer.flush()
+            msg = future.result()
+
+            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+            assert seen is True
+            assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
+    finally:
+        await master_coordinator.close()
 
 
 @dataclass
@@ -235,7 +241,7 @@ class DetectKeyFormatCase(BaseTestCase):
         ),
     ],
 )
-def test_key_format_detection(
+async def test_key_format_detection(
     testcase: DetectKeyFormatCase,
     kafka_servers: KafkaServers,
     producer: KafkaProducer,
@@ -261,20 +267,23 @@ def test_key_format_detection(
         }
     )
     master_coordinator = MasterCoordinator(config=config)
-    master_coordinator.start()
-    key_formatter = KeyFormatter()
-    database = InMemoryDatabase()
-    offset_watcher = OffsetWatcher()
-    schema_reader = KafkaSchemaReader(
-        config=config,
-        offset_watcher=offset_watcher,
-        key_formatter=key_formatter,
-        master_coordinator=master_coordinator,
-        database=database,
-    )
-    schema_reader.start()
+    try:
+        await master_coordinator.start()
+        key_formatter = KeyFormatter()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=key_formatter,
+            master_coordinator=master_coordinator,
+            database=database,
+        )
+        schema_reader.start()
 
-    with closing(master_coordinator), closing(schema_reader):
-        _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
+        with closing(schema_reader):
+            await _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
 
-    assert key_formatter.get_keymode() == testcase.expected
+        assert key_formatter.get_keymode() == testcase.expected
+    finally:
+        await master_coordinator.close()
