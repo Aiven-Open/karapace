@@ -27,7 +27,6 @@ setup(
         "aiokafka",
         "avro",
         "jsonschema",
-        "kafka-python",
         "networkx",
         "protobuf",
         "pyjwt",

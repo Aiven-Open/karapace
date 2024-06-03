@@ -4,10 +4,10 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from aiokafka.errors import UnknownTopicOrPartitionError
 from confluent_kafka import Message, TopicPartition
 from confluent_kafka.admin import NewTopic
 from dataclasses import fields
-from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup import api
 from karapace.backup.api import _consume_records, BackupVersion, TopicName
 from karapace.backup.backends.v3.errors import InconsistentOffset

@@ -6,12 +6,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from avro.schema import Schema as AvroSchema
-from confluent_kafka import Message, TopicPartition
-from contextlib import closing, ExitStack
-from enum import Enum
-from jsonschema.validators import Draft7Validator
-from kafka.errors import (
+from aiokafka.errors import (
     GroupAuthorizationFailedError,
     InvalidReplicationFactorError,
     KafkaConfigurationError,
@@ -24,6 +19,11 @@ from kafka.errors import (
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
+from avro.schema import Schema as AvroSchema
+from confluent_kafka import Message, TopicPartition
+from contextlib import closing, ExitStack
+from enum import Enum
+from jsonschema.validators import Draft7Validator
 from karapace import constants
 from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator

@@ -5,8 +5,8 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from aiokafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
 from confluent_kafka.admin import NewTopic
-from kafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka.types import Timestamp
 
