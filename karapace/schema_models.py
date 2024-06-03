@@ -397,16 +397,22 @@ class VersionTEMP:
     LATEST_VERSION_TAG: Final | ClassVar[str] = "latest"
     MINUS_1_VERSION_TAG: Final | ClassVar[str] = "-1"
 
+    def validate(self):
+        try:
+            version = int(self.tag)
+            if (version < int(self.MINUS_1_VERSION_TAG)) or (version == 0):
+                raise InvalidVersion(f"Invalid version {self.tag}")
+        except ValueError as exc:
+            if not self.is_latest:
+                raise InvalidVersion(f"Invalid version {self.tag}") from exc
+
     @property
     def is_latest(self) -> bool:
         return (str(self.tag) == self.LATEST_VERSION_TAG) or (str(self.tag) == self.MINUS_1_VERSION_TAG)
 
     @property
     def version(self) -> int:
-        version = int(self.tag)
-        if version <= 0:
-            raise ValueError("Only numeric version tags are directly resolved")
-        return version
+        return int(self.tag)
 
     @property
     @intstr_version_guard(to_raise=InvalidVersion())
@@ -420,6 +426,6 @@ class VersionTEMP:
         max_version = max(schema_versions)
         if self.is_latest:
             return max_version
-        if self.version <= max_version:
+        if self.version <= max_version and self.version in schema_versions:
             return self.version
         return None

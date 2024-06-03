@@ -35,9 +35,9 @@ from karapace.schema_models import (
     ParsedTypedSchema,
     SchemaType,
     SchemaVersion,
-    SchemaVersionManager,
     TypedSchema,
     ValidatedTypedSchema,
+    VersionTEMP,
 )
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry
@@ -386,6 +386,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
+        version = VersionTEMP(version)
         body = request.json
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         references = self._validate_references(content_type, schema_type, body)
@@ -409,12 +410,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         try:
             old = self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
-            self._invalid_version(content_type, version)
+            self._invalid_version(content_type, version.tag)
         except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                    "message": f"Version {version} not found.",
+                    "message": f"Version {version.tag} not found.",
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
@@ -790,6 +791,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
+        version = VersionTEMP(version)
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:
             subject_data = self.schema_registry.subject_version_get(subject, version, include_deleted=deleted)
@@ -809,19 +811,20 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                    "message": f"Version {version} not found.",
+                    "message": f"Version {version.tag} not found.",
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
         except InvalidVersion:
-            self._invalid_version(content_type, version)
+            self._invalid_version(content_type, version.tag)
 
     async def subject_version_delete(
         self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-        version = SchemaVersionManager.validate_version(version)
+        version = VersionTEMP(version)
+        version.validate()
         permanent = request.query.get("permanent", "false").lower() == "true"
 
         are_we_master, master_url = await self.schema_registry.get_master()
@@ -842,7 +845,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                        "message": f"Version {version} not found.",
+                        "message": f"Version {version.tag} not found.",
                     },
                     content_type=content_type,
                     status=HTTPStatus.NOT_FOUND,
@@ -863,7 +866,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     body={
                         "error_code": SchemaErrorCodes.SCHEMAVERSION_NOT_SOFT_DELETED.value,
                         "message": (
-                            f"Subject '{subject}' Version {version} was not deleted "
+                            f"Subject '{subject}' Version {version.tag} was not deleted "
                             "first before being permanently deleted"
                         ),
                     },
@@ -885,7 +888,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         elif not master_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
+            url = f"{master_url}/subjects/{subject}/versions/{version.tag}?permanent={permanent}"
             await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(
@@ -893,16 +896,17 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     ) -> None:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
+        version = VersionTEMP(version)
         try:
             subject_data = self.schema_registry.subject_version_get(subject, version)
             self.r(subject_data["schema"], content_type)
         except InvalidVersion:
-            self._invalid_version(content_type, version)
+            self._invalid_version(content_type, version.tag)
         except VersionNotFoundException:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                    "message": f"Version {version} not found.",
+                    "message": f"Version {version.tag} not found.",
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
@@ -920,6 +924,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
     async def subject_version_referencedby_get(self, content_type, *, subject, version, user: User | None = None):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
+        version = VersionTEMP(version)
         try:
             referenced_by = await self.schema_registry.subject_version_referencedby_get(subject, version)
         except (SubjectNotFoundException, SchemasNotFoundException):
@@ -935,13 +940,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                    "message": f"Version {version} not found.",
+                    "message": f"Version {version.tag} not found.",
                 },
                 content_type=content_type,
                 status=HTTPStatus.NOT_FOUND,
             )
         except InvalidVersion:
-            self._invalid_version(content_type, version)
+            self._invalid_version(content_type, version.tag)
 
         self.r(referenced_by, content_type, status=HTTPStatus.OK)
 
