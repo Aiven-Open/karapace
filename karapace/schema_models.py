@@ -391,7 +391,7 @@ class SchemaVersion:
 
 
 @dataclass(slots=True, frozen=True)
-class VersionTEMP:
+class Version:
     tag: str | int
 
     LATEST_VERSION_TAG: Final | ClassVar[str] = "latest"
