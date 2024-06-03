@@ -9,7 +9,7 @@ from avro.schema import Schema as AvroSchema
 from karapace.errors import InvalidVersion, VersionNotFoundException
 from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Version
 from karapace.schema_type import SchemaType
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional
 
 import pytest
 
@@ -58,6 +58,10 @@ class TestVersion:
         assert version.LATEST_VERSION_TAG == "latest"
         assert version.MINUS_1_VERSION_TAG == "-1"
 
+    def test_text_formating(self, version: Version):
+        assert f"{version}" == "1"
+        assert f"{version!r}" == "Version<1>"
+
     @pytest.mark.parametrize(
         "version, is_latest",
         [(Version("latest"), True), (Version("-1"), True), (Version(10), False)],
@@ -90,7 +94,7 @@ class TestVersion:
             (Version(10), "10"),
         ],
     )
-    def test_resolved(self, version: Version, resolved_version: Union[str, int]):
+    def test_resolved(self, version: Version, resolved_version: str):
         assert version.resolved == resolved_version
 
     @pytest.mark.parametrize(
