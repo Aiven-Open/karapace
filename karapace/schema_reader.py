@@ -26,6 +26,7 @@ from kafka.errors import (
 )
 from karapace import constants
 from karapace.config import Config
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
