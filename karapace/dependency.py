@@ -8,7 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.schema_references import Reference
-from karapace.typing import JsonData, Subject
+from karapace.typing import JsonData, Subject, Version
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class Dependency:
         self,
         name: str,
         subject: Subject,
-        version: int,
+        version: Version,
         target_schema: ValidatedTypedSchema,
     ) -> None:
         self.name = name

@@ -31,10 +31,10 @@ from karapace.errors import (
 from karapace.karapace import KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Version
+from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.typing import JsonData, JsonObject, SchemaId, Subject
+from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -333,7 +333,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if self._auth is not None:
                 stack.push_async_callback(self._auth.close)
 
-    def _subject_get(self, subject: str, content_type: str, include_deleted: bool = False) -> dict[int, SchemaVersion]:
+    def _subject_get(self, subject: str, content_type: str, include_deleted: bool = False) -> dict[Version, SchemaVersion]:
         try:
             schema_versions = self.schema_registry.subject_get(subject, include_deleted)
         except SubjectNotFoundException:
@@ -381,7 +381,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         schema_type = self._validate_schema_type(content_type=content_type, data=body)
         references = self._validate_references(content_type, schema_type, body)
         try:
-            version = Version(version)
+            version = Versioner.V(version)
             references, new_schema_dependencies = self.schema_registry.resolve_references(references)
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_type,
@@ -784,7 +784,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:
-            version = Version(version)
+            version = Versioner.V(version)
             subject_data = self.schema_registry.subject_version_get(subject, version, include_deleted=deleted)
             if "compatibility" in subject_data:
                 del subject_data["compatibility"]
@@ -819,7 +819,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
             try:
-                version = Version(version)
+                version = Versioner.V(version)
                 resolved_version = await self.schema_registry.subject_version_delete_local(subject, version, permanent)
                 self.r(str(resolved_version), content_type, status=HTTPStatus.OK)
             except (SubjectNotFoundException, SchemasNotFoundException):
@@ -890,7 +890,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
-            version = Version(version)
+            version = Versioner.V(version)
             subject_data = self.schema_registry.subject_version_get(subject, version)
             self.r(subject_data["schema"], content_type)
         except InvalidVersion:
@@ -918,7 +918,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
-            version = Version(version)
+            version = Versioner.V(version)
             referenced_by = await self.schema_registry.subject_version_referencedby_get(subject, version)
         except (SubjectNotFoundException, SchemasNotFoundException):
             self.r(
