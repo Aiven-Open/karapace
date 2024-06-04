@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
 from karapace.dependency import Dependency
-from karapace.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
+from karapace.errors import InvalidSchema
 from karapace.protobuf.exception import (
     Error as ProtobufError,
     IllegalArgumentException,
@@ -24,8 +24,8 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonObject, SchemaId, Subject
-from karapace.utils import assert_never, intstr_version_guard, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, ClassVar, Dict, Final, final, Mapping, Sequence
+from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
+from typing import Any, cast, Dict, Final, final, Mapping, Sequence
 
 import hashlib
 import logging
@@ -388,53 +388,3 @@ class SchemaVersion:
     schema_id: SchemaId
     schema: TypedSchema
     references: Sequence[Reference] | None
-
-
-@dataclass(frozen=True)
-class Version:
-    tag: str | int
-
-    LATEST_VERSION_TAG: ClassVar[str] = "latest"
-    MINUS_1_VERSION_TAG: ClassVar[str] = "-1"
-
-    def __post_init__(self) -> None:
-        self.validate()
-
-    def validate(self) -> None:
-        try:
-            version = int(self.tag)
-            if (version < int(self.MINUS_1_VERSION_TAG)) or (version == 0):
-                raise InvalidVersion(f"Invalid version {self.tag}")
-        except ValueError as exc:
-            if not self.is_latest:
-                raise InvalidVersion(f"Invalid version {self.tag}") from exc
-
-    @property
-    def is_latest(self) -> bool:
-        return (str(self.tag) == self.LATEST_VERSION_TAG) or (str(self.tag) == self.MINUS_1_VERSION_TAG)
-
-    @property
-    def version(self) -> int:
-        return int(self.tag)
-
-    @property
-    @intstr_version_guard(to_raise=InvalidVersion())
-    def resolved(self) -> str:
-        if self.is_latest:
-            return self.LATEST_VERSION_TAG
-        return str(self.version)
-
-    @intstr_version_guard(to_raise=VersionNotFoundException())
-    def resolve_from_schema_versions(self, schema_versions: Mapping[int, SchemaVersion]) -> int | None:
-        max_version = max(schema_versions)
-        if self.is_latest:
-            return max_version
-        if self.version <= max_version and self.version in schema_versions:
-            return self.version
-        return None
-
-    def __str__(self) -> str:
-        return str(self.tag)
-
-    def __repr__(self) -> str:
-        return f"Version<{self.tag}>"

@@ -19,7 +19,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
 
-import functools
 import importlib
 import kafka.client_async
 import logging
@@ -213,23 +212,6 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
             content_type=content_type,
             code=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
-
-
-def intstr_version_guard(to_raise: BaseException):
-    def wrapper(f):
-        @functools.wraps(f)
-        def catcher(*args, **kwargs):
-            try:
-                value = f(*args, **kwargs)
-                if not value:
-                    raise to_raise
-                return value
-            except ValueError as exc:
-                raise to_raise from exc
-
-        return catcher
-
-    return wrapper
 
 
 class KarapaceKafkaClient(KafkaClient):
