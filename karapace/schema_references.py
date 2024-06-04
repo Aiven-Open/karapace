@@ -8,7 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.dataclasses import default_dataclass
-from karapace.typing import JsonData, JsonObject, SchemaId, Subject
+from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from typing import cast, List, Mapping, NewType, TypeVar
 
 Referents = NewType("Referents", List[SchemaId])
@@ -36,7 +36,7 @@ class LatestVersionReference:
     name: str
     subject: Subject
 
-    def resolve(self, version: int) -> Reference:
+    def resolve(self, version: Version) -> Reference:
         return Reference(
             name=self.name,
             subject=self.subject,
@@ -48,10 +48,10 @@ class LatestVersionReference:
 class Reference:
     name: str
     subject: Subject
-    version: int
+    version: Version
 
     def __post_init__(self) -> None:
-        assert self.version != -1
+        assert self.version != Version.MINUS_1_VERSION_TAG
 
     def __repr__(self) -> str:
         return f"{{name='{self.name}', subject='{self.subject}', version={self.version}}}"
@@ -68,7 +68,7 @@ class Reference:
         return Reference(
             name=str(data["name"]),
             subject=Subject(str(data["subject"])),
-            version=int(cast(int, data["version"])),
+            version=Version(cast(int, data["version"])),
         )
 
 
@@ -88,6 +88,6 @@ def reference_from_mapping(
         else Reference(
             name=name,
             subject=subject,
-            version=int(version),
+            version=Version(version),
         )
     )

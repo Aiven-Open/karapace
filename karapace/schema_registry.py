@@ -25,10 +25,10 @@ from karapace.key_format import KeyFormatter
 from karapace.master_coordinator import MasterCoordinator
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Version
+from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, Mode, SchemaId, Subject
+from karapace.typing import JsonObject, Mode, SchemaId, Subject, Version
 from typing import Sequence
 
 import asyncio
@@ -127,7 +127,7 @@ class KarapaceSchemaRegistry:
 
         return schema
 
-    async def subject_delete_local(self, subject: Subject, permanent: bool) -> list[int]:
+    async def subject_delete_local(self, subject: Subject, permanent: bool) -> list[Version]:
         async with self.schema_lock:
             schema_versions = self.subject_get(subject, include_deleted=True)
 
@@ -173,7 +173,7 @@ class KarapaceSchemaRegistry:
                 try:
                     schema_versions_live = self.subject_get(subject, include_deleted=False)
                 except SchemasNotFoundException:
-                    latest_version_id = int(0)
+                    latest_version_id = Versioner.V(Version.MINUS_1_VERSION_TAG)
                     version_list = []
                 else:
                     version_list = list(schema_versions_live)
@@ -187,7 +187,7 @@ class KarapaceSchemaRegistry:
 
             return version_list
 
-    async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> int:
+    async def subject_version_delete_local(self, subject: Subject, version: Version, permanent: bool) -> Version:
         async with self.schema_lock:
             schema_versions = self.subject_get(subject, include_deleted=True)
             if not permanent and version.is_latest:
@@ -196,7 +196,7 @@ class KarapaceSchemaRegistry:
                     for version_id, schema_version in schema_versions.items()
                     if schema_version.deleted is False
                 }
-            resolved_version = version.resolve_from_schema_versions(schema_versions=schema_versions)
+            resolved_version = Versioner.from_schema_versions(schema_versions=schema_versions, version=version)
             schema_version = schema_versions.get(resolved_version, None)
 
             if not schema_version:
@@ -224,7 +224,7 @@ class KarapaceSchemaRegistry:
                 self.schema_reader.remove_referenced_by(schema_version.schema_id, schema_version.references)
             return resolved_version
 
-    def subject_get(self, subject: Subject, include_deleted: bool = False) -> dict[int, SchemaVersion]:
+    def subject_get(self, subject: Subject, include_deleted: bool = False) -> dict[Version, SchemaVersion]:
         subject_found = self.database.find_subject(subject=subject)
         if not subject_found:
             raise SubjectNotFoundException()
@@ -238,7 +238,7 @@ class KarapaceSchemaRegistry:
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = version.resolve_from_schema_versions(schema_versions=schema_versions)
+        resolved_version = Versioner.from_schema_versions(schema_versions=schema_versions, version=version)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
 
         if not schema_data:
@@ -269,7 +269,7 @@ class KarapaceSchemaRegistry:
         schema_versions = self.subject_get(subject, include_deleted=include_deleted)
         if not schema_versions:
             raise SubjectNotFoundException()
-        resolved_version = version.resolve_from_schema_versions(schema_versions=schema_versions)
+        resolved_version = Versioner.from_schema_versions(schema_versions=schema_versions, version=version)
         schema_data: SchemaVersion | None = schema_versions.get(resolved_version, None)
         if not schema_data:
             raise VersionNotFoundException()
@@ -311,7 +311,7 @@ class KarapaceSchemaRegistry:
 
             all_schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
             if not all_schema_versions:
-                version = int(1)
+                version = Version(1)
                 schema_id = self.database.get_schema_id(new_schema)
                 LOG.debug(
                     "Registering new subject: %r, id: %r with version: %r with schema %r, schema_id: %r",
@@ -400,8 +400,8 @@ class KarapaceSchemaRegistry:
 
     def get_subject_versions_for_schema(
         self, schema_id: SchemaId, *, include_deleted: bool = False
-    ) -> list[dict[str, Subject | int]]:
-        subject_versions: list[dict[str, Subject | int]] = []
+    ) -> list[dict[str, Subject | Version]]:
+        subject_versions: list[dict[str, Subject | Version]] = []
         schema_versions = self.database.find_schema_versions_by_schema_id(
             schema_id=schema_id,
             include_deleted=include_deleted,
@@ -423,7 +423,7 @@ class KarapaceSchemaRegistry:
         subject: Subject,
         schema: TypedSchema | None,
         schema_id: int,
-        version: int,
+        version: Version,
         deleted: bool,
         references: Sequence[Reference] | None,
     ) -> None:
@@ -459,7 +459,7 @@ class KarapaceSchemaRegistry:
     ) -> tuple[Sequence[Reference], dict[str, Dependency]] | tuple[None, None]:
         return self.schema_reader.resolve_references(references) if references else (None, None)
 
-    def send_delete_subject_message(self, subject: Subject, version: int) -> None:
+    def send_delete_subject_message(self, subject: Subject, version: Version) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}
         value = {"subject": subject, "version": version}
         self.producer.send_message(key=key, value=value)
