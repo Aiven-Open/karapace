@@ -9,7 +9,7 @@ from __future__ import annotations
 from aiokafka.client import AIOKafkaClient, ConnectionGroup
 from aiokafka.cluster import ClusterMetadata
 from aiokafka.consumer.group_coordinator import CoordinationType
-from aiokafka.protocol.api import Request
+from aiokafka.protocol.api import Request, Response
 from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitRequest
 from aiokafka.protocol.group import (
     HeartbeatRequest,
@@ -25,7 +25,6 @@ from aiokafka.protocol.group import (
     SyncGroupRequest_v3,
 )
 from aiokafka.util import create_future, create_task
-from kafka.protocol.api import Response
 from karapace.dataclasses import default_dataclass
 from karapace.typing import JsonData
 from karapace.utils import json_decode, json_encode

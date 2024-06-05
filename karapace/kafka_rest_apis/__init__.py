@@ -1,11 +1,12 @@
+"""
+karapace - Rest Proxy API
+
+Copyright (c) 2024 Aiven Ltd
+See LICENSE for details
+"""
 from __future__ import annotations
 
-from binascii import Error as B64DecodeError
-from collections import namedtuple
-from confluent_kafka.error import KafkaException
-from contextlib import AsyncExitStack
-from http import HTTPStatus
-from kafka.errors import (
+from aiokafka.errors import (
     AuthenticationFailedError,
     BrokerResponseError,
     KafkaTimeoutError,
@@ -13,6 +14,11 @@ from kafka.errors import (
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
+from binascii import Error as B64DecodeError
+from collections import namedtuple
+from confluent_kafka.error import KafkaException
+from contextlib import AsyncExitStack
+from http import HTTPStatus
 from karapace.config import Config
 from karapace.errors import InvalidSchema
 from karapace.kafka.admin import KafkaAdminClient

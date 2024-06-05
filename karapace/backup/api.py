@@ -21,11 +21,11 @@ from .errors import (
 )
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
+from aiokafka.errors import KafkaError, TopicAlreadyExistsError
 from concurrent.futures import Future
 from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
-from kafka.errors import KafkaError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER

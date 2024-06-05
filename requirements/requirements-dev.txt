@@ -119,8 +119,6 @@ jsonschema-specifications==2023.12.1
     # via
     #   -r requirements.txt
     #   jsonschema
-kafka-python @ https://github.com/aiven/kafka-python/archive/19ff1f4b28e33318b0cd2d916b8399170055b1ca.tar.gz
-    # via -r requirements.txt
 locust==2.25.0
     # via -r requirements-dev.in
 lz4==4.3.3

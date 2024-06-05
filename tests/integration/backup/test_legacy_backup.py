@@ -4,7 +4,7 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from kafka.errors import InvalidTopicError
+from aiokafka.errors import InvalidTopicError
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
 from karapace.backup.errors import StaleConsumerError

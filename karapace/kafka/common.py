@@ -5,17 +5,11 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from aiokafka.client import UnknownTopicOrPartitionError
+from aiokafka.errors import AuthenticationFailedError, for_code, IllegalStateError, KafkaTimeoutError, NoBrokersAvailable
 from collections.abc import Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
-from kafka.errors import (
-    AuthenticationFailedError,
-    for_code,
-    IllegalStateError,
-    KafkaTimeoutError,
-    NoBrokersAvailable,
-    UnknownTopicOrPartitionError,
-)
 from typing import Any, Callable, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
@@ -40,7 +34,7 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
     """Translate a `KafkaError` from `confluent_kafka` to a friendlier exception.
 
     `kafka.errors.for_code` is used to translate the original exception's error code
-    to a domain specific error class from `kafka-python`.
+    to a domain specific error class from `aiokafka`.
 
     In some cases `KafkaError`s are created with error codes internal to `confluent_kafka`,
     such as various internal error codes for unknown topics or partitions:
@@ -67,7 +61,7 @@ def raise_from_kafkaexception(exc: KafkaException) -> NoReturn:
 
     The `confluent_kafka` library's `KafkaException` is a wrapper around its internal
     `KafkaError`. The resulting, raised exception however is coming from
-    `kafka-python`, due to these exceptions having human-readable names, providing
+    `aiokafka`, due to these exceptions having human-readable names, providing
     better context for error handling.
     """
     raise translate_from_kafkaerror(exc.args[0]) from exc

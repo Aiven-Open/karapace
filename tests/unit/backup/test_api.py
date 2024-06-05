@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from kafka.errors import KafkaError, TopicAlreadyExistsError
+from aiokafka.errors import KafkaError, TopicAlreadyExistsError
 from karapace import config
 from karapace.backup.api import (
     _admin,
