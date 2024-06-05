@@ -28,15 +28,70 @@ TOPIC_REQUEST = {
             "partitions": [
                 {
                     "partition": 0,
-                    "leader": 10,
+                    "leader": 69,
                     "replicas": [
-                        {"broker": 10, "leader": True, "in_sync": True},
+                        {"broker": 69, "leader": True, "in_sync": True},
+                        {"broker": 67, "leader": False, "in_sync": True},
                     ],
                 }
             ]
         }
     },
-    "brokers": [10],
+    "brokers": [69, 67],
+}
+
+TOPIC_REQUEST_WITH_CHANGED_REPLICA = {
+    "topics": {
+        "topic_a": {
+            "partitions": [
+                {
+                    "partition": 0,
+                    "leader": 69,
+                    "replicas": [
+                        {"broker": 69, "leader": True, "in_sync": True},
+                        {"broker": 68, "leader": False, "in_sync": True},
+                    ],
+                }
+            ]
+        }
+    },
+    "brokers": [69, 68],
+}
+
+
+TOPIC_REQUEST_WITH_NEW_BROKER = {
+    "topics": {
+        "topic_a": {
+            "partitions": [
+                {
+                    "partition": 0,
+                    "leader": 69,
+                    "replicas": [
+                        {"broker": 69, "leader": True, "in_sync": True},
+                        {"broker": 67, "leader": False, "in_sync": True},
+                    ],
+                }
+            ]
+        }
+    },
+    "brokers": [69, 67, 101300],
+}
+
+TOPIC_REQUEST_WITH_NEW_TOPIC = {
+    "topics": {
+        "mistery_topic": {
+            "partitions": [
+                {
+                    "partition": 0,
+                    "leader": 68,
+                    "replicas": [
+                        {"broker": 68, "leader": True, "in_sync": True},
+                    ],
+                }
+            ]
+        }
+    },
+    "brokers": [68],
 }
 
 ALL_TOPIC_REQUEST = {
@@ -110,6 +165,15 @@ async def test_cache_is_evicted_after_expiration_global_initially() -> None:
     ) as mocked_cluster_metadata:
         await proxy.cluster_metadata(None)
     mocked_cluster_metadata.assert_called_once_with(None)  # "initially the metadata are always old"
+
+
+async def test_no_topic_means_all_metadata() -> None:
+    proxy = user_rest_proxy()
+    with patch(
+        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
+    ) as mocked_cluster_metadata:
+        await proxy.cluster_metadata([])
+    mocked_cluster_metadata.assert_called_once_with(None)
 
 
 async def test_cache_is_evicted_after_expiration_global() -> None:
@@ -251,3 +315,74 @@ async def test_update_topic_cache_do_not_evict_all_the_global_cache() -> None:
     assert (
         mocked_cluster_metadata.call_count == 1
     ), "we should call the server since the previous time of caching for the topic_a was 0"
+
+
+async def test_update_local_cache_does_not_evict_all_the_global_cache_if_no_new_data() -> None:
+    proxy = user_rest_proxy(max_age_metadata=10)
+    proxy._global_metadata_birth = 0
+    proxy._cluster_metadata_complete = True
+    proxy._cluster_metadata = ALL_TOPIC_REQUEST
+    proxy._cluster_metadata_topic_birth = {"topic_a": 0, "topic_b": 200, "__consumer_offsets": 200}
+
+    with patch(
+        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
+    ) as mocked_cluster_metadata:
+        with patch("time.monotonic", return_value=208):
+            res = await proxy.cluster_metadata(["topic_a"])
+
+    assert res == TOPIC_REQUEST
+
+    assert proxy._cluster_metadata_topic_birth == {"topic_a": 208, "topic_b": 200, "__consumer_offsets": 200}
+
+    expected_metadata = copy.deepcopy(ALL_TOPIC_REQUEST)
+    expected_metadata["topics"]["topic_a"] = TOPIC_REQUEST["topics"]["topic_a"]
+    assert proxy._cluster_metadata == expected_metadata
+    assert (
+        proxy._cluster_metadata_complete
+    ), "since wasn't containing new brokers and no new topics the metadata its completed"
+
+    assert (
+        mocked_cluster_metadata.call_count == 1
+    ), "we should call the server since the previous time of caching for the topic_a was 0"
+
+
+async def test_update_local_cache_not_evict_all_the_global_cache_if_changed_replica_data() -> None:
+    proxy = user_rest_proxy(max_age_metadata=10)
+    proxy._global_metadata_birth = 0
+    proxy._cluster_metadata_complete = True
+    proxy._cluster_metadata = ALL_TOPIC_REQUEST
+    proxy._cluster_metadata_topic_birth = {"topic_a": 200, "topic_b": 200, "__consumer_offsets": 200}
+
+    with patch("karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_CHANGED_REPLICA):
+        with patch("time.monotonic", return_value=500):
+            await proxy.cluster_metadata(["topic_a"])
+
+    assert not proxy._cluster_metadata_complete, "new replica data incoming, should update the global metadata next!"
+
+
+async def test_update_local_cache_not_evict_all_the_global_cache_if_new_topic_data() -> None:
+    proxy = user_rest_proxy(max_age_metadata=10)
+    proxy._global_metadata_birth = 0
+    proxy._cluster_metadata_complete = True
+    proxy._cluster_metadata = ALL_TOPIC_REQUEST
+    proxy._cluster_metadata_topic_birth = {"topic_a": 200, "topic_b": 200, "__consumer_offsets": 200}
+
+    with patch("karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_NEW_TOPIC):
+        with patch("time.monotonic", return_value=200):
+            await proxy.cluster_metadata(["mistery_topic"])
+
+    assert not proxy._cluster_metadata_complete, "new topic data incoming, should update the global metadata next!"
+
+
+async def test_update_local_cache_not_evict_all_the_global_cache_if_new_broker_data() -> None:
+    proxy = user_rest_proxy(max_age_metadata=10)
+    proxy._global_metadata_birth = 0
+    proxy._cluster_metadata_complete = True
+    proxy._cluster_metadata = ALL_TOPIC_REQUEST
+    proxy._cluster_metadata_topic_birth = {"topic_a": 200, "topic_b": 200, "__consumer_offsets": 200}
+
+    with patch("karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_NEW_BROKER):
+        with patch("time.monotonic", return_value=500):
+            await proxy.cluster_metadata(["topic_a"])
+
+    assert not proxy._cluster_metadata_complete, "new broker data incoming, should update the global metadata next!"
