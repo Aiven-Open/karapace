@@ -5,7 +5,7 @@ See LICENSE for details
 from karapace.config import read_config
 from karapace.dependency import Dependency
 from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.schema_models import ParsedTypedSchema, SchemaType
+from karapace.schema_models import ParsedTypedSchema, SchemaType, Versioner
 from karapace.schema_references import Reference
 from karapace.serialization import (
     InvalidMessageHeader,
@@ -14,7 +14,7 @@ from karapace.serialization import (
     SchemaRegistrySerializer,
     START_BYTE,
 )
-from karapace.typing import ResolvedVersion, Subject
+from karapace.typing import Subject
 from pathlib import Path
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
 from unittest.mock import call, Mock
@@ -45,7 +45,7 @@ async def test_happy_flow(default_config_path: Path):
     mock_protobuf_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
-        (1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf)), ResolvedVersion(1))
+        (1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf)), Versioner.V(1))
     )
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
@@ -114,7 +114,7 @@ async def test_happy_flow_references(default_config_path: Path):
     schema_for_id_one_future.set_result((ref_schema, [Subject("stub")]))
     mock_protobuf_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ref_schema, ResolvedVersion(1)))
+    get_latest_schema_future.set_result((1, ref_schema, Versioner.V(1)))
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
@@ -201,7 +201,7 @@ async def test_happy_flow_references_two(default_config_path: Path):
     schema_for_id_one_future.set_result((ref_schema_two, [Subject("mock")]))
     mock_protobuf_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, ref_schema_two, ResolvedVersion(1)))
+    get_latest_schema_future.set_result((1, ref_schema_two, Versioner.V(1)))
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
@@ -221,7 +221,7 @@ async def test_serialization_fails(default_config_path: Path):
     mock_protobuf_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
-        (1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf)), ResolvedVersion(1))
+        (1, ParsedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf)), Versioner.V(1))
     )
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 

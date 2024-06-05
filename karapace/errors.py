@@ -2,8 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.schema_references import Referents
-from karapace.typing import ResolvedVersion
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from karapace.schema_references import Referents
+    from karapace.typing import Version
 
 
 class VersionNotFoundException(Exception):
@@ -55,10 +61,10 @@ class SubjectNotSoftDeletedException(Exception):
 
 
 class ReferenceExistsException(Exception):
-    def __init__(self, referenced_by: Referents, version: ResolvedVersion) -> None:
+    def __init__(self, referenced_by: Referents, version: Version) -> None:
         super().__init__()
-        self.version = version
         self.referenced_by = referenced_by
+        self.version = version
 
 
 class SubjectSoftDeletedException(Exception):

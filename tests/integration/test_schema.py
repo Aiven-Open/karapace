@@ -2323,6 +2323,29 @@ async def test_version_number_validation(registry_async_client: Client) -> None:
         )
 
 
+async def test_get_schema_version_by_latest_tags(registry_async_client: Client) -> None:
+    """
+    Creates a subject and schema. Tests that the endpoints
+    `subjects/{subject}/versions/latest` and `subjects/{subject}/versions/-1` return the latest schema.
+    """
+    subject = create_subject_name_factory("test_subject")()
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": '{"type": "string"}'})
+    assert res.status_code == 200
+    schema_id = res.json()["id"]
+
+    res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert res.status_code == 200
+    schema_version = res.json()[0]
+
+    version_endpoints = {f"subjects/{subject}/versions/latest", f"subjects/{subject}/versions/-1"}
+    for endpoint in version_endpoints:
+        res = await registry_async_client.get(endpoint)
+        res_data = res.json()
+        assert res.status_code == 200
+        assert res_data["id"] == schema_id
+        assert res_data["version"] == schema_version
+
+
 async def test_common_endpoints(registry_async_client: Client) -> None:
     res = await registry_async_client.get("")
     assert res.status_code == 200
@@ -2624,7 +2647,7 @@ async def test_schema_hard_delete_version(registry_async_client: Client) -> None
     assert res.status_code == 404
     assert res.json()["error_code"] == 40406
     assert (
-        res.json()["message"] == f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently"
+        res.json()["message"] == f"Subject '{subject}' Version 1 was soft deleted. Set permanent=true to delete permanently"
     )
 
     res = await registry_async_client.get(f"subjects/{subject}/versions/1")
