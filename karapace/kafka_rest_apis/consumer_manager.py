@@ -2,12 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from asyncio import Lock
-from collections import defaultdict, namedtuple
-from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
-from functools import partial
-from http import HTTPStatus
-from kafka.errors import (
+from aiokafka.errors import (
     GroupAuthorizationFailedError,
     IllegalStateError,
     KafkaConfigurationError,
@@ -15,6 +10,11 @@ from kafka.errors import (
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
+from asyncio import Lock
+from collections import defaultdict, namedtuple
+from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
+from functools import partial
+from http import HTTPStatus
 from karapace.config import Config
 from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import AsyncKafkaConsumer

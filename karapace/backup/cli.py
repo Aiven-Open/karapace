@@ -9,7 +9,7 @@ from __future__ import annotations
 from . import api
 from .errors import BackupDataRestorationError, StaleConsumerError
 from .poll_timeout import PollTimeout
-from kafka.errors import BrokerResponseError
+from aiokafka.errors import BrokerResponseError
 from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
 from typing import Iterator

@@ -5,10 +5,10 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from aiokafka.errors import IllegalStateError, KafkaTimeoutError
 from confluent_kafka import Consumer, Message, TopicPartition
 from confluent_kafka.admin import PartitionMetadata
 from confluent_kafka.error import KafkaException
-from kafka.errors import IllegalStateError, KafkaTimeoutError
 from karapace.kafka.common import _KafkaConfigMixin, KafkaClientParams, raise_from_kafkaexception
 from typing import Any, Callable, Iterable, TypeVar
 from typing_extensions import Unpack

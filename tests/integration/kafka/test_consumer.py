@@ -4,10 +4,10 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from aiokafka.errors import IllegalStateError, KafkaTimeoutError, UnknownTopicOrPartitionError
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
 from confluent_kafka.admin import NewTopic
 from confluent_kafka.error import KafkaError
-from kafka.errors import IllegalStateError, KafkaTimeoutError, UnknownTopicOrPartitionError
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
