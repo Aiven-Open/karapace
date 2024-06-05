@@ -7,7 +7,7 @@ isodate<1
 jsonschema<5
 lz4
 networkx<4
-protobuf<4
+protobuf<6
 pyjwt>=2.4.0<3
 python-dateutil<3
 python-snappy
