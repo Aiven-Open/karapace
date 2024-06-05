@@ -16,9 +16,9 @@ from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
 from karapace.protobuf.io import ProtobufDatumReader, ProtobufDatumWriter
 from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
-from karapace.typing import NameStrategy, ResolvedVersion, SchemaId, Subject, SubjectType
+from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType, Version
 from karapace.utils import json_decode, json_encode
 from typing import Any, Callable, MutableMapping
 from urllib.parse import quote
@@ -131,9 +131,9 @@ class SchemaRegistryClient:
     async def _get_schema_recursive(
         self,
         subject: Subject,
-        explored_schemas: set[tuple[Subject, ResolvedVersion | None]],
-        version: ResolvedVersion | None = None,
-    ) -> tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
+        explored_schemas: set[tuple[Subject, Version | None]],
+        version: Version | None = None,
+    ) -> tuple[SchemaId, ValidatedTypedSchema, Version]:
         if (subject, version) in explored_schemas:
             raise InvalidSchema(
                 f"The schema has at least a cycle in dependencies, "
@@ -174,7 +174,7 @@ class SchemaRegistryClient:
                     references=references,
                     dependencies=dependencies,
                 ),
-                ResolvedVersion(json_result["version"]),
+                Versioner.V(json_result["version"]),
             )
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
@@ -183,21 +183,21 @@ class SchemaRegistryClient:
     async def get_schema(
         self,
         subject: Subject,
-        version: ResolvedVersion | None = None,
-    ) -> tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]:
+        version: Version | None = None,
+    ) -> tuple[SchemaId, ValidatedTypedSchema, Version]:
         """
         Retrieves the schema and its dependencies for the specified subject.
 
         Args:
             subject (Subject): The subject for which to retrieve the schema.
-            version (Optional[ResolvedVersion]): The specific version of the schema to retrieve.
+            version (Optional[Version]): The specific version of the schema to retrieve.
                                                     If None, the latest available schema will be returned.
 
         Returns:
-            Tuple[SchemaId, ValidatedTypedSchema, ResolvedVersion]: A tuple containing:
+            Tuple[SchemaId, ValidatedTypedSchema, Version]: A tuple containing:
                 - SchemaId: The ID of the retrieved schema.
                 - ValidatedTypedSchema: The retrieved schema, validated and typed.
-                - ResolvedVersion: The version of the schema that was retrieved.
+                - Version: The version of the schema that was retrieved.
         """
         return await self._get_schema_recursive(subject, set(), version)
 

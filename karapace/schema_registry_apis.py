@@ -31,10 +31,10 @@ from karapace.errors import (
 from karapace.karapace import KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema
+from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
-from karapace.schema_registry import KarapaceSchemaRegistry, validate_version
-from karapace.typing import JsonData, JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.schema_registry import KarapaceSchemaRegistry
+from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -337,9 +337,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if self._auth is not None:
                 stack.push_async_callback(self._auth.close)
 
-    def _subject_get(
-        self, subject: str, content_type: str, include_deleted: bool = False
-    ) -> dict[ResolvedVersion, SchemaVersion]:
+    def _subject_get(self, subject: str, content_type: str, include_deleted: bool = False) -> dict[Version, SchemaVersion]:
         try:
             schema_versions = self.schema_registry.subject_get(subject, include_deleted)
         except SubjectNotFoundException:
@@ -404,7 +402,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         try:
-            old = self.schema_registry.subject_version_get(subject=subject, version=version)
+            old = self.schema_registry.subject_version_get(subject=subject, version=Versioner.V(version))
         except InvalidVersion:
             self._invalid_version(content_type, version)
         except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
@@ -789,7 +787,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:
-            subject_data = self.schema_registry.subject_version_get(subject, version, include_deleted=deleted)
+            subject_data = self.schema_registry.subject_version_get(subject, Versioner.V(version), include_deleted=deleted)
             if "compatibility" in subject_data:
                 del subject_data["compatibility"]
             self.r(subject_data, content_type)
@@ -818,13 +816,14 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-        version = validate_version(version)
         permanent = request.query.get("permanent", "false").lower() == "true"
 
         are_we_master, master_url = await self.schema_registry.get_master()
         if are_we_master:
             try:
-                resolved_version = await self.schema_registry.subject_version_delete_local(subject, version, permanent)
+                resolved_version = await self.schema_registry.subject_version_delete_local(
+                    subject, Versioner.V(version), permanent
+                )
                 self.r(str(resolved_version), content_type, status=HTTPStatus.OK)
             except (SubjectNotFoundException, SchemasNotFoundException):
                 self.r(
@@ -849,7 +848,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     body={
                         "error_code": SchemaErrorCodes.SCHEMAVERSION_SOFT_DELETED.value,
                         "message": (
-                            f"Subject '{subject}' Version 1 was soft deleted.Set permanent=true to delete permanently"
+                            f"Subject '{subject}' Version {version} was soft deleted. "
+                            "Set permanent=true to delete permanently"
                         ),
                     },
                     content_type=content_type,
@@ -879,6 +879,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 )
+            except InvalidVersion:
+                self._invalid_version(content_type, version)
         elif not master_url:
             self.no_master_error(content_type)
         else:
@@ -891,7 +893,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
-            subject_data = self.schema_registry.subject_version_get(subject, version)
+            subject_data = self.schema_registry.subject_version_get(subject, Versioner.V(version))
             self.r(subject_data["schema"], content_type)
         except InvalidVersion:
             self._invalid_version(content_type, version)
@@ -918,7 +920,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
-            referenced_by = await self.schema_registry.subject_version_referencedby_get(subject, version)
+            referenced_by = await self.schema_registry.subject_version_referencedby_get(subject, Versioner.V(version))
         except (SubjectNotFoundException, SchemasNotFoundException):
             self.r(
                 body={
