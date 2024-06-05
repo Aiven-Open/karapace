@@ -471,7 +471,7 @@ class KafkaSchemaReader(Thread):
             return
 
         subject = value["subject"]
-        version = value["version"]
+        version = Version(value["version"])
         if self.database.find_subject(subject=subject) is None:
             LOG.warning("Subject: %r did not exist, should have", subject)
         else:
@@ -479,7 +479,7 @@ class KafkaSchemaReader(Thread):
             self.database.delete_subject(subject=subject, version=version)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
-        subject, version = key["subject"], key["version"]
+        subject, version = key["subject"], Version(key["version"])
 
         if self.database.find_subject(subject=subject) is None:
             LOG.warning("Hard delete: Subject %s did not exist, should have", subject)
@@ -501,7 +501,7 @@ class KafkaSchemaReader(Thread):
         schema_str = value["schema"]
         schema_subject = value["subject"]
         schema_id = value["id"]
-        schema_version = value["version"]
+        schema_version = Version(value["version"])
         schema_deleted = value.get("deleted", False)
         schema_references = value.get("references", None)
         resolved_references: list[Reference] | None = None

@@ -25,9 +25,9 @@ class TestVersion:
         return Versioner.V(1)
 
     def test_version(self, version: Version):
-        assert version == 1
+        assert version == Version(1)
         assert isinstance(version, Version)
-        assert issubclass(Version, int)
+        assert isinstance(version.value, int)
 
     def test_tags(self, version: Version):
         assert version.LATEST_VERSION_TAG == "latest"
@@ -47,7 +47,7 @@ class TestVersion:
 
     def test_text_formating(self, version: Version):
         assert f"{version}" == "1"
-        assert f"{version!r}" == "Version=1"
+        assert f"{version!r}" == "Version(1)"
 
     @pytest.mark.parametrize(
         "version, to_compare, comparer, valid",
