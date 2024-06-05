@@ -451,10 +451,10 @@ class UserRestProxy:
         self.config = config
         self.kafka_timeout = kafka_timeout
         self.serializer = serializer
-        self._cluster_metadata = None
+        self._cluster_metadata: _ClusterMetadata = self._empty_cluster_metadata_cache()
         self._cluster_metadata_complete = False
         # birth of all the metadata (when the request was requiring all the metadata available in the cluster)
-        self._global_metadata_birth: float | None = None
+        self._global_metadata_birth: float = 0.0  # set to this value will always require a refresh at the first call.
         self._cluster_metadata_topic_birth: dict[str, float] = {}
         self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
@@ -634,25 +634,19 @@ class UserRestProxy:
             return self.admin_client.get_topic_config(topic)
 
     def is_global_metadata_old(self) -> bool:
-        return (
-            self._global_metadata_birth is None or (time.monotonic() - self._global_metadata_birth) > self.metadata_max_age
-        )
+        return (time.monotonic() - self._global_metadata_birth) > self.metadata_max_age
 
     def is_metadata_of_topics_old(self, topics: list[str]) -> bool:
         # Return from metadata only if all queried topics have cached metadata
-
-        if self._cluster_metadata_topic_birth is None:
-            return True
-
         are_all_topic_queried_at_least_once = all(topic in self._cluster_metadata_topic_birth for topic in topics)
 
         if not are_all_topic_queried_at_least_once:
             return True
 
-        oldest_requested_topic_udpate_timestamp = min(self._cluster_metadata_topic_birth[topic] for topic in topics)
+        oldest_requested_topic_update_timestamp = min(self._cluster_metadata_topic_birth[topic] for topic in topics)
         return (
             are_all_topic_queried_at_least_once
-            and (time.monotonic() - oldest_requested_topic_udpate_timestamp) > self.metadata_max_age
+            and (time.monotonic() - oldest_requested_topic_update_timestamp) > self.metadata_max_age
         )
 
     def _update_all_metadata(self) -> _ClusterMetadata:
@@ -685,17 +679,43 @@ class UserRestProxy:
         if self._cluster_metadata is None:
             self._cluster_metadata = self._empty_cluster_metadata_cache()
 
+        # we need to refresh if at least 1 broker isn't present in the current metadata
+        need_refresh = not all(broker in self._cluster_metadata["brokers"] for broker in metadata["brokers"])
+
         for topic in metadata["topics"]:
+            # or if there is a new topic
+            need_refresh = (
+                need_refresh
+                or (topic not in self._cluster_metadata["topics"])
+                # or if a topic has new/different data.
+                # nb: equality its valid since the _ClusterMetadata object its structurally
+                # composed only of primitives lists and dicts
+                or (self._cluster_metadata["topics"][topic] != metadata["topics"][topic])
+            )
             self._cluster_metadata_topic_birth[topic] = metadata_birth
             self._cluster_metadata["topics"][topic] = metadata["topics"][topic]
 
-        self._cluster_metadata_complete = False
+        if need_refresh:
+            # we don't need to reason about expiration time since at each request
+            # for the global metadata it's checked before performing the request,
+            # so we need to guard only for new missing pieces of info
+            self._cluster_metadata_complete = False
+        else:
+            # for malicious actors we may also cache that a certain topic (that do not exist) it has been queried
+            # and for a while the reply isn't present. not implementing this now since its an additional complexity
+            # that may be unrequired. Leaving a comment and a warning there, if its present often in the logs the feature
+            # may be needed.
+            log.warning(
+                "Requested metadata for topics %s but the reply didn't triggered a cache invalidation. "
+                "Data not present on server side",
+                topics,
+            )
         return metadata
 
     async def cluster_metadata(self, topics: list[str] | None = None) -> _ClusterMetadata:
         async with self.admin_lock:
             try:
-                if topics is None:
+                if topics is None or len(topics) == 0:
                     metadata = self._update_all_metadata()
                 else:
                     metadata = self._update_metadata_for_topics(topics)
