@@ -12,7 +12,7 @@ aiokafka==0.10.0
     # via -r requirements.in
 aiosignal==1.3.1
     # via aiohttp
-anyio==4.3.0
+anyio==4.4.0
     # via watchfiles
 async-timeout==4.0.3
     # via
@@ -95,20 +95,20 @@ sniffio==1.3.1
     # via anyio
 tenacity==8.3.0
     # via -r requirements.in
-typing-extensions==4.11.0
+typing-extensions==4.12.1
     # via
     #   -r requirements.in
     #   anyio
     #   rich
 ujson==5.10.0
     # via -r requirements.in
-watchfiles==0.21.0
+watchfiles==0.22.0
     # via -r requirements.in
 xxhash==3.4.1
     # via -r requirements.in
 yarl==1.9.4
     # via aiohttp
-zipp==3.18.2
+zipp==3.19.2
     # via importlib-resources
 zstandard==0.22.0
     # via -r requirements.in
