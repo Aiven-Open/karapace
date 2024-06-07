@@ -2,6 +2,7 @@
 accept-types<1
 aiohttp<4
 aiokafka==0.10.0
+cachetools==5.3.3
 confluent-kafka==2.3.0
 isodate<1
 jsonschema<5
@@ -11,13 +12,12 @@ protobuf<4
 pyjwt>=2.4.0<3
 python-dateutil<3
 python-snappy
+rich~=13.7.1
 tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
 xxhash~=3.3
-rich~=13.7.1
-cachetools==5.3.3
 zstandard
 
 # Patched dependencies
