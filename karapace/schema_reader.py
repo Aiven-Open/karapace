@@ -353,7 +353,9 @@ class KafkaSchemaReader(Thread):
                 assert message_key is not None
                 key = json_decode(message_key)
             except JSONDecodeError:
-                LOG.exception("Invalid JSON in msg.key() at offset %s", msg.offset())
+                # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
+                self.offset = msg.offset()
+                LOG.warning("Invalid JSON in msg.key() at offset %s", msg.offset())
                 continue
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
                 LOG.error(
@@ -380,7 +382,9 @@ class KafkaSchemaReader(Thread):
                 try:
                     value = self._parse_message_value(message_value)
                 except JSONDecodeError:
-                    LOG.exception("Invalid JSON in msg.value() at offset %s", msg.offset())
+                    # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
+                    self.offset = msg.offset()
+                    LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
                     continue
 
             self.handle_msg(key, value)
