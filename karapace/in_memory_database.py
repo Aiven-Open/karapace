@@ -101,7 +101,7 @@ class InMemoryDatabase:
         return self._hash_to_schema.setdefault(typed_schema.fingerprint(), typed_schema)
 
     def get_next_version(self, *, subject: Subject) -> Version:
-        return Versioner.V(max(self.subjects[subject].schemas) + 1)
+        return Versioner.V(max(self.subjects[subject].schemas).value + 1)
 
     def insert_schema_version(
         self,
@@ -224,7 +224,7 @@ class InMemoryDatabase:
             return self.subjects[subject].schemas
         with self.schema_lock_thread:
             return {
-                Versioner.V(version_id): schema_version
+                version_id: schema_version
                 for version_id, schema_version in self.subjects[subject].schemas.items()
                 if schema_version.deleted is False
             }
