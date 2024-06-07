@@ -9,6 +9,8 @@ from karapace.errors import InvalidVersion
 from typing import ClassVar, Dict, List, Mapping, NewType, Sequence, Union
 from typing_extensions import TypeAlias
 
+import functools
+
 JsonArray: TypeAlias = List["JsonData"]
 JsonObject: TypeAlias = Dict[str, "JsonData"]
 JsonScalar: TypeAlias = Union[str, int, float, None]
@@ -59,23 +61,41 @@ class Mode(StrEnum):
     readwrite = "READWRITE"
 
 
-class Version(int):
+@functools.total_ordering
+class Version:
     LATEST_VERSION_TAG: ClassVar[str] = "latest"
     MINUS_1_VERSION_TAG: ClassVar[int] = -1
 
-    def __new__(cls, version: int) -> Version:
+    def __init__(self, version: int) -> None:
         if not isinstance(version, int):
             raise InvalidVersion(f"Invalid version {version}")
-        if (version < cls.MINUS_1_VERSION_TAG) or (version == 0):
+        if (version < Version.MINUS_1_VERSION_TAG) or (version == 0):
             raise InvalidVersion(f"Invalid version {version}")
-        return super().__new__(cls, version)
+        self._value = version
 
     def __str__(self) -> str:
-        return f"{int(self)}"
+        return f"{int(self._value)}"
 
     def __repr__(self) -> str:
-        return f"Version={int(self)}"
+        return f"Version({int(self._value)})"
+
+    def __lt__(self, other: object) -> bool:
+        if isinstance(other, Version):
+            return self._value < other.value
+        return NotImplemented
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Version):
+            return self._value == other.value
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    @property
+    def value(self) -> int:
+        return self._value
 
     @property
     def is_latest(self) -> bool:
-        return self == self.MINUS_1_VERSION_TAG
+        return self.value == self.MINUS_1_VERSION_TAG

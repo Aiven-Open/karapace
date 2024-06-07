@@ -466,7 +466,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             for schema_version in schema_versions:
                 response_schema = {
                     "subject": schema_version.subject,
-                    "version": schema_version.version,
+                    "version": schema_version.version.value,
                     "id": schema_version.schema_id,
                     "schemaType": schema_version.schema.schema_type,
                 }
@@ -571,7 +571,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             subject = subject_version["subject"]
             if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue
-            subject_versions.append(subject_version)
+            subject_versions.append(
+                {
+                    "subject": subject_version["subject"],
+                    "version": subject_version["version"].value,
+                }
+            )
         self.r(subject_versions, content_type)
 
     async def schemas_types(self, content_type: str) -> None:
@@ -733,7 +738,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if are_we_master:
             try:
                 version_list = await self.schema_registry.subject_delete_local(subject=subject, permanent=permanent)
-                self.r(version_list, content_type, status=HTTPStatus.OK)
+                self.r([version.value for version in version_list], content_type, status=HTTPStatus.OK)
             except (SubjectNotFoundException, SchemasNotFoundException):
                 self.r(
                     body={
@@ -951,7 +956,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         deleted = request.query.get("deleted", "false").lower() == "true"
         try:
             schema_versions = self.schema_registry.subject_get(subject, include_deleted=deleted)
-            self.r(list(schema_versions), content_type, status=HTTPStatus.OK)
+            version_list = [version.value for version in schema_versions]
+            self.r(version_list, content_type, status=HTTPStatus.OK)
         except (SubjectNotFoundException, SchemasNotFoundException):
             self.r(
                 body={
@@ -1170,7 +1176,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if parsed_typed_schema.schema_type == new_schema.schema_type and schema_valid:
                 ret = {
                     "subject": subject,
-                    "version": schema_version.version,
+                    "version": schema_version.version.value,
                     "id": schema_version.schema_id,
                     "schema": parsed_typed_schema.schema_str,
                 }

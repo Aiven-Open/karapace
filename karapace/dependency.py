@@ -45,7 +45,7 @@ class Dependency:
         return {
             "name": self.name,
             "subject": self.subject,
-            "version": self.version,
+            "version": self.version.value,
         }
 
     def identifier(self) -> str:

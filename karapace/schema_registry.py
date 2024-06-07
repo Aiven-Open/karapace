@@ -248,7 +248,7 @@ class KarapaceSchemaRegistry:
 
         ret: JsonObject = {
             "subject": subject,
-            "version": resolved_version,
+            "version": resolved_version.value,
             "id": schema_id,
             "schema": schema.schema_str,
         }
@@ -427,11 +427,11 @@ class KarapaceSchemaRegistry:
         deleted: bool,
         references: Sequence[Reference] | None,
     ) -> None:
-        key = {"subject": subject, "version": version, "magic": 1, "keytype": "SCHEMA"}
+        key = {"subject": subject, "version": version.value, "magic": 1, "keytype": "SCHEMA"}
         if schema:
             value = {
                 "subject": subject,
-                "version": version,
+                "version": version.value,
                 "id": schema_id,
                 "schema": str(schema),
                 "deleted": deleted,
@@ -461,5 +461,5 @@ class KarapaceSchemaRegistry:
 
     def send_delete_subject_message(self, subject: Subject, version: Version) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}
-        value = {"subject": subject, "version": version}
+        value = {"subject": subject, "version": version.value}
         self.producer.send_message(key=key, value=value)
