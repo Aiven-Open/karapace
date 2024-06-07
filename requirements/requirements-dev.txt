@@ -14,7 +14,7 @@ aiosignal==1.3.1
     # via
     #   -r requirements.txt
     #   aiohttp
-anyio==4.3.0
+anyio==4.4.0
     # via
     #   -r requirements.txt
     #   watchfiles
@@ -39,7 +39,7 @@ brotli==1.1.0
     # via geventhttpclient
 cachetools==5.3.3
     # via -r requirements.txt
-certifi==2024.2.2
+certifi==2024.6.2
     # via
     #   geventhttpclient
     #   requests
@@ -90,7 +90,7 @@ geventhttpclient==2.0.12
     # via locust
 greenlet==3.0.3
     # via gevent
-hypothesis==6.102.4
+hypothesis==6.103.1
     # via -r requirements-dev.in
 idna==3.7
     # via
@@ -173,7 +173,7 @@ pyjwt==2.8.0
     # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
-pytest==8.2.1
+pytest==8.2.2
     # via
     #   -r requirements-dev.in
     #   pytest-random-order
@@ -209,7 +209,7 @@ rpds-py==0.18.1
     #   -r requirements.txt
     #   jsonschema
     #   referencing
-sentry-sdk==2.2.0
+sentry-sdk==2.5.0
     # via -r requirements-dev.in
 six==1.16.0
     # via
@@ -229,7 +229,7 @@ tomli==2.0.1
     # via
     #   locust
     #   pytest
-typing-extensions==4.11.0
+typing-extensions==4.12.1
     # via
     #   -r requirements.txt
     #   anyio
@@ -240,7 +240,7 @@ urllib3==2.2.1
     # via
     #   requests
     #   sentry-sdk
-watchfiles==0.21.0
+watchfiles==0.22.0
     # via -r requirements.txt
 werkzeug==3.0.3
     # via
@@ -255,14 +255,14 @@ yarl==1.9.4
     # via
     #   -r requirements.txt
     #   aiohttp
-zipp==3.18.2
+zipp==3.19.2
     # via
     #   -r requirements.txt
     #   importlib-metadata
     #   importlib-resources
 zope-event==5.0
     # via gevent
-zope-interface==6.4
+zope-interface==6.4.post2
     # via gevent
 zstandard==0.22.0
     # via -r requirements.txt
