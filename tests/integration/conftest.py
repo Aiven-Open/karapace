@@ -52,7 +52,7 @@ KAFKA_WAIT_TIMEOUT = 60
 KAFKA_SCALA_VERSION = "2.13"
 # stdout logger is disabled to keep the pytest report readable
 KAFKA_LOG4J = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
-WORKER_COUNTER_KEY = "worker_counter"
+WORKER_IDS_KEY = "workers"
 
 REST_PRODUCER_MAX_REQUEST_BYTES = 10240
 
@@ -127,6 +127,7 @@ def fixture_kafka_server(
     # synchronization data.
     transfer_file = session_logdir / "transfer"
     lock_file = lock_path_for(transfer_file)
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER")
 
     with ExitStack() as stack:
         zk_client_port = stack.enter_context(port_range.allocate_port())
@@ -138,7 +139,8 @@ def fixture_kafka_server(
                 config_data = json.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
-                config_data[WORKER_COUNTER_KEY] += 1  # Count the new worker
+                workers = config_data[WORKER_IDS_KEY]
+                workers.append(worker_id)
             else:
                 maybe_download_kafka(kafka_description)
 
@@ -174,7 +176,7 @@ def fixture_kafka_server(
                 config_data = {
                     "zookeeper": asdict(zk_config),
                     "kafka": asdict(kafka_config),
-                    WORKER_COUNTER_KEY: 1,
+                    WORKER_IDS_KEY: [worker_id],
                 }
 
             transfer_file.write_text(json.dumps(config_data))
@@ -190,19 +192,17 @@ def fixture_kafka_server(
             with FileLock(str(lock_file)):
                 assert transfer_file.exists(), "transfer_file disappeared"
                 config_data = json.loads(transfer_file.read_text())
-                config_data[WORKER_COUNTER_KEY] -= 1
+                config_data[WORKER_IDS_KEY].remove(worker_id)
                 transfer_file.write_text(json.dumps(config_data))
+                workers = config_data[WORKER_IDS_KEY]
 
             # Wait until every worker finished before stopping the servers
-            worker_counter = float("inf")
-            while worker_counter > 0:
+            while len(config_data[WORKER_IDS_KEY]) > 0:
                 with FileLock(str(lock_file)):
                     assert transfer_file.exists(), "transfer_file disappeared"
                     config_data = json.loads(transfer_file.read_text())
-                    worker_counter = config_data[WORKER_COUNTER_KEY]
-
+                    workers = config_data[WORKER_IDS_KEY]
                 time.sleep(2)
-
         return
 
 
