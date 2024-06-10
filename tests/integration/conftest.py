@@ -227,8 +227,10 @@ def fixture_consumer(
         # Speed things up for consumer tests to discover topics, etc.
         topic_metadata_refresh_interval_ms=200,
     )
-    yield consumer
-    consumer.close()
+    try:
+        yield consumer
+    finally:
+        consumer.close()
 
 
 @pytest.fixture(scope="function", name="asyncproducer")
