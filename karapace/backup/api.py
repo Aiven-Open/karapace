@@ -298,12 +298,12 @@ def _consume_records(
     if start_offset >= end_offset:
         raise EmptyPartition
 
-    # kafka-python returns end offset + 1, i.e. the value that will be assigned
-    # to the next record to be produced. To get the highest offset already
-    # produced we need to subtract 1. Note that this has little to do with high
-    # watermark, which takes into account the highest record offset to be fully
-    # in sync across ISRs, and therefore can be an arbitrary number less than
-    # or equal to the LEO.
+    # confluent-kafka-python returns end offset + 1, i.e. the value that will
+    # be assigned to the next record to be produced. To get the highest offset
+    # already produced we need to subtract 1. Note that this has little to do
+    # with high watermark, which takes into account the highest record offset
+    # to be fully in sync across ISRs, and therefore can be an arbitrary
+    # number less than or equal to the LEO.
     end_offset -= 1
 
     while True:
