@@ -33,11 +33,10 @@ class Singleton(type):
 
 
 class Metrics(metaclass=Singleton):
-    stats_client: StatsClient
-
     def __init__(
         self,
     ) -> None:
+        self.stats_client = None
         self.is_ready = False
         self.lock = threading.Lock()
         self.request_size_total = 0
@@ -99,5 +98,6 @@ class Metrics(metaclass=Singleton):
     def cleanup(self) -> None:
         if self.stats_client:
             self.stats_client.close()
+
         if not self.is_ready:
             return

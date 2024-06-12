@@ -39,6 +39,13 @@ def test_setup_invalid_service(metrics):
         metrics.setup(config)
 
 
+def test_setup_no_service(metrics):
+    config = cast(Config, {"metrics_extended": False})
+    metrics.setup(config)
+    assert not metrics.is_ready
+    assert metrics.stats_client is None
+
+
 def test_setup_prometheus(metrics):
     config = cast(
         Config,
