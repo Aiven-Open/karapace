@@ -1,10 +1,12 @@
-from aiokafka import AIOKafkaProducer
-from aiokafka.errors import KafkaConnectionError
-from binascii import Error as B64DecodeError
-from collections import namedtuple
-from contextlib import AsyncExitStack
-from http import HTTPStatus
-from kafka.errors import (
+"""
+karapace - Rest Proxy API
+
+Copyright (c) 2024 Aiven Ltd
+See LICENSE for details
+"""
+from __future__ import annotations
+
+from aiokafka.errors import (
     AuthenticationFailedError,
     BrokerResponseError,
     KafkaTimeoutError,
@@ -12,9 +14,15 @@ from kafka.errors import (
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
-from karapace.config import Config, create_client_ssl_context
+from binascii import Error as B64DecodeError
+from collections import namedtuple
+from confluent_kafka.error import KafkaException
+from contextlib import AsyncExitStack
+from http import HTTPStatus
+from karapace.config import Config
 from karapace.errors import InvalidSchema
-from karapace.kafka.admin import KafkaAdminClient, KafkaException
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.producer import AsyncKafkaProducer
 from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
@@ -35,8 +43,8 @@ from karapace.serialization import (
     SchemaRetrievalError,
 )
 from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
-from karapace.utils import convert_to_int, json_encode, KarapaceKafkaClient
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from karapace.utils import convert_to_int, json_encode
+from typing import Callable, TypedDict
 
 import asyncio
 import base64
@@ -66,12 +74,13 @@ class KafkaRest(KarapaceBase):
         super().__init__(config=config)
         self._add_kafka_rest_routes()
         self.serializer = SchemaRegistrySerializer(config=config)
-        self.proxies: Dict[str, "UserRestProxy"] = {}
+        self.proxies: dict[str, UserRestProxy] = {}
         self._proxy_lock = asyncio.Lock()
         log.info("REST proxy starting with (delegated authorization=%s)", self.config.get("rest_authorization", False))
-        self._idle_proxy_janitor_task: Optional[asyncio.Task] = None
+        self._idle_proxy_janitor_task: asyncio.Task | None = None
 
     async def close(self) -> None:
+        log.info("Closing REST proxy application")
         if self._idle_proxy_janitor_task is not None:
             self._idle_proxy_janitor_task.cancel()
             self._idle_proxy_janitor_task = None
@@ -306,7 +315,7 @@ class KafkaRest(KarapaceBase):
                     if self.proxies.get(key) is None:
                         self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
             except (NoBrokersAvailable, AuthenticationFailedError):
-                log.exception("Failed to connect to Kafka with the credentials")
+                log.warning("Failed to connect to Kafka with the credentials")
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
             proxy = self.proxies[key]
             proxy.mark_used()
@@ -415,32 +424,56 @@ class KafkaRest(KarapaceBase):
         await proxy.topic_publish(topic, content_type, request=request)
 
 
+class _ReplicaMetadata(TypedDict):
+    broker: int
+    leader: bool
+    in_sync: bool
+
+
+class _PartitionMetadata(TypedDict):
+    partition: int
+    leader: int
+    replicas: list[_ReplicaMetadata]
+
+
+class _TopicMetadata(TypedDict):
+    partitions: list[_PartitionMetadata]
+
+
+class _ClusterMetadata(TypedDict):
+    topics: dict[str, _TopicMetadata]
+    brokers: list[int]
+
+
 class UserRestProxy:
     def __init__(
         self,
         config: Config,
         kafka_timeout: int,
         serializer: SchemaRegistrySerializer,
-        auth_expiry: Optional[datetime.datetime] = None,
+        auth_expiry: datetime.datetime | None = None,
+        verify_connection: bool = True,
     ):
         self.config = config
         self.kafka_timeout = kafka_timeout
         self.serializer = serializer
-        self._cluster_metadata = None
+        self._cluster_metadata: _ClusterMetadata = self._empty_cluster_metadata_cache()
         self._cluster_metadata_complete = False
-        self._metadata_birth = None
+        # birth of all the metadata (when the request was requiring all the metadata available in the cluster)
+        self._global_metadata_birth: float = 0.0  # set to this value will always require a refresh at the first call.
+        self._cluster_metadata_topic_birth: dict[str, float] = {}
         self.metadata_max_age = self.config["admin_metadata_max_age"]
         self.admin_client = None
         self.admin_lock = asyncio.Lock()
         self.metadata_cache = None
         self.topic_schema_cache = TopicSchemaCache()
         self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
-        self.init_admin_client()
+        self.init_admin_client(verify_connection)
         self._last_used = time.monotonic()
         self._auth_expiry = auth_expiry
 
         self._async_producer_lock = asyncio.Lock()
-        self._async_producer: Optional[AIOKafkaProducer] = None
+        self._async_producer: AsyncKafkaProducer | None = None
         self.naming_strategy = NameStrategy(self.config["name_strategy"])
 
     def __str__(self) -> str:
@@ -460,12 +493,16 @@ class UserRestProxy:
     def num_consumers(self) -> int:
         return len(self.consumer_manager.consumers)
 
-    async def _maybe_create_async_producer(self) -> AIOKafkaProducer:
+    async def _maybe_create_async_producer(self) -> AsyncKafkaProducer:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         if self._async_producer is not None:
             return self._async_producer
 
         if self.config["producer_acks"] == "all":
-            acks = "all"
+            acks = -1
         else:
             acks = int(self.config["producer_acks"])
 
@@ -476,33 +513,34 @@ class UserRestProxy:
 
                 log.info("Creating async producer")
 
-                # Don't retry if creating the SSL context fails, likely a configuration issue with
-                # ciphers or certificate chains
-                ssl_context = create_client_ssl_context(self.config)
-
-                # Don't retry if instantiating the producer fails, likely a configuration error.
-                producer = AIOKafkaProducer(
+                producer = AsyncKafkaProducer(
                     acks=acks,
                     bootstrap_servers=self.config["bootstrap_uri"],
                     compression_type=self.config["producer_compression_type"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
                     linger_ms=self.config["producer_linger_ms"],
-                    max_request_size=self.config["producer_max_request_size"],
+                    message_max_bytes=self.config["producer_max_request_size"],
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     security_protocol=self.config["security_protocol"],
-                    ssl_context=ssl_context,
+                    ssl_cafile=self.config["ssl_cafile"],
+                    ssl_certfile=self.config["ssl_certfile"],
+                    ssl_keyfile=self.config["ssl_keyfile"],
+                    ssl_crlfile=self.config["ssl_crlfile"],
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
-
                 try:
                     await producer.start()
-                except KafkaConnectionError:
+                except (NoBrokersAvailable, AuthenticationFailedError):
+                    await producer.stop()
                     if retry:
-                        log.exception("Unable to connect to the bootstrap servers, retrying")
+                        log.warning("Unable to connect to the bootstrap servers, retrying")
                     else:
-                        log.exception("Giving up after trying to connect to the bootstrap servers")
+                        log.warning("Giving up after trying to connect to the bootstrap servers")
                         raise
                     await asyncio.sleep(1)
+                except Exception:
+                    await producer.stop()
+                    raise
                 else:
                     self._async_producer = producer
 
@@ -601,30 +639,94 @@ class UserRestProxy:
         async with self.admin_lock:
             return self.admin_client.get_topic_config(topic)
 
-    async def cluster_metadata(self, topics: Optional[List[str]] = None) -> dict:
+    def is_global_metadata_old(self) -> bool:
+        return (time.monotonic() - self._global_metadata_birth) > self.metadata_max_age
+
+    def is_metadata_of_topics_old(self, topics: list[str]) -> bool:
+        # Return from metadata only if all queried topics have cached metadata
+        are_all_topic_queried_at_least_once = all(topic in self._cluster_metadata_topic_birth for topic in topics)
+
+        if not are_all_topic_queried_at_least_once:
+            return True
+
+        oldest_requested_topic_update_timestamp = min(self._cluster_metadata_topic_birth[topic] for topic in topics)
+        return (
+            are_all_topic_queried_at_least_once
+            and (time.monotonic() - oldest_requested_topic_update_timestamp) > self.metadata_max_age
+        )
+
+    def _update_all_metadata(self) -> _ClusterMetadata:
+        if not self.is_global_metadata_old() and self._cluster_metadata_complete:
+            return self._cluster_metadata
+
+        metadata_birth = time.monotonic()
+        metadata = self.admin_client.cluster_metadata(None)
+        for topic in metadata["topics"]:
+            self._cluster_metadata_topic_birth[topic] = metadata_birth
+
+        self._global_metadata_birth = metadata_birth
+        self._cluster_metadata = metadata
+        self._cluster_metadata_complete = True
+        return metadata
+
+    def _empty_cluster_metadata_cache(self) -> _ClusterMetadata:
+        return {"topics": {}, "brokers": []}
+
+    def _update_metadata_for_topics(self, topics: list[str]) -> _ClusterMetadata:
+        if not self.is_metadata_of_topics_old(topics):
+            return {
+                **self._cluster_metadata,
+                "topics": {topic: self._cluster_metadata["topics"][topic] for topic in topics},
+            }
+
+        metadata_birth = time.monotonic()
+        metadata = self.admin_client.cluster_metadata(topics)
+
+        if self._cluster_metadata is None:
+            self._cluster_metadata = self._empty_cluster_metadata_cache()
+
+        # we need to refresh if at least 1 broker isn't present in the current metadata
+        need_refresh = not all(broker in self._cluster_metadata["brokers"] for broker in metadata["brokers"])
+
+        for topic in metadata["topics"]:
+            # or if there is a new topic
+            need_refresh = (
+                need_refresh
+                or (topic not in self._cluster_metadata["topics"])
+                # or if a topic has new/different data.
+                # nb: equality its valid since the _ClusterMetadata object its structurally
+                # composed only of primitives lists and dicts
+                or (self._cluster_metadata["topics"][topic] != metadata["topics"][topic])
+            )
+            self._cluster_metadata_topic_birth[topic] = metadata_birth
+            self._cluster_metadata["topics"][topic] = metadata["topics"][topic]
+
+        if need_refresh:
+            # we don't need to reason about expiration time since at each request
+            # for the global metadata it's checked before performing the request,
+            # so we need to guard only for new missing pieces of info
+            self._cluster_metadata_complete = False
+        else:
+            # for malicious actors we may also cache that a certain topic (that do not exist) it has been queried
+            # and for a while the reply isn't present. not implementing this now since its an additional complexity
+            # that may be unrequired. Leaving a comment and a warning there, if its present often in the logs the feature
+            # may be needed.
+            log.warning(
+                "Requested metadata for topics %s but the reply didn't triggered a cache invalidation. "
+                "Data not present on server side",
+                topics,
+            )
+        return metadata
+
+    async def cluster_metadata(self, topics: list[str] | None = None) -> _ClusterMetadata:
         async with self.admin_lock:
-            if self._metadata_birth is None or time.monotonic() - self._metadata_birth > self.metadata_max_age:
-                self._cluster_metadata = None
-
-            if self._cluster_metadata:
-                # Return from metadata only if all queried topics have cached metadata
-                if topics is None:
-                    if self._cluster_metadata_complete:
-                        return self._cluster_metadata
-                elif all(topic in self._cluster_metadata["topics"] for topic in topics):
-                    return {
-                        **self._cluster_metadata,
-                        "topics": {topic: self._cluster_metadata["topics"][topic] for topic in topics},
-                    }
-
             try:
-                metadata_birth = time.monotonic()
-                metadata = self.admin_client.cluster_metadata(topics)
-                self._metadata_birth = metadata_birth
-                self._cluster_metadata = metadata
-                self._cluster_metadata_complete = topics is None
+                if topics is None or len(topics) == 0:
+                    metadata = self._update_all_metadata()
+                else:
+                    metadata = self._update_metadata_for_topics(topics)
             except KafkaException:
-                log.exception("Could not refresh cluster metadata")
+                log.warning("Could not refresh cluster metadata")
                 KafkaRest.r(
                     body={
                         "message": "Kafka node not ready",
@@ -635,7 +737,7 @@ class UserRestProxy:
                 )
             return metadata
 
-    def init_admin_client(self):
+    def init_admin_client(self, verify_connection: bool = True) -> KafkaAdminClient:
         for retry in [True, True, False]:
             try:
                 self.admin_client = KafkaAdminClient(
@@ -644,18 +746,17 @@ class UserRestProxy:
                     ssl_cafile=self.config["ssl_cafile"],
                     ssl_certfile=self.config["ssl_certfile"],
                     ssl_keyfile=self.config["ssl_keyfile"],
-                    api_version=(1, 0, 0),
                     metadata_max_age_ms=self.config["metadata_max_age_ms"],
                     connections_max_idle_ms=self.config["connections_max_idle_ms"],
-                    kafka_client=KarapaceKafkaClient,
-                    **get_kafka_client_auth_parameters_from_config(self.config, async_client=False),
+                    verify_connection=verify_connection,
+                    **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 break
             except:  # pylint: disable=bare-except
                 if retry:
-                    log.exception("Unable to start admin client, retrying")
+                    log.warning("Unable to start admin client, retrying")
                 else:
-                    log.exception("Giving up after failing to start admin client")
+                    log.warning("Giving up after failing to start admin client")
                     raise
                 time.sleep(1)
 
@@ -671,7 +772,11 @@ class UserRestProxy:
             self.admin_client = None
             self.consumer_manager = None
 
-    async def publish(self, topic: str, partition_id: Optional[str], content_type: str, request: HTTPRequest) -> None:
+    async def publish(self, topic: str, partition_id: str | None, content_type: str, request: HTTPRequest) -> None:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         formats: dict = request.content_type
         data: dict = request.json
         _ = await self.get_topic_info(topic, content_type)
@@ -683,7 +788,6 @@ class UserRestProxy:
         await self.validate_publish_request_format(data, formats, content_type, topic)
         status = HTTPStatus.OK
         ser_format = formats["embedded_format"]
-        prepared_records = []
         try:
             prepared_records = await self._prepare_records(
                 content_type=content_type,
@@ -702,6 +806,13 @@ class UserRestProxy:
         except InvalidMessageSchema as e:
             KafkaRest.r(
                 body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": str(e)},
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        except InvalidPayload as e:
+            cause = str(e.__cause__)
+            KafkaRest.r(
+                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": cause},
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
@@ -726,11 +837,25 @@ class UserRestProxy:
 
     async def partition_publish(self, topic: str, partition_id: str, content_type: str, *, request: HTTPRequest) -> None:
         log.debug("Executing partition publish on topic %s and partition %s", topic, partition_id)
-        await self.publish(topic, partition_id, content_type, request)
+        try:
+            await self.publish(topic, partition_id, content_type, request)
+        except (NoBrokersAvailable, AuthenticationFailedError):
+            KafkaRest.service_unavailable(
+                message="Service unavailable",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_SERVICE_UNAVAILABLE.value,
+            )
 
     async def topic_publish(self, topic: str, content_type: str, *, request: HTTPRequest) -> None:
         log.debug("Executing topic publish on topic %s", topic)
-        await self.publish(topic, None, content_type, request)
+        try:
+            await self.publish(topic, None, content_type, request)
+        except (NoBrokersAvailable, AuthenticationFailedError):
+            KafkaRest.service_unavailable(
+                message="Service unavailable",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_SERVICE_UNAVAILABLE.value,
+            )
 
     @staticmethod
     def validate_partition_id(partition_id: str, content_type: str) -> int:
@@ -769,7 +894,7 @@ class UserRestProxy:
         :raises InvalidSchema:
         """
         log.debug("[resolve schema id] Retrieving schema id for %r", data)
-        schema_id: Union[SchemaId, None] = (
+        schema_id: SchemaId | None = (
             SchemaId(int(data[f"{subject_type}_schema_id"])) if f"{subject_type}_schema_id" in data else None
         )
         schema_str = data.get(f"{subject_type}_schema")
@@ -789,7 +914,7 @@ class UserRestProxy:
             schema_id = await self._query_schema_id_from_cache_or_registry(parsed_schema, schema_str, subject_name)
         else:
 
-            def subject_not_included(schema: TypedSchema, subjects: List[Subject]) -> bool:
+            def subject_not_included(schema: TypedSchema, subjects: list[Subject]) -> bool:
                 subject = get_subject_name(topic, schema, subject_type, self.naming_strategy)
                 return subject not in subjects
 
@@ -804,8 +929,8 @@ class UserRestProxy:
         return schema_id
 
     async def _query_schema_and_subjects(
-        self, schema_id: SchemaId, *, need_new_call: Optional[Callable[[TypedSchema, List[Subject]], bool]]
-    ) -> Tuple[TypedSchema, List[Subject]]:
+        self, schema_id: SchemaId, *, need_new_call: Callable[[TypedSchema, list[Subject]], bool] | None
+    ) -> tuple[TypedSchema, list[Subject]]:
         try:
             return await self.serializer.get_schema_for_id(schema_id, need_new_call=need_new_call)
         except SchemaRetrievalError as schema_error:
@@ -858,7 +983,7 @@ class UserRestProxy:
         try:
             data[f"{subject_type}_schema_id"] = await self.get_schema_id(data, topic, subject_type, schema_type)
         except InvalidPayload:
-            log.exception("Unable to retrieve schema id")
+            log.warning("Unable to retrieve schema id")
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
@@ -896,10 +1021,10 @@ class UserRestProxy:
         content_type: str,
         data: dict,
         ser_format: str,
-        key_schema_id: Optional[int],
-        value_schema_id: Optional[int],
-        default_partition: Optional[int] = None,
-    ) -> List[Tuple]:
+        key_schema_id: int | None,
+        value_schema_id: int | None,
+        default_partition: int | None = None,
+    ) -> list[tuple]:
         prepared_records = []
         for record in data["records"]:
             key = record.get("key")
@@ -950,8 +1075,8 @@ class UserRestProxy:
         self,
         content_type: str,
         obj=None,
-        ser_format: Optional[str] = None,
-        schema_id: Optional[int] = None,
+        ser_format: str | None = None,
+        schema_id: int | None = None,
     ) -> bytes:
         if not obj:
             return b""
@@ -975,7 +1100,7 @@ class UserRestProxy:
             return await self.schema_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
 
-    async def schema_serialize(self, obj: dict, schema_id: Optional[int]) -> bytes:
+    async def schema_serialize(self, obj: dict, schema_id: int | None) -> bytes:
         schema, _ = await self.serializer.get_schema_for_id(schema_id)
         bytes_ = await self.serializer.serialize(schema, obj)
         return bytes_
@@ -1038,7 +1163,11 @@ class UserRestProxy:
                         sub_code=RESTErrorCodes.INVALID_DATA.value,
                     )
 
-    async def produce_messages(self, *, topic: str, prepared_records: List) -> List:
+    async def produce_messages(self, *, topic: str, prepared_records: list) -> list:
+        """
+        :raises NoBrokersAvailable:
+        :raises AuthenticationFailedError:
+        """
         producer = await self._maybe_create_async_producer()
 
         produce_futures = []
@@ -1068,8 +1197,11 @@ class UserRestProxy:
             if not isinstance(result, Exception):
                 produce_results.append(
                     {
-                        "offset": result.offset if result else -1,
-                        "partition": result.topic_partition.partition if result else 0,
+                        # In case the offset is not available, `confluent_kafka.Message.offset()` is
+                        # `None`. To preserve backwards compatibility, we replace this with -1.
+                        # -1 was the default `aiokafka` behaviour.
+                        "offset": result.offset() if result and result.offset() is not None else -1,
+                        "partition": result.partition() if result else 0,
                     }
                 )
 
@@ -1094,7 +1226,6 @@ class UserRestProxy:
                 # cancel is retriable
                 produce_results.append({"error_code": 1, "error": "Publish message cancelled"})
             elif isinstance(result, BrokerResponseError):
-                log.error("Broker error", exc_info=result)
                 resp = {"error_code": 1, "error": result.description}
                 if hasattr(result, "retriable") and result.retriable:
                     resp["error_code"] = 2

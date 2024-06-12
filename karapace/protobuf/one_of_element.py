@@ -14,6 +14,7 @@ from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.group_element import GroupElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import Sequence
 
 
 class OneOfElement:
@@ -21,9 +22,9 @@ class OneOfElement:
         self,
         name: str,
         documentation: str = "",
-        fields: list[FieldElement] | None = None,
-        groups: list[GroupElement] | None = None,
-        options: list[OptionElement] | None = None,
+        fields: Sequence[FieldElement] | None = None,
+        groups: Sequence[GroupElement] | None = None,
+        options: Sequence[OptionElement] | None = None,
     ) -> None:
         self.name = name
         self.documentation = documentation

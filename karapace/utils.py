@@ -14,13 +14,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from http import HTTPStatus
-from kafka.client_async import BrokerConnection, KafkaClient
 from pathlib import Path
 from types import MappingProxyType
 from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
 
 import importlib
-import kafka.client_async
 import logging
 import time
 
@@ -212,51 +210,6 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
             content_type=content_type,
             code=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
-
-
-class KarapaceKafkaClient(KafkaClient):
-    def __init__(self, **configs):
-        kafka.client_async.BrokerConnection = KarapaceBrokerConnection
-        super().__init__(**configs)
-
-    def close_invalid_connections(self):
-        update_needed = False
-        with self._lock:
-            conns = self._conns.copy().values()
-            for conn in conns:
-                if conn and conn.ns_blackout():
-                    LOG.info(
-                        "Node id %s no longer in cluster metadata, closing connection and requesting update", conn.node_id
-                    )
-                    self.close(conn.node_id)
-                    update_needed = True
-        if update_needed:
-            self.cluster.request_update()
-
-    def _poll(self, timeout):
-        super()._poll(timeout)
-        try:
-            self.close_invalid_connections()
-        except Exception as e:  # pylint: disable=broad-except
-            LOG.error("Error closing invalid connections: %r", e)
-
-
-class KarapaceBrokerConnection(BrokerConnection):
-    def __init__(self, host, port, afi, **configs):
-        super().__init__(host, port, afi, **configs)
-        self.error = None
-        self.fail_time = time.monotonic()
-
-    def close(self, error=None):
-        self.error = error
-        self.fail_time = time.monotonic()
-        super().close(error)
-
-    def ns_blackout(self):
-        return "DNS failure" in str(self.error) and self.fail_time + NS_BLACKOUT_DURATION_SECONDS > time.monotonic()
-
-    def blacked_out(self):
-        return self.ns_blackout() or super().blacked_out()
 
 
 class DebugAccessLogger(AccessLogger):

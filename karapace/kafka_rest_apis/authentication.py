@@ -4,9 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from aiokafka.abc import AbstractTokenProvider as AbstractTokenProviderAsync
 from http import HTTPStatus
-from kafka.oauth.abstract import AbstractTokenProvider
 from karapace.config import Config
 from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 from typing import NoReturn, TypedDict
@@ -115,7 +113,7 @@ def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | Non
 
 
 @dataclasses.dataclass
-class SimpleOauthTokenProvider(AbstractTokenProvider):
+class SimpleOauthTokenProvider:
     """A pass-through OAuth token provider to be used by synchronous Kafka clients.
 
     The token is meant to be extracted from an HTTP Authorization header.
@@ -123,35 +121,17 @@ class SimpleOauthTokenProvider(AbstractTokenProvider):
 
     _token: str = dataclasses.field(repr=False)
 
-    def token(self) -> str:
-        return self._token
-
     def token_with_expiry(self, _config: str | None = None) -> tuple[str, int | None]:
         return (self._token, get_expiration_timestamp_from_jwt(self._token))
 
 
-@dataclasses.dataclass
-class SimpleOauthTokenProviderAsync(AbstractTokenProviderAsync):
-    """A pass-through OAuth token provider to be used by asynchronous Kafka clients.
-
-    The token is meant to be extracted from an HTTP Authorization header.
-    """
-
-    _token: str = dataclasses.field(repr=False)
-
-    async def token(self) -> str:
-        return self._token
-
-
 class SASLOauthParams(TypedDict):
     sasl_mechanism: str
-    sasl_oauth_token_provider: AbstractTokenProvider | AbstractTokenProviderAsync
+    sasl_oauth_token_provider: SimpleOauthTokenProvider
 
 
 def get_kafka_client_auth_parameters_from_config(
     config: Config,
-    *,
-    async_client: bool = True,
 ) -> SASLPlainConfig | SASLOauthParams:
     """Create authentication parameters for a Kafka client based on the Karapace config.
 
@@ -160,13 +140,12 @@ def get_kafka_client_auth_parameters_from_config(
     decides whether this will be a sync or async one.
 
     :param config: Current config of Karapace
-    :param async_client: Flag to indicate whether the Kafka client using the returned paramaters is async
     """
     if config["sasl_mechanism"] == "OAUTHBEARER":
-        token_provider_cls = SimpleOauthTokenProviderAsync if async_client else SimpleOauthTokenProvider
+        assert config["sasl_oauth_token"] is not None, "Config missing `sasl_oauth_token` with OAUTHBEARER `sasl_mechanism`"
         return {
             "sasl_mechanism": config["sasl_mechanism"],
-            "sasl_oauth_token_provider": token_provider_cls(config["sasl_oauth_token"]),
+            "sasl_oauth_token_provider": SimpleOauthTokenProvider(config["sasl_oauth_token"]),
         }
 
     return {

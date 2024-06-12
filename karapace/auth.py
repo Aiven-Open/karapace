@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from base64 import b64encode
 from dataclasses import dataclass, field
 from enum import Enum, unique
@@ -10,7 +12,6 @@ from karapace.config import InvalidConfiguration
 from karapace.rapu import JSON_CONTENT_TYPE
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
-from typing import List, Optional
 from typing_extensions import TypedDict
 from watchfiles import awatch, Change
 
@@ -90,15 +91,68 @@ class ACLEntryData(TypedDict):
 
 
 class AuthData(TypedDict):
-    users: List[UserData]
-    permissions: List[ACLEntryData]
+    users: list[UserData]
+    permissions: list[ACLEntryData]
 
 
-class HTTPAuthorizer:
+class ACLAuthorizer:
+    def __init__(self, *, user_db: dict[str, User] | None = None, permissions: list[ACLEntry] | None = None) -> None:
+        self.user_db = user_db or {}
+        self.permissions = permissions or []
+
+    def get_user(self, username: str) -> User | None:
+        return self.user_db.get(username)
+
+    def _check_resources(self, resources: list[str], aclentry: ACLEntry) -> bool:
+        for resource in resources:
+            if aclentry.resource.match(resource) is not None:
+                return True
+        return False
+
+    def _check_operation(self, operation: Operation, aclentry: ACLEntry) -> bool:
+        """Does ACL entry allow given operation.
+
+        An entry at minimum gives Read permission. Write permission implies Read."""
+        return operation == Operation.Read or aclentry.operation == Operation.Write
+
+    def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
+        if user is None:
+            return False
+
+        for aclentry in self.permissions:
+            if (
+                aclentry.username == user.username
+                and self._check_operation(operation, aclentry)
+                and self._check_resources([resource], aclentry)
+            ):
+                return True
+        return False
+
+    def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool:
+        """Checks that user is authorized to one of the resources in the list.
+
+        If any resource in the list matches the permission the function returns True. This indicates only that
+        one resource matches the permission and other resources may not.
+        """
+        if user is None:
+            return False
+
+        for aclentry in self.permissions:
+            if (
+                aclentry.username == user.username
+                and self._check_operation(operation, aclentry)
+                and self._check_resources(resources, aclentry)
+            ):
+                return True
+        return False
+
+
+class HTTPAuthorizer(ACLAuthorizer):
     def __init__(self, filename: str) -> None:
+        super().__init__()
         self._auth_filename: str = filename
         self._auth_mtime: float = -1
-        self._refresh_auth_task: Optional[asyncio.Task] = None
+        self._refresh_auth_task: asyncio.Task | None = None
         self._refresh_auth_awatch_stop_event = asyncio.Event()
         # Once first, can raise if file not valid
         self._load_authfile()
@@ -158,7 +212,7 @@ class HTTPAuthorizer:
                     ACLEntry(entry["username"], Operation(entry["operation"]), re.compile(entry["resource"]))
                     for entry in authdata["permissions"]
                 ]
-                self.userdb = users
+                self.user_db = users
                 log.info(
                     "Loaded schema registry users: %s",
                     users,
@@ -171,28 +225,6 @@ class HTTPAuthorizer:
             self._auth_mtime = statinfo.st_mtime
         except Exception as ex:
             raise InvalidConfiguration("Failed to load auth file") from ex
-
-    def check_authorization(self, user: Optional[User], operation: Operation, resource: str) -> bool:
-        if user is None:
-            return False
-
-        def check_operation(operation: Operation, aclentry: ACLEntry) -> bool:
-            """Does ACL entry allow given operation.
-
-            An entry at minimum gives Read permission. Write permission implies Read."""
-            return operation == Operation.Read or aclentry.operation == Operation.Write
-
-        def check_resource(resource: str, aclentry: ACLEntry) -> bool:
-            return aclentry.resource.match(resource) is not None
-
-        for aclentry in self.permissions:
-            if (
-                aclentry.username == user.username
-                and check_operation(operation, aclentry)
-                and check_resource(resource, aclentry)
-            ):
-                return True
-        return False
 
     def authenticate(self, request: aiohttp.web.Request) -> User:
         auth_header = request.headers.get("Authorization")
@@ -211,7 +243,7 @@ class HTTPAuthorizer:
                 text='{"message": "Unauthorized"}',
                 content_type=JSON_CONTENT_TYPE,
             )
-        user = self.userdb.get(auth.login)
+        user = self.get_user(auth.login)
         if user is None or not user.compare_password(auth.password):
             raise aiohttp.web.HTTPUnauthorized(
                 headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},

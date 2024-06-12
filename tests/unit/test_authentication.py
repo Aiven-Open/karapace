@@ -11,7 +11,6 @@ from karapace.kafka_rest_apis.authentication import (
     get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
     SimpleOauthTokenProvider,
-    SimpleOauthTokenProviderAsync,
 )
 from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 
@@ -102,22 +101,12 @@ def test_get_expiration_time_from_header_malformed_bearer_token_raises_unauthori
     _assert_unauthorized_http_response(exc_info.value)
 
 
-def test_simple_oauth_token_provider_returns_configured_token() -> None:
-    token_provider = SimpleOauthTokenProvider("TOKEN")
-    assert token_provider.token() == "TOKEN"
-
-
 def test_simple_oauth_token_provider_returns_configured_token_and_expiry() -> None:
     expiry_timestamp = 1697013997
     token = jwt.encode({"exp": expiry_timestamp}, "secret")
     token_provider = SimpleOauthTokenProvider(token)
 
     assert token_provider.token_with_expiry() == (token, expiry_timestamp)
-
-
-async def test_simple_oauth_token_provider_async_returns_configured_token() -> None:
-    token_provider = SimpleOauthTokenProviderAsync("TOKEN")
-    assert await token_provider.token() == "TOKEN"
 
 
 def test_get_client_auth_parameters_from_config_sasl_plain() -> None:
@@ -135,18 +124,11 @@ def test_get_client_auth_parameters_from_config_sasl_plain() -> None:
 
 
 def test_get_client_auth_parameters_from_config_oauth() -> None:
-    config = set_config_defaults({"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token": "TOKEN"})
+    expiry_timestamp = 1697013997
+    token = jwt.encode({"exp": expiry_timestamp}, "secret")
+    config = set_config_defaults({"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token": token})
 
-    client_auth_params = get_kafka_client_auth_parameters_from_config(config, async_client=False)
-
-    assert client_auth_params["sasl_mechanism"] == "OAUTHBEARER"
-    assert client_auth_params["sasl_oauth_token_provider"].token() == "TOKEN"
-
-
-async def test_get_client_auth_parameters_from_config_oauth_async() -> None:
-    config = set_config_defaults({"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token": "TOKEN"})
-
-    client_auth_params = get_kafka_client_auth_parameters_from_config(config, async_client=True)
+    client_auth_params = get_kafka_client_auth_parameters_from_config(config)
 
     assert client_auth_params["sasl_mechanism"] == "OAUTHBEARER"
-    assert await client_auth_params["sasl_oauth_token_provider"].token() == "TOKEN"
+    assert client_auth_params["sasl_oauth_token_provider"].token_with_expiry() == (token, expiry_timestamp)

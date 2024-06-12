@@ -21,6 +21,13 @@ schema_protobuf_plain_bin = (
     + "VCE1NpbXBsZU1lc3NhZ2VQcm90b3NiBnByb3RvMw=="
 )
 
+# Created using protoc
+schema_protobuf_plain_bin_protoc = (
+    "Chl0ZXN0cy9zY2hlbWFzL3BsYWluLnByb3RvEhpjb20uY29kaW5naGFyYm91ci5wcm90b2"
+    "J1ZiJFCg1TaW1wbGVNZXNzYWdlEg8KB2NvbnRlbnQYASABKAkSEQoJZGF0ZV90aW1lGAIg"
+    "ASgJEhAKCGNvbnRlbnQyGAMgASgJQhVCE1NpbXBsZU1lc3NhZ2VQcm90b3NiBnByb3RvMw=="
+)
+
 schema_protobuf_schema_registry1 = """\
 syntax = "proto3";
 package com.codingharbour.protobuf;
@@ -116,6 +123,17 @@ schema_protobuf_nested_message4_bin = (
     + "hlX3ByZXZpb3VzX2VudW0YATJILmZhbmN5LmNvbXBhbnkuaW4ucGFydHkudjEuQW5vdG"
     + "hlck1lc3NhZ2UuV293QU5lc3RlZE1lc3NhZ2UuQmFtRmFuY3lFbnVtIiQKDEJhbUZhbm"
     + "N5RW51bRIUChBNWV9BV0VTT01FX0ZJRUxEEABiBnByb3RvMw=="
+)
+
+# Created using protoc
+schema_protobuf_nested_message4_bin_protoc = (
+    "CiN0ZXN0cy9zY2hlbWFzL25lc3RlZF9tZXNzYWdlNC5wcm90bxIZZmFuY3kuY29tcGFueS"
+    "5pbi5wYXJ0eS52MSL5AQoOQW5vdGhlck1lc3NhZ2Ua5gEKEVdvd0FOZXN0ZWRNZXNzYWdl"
+    "GqoBCg9EZWVwbHlOZXN0ZWRNc2calgEKFUFub3RoZXJMZXZlbE9mTmVzdGluZxJ9CitpbV"
+    "90cmlja3lfaW1fcmVmZXJyaW5nX3RvX3RoZV9wcmV2aW91c19lbnVtGAEgASgOMkguZmFu"
+    "Y3kuY29tcGFueS5pbi5wYXJ0eS52MS5Bbm90aGVyTWVzc2FnZS5Xb3dBTmVzdGVkTWVzc2"
+    "FnZS5CYW1GYW5jeUVudW0iJAoMQmFtRmFuY3lFbnVtEhQKEE1ZX0FXRVNPTUVfRklFTEQQ"
+    "AGIGcHJvdG8z"
 )
 
 schema_protobuf_oneof = """\
@@ -224,4 +242,22 @@ schema_protobuf_complex_bin = (
     "CgdkZWZhdWx0GiBnb29nbGUvcHJvdG9idWYvZGVzY3JpcHRvci5wcm90byIWCgNGb29KBA"
     + "gKEAtKBAgMEA9SA2ZvbypDCgREYXRhEhQKEERBVEFfVU5TUEVDSUZJRUQQABITCgtEQV"
     + "RBX1NFQVJDSBABGgIIARIQCgxEQVRBX0RJU1BMQVkQAg=="
+)
+
+schema_protobuf_nested_field = """\
+syntax = "proto3";
+
+message Register {
+  .Register.Metadata metadata = 1;
+  string company_number = 2;
+
+  message Metadata {
+    string id = 1;
+  }
+}"""
+
+schema_protobuf_nested_field_bin_protoc = (
+    "Cg5yZWdpc3Rlci5wcm90byJgCghSZWdpc3RlchIkCghtZXRhZGF0YRgBIAEoCzISLlJlZ2"
+    "lzdGVyLk1ldGFkYXRhEhYKDmNvbXBhbnlfbnVtYmVyGAIgASgJGhYKCE1ldGFkYXRhEgoK"
+    "AmlkGAEgASgJYgZwcm90bzM="
 )

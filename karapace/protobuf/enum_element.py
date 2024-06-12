@@ -14,6 +14,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
+from typing import Sequence
 
 
 class EnumElement(TypeElement):
@@ -22,8 +23,8 @@ class EnumElement(TypeElement):
         location: Location,
         name: str,
         documentation: str = "",
-        options: list[OptionElement] | None = None,
-        constants: list[EnumConstantElement] | None = None,
+        options: Sequence[OptionElement] | None = None,
+        constants: Sequence[EnumConstantElement] | None = None,
     ) -> None:
         # Enums do not allow nested type declarations.
         super().__init__(location, name, documentation, options or [], [])
@@ -73,6 +74,6 @@ class EnumElement(TypeElement):
             elif other_tag is None:
                 result.add_modification(Modification.ENUM_CONSTANT_DROP)
             else:
-                if self_tag.name == other_tag.name:
+                if self_tag.name != other_tag.name:
                     result.add_modification(Modification.ENUM_CONSTANT_ALTER)
             result.pop_path()

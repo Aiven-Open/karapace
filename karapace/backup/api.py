@@ -21,19 +21,19 @@ from .errors import (
 )
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
+from aiokafka.errors import KafkaError, TopicAlreadyExistsError
 from concurrent.futures import Future
+from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
-from kafka import KafkaConsumer
-from kafka.consumer.fetcher import ConsumerRecord
-from kafka.errors import KafkaError, TopicAlreadyExistsError
-from kafka.structs import TopicPartition
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.config import Config
 from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.common import translate_from_kafkaerror
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
 from karapace.key_format import KeyFormatter
@@ -41,7 +41,7 @@ from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import Callable, Collection, Iterator, Literal, Mapping, NewType, Sized, TypeVar
+from typing import Callable, Iterator, Literal, Mapping, NewType, Sized, TypeVar
 
 import contextlib
 import datetime
@@ -62,6 +62,8 @@ __all__ = (
 )
 
 LOG = logging.getLogger(__name__)
+
+MAX_KAFKA_SEND_RETRIES = 10
 
 B = TypeVar("B", str, bytes)
 F = TypeVar("F")
@@ -282,9 +284,8 @@ def _consume_records(
     consumer: KafkaConsumer,
     topic_partition: TopicPartition,
     poll_timeout: PollTimeout,
-) -> Iterator[ConsumerRecord]:
-    start_offset: int = consumer.beginning_offsets([topic_partition])[topic_partition]
-    end_offset: int = consumer.end_offsets([topic_partition])[topic_partition]
+) -> Iterator[Message]:
+    start_offset, end_offset = consumer.get_watermark_offsets(topic_partition)
     last_offset = start_offset
 
     LOG.info(
@@ -307,12 +308,15 @@ def _consume_records(
     end_offset -= 1
 
     while True:
-        records: Collection[ConsumerRecord] = consumer.poll(poll_timeout.milliseconds).get(topic_partition, [])
-        if len(records) == 0:
+        record: Message | None = consumer.poll(timeout=poll_timeout.seconds)
+        if record is None:
             raise StaleConsumerError(topic_partition, start_offset, end_offset, last_offset, poll_timeout)
-        for record in records:
-            yield record
-        last_offset = record.offset  # pylint: disable=undefined-loop-variable
+        error = record.error()
+        if error is not None:
+            raise translate_from_kafkaerror(error)
+
+        yield record
+        last_offset = record.offset()
         if last_offset >= end_offset:
             break
 
@@ -390,17 +394,30 @@ def _handle_producer_send(
         instruction.key,
         instruction.value,
     )
-    try:
-        producer.send(
-            instruction.topic_name,
-            key=instruction.key,
-            value=instruction.value,
-            partition=instruction.partition_index,
-            headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
-            timestamp=instruction.timestamp,
-        ).add_done_callback(producer_callback)
-    except (KafkaError, AssertionError) as exc:
-        raise BackupDataRestorationError("Error while calling send on restoring messages") from exc
+    try_sending = True
+    tries = 0
+    while try_sending:
+        tries += 1
+        try:
+            send_future = producer.send(
+                instruction.topic_name,
+                key=instruction.key,
+                value=instruction.value,
+                partition=instruction.partition_index,
+                headers=[(key.decode() if key is not None else None, value) for key, value in instruction.headers],
+                timestamp=instruction.timestamp,
+            )
+        except (KafkaError, AssertionError) as exc:
+            raise BackupDataRestorationError("Error while calling send on restoring messages") from exc
+        except BufferError as exc:
+            producer.poll(timeout=0.1)
+            try_sending = tries < MAX_KAFKA_SEND_RETRIES
+            if not try_sending:
+                raise BackupDataRestorationError("Kafka producer buffer is full") from exc
+        else:
+            # Record is in the send buffer
+            send_future.add_done_callback(producer_callback)
+            break
 
 
 def restore_backup(

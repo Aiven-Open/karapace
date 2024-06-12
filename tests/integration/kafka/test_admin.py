@@ -5,8 +5,9 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from kafka.errors import InvalidReplicationFactorError, TopicAlreadyExistsError, UnknownTopicOrPartitionError
-from karapace.kafka.admin import ConfigSource, KafkaAdminClient, NewTopic
+from aiokafka.errors import InvalidReplicationFactorError, TopicAlreadyExistsError, UnknownTopicOrPartitionError
+from confluent_kafka.admin import ConfigSource, NewTopic
+from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.producer import KafkaProducer
 from tests.utils import new_topic as create_new_topic
 

@@ -2,7 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from aiohttp.client_exceptions import ClientConnectionError
+from aiohttp.web import Request
+from karapace.config import DEFAULTS
+from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
+from unittest.mock import Mock
+
+import pytest
 
 
 async def test_header_get():
@@ -154,3 +161,22 @@ def test_content_type_re():
         "serialization_format": "json",
         "general_format": None,
     }
+
+
+@pytest.mark.parametrize("connection_error", (ConnectionError(), ClientConnectionError()))
+async def test_raise_connection_error_handling(connection_error: BaseException) -> None:
+    request_mock = Mock(spec=Request)
+    request_mock.read.side_effect = connection_error
+    callback_mock = Mock()
+
+    app = KarapaceBase(config=DEFAULTS)
+
+    response = await app._handle_request(  # pylint: disable=protected-access
+        request=request_mock,
+        path_for_stats="/",
+        callback=callback_mock,
+    )
+
+    assert response.status == 503
+    request_mock.read.assert_has_calls([])
+    callback_mock.assert_not_called()

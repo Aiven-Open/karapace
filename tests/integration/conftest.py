@@ -7,13 +7,15 @@ See LICENSE for details
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
+from confluent_kafka.admin import NewTopic
 from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
 from karapace.client import Client
 from karapace.config import Config, set_config_defaults, write_config
-from karapace.kafka.admin import KafkaAdminClient, NewTopic
-from karapace.kafka.producer import KafkaProducer
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
+from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
@@ -50,7 +52,7 @@ KAFKA_WAIT_TIMEOUT = 60
 KAFKA_SCALA_VERSION = "2.13"
 # stdout logger is disabled to keep the pytest report readable
 KAFKA_LOG4J = TEST_INTEGRATION_DIR / "config" / "log4j.properties"
-WORKER_COUNTER_KEY = "worker_counter"
+WORKER_IDS_KEY = "workers"
 
 REST_PRODUCER_MAX_REQUEST_BYTES = 10240
 
@@ -125,6 +127,7 @@ def fixture_kafka_server(
     # synchronization data.
     transfer_file = session_logdir / "transfer"
     lock_file = lock_path_for(transfer_file)
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER")
 
     with ExitStack() as stack:
         zk_client_port = stack.enter_context(port_range.allocate_port())
@@ -136,7 +139,8 @@ def fixture_kafka_server(
                 config_data = json.loads(transfer_file.read_text())
                 zk_config = ZKConfig.from_dict(config_data["zookeeper"])
                 kafka_config = KafkaConfig.from_dict(config_data["kafka"])
-                config_data[WORKER_COUNTER_KEY] += 1  # Count the new worker
+                workers = config_data[WORKER_IDS_KEY]
+                workers.append(worker_id)
             else:
                 maybe_download_kafka(kafka_description)
 
@@ -172,7 +176,7 @@ def fixture_kafka_server(
                 config_data = {
                     "zookeeper": asdict(zk_config),
                     "kafka": asdict(kafka_config),
-                    WORKER_COUNTER_KEY: 1,
+                    WORKER_IDS_KEY: [worker_id],
                 }
 
             transfer_file.write_text(json.dumps(config_data))
@@ -188,19 +192,17 @@ def fixture_kafka_server(
             with FileLock(str(lock_file)):
                 assert transfer_file.exists(), "transfer_file disappeared"
                 config_data = json.loads(transfer_file.read_text())
-                config_data[WORKER_COUNTER_KEY] -= 1
+                config_data[WORKER_IDS_KEY].remove(worker_id)
                 transfer_file.write_text(json.dumps(config_data))
+                workers = config_data[WORKER_IDS_KEY]
 
             # Wait until every worker finished before stopping the servers
-            worker_counter = float("inf")
-            while worker_counter > 0:
+            while len(config_data[WORKER_IDS_KEY]) > 0:
                 with FileLock(str(lock_file)):
                     assert transfer_file.exists(), "transfer_file disappeared"
                     config_data = json.loads(transfer_file.read_text())
-                    worker_counter = config_data[WORKER_COUNTER_KEY]
-
+                    workers = config_data[WORKER_IDS_KEY]
                 time.sleep(2)
-
         return
 
 
@@ -212,6 +214,52 @@ def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
 @pytest.fixture(scope="function", name="admin_client")
 def fixture_admin(kafka_servers: KafkaServers) -> Iterator[KafkaAdminClient]:
     yield KafkaAdminClient(bootstrap_servers=kafka_servers.bootstrap_servers)
+
+
+@pytest.fixture(scope="function", name="consumer")
+def fixture_consumer(
+    kafka_servers: KafkaServers,
+) -> Iterator[KafkaConsumer]:
+    consumer = KafkaConsumer(
+        bootstrap_servers=kafka_servers.bootstrap_servers,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        # Speed things up for consumer tests to discover topics, etc.
+        topic_metadata_refresh_interval_ms=200,
+    )
+    try:
+        yield consumer
+    finally:
+        consumer.close()
+
+
+@pytest.fixture(scope="function", name="asyncproducer")
+async def fixture_asyncproducer(
+    kafka_servers: KafkaServers,
+    loop: asyncio.AbstractEventLoop,
+) -> Iterator[AsyncKafkaProducer]:
+    asyncproducer = AsyncKafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers, loop=loop)
+    await asyncproducer.start()
+    yield asyncproducer
+    await asyncproducer.stop()
+
+
+@pytest.fixture(scope="function", name="asyncconsumer")
+async def fixture_asyncconsumer(
+    kafka_servers: KafkaServers,
+    loop: asyncio.AbstractEventLoop,
+) -> Iterator[AsyncKafkaConsumer]:
+    asyncconsumer = AsyncKafkaConsumer(
+        bootstrap_servers=kafka_servers.bootstrap_servers,
+        loop=loop,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        # Speed things up for consumer tests to discover topics, etc.
+        topic_metadata_refresh_interval_ms=200,
+    )
+    await asyncconsumer.start()
+    yield asyncconsumer
+    await asyncconsumer.stop()
 
 
 @pytest.fixture(scope="function", name="rest_async")

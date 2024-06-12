@@ -167,7 +167,7 @@ class RestApp:
         self.app = self._create_aiohttp_application(config=config)
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(config=config)
-        self.app.on_cleanup.append(self.close_by_app)
+        self.app.on_shutdown.append(self.close_by_app)
         self.not_ready_handler = not_ready_handler
 
     def _create_aiohttp_application(self, *, config: Config) -> aiohttp.web.Application:
@@ -298,6 +298,14 @@ class RestApp:
                     raise HTTPResponse(  # pylint: disable=raise-missing-from
                         body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
                     )
+
+                # Prevent string, int etc. going further from here
+                if not isinstance(rapu_request.json, dict):
+                    http_error(
+                        message="Malformed request",
+                        content_type=JSON_CONTENT_TYPE,
+                        code=HTTPStatus.BAD_REQUEST,
+                    )
             else:
                 if body not in {b"", b"{}"}:
                     raise HTTPResponse(body="No request body allowed for this operation", status=HTTPStatus.BAD_REQUEST)
@@ -385,6 +393,11 @@ class RestApp:
             )
             headers = {"Content-Type": "application/json"}
             resp = aiohttp.web.Response(body=body, status=status.value, headers=headers)
+        except (ConnectionError, aiohttp.ClientError) as connection_error:
+            # TCP level connection errors, e.g. TCP reset, client closes connection.
+            self.log.debug("Connection error.", exc_info=connection_error)
+            # No response can be returned and written to client, aiohttp expects some response here.
+            resp = aiohttp.web.Response(text="Connection error", status=HTTPStatus.SERVICE_UNAVAILABLE.value)
         except asyncio.CancelledError:
             self.log.debug("Client closed connection")
             raise

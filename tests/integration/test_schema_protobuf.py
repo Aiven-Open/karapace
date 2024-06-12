@@ -291,7 +291,7 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     assert res.status_code == 200
     res = await registry_async_client.delete("subjects/test_schema/versions/1")
     myjson = res.json()
-    match_msg = "Subject 'test_schema' Version 1 was soft deleted.Set permanent=true to delete permanently"
+    match_msg = "Subject 'test_schema' Version 1 was soft deleted. Set permanent=true to delete permanently"
 
     assert res.status_code == 404
 
@@ -508,6 +508,16 @@ message NoReference {
   string name = 1;
 }
 """
+
+SCHEMA_NO_REF_V2 = """\
+syntax = "proto3";
+
+message NoReference {
+  string name = 1;
+  string address = 2;
+}
+"""
+
 
 SCHEMA_NO_REF_TWO = """\
 syntax = "proto3";
@@ -1000,6 +1010,66 @@ async def test_references(testcase: ReferenceTestCase, registry_async_client: Cl
                 assert fetch_schema_res.status_code == 200
 
 
+async def test_reference_update_creates_new_schema_version(registry_async_client: Client):
+    test_schemas = [
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_NO_REF,
+            subject="wr_s1",
+            references=None,
+            expected=200,
+        ),
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_WITH_REF,
+            subject="wr_s2",
+            references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 1}],
+            expected=200,
+        ),
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_NO_REF_V2,
+            subject="wr_s1",
+            references=None,
+            expected=200,
+        ),
+        TestCaseSchema(
+            schema_type=SchemaType.PROTOBUF,
+            schema_str=SCHEMA_WITH_REF,
+            subject="wr_s2",
+            references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 2}],
+            expected=200,
+        ),
+    ]
+    schema_ids: list[int] = []
+    for testdata in test_schemas:
+        body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
+        if testdata.references:
+            body["references"] = testdata.references
+        res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+        assert res.status_code == testdata.expected
+        schema_ids.append(res.json_result.get("id"))
+    res = await registry_async_client.get("subjects/wr_s2/versions")
+    assert len(res.json_result) == 2, "Expected two versions of schemas as reference was updated."
+    res = await registry_async_client.get("subjects/wr_s2/versions/2")
+    references = res.json_result.get("references")
+    assert len(references) == 1
+    assert references[0].get("name") == "NoReference.proto"
+    assert references[0].get("subject") == "wr_s1"
+    assert references[0].get("version") == 2
+
+    # Assert when querying the schema id with schema version with references correct schema id is returned.
+    for testdata, expected_schema_id in zip(test_schemas, schema_ids):
+        body = {
+            "schemaType": testdata.schema_type,
+            "schema": testdata.schema_str,
+        }
+        if testdata.references:
+            body["references"] = testdata.references
+        res = await registry_async_client.post(f"subjects/{testdata.subject}", json=body)
+        assert res.json_result.get("id") == expected_schema_id
+
+
 async def test_protobuf_error(registry_async_client: Client) -> None:
     testdata = TestCaseSchema(
         schema_type=SchemaType.PROTOBUF,
@@ -1155,3 +1225,126 @@ message Dog {
     assert res.status_code == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
+
+
+async def test_protobuf_update_ordering(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_update_ordering")()
+
+    schema_v1 = """\
+syntax = "proto3";
+package tc4;
+
+message Fred {
+  HodoCode hodecode = 1;
+}
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+"""
+
+    body = {"schemaType": "PROTOBUF", "schema": schema_v1}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    schema_id = res.json()["id"]
+
+    schema_v2 = """\
+syntax = "proto3";
+package tc4;
+
+enum HodoCode {
+  HODO_CODE_UNSPECIFIED = 0;
+}
+
+message Fred {
+  HodoCode hodecode = 1;
+  string id = 2;
+}
+"""
+
+    body = {"schemaType": "PROTOBUF", "schema": schema_v2}
+    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert schema_id != res.json()["id"]
+
+
+SCHEMA_WITH_OPTION_UNORDERDERED = """\
+syntax = "proto3";
+package tc4;
+
+option java_package = "com.example";
+option java_generate_equals_and_hash = true;
+option java_string_check_utf8 = true;
+option java_multiple_files = true;
+option java_outer_classname = "FredProto";
+option java_generic_services = true;
+
+message Foo {
+  string code = 1;
+}
+"""
+
+
+SCHEMA_WITH_OPTION_ORDERED = """\
+syntax = "proto3";
+package tc4;
+
+option java_generate_equals_and_hash = true;
+option java_generic_services = true;
+option java_multiple_files = true;
+option java_outer_classname = "FredProto";
+option java_package = "com.example";
+option java_string_check_utf8 = true;
+
+message Foo {
+  string code = 1;
+}
+"""
+
+
+async def test_registering_normalized_schema(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_normalization")()
+
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
+    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    original_schema_id = res.json()["id"]
+
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
+    res = await registry_async_client.post(f"subjects/{subject}", json=body)
+    assert res.status_code == 404
+
+    res = await registry_async_client.post(f"subjects/{subject}?normalize=true", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert original_schema_id == res.json()["id"]
+
+
+async def test_normalized_schema_idempotence_produce_and_fetch(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_normalization")()
+
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
+    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    original_schema_id = res.json()["id"]
+
+    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
+    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+
+    assert res.status_code == 200
+    assert "id" in res.json()
+    assert original_schema_id == res.json()["id"]
+
+    res = await registry_async_client.get(f"/schemas/ids/{original_schema_id}")
+    assert res.status_code == 200
+    assert "schema" in res.json()
+    assert res.json()["schema"] == SCHEMA_WITH_OPTION_ORDERED

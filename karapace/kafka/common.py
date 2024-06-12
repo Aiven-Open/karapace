@@ -5,11 +5,12 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from aiokafka.client import UnknownTopicOrPartitionError
+from aiokafka.errors import AuthenticationFailedError, for_code, IllegalStateError, KafkaTimeoutError, NoBrokersAvailable
 from collections.abc import Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
-from kafka.errors import AuthenticationFailedError, for_code, NoBrokersAvailable, UnknownTopicOrPartitionError
-from typing import Any, Callable, NoReturn, Protocol, TypedDict, TypeVar
+from typing import Any, Callable, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
 import logging
@@ -33,7 +34,7 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
     """Translate a `KafkaError` from `confluent_kafka` to a friendlier exception.
 
     `kafka.errors.for_code` is used to translate the original exception's error code
-    to a domain specific error class from `kafka-python`.
+    to a domain specific error class from `aiokafka`.
 
     In some cases `KafkaError`s are created with error codes internal to `confluent_kafka`,
     such as various internal error codes for unknown topics or partitions:
@@ -47,6 +48,10 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
         KafkaError._UNKNOWN_TOPIC,  # pylint: disable=protected-access
     ):
         return UnknownTopicOrPartitionError()
+    if code == KafkaError._TIMED_OUT:  # pylint: disable=protected-access
+        return KafkaTimeoutError()
+    if code == KafkaError._STATE:  # pylint: disable=protected-access
+        return IllegalStateError()
 
     return for_code(code)
 
@@ -56,7 +61,7 @@ def raise_from_kafkaexception(exc: KafkaException) -> NoReturn:
 
     The `confluent_kafka` library's `KafkaException` is a wrapper around its internal
     `KafkaError`. The resulting, raised exception however is coming from
-    `kafka-python`, due to these exceptions having human-readable names, providing
+    `aiokafka`, due to these exceptions having human-readable names, providing
     better context for error handling.
     """
     raise translate_from_kafkaerror(exc.args[0]) from exc
@@ -71,9 +76,12 @@ class TokenWithExpiryProvider(Protocol):
 
 
 class KafkaClientParams(TypedDict, total=False):
+    acks: int | None
     client_id: str | None
     connections_max_idle_ms: int | None
-    max_block_ms: int | None
+    compression_type: str | None
+    linger_ms: int | None
+    message_max_bytes: int | None
     metadata_max_age_ms: int | None
     retries: int | None
     sasl_mechanism: str | None
@@ -83,8 +91,18 @@ class KafkaClientParams(TypedDict, total=False):
     socket_timeout_ms: int | None
     ssl_cafile: str | None
     ssl_certfile: str | None
+    ssl_crlfile: str | None
     ssl_keyfile: str | None
     sasl_oauth_token_provider: TokenWithExpiryProvider
+    topic_metadata_refresh_interval_ms: int | None
+    # Consumer-only
+    auto_offset_reset: Literal["smallest", "earliest", "beginning", "largest", "latest", "end", "error"] | None
+    enable_auto_commit: bool | None
+    fetch_min_bytes: int | None
+    fetch_message_max_bytes: int | None
+    fetch_max_wait_ms: int | None
+    group_id: str | None
+    session_timeout_ms: int | None
 
 
 class _KafkaConfigMixin:
@@ -115,8 +133,12 @@ class _KafkaConfigMixin:
 
         config: dict[str, int | str | Callable | None] = {
             "bootstrap.servers": bootstrap_servers,
+            "acks": params.get("acks"),
             "client.id": params.get("client_id"),
             "connections.max.idle.ms": params.get("connections_max_idle_ms"),
+            "compression.type": params.get("compression_type"),
+            "linger.ms": params.get("linger_ms"),
+            "message.max.bytes": params.get("message_max_bytes"),
             "metadata.max.age.ms": params.get("metadata_max_age_ms"),
             "retries": params.get("retries"),
             "sasl.mechanism": params.get("sasl_mechanism"),
@@ -126,8 +148,18 @@ class _KafkaConfigMixin:
             "socket.timeout.ms": params.get("socket_timeout_ms"),
             "ssl.ca.location": params.get("ssl_cafile"),
             "ssl.certificate.location": params.get("ssl_certfile"),
+            "ssl.crl.location": params.get("ssl_crlfile"),
             "ssl.key.location": params.get("ssl_keyfile"),
+            "topic.metadata.refresh.interval.ms": params.get("topic_metadata_refresh_interval_ms"),
             "error_cb": self._error_callback,
+            # Consumer-only
+            "auto.offset.reset": params.get("auto_offset_reset"),
+            "enable.auto.commit": params.get("enable_auto_commit"),
+            "fetch.min.bytes": params.get("fetch_min_bytes"),
+            "fetch.message.max.bytes": params.get("fetch_message_max_bytes"),
+            "fetch.wait.max.ms": params.get("fetch_max_wait_ms"),
+            "group.id": params.get("group_id"),
+            "session.timeout.ms": params.get("session_timeout_ms"),
         }
         config = {key: value for key, value in config.items() if value is not None}
 

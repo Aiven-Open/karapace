@@ -1,7 +1,8 @@
 # PyPI dependencies
 accept-types<1
 aiohttp<4
-aiokafka<1
+aiokafka==0.10.0
+cachetools==5.3.3
 confluent-kafka==2.3.0
 isodate<1
 jsonschema<5
@@ -11,13 +12,12 @@ protobuf<4
 pyjwt>=2.4.0<3
 python-dateutil<3
 python-snappy
+rich~=13.7.1
 tenacity<9
 typing-extensions
 ujson<6
 watchfiles<1
 xxhash~=3.3
-rich~=13.6.0
-cachetools==5.3.1
 zstandard
 
 # Patched dependencies
@@ -28,5 +28,4 @@ zstandard
 # - The contents of the file change, which invalidates the existing docker
 #   images and forces a new image generation.
 #
-https://github.com/aiven/kafka-python/archive/1b95333c9628152066fb8b1092de9da0433401fd.tar.gz
 https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py

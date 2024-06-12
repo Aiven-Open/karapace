@@ -4,20 +4,23 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from aiokafka.errors import UnknownTopicOrPartitionError
+from confluent_kafka import Message, TopicPartition
+from confluent_kafka.admin import NewTopic
 from dataclasses import fields
-from kafka import TopicPartition
-from kafka.consumer.fetcher import ConsumerRecord
-from kafka.errors import UnknownTopicOrPartitionError
 from karapace.backup import api
-from karapace.backup.api import _consume_records, TopicName
+from karapace.backup.api import _consume_records, BackupVersion, TopicName
+from karapace.backup.backends.v3.errors import InconsistentOffset
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
 from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
 from karapace.config import Config, set_config_defaults
-from karapace.kafka.admin import KafkaAdminClient, NewTopic
+from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
+from karapace.kafka.types import Timestamp
 from karapace.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
 from karapace.version import __version__
 from pathlib import Path
@@ -35,6 +38,7 @@ import pytest
 import shutil
 import subprocess
 import textwrap
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -182,28 +186,28 @@ def test_roundtrip_from_kafka_state(
         )
 
     # First record.
-    assert isinstance(first_record, ConsumerRecord)
-    assert first_record.topic == new_topic.topic
-    assert first_record.partition == partition
+    assert isinstance(first_record, Message)
+    assert first_record.topic() == new_topic.topic
+    assert first_record.partition() == partition
     # Note: This might be unreliable due to not using idempotent producer, i.e. we have
     # no guarantee against duplicates currently.
-    assert first_record.offset == 0
-    assert first_record.timestamp == 1683474641
-    assert first_record.timestamp_type == 0
-    assert first_record.key == b"bar"
-    assert first_record.value == b"foo"
-    assert first_record.headers == []
+    assert first_record.offset() == 0
+    assert first_record.timestamp()[1] == 1683474641
+    assert first_record.timestamp()[0] == Timestamp.CREATE_TIME
+    assert first_record.key() == b"bar"
+    assert first_record.value() == b"foo"
+    assert first_record.headers() is None
 
     # Second record.
-    assert isinstance(second_record, ConsumerRecord)
-    assert second_record.topic == new_topic.topic
-    assert second_record.partition == partition
-    assert second_record.offset == 1
-    assert second_record.timestamp == 1683474657
-    assert second_record.timestamp_type == 0
-    assert second_record.key == b"foo"
-    assert second_record.value == b"bar"
-    assert second_record.headers == [
+    assert isinstance(second_record, Message)
+    assert second_record.topic() == new_topic.topic
+    assert second_record.partition() == partition
+    assert second_record.offset() == 1
+    assert second_record.timestamp()[1] == 1683474657
+    assert second_record.timestamp()[0] == Timestamp.CREATE_TIME
+    assert second_record.key() == b"foo"
+    assert second_record.value() == b"bar"
+    assert second_record.headers() == [
         ("some-header", b"some header value"),
         ("other-header", b"some other header value"),
     ]
@@ -582,7 +586,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
             )
 
 
-def test_backup_restoration_fails_when_producer_send_fails(
+def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_partition(
     admin_client: KafkaAdminClient,
     kafka_servers: KafkaServers,
 ) -> None:
@@ -630,6 +634,64 @@ def test_backup_restoration_fails_when_producer_send_fails(
     with patch("karapace.backup.api._producer") as p:
         p.return_value = FailToSendProducerContext()
         with pytest.raises(BackupDataRestorationError):
+            api.restore_backup(
+                config=config,
+                backup_location=metadata_path,
+                topic_name=TopicName(topic_name),
+            )
+
+
+def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
+    admin_client: KafkaAdminClient,
+    kafka_servers: KafkaServers,
+) -> None:
+    topic_name = "296ddf62"
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
+    metadata_path = backup_directory / f"{topic_name}.metadata"
+
+    # Make sure topic doesn't exist beforehand.
+    try:
+        admin_client.delete_topic(topic_name)
+    except UnknownTopicOrPartitionError:
+        logger.info("No previously existing topic.")
+    else:
+        logger.info("Deleted topic from previous run.")
+
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+        }
+    )
+
+    class FailToSendProducer(KafkaProducer):
+        def send(self, *args, **kwargs):
+            raise BufferError()
+
+        def poll(self, timeout: float) -> None:  # pylint: disable=unused-argument
+            return
+
+    class FailToSendProducerContext:
+        def __init__(self):
+            self._producer = FailToSendProducer(
+                bootstrap_servers=config["bootstrap_uri"],
+                security_protocol=config["security_protocol"],
+                ssl_cafile=config["ssl_cafile"],
+                ssl_certfile=config["ssl_certfile"],
+                ssl_keyfile=config["ssl_keyfile"],
+                sasl_mechanism=config["sasl_mechanism"],
+                sasl_plain_username=config["sasl_plain_username"],
+                sasl_plain_password=config["sasl_plain_password"],
+            )
+
+        def __enter__(self):
+            return self._producer
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self._producer.flush()
+
+    with patch("karapace.backup.api._producer") as p:
+        p.return_value = FailToSendProducerContext()
+        with pytest.raises(BackupDataRestorationError, match="Kafka producer buffer is full"):
             api.restore_backup(
                 config=config,
                 backup_location=metadata_path,
@@ -1042,3 +1104,73 @@ class TestVerify:
         assert cp.returncode == 1
         assert cp.stderr.decode() == error_message
         assert cp.stdout == b""
+
+
+def test_backup_creation_succeeds_no_duplicate_offsets(
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+    new_topic: NewTopic,
+    tmp_path: Path,
+) -> None:
+    """This test was added to prevent a regression scenario of duplicate offsets.
+
+    After introducing the confluent-kafka based consumer in the backups code,
+    backing up large topics would result in duplicate offsets, which would fail
+    the backup creation. The original code called `assign(TopicPartition(...))`
+    after `subscribe`, resulting in an eventual reset of the consumer.
+
+    The issue occurred only for large topics, as these had sufficient amount of
+    data for the consumer to reset before the backup was completed.
+
+    In this test a "large" topic is simulated by slowing down the consumer.
+    """
+    for i in range(1000):
+        producer.send(
+            new_topic.topic,
+            key=f"message-key-{i}",
+            value=f"message-value-{i}-" + 1000 * "X",
+        )
+    producer.flush()
+
+    backup_location = tmp_path / "fails.log"
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+            "topic_name": new_topic.topic,
+        }
+    )
+
+    class SlowConsumer(KafkaConsumer):
+        def poll(self, *args, **kwargs):
+            # Slow down the consumer so more time is given for `assign` to kick in
+            # This simulates a backup of a _large_ topic
+            time.sleep(0.01)
+            return super().poll(*args, **kwargs)
+
+    class ConsumerContext:
+        def __init__(self):
+            self._consumer = SlowConsumer(
+                bootstrap_servers=kafka_servers.bootstrap_servers,
+                topic=new_topic.topic,
+                enable_auto_commit=False,
+                auto_offset_reset="earliest",
+            )
+
+        def __enter__(self):
+            return self._consumer
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self._consumer.close()
+
+    with patch("karapace.backup.api._consumer") as consumer_patch:
+        consumer_patch.return_value = ConsumerContext()
+        try:
+            api.create_backup(
+                config=config,
+                backup_location=backup_location,
+                topic_name=api.normalize_topic_name(None, config),
+                version=BackupVersion.V3,
+                replication_factor=1,
+            )
+        except InconsistentOffset as exc:
+            pytest.fail(f"Unexpected InconsistentOffset error {exc}")

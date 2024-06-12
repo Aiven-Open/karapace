@@ -5,36 +5,30 @@ See LICENSE for details
 from aiohttp.test_utils import TestClient, TestServer
 from karapace.config import DEFAULTS, set_config_defaults
 from karapace.rapu import HTTPResponse
+from karapace.schema_reader import KafkaSchemaReader
+from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.schema_registry_apis import KarapaceSchemaRegistryController
-from unittest.mock import ANY, Mock, patch, PropertyMock
+from unittest.mock import ANY, AsyncMock, Mock, patch, PropertyMock
 
 import asyncio
 
 
 async def test_forward_when_not_ready():
-    with patch("karapace.schema_registry_apis.aiohttp.ClientSession") as client_session_class, patch(
-        "karapace.schema_registry_apis.KarapaceSchemaRegistry"
-    ) as schema_registry_class:
-        client_session = Mock()
-        client_session_class.return_value = client_session
-
-        schema_reader_mock = Mock()
+    with patch("karapace.schema_registry_apis.KarapaceSchemaRegistry") as schema_registry_class:
+        schema_reader_mock = Mock(spec=KafkaSchemaReader)
         ready_property_mock = PropertyMock(return_value=False)
-        schema_registry = Mock()
+        schema_registry = AsyncMock(spec=KarapaceSchemaRegistry)
         type(schema_reader_mock).ready = ready_property_mock
         schema_registry.schema_reader = schema_reader_mock
         schema_registry_class.return_value = schema_registry
 
-        get_master_future = asyncio.Future()
-        get_master_future.set_result((False, "http://primary-url"))
-        schema_registry.get_master.return_value = get_master_future
+        schema_registry.get_master.return_value = (False, "http://primary-url")
 
         close_future_result = asyncio.Future()
         close_future_result.set_result(True)
         close_func = Mock()
         close_func.return_value = close_future_result
         schema_registry.close = close_func
-        client_session.close = close_func
 
         controller = KarapaceSchemaRegistryController(config=set_config_defaults(DEFAULTS))
         mock_forward_func_future = asyncio.Future()

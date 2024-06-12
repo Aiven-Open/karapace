@@ -9,6 +9,7 @@ from __future__ import annotations
 from . import api
 from .errors import BackupDataRestorationError, StaleConsumerError
 from .poll_timeout import PollTimeout
+from aiokafka.errors import BrokerResponseError
 from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
 from typing import Iterator
@@ -163,6 +164,14 @@ def main() -> None:
             "Try increasing --poll-timeout to give the broker more time.",
         )
         raise SystemExit(1) from e
+    except BrokerResponseError as exc:
+        logger.exception(
+            "An unexpected Kafka error occurred during consuming messages with error code %s: %s - %s",
+            exc.errno,
+            exc.message,
+            exc.description,
+        )
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

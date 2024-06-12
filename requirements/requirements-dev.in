@@ -7,8 +7,10 @@ pdbpp
 # testing
 filelock
 pytest
+pytest-cov
 pytest-xdist[psutil]
 pytest-timeout
+pytest-random-order
 psutil
 requests
 hypothesis

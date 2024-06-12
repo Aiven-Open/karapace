@@ -3,14 +3,14 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
-from kafka.errors import TopicAlreadyExistsError
+from aiokafka.errors import TopicAlreadyExistsError
 from karapace.client import Client
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from typing import Callable, IO, List, Union
+from typing import Any, Callable, IO, List, Union
 from urllib.parse import quote
 
 import asyncio
@@ -27,6 +27,7 @@ consumer_valid_payload = {
     "consumer.request.timeout.ms": 11000,
     "fetch.min.bytes": 100000,
     "auto.commit.enable": "true",
+    "topic.metadata.refresh.interval.ms": 100,
 }
 schema_jsonschema_json = json.dumps(
     {
@@ -179,9 +180,11 @@ REST_HEADERS = {
 }
 
 
-async def new_consumer(c, group, fmt="avro", trail=""):
+async def new_consumer(c, group, fmt="avro", trail="", payload_override=None):
     payload = copy.copy(consumer_valid_payload)
     payload["format"] = fmt
+    if payload_override:
+        payload.update(payload_override)
     resp = await c.post(f"/consumers/{group}{trail}", json=payload, headers=REST_HEADERS[fmt])
     assert resp.ok
     return resp.json()["instance_id"]
@@ -307,3 +310,20 @@ def popen_karapace_all(config_path: Union[Path, str], stdout: IO, stderr: IO, **
     kwargs["stdout"] = stdout
     kwargs["stderr"] = stderr
     return Popen([python_exe(), "-m", "karapace.karapace_all", str(config_path)], **kwargs)
+
+
+class StubMessage:
+    """A stub to stand-in for `confluent_kafka.Message` in unittests.
+
+    Since that class cannot be instantiated, thus this is a liberal simulation
+    of its behaviour ie. its attributes are accessible via getter functions:
+    `message.offset()`."""
+
+    def __init__(self, **attrs: Any) -> None:
+        self._attrs = attrs
+
+    def __getattr__(self, key: str) -> None:
+        try:
+            return lambda: self._attrs[key]
+        except KeyError as exc:
+            raise AttributeError from exc

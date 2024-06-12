@@ -5,9 +5,10 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from kafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
-from karapace.kafka.admin import NewTopic
-from karapace.kafka.producer import KafkaProducer
+from aiokafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
+from confluent_kafka.admin import NewTopic
+from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
+from karapace.kafka.types import Timestamp
 
 import pytest
 import time
@@ -37,6 +38,7 @@ class TestSend:
         assert message.topic() == new_topic.topic
         assert message.key() == key
         assert message.value() == value
+        assert message.timestamp()[0] == Timestamp.CREATE_TIME
         assert message.timestamp()[1] == timestamp
 
     def test_send_raises_for_unknown_topic(self, producer: KafkaProducer) -> None:
@@ -69,3 +71,50 @@ class TestPartitionsFor:
         assert partitions[0].id == 0
         assert partitions[0].replicas == [1]
         assert partitions[0].isrs == [1]
+
+
+class TestAsyncSend:
+    async def test_async_send(self, asyncproducer: AsyncKafkaProducer, new_topic: NewTopic) -> None:
+        key = b"key"
+        value = b"value"
+        partition = 0
+        timestamp = int(time.time() * 1000)
+        headers = [("something", b"123"), (None, "foobar")]
+
+        aiofut = await asyncproducer.send(
+            new_topic.topic,
+            key=key,
+            value=value,
+            partition=partition,
+            timestamp=timestamp,
+            headers=headers,
+        )
+        message = await aiofut
+
+        assert message.offset() == 0
+        assert message.partition() == partition
+        assert message.topic() == new_topic.topic
+        assert message.key() == key
+        assert message.value() == value
+        assert message.timestamp()[0] == Timestamp.CREATE_TIME
+        assert message.timestamp()[1] == timestamp
+
+    async def test_async_send_raises_for_unknown_topic(self, asyncproducer: AsyncKafkaProducer) -> None:
+        aiofut = await asyncproducer.send("nonexistent")
+
+        with pytest.raises(UnknownTopicOrPartitionError):
+            _ = await aiofut
+
+    async def test_async_send_raises_for_unknown_partition(
+        self, asyncproducer: AsyncKafkaProducer, new_topic: NewTopic
+    ) -> None:
+        aiofut = await asyncproducer.send(new_topic.topic, partition=99)
+
+        with pytest.raises(UnknownTopicOrPartitionError):
+            _ = await aiofut
+
+    async def test_async_send_raises_for_too_large_message(
+        self, asyncproducer: AsyncKafkaProducer, new_topic: NewTopic
+    ) -> None:
+        with pytest.raises(MessageSizeTooLargeError):
+            await asyncproducer.send(new_topic.topic, value=b"x" * 1000001)

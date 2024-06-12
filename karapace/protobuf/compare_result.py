@@ -26,6 +26,7 @@ class Modification(Enum):
     FIELD_NAME_ALTER = auto()
     FIELD_KIND_ALTER = auto()
     FIELD_TYPE_ALTER = auto()
+    FIELD_TAG_ALTER = auto()
     ONE_OF_ADD = auto()
     ONE_OF_DROP = auto()
     ONE_OF_MOVE = auto()
@@ -43,6 +44,7 @@ class Modification(Enum):
             self.FIELD_LABEL_ALTER,
             self.FIELD_KIND_ALTER,
             self.FIELD_TYPE_ALTER,
+            self.FIELD_TAG_ALTER,
             self.ONE_OF_FIELD_DROP,
             self.FEW_FIELDS_CONVERTED_TO_ONE_OF,
         ]  # type: ignore[comparison-overlap]

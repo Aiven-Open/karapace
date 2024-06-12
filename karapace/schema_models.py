@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
 from karapace.dependency import Dependency
-from karapace.errors import InvalidSchema
+from karapace.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
 from karapace.protobuf.exception import (
     Error as ProtobufError,
     IllegalArgumentException,
@@ -19,10 +19,11 @@ from karapace.protobuf.exception import (
     ProtobufUnresolvedDependencyException,
     SchemaParseException as ProtobufSchemaParseException,
 )
+from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, SchemaId, Subject, Version, VersionTag
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Dict, Final, final, Mapping, Sequence
 
@@ -62,6 +63,7 @@ def parse_protobuf_schema_definition(
     references: Sequence[Reference] | None = None,
     dependencies: Mapping[str, Dependency] | None = None,
     validate_references: bool = True,
+    normalize: bool = False,
 ) -> ProtobufSchema:
     """Parses and validates `schema_definition`.
 
@@ -69,11 +71,16 @@ def parse_protobuf_schema_definition(
         ProtobufUnresolvedDependencyException if Protobuf dependency cannot be resolved.
 
     """
-    protobuf_schema = ProtobufSchema(schema_definition, references, dependencies)
+    protobuf_schema = (
+        ProtobufSchema(schema_definition, references, dependencies)
+        if not normalize
+        else NormalizedProtobufSchema(schema_definition, references, dependencies)
+    )
     if validate_references:
         result = protobuf_schema.verify_schema_dependencies()
         if not result.result:
             raise ProtobufUnresolvedDependencyException(f"{result.message}")
+
     return protobuf_schema
 
 
@@ -109,7 +116,11 @@ class TypedSchema:
 
     def fingerprint(self) -> str:
         if self._fingerprint_cached is None:
-            self._fingerprint_cached = hashlib.sha1(str(self).encode("utf8")).hexdigest()
+            fingerprint_str = str(self)
+            if self.references is not None:
+                reference_str = "\n".join([repr(reference) for reference in self.references])
+                fingerprint_str = fingerprint_str + reference_str
+            self._fingerprint_cached = hashlib.sha1(fingerprint_str.encode("utf8")).hexdigest()
         return self._fingerprint_cached
 
     # This is marked @final because __init__ references this statically, hence
@@ -125,7 +136,7 @@ class TypedSchema:
             try:
                 schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
             except JSONDecodeError as e:
-                LOG.error("Schema is not valid JSON")
+                LOG.info("Schema is not valid JSON")
                 raise e
         elif schema_type == SchemaType.PROTOBUF:
             if schema:
@@ -134,7 +145,7 @@ class TypedSchema:
                 try:
                     schema_str = str(parse_protobuf_schema_definition(schema_str, None, None, False))
                 except InvalidSchema as e:
-                    LOG.exception("Schema is not valid ProtoBuf definition")
+                    LOG.info("Schema is not valid ProtoBuf definition")
                     raise e
 
         else:
@@ -164,6 +175,7 @@ class TypedSchema:
             validate_avro_enum_symbols=True,
             references=self.references,
             dependencies=self.dependencies,
+            normalize=False,
         )
         return parsed_typed_schema.schema
 
@@ -175,6 +187,7 @@ def parse(
     validate_avro_names: bool,
     references: Sequence[Reference] | None = None,
     dependencies: Mapping[str, Dependency] | None = None,
+    normalize: bool = False,
 ) -> ParsedTypedSchema:
     if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
@@ -199,7 +212,9 @@ def parse(
 
     elif schema_type is SchemaType.PROTOBUF:
         try:
-            parsed_schema = parse_protobuf_schema_definition(schema_str, references, dependencies)
+            parsed_schema = parse_protobuf_schema_definition(
+                schema_str, references, dependencies, validate_references=True, normalize=normalize
+            )
         except (
             TypeError,
             SchemaError,
@@ -266,6 +281,7 @@ class ParsedTypedSchema(TypedSchema):
         schema_str: str,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        normalize: bool = False,
     ) -> ParsedTypedSchema:
         return parse(
             schema_type=schema_type,
@@ -274,12 +290,28 @@ class ParsedTypedSchema(TypedSchema):
             validate_avro_names=False,
             references=references,
             dependencies=dependencies,
+            normalize=normalize,
         )
 
     def __str__(self) -> str:
         if self.schema_type == SchemaType.PROTOBUF:
             return str(self.schema)
         return super().__str__()
+
+    def match(self, other: ParsedTypedSchema) -> bool:
+        """Match the schema with given one.
+
+        Special case function where schema is matched to other. The parsed schema object and references are matched.
+        The parent class equality function works based on the normalized schema string. That does not take into account
+        the canonical forms of any schema type. This function uses the parsed form of the schema to match if schemas
+        are equal. For example Avro schemas `{"type": "int", "name": schema_name}` and `{"type": "int"}` are equal by
+        Avro spec.
+        References are also matched and the refered schemas and the versions of those must match.
+
+        :param other: The schema to match against.
+        :return: True if schema match, False if not.
+        """
+        return self.schema_type is other.schema_type and self.schema == other.schema and self.references == other.references
 
     @property
     def schema(self) -> Draft7Validator | AvroSchema | ProtobufSchema:
@@ -333,6 +365,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         schema_str: str,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        normalize: bool = False,
     ) -> ValidatedTypedSchema:
         parsed_schema = parse(
             schema_type=schema_type,
@@ -341,6 +374,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
             validate_avro_names=True,
             references=references,
             dependencies=dependencies,
+            normalize=normalize,
         )
 
         return cast(ValidatedTypedSchema, parsed_schema)
@@ -349,8 +383,38 @@ class ValidatedTypedSchema(ParsedTypedSchema):
 @dataclass
 class SchemaVersion:
     subject: Subject
-    version: ResolvedVersion
+    version: Version
     deleted: bool
     schema_id: SchemaId
     schema: TypedSchema
     references: Sequence[Reference] | None
+
+
+class Versioner:
+    @classmethod
+    def V(cls, tag: VersionTag) -> Version:
+        cls.validate_tag(tag=tag)
+        return Version(version=cls.resolve_tag(tag))
+
+    @classmethod
+    def validate_tag(cls, tag: VersionTag) -> None:
+        try:
+            version = cls.resolve_tag(tag=tag)
+            if (version < Version.MINUS_1_VERSION_TAG) or (version == 0):
+                raise InvalidVersion(f"Invalid version {tag}")
+        except ValueError as exc:
+            if tag != Version.LATEST_VERSION_TAG:
+                raise InvalidVersion(f"Invalid version {tag}") from exc
+
+    @staticmethod
+    def resolve_tag(tag: VersionTag) -> int:
+        return Version.MINUS_1_VERSION_TAG if tag == Version.LATEST_VERSION_TAG else int(tag)
+
+    @staticmethod
+    def from_schema_versions(schema_versions: Mapping[Version, SchemaVersion], version: Version) -> Version:
+        max_version = max(schema_versions)
+        if version.is_latest:
+            return max_version
+        if version in schema_versions and version <= max_version:
+            return version
+        raise VersionNotFoundException()

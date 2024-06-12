@@ -6,34 +6,41 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from avro.schema import Schema as AvroSchema
-from contextlib import closing, ExitStack
-from enum import Enum
-from jsonschema.validators import Draft7Validator
-from kafka import KafkaConsumer, TopicPartition
-from kafka.errors import (
+from aiokafka.errors import (
+    GroupAuthorizationFailedError,
     InvalidReplicationFactorError,
     KafkaConfigurationError,
     KafkaTimeoutError,
+    LeaderNotAvailableError,
     NoBrokersAvailable,
     NodeNotReadyError,
+    NotLeaderForPartitionError,
     TopicAlreadyExistsError,
+    TopicAuthorizationFailedError,
+    UnknownTopicOrPartitionError,
 )
+from avro.schema import Schema as AvroSchema
+from confluent_kafka import Message, TopicPartition
+from contextlib import closing, ExitStack
+from enum import Enum
+from jsonschema.validators import Draft7Validator
 from karapace import constants
 from karapace.config import Config
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
+from karapace.kafka.common import translate_from_kafkaerror
+from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
-from karapace.master_coordinator import MasterCoordinator
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
-from karapace.utils import json_decode, JSONDecodeError, KarapaceKafkaClient
+from karapace.typing import JsonObject, SchemaId, Subject, Version
+from karapace.utils import json_decode, JSONDecodeError
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
 
@@ -50,6 +57,16 @@ OFFSET_EMPTY: Final = -1
 
 KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS: Final = 2.0
 SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS: Final = 5.0
+
+# For good startup performance the consumption of multiple
+# records for each consume round is essential.
+# Consumer default is 1 message for each consume call and after
+# startup the default is a good value. If consumer would expect
+# more messages it would return control back after timeout and
+# making schema storing latency to be `processing time + timeout`.
+MAX_MESSAGES_TO_CONSUME_ON_STARTUP: Final = 1000
+MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP: Final = 1
+MESSAGE_CONSUME_TIMEOUT_SECONDS: Final = 0.2
 
 # Metric names
 METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT: Final = "karapace_schema_reader_records_processed"
@@ -69,12 +86,10 @@ class MessageType(Enum):
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
     session_timeout_ms = config["session_timeout_ms"]
-    request_timeout_ms = max(session_timeout_ms, KafkaConsumer.DEFAULT_CONFIG["request_timeout_ms"])
     return KafkaConsumer(
-        config["topic_name"],
-        enable_auto_commit=False,
-        api_version=(1, 0, 0),
         bootstrap_servers=config["bootstrap_uri"],
+        topic=config["topic_name"],
+        enable_auto_commit=False,
         client_id=config["client_id"],
         fetch_max_wait_ms=50,
         security_protocol=config["security_protocol"],
@@ -86,8 +101,6 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         sasl_plain_password=config["sasl_plain_password"],
         auto_offset_reset="earliest",
         session_timeout_ms=session_timeout_ms,
-        request_timeout_ms=request_timeout_ms,
-        kafka_client=KarapaceKafkaClient,
         metadata_max_age_ms=config["metadata_max_age_ms"],
     )
 
@@ -117,7 +130,8 @@ class KafkaSchemaReader(Thread):
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
-        self.timeout_ms = 200
+        self.timeout_s = MESSAGE_CONSUME_TIMEOUT_SECONDS
+        self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_ON_STARTUP
         self.config = config
 
         self.database = database
@@ -154,6 +168,8 @@ class KafkaSchemaReader(Thread):
         self.processed_canonical_keys_total = 0
         self.processed_deprecated_karapace_keys_total = 0
         self.last_check = time.monotonic()
+        self.start_time = time.monotonic()
+        self.startup_previous_processed_offset = 0
 
     def close(self) -> None:
         LOG.info("Closing schema_reader")
@@ -168,7 +184,7 @@ class KafkaSchemaReader(Thread):
                     LOG.warning("[Admin Client] No Brokers available yet. Retrying")
                     self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
-                    LOG.exception("[Admin Client] Invalid configuration. Bailing")
+                    LOG.info("[Admin Client] Invalid configuration. Bailing")
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Admin Client] Unexpected exception. Retrying")
@@ -185,7 +201,7 @@ class KafkaSchemaReader(Thread):
                     LOG.warning("[Consumer] No Brokers available yet. Retrying")
                     self._stop_schema_reader.wait(timeout=2.0)
                 except KafkaConfigurationError:
-                    LOG.exception("[Consumer] Invalid configuration. Bailing")
+                    LOG.info("[Consumer] Invalid configuration. Bailing")
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
@@ -234,13 +250,19 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            offsets = self.consumer.beginning_offsets([TopicPartition(self.config["topic_name"], 0)])
-            # Offset in the response is the offset for last offset.
-            # Reduce by one for matching on startup.
-            beginning_offset = list(offsets.values())[0] - 1
-            return beginning_offset
+            beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
+            # The `-1` decrement here is due to historical reasons (evolution of schema reader and offset watcher):
+            # * The first `OffsetWatcher` implementation neeeded this for flagging empty offsets
+            # * Then synchronization and locking was changed and this remained
+            # * See https://github.com/Aiven-Open/karapace/pull/364/files
+            # * See `OFFSET_EMPTY` and `OFFSET_UNINITIALIZED`
+            return beginning_offset - 1
         except KafkaTimeoutError:
-            LOG.exception("Reading begin offsets timed out.")
+            LOG.warning("Reading begin offsets timed out.")
+        except UnknownTopicOrPartitionError:
+            LOG.warning("Topic does not yet exist.")
+        except (LeaderNotAvailableError, NotLeaderForPartitionError):
+            LOG.warning("Retrying to find leader for schema topic partition.")
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_get_beginning_offset")
             LOG.exception("Unexpected exception when reading begin offsets.")
@@ -253,9 +275,15 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            offsets = self.consumer.end_offsets([TopicPartition(self.config["topic_name"], 0)])
+            _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
         except KafkaTimeoutError:
-            LOG.exception("Reading end offsets timed out.")
+            LOG.warning("Reading end offsets timed out.")
+            return False
+        except UnknownTopicOrPartitionError:
+            LOG.warning("Topic does not yet exist.")
+            return False
+        except (LeaderNotAvailableError, NotLeaderForPartitionError):
+            LOG.warning("Retrying to find leader for schema topic partition.")
             return False
         except Exception as e:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=e, where="_is_ready")
@@ -263,25 +291,32 @@ class KafkaSchemaReader(Thread):
             return False
         # Offset in the response is the offset for the next upcoming message.
         # Reduce by one for actual highest offset.
-        self._highest_offset = list(offsets.values())[0] - 1
+        self._highest_offset = end_offset - 1
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
         progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
+        startup_processed_message_per_second = (self.offset - self.startup_previous_processed_offset) / time_from_last_check
         LOG.info(
-            "Replay progress (%s): %s/%s (%s %%)",
+            "Replay progress (%s): %s/%s (%s %%) (recs/s %s)",
             round(time_from_last_check, 2),
             self.offset,
             self._highest_offset,
             progress_pct,
+            startup_processed_message_per_second,
         )
         self.last_check = cur_time
-        return self.offset >= self._highest_offset
+        self.startup_previous_processed_offset = self.offset
+        ready = self.offset >= self._highest_offset
+        if ready:
+            self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
+            LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
+        return ready
 
     def highest_offset(self) -> int:
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     @staticmethod
-    def _parse_message_value(raw_value: str) -> JsonObject | None:
+    def _parse_message_value(raw_value: str | bytes) -> JsonObject | None:
         value = json_decode(raw_value)
         if isinstance(value, dict):
             return value
@@ -292,7 +327,7 @@ class KafkaSchemaReader(Thread):
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
 
-        raw_msgs = self.consumer.poll(timeout_ms=self.timeout_ms)
+        msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s, num_messages=self.max_messages_to_process)
         if self.ready is False:
             self.ready = self._is_ready()
 
@@ -306,49 +341,67 @@ class KafkaSchemaReader(Thread):
             if are_we_master is True:
                 watch_offsets = True
 
-        for _, msgs in raw_msgs.items():
-            schema_records_processed_keymode_canonical = 0
-            schema_records_processed_keymode_deprecated_karapace = 0
-            for msg in msgs:
+        schema_records_processed_keymode_canonical = 0
+        schema_records_processed_keymode_deprecated_karapace = 0
+        for msg in msgs:
+            try:
+                message_key = msg.key()
+                message_error = msg.error()
+                if message_error is not None:
+                    raise translate_from_kafkaerror(message_error)
+
+                assert message_key is not None
+                key = json_decode(message_key)
+            except JSONDecodeError:
+                # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
+                self.offset = msg.offset()
+                LOG.warning("Invalid JSON in msg.key() at offset %s", msg.offset())
+                continue
+            except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
+                LOG.error(
+                    "Kafka authorization error when consuming from %s: %s %s",
+                    self.config["topic_name"],
+                    exc,
+                    msg.error(),
+                )
+                continue
+
+            assert isinstance(key, dict)
+            msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
+            # Key mode detection happens on startup.
+            # Default keymode is CANONICAL and preferred unless any data consumed
+            # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
+            # the subsequent keys are omitted from detection.
+            if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
+                if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
+                    self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
+
+            value = None
+            message_value = msg.value()
+            if message_value:
                 try:
-                    key = json_decode(msg.key)
+                    value = self._parse_message_value(message_value)
                 except JSONDecodeError:
-                    LOG.exception("Invalid JSON in msg.key")
+                    # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
+                    self.offset = msg.offset()
+                    LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
                     continue
 
-                assert isinstance(key, dict)
-                msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
-                # Key mode detection happens on startup.
-                # Default keymode is CANONICAL and preferred unless any data consumed
-                # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
-                # the subsequent keys are omitted from detection.
-                if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
-                    if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
-                        self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
+            self.handle_msg(key, value)
+            self.offset = msg.offset()
 
-                value = None
-                if msg.value:
-                    try:
-                        value = self._parse_message_value(msg.value)
-                    except JSONDecodeError:
-                        LOG.exception("Invalid JSON in msg.value")
-                        continue
+            if msg_keymode == KeyMode.CANONICAL:
+                schema_records_processed_keymode_canonical += 1
+            else:
+                schema_records_processed_keymode_deprecated_karapace += 1
 
-                self.handle_msg(key, value)
-                self.offset = msg.offset
+            if self.ready and watch_offsets:
+                self._offset_watcher.offset_seen(self.offset)
 
-                if msg_keymode == KeyMode.CANONICAL:
-                    schema_records_processed_keymode_canonical += 1
-                else:
-                    schema_records_processed_keymode_deprecated_karapace += 1
-
-                if self.ready and watch_offsets:
-                    self._offset_watcher.offset_seen(self.offset)
-
-            self._report_schema_metrics(
-                schema_records_processed_keymode_canonical,
-                schema_records_processed_keymode_deprecated_karapace,
-            )
+        self._report_schema_metrics(
+            schema_records_processed_keymode_canonical,
+            schema_records_processed_keymode_deprecated_karapace,
+        )
 
     def _report_schema_metrics(
         self,
@@ -418,24 +471,24 @@ class KafkaSchemaReader(Thread):
 
     def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
         if value is None:
-            LOG.error("DELETE_SUBJECT record doesnt have a value, should have")
+            LOG.warning("DELETE_SUBJECT record doesnt have a value, should have")
             return
 
         subject = value["subject"]
-        version = value["version"]
+        version = Version(value["version"])
         if self.database.find_subject(subject=subject) is None:
-            LOG.error("Subject: %r did not exist, should have", subject)
+            LOG.warning("Subject: %r did not exist, should have", subject)
         else:
             LOG.info("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
-        subject, version = key["subject"], key["version"]
+        subject, version = key["subject"], Version(key["version"])
 
         if self.database.find_subject(subject=subject) is None:
-            LOG.error("Hard delete: Subject %s did not exist, should have", subject)
+            LOG.warning("Hard delete: Subject %s did not exist, should have", subject)
         elif version not in self.database.find_subject_schemas(subject=subject, include_deleted=True):
-            LOG.error("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
+            LOG.warning("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
         else:
             LOG.info("Hard delete: subject: %r version: %r", subject, version)
             self.database.delete_subject_schema(subject=subject, version=version)
@@ -452,7 +505,7 @@ class KafkaSchemaReader(Thread):
         schema_str = value["schema"]
         schema_subject = value["subject"]
         schema_id = value["id"]
-        schema_version = value["version"]
+        schema_version = Version(value["version"])
         schema_deleted = value.get("deleted", False)
         schema_references = value.get("references", None)
         resolved_references: list[Reference] | None = None
@@ -460,7 +513,7 @@ class KafkaSchemaReader(Thread):
         try:
             schema_type_parsed = SchemaType(schema_type)
         except ValueError:
-            LOG.error("Invalid schema type: %s", schema_type)
+            LOG.warning("Invalid schema type: %s", schema_type)
             return
 
         # This does two jobs:
@@ -476,7 +529,7 @@ class KafkaSchemaReader(Thread):
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
             except json.JSONDecodeError:
-                LOG.error("Schema is not valid JSON")
+                LOG.warning("Schema is not valid JSON")
                 return
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
@@ -488,6 +541,7 @@ class KafkaSchemaReader(Thread):
                     resolved_references,
                     resolved_dependencies,
                     validate_references=False,
+                    normalize=False,
                 )
                 schema_str = str(parsed_schema)
             except InvalidSchema:
@@ -534,11 +588,11 @@ class KafkaSchemaReader(Thread):
                     self._handle_msg_delete_subject(key, value)
                 elif message_type == MessageType.no_operation:
                     pass
-            except ValueError:
-                LOG.error("The message %s-%s has been discarded because the %s is not managed", key, value, key["keytype"])
+            except (KeyError, ValueError):
+                LOG.warning("The message %r-%r has been discarded because the %s is not managed", key, value, key["keytype"])
 
         else:
-            LOG.error(
+            LOG.warning(
                 "The message %s-%s has been discarded because doesn't contain the `keytype` key in the key", key, value
             )
 
@@ -552,7 +606,7 @@ class KafkaSchemaReader(Thread):
     def get_referenced_by(
         self,
         subject: Subject,
-        version: ResolvedVersion,
+        version: Version,
     ) -> Referents | None:
         return self.database.get_referenced_by(subject, version)
 
