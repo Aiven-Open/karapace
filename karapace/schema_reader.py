@@ -6,12 +6,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from avro.schema import Schema as AvroSchema
-from confluent_kafka import Message, TopicPartition
-from contextlib import closing, ExitStack
-from enum import Enum
-from jsonschema.validators import Draft7Validator
-from kafka.errors import (
+from aiokafka.errors import (
     GroupAuthorizationFailedError,
     InvalidReplicationFactorError,
     KafkaConfigurationError,
@@ -24,8 +19,14 @@ from kafka.errors import (
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
 )
+from avro.schema import Schema as AvroSchema
+from confluent_kafka import Message, TopicPartition
+from contextlib import closing, ExitStack
+from enum import Enum
+from jsonschema.validators import Draft7Validator
 from karapace import constants
 from karapace.config import Config
+from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema
 from karapace.in_memory_database import InMemoryDatabase
@@ -33,13 +34,12 @@ from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
-from karapace.master_coordinator import MasterCoordinator
 from karapace.metrics import Metrics
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, SchemaId, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
@@ -354,7 +354,9 @@ class KafkaSchemaReader(Thread):
                 assert message_key is not None
                 key = json_decode(message_key)
             except JSONDecodeError:
-                LOG.exception("Invalid JSON in msg.key() at offset %s", msg.offset())
+                # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
+                self.offset = msg.offset()
+                LOG.warning("Invalid JSON in msg.key() at offset %s", msg.offset())
                 continue
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
                 LOG.error(
@@ -381,7 +383,9 @@ class KafkaSchemaReader(Thread):
                 try:
                     value = self._parse_message_value(message_value)
                 except JSONDecodeError:
-                    LOG.exception("Invalid JSON in msg.value() at offset %s", msg.offset())
+                    # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
+                    self.offset = msg.offset()
+                    LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
                     continue
 
             self.handle_msg(key, value)
@@ -472,7 +476,7 @@ class KafkaSchemaReader(Thread):
             return
 
         subject = value["subject"]
-        version = value["version"]
+        version = Version(value["version"])
         if self.database.find_subject(subject=subject) is None:
             LOG.warning("Subject: %r did not exist, should have", subject)
         else:
@@ -480,7 +484,7 @@ class KafkaSchemaReader(Thread):
             self.database.delete_subject(subject=subject, version=version)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
-        subject, version = key["subject"], key["version"]
+        subject, version = key["subject"], Version(key["version"])
 
         if self.database.find_subject(subject=subject) is None:
             LOG.warning("Hard delete: Subject %s did not exist, should have", subject)
@@ -502,7 +506,7 @@ class KafkaSchemaReader(Thread):
         schema_str = value["schema"]
         schema_subject = value["subject"]
         schema_id = value["id"]
-        schema_version = value["version"]
+        schema_version = Version(value["version"])
         schema_deleted = value.get("deleted", False)
         schema_references = value.get("references", None)
         resolved_references: list[Reference] | None = None
@@ -603,7 +607,7 @@ class KafkaSchemaReader(Thread):
     def get_referenced_by(
         self,
         subject: Subject,
-        version: ResolvedVersion,
+        version: Version,
     ) -> Referents | None:
         return self.database.get_referenced_by(subject, version)
 

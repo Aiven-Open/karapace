@@ -21,11 +21,11 @@ from .errors import (
 )
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
+from aiokafka.errors import KafkaError, TopicAlreadyExistsError
 from concurrent.futures import Future
 from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
-from kafka.errors import KafkaError, TopicAlreadyExistsError
 from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
@@ -299,7 +299,13 @@ def _consume_records(
     if start_offset >= end_offset:
         raise EmptyPartition
 
-    end_offset -= 1  # high watermark to actual end offset
+    # confluent-kafka-python returns end offset + 1, i.e. the value that will
+    # be assigned to the next record to be produced. To get the highest offset
+    # already produced we need to subtract 1. Note that this has little to do
+    # with high watermark, which takes into account the highest record offset
+    # to be fully in sync across ISRs, and therefore can be an arbitrary
+    # number less than or equal to the LEO.
+    end_offset -= 1
 
     while True:
         record: Message | None = consumer.poll(timeout=poll_timeout.seconds)

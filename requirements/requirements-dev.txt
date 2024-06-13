@@ -8,11 +8,13 @@ accept-types==0.4.1
     # via -r requirements.txt
 aiohttp==3.9.5
     # via -r requirements.txt
+aiokafka==0.10.0
+    # via -r requirements.txt
 aiosignal==1.3.1
     # via
     #   -r requirements.txt
     #   aiohttp
-anyio==4.3.0
+anyio==4.4.0
     # via
     #   -r requirements.txt
     #   watchfiles
@@ -20,6 +22,7 @@ async-timeout==4.0.3
     # via
     #   -r requirements.txt
     #   aiohttp
+    #   aiokafka
 attrs==23.2.0
     # via
     #   -r requirements.txt
@@ -36,7 +39,7 @@ brotli==1.1.0
     # via geventhttpclient
 cachetools==5.3.3
     # via -r requirements.txt
-certifi==2024.2.2
+certifi==2024.6.2
     # via
     #   geventhttpclient
     #   requests
@@ -49,6 +52,8 @@ configargparse==1.7
     # via locust
 confluent-kafka==2.3.0
     # via -r requirements.txt
+coverage[toml]==7.5.3
+    # via pytest-cov
 cramjam==2.8.3
     # via
     #   -r requirements.txt
@@ -87,7 +92,7 @@ geventhttpclient==2.0.12
     # via locust
 greenlet==3.0.3
     # via gevent
-hypothesis==6.101.0
+hypothesis==6.103.1
     # via -r requirements-dev.in
 idna==3.7
     # via
@@ -116,8 +121,6 @@ jsonschema-specifications==2023.12.1
     # via
     #   -r requirements.txt
     #   jsonschema
-kafka-python @ https://github.com/aiven/kafka-python/archive/19ff1f4b28e33318b0cd2d916b8399170055b1ca.tar.gz
-    # via -r requirements.txt
 locust==2.25.0
     # via -r requirements-dev.in
 lz4==4.3.3
@@ -144,7 +147,10 @@ multidict==6.0.5
 networkx==3.1
     # via -r requirements.txt
 packaging==24.0
-    # via pytest
+    # via
+    #   -r requirements.txt
+    #   aiokafka
+    #   pytest
 pdbpp==0.10.3
     # via -r requirements-dev.in
 pkgutil-resolve-name==1.3.10
@@ -169,12 +175,15 @@ pyjwt==2.8.0
     # via -r requirements.txt
 pyrepl==0.9.0
     # via fancycompleter
-pytest==8.2.0
+pytest==8.2.2
     # via
     #   -r requirements-dev.in
+    #   pytest-cov
     #   pytest-random-order
     #   pytest-timeout
     #   pytest-xdist
+pytest-cov==5.0.0
+    # via -r requirements-dev.in
 pytest-random-order==1.1.1
     # via -r requirements-dev.in
 pytest-timeout==2.3.1
@@ -192,7 +201,7 @@ referencing==0.35.1
     #   -r requirements.txt
     #   jsonschema
     #   jsonschema-specifications
-requests==2.31.0
+requests==2.32.3
     # via
     #   -r requirements-dev.in
     #   locust
@@ -205,7 +214,7 @@ rpds-py==0.18.1
     #   -r requirements.txt
     #   jsonschema
     #   referencing
-sentry-sdk==2.1.1
+sentry-sdk==2.5.0
     # via -r requirements-dev.in
 six==1.16.0
     # via
@@ -223,20 +232,21 @@ tenacity==8.3.0
     # via -r requirements.txt
 tomli==2.0.1
     # via
+    #   coverage
     #   locust
     #   pytest
-typing-extensions==4.11.0
+typing-extensions==4.12.1
     # via
     #   -r requirements.txt
     #   anyio
     #   rich
-ujson==5.9.0
+ujson==5.10.0
     # via -r requirements.txt
 urllib3==2.2.1
     # via
     #   requests
     #   sentry-sdk
-watchfiles==0.21.0
+watchfiles==0.22.0
     # via -r requirements.txt
 werkzeug==3.0.3
     # via
@@ -251,14 +261,14 @@ yarl==1.9.4
     # via
     #   -r requirements.txt
     #   aiohttp
-zipp==3.18.1
+zipp==3.19.2
     # via
     #   -r requirements.txt
     #   importlib-metadata
     #   importlib-resources
 zope-event==5.0
     # via gevent
-zope-interface==6.3
+zope-interface==6.4.post2
     # via gevent
 prometheus-client==0.17.1
     # via -r requirements.txt

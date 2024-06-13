@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from karapace.client import Path
 from karapace.config import DEFAULTS, read_config
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.schema_models import SchemaType, ValidatedTypedSchema, Versioner
 from karapace.serialization import (
     flatten_unions,
     get_subject_name,
@@ -16,7 +16,7 @@ from karapace.serialization import (
     START_BYTE,
     write_value,
 )
-from karapace.typing import NameStrategy, ResolvedVersion, Subject, SubjectType
+from karapace.typing import NameStrategy, Subject, SubjectType
 from tests.utils import schema_avro_json, test_objects_avro
 from unittest.mock import call, Mock
 
@@ -121,9 +121,7 @@ async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySeriali
 async def test_happy_flow(default_config_path: Path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result(
-        (1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), ResolvedVersion(1))
-    )
+    get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), Versioner.V(1)))
     mock_registry_client.get_schema.return_value = get_latest_schema_future
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
@@ -315,9 +313,7 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
 async def test_serialization_fails(default_config_path: Path):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result(
-        (1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), ResolvedVersion(1))
-    )
+    get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), Versioner.V(1)))
     mock_registry_client.get_schema.return_value = get_latest_schema_future
 
     serializer = await make_ser_deser(default_config_path, mock_registry_client)

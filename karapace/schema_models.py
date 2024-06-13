@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
 from karapace.dependency import Dependency
-from karapace.errors import InvalidSchema
+from karapace.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
 from karapace.protobuf.exception import (
     Error as ProtobufError,
     IllegalArgumentException,
@@ -23,7 +23,7 @@ from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
-from karapace.typing import JsonObject, ResolvedVersion, SchemaId, Subject
+from karapace.typing import JsonObject, SchemaId, Subject, Version, VersionTag
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Dict, Final, final, Mapping, Sequence
 
@@ -383,8 +383,38 @@ class ValidatedTypedSchema(ParsedTypedSchema):
 @dataclass
 class SchemaVersion:
     subject: Subject
-    version: ResolvedVersion
+    version: Version
     deleted: bool
     schema_id: SchemaId
     schema: TypedSchema
     references: Sequence[Reference] | None
+
+
+class Versioner:
+    @classmethod
+    def V(cls, tag: VersionTag) -> Version:
+        cls.validate_tag(tag=tag)
+        return Version(version=cls.resolve_tag(tag))
+
+    @classmethod
+    def validate_tag(cls, tag: VersionTag) -> None:
+        try:
+            version = cls.resolve_tag(tag=tag)
+            if (version < Version.MINUS_1_VERSION_TAG) or (version == 0):
+                raise InvalidVersion(f"Invalid version {tag}")
+        except ValueError as exc:
+            if tag != Version.LATEST_VERSION_TAG:
+                raise InvalidVersion(f"Invalid version {tag}") from exc
+
+    @staticmethod
+    def resolve_tag(tag: VersionTag) -> int:
+        return Version.MINUS_1_VERSION_TAG if tag == Version.LATEST_VERSION_TAG else int(tag)
+
+    @staticmethod
+    def from_schema_versions(schema_versions: Mapping[Version, SchemaVersion], version: Version) -> Version:
+        max_version = max(schema_versions)
+        if version.is_latest:
+            return max_version
+        if version in schema_versions and version <= max_version:
+            return version
+        raise VersionNotFoundException()

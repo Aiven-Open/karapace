@@ -2,8 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
 from dataclasses import dataclass
-from kafka.errors import AuthenticationFailedError, NoBrokersAvailable
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.utils import Expiration
 from pathlib import Path

@@ -291,7 +291,7 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     assert res.status_code == 200
     res = await registry_async_client.delete("subjects/test_schema/versions/1")
     myjson = res.json()
-    match_msg = "Subject 'test_schema' Version 1 was soft deleted.Set permanent=true to delete permanently"
+    match_msg = "Subject 'test_schema' Version 1 was soft deleted. Set permanent=true to delete permanently"
 
     assert res.status_code == 404
 

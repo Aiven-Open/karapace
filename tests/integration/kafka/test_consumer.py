@@ -4,10 +4,10 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from aiokafka.errors import IllegalStateError, KafkaTimeoutError, UnknownTopicOrPartitionError
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
 from confluent_kafka.admin import NewTopic
 from confluent_kafka.error import KafkaError
-from kafka.errors import IllegalStateError, KafkaTimeoutError, UnknownTopicOrPartitionError
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
@@ -25,7 +25,11 @@ class TestPartitionsForTopic:
     def test_partitions_for_returns_empty_for_unknown_topic(self, consumer: KafkaConsumer) -> None:
         assert consumer.partitions_for_topic("nonexistent") == {}
 
-    def test_partitions_for(self, consumer: KafkaConsumer, new_topic: NewTopic) -> None:
+    def test_partitions_for(
+        self,
+        new_topic: NewTopic,
+        consumer: KafkaConsumer,
+    ) -> None:
         partitions = consumer.partitions_for_topic(new_topic.topic)
 
         assert len(partitions) == 1
@@ -44,7 +48,11 @@ class TestGetWatermarkOffsets:
         with pytest.raises(UnknownTopicOrPartitionError):
             _, _ = consumer.get_watermark_offsets(TopicPartition("nonexistent", 0))
 
-    def test_get_watermark_offsets_empty_topic(self, consumer: KafkaConsumer, new_topic: NewTopic) -> None:
+    def test_get_watermark_offsets_empty_topic(
+        self,
+        consumer: KafkaConsumer,
+        new_topic: NewTopic,
+    ) -> None:
         beginning, end = consumer.get_watermark_offsets(TopicPartition(new_topic.topic, 0))
 
         assert beginning == 0
@@ -52,9 +60,9 @@ class TestGetWatermarkOffsets:
 
     def test_get_watermark_offsets_topic_with_one_message(
         self,
+        new_topic: NewTopic,
         consumer: KafkaConsumer,
         producer: KafkaProducer,
-        new_topic: NewTopic,
     ) -> None:
         producer.send(new_topic.topic)
         producer.flush()
@@ -68,9 +76,9 @@ class TestGetWatermarkOffsets:
 class TestCommit:
     def test_commit_message_and_offset_mutual_exclusion(
         self,
+        new_topic: NewTopic,
         consumer: KafkaConsumer,
         producer: KafkaProducer,
-        new_topic: NewTopic,
     ) -> None:
         fut = producer.send(new_topic.topic)
         producer.flush()
@@ -81,9 +89,9 @@ class TestCommit:
 
     def test_commit_message(
         self,
+        new_topic: NewTopic,
         producer: KafkaProducer,
         consumer: KafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         consumer.subscribe([new_topic.topic])
         first_fut = producer.send(new_topic.topic)
@@ -106,9 +114,9 @@ class TestCommit:
 
     def test_commit_offsets(
         self,
+        new_topic: NewTopic,
         producer: KafkaProducer,
         consumer: KafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         consumer.subscribe([new_topic.topic])
         first_fut = producer.send(new_topic.topic)
@@ -139,9 +147,9 @@ class TestCommit:
 
     def test_commit_offsets_empty(
         self,
+        new_topic: NewTopic,
         producer: KafkaProducer,
         consumer: KafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         consumer.subscribe([new_topic.topic])
         first_fut = producer.send(new_topic.topic)
@@ -164,8 +172,8 @@ class TestCommit:
 
     def test_commit_raises_for_unknown_partition(
         self,
-        consumer: KafkaConsumer,
         new_topic: NewTopic,
+        consumer: KafkaConsumer,
     ) -> None:
         consumer.subscribe([new_topic.topic])
         with pytest.raises(UnknownTopicOrPartitionError):
@@ -193,9 +201,9 @@ class TestSubscribe:
 
     def test_subscription_is_recorded(
         self,
+        new_topic: NewTopic,
         admin_client: KafkaAdminClient,
         consumer: KafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         prefix = "subscribe"
         topics = [create_new_topic(admin_client, prefix=prefix) for _ in range(3)]
@@ -207,9 +215,9 @@ class TestSubscribe:
 
     def test_unsubscribe_empties_subscription(
         self,
+        new_topic: NewTopic,
         admin_client: KafkaAdminClient,
         consumer: KafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         prefix = "unsubscribe"
         _ = [create_new_topic(admin_client, prefix=prefix) for _ in range(3)]
@@ -224,9 +232,9 @@ class TestSubscribe:
 
     def test_resubscribe_modifies_subscription(
         self,
+        new_topic: NewTopic,
         admin_client: KafkaAdminClient,
         consumer: KafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         prefix = "resubscribe"
         _ = [create_new_topic(admin_client, prefix=prefix) for _ in range(3)]
@@ -241,7 +249,12 @@ class TestSubscribe:
 
 
 class TestAssign:
-    def test_assign(self, consumer: KafkaConsumer, producer: KafkaProducer, new_topic: NewTopic) -> None:
+    def test_assign(
+        self,
+        new_topic: NewTopic,
+        consumer: KafkaConsumer,
+        producer: KafkaProducer,
+    ) -> None:
         first_fut = producer.send(new_topic.topic)
         second_fut = producer.send(new_topic.topic, value=b"message-value")
         producer.flush()
@@ -266,8 +279,8 @@ class TestAssign:
 
     def test_assign_raises_illegal_state_after_subscribe(
         self,
-        consumer: KafkaConsumer,
         new_topic: NewTopic,
+        consumer: KafkaConsumer,
     ) -> None:
         consumer.subscribe([new_topic.topic])
         consumer.poll(timeout=POLL_TIMEOUT_S)
@@ -277,7 +290,12 @@ class TestAssign:
 
 
 class TestSeek:
-    def test_seek(self, consumer: KafkaConsumer, producer: KafkaProducer, new_topic: NewTopic) -> None:
+    def test_seek(
+        self,
+        new_topic: NewTopic,
+        consumer: KafkaConsumer,
+        producer: KafkaProducer,
+    ) -> None:
         consumer.subscribe([new_topic.topic])
         fut = producer.send(new_topic.topic, value=b"message-value")
         producer.flush()
@@ -302,9 +320,9 @@ class TestSeek:
 class TestAsyncPoll:
     async def test_async_poll(
         self,
+        new_topic: NewTopic,
         asyncproducer: AsyncKafkaProducer,
         asyncconsumer: AsyncKafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         await asyncconsumer.subscribe([new_topic.topic])
         aiofut = await asyncproducer.send(new_topic.topic)
@@ -318,7 +336,11 @@ class TestAsyncPoll:
         assert message.key() is None
         assert message.value() is None
 
-    async def test_async_poll_no_message(self, asyncconsumer: AsyncKafkaConsumer, new_topic: NewTopic) -> None:
+    async def test_async_poll_no_message(
+        self,
+        new_topic: NewTopic,
+        asyncconsumer: AsyncKafkaConsumer,
+    ) -> None:
         await asyncconsumer.subscribe([new_topic.topic])
 
         message = await asyncconsumer.poll(timeout=1)
@@ -340,9 +362,9 @@ class TestAsyncPoll:
 
     async def test_async_poll_existing_topic_and_unknown_topic_pattern(
         self,
+        new_topic: NewTopic,
         asyncproducer: AsyncKafkaProducer,
         asyncconsumer: AsyncKafkaConsumer,
-        new_topic: NewTopic,
     ) -> None:
         await asyncconsumer.subscribe(topics=[new_topic.topic], patterns=["nonexistent.*"])
         aiofut = await asyncproducer.send(new_topic.topic, value="message-value")

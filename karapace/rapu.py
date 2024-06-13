@@ -402,11 +402,11 @@ class RestApp:
             )
             headers = {"Content-Type": "application/json"}
             resp = aiohttp.web.Response(body=body, status=status.value, headers=headers)
-        except ConnectionError as connection_error:
+        except (ConnectionError, aiohttp.ClientError) as connection_error:
             # TCP level connection errors, e.g. TCP reset, client closes connection.
             self.log.debug("Connection error.", exc_info=connection_error)
             # No response can be returned and written to client, aiohttp expects some response here.
-            resp = aiohttp.web.Response(text="Connection error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)
+            resp = aiohttp.web.Response(text="Connection error", status=HTTPStatus.SERVICE_UNAVAILABLE.value)
         except asyncio.CancelledError:
             self.log.debug("Client closed connection")
             raise

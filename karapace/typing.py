@@ -2,9 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from enum import Enum, unique
-from typing import Dict, List, Mapping, NewType, Sequence, Union
+from karapace.errors import InvalidVersion
+from typing import ClassVar, Dict, List, Mapping, NewType, Sequence, Union
 from typing_extensions import TypeAlias
+
+import functools
 
 JsonArray: TypeAlias = List["JsonData"]
 JsonObject: TypeAlias = Dict[str, "JsonData"]
@@ -17,8 +22,8 @@ ArgJsonObject: TypeAlias = Mapping[str, "ArgJsonData"]
 ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 
 Subject = NewType("Subject", str)
-Version = Union[int, str]
-ResolvedVersion = NewType("ResolvedVersion", int)
+VersionTag = Union[str, int]
+
 # note: the SchemaID is a unique id among all the schemas (and each version should be assigned to a different id)
 # basically the same SchemaID refer always to the same TypedSchema.
 SchemaId = NewType("SchemaId", int)
@@ -54,3 +59,43 @@ class SubjectType(StrEnum, Enum):
 @unique
 class Mode(StrEnum):
     readwrite = "READWRITE"
+
+
+@functools.total_ordering
+class Version:
+    LATEST_VERSION_TAG: ClassVar[str] = "latest"
+    MINUS_1_VERSION_TAG: ClassVar[int] = -1
+
+    def __init__(self, version: int) -> None:
+        if not isinstance(version, int):
+            raise InvalidVersion(f"Invalid version {version}")
+        if (version < Version.MINUS_1_VERSION_TAG) or (version == 0):
+            raise InvalidVersion(f"Invalid version {version}")
+        self._value = version
+
+    def __str__(self) -> str:
+        return f"{int(self._value)}"
+
+    def __repr__(self) -> str:
+        return f"Version({int(self._value)})"
+
+    def __lt__(self, other: object) -> bool:
+        if isinstance(other, Version):
+            return self._value < other.value
+        return NotImplemented
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Version):
+            return self._value == other.value
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._value)
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @property
+    def is_latest(self) -> bool:
+        return self.value == self.MINUS_1_VERSION_TAG
