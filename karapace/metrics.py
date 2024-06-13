@@ -37,7 +37,7 @@ class Metrics(metaclass=Singleton):
     def __init__(
         self,
     ) -> None:
-        self.stats_client = Optional[StatsClient]
+        self.stats_client: Optional[StatsClient] = None
         self.is_ready = False
         self.lock = threading.Lock()
         self.request_size_total = 0
