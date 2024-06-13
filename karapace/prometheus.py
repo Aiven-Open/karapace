@@ -15,7 +15,7 @@ from karapace.config import Config
 from prometheus_client import Counter, Gauge, REGISTRY, Summary
 from prometheus_client.exposition import make_wsgi_app
 from socketserver import ThreadingMixIn
-from typing import Final
+from typing import Final, Any, Union, Tuple
 from wsgiref.simple_server import make_server, WSGIRequestHandler, WSGIServer
 
 import logging
@@ -44,11 +44,12 @@ class _SilentHandler(WSGIRequestHandler):
     """WSGI handler that does not log requests."""
 
     # pylint: disable=W0622
-    def log_message(self, format, *args):
+
+    def log_message(self, format:str, *args: Any) -> None:
         """Log nothing."""
 
 
-def get_family(address, port):
+def get_family(address: Union[bytes, str, None], port: Union[int, str, None]) -> Tuple[socket.AddressFamily, str]:
     infos = socket.getaddrinfo(address, port)
     family, _, _, _, sockaddr = next(iter(infos))
     return family, sockaddr[0]
@@ -60,7 +61,6 @@ class PrometheusClient(StatsClient):
     def __init__(self, config: Config) -> None:
         super().__init__(config)
         self.lock = threading.Lock()
-        self.httpd = None
         self.thread = None
         with self.lock:
             _host = config.get("prometheus_host", None)
@@ -71,9 +71,17 @@ class PrometheusClient(StatsClient):
                 raise PrometheusException("prometheus_host port is undefined")
             if not PrometheusClient.server_is_active:
                 # We wrapped httpd server creation from prometheus client to allow stop this server"""
-                self.start_server(_host, _port)
+                class TmpServer(ThreadingWSGIServer):
+                    pass
 
+                TmpServer.address_family, addr = get_family(_host, _port)
+                app = make_wsgi_app(REGISTRY)
+                self.httpd = make_server(addr, _port, app, TmpServer, handler_class=_SilentHandler)
+                self.thread = threading.Thread(target=self.httpd.serve_forever)
+                self.thread.daemon = True
+                self.thread.start()
                 PrometheusClient.server_is_active = True
+
             else:
                 raise PrometheusException("Double instance of Prometheus interface")
         self._gauge: dict[str, Gauge] = dict()
@@ -101,23 +109,13 @@ class PrometheusClient(StatsClient):
             self._summary[metric] = m
         m.observe(value)
 
-    def start_server(self, addr: str, port: int) -> None:
-        class TmpServer(ThreadingWSGIServer):
-            pass
-
-        TmpServer.address_family, addr = get_family(addr, port)
-        app = make_wsgi_app(REGISTRY)
-        self.httpd = make_server(addr, port, app, TmpServer, handler_class=_SilentHandler)
-        self.thread = threading.Thread(target=self.httpd.serve_forever)
-        self.thread.daemon = True
-        self.thread.start()
-
     def stop_server(self) -> None:
         self.httpd.shutdown()
         self.httpd.server_close()
-        self.thread.join()
+        if isinstance( self.thread, threading.Thread):
+            self.thread.join()
 
-    def close(self):
+    def close(self) -> None:
         with self.lock:
             if self.server_is_active:
                 self.stop_server()

@@ -10,12 +10,13 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+import threading
+from typing import Optional
+
 from karapace.base_stats import StatsClient
 from karapace.config import Config
 from karapace.prometheus import PrometheusClient
 from karapace.statsd import StatsdClient
-
-import threading
 
 
 class MetricsException(Exception):
@@ -36,7 +37,7 @@ class Metrics(metaclass=Singleton):
     def __init__(
         self,
     ) -> None:
-        self.stats_client = None
+        self.stats_client = Optional[StatsClient]
         self.is_ready = False
         self.lock = threading.Lock()
         self.request_size_total = 0
@@ -46,7 +47,6 @@ class Metrics(metaclass=Singleton):
         with self.lock:
             if self.is_ready:
                 return
-
             if not config.get("metrics_extended"):
                 return
             stats_service = config.get("stats_service")
@@ -88,6 +88,34 @@ class Metrics(metaclass=Singleton):
             raise RuntimeError("no StatsClient available")
         self.stats_client.timing("latency_ms", latency_ms)
 
+    def gauge(self, metric: str, value: float, tags: dict | None = None) -> None:
+        if not self.is_ready or self.stats_client is None:
+            return
+        if not isinstance(self.stats_client, StatsClient):
+            raise RuntimeError("no StatsClient available")
+        self.stats_client.gauge(metric, value, tags)
+
+    def increase(self, metric: str, inc_value: int = 1, tags: dict | None = None) -> None:
+        if not self.is_ready or self.stats_client is None:
+            return
+        if not isinstance(self.stats_client, StatsClient):
+            raise RuntimeError("no StatsClient available")
+        self.stats_client.increase(metric, inc_value, tags)
+
+    def timing(self, metric: str, value: float, tags: dict | None = None) -> None:
+        if not self.is_ready or self.stats_client is None:
+            return
+        if not isinstance(self.stats_client, StatsClient):
+            raise RuntimeError("no StatsClient available")
+        self.stats_client.timing(metric, value, tags)
+
+    def unexpected_exception(self, ex: Exception, where: str, tags: dict | None = None) -> None:
+        if not self.is_ready or self.stats_client is None:
+            return
+        if not isinstance(self.stats_client, StatsClient):
+            raise RuntimeError("no StatsClient available")
+        self.stats_client.unexpected_exception(ex, where, tags)
+
     def error(self) -> None:
         if not self.is_ready or self.stats_client is None:
             return
@@ -96,7 +124,7 @@ class Metrics(metaclass=Singleton):
         self.stats_client.increase("error-total", 1)
 
     def cleanup(self) -> None:
-        if self.stats_client:
+        if self.stats_client and isinstance(self.stats_client, StatsClient):
             self.stats_client.close()
 
         if not self.is_ready:

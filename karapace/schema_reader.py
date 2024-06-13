@@ -140,7 +140,7 @@ class KafkaSchemaReader(Thread):
         self.consumer: KafkaConsumer | None = None
         self._offset_watcher = offset_watcher
         Metrics().setup(config=config)
-        self.stats = Metrics().stats_client
+        self.stats = Metrics()
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
