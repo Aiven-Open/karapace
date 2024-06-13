@@ -55,4 +55,3 @@ class StatsClient(ABC):
 
     def close(self) -> None:
         self.sentry_client.close()
-

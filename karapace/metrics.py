@@ -10,13 +10,13 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-import threading
-from typing import Optional
-
 from karapace.base_stats import StatsClient
 from karapace.config import Config
 from karapace.prometheus import PrometheusClient
 from karapace.statsd import StatsdClient
+from typing import Optional
+
+import threading
 
 
 class MetricsException(Exception):

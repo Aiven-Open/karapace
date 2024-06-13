@@ -15,7 +15,7 @@ from karapace.config import Config
 from prometheus_client import Counter, Gauge, REGISTRY, Summary
 from prometheus_client.exposition import make_wsgi_app
 from socketserver import ThreadingMixIn
-from typing import Final, Any, Union, Tuple
+from typing import Any, Final
 from wsgiref.simple_server import make_server, WSGIRequestHandler, WSGIServer
 
 import logging
@@ -45,11 +45,11 @@ class _SilentHandler(WSGIRequestHandler):
 
     # pylint: disable=W0622
 
-    def log_message(self, format:str, *args: Any) -> None:
+    def log_message(self, format: str, *args: Any) -> None:
         """Log nothing."""
 
 
-def get_family(address: Union[bytes, str, None], port: Union[int, str, None]) -> Tuple[socket.AddressFamily, str]:
+def get_family(address: bytes | str | None, port: int | str | None) -> tuple[socket.AddressFamily, str]:
     infos = socket.getaddrinfo(address, port)
     family, _, _, _, sockaddr = next(iter(infos))
     return family, sockaddr[0]
@@ -112,7 +112,7 @@ class PrometheusClient(StatsClient):
     def stop_server(self) -> None:
         self.httpd.shutdown()
         self.httpd.server_close()
-        if isinstance( self.thread, threading.Thread):
+        if isinstance(self.thread, threading.Thread):
             self.thread.join()
 
     def close(self) -> None:
