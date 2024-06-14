@@ -14,7 +14,6 @@ from karapace.base_stats import StatsClient
 from karapace.config import Config
 from karapace.prometheus import PrometheusClient
 from karapace.statsd import StatsdClient
-from typing import Optional
 
 import threading
 
@@ -37,7 +36,7 @@ class Metrics(metaclass=Singleton):
     def __init__(
         self,
     ) -> None:
-        self.stats_client: Optional[StatsClient] = None
+        self.stats_client: StatsClient | None = None
         self.is_ready = False
         self.lock = threading.Lock()
         self.request_size_total = 0
