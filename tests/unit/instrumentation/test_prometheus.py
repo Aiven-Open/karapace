@@ -27,15 +27,15 @@ class TestPrometheusInstrumentation:
 
     def test_metric_types(self, prometheus: PrometheusInstrumentation) -> None:
         assert isinstance(prometheus.karapace_http_requests_total, Counter)
-        assert isinstance(prometheus.karapace_http_requests_latency_seconds, Histogram)
+        assert isinstance(prometheus.karapace_http_requests_duration_seconds, Histogram)
         assert isinstance(prometheus.karapace_http_requests_in_progress, Gauge)
 
     def test_metric_values(self, prometheus: PrometheusInstrumentation) -> None:
         # `_total` suffix is stripped off the metric name for `Counters`, but needed for clarity.
         assert repr(prometheus.karapace_http_requests_total) == "prometheus_client.metrics.Counter(karapace_http_requests)"
         assert (
-            repr(prometheus.karapace_http_requests_latency_seconds)
-            == "prometheus_client.metrics.Histogram(karapace_http_requests_latency_seconds)"
+            repr(prometheus.karapace_http_requests_duration_seconds)
+            == "prometheus_client.metrics.Histogram(karapace_http_requests_duration_seconds)"
         )
         assert (
             repr(prometheus.karapace_http_requests_in_progress)
@@ -62,8 +62,8 @@ class TestPrometheusInstrumentation:
                 [
                     call(prometheus.karapace_http_requests_total, prometheus.karapace_http_requests_total),
                     call(
-                        prometheus.karapace_http_requests_latency_seconds,
-                        prometheus.karapace_http_requests_latency_seconds,
+                        prometheus.karapace_http_requests_duration_seconds,
+                        prometheus.karapace_http_requests_duration_seconds,
                     ),
                     call(prometheus.karapace_http_requests_in_progress, prometheus.karapace_http_requests_in_progress),
                 ]
@@ -92,6 +92,7 @@ class TestPrometheusInstrumentation:
 
         await prometheus.http_request_metrics_middleware(request=request, handler=handler)
 
+        assert handler.assert_awaited_once  # extra assert is to ignore pylint [pointless-statement]
         request.__setitem__.assert_called_once_with(prometheus.START_TIME_REQUEST_KEY, 10)
         request.app[prometheus.karapace_http_requests_in_progress].labels.assert_has_calls(
             [
@@ -99,7 +100,7 @@ class TestPrometheusInstrumentation:
                 call().inc(),
             ]
         )
-        request.app[prometheus.karapace_http_requests_latency_seconds].labels.assert_has_calls(
+        request.app[prometheus.karapace_http_requests_duration_seconds].labels.assert_has_calls(
             [
                 call("GET", "/path"),
                 call().observe(request.__getitem__.return_value.__rsub__.return_value),

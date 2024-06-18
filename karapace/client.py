@@ -91,6 +91,7 @@ class Client:
         headers: Optional[Headers] = None,
         auth: Optional[BasicAuth] = None,
         params: Optional[Mapping[str, str]] = None,
+        json_response: bool = True,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -105,8 +106,8 @@ class Client:
             params=params,
         ) as res:
             # required for forcing the response body conversion to json despite missing valid Accept headers
-            json_result = await res.json(content_type=None)
-            return Result(res.status, json_result, headers=res.headers)
+            result = await res.json(content_type=None) if json_response else await res.text()
+            return Result(res.status, result, headers=res.headers)
 
     async def delete(
         self,
