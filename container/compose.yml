@@ -102,3 +102,10 @@ services:
       KARAPACE_REGISTRY_PORT: 8081
       KARAPACE_ADMIN_METADATA_MAX_AGE: 0
       KARAPACE_LOG_LEVEL: WARNING
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
