@@ -63,9 +63,8 @@ def main() -> int:
     logging.log(logging.DEBUG, "Config %r", config_without_secrets)
 
     try:
-        # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
         PrometheusInstrumentation.setup_metrics(app=app)
-        app.run()
+        app.run()  # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
     except Exception as ex:  # pylint: disable-broad-except
         app.stats.unexpected_exception(ex=ex, where="karapace")
         raise
