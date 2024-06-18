@@ -19,6 +19,7 @@ ujson<6
 watchfiles<1
 xxhash~=3.3
 zstandard
+prometheus-client==0.20.0
 
 # Patched dependencies
 #
