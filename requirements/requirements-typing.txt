@@ -46,7 +46,7 @@ typing-extensions==4.12.1
     #   -c requirements-dev.txt
     #   -c requirements.txt
     #   mypy
-urllib3==2.2.1
+urllib3==2.2.2
     # via
     #   -c requirements-dev.txt
     #   sentry-sdk
