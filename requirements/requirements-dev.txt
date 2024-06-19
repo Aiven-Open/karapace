@@ -244,7 +244,7 @@ typing-extensions==4.12.1
     #   rich
 ujson==5.10.0
     # via -r requirements.txt
-urllib3==2.2.1
+urllib3==2.2.2
     # via
     #   requests
     #   sentry-sdk
