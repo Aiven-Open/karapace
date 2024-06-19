@@ -22,8 +22,8 @@ COPY . /build/karapace-repo
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install /build/karapace-repo
 
-# Karapace image, i.e. production.
-FROM python:3.10.11-slim-bullseye AS karapace
+
+FROM python:3.10.11-slim-bullseye AS karapace-base
 
 # Setup user and directories.
 RUN groupadd --system karapace \
@@ -53,3 +53,37 @@ USER karapace
 
 HEALTHCHECK --interval=10s --timeout=30s --retries=3 --start-period=60s \
     CMD python3 healthcheck.py http://localhost:$KARAPACE_PORT/_health || exit 1
+
+
+FROM builder AS dev-builder
+
+# Install dev dependencies.
+COPY ./requirements/requirements-dev.txt /build/
+COPY ./requirements/requirements-typing.txt /build/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install -r /build/requirements-dev.txt -r /build/requirements-typing.txt
+
+
+# Dev build stage
+FROM karapace-base AS dev
+
+# Install linux dependencies
+USER root
+
+ARG OPENJDK_VERSION="11.0.22+7-1~deb11u1"
+RUN apt-get update \
+ && apt-get install --assume-yes --no-install-recommends \
+    openjdk-11-jdk=$OPENJDK_VERSION \
+ && rm -rf /var/lib/apt/lists/*
+
+USER karapace
+
+
+COPY --from=dev-builder /venv /venv
+
+RUN mkdir /opt/karapace/app
+ENV PYTHONPATH="/opt/karapace/app:${PYTHONPATH}"
+
+
+# Production build stage (keep last so it's the default)
+FROM karapace-base AS karapace
