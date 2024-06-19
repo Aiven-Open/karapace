@@ -6,6 +6,7 @@ from aiohttp.web_log import AccessLogger
 from contextlib import closing
 from karapace import version as karapace_version
 from karapace.config import read_config
+from karapace.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.kafka_rest_apis import KafkaRest
 from karapace.rapu import RestApp
 from karapace.schema_registry_apis import KarapaceSchemaRegistryController
@@ -62,8 +63,8 @@ def main() -> int:
     logging.log(logging.DEBUG, "Config %r", config_without_secrets)
 
     try:
-        # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
-        app.run()
+        PrometheusInstrumentation.setup_metrics(app=app)
+        app.run()  # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
     except Exception as ex:  # pylint: disable-broad-except
         app.stats.unexpected_exception(ex=ex, where="karapace")
         raise
