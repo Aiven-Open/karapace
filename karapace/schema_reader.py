@@ -240,11 +240,12 @@ class KafkaSchemaReader(Thread):
                     # Handles also a unusual case of purged schemas topic where starting offset can be > 0
                     # and no records to process.
                     self.offset = self._get_beginning_offset()
-                try:
-                    self.handle_messages()
-                except Exception as e:  # pylint: disable=broad-except
-                    self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
-                    LOG.exception("Unexpected exception in schema reader loop")
+                else:
+                    try:
+                        self.handle_messages()
+                    except Exception as e:  # pylint: disable=broad-except
+                        self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
+                        LOG.exception("Unexpected exception in schema reader loop")
 
     def _get_beginning_offset(self) -> int:
         assert self.consumer is not None, "Thread must be started"
