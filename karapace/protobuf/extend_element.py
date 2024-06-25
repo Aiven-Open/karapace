@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import Sequence
 
@@ -19,6 +20,16 @@ class ExtendElement:
     name: str
     documentation: str = ""
     fields: Sequence[FieldElement] | None = None
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> ExtendElement:
+        # read again carefully there -> https://protobuf.com/docs/language-spec#fully-qualified-references
+        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields]
+        return ExtendElement(
+            location=self.location,
+            name=self.name,
+            documentation=self.documentation,
+            fields=full_path_fields,
+        )
 
     def to_schema(self) -> str:
         result: list[str] = []

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.rpc_element import RpcElement
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import Sequence
 
@@ -21,6 +22,17 @@ class ServiceElement:
     documentation: str = ""
     rpcs: Sequence[RpcElement] | None = None
     options: Sequence[OptionElement] | None = None
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> ServiceElement:
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+        full_path_rpcs = [rpc.with_full_path_expanded(type_tree) for rpc in self.rpcs]
+        return ServiceElement(
+            location=self.location,
+            name=self.name,
+            documentation=self.documentation,
+            rpcs=full_path_rpcs,
+            options=full_path_options,
+        )
 
     def to_schema(self) -> str:
         result: list[str] = []

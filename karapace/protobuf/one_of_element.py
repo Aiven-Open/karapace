@@ -13,6 +13,7 @@ from karapace.protobuf.compare_type_storage import CompareTypes
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.group_element import GroupElement
 from karapace.protobuf.option_element import OptionElement
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import Sequence
 
@@ -31,6 +32,19 @@ class OneOfElement:
         self.fields = fields or []
         self.options = options or []
         self.groups = groups or []
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> OneOfElement:
+        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields]
+        full_path_groups = [group.with_full_path_expanded(type_tree) for group in self.groups]
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+
+        return OneOfElement(
+            name=self.name,
+            documentation=self.documentation,
+            fields=full_path_fields,
+            groups=full_path_groups,
+            options=full_path_options,
+        )
 
     def to_schema(self) -> str:
         result: list[str] = []

@@ -2,15 +2,18 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+from karapace.dependency import Dependency
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.location import Location
 from karapace.protobuf.proto_normalizations import normalize
-from karapace.protobuf.proto_parser import ProtoParser
+from karapace.schema_models import parse_protobuf_schema_definition, ValidatedTypedSchema
+from karapace.schema_references import Reference
+from karapace.schema_type import SchemaType
+from karapace.typing import Subject, Version
 
 import pytest
 
 location: Location = Location("some/folder", "file.proto")
-
 
 # this would be a good case for using a property based test with a well-formed message generator
 # (hypothesis could work if the objects representing the language
@@ -56,7 +59,6 @@ message Foo {
     string fieldA = 1;
 }
 """
-
 
 PROTO_WITH_OPTIONS_IN_ENUM_ORDERED = """\
 syntax = "proto3";
@@ -286,7 +288,6 @@ message Foo {
 }
 """
 
-
 PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_ORDERED = """\
 syntax = "proto3";
 
@@ -511,10 +512,103 @@ service MyService {
     ),
 )
 def test_differently_ordered_options_normalizes_equally(ordered_schema: str, unordered_schema: str) -> None:
-    ordered_proto = ProtoParser.parse(location, ordered_schema)
-    unordered_proto = ProtoParser.parse(location, unordered_schema)
+    ordered_proto = parse_protobuf_schema_definition(
+        schema_definition=ordered_schema,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
+    unordered_proto = parse_protobuf_schema_definition(
+        schema_definition=unordered_schema,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
 
     result = CompareResult()
-    normalize(ordered_proto).compare(normalize(unordered_proto), result)
+    ordered_proto.compare(unordered_proto, result)
     assert result.is_compatible()
-    assert normalize(ordered_proto).to_schema() == normalize(unordered_proto).to_schema()
+    assert ordered_proto.to_schema() == unordered_proto.to_schema()
+
+
+def test_schema_without_references_its_normalized() -> None:
+    partial_path_schema = """\
+syntax = "proto3";
+package foo.bar;
+
+message Baz {
+  string name = 1;
+  fixed64 uid = 2;
+  Settings settings = 3;
+  message Settings {
+    bool frozen = 1;
+    uint32 version = 2;
+    repeated string attrs = 3;
+  }
+}
+"""
+    partial_path = parse_protobuf_schema_definition(
+        schema_definition=partial_path_schema,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
+    # assert on the completeness
+
+
+def test_partial_path_protobuf_schema_is_equal_if_normalized() -> None:
+    dependency = """\
+syntax = "proto3";
+package my.awesome.customer.request.v1beta1;
+message RequestId {
+ string request_id = 1;
+}\
+"""
+
+    full_path_schema = """\
+syntax = "proto3";
+import "my/awesome/customer/request/v1beta1/request_id.proto";
+message MessageRequest {
+ my.awesome.customer.request.v1beta1.RequestId request_id = 1;
+}\
+"""
+
+    partial_path_schema = """\
+syntax = "proto3";
+import "my/awesome/customer/request/v1beta1/request_id.proto";
+message MessageRequest {
+ awesome.customer.request.v1beta1.RequestId request_id = 1;
+}\
+"""
+
+    filename = "Speed.proto"
+    subject = Subject("requestid")
+    version = Version(1)
+    references = [Reference(name="RequestId.proto", subject=subject, version=1)]
+    no_ref_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, dependency)
+    dependency = {"dependency": Dependency(filename, subject, version, no_ref_schema)}
+    full_path = parse_protobuf_schema_definition(
+        schema_definition=full_path_schema,
+        references=references,
+        dependencies=dependency,
+        validate_references=True,
+        normalize=True,
+    )
+    partial_path = parse_protobuf_schema_definition(
+        schema_definition=partial_path_schema,
+        references=references,
+        dependencies=dependency,
+        validate_references=True,
+        normalize=True,
+    )
+
+    result = CompareResult()
+    full_path.compare(partial_path, result)
+    assert result.is_compatible()
+    assert (
+        normalize(full_path.proto_file_element, full_path.types_tree()).to_schema()
+        == normalize(partial_path.proto_file_element, partial_path.types_tree()).to_schema()
+    )

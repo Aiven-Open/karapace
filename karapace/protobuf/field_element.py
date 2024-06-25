@@ -14,6 +14,7 @@ from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.type_element import TypeElement
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_options
 
 
@@ -31,6 +32,7 @@ class FieldElement:
         tag: int | None = None,
         documentation: str = "",
         options: list | None = None,
+        fully_qualified_name: str | None = None,
     ) -> None:
         self.location = location
         self.label = label
@@ -41,6 +43,22 @@ class FieldElement:
         self.tag = tag
         self.documentation = documentation
         self.options = options or []
+        self.fully_qualified_name = fully_qualified_name or ""
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> FieldElement:
+        full_path_element_type = self.element_type
+        full_path_options = self.options
+        return FieldElement(
+            location=self.location,
+            label=self.label,
+            element_type=full_path_element_type,
+            name=self.name,
+            default_value=self.default_value,
+            json_name=self.json_name,
+            tag=self.tag,
+            documentation=self.documentation,
+            options=full_path_options,
+        )
 
     def to_schema(self) -> str:
         result: list[str] = []

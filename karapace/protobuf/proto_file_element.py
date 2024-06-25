@@ -4,6 +4,8 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
+from __future__ import annotations
+
 from karapace.dependency import Dependency
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
@@ -13,12 +15,13 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, NewType, Optional, Sequence
+from karapace.protobuf.type_tree import TypeTree
+from typing import NewType, Sequence
 
 
-def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
+def _collect_dependencies_types(compare_types: CompareTypes, dependencies: dict[str, Dependency] | None, is_self: bool):
     for dep in dependencies.values():
-        types: List[TypeElement] = dep.schema.schema.proto_file_element.types
+        types: list[TypeElement] = dep.schema.schema.proto_file_element.types
         sub_deps = dep.schema.schema.dependencies
         package_name = dep.schema.schema.proto_file_element.package_name
         type_: TypeElement
@@ -44,19 +47,19 @@ class ProtoFileElement:
     def __init__(
         self,
         location: Location,
-        package_name: Optional[PackageName] = None,
-        syntax: Optional[Syntax] = None,
-        imports: Optional[Sequence[TypeName]] = None,
-        public_imports: Optional[Sequence[TypeName]] = None,
-        types: Optional[Sequence[TypeElement]] = None,
-        services: Optional[Sequence[ServiceElement]] = None,
-        extend_declarations: Optional[Sequence[ExtendElement]] = None,
-        options: Optional[Sequence[OptionElement]] = None,
+        package_name: PackageName | None = None,
+        syntax: Syntax | None = None,
+        imports: Sequence[TypeName] | None = None,
+        public_imports: Sequence[TypeName] | None = None,
+        types: Sequence[TypeElement] | None = None,
+        services: Sequence[ServiceElement] | None = None,
+        extend_declarations: Sequence[ExtendElement] | None = None,
+        options: Sequence[OptionElement] | None = None,
     ) -> None:
         if types is None:
             types = list()
         self.location = location
-        self.package_name = package_name
+        self.package_name = package_name or ""
         self.syntax = syntax
         self.options = options or []
         self.extend_declarations = extend_declarations or []
@@ -64,6 +67,25 @@ class ProtoFileElement:
         self.types = types or []
         self.public_imports = public_imports or []
         self.imports = imports or []
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> ProtoFileElement:
+        full_path_types = [type.with_full_path_expanded(type_tree) for type in self.types]
+        full_path_services = [service.with_full_path_expanded(type_tree) for service in self.services]
+        full_path_extend_declarations = [
+            extend_declaration.with_full_path_expanded(type_tree) for extend_declaration in self.extend_declarations
+        ]
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+        return ProtoFileElement(
+            location=self.location,
+            package_name=self.package_name,
+            syntax=self.syntax,
+            imports=self.imports,
+            public_imports=self.public_imports,
+            types=full_path_types,
+            services=full_path_services,
+            extend_declarations=full_path_extend_declarations,
+            options=full_path_options,
+        )
 
     def to_schema(self) -> str:
         strings: list = [
@@ -114,11 +136,11 @@ class ProtoFileElement:
         return "".join(strings)
 
     @staticmethod
-    def empty(path) -> "ProtoFileElement":
+    def empty(path) -> ProtoFileElement:
         return ProtoFileElement(Location("", path))
 
     # TODO: there maybe be faster comparison workaround
-    def __eq__(self, other: "ProtoFileElement") -> bool:  # type: ignore
+    def __eq__(self, other: ProtoFileElement) -> bool:  # type: ignore
         a = self.to_schema()
         b = other.to_schema()
 
@@ -129,10 +151,10 @@ class ProtoFileElement:
 
     def compare(
         self,
-        other: "ProtoFileElement",
+        other: ProtoFileElement,
         result: CompareResult,
-        self_dependencies: Optional[Dict[str, Dependency]] = None,
-        other_dependencies: Optional[Dict[str, Dependency]] = None,
+        self_dependencies: dict[str, Dependency] | None = None,
+        other_dependencies: dict[str, Dependency] | None = None,
     ) -> CompareResult:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 

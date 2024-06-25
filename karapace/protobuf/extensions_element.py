@@ -18,6 +18,7 @@ class ExtensionsElement:
     location: Location
     documentation: str = ""
     values: list[int | KotlinRange] | None = None
+    fully_qualified_name: str | None = None
 
     def to_schema(self) -> str:
         result: list[str] = []

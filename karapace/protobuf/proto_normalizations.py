@@ -16,7 +16,7 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.rpc_element import RpcElement
-from karapace.protobuf.schema import ProtobufSchema
+from karapace.protobuf.schema import ProtobufSchema, TypeTree
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.schema_references import Reference
@@ -85,7 +85,7 @@ class NormalizedProtobufSchema(ProtobufSchema):
         proto_file_element: ProtoFileElement | None = None,
     ) -> None:
         super().__init__(schema, references, dependencies, proto_file_element)
-        self.proto_file_element = normalize(self.proto_file_element)
+        self.proto_file_element = normalize(self.proto_file_element, self.types_tree())
 
 
 class NormalizedOneOfElement(OneOfElement):
@@ -192,7 +192,7 @@ def type_element_with_sorted_options(type_element: TypeElement) -> NormalizedTyp
         elif isinstance(nested_type, MessageElement):
             sorted_nested_types.append(message_element_with_sorted_options(nested_type))
         else:
-            raise ValueError("Unknown type element")  # tried with assert_never but it did not work
+            raise ValueError(f"Unknown type element {type(nested_type)}")  # tried with assert_never but it did not work
 
     # doing it here since the subtypes do not declare the nested_types property
     type_element.nested_types = sorted_nested_types
@@ -203,7 +203,7 @@ def type_element_with_sorted_options(type_element: TypeElement) -> NormalizedTyp
     if isinstance(type_element, MessageElement):
         return message_element_with_sorted_options(type_element)
 
-    raise ValueError("Unknown type element")  # tried with assert_never but it did not work
+    raise ValueError(f"Unknown type element of type {type(type_element)}")  # tried with assert_never but it did not work
 
 
 def extends_element_with_sorted_options(extend_element: ExtendElement) -> NormalizedExtendElement:
@@ -249,24 +249,25 @@ def service_element_with_sorted_options(service_element: ServiceElement) -> Norm
     )
 
 
-def normalize(proto_file_element: ProtoFileElement) -> NormalizedProtoFileElement:
+def normalize(proto_file_element: ProtoFileElement, type_tree: TypeTree) -> NormalizedProtoFileElement:
+    full_path_proto_file_element = proto_file_element.with_full_path_expanded(type_tree)
     sorted_types: Sequence[NormalizedTypeElement] = [
-        type_element_with_sorted_options(type_element) for type_element in proto_file_element.types
+        type_element_with_sorted_options(type_element) for type_element in full_path_proto_file_element.types
     ]
-    sorted_options = list(sorted(proto_file_element.options, key=sort_by_name))
+    sorted_options = list(sorted(full_path_proto_file_element.options, key=sort_by_name))
     sorted_services: Sequence[NormalizedServiceElement] = [
-        service_element_with_sorted_options(service) for service in proto_file_element.services
+        service_element_with_sorted_options(service) for service in full_path_proto_file_element.services
     ]
     sorted_extend_declarations: Sequence[NormalizedExtendElement] = [
-        extends_element_with_sorted_options(extend) for extend in proto_file_element.extend_declarations
+        extends_element_with_sorted_options(extend) for extend in full_path_proto_file_element.extend_declarations
     ]
 
     return NormalizedProtoFileElement(
-        location=proto_file_element.location,
-        package_name=proto_file_element.package_name,
-        syntax=proto_file_element.syntax,
-        imports=proto_file_element.imports,
-        public_imports=proto_file_element.public_imports,
+        location=full_path_proto_file_element.location,
+        package_name=full_path_proto_file_element.package_name,
+        syntax=full_path_proto_file_element.syntax,
+        imports=full_path_proto_file_element.imports,
+        public_imports=full_path_proto_file_element.public_imports,
         types=sorted_types,
         services=sorted_services,
         extend_declarations=sorted_extend_declarations,

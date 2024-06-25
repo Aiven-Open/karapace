@@ -18,6 +18,7 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.type_element import TypeElement
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import Sequence
 
@@ -27,6 +28,25 @@ class MessageElement(TypeElement):
     fields: Sequence[FieldElement]
     one_ofs: Sequence[OneOfElement]
     groups: Sequence[GroupElement]
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> MessageElement:
+        full_path_nested_types = [nested_type.with_full_path_expanded(type_tree) for nested_type in self.nested_types]
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields]
+        full_path_one_ofs = [one_off.with_full_path_expanded(type_tree) for one_off in self.one_ofs]
+        full_path_groups = [group.with_full_path_expanded(type_tree) for group in self.groups]
+        return MessageElement(
+            location=self.location,
+            name=self.name,
+            documentation=self.documentation,
+            nested_types=full_path_nested_types,
+            options=full_path_options,
+            reserveds=self.reserveds,
+            fields=full_path_fields,
+            one_ofs=full_path_one_ofs,
+            extensions=self.extensions,
+            groups=full_path_groups,
+        )
 
     def __init__(
         self,

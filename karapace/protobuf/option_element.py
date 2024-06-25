@@ -7,11 +7,13 @@ See LICENSE for details
 from __future__ import annotations
 
 from enum import Enum
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_indented, append_options, try_to_schema
 
 
 class OptionElement:
     name: str
+    fully_qualified_name: str
 
     class Kind(Enum):
         STRING = 1
@@ -29,6 +31,14 @@ class OptionElement:
         """ If true, this [OptionElement] is a custom option. """
         self.is_parenthesized = is_parenthesized
         self.formattedName = f"({self.name})" if is_parenthesized else self.name
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> OptionElement:
+        return OptionElement(
+            name=self.name,  # understand if the name should be changed, otherwise remove the method.
+            kind=self.kind,
+            value=self.value,
+            is_parenthesized=self.is_parenthesized,
+        )
 
     def to_schema(self) -> str:
         aline = ""

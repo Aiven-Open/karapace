@@ -8,6 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.protobuf.location import Location
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 
 
@@ -31,6 +32,19 @@ class RpcElement:
         self.request_streaming = request_streaming
         self.response_streaming = response_streaming
         self.options = options or []
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> RpcElement:
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+        return RpcElement(
+            location=self.location,
+            name=self.name,
+            documentation=self.documentation,
+            request_type=self.request_type,
+            response_type=self.response_type,
+            request_streaming=self.request_streaming,
+            response_streaming=self.response_streaming,
+            options=full_path_options,
+        )
 
     def to_schema(self) -> str:
         result: list[str] = []

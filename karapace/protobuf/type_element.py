@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
+from karapace.protobuf.type_tree import TypeTree
 from typing import Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,10 +20,15 @@ if TYPE_CHECKING:
 @dataclass
 class TypeElement:
     location: Location
+    # https://protobuf.dev/reference/protobuf/proto3-spec/
+    # name cannot contain anything else than letters|numbers or `_`
     name: str
     documentation: str
     options: Sequence[OptionElement]
     nested_types: Sequence[TypeElement]
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> TypeElement:
+        pass
 
     def to_schema(self) -> str:
         """Convert the object to valid protobuf syntax.
