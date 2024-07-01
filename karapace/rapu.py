@@ -393,14 +393,12 @@ class RestApp:
             )
             headers = {"Content-Type": "application/json"}
             resp = aiohttp.web.Response(body=body, status=status.value, headers=headers)
-        except (ConnectionError, aiohttp.ClientError) as connection_error:
-            # TCP level connection errors, e.g. TCP reset, client closes connection.
-            self.log.debug("Connection error.", exc_info=connection_error)
+        except (ConnectionError, aiohttp.ClientError, asyncio.CancelledError, asyncio.TimeoutError) as exc:
+            # TCP level connection errors and timeouts, e.g. TCP reset, client closes connection, task takes too long.
+            error_msg = "Unexpected connection or timeout error"
+            self.log.debug(error_msg, exc_info=exc)
             # No response can be returned and written to client, aiohttp expects some response here.
-            resp = aiohttp.web.Response(text="Connection error", status=HTTPStatus.SERVICE_UNAVAILABLE.value)
-        except asyncio.CancelledError:
-            self.log.debug("Client closed connection")
-            raise
+            resp = aiohttp.web.Response(text=error_msg, status=HTTPStatus.SERVICE_UNAVAILABLE.value)
         except Exception as ex:  # pylint: disable=broad-except
             self.stats.unexpected_exception(ex=ex, where="rapu_wrapped_callback")
             self.log.exception("Unexpected error handling user request: %s %s", request.method, request.url)
