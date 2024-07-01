@@ -19,6 +19,7 @@ def compare_type_lists(
     other_types_list: Sequence[TypeElement],
     result: CompareResult,
     compare_types: CompareTypes,
+    compare_full_path: bool = False,
 ) -> CompareResult:
     self_types = {}
     other_types = {}

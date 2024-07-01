@@ -556,6 +556,7 @@ message Baz {
         validate_references=True,
         normalize=True,
     )
+    _ = partial_path
     # assert on the completeness
 
 
@@ -571,6 +572,7 @@ message RequestId {
     full_path_schema = """\
 syntax = "proto3";
 import "my/awesome/customer/request/v1beta1/request_id.proto";
+package foo.bar;
 message MessageRequest {
  my.awesome.customer.request.v1beta1.RequestId request_id = 1;
 }\
@@ -578,6 +580,7 @@ message MessageRequest {
 
     partial_path_schema = """\
 syntax = "proto3";
+package foo.bar;
 import "my/awesome/customer/request/v1beta1/request_id.proto";
 message MessageRequest {
  awesome.customer.request.v1beta1.RequestId request_id = 1;
@@ -606,7 +609,7 @@ message MessageRequest {
     )
 
     result = CompareResult()
-    full_path.compare(partial_path, result)
+    full_path.compare(partial_path, result, compare_full_path=True)
     assert result.is_compatible()
     assert (
         normalize(full_path.proto_file_element, full_path.types_tree()).to_schema()

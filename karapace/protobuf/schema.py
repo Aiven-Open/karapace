@@ -147,7 +147,7 @@ def _add_new_type_recursive(
             source_reference=(
                 None if remaining_tokens else SourceFileReference(reference=file, import_order=inserted_elements)
             ),
-            type_provider=None if remaining_tokens else type_provider,
+            provider=None if remaining_tokens else type_provider,
         )
         parent_tree.children.append(new_leaf)
         return _add_new_type_recursive(new_leaf, remaining_tokens, file, inserted_elements, type_provider)
@@ -189,16 +189,6 @@ class ProtobufSchema:
         self.references = references
         self.dependencies = dependencies
 
-    def type_in_tree(self, tree: TypeTree, remaining_tokens: list[str]) -> TypeTree | None:
-        if remaining_tokens:
-            to_seek = remaining_tokens.pop()
-
-            for child in tree.children:
-                if child.token == to_seek:
-                    return self.type_in_tree(child, remaining_tokens)
-            return None
-        return tree
-
     def record_name(self) -> str | None:
         if len(self.proto_file_element.types) == 0:
             return None
@@ -223,7 +213,7 @@ class ProtobufSchema:
         return package_name + naming_element.name
 
     def type_exist_in_tree(self, tree: TypeTree, remaining_tokens: list[str]) -> bool:
-        return self.type_in_tree(tree, remaining_tokens) is not None
+        return tree.type_in_tree(remaining_tokens) is not None
 
     def recursive_imports(self) -> set[str]:
         imports = set(self.proto_file_element.imports)
@@ -355,6 +345,7 @@ class ProtobufSchema:
             token=".",
             children=[],
             source_reference=None,
+            provider=None,
         )
         self.types_tree_recursive(root_tree, 0, "main_schema_file")
         return root_tree
@@ -494,12 +485,13 @@ class ProtobufSchema:
 
         return "".join(strings)
 
-    def compare(self, other: ProtobufSchema, result: CompareResult) -> CompareResult:
+    def compare(self, other: ProtobufSchema, result: CompareResult, compare_full_path: bool = False) -> CompareResult:
         return self.proto_file_element.compare(
             other.proto_file_element,
             result,
             self_dependencies=self.dependencies,
             other_dependencies=other.dependencies,
+            compare_full_path=compare_full_path,
         )
 
     def serialize(self) -> str:

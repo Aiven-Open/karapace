@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+import copy
 from collections.abc import Iterable, Sequence
 from karapace.dataclasses import default_dataclass
 from typing import Any
@@ -28,7 +29,7 @@ class TypeTree:
         sources = [] if self.source_reference is None else [self.source_reference]
         for child in self.children:
             sources = itertools.chain(sources, child.source_reference_tree())
-        return sources
+        return list(sources)
 
     def source_reference_tree(self) -> Iterable[SourceFileReference]:
         return filter(lambda x: x is not None, self.source_reference_tree_recursive())
@@ -71,6 +72,20 @@ class TypeTree:
 
         return []
 
+    @staticmethod
+    def _type_in_tree(tree: TypeTree, remaining_tokens: list[str]) -> TypeTree | None:
+        if remaining_tokens:
+            to_seek = remaining_tokens.pop()
+
+            for child in tree.children:
+                if child.token == to_seek:
+                    return TypeTree._type_in_tree(child, remaining_tokens)
+            return None
+        return tree
+
+    def type_in_tree(self, remaining_tokens: list[str]) -> TypeTree | None:
+        return TypeTree._type_in_tree(self, copy.deepcopy(remaining_tokens))
+
     def expand_missing_absolute_path(self) -> Sequence[str]:
         oldest_import = self.oldest_matching_import()
         expanded_missing_path = self.expand_missing_absolute_path_recursive(oldest_import)
@@ -83,7 +98,7 @@ class TypeTree:
     def is_fully_qualified_type(self) -> bool:
         return len(self.children) == 0
 
-    def represent(self, level=0) -> str:
+    def represent(self, level: int = 0) -> str:
         spacing = " " * 3 * level
         if self.is_fully_qualified_type:
             return f"{spacing}>{self.token}"
@@ -92,3 +107,14 @@ class TypeTree:
 
     def __repr__(self) -> str:
         return self.represent()
+
+    # useful to see the definitions of the dataclass once defined:
+    # def _pprint(self) -> str:
+    #    return (
+    #        f"TypeTree("
+    #        f"token={self.token},"
+    #        f"children={self.children},"
+    #        f"source_reference={self.source_reference},"
+    #        f"provider={self.provider},"
+    #        f")"
+    #    )

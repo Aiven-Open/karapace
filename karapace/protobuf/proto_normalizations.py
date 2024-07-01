@@ -14,7 +14,7 @@ from karapace.protobuf.group_element import GroupElement
 from karapace.protobuf.message_element import MessageElement
 from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
-from karapace.protobuf.proto_file_element import ProtoFileElement
+from karapace.protobuf.proto_file_element import PackageName, ProtoFileElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.schema import ProtobufSchema, TypeTree
 from karapace.protobuf.service_element import ServiceElement
@@ -264,7 +264,7 @@ def normalize(proto_file_element: ProtoFileElement, type_tree: TypeTree) -> Norm
 
     return NormalizedProtoFileElement(
         location=full_path_proto_file_element.location,
-        package_name=full_path_proto_file_element.package_name,
+        package_name=PackageName(full_path_proto_file_element.package_name),
         syntax=full_path_proto_file_element.syntax,
         imports=full_path_proto_file_element.imports,
         public_imports=full_path_proto_file_element.public_imports,

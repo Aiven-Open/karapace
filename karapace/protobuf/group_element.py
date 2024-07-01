@@ -25,7 +25,8 @@ class GroupElement:
     fields: Sequence[FieldElement] | None = None
 
     def with_full_path_expanded(self, type_tree: TypeTree) -> GroupElement:
-        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields]
+        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields] if self.fields else None
+        # here also
         return GroupElement(
             label=self.label,
             location=self.location,

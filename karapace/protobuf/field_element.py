@@ -47,6 +47,13 @@ class FieldElement:
 
     def with_full_path_expanded(self, type_tree: TypeTree) -> FieldElement:
         full_path_element_type = self.element_type
+        element_type_tokens = self.element_type.split(".")
+        maybe_path_in_tree = type_tree.type_in_tree(element_type_tokens)
+        if maybe_path_in_tree:
+            missing_tokens = maybe_path_in_tree.expand_missing_absolute_path()
+        else:
+            missing_tokens = []
+
         full_path_options = self.options
         return FieldElement(
             location=self.location,
@@ -58,6 +65,7 @@ class FieldElement:
             tag=self.tag,
             documentation=self.documentation,
             options=full_path_options,
+            fully_qualified_name=".".join(missing_tokens + element_type_tokens)
         )
 
     def to_schema(self) -> str:

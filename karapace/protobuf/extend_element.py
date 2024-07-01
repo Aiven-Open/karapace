@@ -23,7 +23,7 @@ class ExtendElement:
 
     def with_full_path_expanded(self, type_tree: TypeTree) -> ExtendElement:
         # read again carefully there -> https://protobuf.com/docs/language-spec#fully-qualified-references
-        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields]
+        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields] if self.fields else None
         return ExtendElement(
             location=self.location,
             name=self.name,

@@ -155,6 +155,7 @@ class ProtoFileElement:
         result: CompareResult,
         self_dependencies: dict[str, Dependency] | None = None,
         other_dependencies: dict[str, Dependency] | None = None,
+        compare_full_path: bool = False
     ) -> CompareResult:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 
@@ -170,4 +171,4 @@ class ProtoFileElement:
 
         if other_dependencies:
             _collect_dependencies_types(compare_types, other_dependencies, False)
-        return compare_type_lists(self.types, other.types, result, compare_types)
+        return compare_type_lists(self.types, other.types, result, compare_types, compare_full_path)

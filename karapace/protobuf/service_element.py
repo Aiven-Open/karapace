@@ -24,8 +24,8 @@ class ServiceElement:
     options: Sequence[OptionElement] | None = None
 
     def with_full_path_expanded(self, type_tree: TypeTree) -> ServiceElement:
-        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
-        full_path_rpcs = [rpc.with_full_path_expanded(type_tree) for rpc in self.rpcs]
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options] if self.options else []
+        full_path_rpcs = [rpc.with_full_path_expanded(type_tree) for rpc in self.rpcs] if self.rpcs else None
         return ServiceElement(
             location=self.location,
             name=self.name,

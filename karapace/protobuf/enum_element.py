@@ -61,7 +61,7 @@ class EnumElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes, compare_full_path: bool = False) -> None:
         self_tags = {}
         other_tags = {}
         if types:
