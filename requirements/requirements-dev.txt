@@ -161,7 +161,7 @@ pluggy==1.5.0
     # via pytest
 prometheus-client==0.20.0
     # via -r requirements.txt
-protobuf==3.20.3
+protobuf==5.27.2
     # via -r requirements.txt
 psutil==5.9.8
     # via
