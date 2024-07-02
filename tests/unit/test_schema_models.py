@@ -45,6 +45,10 @@ class TestVersion:
     def test_is_latest(self, version: Version, is_latest: bool):
         assert version.is_latest is is_latest
 
+    def version_0_its_constructable(self) -> None:
+        version_0 = Version(0)
+        assert version_0.value == 0
+
     def test_text_formating(self, version: Version):
         assert f"{version}" == "1"
         assert f"{version!r}" == "Version(1)"
@@ -159,7 +163,11 @@ class TestVersioner:
     def test_validate(self, tag: VersionTag):
         Versioner.validate_tag(tag=tag)
 
-    @pytest.mark.parametrize("tag", ["invalid_version", 0, -20, "0"])
+    @pytest.mark.parametrize("tag", ["invalid_version", "0", -20])
     def test_validate_invalid(self, tag: VersionTag):
+        """
+        Tagger should still keep invalid version 0, we are only backwards compatible, and we should
+        avoid generating 0 as a new tag for any schema.
+        """
         with pytest.raises(InvalidVersion):
             Versioner.validate_tag(tag=tag)
