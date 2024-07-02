@@ -13,6 +13,7 @@ from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.type_element import TypeElement
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import Sequence
 
@@ -29,6 +30,17 @@ class EnumElement(TypeElement):
         # Enums do not allow nested type declarations.
         super().__init__(location, name, documentation, options or [], [])
         self.constants = constants or []
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> EnumElement:
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+        full_path_constants = [constant.with_full_path_expanded(type_tree) for constant in self.constants]
+        return EnumElement(
+            location=self.location,
+            name=self.name,
+            documentation=self.documentation,
+            options=full_path_options,
+            constants=full_path_constants,
+        )
 
     def to_schema(self) -> str:
         result: list[str] = []
@@ -49,7 +61,7 @@ class EnumElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes, compare_full_path: bool = False) -> None:
         self_tags = {}
         other_tags = {}
         if types:

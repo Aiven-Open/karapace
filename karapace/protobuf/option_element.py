@@ -7,11 +7,13 @@ See LICENSE for details
 from __future__ import annotations
 
 from enum import Enum
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_indented, append_options, try_to_schema
 
 
 class OptionElement:
     name: str
+    fully_qualified_name: str | None = None
 
     class Kind(Enum):
         STRING = 1
@@ -30,6 +32,20 @@ class OptionElement:
         self.is_parenthesized = is_parenthesized
         self.formattedName = f"({self.name})" if is_parenthesized else self.name
 
+    def with_full_path_expanded(self, type_tree: TypeTree) -> OptionElement:
+        # fully qualified name also here.
+
+        #full_path_element_type = self.element_type
+        #element_type_tokens = self.element_type.split(".")
+        #missing_tokens = type_tree.type_in_tree(element_type_tokens).expand_missing_absolute_path()
+
+        return OptionElement(
+            name=self.name,  # understand if the name should be changed, otherwise remove the method.
+            kind=self.kind,
+            value=self.value,
+            is_parenthesized=self.is_parenthesized,
+        )
+
     def to_schema(self) -> str:
         aline = ""
         if self.kind == self.Kind.STRING:
@@ -43,9 +59,9 @@ class OptionElement:
         elif self.kind == self.Kind.OPTION:
             aline = f"{self.formattedName}.{try_to_schema(self.value)}"
         elif self.kind == self.Kind.MAP:
-            aline = [f"{self.formattedName} = {{\n", self.format_option_map(self.value), "}"]
+            aline = [f"{self.formattedName} = {{\n", OptionElement.format_option_map(self.value), "}"]
         elif self.kind == self.Kind.LIST:
-            aline = [f"{self.formattedName} = ", self.append_options(self.value)]
+            aline = [f"{self.formattedName} = ", OptionElement.append_options(self.value)]
         else:
             raise ValueError("Unknown value Kind.")
 
@@ -62,23 +78,27 @@ class OptionElement:
         append_options(data, options)
         return "".join(data)
 
-    def format_option_map(self, value: dict) -> str:
+
+    @staticmethod
+    def format_option_map(value: dict) -> str:
         keys = list(value.keys())
         last_index = len(keys) - 1
         result: list[str] = []
         for index, key in enumerate(keys):
             endl = "," if (index != last_index) else ""
-            append_indented(result, f"{key}: {self.format_option_map_value(value[key])}{endl}")
+            append_indented(result, f"{key}: {OptionElement.format_option_map_value(value[key])}{endl}")
         return "".join(result)
 
-    def format_option_map_value(self, value) -> str:
+
+    @staticmethod
+    def format_option_map_value(value) -> str:
         aline = value
         if isinstance(value, str):
             aline = f'"{value}"'
         elif isinstance(value, dict):
-            aline = ["{\n", self.format_option_map(value), "}"]
+            aline = ["{\n", OptionElement.format_option_map(value), "}"]
         elif isinstance(value, list):
-            aline = ["[\n", self.format_list_map_value(value), "]"]
+            aline = ["[\n", OptionElement.format_list_map_value(value), "]"]
 
         if isinstance(aline, list):
             return "".join(aline)
@@ -86,12 +106,13 @@ class OptionElement:
             return aline
         return value
 
-    def format_list_map_value(self, value) -> str:
+    @staticmethod
+    def format_list_map_value(value) -> str:
         last_index = len(value) - 1
         result: list[str] = []
         for index, elm in enumerate(value):
             endl = "," if (index != last_index) else ""
-            append_indented(result, f"{self.format_option_map_value(elm)}{endl}")
+            append_indented(result, f"{OptionElement.format_option_map_value(elm)}{endl}")
         return "".join(result)
 
     def __repr__(self) -> str:

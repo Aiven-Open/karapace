@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from itertools import zip_longest
 from karapace.dependency import Dependency
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.kotlin_wrapper import trim_margin
@@ -445,52 +446,59 @@ def test_type_tree_rendering() -> None:
 
 def test_type_tree_parsed_structure() -> None:
     schema = partial_path_protobuf_schema()
-    assert schema.types_tree() == TypeTree(
-        token=".",
+    customer_plan_event_definition = TypeTree(
+        token="CustomerPlanEvent",
         children=[
             TypeTree(
-                token="CustomerPlan",
+                token="v1beta1",
                 children=[
                     TypeTree(
-                        token="v1beta1",
+                        token="entity",
                         children=[
                             TypeTree(
-                                token="entity",
+                                token="plan",
                                 children=[
                                     TypeTree(
-                                        token="plan",
+                                        token="customer",
                                         children=[
                                             TypeTree(
-                                                token="customer",
+                                                token="awesome",
                                                 children=[
                                                     TypeTree(
-                                                        token="awesome",
-                                                        children=[
-                                                            TypeTree(
-                                                                token="my",
-                                                                children=[],
-                                                                source_reference=SourceFileReference(
-                                                                    reference="foobar", import_order=0
-                                                                ),
-                                                            )
-                                                        ],
-                                                        source_reference=None,
+                                                        token="my",
+                                                        children=[],
+                                                        source_reference=SourceFileReference(
+                                                            reference="main_schema_file", import_order=1
+                                                        ),
+                                                        provider=None,
                                                     )
                                                 ],
                                                 source_reference=None,
+                                                provider=None,
                                             )
                                         ],
                                         source_reference=None,
+                                        provider=None,
                                     )
                                 ],
                                 source_reference=None,
+                                provider=None,
                             )
                         ],
                         source_reference=None,
+                        provider=None,
                     )
                 ],
                 source_reference=None,
-            ),
+                provider=None,
+            )
+        ],
+        source_reference=None,
+        provider=None,
+    )
+    customer_plan_event_creation_definition = TypeTree(
+        token="Created",
+        children=[
             TypeTree(
                 token="CustomerPlanEvent",
                 children=[
@@ -513,79 +521,120 @@ def test_type_tree_parsed_structure() -> None:
                                                                 token="my",
                                                                 children=[],
                                                                 source_reference=SourceFileReference(
-                                                                    reference="main_schema_file", import_order=1
+                                                                    reference="main_schema_file", import_order=2
                                                                 ),
+                                                                provider=None,
                                                             )
                                                         ],
                                                         source_reference=None,
+                                                        provider=None,
                                                     )
                                                 ],
                                                 source_reference=None,
+                                                provider=None,
                                             )
                                         ],
                                         source_reference=None,
+                                        provider=None,
                                     )
                                 ],
                                 source_reference=None,
+                                provider=None,
                             )
                         ],
                         source_reference=None,
+                        provider=None,
                     )
                 ],
                 source_reference=None,
-            ),
-            TypeTree(
-                token="Created",
-                children=[
-                    TypeTree(
-                        token="CustomerPlanEvent",
-                        children=[
-                            TypeTree(
-                                token="v1beta1",
-                                children=[
-                                    TypeTree(
-                                        token="entity",
-                                        children=[
-                                            TypeTree(
-                                                token="plan",
-                                                children=[
-                                                    TypeTree(
-                                                        token="customer",
-                                                        children=[
-                                                            TypeTree(
-                                                                token="awesome",
-                                                                children=[
-                                                                    TypeTree(
-                                                                        token="my",
-                                                                        children=[],
-                                                                        source_reference=SourceFileReference(
-                                                                            reference="main_schema_file", import_order=2
-                                                                        ),
-                                                                    )
-                                                                ],
-                                                                source_reference=None,
-                                                            )
-                                                        ],
-                                                        source_reference=None,
-                                                    )
-                                                ],
-                                                source_reference=None,
-                                            )
-                                        ],
-                                        source_reference=None,
-                                    )
-                                ],
-                                source_reference=None,
-                            )
-                        ],
-                        source_reference=None,
-                    )
-                ],
-                source_reference=None,
-            ),
+                provider=None,
+            )
         ],
         source_reference=None,
+        provider=None,
     )
+    customer_plan_definition = TypeTree(
+        token="CustomerPlan",
+        children=[
+            TypeTree(
+                token="v1beta1",
+                children=[
+                    TypeTree(
+                        token="entity",
+                        children=[
+                            TypeTree(
+                                token="plan",
+                                children=[
+                                    TypeTree(
+                                        token="customer",
+                                        children=[
+                                            TypeTree(
+                                                token="awesome",
+                                                children=[
+                                                    TypeTree(
+                                                        token="my",
+                                                        children=[],
+                                                        source_reference=SourceFileReference(
+                                                            reference="foobar", import_order=0
+                                                        ),
+                                                        provider=None,
+                                                    )
+                                                ],
+                                                source_reference=None,
+                                                provider=None,
+                                            )
+                                        ],
+                                        source_reference=None,
+                                        provider=None,
+                                    )
+                                ],
+                                source_reference=None,
+                                provider=None,
+                            )
+                        ],
+                        source_reference=None,
+                        provider=None,
+                    )
+                ],
+                source_reference=None,
+                provider=None,
+            )
+        ],
+        source_reference=None,
+        provider=None,
+    )
+    protobuf_definition_ast = TypeTree(
+        token=".",
+        children=[
+            customer_plan_definition,
+            customer_plan_event_definition,
+            customer_plan_event_creation_definition,
+        ],
+        source_reference=None,
+        provider=None,
+    )
+
+    def recursively_compare(type_tree1: TypeTree, type_tree2: TypeTree) -> bool:
+        """
+        Compare but skips the provider in the type trees.
+        We should make printable the dataclasses of the protobuf files, otherwise building the tree for the comparison
+        its extremely tedious and the diffing doesn't tell anything semantically.
+        Skipping this task now (more code debt in) since we will replace the protbuf parsing with the `buf` library.
+        """
+        if type_tree1.token != type_tree2.token or type_tree1.source_reference != type_tree2.source_reference:
+            return False
+
+        for child1, child2 in zip_longest(type_tree1.children, type_tree2.children):
+            if not recursively_compare(child1, child2):
+                return False
+
+        return True
+
+    # nb this is a reversed scope trie, child and father relationship in the
+    # original file config doesn't mean anything about the child/father relationship
+    # in the reverse scope trie.
+
+    assert recursively_compare(schema.types_tree(), protobuf_definition_ast)
 
 
 def test_type_tree_expand_types() -> None:
@@ -595,16 +644,16 @@ def test_type_tree_expand_types() -> None:
     assert schema.types_tree().inserted_elements() == 2
 
     tokens_to_seek = "entity.v1beta1.CustomerPlan".split(".")
-    matched = schema.type_in_tree(schema.types_tree(), tokens_to_seek)
+    matched = schema.types_tree().type_in_tree(tokens_to_seek)
     assert matched is not None
     assert matched.expand_missing_absolute_path() == ["my", "awesome", "customer", "plan"]
 
     tokens_to_seek = "entity.v1beta1.CustomerPlan".split(".")
-    matched = schema.type_in_tree(schema.types_tree(), tokens_to_seek)
+    matched = schema.types_tree().type_in_tree(tokens_to_seek)
     assert matched is not None
     assert matched.expand_missing_absolute_path() == ["my", "awesome", "customer", "plan"]
 
-    matched = schema.type_in_tree(schema.types_tree(), ["Created"])
+    matched = schema.types_tree().type_in_tree(["Created"])
     assert matched is not None
     assert matched.expand_missing_absolute_path() == [
         "my",

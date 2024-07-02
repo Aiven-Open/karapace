@@ -18,6 +18,7 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.type_element import TypeElement
+from karapace.protobuf.type_tree import TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from typing import Sequence
 
@@ -27,6 +28,34 @@ class MessageElement(TypeElement):
     fields: Sequence[FieldElement]
     one_ofs: Sequence[OneOfElement]
     groups: Sequence[GroupElement]
+    fully_qualified_name: str | None = None
+
+    def with_full_path_expanded(self, type_tree: TypeTree) -> MessageElement:
+        # here also
+
+        element_type_tokens = self.name.split(".")
+        maybe_path_in_tree = type_tree.type_in_tree(element_type_tokens)
+        if maybe_path_in_tree:
+            missing_tokens = maybe_path_in_tree.expand_missing_absolute_path()
+        else:
+            missing_tokens = []
+        full_path_nested_types = [nested_type.with_full_path_expanded(type_tree) for nested_type in self.nested_types]
+        full_path_options = [option.with_full_path_expanded(type_tree) for option in self.options]
+        full_path_fields = [field.with_full_path_expanded(type_tree) for field in self.fields]
+        full_path_one_ofs = [one_off.with_full_path_expanded(type_tree) for one_off in self.one_ofs]
+        full_path_groups = [group.with_full_path_expanded(type_tree) for group in self.groups]
+        return MessageElement(
+            location=self.location,
+            name=self.name,
+            documentation=self.documentation,
+            nested_types=full_path_nested_types,
+            options=full_path_options,
+            reserveds=self.reserveds,
+            fields=full_path_fields,
+            one_ofs=full_path_one_ofs,
+            extensions=self.extensions,
+            groups=full_path_groups,
+        )
 
     def __init__(
         self,
@@ -90,7 +119,7 @@ class MessageElement(TypeElement):
         result.append("}\n")
         return "".join(result)
 
-    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
+    def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes, compare_full_path: bool = False) -> None:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 
         if not isinstance(other, MessageElement):
