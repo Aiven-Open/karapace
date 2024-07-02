@@ -69,7 +69,7 @@ class Version:
     def __init__(self, version: int) -> None:
         if not isinstance(version, int):
             raise InvalidVersion(f"Invalid version {version}")
-        if (version < Version.MINUS_1_VERSION_TAG) or (version == 0):
+        if version < Version.MINUS_1_VERSION_TAG:
             raise InvalidVersion(f"Invalid version {version}")
         self._value = version
 
