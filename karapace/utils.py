@@ -243,3 +243,16 @@ class DebugAccessLogger(AccessLogger):
             self.logger.debug(self._log_format % tuple(values), extra=extra)
         except Exception:  # pylint: disable=broad-except
             self.logger.exception("Error in logging")
+
+
+def remove_prefix(string: str, prefix: str) -> str:
+    """
+    Not available in python 3.8.
+    """
+    i = 0
+    while i < len(string) and i < len(prefix):
+        if string[i] != prefix[i]:
+            return string
+        i += 1
+
+    return string[i:]
