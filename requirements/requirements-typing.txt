@@ -9,7 +9,7 @@ attrs==23.2.0
     #   -c requirements-dev.txt
     #   -c requirements.txt
     #   referencing
-certifi==2024.6.2
+certifi==2024.7.4
     # via
     #   -c requirements-dev.txt
     #   sentry-sdk
