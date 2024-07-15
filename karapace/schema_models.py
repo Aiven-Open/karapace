@@ -74,7 +74,7 @@ def parse_protobuf_schema_definition(
     protobuf_schema = (
         ProtobufSchema(schema_definition, references, dependencies)
         if not normalize
-        else NormalizedProtobufSchema(schema_definition, references, dependencies)
+        else NormalizedProtobufSchema.from_protobuf_schema(ProtobufSchema(schema_definition, references, dependencies))
     )
     if validate_references:
         result = protobuf_schema.verify_schema_dependencies()
