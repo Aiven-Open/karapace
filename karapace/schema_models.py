@@ -20,12 +20,13 @@ from karapace.protobuf.exception import (
     SchemaParseException as ProtobufSchemaParseException,
 )
 from karapace.protobuf.proto_normalizations import NormalizedProtobufSchema
+from karapace.protobuf.protopace import format_proto, Proto
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonObject, SchemaId, Subject, Version, VersionTag
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Dict, Final, final, Mapping, Sequence
+from typing import Any, cast, Dict, Final, Mapping, Sequence
 
 import hashlib
 import logging
@@ -93,6 +94,7 @@ class TypedSchema:
         schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        use_protopace: bool = False,
     ) -> None:
         """Schema with type information
 
@@ -105,9 +107,12 @@ class TypedSchema:
         self.schema_type: Final = schema_type
         self.references: Final = references
         self.dependencies: Final = dependencies
-        self.schema_str: Final = TypedSchema.normalize_schema_str(schema_str, schema_type, schema)
+        self.schema_str: Final = schema_str
         self.max_id: SchemaId | None = None
         self._fingerprint_cached: str | None = None
+        self.use_protopace = use_protopace
+        self._schema = schema
+        self.normalize_schema_str()
 
     def to_dict(self) -> JsonObject:
         if self.schema_type is SchemaType.PROTOBUF:
@@ -123,34 +128,37 @@ class TypedSchema:
             self._fingerprint_cached = hashlib.sha1(fingerprint_str.encode("utf8")).hexdigest()
         return self._fingerprint_cached
 
-    # This is marked @final because __init__ references this statically, hence
-    # allowing overriding this in a subclass could lead to confusing bugs.
-    @staticmethod
-    @final
-    def normalize_schema_str(
-        schema_str: str,
-        schema_type: SchemaType,
-        schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None,
-    ) -> str:
-        if schema_type is SchemaType.AVRO or schema_type is SchemaType.JSONSCHEMA:
+    def to_proto(self, name="noname.proto") -> Proto:
+        if self.schema_type is not SchemaType.PROTOBUF:
+            raise InvalidSchema("Only supported for Protobuf")
+
+        dependencies = []
+        if self.dependencies:
+            for _, dep in self.dependencies.items():
+                dependencies.append(dep.get_schema().to_proto(name=dep.name))
+        return Proto(name, self.schema_str, dependencies)
+
+    def normalize_schema_str(self) -> None:
+        if self.use_protopace and self.schema_type is SchemaType.PROTOBUF:
+            self.schema_str = format_proto(self.to_proto())
+        if self.schema_type is SchemaType.AVRO or self.schema_type is SchemaType.JSONSCHEMA:
             try:
-                schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
+                self.schema_str = json_encode(json_decode(self.schema_str), compact=True, sort_keys=True)
             except JSONDecodeError as e:
                 LOG.info("Schema is not valid JSON")
                 raise e
-        elif schema_type == SchemaType.PROTOBUF:
-            if schema:
-                schema_str = str(schema)
+        elif self.schema_type == SchemaType.PROTOBUF:
+            if self._schema:
+                self.schema_str = str(self._schema)
             else:
                 try:
-                    schema_str = str(parse_protobuf_schema_definition(schema_str, None, None, False))
+                    self.schema_strschema_str = str(parse_protobuf_schema_definition(self.schema_str, None, None, False))
                 except InvalidSchema as e:
                     LOG.info("Schema is not valid ProtoBuf definition")
                     raise e
 
         else:
-            assert_never(schema_type)
-        return schema_str
+            assert_never(self.schema_type)
 
     def __str__(self) -> str:
         return self.schema_str
@@ -188,6 +196,7 @@ def parse(
     references: Sequence[Reference] | None = None,
     dependencies: Mapping[str, Dependency] | None = None,
     normalize: bool = False,
+    use_protopace: bool = False,
 ) -> ParsedTypedSchema:
     if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
@@ -235,6 +244,7 @@ def parse(
         schema=parsed_schema,
         references=references,
         dependencies=dependencies,
+        use_protopace=use_protopace,
     )
 
 
@@ -264,6 +274,7 @@ class ParsedTypedSchema(TypedSchema):
         schema: Draft7Validator | AvroSchema | ProtobufSchema,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
+        use_protopace: bool = False,
     ) -> None:
         self._schema_cached: Draft7Validator | AvroSchema | ProtobufSchema | None = schema
 
@@ -273,6 +284,7 @@ class ParsedTypedSchema(TypedSchema):
             references=references,
             dependencies=dependencies,
             schema=schema,
+            use_protopace=use_protopace,
         )
 
     @staticmethod
@@ -282,6 +294,7 @@ class ParsedTypedSchema(TypedSchema):
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
         normalize: bool = False,
+        use_protopace: bool = False,
     ) -> ParsedTypedSchema:
         return parse(
             schema_type=schema_type,
@@ -291,6 +304,7 @@ class ParsedTypedSchema(TypedSchema):
             references=references,
             dependencies=dependencies,
             normalize=normalize,
+            use_protopace=use_protopace,
         )
 
     def __str__(self) -> str:
@@ -350,6 +364,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         schema: Draft7Validator | AvroSchema | ProtobufSchema,
         references: list[Reference] | None = None,
         dependencies: dict[str, Dependency] | None = None,
+        use_protopace: bool = False,
     ) -> None:
         super().__init__(
             schema_type=schema_type,
@@ -357,6 +372,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
             references=references,
             dependencies=dependencies,
             schema=schema,
+            use_protopace=use_protopace,
         )
 
     @staticmethod
@@ -366,6 +382,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
         normalize: bool = False,
+        use_protopace: bool = False,
     ) -> ValidatedTypedSchema:
         parsed_schema = parse(
             schema_type=schema_type,
@@ -375,6 +392,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
             references=references,
             dependencies=dependencies,
             normalize=normalize,
+            use_protopace=use_protopace,
         )
 
         return cast(ValidatedTypedSchema, parsed_schema)

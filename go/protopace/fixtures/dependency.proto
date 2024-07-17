@@ -1,0 +1,12 @@
+syntax = "proto3";
+package my.awesome.customer.v1;
+
+message NestedValue {
+    string value = 1;
+}
+
+enum Status {
+    UNKNOWN = 0;
+    ACTIVE = 1;
+    INACTIVE = 2;
+}

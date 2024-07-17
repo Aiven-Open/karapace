@@ -64,14 +64,17 @@ def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Valida
     return jsonschema_compatibility(reader, writer)
 
 
-def check_protobuf_compatibility(reader: ProtobufSchema, writer: ProtobufSchema) -> SchemaCompatibilityResult:
-    return check_protobuf_schema_compatibility(reader, writer)
+def check_protobuf_compatibility(
+    reader: ProtobufSchema, writer: ProtobufSchema, use_protopace: bool = False
+) -> SchemaCompatibilityResult:
+    return check_protobuf_schema_compatibility(reader, writer, use_protopace)
 
 
 def check_compatibility(
     old_schema: ParsedTypedSchema,
     new_schema: ValidatedTypedSchema,
     compatibility_mode: CompatibilityModes,
+    use_protopace: bool = False,
 ) -> SchemaCompatibilityResult:
     """Check that `old_schema` and `new_schema` are compatible under `compatibility_mode`."""
     if compatibility_mode is CompatibilityModes.NONE:
@@ -148,23 +151,27 @@ def check_compatibility(
             result = check_protobuf_compatibility(
                 reader=new_schema.schema,
                 writer=old_schema.schema,
+                use_protopace=use_protopace,
             )
         elif compatibility_mode in {CompatibilityModes.FORWARD, CompatibilityModes.FORWARD_TRANSITIVE}:
             result = check_protobuf_compatibility(
                 reader=old_schema.schema,
                 writer=new_schema.schema,
+                use_protopace=use_protopace,
             )
 
         elif compatibility_mode in {CompatibilityModes.FULL, CompatibilityModes.FULL_TRANSITIVE}:
             result = check_protobuf_compatibility(
                 reader=new_schema.schema,
                 writer=old_schema.schema,
+                use_protopace=use_protopace,
             )
             result = merge(
                 result,
                 check_protobuf_compatibility(
                     reader=old_schema.schema,
                     writer=new_schema.schema,
+                    use_protopace=use_protopace,
                 ),
             )
 

@@ -21,6 +21,7 @@ from karapace.protobuf.one_of_element import OneOfElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.proto_file_element import ProtoFileElement
 from karapace.protobuf.proto_parser import ProtoParser
+from karapace.protobuf.protopace import Proto
 from karapace.protobuf.serialization import deserialize, serialize
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
@@ -267,9 +268,16 @@ class ProtobufSchema:
                 self.proto_file_element = deserialize(schema)
             except binascii.Error:  # If not base64 formatted
                 self.proto_file_element = ProtoParser.parse(DEFAULT_LOCATION, schema)
-
+        self._schema_str = schema
         self.references = references
         self.dependencies = dependencies
+
+    def to_proto(self, name="noname.proto") -> Proto:
+        dependencies = []
+        if self.dependencies:
+            for _, dep in self.dependencies.items():
+                dependencies.append(dep.get_schema().to_proto(name=dep.name))
+        return Proto(name, self._schema_str, dependencies)
 
     def type_in_tree(self, tree: TypeTree, remaining_tokens: list[str]) -> TypeTree | None:
         if remaining_tokens:

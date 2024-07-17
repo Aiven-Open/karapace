@@ -126,7 +126,8 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
             |message TestMessage {
             |    message Value {
             |        string str2 = 1;
-            |        Enu x = 2;
+            |        int32 x = 2;
+            |        Enu enu = 3;
             |    }
             |    string test = 1;
             |    .a1.TestMessage.Value val = 2;
@@ -236,7 +237,11 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
             |syntax = "proto3";
             |package a1;
             |import "Customer.proto";
+            |import "google/protobuf/descriptor.proto";
             |message TestMessage {
+            |    extend google.protobuf.OneofOptions {
+            |        bool my_option = 50002;
+            |    }
             |    enum Enum {
             |       HIGH = 0;
             |       MIDDLE = 1;
@@ -404,7 +409,11 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
             |syntax = "proto3";
             |package a1;
             |import "Customer.proto";
+            |import "google/protobuf/descriptor.proto";
             |message TestMessage {
+            |    extend google.protobuf.OneofOptions {
+            |        bool my_option = 50002;
+            |    }
             |    enum Enum {
             |       HIGH = 0;
             |       MIDDLE = 1;

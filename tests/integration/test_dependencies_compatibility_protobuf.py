@@ -323,10 +323,10 @@ message TestMessage {
     evolved_schema = """
 syntax = "proto3";
 package a1;
-import "google/type/postal_address.proto";
+import "google/protobuf/duration.proto";
 message TestMessage {
     message V {
-        google.type.PostalAddress h = 1;
+        google.protobuf.Duration h = 1;
         int32 x = 2;
     }
     string t = 1;
@@ -369,10 +369,10 @@ message container {
     original_schema = """
 syntax = "proto3";
 package a1;
-import "google/type/postal_address.proto";
+import "google/protobuf/duration.proto";
 message TestMessage {
     message V {
-        google.type.PostalAddress h = 1;
+        google.protobuf.Duration h = 1;
         int32 x = 2;
     }
     string t = 1;
@@ -617,13 +617,13 @@ message Place {
 syntax = "proto3";
 package a1;
 import "place.proto";
-import "google/type/postal_address.proto";
+import "google/protobuf/duration.proto";
 // @producer: another comment
 message Customer {
         string name = 1;
         int32 code = 2;
         Place place = 3;
-        google.type.PostalAddress address = 4;
+        google.protobuf.Duration address = 4;
 }
 """
     body = {
@@ -645,13 +645,13 @@ message Customer {
 syntax = "proto3";
 package a1;
 import "place.proto";
-import "google/type/postal_address.proto";
+import "google/protobuf/duration.proto";
 // @consumer: the comment was incorrect, updating it now
 message Customer {
         string name = 1;
         int32 code = 2;
         Place place = 3;
-        google.type.PostalAddress address = 4;
+        google.protobuf.Duration address = 4;
 }
 """
 

@@ -82,6 +82,8 @@ class Config(TypedDict):
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
 
+    use_protopace: bool
+
 
 class ConfigDefaults(Config, total=False):
     ...
@@ -150,6 +152,7 @@ DEFAULTS: ConfigDefaults = {
     "name_strategy_validation": True,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
+    "use_protopace": True,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 

@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package my.awesome.customer.v1;
+
+import "my/awesome/customer/v1/nested_value.proto";
+import "google/protobuf/timestamp.proto";
+
+option ruby_package = "My::Awesome::Customer::V1";
+option csharp_namespace = "my.awesome.customer.V1";
+option go_package = "github.com/customer/api/my/awesome/customer/v1;dspv1";
+option java_multiple_files = true;
+option java_outer_classname = "EventValueProto";
+option java_package = "com.my.awesome.customer.v1";
+option objc_class_prefix = "TDD";
+option php_metadata_namespace = "My\\Awesome\\Customer\\V1";
+option php_namespace = "My\\Awesome\\Customer\\V1";
+
+message Local {
+    message NestedValue {
+        string foo = 1;
+    }
+}
+
+message EventValue {
+  NestedValue nested_value = 1;
+  google.protobuf.Timestamp created_at = 2;
+  Status status = 3;
+  Local.NestedValue local_nested_value = 4;
+  string foo = 5;
+}

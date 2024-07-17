@@ -133,6 +133,7 @@ class KafkaSchemaReader(Thread):
         self.timeout_s = MESSAGE_CONSUME_TIMEOUT_SECONDS
         self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_ON_STARTUP
         self.config = config
+        self.use_protopace = config["use_protopace"]
 
         self.database = database
         self.admin_client: KafkaAdminClient | None = None
@@ -544,6 +545,7 @@ class KafkaSchemaReader(Thread):
                     normalize=False,
                 )
                 schema_str = str(parsed_schema)
+
             except InvalidSchema:
                 LOG.exception("Schema is not valid ProtoBuf definition")
                 return
@@ -558,6 +560,7 @@ class KafkaSchemaReader(Thread):
                 references=resolved_references,
                 dependencies=resolved_dependencies,
                 schema=parsed_schema,
+                use_protopace=self.use_protopace,
             )
         except (InvalidSchema, JSONDecodeError):
             return

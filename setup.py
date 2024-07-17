@@ -70,4 +70,5 @@ setup(
         "Topic :: Database :: Database Engines/Servers",
         "Topic :: Software Development :: Libraries",
     ],
+    include_package_data=True,
 )

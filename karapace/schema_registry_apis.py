@@ -449,8 +449,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             old_schema=old_schema,
             new_schema=new_schema,
             compatibility_mode=compatibility_mode,
+            use_protopace=self.config["use_protopace"],
         )
         if is_incompatible(result):
+            self.log.info("incompatible: %s", result.messages)
             self.r({"is_compatible": False}, content_type)
         self.r({"is_compatible": True}, content_type)
 
@@ -1121,6 +1123,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 references=references,
                 dependencies=new_schema_dependencies,
                 normalize=normalize,
+                use_protopace=self.config["use_protopace"],
             )
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", schema_str)
@@ -1153,6 +1156,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     references=other_references,
                     dependencies=other_dependencies,
                     normalize=normalize,
+                    use_protopace=self.config["use_protopace"],
                 )
             except InvalidSchema as e:
                 failed_schema_id = schema_version.schema_id
@@ -1222,6 +1226,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 references=references,
                 dependencies=resolved_dependencies,
                 normalize=normalize,
+                use_protopace=self.config["use_protopace"],
             )
         except (InvalidReferences, InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)
