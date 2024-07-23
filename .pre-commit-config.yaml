@@ -21,7 +21,7 @@ repos:
     entry: ./copyright.sh
 
 - repo: https://github.com/shellcheck-py/shellcheck-py
-  rev: v0.9.0.2
+  rev: v0.10.0.1
   hooks:
   - id: shellcheck
 
@@ -56,7 +56,7 @@ repos:
   - id: black
 
 - repo: https://github.com/PyCQA/flake8
-  rev: 6.0.0
+  rev: 7.1.0
   hooks:
   - id: flake8
 
@@ -73,6 +73,6 @@ repos:
 - repo: https://github.com/PyCQA/pylint
   # Note: pre-commit autoupdate changes to an alpha version. Instead, manually find the
   # latest stable version here: https://github.com/pylint-dev/pylint/releases
-  rev: v2.17.4
+  rev: v3.2.6
   hooks:
   - id: pylint
