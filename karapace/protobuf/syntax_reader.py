@@ -103,7 +103,6 @@ class SyntaxReader:
                 self.newline()
 
         self.unexpected("unterminated string")
-        return ""
 
     def read_numeric_escape(self, radix: int, length: int) -> str:
         value = -1
@@ -180,7 +179,7 @@ class SyntaxReader:
         self.expect(start < self.pos, "expected a word")
         return self.data[start : self.pos]
 
-    def read_int(self) -> int:  # pylint: disable=inconsistent-return-statements
+    def read_int(self) -> int:
         """Reads an integer and returns it."""
         tag: str = self.read_word()
         try:

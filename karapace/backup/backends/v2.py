@@ -33,7 +33,10 @@ class _BaseV2Writer(BaseKVBackupWriter):
     ) -> Generator[IO[str], None, None]:
         with super().safe_writer(target, allow_overwrite) as buffer:
             buffer.write(V2_MARKER.decode())
-            yield buffer
+            try:
+                yield buffer
+            finally:
+                pass
 
 
 class SchemaBackupV2Writer(_BaseV2Writer):
