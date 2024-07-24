@@ -55,7 +55,7 @@
 | karapace/instrumentation/prometheus.py            |       38 |        0 |       10 |        0 |    100% |           |
 | karapace/kafka/\_\_init\_\_.py                    |        0 |        0 |        0 |        0 |    100% |           |
 | karapace/kafka/admin.py                           |       75 |        0 |       13 |        0 |    100% |           |
-| karapace/kafka/common.py                          |       86 |        5 |       17 |        4 |     91% |54, 75, 167, 205, 210 |
+| karapace/kafka/common.py                          |       86 |        4 |       17 |        3 |     93% |54, 75, 167, 205 |
 | karapace/kafka/consumer.py                        |      141 |       12 |       26 |        2 |     92% |48-49, 62, 67, 134-135, 161-162, 181-182, 187-188 |
 | karapace/kafka/producer.py                        |       67 |        2 |        6 |        0 |     97% |     63-64 |
 | karapace/kafka/types.py                           |        8 |        0 |        0 |        0 |    100% |           |
@@ -81,9 +81,9 @@
 | karapace/protobuf/extend\_element.py              |       22 |        0 |        6 |        0 |    100% |           |
 | karapace/protobuf/extensions\_element.py          |       26 |        1 |       10 |        2 |     92% |28->38, 36 |
 | karapace/protobuf/field.py                        |        7 |        0 |        0 |        0 |    100% |           |
-| karapace/protobuf/field\_element.py               |      101 |       10 |       40 |        6 |     87% |110, 113, 143, 149, 159-161, 167, 172, 175 |
+| karapace/protobuf/field\_element.py               |      101 |        8 |       40 |        6 |     90% |110, 113, 143, 149, 160, 167, 172, 175 |
 | karapace/protobuf/group\_element.py               |       27 |        0 |        8 |        1 |     97% |    33->37 |
-| karapace/protobuf/io.py                           |      169 |       83 |       50 |        8 |     46% |34, 38-55, 78-83, 88, 91, 99-149, 158-168, 181-186, 210-213, 234->236, 249-259, 286-287, 299->305, 300->299, 306 |
+| karapace/protobuf/io.py                           |      179 |       87 |       50 |        8 |     46% |34, 38-55, 78-83, 88, 91, 99-149, 158-168, 181-186, 214-217, 238->240, 253-267, 297-298, 310->316, 311->310, 317 |
 | karapace/protobuf/known\_dependency.py            |       21 |        0 |       10 |        1 |     97% |    14->16 |
 | karapace/protobuf/kotlin\_wrapper.py              |       21 |        1 |       10 |        0 |     97% |        36 |
 | karapace/protobuf/location.py                     |       27 |        3 |        8 |        3 |     83% |19, 30, 39, 46->50 |
@@ -91,19 +91,20 @@
 | karapace/protobuf/one\_of\_element.py             |       49 |        0 |       22 |        0 |    100% |           |
 | karapace/protobuf/option\_element.py              |       80 |        2 |       32 |        3 |     96% |50, 80->83, 87 |
 | karapace/protobuf/option\_reader.py               |      104 |       17 |       50 |        4 |     81% |60, 100, 111-115, 121-127, 135-139 |
-| karapace/protobuf/proto\_file\_element.py         |       94 |       16 |       46 |        3 |     81% |20-32, 118, 128, 143, 147, 150 |
-| karapace/protobuf/proto\_normalizations.py        |      107 |        6 |       10 |        2 |     93% |87-88, 139-142, 195, 206 |
+| karapace/protobuf/proto\_file\_element.py         |       94 |        4 |       46 |        3 |     95% |20->exit, 32, 118, 128, 143 |
+| karapace/protobuf/proto\_normalizations.py        |      116 |        4 |       12 |        2 |     95% |151-154, 211, 222 |
 | karapace/protobuf/proto\_parser.py                |      383 |        9 |      138 |       10 |     96% |109, 117, 223, 321, 349, 486, 514, 516->519, 553, 616 |
 | karapace/protobuf/proto\_type.py                  |      130 |       19 |       42 |        5 |     83% |17->19, 122, 146-147, 157, 160-169, 172, 178, 181, 185, 197, 202, 210, 249 |
 | karapace/protobuf/protobuf\_to\_dict.py           |      186 |      159 |      108 |        0 |      9% |25-28, 32-33, 63, 67-69, 73, 86-133, 144-161, 189-193, 197-227, 231-305, 309-316, 323-332, 346-351 |
 | karapace/protobuf/reserved\_element.py            |       27 |        1 |       12 |        1 |     95% |        38 |
 | karapace/protobuf/rpc\_element.py                 |       30 |        0 |        8 |        0 |    100% |           |
-| karapace/protobuf/schema.py                       |      323 |       29 |      182 |       18 |     88% |61-63, 76-78, 81-83, 108, 175, 179->177, 182, 221, 260, 281, 286, 314-315, 359, 371, 382, 529, 556->565, 566-568, 571-573, 586 |
+| karapace/protobuf/schema.py                       |      278 |       14 |      156 |        8 |     94% |76-78, 81-83, 178, 200, 205, 278, 290, 301, 448, 505 |
 | karapace/protobuf/serialization.py                |      254 |       35 |      172 |       40 |     82% |58, 60, 116, 120, 122, 124, 126, 128, 132, 134, 136, 142, 144, 148, 199, 208, 215->217, 217->219, 243, 256->245, 279, 281, 283, 285, 287, 289, 291, 293, 295, 297, 299, 301, 303, 305, 307, 309, 311, 313, 322->325, 334->331 |
 | karapace/protobuf/service\_element.py             |       28 |        0 |       10 |        0 |    100% |           |
 | karapace/protobuf/syntax.py                       |       12 |        1 |        2 |        0 |     93% |        24 |
 | karapace/protobuf/syntax\_reader.py               |      263 |       14 |      124 |       15 |     92% |53-54, 66, 105-106, 169->180, 192-193, 215, 219->222, 226->247, 248, 249->260, 253->259, 261, 266->275, 301->324, 314-315, 346, 369 |
 | karapace/protobuf/type\_element.py                |       25 |        9 |        4 |        1 |     66% |14-16, 32, 35-36, 39-40, 43 |
+| karapace/protobuf/type\_tree.py                   |       65 |        2 |       36 |        3 |     95% |66, 70->68, 73 |
 | karapace/protobuf/utils.py                        |       46 |        3 |       20 |        3 |     91% |10, 20, 52 |
 | karapace/rapu.py                                  |      259 |       55 |       96 |       19 |     75% |84, 88, 103, 107, 140, 143, 231, 240-249, 274-278, 283, 289-298, 304, 311, 314->317, 319->322, 322->325, 332, 338-339, 344-351, 356-361, 368, 371-372, 380, 402-405, 448, 464, 478-480 |
 | karapace/schema\_models.py                        |      167 |       32 |       62 |       10 |     81% |79->84, 82, 114, 121-122, 138-140, 145-152, 159, 171-180, 193, 203-204, 210-211, 218-230, 314, 320-321, 324, 327-329, 354, 406->exit |
@@ -118,9 +119,9 @@
 | karapace/serialization.py                         |      275 |       28 |      106 |       14 |     89% |83, 121, 138, 149, 153, 179-180, 210, 224-225, 232, 246-247, 289-290, 339->342, 373, 378, 449-454, 460-463, 481, 490 |
 | karapace/statsd.py                                |       62 |        9 |       18 |        4 |     81% |42-44, 68, 77, 79-81, 83 |
 | karapace/typing.py                                |       67 |        3 |       22 |        3 |     93% |71, 73, 85 |
-| karapace/utils.py                                 |      123 |       44 |       50 |        3 |     65% |30-32, 44-46, 51, 56, 61, 66, 72-81, 92, 104, 117, 131, 136, 151, 155, 197, 205-208, 227-245 |
+| karapace/utils.py                                 |      130 |       44 |       54 |        3 |     67% |30-32, 44-46, 51, 56, 61, 66, 72-81, 92, 104, 117, 131, 136, 151, 155, 197, 205-208, 227-245 |
 | karapace/version.py                               |        1 |        0 |        0 |        0 |    100% |           |
-|                                         **TOTAL** | **10381** | **2249** | **3754** |  **368** | **76%** |           |
+|                                         **TOTAL** | **10427** | **2223** | **3770** |  **360** | **76%** |           |
 
 
 ## Setup coverage badge
