@@ -207,7 +207,7 @@ class SchemaCoordinator:
         try:
             resp = await self._client.send(node_id, request, group=ConnectionGroup.COORDINATION)
         except Errors.KafkaError as err:
-            LOG.error(
+            LOG.warning(
                 "Error sending %s to node %s [%s] -- marking coordinator dead", request.__class__.__name__, node_id, err
             )
             self.coordinator_dead()
@@ -277,7 +277,7 @@ class SchemaCoordinator:
             try:
                 await self.send_req(request)
             except Errors.KafkaError as err:
-                LOG.error("LeaveGroup request failed: %s", err)
+                LOG.warning("LeaveGroup request failed: %s", err)
             else:
                 LOG.info("LeaveGroup request succeeded")
         self.reset_generation()
@@ -472,7 +472,7 @@ class SchemaCoordinator:
                     err = Errors.GroupAuthorizationFailedError(self.group_id)
                     raise err from exc
                 except Errors.KafkaError as err:
-                    LOG.error("Group Coordinator Request failed: %s", err)
+                    LOG.warning("Group Coordinator Request failed: %s", err)
                     if err.retriable:
                         await self._client.force_metadata_update()
                         await asyncio.sleep(retry_backoff)
@@ -628,7 +628,7 @@ class SchemaCoordinator:
                 # the session timeout has expired without seeing a successful
                 # heartbeat, so we should probably make sure the coordinator
                 # is still healthy.
-                LOG.error("Heartbeat session expired - marking coordinator dead")
+                LOG.warning("Heartbeat session expired - marking coordinator dead")
                 self.coordinator_dead()
 
         LOG.debug("Stopping heartbeat task")
@@ -643,7 +643,7 @@ class SchemaCoordinator:
         try:
             resp = await self.send_req(request)
         except Errors.KafkaError as err:
-            LOG.error("Heartbeat send request failed: %s. Will retry.", err)
+            LOG.warning("Heartbeat send request failed: %s. Will retry.", err)
             return False
         error_type = Errors.for_code(resp.error_code)
         if error_type is Errors.NoError:
@@ -676,7 +676,7 @@ class SchemaCoordinator:
             raise error_type(self.group_id)
         else:
             kafka_error = Errors.KafkaError(f"Unexpected exception in heartbeat task: {error_type()!r}")
-            LOG.error("Heartbeat failed: %r", kafka_error)
+            LOG.warning("Heartbeat failed: %r", kafka_error)
             raise kafka_error
         return False
 
