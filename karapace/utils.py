@@ -203,7 +203,7 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
     try:
         object_[key] = int(object_[key])
     except ValueError:
-        from karapace.rapu import http_error
+        from karapace.rapu import http_error  # pylint: disable=cyclic-import
 
         http_error(
             message=f"{key} is not a valid int: {object_[key]}",

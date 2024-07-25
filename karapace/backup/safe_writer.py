@@ -109,9 +109,12 @@ def str_writer(
     safe_context = _safe_temporary_descriptor(target.absolute(), allow_overwrite)
 
     with safe_context as fd, open(fd, "w") as buffer:
-        yield buffer
-        buffer.flush()
-        os.fsync(fd)
+        try:
+            yield buffer
+            buffer.flush()
+            os.fsync(fd)
+        finally:
+            pass
 
 
 def _check_destination_directory(destination: Path) -> None:

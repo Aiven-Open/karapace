@@ -179,6 +179,8 @@ class KarapaceSchemaRegistry:
                     version_list = list(schema_versions_live)
                     if version_list:
                         latest_version_id = version_list[-1]
+                    else:
+                        return []
 
                 referenced_by = self.schema_reader.get_referenced_by(subject, latest_version_id)
                 if referenced_by and len(referenced_by) > 0:
