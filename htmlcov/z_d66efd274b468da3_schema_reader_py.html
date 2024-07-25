@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for karapace/schema_reader.py: 62%</title>
+    <title>Coverage for karapace/schema_reader.py: 63%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_8e611ae1.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>karapace/schema_reader.py</b>:
-            <span class="pc_cov">62%</span>
+            <span class="pc_cov">63%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">381 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">256<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">125<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">260<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">121<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">15<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">17<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_d66efd274b468da3_schema_models_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_d66efd274b468da3_schema_references_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.0">coverage.py v7.6.0</a>,
-            created at 2024-07-24 14:32 +0000
+            created at 2024-07-25 11:45 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -567,12 +567,12 @@
     <p class="mis show_mis"><span class="n"><a id="t483" href="#t483">483</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">database</span><span class="op">.</span><span class="nam">delete_subject</span><span class="op">(</span><span class="nam">subject</span><span class="op">=</span><span class="nam">subject</span><span class="op">,</span> <span class="nam">version</span><span class="op">=</span><span class="nam">version</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t484" href="#t484">484</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t485" href="#t485">485</a></span><span class="t">    <span class="key">def</span> <span class="nam">_handle_msg_schema_hard_delete</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">key</span><span class="op">:</span> <span class="nam">dict</span><span class="op">)</span> <span class="op">-></span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t486" href="#t486">486</a></span><span class="t">        <span class="nam">subject</span><span class="op">,</span> <span class="nam">version</span> <span class="op">=</span> <span class="nam">key</span><span class="op">[</span><span class="str">"subject"</span><span class="op">]</span><span class="op">,</span> <span class="nam">Version</span><span class="op">(</span><span class="nam">key</span><span class="op">[</span><span class="str">"version"</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t486" href="#t486">486</a></span><span class="t">        <span class="nam">subject</span><span class="op">,</span> <span class="nam">version</span> <span class="op">=</span> <span class="nam">key</span><span class="op">[</span><span class="str">"subject"</span><span class="op">]</span><span class="op">,</span> <span class="nam">Version</span><span class="op">(</span><span class="nam">key</span><span class="op">[</span><span class="str">"version"</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t487" href="#t487">487</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t488" href="#t488">488</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">database</span><span class="op">.</span><span class="nam">find_subject</span><span class="op">(</span><span class="nam">subject</span><span class="op">=</span><span class="nam">subject</span><span class="op">)</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="par run show_par"><span class="n"><a id="t488" href="#t488">488</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">database</span><span class="op">.</span><span class="nam">find_subject</span><span class="op">(</span><span class="nam">subject</span><span class="op">=</span><span class="nam">subject</span><span class="op">)</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">488&#x202F;&#x219B;&#x202F;489</span><span class="annotate long">line 488 didn't jump to line 489 because the condition on line 488 was never true</span></span></p>
     <p class="mis show_mis"><span class="n"><a id="t489" href="#t489">489</a></span><span class="t">            <span class="nam">LOG</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span><span class="str">"Hard delete: Subject %s did not exist, should have"</span><span class="op">,</span> <span class="nam">subject</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t490" href="#t490">490</a></span><span class="t">        <span class="key">elif</span> <span class="nam">version</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">database</span><span class="op">.</span><span class="nam">find_subject_schemas</span><span class="op">(</span><span class="nam">subject</span><span class="op">=</span><span class="nam">subject</span><span class="op">,</span> <span class="nam">include_deleted</span><span class="op">=</span><span class="key">True</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">            <span class="nam">LOG</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span><span class="str">"Hard delete: Version %d for subject %s did not exist, should have"</span><span class="op">,</span> <span class="nam">version</span><span class="op">,</span> <span class="nam">subject</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="par run show_par"><span class="n"><a id="t490" href="#t490">490</a></span><span class="t">        <span class="key">elif</span> <span class="nam">version</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">database</span><span class="op">.</span><span class="nam">find_subject_schemas</span><span class="op">(</span><span class="nam">subject</span><span class="op">=</span><span class="nam">subject</span><span class="op">,</span> <span class="nam">include_deleted</span><span class="op">=</span><span class="key">True</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">490&#x202F;&#x219B;&#x202F;493</span><span class="annotate long">line 490 didn't jump to line 493 because the condition on line 490 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">            <span class="nam">LOG</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span><span class="str">"Hard delete: version: %r for subject: %r did not exist, should have"</span><span class="op">,</span> <span class="nam">version</span><span class="op">,</span> <span class="nam">subject</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t492" href="#t492">492</a></span><span class="t">        <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t493" href="#t493">493</a></span><span class="t">            <span class="nam">LOG</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="str">"Hard delete: subject: %r version: %r"</span><span class="op">,</span> <span class="nam">subject</span><span class="op">,</span> <span class="nam">version</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t494" href="#t494">494</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">database</span><span class="op">.</span><span class="nam">delete_subject_schema</span><span class="op">(</span><span class="nam">subject</span><span class="op">=</span><span class="nam">subject</span><span class="op">,</span> <span class="nam">version</span><span class="op">=</span><span class="nam">version</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -753,7 +753,7 @@
             <a class="nav" href="z_d66efd274b468da3_schema_references_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.0">coverage.py v7.6.0</a>,
-            created at 2024-07-24 14:32 +0000
+            created at 2024-07-25 11:45 +0000
         </p>
     </div>
 </footer>
