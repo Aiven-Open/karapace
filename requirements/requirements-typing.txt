@@ -27,7 +27,7 @@ rpds-py==0.18.1
     #   -c requirements-dev.txt
     #   -c requirements.txt
     #   referencing
-sentry-sdk==2.5.0
+sentry-sdk==2.8.0
     # via
     #   -c requirements-dev.txt
     #   -r requirements-typing.in
