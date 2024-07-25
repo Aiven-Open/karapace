@@ -10,6 +10,7 @@ disable=
   duplicate-code,
   fixme,
   import-outside-toplevel,
+  invalid-field-call,
   invalid-name,
   missing-docstring,
   too-few-public-methods,
