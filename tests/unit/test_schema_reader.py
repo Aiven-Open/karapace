@@ -5,6 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+from _pytest.logging import LogCaptureFixture
 from concurrent.futures import ThreadPoolExecutor
 from confluent_kafka import Message
 from dataclasses import dataclass
@@ -20,12 +21,13 @@ from karapace.schema_reader import (
     OFFSET_EMPTY,
     OFFSET_UNINITIALIZED,
 )
-from karapace.typing import SchemaId
+from karapace.typing import SchemaId, Version
 from tests.base_testcase import BaseTestCase
 from unittest.mock import Mock
 
 import confluent_kafka
 import json
+import logging
 import pytest
 import random
 import time
@@ -292,3 +294,27 @@ def test_soft_deleted_schema_storing() -> None:
 
     soft_deleted_stored_schema = schema_reader.database.find_schema(schema_id=SchemaId(1))
     assert soft_deleted_stored_schema is not None
+
+
+def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture) -> None:
+    database_mock = Mock(spec=InMemoryDatabase)
+    database_mock.find_subject.return_value = True
+    database_mock.find_subject_schemas.return_value = {
+        Version(1): "SchemaVersion"
+    }  # `SchemaVersion` is an actual object, simplified for test
+    schema_reader = KafkaSchemaReader(
+        config=DEFAULTS,
+        offset_watcher=OffsetWatcher(),
+        key_formatter=KeyFormatter(),
+        master_coordinator=None,
+        database=database_mock,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="karapace.schema_reader"):
+        schema_reader._handle_msg_schema_hard_delete(  # pylint: disable=protected-access
+            key={"subject": "test-subject", "version": 2}
+        )
+        for log in caplog.records:
+            assert log.name == "karapace.schema_reader"
+            assert log.levelname == "WARNING"
+            assert log.message == "Hard delete: version: Version(2) for subject: 'test-subject' did not exist, should have"
