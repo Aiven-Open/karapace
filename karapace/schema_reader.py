@@ -488,7 +488,7 @@ class KafkaSchemaReader(Thread):
         if self.database.find_subject(subject=subject) is None:
             LOG.warning("Hard delete: Subject %s did not exist, should have", subject)
         elif version not in self.database.find_subject_schemas(subject=subject, include_deleted=True):
-            LOG.warning("Hard delete: Version %d for subject %s did not exist, should have", version, subject)
+            LOG.warning("Hard delete: version: %r for subject: %r did not exist, should have", version, subject)
         else:
             LOG.info("Hard delete: subject: %r version: %r", subject, version)
             self.database.delete_subject_schema(subject=subject, version=version)
