@@ -17,22 +17,15 @@ import pytest
 async def test_validate_schema_request_body():
     controller = KarapaceSchemaRegistryController(config=set_config_defaults(DEFAULTS))
 
-    controller._validate_schema_request_body("application/json", {
-        "schema": "{}",
-        "schemaType": "JSON",
-        "references": [],
-        "metadata": {},
-        "ruleSet": {}
-    })
+    controller._validate_schema_request_body(  # pylint: disable=W0212
+        "application/json", {"schema": "{}", "schemaType": "JSON", "references": [], "metadata": {}, "ruleSet": {}}
+    )
 
     with pytest.raises(HTTPResponse) as exc_info:
-        controller._validate_schema_request_body("application/json", {
-            "schema": "{}",
-            "schemaType": "JSON",
-            "references": [],
-            "unexpected_field_name": {},
-            "ruleSet": {}
-        })
+        controller._validate_schema_request_body(  # pylint: disable=W0212
+            "application/json",
+            {"schema": "{}", "schemaType": "JSON", "references": [], "unexpected_field_name": {}, "ruleSet": {}},
+        )
     assert exc_info.type is HTTPResponse
     assert str(exc_info.value) == "HTTPResponse 422"
 
