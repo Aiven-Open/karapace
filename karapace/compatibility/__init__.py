@@ -88,6 +88,7 @@ def check_compatibility(
     if old_schema.schema_type is SchemaType.AVRO:
         assert isinstance(old_schema.schema, AvroSchema)
         assert isinstance(new_schema.schema, AvroSchema)
+
         if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
             result = check_avro_compatibility(
                 reader_schema=new_schema.schema,
