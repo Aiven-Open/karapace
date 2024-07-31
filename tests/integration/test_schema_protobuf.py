@@ -12,7 +12,7 @@ from karapace.schema_type import SchemaType
 from karapace.typing import JsonData
 from tests.base_testcase import BaseTestCase
 from tests.utils import create_subject_name_factory
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import logging
 import pytest
@@ -963,11 +963,20 @@ message WithReference {
     ],
     ids=str,
 )
-async def test_references(testcase: ReferenceTestCase, registry_async_client: Client):
+@pytest.mark.parametrize("metadata", [None, {}])
+@pytest.mark.parametrize("rule_set", [None, {}])
+async def test_references(
+    testcase: ReferenceTestCase, registry_async_client: Client, metadata: Dict[str, Any], rule_set: Dict[str, Any]
+):
     for testdata in testcase.schemas:
         if isinstance(testdata, TestCaseSchema):
             print(f"Adding new schema, subject: '{testdata.subject}'\n{testdata.schema_str}")
-            body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
+            body = {
+                "schemaType": testdata.schema_type,
+                "schema": testdata.schema_str,
+                "metadata": metadata,
+                "ruleSet": rule_set,
+            }
             if testdata.references:
                 body["references"] = testdata.references
             res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)

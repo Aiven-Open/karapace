@@ -97,6 +97,7 @@ from tests.schemas.json_schemas import (
     TYPES_STRING_SCHEMA,
 )
 from tests.utils import new_random_name
+from typing import Any, Dict
 
 import json
 import pytest
@@ -234,8 +235,14 @@ async def not_schemas_are_backward_compatible(
 
 @pytest.mark.parametrize("trail", ["", "/"])
 @pytest.mark.parametrize("compatibility", [CompatibilityModes.FORWARD, CompatibilityModes.BACKWARD, CompatibilityModes.FULL])
+@pytest.mark.parametrize("metadata", [None, {}])
+@pytest.mark.parametrize("rule_set", [None, {}])
 async def test_same_jsonschema_must_have_same_id(
-    registry_async_client: Client, compatibility: CompatibilityModes, trail: str
+    registry_async_client: Client,
+    compatibility: CompatibilityModes,
+    trail: str,
+    metadata: Dict[str, Any],
+    rule_set: Dict[str, Any],
 ) -> None:
     for schema in ALL_SCHEMAS:
         subject = new_random_name("subject")
@@ -248,6 +255,8 @@ async def test_same_jsonschema_must_have_same_id(
             json={
                 "schema": json.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
+                "metadata": metadata,
+                "ruleSet": rule_set,
             },
         )
         assert first_res.status_code == 200
@@ -259,6 +268,8 @@ async def test_same_jsonschema_must_have_same_id(
             json={
                 "schema": json.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
+                "metadata": metadata,
+                "ruleSet": rule_set,
             },
         )
         assert second_res.status_code == 200
