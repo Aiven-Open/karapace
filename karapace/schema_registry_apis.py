@@ -991,7 +991,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.BAD_REQUEST,
             )
         for field in body:
-            if field not in {"schema", "schemaType", "references"}:
+            if field not in {"schema", "schemaType", "references", "metadata", "ruleSet"}:
                 self.r(
                     body={
                         "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
