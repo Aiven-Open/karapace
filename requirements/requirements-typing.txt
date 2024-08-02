@@ -13,7 +13,7 @@ certifi==2024.7.4
     # via
     #   -c requirements-dev.txt
     #   sentry-sdk
-mypy==1.10.0
+mypy==1.11.1
     # via -r requirements-typing.in
 mypy-extensions==1.0.0
     # via mypy
