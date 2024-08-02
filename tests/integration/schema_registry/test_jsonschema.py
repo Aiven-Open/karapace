@@ -6,6 +6,7 @@ from jsonschema import Draft7Validator
 from karapace.client import Client
 from karapace.compatibility import CompatibilityModes
 from karapace.schema_reader import SchemaType
+from karapace.typing import SchemaMetadata, SchemaRuleSet
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
     A_DINT_B_INT_OBJECT_SCHEMA,
@@ -97,7 +98,6 @@ from tests.schemas.json_schemas import (
     TYPES_STRING_SCHEMA,
 )
 from tests.utils import new_random_name
-from typing import Any, Dict
 
 import json
 import pytest
@@ -241,8 +241,8 @@ async def test_same_jsonschema_must_have_same_id(
     registry_async_client: Client,
     compatibility: CompatibilityModes,
     trail: str,
-    metadata: Dict[str, Any],
-    rule_set: Dict[str, Any],
+    metadata: SchemaMetadata,
+    rule_set: SchemaRuleSet,
 ) -> None:
     for schema in ALL_SCHEMAS:
         subject = new_random_name("subject")

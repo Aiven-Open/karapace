@@ -9,10 +9,10 @@ from karapace.client import Client
 from karapace.errors import InvalidTest
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.schema_type import SchemaType
-from karapace.typing import JsonData
+from karapace.typing import JsonData, SchemaMetadata, SchemaRuleSet
 from tests.base_testcase import BaseTestCase
 from tests.utils import create_subject_name_factory
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import logging
 import pytest
@@ -966,7 +966,7 @@ message WithReference {
 @pytest.mark.parametrize("metadata", [None, {}])
 @pytest.mark.parametrize("rule_set", [None, {}])
 async def test_references(
-    testcase: ReferenceTestCase, registry_async_client: Client, metadata: Dict[str, Any], rule_set: Dict[str, Any]
+    testcase: ReferenceTestCase, registry_async_client: Client, metadata: SchemaMetadata, rule_set: SchemaRuleSet
 ):
     for testdata in testcase.schemas:
         if isinstance(testdata, TestCaseSchema):
