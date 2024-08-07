@@ -512,9 +512,9 @@ class KafkaSchemaReader(Thread):
 
         try:
             schema_type_parsed = SchemaType(schema_type)
-        except ValueError:
+        except ValueError as e:
             LOG.warning("Invalid schema type: %s", schema_type)
-            return
+            raise e
 
         # This does two jobs:
         # - Validates the schema's JSON
@@ -525,12 +525,24 @@ class KafkaSchemaReader(Thread):
 
         parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None
         resolved_dependencies: dict[str, Dependency] | None = None
-        if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
+        if schema_type_parsed == SchemaType.AVRO:
+            try:
+                if schema_references:
+                    candidate_references = [reference_from_mapping(reference_data) for reference_data in schema_references]
+                    resolved_references, resolved_dependencies = self.resolve_references(candidate_references)
+                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+            except json.JSONDecodeError as e:
+                LOG.warning("Schema is not valid JSON")
+                raise e
+            except InvalidReferences as e:
+                LOG.exception("Invalid AVRO references")
+                raise e
+        elif schema_type_parsed == SchemaType.JSONSCHEMA:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 LOG.warning("Schema is not valid JSON")
-                return
+                raise e
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
                 if schema_references:
@@ -544,12 +556,12 @@ class KafkaSchemaReader(Thread):
                     normalize=False,
                 )
                 schema_str = str(parsed_schema)
-            except InvalidSchema:
+            except InvalidSchema as e:
                 LOG.exception("Schema is not valid ProtoBuf definition")
-                return
-            except InvalidReferences:
+                raise e
+            except InvalidReferences as e:
                 LOG.exception("Invalid Protobuf references")
-                return
+                raise e
 
         try:
             typed_schema = TypedSchema(
@@ -559,8 +571,8 @@ class KafkaSchemaReader(Thread):
                 dependencies=resolved_dependencies,
                 schema=parsed_schema,
             )
-        except (InvalidSchema, JSONDecodeError):
-            return
+        except (InvalidSchema, JSONDecodeError) as e:
+            raise e
 
         self.database.insert_schema_version(
             subject=schema_subject,
