@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
-from typing import ClassVar, Dict, List, Mapping, NewType, Sequence, Union
+from typing import Any, ClassVar, Dict, List, Mapping, NewType, Sequence, Union
 from typing_extensions import TypeAlias
 
 import functools
@@ -23,6 +23,8 @@ ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 
 Subject = NewType("Subject", str)
 VersionTag = Union[str, int]
+SchemaMetadata = NewType("SchemaMetadata", Dict[str, Any])
+SchemaRuleSet = NewType("SchemaRuleSet", Dict[str, Any])
 
 # note: the SchemaID is a unique id among all the schemas (and each version should be assigned to a different id)
 # basically the same SchemaID refer always to the same TypedSchema.
