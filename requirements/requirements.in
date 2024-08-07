@@ -13,7 +13,7 @@ pyjwt>=2.4.0<3
 python-dateutil<3
 python-snappy
 rich~=13.7.1
-tenacity<9
+tenacity<10
 typing-extensions
 ujson<6
 watchfiles<1
