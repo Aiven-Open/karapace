@@ -69,7 +69,7 @@ pkgutil-resolve-name==1.3.10
     # via jsonschema
 prometheus-client==0.20.0
     # via -r requirements.in
-protobuf==3.20.3
+protobuf==5.27.3
     # via -r requirements.in
 pygments==2.18.0
     # via rich
