@@ -40,6 +40,7 @@ def kafka_consumer_from_config(config: Config, topic: str) -> Iterator[KafkaCons
         sasl_plain_username=config["sasl_plain_username"],
         sasl_plain_password=config["sasl_plain_password"],
         auto_offset_reset="earliest",
+        session_timeout_ms=config["session_timeout_ms"],
         metadata_max_age_ms=config["metadata_max_age_ms"],
     )
     try:

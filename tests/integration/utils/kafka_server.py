@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
 from dataclasses import dataclass
 from karapace.kafka.admin import KafkaAdminClient
@@ -11,7 +13,6 @@ from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
-from typing import Dict, List
 
 import logging
 import os
@@ -24,7 +25,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class KafkaServers:
-    bootstrap_servers: List[str]
+    bootstrap_servers: list[str]
 
     def __post_init__(self) -> None:
         is_bootstrap_uris_valid = (
@@ -100,7 +101,7 @@ def kafka_java_args(
     logs_dir: str,
     log4j_properties_path: str,
     kafka_description: KafkaDescription,
-) -> List[str]:
+) -> list[str]:
     msg = f"Couldn't find kafka installation at {kafka_description.install_dir} to run integration tests."
     assert kafka_description.install_dir.exists(), msg
     java_args = [
@@ -121,6 +122,7 @@ def configure_and_start_kafka(
     kafka_config: KafkaConfig,
     kafka_description: KafkaDescription,
     log4j_config: str,
+    kafka_properties: dict[str, str | int],
 ) -> Popen:
     config_path = Path(kafka_config.logdir) / "server.properties"
 
@@ -167,6 +169,7 @@ def configure_and_start_kafka(
         "zookeeper.connection.timeout.ms": 6000,
         "zookeeper.connect": f"127.0.0.1:{zk_config.client_port}",
     }
+    kafka_ini.update(kafka_properties)
 
     write_ini(config_path, kafka_ini)
 
@@ -179,6 +182,6 @@ def configure_and_start_kafka(
             kafka_description=kafka_description,
         ),
     )
-    env: Dict[bytes, bytes] = {}
+    env: dict[bytes, bytes] = {}
     proc = Popen(kafka_cmd, env=env)  # pylint: disable=consider-using-with
     return proc
