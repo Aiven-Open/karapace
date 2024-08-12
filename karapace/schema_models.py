@@ -193,7 +193,7 @@ class AvroMerge:
         # in case we meet union - we use it as is
         regex = re.compile(r"^\s*\[")
         base_schema = (
-            f'{{ "name": "___RESERVED_KARAPACE_WRAPPER_NAME_{self.unique_id}___",'
+            f'{{"name": "___RESERVED_KARAPACE_WRAPPER_NAME_{self.unique_id}___",'
             f'"type": "record", "fields": [{{"name": "name", "type":'
         )
         if regex.match(schema_str):
