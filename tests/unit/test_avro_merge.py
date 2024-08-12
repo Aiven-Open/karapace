@@ -1,3 +1,11 @@
+"""
+karapace - Unit Test of AvroMerge class
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
+
+
 from karapace.schema_models import AvroMerge
 from karapace.utils import json_decode, json_encode
 from unittest.mock import MagicMock
