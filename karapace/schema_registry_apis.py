@@ -391,6 +391,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 schema_str=body["schema"],
                 references=references,
                 dependencies=new_schema_dependencies,
+                use_protobuf_formatter=self.config["use_protobuf_formatter"],
             )
         except InvalidSchema:
             self.r(
@@ -1121,6 +1122,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 references=references,
                 dependencies=new_schema_dependencies,
                 normalize=normalize,
+                use_protobuf_formatter=self.config["use_protobuf_formatter"],
             )
         except InvalidSchema:
             self.log.warning("Invalid schema: %r", schema_str)
@@ -1222,6 +1224,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 references=references,
                 dependencies=resolved_dependencies,
                 normalize=normalize,
+                use_protobuf_formatter=self.config["use_protobuf_formatter"],
             )
         except (InvalidReferences, InvalidSchema, InvalidSchemaType) as e:
             self.log.warning("Invalid schema: %r", body["schema"], exc_info=True)

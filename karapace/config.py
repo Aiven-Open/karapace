@@ -78,6 +78,7 @@ class Config(TypedDict):
     name_strategy_validation: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
+    use_protobuf_formatter: bool
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -150,6 +151,7 @@ DEFAULTS: ConfigDefaults = {
     "name_strategy_validation": True,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
+    "use_protobuf_formatter": False,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 

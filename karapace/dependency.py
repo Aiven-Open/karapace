@@ -7,7 +7,10 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from karapace.errors import InvalidSchema
+from karapace.protobuf.protopace.protopace import Proto
 from karapace.schema_references import Reference
+from karapace.schema_type import SchemaType
 from karapace.typing import JsonData, Subject, Version
 from typing import TYPE_CHECKING
 
@@ -40,6 +43,16 @@ class Dependency:
     @staticmethod
     def of(reference: Reference, target_schema: ValidatedTypedSchema) -> Dependency:
         return Dependency(reference.name, reference.subject, reference.version, target_schema)
+
+    def to_proto(self) -> Proto:
+        if self.schema.schema_type is not SchemaType.PROTOBUF:
+            raise InvalidSchema("Only supported for Protobuf")
+
+        dependencies = []
+        if self.schema.dependencies:
+            for _, dep in self.schema.dependencies.items():
+                dependencies.append(dep.to_proto())
+        return Proto(self.name, self.schema.schema_str, dependencies)
 
     def to_dict(self) -> JsonData:
         return {

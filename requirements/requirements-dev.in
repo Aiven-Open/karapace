@@ -16,7 +16,10 @@ requests
 hypothesis
 
 # performance test
-locust
+locust==2.25.0
 
 # Sentry SDK
 sentry-sdk
+
+# Golang
+setuptools-golang
