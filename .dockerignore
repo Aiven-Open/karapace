@@ -4,6 +4,7 @@
 
 # Include source directories and files required for building.
 !karapace
+!go
 !requirements/*.txt
 !setup.py
 !version.py
