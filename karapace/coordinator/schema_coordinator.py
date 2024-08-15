@@ -181,6 +181,10 @@ class SchemaCoordinator:
 
         self._metadata_snapshot: list[Assignment] = []
 
+        self.SCHEMA_COORDINATOR_RETRIEABLE_ERRORS: set[Errors.KafkaError] = {
+            Errors.NodeNotReadyError,
+        }
+
     def start(self) -> None:
         """Must be called after creating SchemaCoordinator object to initialize
         futures and start the coordination task.
@@ -227,6 +231,9 @@ class SchemaCoordinator:
         if self._pending_exception is not None:
             exc = self._pending_exception
             self._pending_exception = None
+            if (exc in self.SCHEMA_COORDINATOR_RETRIEABLE_ERRORS) or (getattr(exc, "retriable", False)):
+                LOG.warning("SchemaCoordinator encountered error - %s", exc)
+                return
             raise exc
 
     async def _push_error_to_user(self, exc: BaseException) -> Coroutine[Any, Any, tuple[set[Any], set[Any]]]:

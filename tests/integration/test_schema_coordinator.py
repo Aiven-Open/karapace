@@ -8,6 +8,7 @@ Tests are adapted from aiokafka.tests.test_coordinator
 """
 from __future__ import annotations
 
+from _pytest.logging import LogCaptureFixture
 from aiokafka.client import AIOKafkaClient, ConnectionGroup, CoordinationType
 from aiokafka.cluster import ClusterMetadata
 from aiokafka.protocol.api import Response
@@ -787,3 +788,49 @@ async def test_coordinator__coordination_routine(client: AIOKafkaClient) -> None
         assert task.done()
     finally:
         await coordinator.close()
+
+
+@pytest.mark.parametrize(
+    "retriable_error",
+    [
+        Errors.NodeNotReadyError("node is still starting"),
+        Errors.GroupCoordinatorNotAvailableError("group is unavailable"),
+        Errors.NoBrokersAvailable("no brokers available"),
+    ],
+)
+async def test_check_errors_retriable(
+    caplog: LogCaptureFixture, coordinator: SchemaCoordinator, retriable_error: Errors.KafkaError
+):
+    coordinator._coordination_task = create_future()  # pylint: disable=protected-access
+    coordinator._error_consumed_fut = create_future()  # pylint: disable=protected-access
+    coordinator._pending_exception = retriable_error  # pylint: disable=protected-access
+
+    with caplog.at_level(logging.WARNING, logger="karapace.coordinator.schema_coordinator"):
+        coordinator.check_errors()
+
+    assert coordinator._error_consumed_fut is None  # pylint: disable=protected-access
+    assert coordinator._pending_exception is None  # pylint: disable=protected-access
+    for log in caplog.records:
+        assert log.name == "karapace.coordinator.schema_coordinator"
+        assert log.levelname == "WARNING"
+        assert log.message == f"SchemaCoordinator encountered error - {retriable_error}"
+
+
+@pytest.mark.parametrize(
+    "nonretriable_error",
+    [
+        ValueError("value missing"),
+        Errors.GroupAuthorizationFailedError("authorization failed"),
+        Errors.InvalidCommitOffsetSizeError("invalid commit size"),
+    ],
+)
+async def test_check_errors_nonretriable(coordinator: SchemaCoordinator, nonretriable_error: BaseException):
+    coordinator._coordination_task = create_future()  # pylint: disable=protected-access
+    coordinator._error_consumed_fut = create_future()  # pylint: disable=protected-access
+    coordinator._pending_exception = nonretriable_error  # pylint: disable=protected-access
+
+    with pytest.raises(nonretriable_error.__class__):
+        coordinator.check_errors()
+
+    assert coordinator._error_consumed_fut is None  # pylint: disable=protected-access
+    assert coordinator._pending_exception is None  # pylint: disable=protected-access
