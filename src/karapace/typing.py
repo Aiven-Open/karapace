@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
@@ -102,3 +103,13 @@ class Version:
     @property
     def is_latest(self) -> bool:
         return self.value == self.MINUS_1_VERSION_TAG
+
+
+class SchemaReaderStoppper(ABC):
+    @abstractmethod
+    def ready(self) -> bool:
+        pass
+
+    @abstractmethod
+    def set_not_ready(self) -> None:
+        pass

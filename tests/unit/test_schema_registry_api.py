@@ -33,7 +33,7 @@ async def test_validate_schema_request_body() -> None:
 async def test_forward_when_not_ready() -> None:
     with patch("karapace.schema_registry_apis.KarapaceSchemaRegistry") as schema_registry_class:
         schema_reader_mock = Mock(spec=KafkaSchemaReader)
-        ready_property_mock = PropertyMock(return_value=False)
+        ready_property_mock = PropertyMock(return_value=lambda: False)
         schema_registry = AsyncMock(spec=KarapaceSchemaRegistry)
         type(schema_reader_mock).ready = ready_property_mock
         schema_registry.schema_reader = schema_reader_mock
