@@ -28,19 +28,20 @@ from karapace import constants
 from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
-from karapace.errors import InvalidReferences, InvalidSchema
+from karapace.errors import CorruptKafkaRecordException, InvalidReferences, InvalidSchema, ShutdownException
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.offset_watcher import OffsetWatcher
+from karapace.protobuf.exception import ProtobufException
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaId, Subject, Version
-from karapace.utils import json_decode, JSONDecodeError
+from karapace.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Thread
 from typing import Final, Mapping, Sequence
 
@@ -189,7 +190,7 @@ class KafkaSchemaReader(Thread):
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Admin Client] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="admin_client_instantiation")
-                    self._stop_schema_reader.wait(timeout=2.0)
+                    self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
 
             assert self.admin_client is not None
 
@@ -199,10 +200,11 @@ class KafkaSchemaReader(Thread):
                     stack.enter_context(closing(self.consumer))
                 except (NodeNotReadyError, NoBrokersAvailable, AssertionError):
                     LOG.warning("[Consumer] No Brokers available yet. Retrying")
-                    self._stop_schema_reader.wait(timeout=2.0)
+                    self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
                     LOG.info("[Consumer] Invalid configuration. Bailing")
-                    raise
+                    self._stop_schema_reader.set()
+                    shutdown()
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
@@ -242,6 +244,9 @@ class KafkaSchemaReader(Thread):
                     self.offset = self._get_beginning_offset()
                 try:
                     self.handle_messages()
+                except ShutdownException:
+                    self._stop_schema_reader.set()
+                    shutdown()
                 except Exception as e:  # pylint: disable=broad-except
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
                     LOG.exception("Unexpected exception in schema reader loop")
@@ -352,11 +357,9 @@ class KafkaSchemaReader(Thread):
 
                 assert message_key is not None
                 key = json_decode(message_key)
-            except JSONDecodeError:
-                # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
-                self.offset = msg.offset()
+            except JSONDecodeError as exc:
                 LOG.warning("Invalid JSON in msg.key() at offset %s", msg.offset())
-                continue
+                raise CorruptKafkaRecordException from exc
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
                 LOG.error(
                     "Kafka authorization error when consuming from %s: %s %s",
@@ -364,7 +367,7 @@ class KafkaSchemaReader(Thread):
                     exc,
                     msg.error(),
                 )
-                continue
+                raise ShutdownException from exc
 
             assert isinstance(key, dict)
             msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
@@ -381,14 +384,15 @@ class KafkaSchemaReader(Thread):
             if message_value:
                 try:
                     value = self._parse_message_value(message_value)
-                except JSONDecodeError:
-                    # Invalid entry shall also move the offset so Karapace makes progress towards ready state.
-                    self.offset = msg.offset()
+                except (JSONDecodeError, TypeError) as exc:
                     LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
-                    continue
+                    raise CorruptKafkaRecordException from exc
 
-            self.handle_msg(key, value)
-            self.offset = msg.offset()
+            try:
+                self.handle_msg(key, value)
+                self.offset = msg.offset()
+            except (InvalidSchema, TypeError) as exc:
+                raise CorruptKafkaRecordException from exc
 
             if msg_keymode == KeyMode.CANONICAL:
                 schema_records_processed_keymode_canonical += 1
@@ -512,9 +516,9 @@ class KafkaSchemaReader(Thread):
 
         try:
             schema_type_parsed = SchemaType(schema_type)
-        except ValueError:
+        except ValueError as exc:
             LOG.warning("Invalid schema type: %s", schema_type)
-            return
+            raise InvalidSchema from exc
 
         # This does two jobs:
         # - Validates the schema's JSON
@@ -528,9 +532,9 @@ class KafkaSchemaReader(Thread):
         if schema_type_parsed in [SchemaType.AVRO, SchemaType.JSONSCHEMA]:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
                 LOG.warning("Schema is not valid JSON")
-                return
+                raise InvalidSchema from exc
         elif schema_type_parsed == SchemaType.PROTOBUF:
             try:
                 if schema_references:
@@ -544,12 +548,12 @@ class KafkaSchemaReader(Thread):
                     normalize=False,
                 )
                 schema_str = str(parsed_schema)
-            except InvalidSchema:
-                LOG.exception("Schema is not valid ProtoBuf definition")
-                return
-            except InvalidReferences:
-                LOG.exception("Invalid Protobuf references")
-                return
+            except (InvalidSchema, ProtobufException) as exc:
+                LOG.warning("Schema is not valid ProtoBuf definition")
+                raise InvalidSchema from exc
+            except InvalidReferences as exc:
+                LOG.warning("Invalid Protobuf references")
+                raise InvalidSchema from exc
 
         try:
             typed_schema = TypedSchema(
@@ -559,8 +563,8 @@ class KafkaSchemaReader(Thread):
                 dependencies=resolved_dependencies,
                 schema=parsed_schema,
             )
-        except (InvalidSchema, JSONDecodeError):
-            return
+        except (InvalidSchema, JSONDecodeError) as exc:
+            raise InvalidSchema from exc
 
         self.database.insert_schema_version(
             subject=schema_subject,
@@ -588,13 +592,15 @@ class KafkaSchemaReader(Thread):
                     self._handle_msg_delete_subject(key, value)
                 elif message_type == MessageType.no_operation:
                     pass
-            except (KeyError, ValueError):
+            except (KeyError, ValueError) as exc:
                 LOG.warning("The message %r-%r has been discarded because the %s is not managed", key, value, key["keytype"])
+                raise InvalidSchema("Unrecognized `keytype` within schema") from exc
 
         else:
             LOG.warning(
                 "The message %s-%s has been discarded because doesn't contain the `keytype` key in the key", key, value
             )
+            raise InvalidSchema("Message key doesn't contain the `keytype` attribute")
 
     def remove_referenced_by(
         self,
