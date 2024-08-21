@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from karapace.schema_models import SchemaVersion, TypedSchema, Versioner
 from karapace.schema_references import Reference, Referents
@@ -24,7 +25,120 @@ class SubjectData:
     compatibility: str | None = None
 
 
-class InMemoryDatabase:
+class KarapaceDatabase(ABC):
+    @abstractmethod
+    def get_schema_id(self, new_schema: TypedSchema) -> SchemaId:
+        pass
+
+    @abstractmethod
+    def get_schema_id_if_exists(
+        self,
+        *,
+        subject: Subject,
+        schema: TypedSchema,
+        include_deleted: bool,
+    ) -> SchemaId | None:
+        pass
+
+    @abstractmethod
+    def get_next_version(self, *, subject: Subject) -> Version:
+        pass
+
+    @abstractmethod
+    def insert_schema_version(
+        self,
+        *,
+        subject: Subject,
+        schema_id: SchemaId,
+        version: Version,
+        deleted: bool,
+        schema: TypedSchema,
+        references: Sequence[Reference] | None,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def insert_subject(self, *, subject: Subject) -> None:
+        pass
+
+    @abstractmethod
+    def get_subject_compatibility(self, *, subject: Subject) -> str | None:
+        pass
+
+    @abstractmethod
+    def delete_subject_compatibility(self, *, subject: Subject) -> None:
+        pass
+
+    @abstractmethod
+    def set_subject_compatibility(self, *, subject: Subject, compatibility: str) -> None:
+        pass
+
+    @abstractmethod
+    def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
+        pass
+
+    @abstractmethod
+    def find_schemas(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
+        pass
+
+    @abstractmethod
+    def subjects_for_schema(self, schema_id: SchemaId) -> list[Subject]:
+        pass
+
+    @abstractmethod
+    def find_schema_versions_by_schema_id(self, *, schema_id: SchemaId, include_deleted: bool) -> list[SchemaVersion]:
+        pass
+
+    @abstractmethod
+    def find_subject(self, *, subject: Subject) -> Subject | None:
+        pass
+
+    @abstractmethod
+    def find_subjects(self, *, include_deleted: bool) -> list[Subject]:
+        pass
+
+    @abstractmethod
+    def find_subject_schemas(self, *, subject: Subject, include_deleted: bool) -> dict[Version, SchemaVersion]:
+        pass
+
+    @abstractmethod
+    def delete_subject(self, *, subject: Subject, version: Version) -> None:
+        pass
+
+    @abstractmethod
+    def delete_subject_hard(self, *, subject: Subject) -> None:
+        pass
+
+    @abstractmethod
+    def delete_subject_schema(self, *, subject: Subject, version: Version) -> None:
+        pass
+
+    @abstractmethod
+    def num_schemas(self) -> int:
+        pass
+
+    @abstractmethod
+    def num_subjects(self) -> int:
+        pass
+
+    @abstractmethod
+    def num_schema_versions(self) -> tuple[int, int]:
+        pass
+
+    @abstractmethod
+    def insert_referenced_by(self, *, subject: Subject, version: Version, schema_id: SchemaId) -> None:
+        pass
+
+    @abstractmethod
+    def get_referenced_by(self, subject: Subject, version: Version) -> Referents | None:
+        pass
+
+    @abstractmethod
+    def remove_referenced_by(self, schema_id: SchemaId, references: Iterable[Reference]) -> None:
+        pass
+
+
+class InMemoryDatabase(KarapaceDatabase):
     def __init__(self) -> None:
         self.global_schema_id = SchemaId(0)
         self.id_lock_thread = Lock()
@@ -76,7 +190,7 @@ class InMemoryDatabase:
         *,
         subject: Subject,
         schema: TypedSchema,
-        include_deleted: bool,  # pylint: disable=unused-argument
+        include_deleted: bool,
     ) -> SchemaId | None:
         subject_fingerprints = self._hash_to_schema_id_on_subject.get(subject)
         if subject_fingerprints:
