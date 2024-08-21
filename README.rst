@@ -491,6 +491,11 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``log_format``
      - ``%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s``
      - Log format
+   * - ``waiting_time_before_acting_as_master_ms``
+     - ``5000``
+     - The time that a master wait before becoming an active master if at the previous round of election wasn't the master (in that case the waiting time its skipped).
+       Should be an upper bound of the time required for a master to write a message in the kafka topic + the time required from a node in the cluster to consume the
+       Log of messages. If the value its too low there is the risk under high load of producing different schemas with the ID.
 
 
 Authentication and authorization of Karapace Schema Registry REST API

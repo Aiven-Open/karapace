@@ -58,6 +58,7 @@ class KarapaceSchemaRegistry:
             master_coordinator=self.mc,
             database=self.database,
         )
+        self.mc.set_stoppper(self.schema_reader)
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -74,7 +75,7 @@ class KarapaceSchemaRegistry:
         return list(schema_versions.values())
 
     async def start(self) -> None:
-        await self.mc.start()
+        self.mc.start()
         self.schema_reader.start()
         self.producer.initialize_karapace_producer()
 
@@ -96,7 +97,7 @@ class KarapaceSchemaRegistry:
                 are_we_master, master_url = self.mc.get_master_info()
                 if are_we_master is None:
                     LOG.info("No master set: %r, url: %r", are_we_master, master_url)
-                elif not ignore_readiness and self.schema_reader.ready is False:
+                elif not ignore_readiness and self.schema_reader.ready() is False:
                     LOG.info("Schema reader isn't ready yet: %r", self.schema_reader.ready)
                 else:
                     return are_we_master, master_url
