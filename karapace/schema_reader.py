@@ -29,7 +29,7 @@ from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences, InvalidSchema, InvalidVersion, ShutdownException
-from karapace.in_memory_database import InMemoryDatabase
+from karapace.in_memory_database import KarapaceDatabase
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import KafkaConsumer
@@ -127,7 +127,7 @@ class KafkaSchemaReader(Thread):
         config: Config,
         offset_watcher: OffsetWatcher,
         key_formatter: KeyFormatter,
-        database: InMemoryDatabase,
+        database: KarapaceDatabase,
         master_coordinator: MasterCoordinator | None = None,
     ) -> None:
         Thread.__init__(self, name="schema-reader")
@@ -349,6 +349,9 @@ class KafkaSchemaReader(Thread):
             if are_we_master is True:
                 watch_offsets = True
 
+        self.consume_messages(msgs, watch_offsets)
+
+    def consume_messages(self, msgs: list[Message], watch_offsets: bool) -> None:
         schema_records_processed_keymode_canonical = 0
         schema_records_processed_keymode_deprecated_karapace = 0
         for msg in msgs:
