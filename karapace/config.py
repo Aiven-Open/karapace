@@ -80,6 +80,7 @@ class Config(TypedDict):
     protobuf_runtime_directory: str
     statsd_host: str
     statsd_port: int
+    waiting_time_before_acting_as_master_ms: int
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -154,6 +155,7 @@ DEFAULTS: ConfigDefaults = {
     "protobuf_runtime_directory": "runtime",
     "statsd_host": "127.0.0.1",
     "statsd_port": 8125,
+    "waiting_time_before_acting_as_master_ms": 5000,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 

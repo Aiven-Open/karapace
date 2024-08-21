@@ -30,6 +30,7 @@ import asyncio
 import contextlib
 import logging
 import pytest
+import time
 
 UNKNOWN_MEMBER_ID = JoinGroupRequest.UNKNOWN_MEMBER_ID
 
@@ -91,6 +92,8 @@ async def test_coordinator_workflow(
     # Check if 2 coordinators will coordinate rebalances correctly
     # Check if the initial group join is performed correctly with minimal
     # setup
+
+    waiting_time_before_acting_as_master_sec = 5
     coordinator = SchemaCoordinator(
         client,
         "test-host-1",
@@ -102,6 +105,7 @@ async def test_coordinator_workflow(
         session_timeout_ms=10000,
         heartbeat_interval_ms=500,
         retry_backoff_ms=100,
+        waiting_time_before_acting_as_master_ms=waiting_time_before_acting_as_master_sec * 1000,
     )
     coordinator.start()
     assert coordinator.coordinator_id is None
@@ -112,7 +116,10 @@ async def test_coordinator_workflow(
     await coordinator.ensure_coordinator_known()
     assert coordinator.coordinator_id is not None
 
-    assert coordinator.are_we_master
+    assert not coordinator.are_we_master()
+    # the waiting_time_before_acting_as_master_ms
+    await asyncio.sleep(10)
+    assert coordinator.are_we_master(), f"after {waiting_time_before_acting_as_master_sec} seconds we can act as a master"
 
     # Check if adding an additional coordinator will rebalance correctly
     client2 = await _get_client(kafka_servers=kafka_servers)
@@ -144,16 +151,34 @@ async def test_coordinator_workflow(
     secondary = coordinator if primary_selection_strategy == "highest" else coordinator2
     secondary_client = client if primary_selection_strategy == "highest" else client2
 
-    assert primary.are_we_master
-    assert not secondary.are_we_master
+    if primary == coordinator2:
+        # we need to disable the master for `waiting_time_before_acting_as_master_sec` seconds each time, we cannot be sure.
+        # if the coordinator its `coordinator1` since isn't changed we don't have to wait
+        # for the `waiting_time_before_acting_as_master_sec` seconds.
+        assert (
+            not primary.are_we_master()
+        ), "after a change in the coordinator we can act as a master until we wait for the required time"
+        assert not secondary.are_we_master(), "also the second cannot be immediately a master"
+        # after that time the primary can act as a master
+        await asyncio.sleep(waiting_time_before_acting_as_master_sec)
+
+    assert primary.are_we_master()
+    assert not secondary.are_we_master()
 
     # Check is closing the primary coordinator will rebalance the secondary to change to primary
     await primary.close()
     await primary_client.close()
 
-    while not secondary.are_we_master:
+    now = time.time()
+    while time.time() - now < waiting_time_before_acting_as_master_sec:
+        assert not secondary.are_we_master(), (
+            f"Cannot become master before {waiting_time_before_acting_as_master_sec} seconds "
+            f"for the late records that can arrive from the previous master"
+        )
         await asyncio.sleep(0.5)
-    assert secondary.are_we_master
+
+    while not secondary.are_we_master():
+        await asyncio.sleep(0.5)
     await secondary.close()
     await secondary_client.close()
 
