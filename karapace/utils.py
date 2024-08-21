@@ -20,6 +20,7 @@ from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
 
 import importlib
 import logging
+import signal
 import time
 
 if importlib.util.find_spec("ujson"):
@@ -256,3 +257,11 @@ def remove_prefix(string: str, prefix: str) -> str:
         i += 1
 
     return string[i:]
+
+
+def shutdown():
+    """
+    Send a SIGTERM into the current running application process, which should initiate shutdown logic.
+    """
+    LOG.warning("=======> Sending shutdown signal `SIGTERM` to Application process <=======")
+    signal.raise_signal(signal.SIGTERM)
