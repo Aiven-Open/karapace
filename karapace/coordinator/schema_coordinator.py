@@ -191,6 +191,9 @@ class SchemaCoordinator:
 
         self._metadata_snapshot: list[Assignment] = []
 
+    def is_master_assigned_to_myself(self) -> bool:
+        return self._are_we_master or False
+
     def are_we_master(self) -> bool | None:
         """
         After a new election its made we should wait for a while since the previous master could have produced
@@ -489,7 +492,8 @@ class SchemaCoordinator:
             else:
                 LOG.info(
                     "Starting immediately serving requests since I was master less than %s milliseconds ago, "
-                    "no other masters could have written a new schema meanwhile"
+                    "no other masters could have written a new schema meanwhile",
+                    self._waiting_time_before_acting_as_master_ms,
                 )
         elif not member_identity["master_eligibility"]:
             self.master_url = None

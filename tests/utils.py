@@ -291,6 +291,22 @@ async def repeat_until_successful_request(
     return res
 
 
+async def repeat_until_master_is_available(client: Client) -> None:
+    while True:
+        res = await repeat_until_successful_request(
+            client.post,
+            "master_available",
+            json_data={},
+            headers=None,
+            error_msg=f"Registry API {client.server_uri} is unreachable",
+            timeout=10,
+            sleep=1,
+        )
+        reply = res.json()
+        if reply["master_available"] is True:
+            break
+
+
 def write_ini(file_path: Path, ini_data: dict) -> None:
     ini_contents = (f"{key}={value}" for key, value in ini_data.items())
     file_contents = "\n".join(ini_contents)

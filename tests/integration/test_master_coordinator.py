@@ -28,15 +28,15 @@ def is_master(mc: MasterCoordinator) -> bool:
     This takes care of a race condition were the flag `master` is set but
     `master_url` is not yet set.
     """
-    return bool(mc.schema_coordinator and mc.schema_coordinator.are_we_master and mc.schema_coordinator.master_url)
+    return bool(mc.schema_coordinator and mc.schema_coordinator.are_we_master() and mc.schema_coordinator.master_url)
 
 
 def has_master(mc: MasterCoordinator) -> bool:
     """True if `mc` has a master."""
-    return bool(mc.schema_coordinator and not mc.schema_coordinator.are_we_master and mc.schema_coordinator.master_url)
+    return bool(mc.schema_coordinator and not mc.schema_coordinator.are_we_master() and mc.schema_coordinator.master_url)
 
 
-@pytest.mark.timeout(60)  # Github workflows need a bit of extra time
+@pytest.mark.timeout(65)  # Github workflows need a bit of extra time
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
 async def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaServers, strategy: str) -> None:
     # Use random port to allow for parallel runs.
@@ -185,11 +185,11 @@ async def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortR
         mc = await init_admin(config_aa)
         try:
             # Wait for the election to happen, ie. flag is not None
-            while not mc.schema_coordinator or mc.schema_coordinator.are_we_master is None:
+            while not mc.schema_coordinator or mc.schema_coordinator.are_we_master() is None:
                 await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
-            assert mc.schema_coordinator.are_we_master is False
+            assert mc.schema_coordinator.are_we_master() is False
             assert mc.schema_coordinator.master_url is None
         finally:
             await mc.close()

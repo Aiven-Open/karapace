@@ -201,6 +201,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             auth=self._auth,
         )
         self.route(
+            "/master_available",
+            callback=self.master_available,
+            # post because they cannot be cached, need to be sure always gathering the real value of that property
+            method="POST",
+            schema_request=True,
+        )
+        self.route(
             "/config",
             callback=self.config_set,
             method="PUT",
@@ -714,6 +721,21 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
+
+    async def master_available(self, content_type: str, *, request: HTTPRequest) -> None:
+        are_we_master, master_url = await self.schema_registry.get_master()
+
+        if (
+            self.schema_registry.schema_reader.master_coordinator._sc is not None  # pylint: disable=protected-access
+            and self.schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()  # pylint: disable=protected-access
+        ):
+            self.r({"master_available": are_we_master}, content_type)
+
+        if master_url is None:
+            self.r({"master_available": False}, content_type)
+        else:
+            url = f"{master_url}/master_available"
+            await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="POST")
 
     async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
         deleted = request.query.get("deleted", "false").lower() == "true"
