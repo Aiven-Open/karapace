@@ -20,19 +20,12 @@ import logging
 import socket
 import time
 
-STATSD_HOST: Final = "127.0.0.1"
-STATSD_PORT: Final = 8125
 LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
-    def __init__(
-        self,
-        config: Config,
-        host: str = STATSD_HOST,
-        port: int = STATSD_PORT,
-    ) -> None:
-        self._dest_addr: Final = (host, port)
+    def __init__(self, config: Config) -> None:
+        self._dest_addr: Final = (config["statsd_host"], config["statsd_port"])
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags: Final = config.get("tags", {})
         self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))

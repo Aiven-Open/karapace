@@ -78,6 +78,8 @@ class Config(TypedDict):
     name_strategy_validation: bool
     master_election_strategy: str
     protobuf_runtime_directory: str
+    statsd_host: str
+    statsd_port: int
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -150,6 +152,8 @@ DEFAULTS: ConfigDefaults = {
     "name_strategy_validation": True,
     "master_election_strategy": "lowest",
     "protobuf_runtime_directory": "runtime",
+    "statsd_host": "127.0.0.1",
+    "statsd_port": 8125,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
