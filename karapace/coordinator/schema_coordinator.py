@@ -221,10 +221,13 @@ class SchemaCoordinator:
                 # set the value to `None` since it's expensive to call each time the monotonic clock.
                 LOG.info("Declaring myself as master since %s are passed!", self._waiting_time_before_acting_as_master_ms)
                 self._initial_election_sec = None
-                return True
+                # this is the last point in time were we wait till to the end of the log queue for new
+                # incoming messages.
+                self._ready = False
+                return False
 
             LOG.info(
-                "Declaring myself as not master since %s milliseconds are not passed yet",
+                "Newly elected as master, waiting %s ms before writing any schema to let other requests complete",
                 self._waiting_time_before_acting_as_master_ms,
             )
             return False
