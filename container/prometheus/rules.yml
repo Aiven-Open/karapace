@@ -1,0 +1,20 @@
+groups:
+  - name: karapace
+    rules:
+    - record: karapace_exceptions_sum_by_exception
+      expr: sum by (exception) (exception)
+    - alert: HighHTTPRequests
+      expr: karapace_http_requests_total > 10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: High HTTP requests for (instance={{ $labels.instance }})
+        description: "Service received\n  HTTP Requests = {{ $value }}\n"
+    - alert: FireImmidiately
+      expr: karapace_schema_reader_schemas > 1
+      labels:
+        severity: page
+      annotations:
+        summary: Lots of schems on (instance={{ $labels.instance }})
+        description: "\n Schema count = {{ $value }}\n"

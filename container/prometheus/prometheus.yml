@@ -1,7 +1,10 @@
 global:
   scrape_interval: 10s # How frequently to scrape targets by default.
   scrape_timeout: 5s # How long until a scrape request times out.
-  evaluation_interval: 60s # How frequently to evaluate rules.
+  evaluation_interval: 10s # How frequently to evaluate rules.
+
+rule_files:
+ - /etc/prometheus/rules.yml
 
 # A scrape configuration
 scrape_configs:
@@ -16,3 +19,11 @@ scrape_configs:
     static_configs:
       - targets:
         - karapace-rest:8082
+
+  - job_name: statsd-exporter
+    metrics_path: /metrics
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets:
+        - statsd-exporter:9102
