@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: dashboards
+    folder: General
+    type: file
+    editable: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /grafana/dashboards
+      foldersFromFilesStructure: true
