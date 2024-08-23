@@ -78,6 +78,8 @@ services:
       KARAPACE_TOPIC_NAME: _schemas
       KARAPACE_LOG_LEVEL: WARNING
       KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_STATSD_HOST: statsd-exporter
+      KARAPACE_STATSD_PORT: 8125
 
   karapace-rest:
     image: ghcr.io/aiven-open/karapace:develop
@@ -102,10 +104,32 @@ services:
       KARAPACE_REGISTRY_PORT: 8081
       KARAPACE_ADMIN_METADATA_MAX_AGE: 0
       KARAPACE_LOG_LEVEL: WARNING
+      KARAPACE_STATSD_HOST: statsd-exporter
+      KARAPACE_STATSD_PORT: 8125
 
   prometheus:
     image: prom/prometheus
     volumes:
-    - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    - ./prometheus/rules.yml:/etc/prometheus/rules.yml
     ports:
       - 9090:9090
+
+  grafana:
+      image: grafana/grafana
+      environment:
+          GF_SECURITY_ADMIN_USER: karapace
+          GF_SECURITY_ADMIN_PASSWORD: karapace
+          GF_PATHS_PROVISIONING: /grafana/provisioning
+      ports:
+          - 3000:3000
+      volumes:
+          - ./grafana/dashboards:/grafana/dashboards
+          - ./grafana/provisioning:/grafana/provisioning
+
+  statsd-exporter:
+      image: prom/statsd-exporter
+      command: "--statsd.listen-udp=:8125 --web.listen-address=:9102"
+      ports:
+        - 9102:9102
+        - 8125:8125/udp
