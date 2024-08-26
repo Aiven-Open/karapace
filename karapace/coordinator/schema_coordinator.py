@@ -223,7 +223,8 @@ class SchemaCoordinator:
                 self._initial_election_sec = None
                 # this is the last point in time were we wait till to the end of the log queue for new
                 # incoming messages.
-                self._ready = False
+                self._ready = False # todo: wrong, its not the _ready flag we should change, we should change the same
+                # flag that its set at startup, fix this
                 return False
 
             LOG.info(
@@ -483,7 +484,8 @@ class SchemaCoordinator:
                 # was a master change, the time before acting its always respect
                 # to which was the previous master (if we were master no need
                 # to wait more before acting)
-                self._ready = False
+                self._ready = False # todo: wrong, its not the _ready flag we should change, we should change the same
+                # flag that its set at startup, fix this
                 # `time.monotonic()` because we don't want the time to go back or forward because of e.g. ntp
                 self._initial_election_sec = time.monotonic()
 
@@ -499,9 +501,11 @@ class SchemaCoordinator:
                     self._waiting_time_before_acting_as_master_ms,
                 )
         elif not member_identity["master_eligibility"]:
+            LOG.warning("Member %s is not eligible as a master", member_id)
             self.master_url = None
             self._are_we_master = False
         else:
+            LOG.info("We are not elected as master", member_id)
             self.master_url = master_url
             self._are_we_master = False
         self._ready = True
