@@ -2,13 +2,16 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from _pytest.logging import LogCaptureFixture
 from aiohttp.client_exceptions import ClientConnectionError
 from aiohttp.web import Request
 from karapace.config import DEFAULTS
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
+from karapace.statsd import StatsClient
 from unittest.mock import Mock
 
+import logging
 import pytest
 
 
@@ -180,3 +183,18 @@ async def test_raise_connection_error_handling(connection_error: BaseException) 
     assert response.status == 503
     request_mock.read.assert_has_calls([])
     callback_mock.assert_not_called()
+
+
+async def test_close_by_app(caplog: LogCaptureFixture) -> None:
+    app = KarapaceBase(config=DEFAULTS)
+    app.stats = Mock(spec=StatsClient)
+
+    with caplog.at_level(logging.WARNING, logger="karapace.rapu"):
+        await app.close_by_app(app=app.app)
+
+    app.stats.increase.assert_called_once_with("karapace_shutdown_count")
+    app.stats.close.assert_called_once()
+    for log in caplog.records:
+        assert log.name == "karapace"
+        assert log.levelname == "WARNING"
+        assert log.message == "=======> Received shutdown signal, closing Application <======="

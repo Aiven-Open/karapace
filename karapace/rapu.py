@@ -164,6 +164,7 @@ class RestApp:
         self.app_name = app_name
         self.config = config
         self.app_request_metric = f"{app_name}_request"
+        self.app_shutdown_count_metric = f"{app_name}_shutdown_count"
         self.app = self._create_aiohttp_application(config=config)
         self.log = logging.getLogger(self.app_name)
         self.stats = StatsClient(config=config)
@@ -183,6 +184,8 @@ class RestApp:
         set as hook because the awaitables have to run inside the event loop
         created by the aiohttp library.
         """
+        self.log.warning("=======> Received shutdown signal, closing Application <=======")
+        self.stats.increase(self.app_shutdown_count_metric)
         self.stats.close()
 
     @staticmethod
