@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from karapace.config import set_config_defaults
 from karapace.coordinator.master_coordinator import MasterCoordinator
+from karapace.typing import SchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import PortRangeInclusive
 from tests.utils import new_random_name
@@ -16,8 +17,17 @@ import pytest
 import requests
 
 
+class AlwaysAvailableSchemaReaderStoppper(SchemaReaderStoppper):
+    def ready(self) -> bool:
+        return True
+
+    def set_not_ready(self) -> None:
+        pass
+
+
 async def init_admin(config):
     mc = MasterCoordinator(config=config)
+    mc.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     await mc.start()
     return mc
 

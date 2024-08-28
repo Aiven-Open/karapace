@@ -83,6 +83,7 @@ class SchemaErrorMessages(Enum):
 
 class KarapaceSchemaRegistryController(KarapaceBase):
     def __init__(self, config: Config) -> None:
+        # the `not_ready_handler` its wrong, its not expecting an async method the receiver.
         super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
 
         self._auth: HTTPAuthorizer | None = None
@@ -103,7 +104,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if self._auth is not None:
             resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
         resp["schema_registry_ready"] = self.schema_registry.schema_reader.ready
-        if self.schema_registry.schema_reader.ready:
+        if self.schema_registry.schema_reader.ready():
             resp["schema_registry_startup_time_sec"] = (
                 self.schema_registry.schema_reader.last_check - self._process_start_time
             )
@@ -135,7 +136,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
 
     async def _forward_if_not_ready_to_serve(self, request: HTTPRequest) -> None:
-        if self.schema_registry.schema_reader.ready:
+        if self.schema_registry.schema_reader.ready():
             pass
         else:
             # Not ready, still loading the state.

@@ -13,13 +13,16 @@ from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitReque
 from karapace.config import Config
 from karapace.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
+from karapace.typing import SchemaReaderStoppper
 from threading import Thread
 from typing import Final
 
 import asyncio
 import logging
+import time
 
 __all__ = ("MasterCoordinator",)
+
 
 LOG = logging.getLogger(__name__)
 
@@ -42,6 +45,10 @@ class MasterCoordinator:
         self._sc: SchemaCoordinator | None = None
         self._thread: Thread = Thread(target=self._start_loop, daemon=True)
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._schema_reader_stopper: SchemaReaderStoppper | None = None
+
+    def set_stoppper(self, schema_reader_stopper: SchemaReaderStoppper) -> None:
+        self._schema_reader_stopper = schema_reader_stopper
 
     @property
     def schema_coordinator(self) -> SchemaCoordinator | None:
@@ -84,14 +91,17 @@ class MasterCoordinator:
         self._sc = self.init_schema_coordinator()
         while self._running:
             if self._sc.ready():
-                return
+                break
             await asyncio.sleep(0.5)
-
+        # todo: wait a condition variable or a lock.
         LOG.info("Closing master_coordinator")
         if self._sc:
             await self._sc.close()
-        if self._loop:
-            self._loop.close()
+        while self._loop is not None and not self._loop.is_closed():
+            self._loop.stop()
+            if not self._loop.is_running():
+                self._loop.close()
+            time.sleep(0.5)
         if self._kafka_client:
             await self._kafka_client.close()
 
@@ -119,8 +129,10 @@ class MasterCoordinator:
 
     def init_schema_coordinator(self) -> SchemaCoordinator:
         assert self._kafka_client is not None
+        assert self._schema_reader_stopper is not None
         schema_coordinator = SchemaCoordinator(
             client=self._kafka_client,
+            schema_reader_stopper=self._schema_reader_stopper,
             election_strategy=self._config.get("master_election_strategy", "lowest"),
             group_id=self._config["group_id"],
             hostname=self._config["advertised_hostname"],
@@ -159,3 +171,4 @@ class MasterCoordinator:
 
     async def close(self) -> None:
         self._running = False
+        # todo set the condition variable or lock.

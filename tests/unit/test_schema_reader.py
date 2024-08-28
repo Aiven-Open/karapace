@@ -167,7 +167,7 @@ def test_readiness_check(testcase: ReadinessTestCase) -> None:
     schema_reader.offset = testcase.cur_offset
 
     schema_reader.handle_messages()
-    assert schema_reader.ready is testcase.expected
+    assert schema_reader.ready() is testcase.expected
 
 
 def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
@@ -190,7 +190,7 @@ def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_ON_STARTUP
 
     schema_reader.handle_messages()
-    assert schema_reader.ready is True
+    assert schema_reader.ready() is True
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
@@ -236,16 +236,16 @@ def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_sche
 
     schema_reader.handle_messages()
     assert schema_reader.offset == 1
-    assert schema_reader.ready is False
+    assert schema_reader.ready() is False
     schema_reader.handle_messages()
     assert schema_reader.offset == 2
-    assert schema_reader.ready is False
+    assert schema_reader.ready() is False
     schema_reader.handle_messages()
     assert schema_reader.offset == 3
-    assert schema_reader.ready is False
+    assert schema_reader.ready() is False
     schema_reader.handle_messages()  # call last time to call _is_ready()
     assert schema_reader.offset == 3
-    assert schema_reader.ready is True
+    assert schema_reader.ready() is True
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 

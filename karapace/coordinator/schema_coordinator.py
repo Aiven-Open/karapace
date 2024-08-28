@@ -26,7 +26,7 @@ from aiokafka.protocol.group import (
 )
 from aiokafka.util import create_future, create_task
 from karapace.dataclasses import default_dataclass
-from karapace.typing import JsonData
+from karapace.typing import JsonData, SchemaReaderStoppper
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
 from typing import Any, Coroutine, Final, Sequence
@@ -122,6 +122,7 @@ class SchemaCoordinator:
     def __init__(
         self,
         client: AIOKafkaClient,
+        schema_reader_stopper: SchemaReaderStoppper,
         hostname: str,
         port: int,
         scheme: str,
@@ -146,6 +147,7 @@ class SchemaCoordinator:
         self.scheme: Final = scheme
         self.master_eligibility: Final = master_eligibility
         self.master_url: str | None = None
+        self._schema_reader_stopper = schema_reader_stopper
         self._are_we_master: bool | None = False
         # a value that its strictly higher than any clock, so we are sure
         # we are never going to consider this the leader without explictly passing
@@ -211,7 +213,7 @@ class SchemaCoordinator:
             LOG.warning("No new elections performed yet.")
             return None
 
-        if not self._ready:
+        if not self._ready or not self._schema_reader_stopper.ready():
             return False
 
         if self._are_we_master and self._initial_election_sec is not None:
@@ -223,7 +225,7 @@ class SchemaCoordinator:
                 self._initial_election_sec = None
                 # this is the last point in time were we wait till to the end of the log queue for new
                 # incoming messages.
-                self._ready = False # todo: wrong, its not the _ready flag we should change, we should change the same
+                self._schema_reader_stopper.set_not_ready()
                 # flag that its set at startup, fix this
                 return False
 
@@ -484,7 +486,7 @@ class SchemaCoordinator:
                 # was a master change, the time before acting its always respect
                 # to which was the previous master (if we were master no need
                 # to wait more before acting)
-                self._ready = False # todo: wrong, its not the _ready flag we should change, we should change the same
+                self._schema_reader_stopper.set_not_ready()
                 # flag that its set at startup, fix this
                 # `time.monotonic()` because we don't want the time to go back or forward because of e.g. ntp
                 self._initial_election_sec = time.monotonic()
@@ -505,7 +507,7 @@ class SchemaCoordinator:
             self.master_url = None
             self._are_we_master = False
         else:
-            LOG.info("We are not elected as master", member_id)
+            LOG.info("We are not elected as master")
             self.master_url = master_url
             self._are_we_master = False
         self._ready = True
