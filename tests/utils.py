@@ -148,6 +148,22 @@ test_objects_protobuf_second = [
     {"q": 3, "sensor_type": "L1", "nums": [3, 4], "order": {"item": "ABC01223"}},
 ]
 
+schema_protobuf_invalid = """
+|o3"
+|
+|opti  --  om.codingharbour.protobuf";
+|option java_outer_classname = "TestEnumOrder";
+|
+|message Message {
+|  int32
+|  speed =;
+|}
+|Enum
+|  HIGH = 0
+|  MIDDLE = ;
+"""
+schema_protobuf_invalid = trim_margin(schema_protobuf_invalid)
+
 schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
 
 second_schema_json = json.dumps(
