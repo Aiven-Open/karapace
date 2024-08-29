@@ -83,6 +83,7 @@ class SchemaErrorMessages(Enum):
 
 class KarapaceSchemaRegistryController(KarapaceBase):
     def __init__(self, config: Config) -> None:
+        # the `not_ready_handler` its wrong, its not expecting an async method the receiver.
         super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
 
         self._auth: HTTPAuthorizer | None = None
@@ -103,7 +104,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if self._auth is not None:
             resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
         resp["schema_registry_ready"] = self.schema_registry.schema_reader.ready
-        if self.schema_registry.schema_reader.ready:
+        if self.schema_registry.schema_reader.ready():
             resp["schema_registry_startup_time_sec"] = (
                 self.schema_registry.schema_reader.last_check - self._process_start_time
             )
@@ -135,7 +136,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
 
     async def _forward_if_not_ready_to_serve(self, request: HTTPRequest) -> None:
-        if self.schema_registry.schema_reader.ready:
+        if self.schema_registry.schema_reader.ready():
             pass
         else:
             # Not ready, still loading the state.
@@ -199,6 +200,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             method="GET",
             schema_request=True,
             auth=self._auth,
+        )
+        self.route(
+            "/master_available",
+            callback=self.master_available,
+            # post because they cannot be cached, need to be sure always gathering the real value of that property
+            method="POST",
+            schema_request=True,
         )
         self.route(
             "/config",
@@ -714,6 +722,21 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
+
+    async def master_available(self, content_type: str, *, request: HTTPRequest) -> None:
+        are_we_master, master_url = await self.schema_registry.get_master()
+
+        if (
+            self.schema_registry.schema_reader.master_coordinator._sc is not None  # pylint: disable=protected-access
+            and self.schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()  # pylint: disable=protected-access
+        ):
+            self.r({"master_available": are_we_master}, content_type)
+
+        if master_url is None:
+            self.r({"master_available": False}, content_type)
+        else:
+            url = f"{master_url}/master_available"
+            await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="POST")
 
     async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
         deleted = request.query.get("deleted", "false").lower() == "true"

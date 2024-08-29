@@ -13,18 +13,29 @@ from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitReque
 from karapace.config import Config
 from karapace.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
+from karapace.typing import SchemaReaderStoppper
+from threading import Thread
 from typing import Final
 
 import asyncio
 import logging
+import time
 
 __all__ = ("MasterCoordinator",)
+
 
 LOG = logging.getLogger(__name__)
 
 
 class MasterCoordinator:
-    """Handles primary election"""
+    """Handles primary election
+
+    The coordination is run in own dedicated thread, under stress situation the main
+    eventloop could have queue of items to work and having own thread will give more
+    runtime for the coordination tasks as Python intrepreter will switch the active
+    thread by the configured thread switch interval. Default interval in CPython is
+    5 milliseconds.
+    """
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -32,6 +43,12 @@ class MasterCoordinator:
         self._kafka_client: AIOKafkaClient | None = None
         self._running = True
         self._sc: SchemaCoordinator | None = None
+        self._thread: Thread = Thread(target=self._start_loop, daemon=True)
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._schema_reader_stopper: SchemaReaderStoppper | None = None
+
+    def set_stoppper(self, schema_reader_stopper: SchemaReaderStoppper) -> None:
+        self._schema_reader_stopper = schema_reader_stopper
 
     @property
     def schema_coordinator(self) -> SchemaCoordinator | None:
@@ -42,6 +59,17 @@ class MasterCoordinator:
         return self._config
 
     async def start(self) -> None:
+        self._thread.start()
+
+    def _start_loop(self) -> None:
+        # we should avoid the reassignment otherwise we leak resources
+        assert self._loop is None, "Loop already started"
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self._loop.create_task(self._async_loop())
+        self._loop.run_forever()
+
+    async def _async_loop(self) -> None:
         self._kafka_client = self.init_kafka_client()
         # Wait until schema coordinator is ready.
         # This probably needs better synchronization than plain waits.
@@ -61,10 +89,21 @@ class MasterCoordinator:
             await asyncio.sleep(0.5)
 
         self._sc = self.init_schema_coordinator()
-        while True:
+        while self._running:
             if self._sc.ready():
-                return
+                break
             await asyncio.sleep(0.5)
+        # todo: wait a condition variable or a lock.
+        LOG.info("Closing master_coordinator")
+        if self._sc:
+            await self._sc.close()
+        while self._loop is not None and not self._loop.is_closed():
+            self._loop.stop()
+            if not self._loop.is_running():
+                self._loop.close()
+            time.sleep(0.5)
+        if self._kafka_client:
+            await self._kafka_client.close()
 
     def init_kafka_client(self) -> AIOKafkaClient:
         ssl_context = create_ssl_context(
@@ -90,8 +129,10 @@ class MasterCoordinator:
 
     def init_schema_coordinator(self) -> SchemaCoordinator:
         assert self._kafka_client is not None
+        assert self._schema_reader_stopper is not None
         schema_coordinator = SchemaCoordinator(
             client=self._kafka_client,
+            schema_reader_stopper=self._schema_reader_stopper,
             election_strategy=self._config.get("master_election_strategy", "lowest"),
             group_id=self._config["group_id"],
             hostname=self._config["advertised_hostname"],
@@ -99,6 +140,7 @@ class MasterCoordinator:
             port=self._config["advertised_port"],
             scheme=self._config["advertised_protocol"],
             session_timeout_ms=self._config["session_timeout_ms"],
+            waiting_time_before_acting_as_master_ms=self._config["waiting_time_before_acting_as_master_ms"],
         )
         schema_coordinator.start()
         return schema_coordinator
@@ -107,7 +149,7 @@ class MasterCoordinator:
         assert self._sc is not None
         generation = self._sc.generation if self._sc is not None else OffsetCommitRequest.DEFAULT_GENERATION_ID
         return SchemaCoordinatorStatus(
-            is_primary=self._sc.are_we_master if self._sc is not None else None,
+            is_primary=self._sc.are_we_master() if self._sc is not None else None,
             is_primary_eligible=self._config["master_eligibility"],
             primary_url=self._sc.master_url if self._sc is not None else None,
             is_running=True,
@@ -116,12 +158,17 @@ class MasterCoordinator:
 
     def get_master_info(self) -> tuple[bool | None, str | None]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
-        assert self._sc is not None
-        return self._sc.are_we_master, self._sc.master_url
+        if not self._sc:
+            return False, None
+
+        if not self._sc.ready():
+            # we should wait for a while after we have been elected master, we should also consume
+            # all the messages in the log before proceeding, check the doc of `self._sc.are_we_master`
+            # for more details
+            return False, None
+
+        return self._sc.are_we_master(), self._sc.master_url
 
     async def close(self) -> None:
-        LOG.info("Closing master_coordinator")
-        if self._sc:
-            await self._sc.close()
-        if self._kafka_client:
-            await self._kafka_client.close()
+        self._running = False
+        # todo set the condition variable or lock.

@@ -56,6 +56,13 @@ class KarapaceSchemaRegistry:
             master_coordinator=self.mc,
             database=self.database,
         )
+        # very ugly, left as a placeholder, since we have a bidirectional
+        # dependency it means that the two objects needs to be one (aka the
+        # mc should create the KafkaSchemaReader and inject the stopper inside
+        # the schema_coordinator. Left as it is to reason together to the implementation
+        # since semantically it's the same, after we agree on the solution proceeding with
+        # the refactor)
+        self.mc.set_stoppper(self.schema_reader)
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -94,7 +101,7 @@ class KarapaceSchemaRegistry:
                 are_we_master, master_url = self.mc.get_master_info()
                 if are_we_master is None:
                     LOG.info("No master set: %r, url: %r", are_we_master, master_url)
-                elif not ignore_readiness and self.schema_reader.ready is False:
+                elif not ignore_readiness and self.schema_reader.ready() is False:
                     LOG.info("Schema reader isn't ready yet: %r", self.schema_reader.ready)
                 else:
                     return are_we_master, master_url

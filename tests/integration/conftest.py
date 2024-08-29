@@ -4,6 +4,8 @@ karapace - conftest
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
@@ -31,11 +33,12 @@ from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
-from tests.utils import repeat_until_successful_request
-from typing import AsyncIterator, Iterator, List, Optional
+from tests.utils import repeat_until_master_is_available, repeat_until_successful_request
+from typing import AsyncIterator, Iterator
 from urllib.parse import urlparse
 
 import asyncio
+import contextlib
 import json
 import os
 import pathlib
@@ -269,7 +272,7 @@ async def fixture_rest_async(
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
+) -> AsyncIterator[KafkaRest | None]:
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -342,7 +345,7 @@ async def fixture_rest_async_novalidation(
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
+) -> AsyncIterator[KafkaRest | None]:
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -415,7 +418,7 @@ async def fixture_rest_async_registry_auth(
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     kafka_servers: KafkaServers,
     registry_async_client_auth: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
+) -> AsyncIterator[KafkaRest | None]:
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -486,7 +489,7 @@ async def fixture_registry_async_pair(
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
-) -> AsyncIterator[List[str]]:
+) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
     config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
@@ -497,7 +500,8 @@ async def fixture_registry_async_pair(
         data_dir=session_logdir / _clear_test_name(request.node.name),
         port_range=port_range,
     ) as endpoints:
-        yield [server.endpoint.to_url() for server in endpoints]
+        async with after_master_is_available(endpoints, request.config.getoption("server_ca")):
+            yield [server.endpoint.to_url() for server in endpoints]
 
 
 @pytest.fixture(scope="function", name="registry_cluster")
@@ -550,6 +554,7 @@ async def fixture_registry_async_client(
             timeout=10,
             sleep=0.3,
         )
+        await repeat_until_master_is_available(client)
         yield client
     finally:
         await client.close()
@@ -689,7 +694,23 @@ async def fixture_registry_async_client_auth(
             timeout=10,
             sleep=0.3,
         )
+        await repeat_until_master_is_available(client)
         yield client
+    finally:
+        await client.close()
+
+
+@contextlib.asynccontextmanager
+async def after_master_is_available(
+    registry_instances: list[RegistryDescription], server_ca: str | None
+) -> AsyncIterator[None]:
+    client = Client(
+        server_uri=registry_instances[0].endpoint.to_url(),
+        server_ca=server_ca,
+    )
+    try:
+        await repeat_until_master_is_available(client)
+        yield
     finally:
         await client.close()
 
@@ -701,7 +722,7 @@ async def fixture_registry_async_auth_pair(
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
-) -> AsyncIterator[List[str]]:
+) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
 
     config1: Config = {
@@ -718,7 +739,8 @@ async def fixture_registry_async_auth_pair(
         data_dir=session_logdir / _clear_test_name(request.node.name),
         port_range=port_range,
     ) as endpoints:
-        yield [server.endpoint.to_url() for server in endpoints]
+        async with after_master_is_available(endpoints, request.config.getoption("server_ca")):
+            yield [server.endpoint.to_url() for server in endpoints]
 
 
 @pytest.fixture(scope="function", name="new_topic")
