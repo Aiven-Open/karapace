@@ -80,6 +80,8 @@ services:
       KARAPACE_COMPATIBILITY: FULL
       KARAPACE_STATSD_HOST: statsd-exporter
       KARAPACE_STATSD_PORT: 8125
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
 
   karapace-rest:
     image: ghcr.io/aiven-open/karapace:develop
@@ -106,6 +108,8 @@ services:
       KARAPACE_LOG_LEVEL: WARNING
       KARAPACE_STATSD_HOST: statsd-exporter
       KARAPACE_STATSD_PORT: 8125
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
 
   prometheus:
     image: prom/prometheus

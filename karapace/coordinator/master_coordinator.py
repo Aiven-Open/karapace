@@ -50,7 +50,7 @@ class MasterCoordinator:
                 await self._kafka_client.bootstrap()
                 break
             except KafkaConnectionError:
-                LOG.exception("Kafka client bootstrap failed.")
+                LOG.warning("Kafka client bootstrap failed.")
                 await asyncio.sleep(0.5)
 
         while not self._kafka_client.cluster.brokers():
