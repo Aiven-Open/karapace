@@ -28,11 +28,12 @@ from karapace import constants
 from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
-from karapace.errors import CorruptKafkaRecordException, InvalidReferences, InvalidSchema, ShutdownException
+from karapace.errors import InvalidReferences, InvalidSchema, ShutdownException
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.common import translate_from_kafkaerror
 from karapace.kafka.consumer import KafkaConsumer
+from karapace.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
 from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.exception import ProtobufException
@@ -141,6 +142,7 @@ class KafkaSchemaReader(Thread):
         self.consumer: KafkaConsumer | None = None
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
+        self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
@@ -185,7 +187,8 @@ class KafkaSchemaReader(Thread):
                     LOG.warning("[Admin Client] No Brokers available yet. Retrying")
                     self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
-                    LOG.info("[Admin Client] Invalid configuration. Bailing")
+                    LOG.warning("[Admin Client] Invalid configuration. Bailing")
+                    self._stop_schema_reader.set()
                     raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Admin Client] Unexpected exception. Retrying")
@@ -202,9 +205,9 @@ class KafkaSchemaReader(Thread):
                     LOG.warning("[Consumer] No Brokers available yet. Retrying")
                     self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
                 except KafkaConfigurationError:
-                    LOG.info("[Consumer] Invalid configuration. Bailing")
+                    LOG.warning("[Consumer] Invalid configuration. Bailing")
                     self._stop_schema_reader.set()
-                    shutdown()
+                    raise
                 except Exception as e:  # pylint: disable=broad-except
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
@@ -249,7 +252,7 @@ class KafkaSchemaReader(Thread):
                     shutdown()
                 except Exception as e:  # pylint: disable=broad-except
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
-                    LOG.exception("Unexpected exception in schema reader loop")
+                    LOG.warning("Unexpected exception in schema reader loop - %s", e)
 
     def _get_beginning_offset(self) -> int:
         assert self.consumer is not None, "Thread must be started"
@@ -359,7 +362,9 @@ class KafkaSchemaReader(Thread):
                 key = json_decode(message_key)
             except JSONDecodeError as exc:
                 LOG.warning("Invalid JSON in msg.key() at offset %s", msg.offset())
-                raise CorruptKafkaRecordException from exc
+                self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
+                continue  # [non-strict mode]
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
                 LOG.error(
                     "Kafka authorization error when consuming from %s: %s %s",
@@ -367,7 +372,9 @@ class KafkaSchemaReader(Thread):
                     exc,
                     msg.error(),
                 )
-                raise ShutdownException from exc
+                if self.kafka_error_handler.schema_reader_strict_mode:
+                    raise ShutdownException from exc
+                continue
 
             assert isinstance(key, dict)
             msg_keymode = KeyMode.CANONICAL if is_key_in_canonical_format(key) else KeyMode.DEPRECATED_KARAPACE
@@ -386,13 +393,17 @@ class KafkaSchemaReader(Thread):
                     value = self._parse_message_value(message_value)
                 except (JSONDecodeError, TypeError) as exc:
                     LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
-                    raise CorruptKafkaRecordException from exc
+                    self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                    self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
+                    continue  # [non-strict mode]
 
             try:
                 self.handle_msg(key, value)
-                self.offset = msg.offset()
             except (InvalidSchema, TypeError) as exc:
-                raise CorruptKafkaRecordException from exc
+                self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
+                continue
+            finally:
+                self.offset = msg.offset()
 
             if msg_keymode == KeyMode.CANONICAL:
                 schema_records_processed_keymode_canonical += 1

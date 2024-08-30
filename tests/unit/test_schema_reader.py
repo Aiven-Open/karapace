@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 from confluent_kafka import Message
 from dataclasses import dataclass
 from karapace.config import DEFAULTS
-from karapace.errors import CorruptKafkaRecordException
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import KeyFormatter
@@ -200,15 +199,7 @@ def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_sche
     consumer_mock = Mock(spec=KafkaConsumer)
 
     schema_str = json.dumps(
-        {
-            "subject": "test",
-            "version": 1,
-            "id": 1,
-            "deleted": False,
-            "schema": json.dumps(
-                {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["string", "int"]}]}
-            ),
-        }
+        {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["string", "int"]}]}
     ).encode()
 
     ok1_message = Mock(spec=Message)
@@ -246,16 +237,16 @@ def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_sche
     schema_reader.handle_messages()
     assert schema_reader.offset == 1
     assert schema_reader.ready is False
-
-    with pytest.raises(CorruptKafkaRecordException):
-        schema_reader.handle_messages()
-        assert schema_reader.offset == 1
-        assert schema_reader.ready is False
-
-    with pytest.raises(CorruptKafkaRecordException):
-        schema_reader.handle_messages()
-        assert schema_reader.offset == 1
-        assert schema_reader.ready is False
+    schema_reader.handle_messages()
+    assert schema_reader.offset == 2
+    assert schema_reader.ready is False
+    schema_reader.handle_messages()
+    assert schema_reader.offset == 3
+    assert schema_reader.ready is False
+    schema_reader.handle_messages()  # call last time to call _is_ready()
+    assert schema_reader.offset == 3
+    assert schema_reader.ready is True
+    assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
 def test_soft_deleted_schema_storing() -> None:
