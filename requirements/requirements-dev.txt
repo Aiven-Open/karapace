@@ -115,7 +115,7 @@ itsdangerous==2.2.0
     # via flask
 jinja2==3.1.4
     # via flask
-jsonschema==4.22.0
+jsonschema==4.23.0
     # via -r requirements.txt
 jsonschema-specifications==2023.12.1
     # via

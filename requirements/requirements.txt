@@ -47,7 +47,7 @@ importlib-resources==6.4.0
     #   jsonschema-specifications
 isodate==0.6.1
     # via -r requirements.in
-jsonschema==4.22.0
+jsonschema==4.23.0
     # via -r requirements.in
 jsonschema-specifications==2023.12.1
     # via jsonschema
