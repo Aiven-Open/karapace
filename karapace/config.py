@@ -156,7 +156,7 @@ DEFAULTS: ConfigDefaults = {
     "protobuf_runtime_directory": "runtime",
     "statsd_host": "127.0.0.1",
     "statsd_port": 8125,
-    "kafka_schema_reader_strict_mode": False,
+    "kafka_schema_reader_strict_mode": True,
     "kafka_retriable_errors_silenced": True,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
