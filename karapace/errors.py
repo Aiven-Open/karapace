@@ -73,3 +73,14 @@ class SubjectSoftDeletedException(Exception):
 
 class SchemaTooLargeException(Exception):
     pass
+
+
+class ShutdownException(Exception):
+    """Raised when the service has encountered an error where it should not continue and shutdown."""
+
+
+class CorruptKafkaRecordException(ShutdownException):
+    """
+    Raised when a corrupt schema is present in the `_schemas` topic. This should halt the service as
+    we will end up with a corrupt state and could lead to various runtime issues and data mismatch.
+    """
