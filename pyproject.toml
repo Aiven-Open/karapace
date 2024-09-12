@@ -69,6 +69,7 @@ Issues = "https://github.com/Aiven-Open/karapace/issues"
 
 [project.optional-dependencies]
 sentry-sdk = ["sentry-sdk>=1.6.0"]
+systemd-logging = ["systemd-python==235"]
 ujson = ["ujson"]
 dev = [
   # Developer QoL
