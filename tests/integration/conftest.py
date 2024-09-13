@@ -4,6 +4,8 @@ karapace - conftest
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
@@ -32,7 +34,7 @@ from tests.integration.utils.process import stop_process, wait_for_port_subproce
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
-from typing import AsyncIterator, Iterator, List, Optional
+from typing import AsyncIterator, Iterator
 from urllib.parse import urlparse
 
 import asyncio
@@ -120,6 +122,24 @@ def fixture_kafka_server(
         yield kafka_servers
         return
 
+    yield from create_kafka_server(
+        session_datadir,
+        session_logdir,
+        kafka_description,
+        port_range,
+    )
+
+
+def create_kafka_server(
+    session_datadir: Path,
+    session_logdir: Path,
+    kafka_description: KafkaDescription,
+    port_range: PortRangeInclusive,
+    kafka_properties: dict[str, int | str] | None = None,
+) -> Iterator[KafkaServers]:
+    if kafka_properties is None:
+        kafka_properties = {}
+
     zk_dir = session_logdir / "zk"
 
     # File used to share data among test runners, including the dynamic
@@ -170,6 +190,7 @@ def fixture_kafka_server(
                     kafka_config=kafka_config,
                     kafka_description=kafka_description,
                     log4j_config=KAFKA_LOG4J,
+                    kafka_properties=kafka_properties,
                 )
                 stack.callback(stop_process, kafka_proc)
 
@@ -269,7 +290,7 @@ async def fixture_rest_async(
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
+) -> AsyncIterator[KafkaRest | None]:
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -342,7 +363,7 @@ async def fixture_rest_async_novalidation(
     tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
+) -> AsyncIterator[KafkaRest | None]:
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -415,7 +436,7 @@ async def fixture_rest_async_registry_auth(
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     kafka_servers: KafkaServers,
     registry_async_client_auth: Client,
-) -> AsyncIterator[Optional[KafkaRest]]:
+) -> AsyncIterator[KafkaRest | None]:
     # Do not start a REST api when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
     # the election process. Without proper configuration for the listeners that
@@ -486,7 +507,7 @@ async def fixture_registry_async_pair(
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
-) -> AsyncIterator[List[str]]:
+) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
     config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
@@ -701,7 +722,7 @@ async def fixture_registry_async_auth_pair(
     session_logdir: Path,
     kafka_servers: KafkaServers,
     port_range: PortRangeInclusive,
-) -> AsyncIterator[List[str]]:
+) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
 
     config1: Config = {
