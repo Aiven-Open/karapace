@@ -3,7 +3,7 @@ Karapace
 
 ``karapace``. Your Apache Kafka® essentials in one tool.
 
-An `open-source <https://github.com/aiven/karapace/blob/master/LICENSE>`_ implementation
+An `open-source <https://github.com/Aiven-Open/karapace/blob/master/LICENSE>`_ implementation
 of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html#features>`_ and
 `Schema Registry <https://docs.confluent.io/platform/current/schema-registry/index.html>`_.
 
@@ -81,7 +81,7 @@ override the ``bootstrap_uri`` config value, one would use the environment varia
 ``KARAPACE_BOOTSTRAP_URI``. Here_ you can find an example configuration file to give you an idea
 what you need to change.
 
-.. _`Here`: https://github.com/aiven/karapace/blob/master/karapace.config.json
+.. _`Here`: https://github.com/Aiven-Open/karapace/blob/master/karapace.config.json
 
 Source install
 --------------
@@ -711,7 +711,7 @@ Contact
 =======
 
 Bug reports and patches are very welcome, please post them as GitHub issues
-and pull requests at https://github.com/aiven/karapace .  Any possible
+and pull requests at https://github.com/Aiven-Open/karapace .  Any possible
 vulnerabilities or other serious issues should be reported directly to the
 maintainers <opensource@aiven.io>.
 
@@ -732,6 +732,6 @@ to them for pioneering the concept.
 .. _`Aiven`: https://aiven.io/
 
 Recent contributors are listed on the GitHub project page,
-https://github.com/aiven/karapace/graphs/contributors
+https://github.com/Aiven-Open/karapace/graphs/contributors
 
 Copyright ⓒ 2021 Aiven Ltd.
