@@ -37,4 +37,4 @@ Source install
 
 Alternatively you can do a source install using::
 
-  python setup.py install
+  pip install .

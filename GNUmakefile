@@ -11,6 +11,14 @@ endif
 
 PYTHON_VERSION ?= 3.8
 
+define PIN_VERSIONS_COMMAND
+pip install pip-tools && \
+	python -m piptools compile -o /karapace/requirements/requirements.txt /karapace/pyproject.toml && \
+	python -m piptools compile --extra dev -o /karapace/requirements/requirements-dev.txt /karapace/pyproject.toml && \
+	python -m piptools compile --extra typing -o /karapace/requirements/requirements-typing.txt /karapace/pyproject.toml
+endef
+
+
 export PATH   := $(VENV_DIR)/bin:$(PATH)
 export PS4    := \e[0m\e[32m==> \e[0m
 export LC_ALL := C
@@ -40,31 +48,23 @@ venv/.deps: requirements/requirements-dev.txt requirements/requirements.txt | ve
 	source ./bin/get-protoc
 	source ./bin/get-snappy
 	set -x
-	$(PIP) install --use-pep517 -r '$(<)'
-	$(PIP) install --use-pep517 .
+	$(PIP) install --use-pep517 . .[dev]
 	$(PIP) check
 	touch '$(@)'
-
-
-karapace/version.py:
-	$(PYTHON) version.py
-
-.PHONY: version
-version: venv/.make | karapace/version.py
 
 .PHONY: test
 tests: unit-tests integration-tests
 
 .PHONY: unit-tests
 unit-tests: export PYTEST_ARGS ?=
-unit-tests: karapace/version.py venv/.deps
+unit-tests: venv/.deps
 	rm -fr runtime/*
 	$(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/unit/
 	rm -fr runtime/*
 
 .PHONY: integration-tests
 unit-tests: export PYTEST_ARGS ?=
-integration-tests: karapace/version.py venv/.deps
+integration-tests: venv/.deps
 	rm -fr runtime/*
 	$(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
 	rm -fr runtime/*
@@ -84,12 +84,14 @@ cleanest: cleaner
 .PHONY: requirements
 requirements: export CUSTOM_COMPILE_COMMAND='make requirements'
 requirements:
-	pip install --upgrade pip setuptools pip-tools
-	cd requirements && pip-compile --upgrade --resolver=backtracking requirements.in -o requirements.txt
-	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-dev.in -o requirements-dev.txt
-	cd requirements && pip-compile --upgrade --resolver=backtracking requirements-typing.in -o requirements-typing.txt
+	$(PIP) install --upgrade pip setuptools pip-tools
+	$(PIP) install .[dev,typing]
 
 .PHONY: schema
 schema: against := origin/main
 schema:
-	python3 -m karapace.backup.backends.v3.schema_tool --against=$(against)
+	$(PYTHON) -m karapace.backup.backends.v3.schema_tool --against=$(against)
+
+.PHONY: pin-requirements
+pin-requirements:
+	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -it -v .:/karapace --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"

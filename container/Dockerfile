@@ -26,8 +26,14 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install -r /build/requirements.txt
 
 COPY . /build/karapace-repo
+WORKDIR /build/karapace-repo
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install /build/karapace-repo
+    if [ -z "${KARAPACE_VERSION}" ]; then \
+        PRETEND_VERSION="$(python -c 'from karapace import version; print(version.__version__)')"; \
+    else \
+        PRETEND_VERSION=$KARAPACE_VERSION; \
+    fi; \
+    SETUPTOOLS_SCM_PRETEND_VERSION=$PRETEND_VERSION python3 -m pip install --no-deps .
 
 # Karapace image, i.e. production.
 FROM python:3.10.11-slim-bullseye AS karapace

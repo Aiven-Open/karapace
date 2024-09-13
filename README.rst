@@ -88,7 +88,7 @@ Source install
 
 Alternatively you can do a source install using::
 
-  python setup.py install
+  pip install .
 
 Quickstart
 ==========
@@ -651,7 +651,7 @@ If you don't need or want to have the Karapace images around you can now proceed
 Installed from Sources
 ----------------------
 
-If you installed Karapace from the sources via ``python setup.py install``, it can be uninstalled with the following ``pip`` command::
+Karapace is installed ``pip install .``, it can be uninstalled with the following ``pip`` command::
 
     pip uninstall karapace
 
@@ -695,11 +695,8 @@ targets that correctly clean the ``runtime`` directory without deleting it, but
 keep this in mind whenever you are not using ``make`` (e.g. running tests from
 your IDE).
 
-Note that the pre-commit checks are currently not working with the default
-Python version. This is because isort dropped Python 3.7 support. You have to
-use at least Python 3.8 for the pre-commit checks. Use ``pipx`` or ``brew`` or
-… to install pre-commit and use the global installation, there is also no
-dependency on it.
+Use ``pipx`` or ``brew`` to install ``pre-commit`` and use the global installation,
+there is also no dependency on it.
 
 License
 =======
