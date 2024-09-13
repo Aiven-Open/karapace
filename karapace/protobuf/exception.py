@@ -12,14 +12,6 @@ if TYPE_CHECKING:
     from karapace.protobuf.schema import ProtobufSchema
 
 
-class IllegalStateException(Exception):
-    pass
-
-
-class IllegalArgumentException(Exception):
-    pass
-
-
 class Error(Exception):
     """Base class for errors in this module."""
 
@@ -28,8 +20,16 @@ class ProtobufException(Error):
     """Generic Protobuf schema error."""
 
 
-class ProtobufTypeException(Error):
+class ProtobufTypeException(ProtobufException):
     """Generic Protobuf type error."""
+
+
+class IllegalStateException(ProtobufException):
+    pass
+
+
+class IllegalArgumentException(ProtobufException):
+    pass
 
 
 class ProtobufUnresolvedDependencyException(ProtobufException):
