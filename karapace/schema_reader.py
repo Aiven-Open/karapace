@@ -28,7 +28,7 @@ from karapace import constants
 from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
-from karapace.errors import InvalidReferences, InvalidSchema, ShutdownException
+from karapace.errors import InvalidReferences, InvalidSchema, InvalidVersion, ShutdownException
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.common import translate_from_kafkaerror
@@ -399,7 +399,7 @@ class KafkaSchemaReader(Thread):
 
             try:
                 self.handle_msg(key, value)
-            except (InvalidSchema, TypeError) as exc:
+            except (InvalidSchema, InvalidVersion, TypeError) as exc:
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue
             finally:
@@ -486,8 +486,8 @@ class KafkaSchemaReader(Thread):
 
     def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
         if value is None:
-            LOG.warning("DELETE_SUBJECT record doesnt have a value, should have")
-            return
+            LOG.warning("DELETE_SUBJECT record does not have a value, should have")
+            raise ValueError("DELETE_SUBJECT record does not have a value, should have")
 
         subject = value["subject"]
         version = Version(value["version"])
