@@ -6,9 +6,8 @@
 !karapace
 !go
 !requirements/*.txt
-!setup.py
-!version.py
 !README.rst
+!pyproject.toml
 !container/start.sh
 !container/healthcheck.py
 

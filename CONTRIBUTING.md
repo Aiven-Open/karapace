@@ -19,8 +19,8 @@ There is very little you need to get started coding for Karapace:
 ```python
 python -m venv <path_to_venv>
 source <path_to_venv>/bin/activate
-pip install -r ./requirements/requirements-dev.txt
-pip install -e .
+pip install .
+pip install -e .[dev,typing]
 ```
 
 ## Website
@@ -55,7 +55,6 @@ To run the tests use the binary `pytest` available in the virtualenv. It will do
 used in the tests for you:
 
 ```sh
-make karapace/version.py
 pytest tests/unit
 pytest tests/integration
 ```

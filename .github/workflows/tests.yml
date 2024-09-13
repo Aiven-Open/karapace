@@ -40,7 +40,7 @@ jobs:
       with:
         go-version: '1.21.0'
 
-    - run: make install version
+    - run: make install
     - run: make unit-tests
       env:
         COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
@@ -73,14 +73,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - run: make install
+
     - name: Download coverage
       id: download_coverage
       uses: actions/download-artifact@v4
       with:
         pattern: coverage-*
         merge-multiple: true
-
-    - run: make karapace/version.py
 
     - name: Post coverage comment
       id: post_coverage_comment
