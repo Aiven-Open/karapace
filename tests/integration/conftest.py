@@ -31,6 +31,7 @@ from tests.integration.utils.kafka_server import (
 )
 from tests.integration.utils.network import PortRangeInclusive
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
+from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
@@ -576,6 +577,11 @@ async def fixture_registry_async_client(
         await client.close()
 
 
+@pytest.fixture(scope="function", name="registry_async_retry_client")
+async def fixture_registry_async_retry_client(registry_async_client: Client) -> RetryRestClient:
+    return RetryRestClient(registry_async_client)
+
+
 @pytest.fixture(scope="function", name="credentials_folder")
 def fixture_credentials_folder() -> str:
     integration_test_folder = os.path.dirname(__file__)
@@ -713,6 +719,11 @@ async def fixture_registry_async_client_auth(
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_retry_client_auth")
+async def fixture_registry_async_retry_client_auth(registry_async_client_auth: Client) -> RetryRestClient:
+    return RetryRestClient(registry_async_client_auth)
 
 
 @pytest.fixture(scope="function", name="registry_async_auth_pair")
