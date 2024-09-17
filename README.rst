@@ -468,10 +468,10 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``master_election_strategy``
      - ``lowest``
      - Decides on what basis the Karapace cluster master is chosen (only relevant in a multi node setup)
-   * - ``kafka_schema_reader_strict_mode``
+   * - ``schema_reader_strict_mode``
      - ``false``
      - If enabled, causes the Karapace schema-registry service to shutdown when there are invalid schema records in the `_schemas` topic
-   * - ``kafka_retriable_errors_silenced``
+   * - ``retriable_errors_silenced``
      - ``true``
      - If enabled, kafka errors which can be retried or custom errors specififed for the service will not be raised,
        instead, a warning log is emitted. This will denoise issue tracking systems, i.e. sentry

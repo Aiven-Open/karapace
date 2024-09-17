@@ -25,8 +25,8 @@ class KafkaRetriableErrors(enum.Enum):
 
 class KafkaErrorHandler:
     def __init__(self, config: Config) -> None:
-        self.schema_reader_strict_mode: bool = config["kafka_schema_reader_strict_mode"]
-        self.retriable_errors_silenced: bool = config["kafka_retriable_errors_silenced"]
+        self.schema_reader_strict_mode: bool = config["schema_reader_strict_mode"]
+        self.retriable_errors_silenced: bool = config["retriable_errors_silenced"]
 
     def log(self, location: KafkaErrorLocation, error: BaseException) -> None:
         LOG.warning("%s encountered error - %s", location, error)

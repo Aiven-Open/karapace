@@ -14,8 +14,8 @@ import pytest
 @pytest.fixture(name="kafka_error_handler")
 def fixture_kafka_error_handler() -> KafkaErrorHandler:
     config = {
-        "kafka_schema_reader_strict_mode": False,
-        "kafka_retriable_errors_silenced": True,
+        "schema_reader_strict_mode": False,
+        "retriable_errors_silenced": True,
     }
     return KafkaErrorHandler(config=config)
 
@@ -42,7 +42,7 @@ def test_handle_error_retriable_schema_coordinator(
             assert log.levelname == "WARNING"
             assert log.message == f"SCHEMA_COORDINATOR encountered error - {retriable_error}"
 
-    # Check that the config flag - `kafka_retriable_errors_silenced` switches the behaviour
+    # Check that the config flag - `retriable_errors_silenced` switches the behaviour
     kafka_error_handler.retriable_errors_silenced = False
     with pytest.raises(retriable_error.__class__):
         kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_COORDINATOR, error=retriable_error)
@@ -63,7 +63,7 @@ def test_handle_error_nonretriable_schema_coordinator(
     with pytest.raises(nonretriable_error.__class__):
         kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_COORDINATOR, error=nonretriable_error)
 
-    # Check that the config flag - `kafka_retriable_errors_silenced` switches the behaviour
+    # Check that the config flag - `retriable_errors_silenced` switches the behaviour
     kafka_error_handler.retriable_errors_silenced = True
     kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_COORDINATOR, error=nonretriable_error)
 
@@ -73,6 +73,6 @@ def test_handle_error_schema_reader(kafka_error_handler: KafkaErrorHandler) -> N
     with pytest.raises(CorruptKafkaRecordException):
         kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=Exception)
 
-    # Check that the config flag - `kafka_schema_reader_strict_mode` switches the behaviour
+    # Check that the config flag - `schema_reader_strict_mode` switches the behaviour
     kafka_error_handler.schema_reader_strict_mode = False
     kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=Exception)

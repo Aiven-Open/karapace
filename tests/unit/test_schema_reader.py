@@ -347,7 +347,7 @@ def fixture_schema_reader_with_consumer_messages_factory() -> Callable[[Tuple[Li
 
         # Update the config to run the schema reader in strict mode so errors can be raised
         config = DEFAULTS.copy()
-        config["kafka_schema_reader_strict_mode"] = True
+        config["schema_reader_strict_mode"] = True
 
         offset_watcher = OffsetWatcher()
         schema_reader = KafkaSchemaReader(
