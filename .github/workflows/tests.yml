@@ -39,11 +39,11 @@ jobs:
     - run: make unit-tests
       env:
         COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
-        PYTEST_ARGS: "--cov=karapace --cov-append"
+        PYTEST_ARGS: "--cov=karapace --cov-append --numprocesses 4"
     - run: make integration-tests
       env:
         COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
-        PYTEST_ARGS: "--cov=karapace --cov-append --random-order"
+        PYTEST_ARGS: "--cov=karapace --cov-append --random-order --numprocesses 4"
 
     - name: Archive logs
       uses: actions/upload-artifact@v4
