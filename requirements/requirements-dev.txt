@@ -6,7 +6,11 @@
 #
 accept-types==0.4.1
     # via -r requirements.txt
-aiohttp==3.9.5
+aiohappyeyeballs==2.4.0
+    # via
+    #   -r requirements.txt
+    #   aiohttp
+aiohttp==3.10.2
     # via -r requirements.txt
 aiokafka==0.10.0
     # via -r requirements.txt
