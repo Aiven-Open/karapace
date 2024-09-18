@@ -89,6 +89,23 @@ def _raise(exception: Exception) -> NoReturn:
     raise exception
 
 
+def _delete_topic(admin_client: KafkaAdminClient, topic_name: str) -> None:
+    try:
+        admin_client.delete_topic(topic_name)
+    except UnknownTopicOrPartitionError:
+        logger.info("No previously existing topic.")
+    else:
+        logger.info("Deleted topic from previous run.")
+
+    start_time = time.monotonic()
+    while True:
+        topics = admin_client.cluster_metadata().get("topics", {})
+        if topic_name not in topics:
+            break
+        if time.monotonic() - start_time > 60:
+            raise TimeoutError(f"Topic {topic_name} still in cluster metadata topics {topics}")
+
+
 def test_roundtrip_from_kafka_state(
     tmp_path: Path,
     new_topic: NewTopic,
@@ -130,6 +147,7 @@ def test_roundtrip_from_kafka_state(
             "karapace_schema_backup",
             "get",
             "--use-format-v3",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -154,7 +172,7 @@ def test_roundtrip_from_kafka_state(
     assert metadata_path.exists()
 
     # Delete the source topic.
-    admin_client.delete_topic(new_topic.topic)
+    _delete_topic(admin_client, new_topic.topic)
 
     # todo: assert new topic uuid != old topic uuid?
     # Execute backup restoration.
@@ -162,6 +180,7 @@ def test_roundtrip_from_kafka_state(
         [
             "karapace_schema_backup",
             "restore",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -230,6 +249,7 @@ def test_roundtrip_empty_topic(
             "karapace_schema_backup",
             "get",
             "--use-format-v3",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -249,13 +269,14 @@ def test_roundtrip_empty_topic(
     (metadata_path,) = backup_directory.iterdir()
 
     # Delete the source topic.
-    admin_client.delete_topic(new_topic.topic)
+    _delete_topic(admin_client, new_topic.topic)
 
     # Execute backup restoration.
     subprocess.run(
         [
             "karapace_schema_backup",
             "restore",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -293,6 +314,7 @@ def test_errors_when_omitting_replication_factor(config_file: Path) -> None:
             [
                 "karapace_schema_backup",
                 "get",
+                "--verbose",
                 "--use-format-v3",
                 f"--config={config_file!s}",
                 "--topic=foo-bar",
@@ -317,12 +339,7 @@ def test_exits_with_return_code_3_for_data_restoration_error(
     )
 
     # Make sure topic doesn't exist beforehand.
-    try:
-        admin_client.delete_topic(topic_name)
-    except UnknownTopicOrPartitionError:
-        logger.info("No previously existing topic.")
-    else:
-        logger.info("Deleted topic from previous run.")
+    _delete_topic(admin_client, topic_name)
 
     admin_client.new_topic(topic_name)
     with pytest.raises(subprocess.CalledProcessError) as er:
@@ -330,6 +347,7 @@ def test_exits_with_return_code_3_for_data_restoration_error(
             [
                 "karapace_schema_backup",
                 "restore",
+                "--verbose",
                 "--config",
                 str(config_file),
                 "--topic",
@@ -357,18 +375,14 @@ def test_roundtrip_from_file(
     (data_file,) = metadata_path.parent.glob("*.data")
 
     # Make sure topic doesn't exist beforehand.
-    try:
-        admin_client.delete_topic(topic_name)
-    except UnknownTopicOrPartitionError:
-        logger.info("No previously existing topic.")
-    else:
-        logger.info("Deleted topic from previous run.")
+    _delete_topic(admin_client, topic_name)
 
     # Execute backup restoration.
     subprocess.run(
         [
             "karapace_schema_backup",
             "restore",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -387,6 +401,7 @@ def test_roundtrip_from_file(
         [
             "karapace_schema_backup",
             "get",
+            "--verbose",
             "--use-format-v3",
             "--config",
             str(config_file),
@@ -450,13 +465,7 @@ def test_roundtrip_from_file_skipping_topic_creation(
     (data_file,) = metadata_path.parent.glob("*.data")
 
     # Create topic exactly as it was stored on backup file
-    try:
-        admin_client.delete_topic(topic_name)
-    except UnknownTopicOrPartitionError:
-        logger.info("No previously existing topic.")
-    else:
-        logger.info("Deleted topic from previous run.")
-
+    _delete_topic(admin_client, topic_name)
     admin_client.new_topic(topic_name)
 
     # Execute backup restoration.
@@ -464,6 +473,7 @@ def test_roundtrip_from_file_skipping_topic_creation(
         [
             "karapace_schema_backup",
             "restore",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -484,6 +494,7 @@ def test_roundtrip_from_file_skipping_topic_creation(
             "karapace_schema_backup",
             "get",
             "--use-format-v3",
+            "--verbose",
             "--config",
             str(config_file),
             "--topic",
@@ -542,12 +553,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
     metadata_path = backup_directory / f"{topic_name}.metadata"
 
     # Make sure topic doesn't exist beforehand.
-    try:
-        admin_client.delete_topic(topic_name)
-    except UnknownTopicOrPartitionError:
-        logger.info("No previously existing topic.")
-    else:
-        logger.info("Deleted topic from previous run.")
+    _delete_topic(admin_client, topic_name)
 
     config = set_config_defaults(
         {
@@ -595,12 +601,7 @@ def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_p
     metadata_path = backup_directory / f"{topic_name}.metadata"
 
     # Make sure topic doesn't exist beforehand.
-    try:
-        admin_client.delete_topic(topic_name)
-    except UnknownTopicOrPartitionError:
-        logger.info("No previously existing topic.")
-    else:
-        logger.info("Deleted topic from previous run.")
+    _delete_topic(admin_client, topic_name)
 
     config = set_config_defaults(
         {
@@ -650,12 +651,7 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
     metadata_path = backup_directory / f"{topic_name}.metadata"
 
     # Make sure topic doesn't exist beforehand.
-    try:
-        admin_client.delete_topic(topic_name)
-    except UnknownTopicOrPartitionError:
-        logger.info("No previously existing topic.")
-    else:
-        logger.info("Deleted topic from previous run.")
+    _delete_topic(admin_client, topic_name)
 
     config = set_config_defaults(
         {
@@ -719,6 +715,7 @@ class TestInspect:
             [
                 "karapace_schema_backup",
                 "inspect",
+                "--verbose",
                 "--location",
                 str(metadata_path),
             ],
@@ -769,6 +766,7 @@ class TestInspect:
             [
                 "karapace_schema_backup",
                 "inspect",
+                "--verbose",
                 "--location",
                 str(metadata_path),
             ],
@@ -832,6 +830,7 @@ class TestInspect:
             [
                 "karapace_schema_backup",
                 "inspect",
+                "--verbose",
                 "--location",
                 str(backup_path),
             ],
@@ -856,6 +855,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={metadata_path!s}",
                 "--level=file",
             ],
@@ -883,6 +883,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={metadata_path!s}",
                 "--level=record",
             ],
@@ -924,6 +925,7 @@ class TestVerify:
                 "karapace_schema_backup",
                 "get",
                 "--use-format-v3",
+                "--verbose",
                 f"--config={config_file!s}",
                 f"--topic={new_topic.topic!s}",
                 "--replication-factor=1",
@@ -938,6 +940,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={metadata_path!s}",
                 "--level=file",
             ],
@@ -979,6 +982,7 @@ class TestVerify:
                 "karapace_schema_backup",
                 "get",
                 "--use-format-v3",
+                "--verbose",
                 f"--config={config_file!s}",
                 f"--topic={new_topic.topic}",
                 "--replication-factor=1",
@@ -993,6 +997,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={metadata_path}",
                 "--level=record",
             ],
@@ -1022,6 +1027,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={metadata_path!s}",
                 "--level=file",
             ],
@@ -1051,6 +1057,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={metadata_path!s}",
                 "--level=record",
             ],
@@ -1093,6 +1100,7 @@ class TestVerify:
             [
                 "karapace_schema_backup",
                 "verify",
+                "--verbose",
                 f"--location={backup_path}",
                 "--level=file",
             ],
