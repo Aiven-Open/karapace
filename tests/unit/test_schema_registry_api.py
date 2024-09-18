@@ -14,7 +14,7 @@ import asyncio
 import pytest
 
 
-async def test_validate_schema_request_body():
+async def test_validate_schema_request_body() -> None:
     controller = KarapaceSchemaRegistryController(config=set_config_defaults(DEFAULTS))
 
     controller._validate_schema_request_body(  # pylint: disable=W0212
@@ -30,7 +30,7 @@ async def test_validate_schema_request_body():
     assert str(exc_info.value) == "HTTPResponse 422"
 
 
-async def test_forward_when_not_ready():
+async def test_forward_when_not_ready() -> None:
     with patch("karapace.schema_registry_apis.KarapaceSchemaRegistry") as schema_registry_class:
         schema_reader_mock = Mock(spec=KafkaSchemaReader)
         ready_property_mock = PropertyMock(return_value=False)

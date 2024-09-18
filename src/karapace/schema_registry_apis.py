@@ -402,9 +402,14 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         new_schema = self.get_new_schema(request.json, content_type)
-        old_schema = self._get_old_schema(subject, Versioner.V(version), content_type)
-
-        result = SchemaCompatibility.check_compatibility(old_schema, new_schema, compatibility_mode)
+        old_schema = self.get_old_schema(subject, Versioner.V(version), content_type)
+        if compatibility_mode.is_transitive():
+            # Ignore the schema version provided in the rest api call (`version`)
+            # Instead check against all previous versions (including `version` if existing)
+            result = self.schema_registry.check_schema_compatibility(new_schema, subject)
+        else:
+            # Check against the schema version provided in the rest api call (`version`)
+            result = SchemaCompatibility.check_compatibility(old_schema, new_schema, compatibility_mode)
 
         if is_incompatible(result):
             self.r({"is_compatible": False}, content_type)
@@ -1343,7 +1348,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-    def _get_old_schema(self, subject: Subject, version: Version, content_type: str) -> ParsedTypedSchema:
+    def get_old_schema(self, subject: Subject, version: Version, content_type: str) -> ParsedTypedSchema:
         try:
             old = self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
