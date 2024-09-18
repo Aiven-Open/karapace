@@ -463,7 +463,7 @@ class KarapaceSchemaRegistry:
         if not live_versions:
             old_versions = []
         elif compatibility_mode.is_transitive():
-            # Only check against all versions
+            # Check against all versions
             old_versions = live_versions
         else:
             # Only check against latest version
@@ -479,7 +479,7 @@ class KarapaceSchemaRegistry:
             )
 
             if is_incompatible(result):
-                break
+                return result
 
         return result
 
