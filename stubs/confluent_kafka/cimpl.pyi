@@ -48,6 +48,13 @@ class TopicPartition:
         self.leader_epoch: int | None
         self.error: KafkaError | None
 
+class TopicCollection:
+    def __init__(
+        self,
+        topic_names: list[str],
+    ) -> None:
+        self.topic_names: list[str]
+
 class Message:
     def offset(self) -> int: ...
     def timestamp(self) -> tuple[int, int]: ...
