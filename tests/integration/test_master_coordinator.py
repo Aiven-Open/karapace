@@ -8,12 +8,12 @@ from karapace.config import set_config_defaults
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.rest_client import RetryRestClient
 from tests.utils import new_random_name
 
 import asyncio
 import json
 import pytest
-import requests
 
 
 async def init_admin(config):
@@ -195,7 +195,10 @@ async def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortR
             await mc.close()
 
 
-async def test_schema_request_forwarding(registry_async_pair):
+async def test_schema_request_forwarding(
+    registry_async_pair,
+    registry_async_retry_client: RetryRestClient,
+) -> None:
     master_url, slave_url = registry_async_pair
     max_tries, counter = 5, 0
     wait_time = 0.5
@@ -209,11 +212,11 @@ async def test_schema_request_forwarding(registry_async_pair):
         else:
             path = "config"
         for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
-            resp = requests.put(f"{slave_url}/{path}", json={"compatibility": compat})
+            resp = await registry_async_retry_client.put(f"{slave_url}/{path}", json={"compatibility": compat})
             assert resp.ok
             while True:
                 assert counter < max_tries, "Compat update not propagated"
-                resp = requests.get(f"{master_url}/{path}")
+                resp = await registry_async_retry_client.get(f"{master_url}/{path}")
                 if not resp.ok:
                     print(f"Invalid http status code: {resp.status_code}")
                     continue
@@ -232,14 +235,16 @@ async def test_schema_request_forwarding(registry_async_pair):
 
     # New schema updates, last compatibility is None
     for s in [schema, other_schema]:
-        resp = requests.post(f"{slave_url}/subjects/{subject}/versions", json={"schema": json.dumps(s)})
+        resp = await registry_async_retry_client.post(
+            f"{slave_url}/subjects/{subject}/versions", json={"schema": json.dumps(s)}
+        )
     assert resp.ok
     data = resp.json()
     assert "id" in data, data
     counter = 0
     while True:
         assert counter < max_tries, "Subject schema data not propagated yet"
-        resp = requests.get(f"{master_url}/subjects/{subject}/versions")
+        resp = await registry_async_retry_client.get(f"{master_url}/subjects/{subject}/versions")
         if not resp.ok:
             print(f"Invalid http status code: {resp.status_code}")
             counter += 1
@@ -255,12 +260,14 @@ async def test_schema_request_forwarding(registry_async_pair):
         break
 
     # Schema deletions
-    resp = requests.delete(f"{slave_url}/subjects/{subject}/versions/1")
+    resp = await registry_async_retry_client.delete(f"{slave_url}/subjects/{subject}/versions/1")
     assert resp.ok
     counter = 0
     while True:
         assert counter < max_tries, "Subject version deletion not propagated yet"
-        resp = requests.get(f"{master_url}/subjects/{subject}/versions/1")
+        resp = await registry_async_retry_client.get(
+            f"{master_url}/subjects/{subject}/versions/1", expected_response_code=404
+        )
         if resp.ok:
             print(f"Subject {subject} still has version 1 on master")
             counter += 1
@@ -270,16 +277,16 @@ async def test_schema_request_forwarding(registry_async_pair):
         break
 
     # Subject deletion
-    resp = requests.get(f"{master_url}/subjects/")
+    resp = await registry_async_retry_client.get(f"{master_url}/subjects/")
     assert resp.ok
     data = resp.json()
     assert subject in data
-    resp = requests.delete(f"{slave_url}/subjects/{subject}")
+    resp = await registry_async_retry_client.delete(f"{slave_url}/subjects/{subject}")
     assert resp.ok
     counter = 0
     while True:
         assert counter < max_tries, "Subject deletion not propagated yet"
-        resp = requests.get(f"{master_url}/subjects/")
+        resp = await registry_async_retry_client.get(f"{master_url}/subjects/")
         if not resp.ok:
             print("Could not retrieve subject list on master")
             counter += 1
