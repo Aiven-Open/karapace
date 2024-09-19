@@ -548,7 +548,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
     admin_client: KafkaAdminClient,
     kafka_servers: KafkaServers,
 ) -> None:
-    topic_name = "596ddf6b"
+    topic_name = "83bdbd2a"
     backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / topic_name
     metadata_path = backup_directory / f"{topic_name}.metadata"
 
@@ -583,13 +583,14 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
 
     with patch("karapace.backup.api._producer") as p:
         p.return_value = LowTimeoutProducer()
-        with pytest.raises(BackupDataRestorationError):
+        with pytest.raises(BackupDataRestorationError) as excinfo:
             api.restore_backup(
                 config=config,
                 backup_location=metadata_path,
                 topic_name=TopicName(topic_name),
                 skip_topic_creation=True,
             )
+        excinfo.match("Error while producing restored messages")
 
 
 def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_partition(
