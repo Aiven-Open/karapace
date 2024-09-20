@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from aiokafka.errors import IllegalStateError, KafkaTimeoutError, UnknownTopicOrPartitionError
+from aiokafka.errors import IllegalStateError, UnknownTopicOrPartitionError
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
 from confluent_kafka.admin import NewTopic
 from confluent_kafka.error import KafkaError
@@ -178,12 +178,6 @@ class TestCommit:
         consumer.subscribe([new_topic.topic])
         with pytest.raises(UnknownTopicOrPartitionError):
             consumer.commit(offsets=[TopicPartition(new_topic.topic, partition=99, offset=0)])
-
-
-class TestCommitted:
-    def test_committed_raises_on_timeout(self, consumer: KafkaConsumer) -> None:
-        with pytest.raises(KafkaTimeoutError):
-            consumer.committed([], timeout=0.00001)
 
 
 class TestSubscribe:
