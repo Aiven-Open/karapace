@@ -148,7 +148,7 @@ test_objects_protobuf_second = [
     {"q": 3, "sensor_type": "L1", "nums": [3, 4], "order": {"item": "ABC01223"}},
 ]
 
-schema_protobuf_invalid = """
+schema_protobuf_invalid_because_corrupted = """
 |o3"
 |
 |opti  --  om.codingharbour.protobuf";
@@ -162,7 +162,19 @@ schema_protobuf_invalid = """
 |  HIGH = 0
 |  MIDDLE = ;
 """
-schema_protobuf_invalid = trim_margin(schema_protobuf_invalid)
+schema_protobuf_invalid_because_corrupted = trim_margin(schema_protobuf_invalid_because_corrupted)
+
+schema_protobuf_with_invalid_ref = """
+ |syntax = "proto3";
+ |
+ |import "Message.proto";
+ |
+ |message MessageWithInvalidRef {
+ |    string name = 1;
+ |    Message ref = 2;
+ |}
+ |"""
+schema_protobuf_with_invalid_ref = trim_margin(schema_protobuf_with_invalid_ref)
 
 schema_data_second = {"protobuf": (schema_protobuf_second, test_objects_protobuf_second)}
 
