@@ -55,8 +55,8 @@
 | karapace/instrumentation/prometheus.py            |       38 |        0 |       10 |        0 |    100% |           |
 | karapace/kafka/\_\_init\_\_.py                    |        0 |        0 |        0 |        0 |    100% |           |
 | karapace/kafka/admin.py                           |       75 |        0 |       13 |        0 |    100% |           |
-| karapace/kafka/common.py                          |       86 |        4 |       17 |        3 |     93% |54, 75, 167, 205 |
-| karapace/kafka/consumer.py                        |      141 |       12 |       26 |        2 |     92% |48-49, 62, 67, 134-135, 161-162, 181-182, 187-188 |
+| karapace/kafka/common.py                          |       86 |        5 |       17 |        4 |     91% |52, 54, 75, 167, 205 |
+| karapace/kafka/consumer.py                        |      141 |       15 |       26 |        3 |     89% |48-49, 62, 67, 99, 102-103, 134-135, 161-162, 181-182, 187-188 |
 | karapace/kafka/producer.py                        |       67 |        2 |        6 |        0 |     97% |     63-64 |
 | karapace/kafka/types.py                           |        8 |        0 |        0 |        0 |    100% |           |
 | karapace/kafka\_error\_handler.py                 |       28 |        0 |        6 |        0 |    100% |           |
@@ -122,7 +122,7 @@
 | karapace/typing.py                                |       69 |        2 |       22 |        2 |     96% |    75, 87 |
 | karapace/utils.py                                 |      134 |       44 |       54 |        3 |     68% |31-33, 45-47, 52, 57, 62, 67, 73-82, 93, 105, 118, 132, 137, 152, 156, 198, 206-209, 228-246 |
 | karapace/version.py                               |        1 |        0 |        0 |        0 |    100% |           |
-|                                         **TOTAL** | **10491** | **2207** | **3782** |  **363** | **76%** |           |
+|                                         **TOTAL** | **10491** | **2211** | **3782** |  **365** | **76%** |           |
 
 
 ## Setup coverage badge
