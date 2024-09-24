@@ -29,13 +29,13 @@ from tests.integration.utils.kafka_server import (
     maybe_download_kafka,
     wait_for_kafka,
 )
-from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.network import allocate_port
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
-from typing import AsyncIterator, Iterator
+from typing import AsyncGenerator, AsyncIterator, Iterator
 from urllib.parse import urlparse
 
 import asyncio
@@ -45,7 +45,6 @@ import pathlib
 import pytest
 import re
 import secrets
-import string
 import time
 
 REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
@@ -65,29 +64,6 @@ def _clear_test_name(name: str) -> str:
     # https://github.com/pytest-dev/pytest/blob/238b25ffa9d4acbc7072ac3dd6d8240765643aed/src/_pytest/tmpdir.py#L189-L194
     # The purpose is to return a similar name to make finding matching logs easier
     return re.sub(r"[\W]", "_", name)[:30]
-
-
-@pytest.fixture(scope="session", name="port_range")
-def fixture_port_range() -> PortRangeInclusive:
-    """Container used by other fixtures to register used ports"""
-    # To find a good port range use the following:
-    #
-    #   curl --silent 'https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt' | \
-    #       egrep -i -e '^\s*[0-9]+-[0-9]+\s*unassigned' | \
-    #       awk '{print $1}'
-    #
-    start = 48700
-    end = 49000
-
-    # Split the ports among the workers to prevent port reuse
-    worker_name = os.environ.get("PYTEST_XDIST_WORKER", "0")
-    worker_id = int(worker_name.lstrip(string.ascii_letters))
-    worker_count = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
-    total_ports = end - start
-    ports_per_worker = total_ports // worker_count
-    start_worker = (ports_per_worker * worker_id) + start
-    end_worker = start_worker + ports_per_worker - 1
-    return PortRangeInclusive(start_worker, end_worker)
 
 
 @pytest.fixture(scope="session", name="kafka_description")
@@ -113,7 +89,6 @@ def fixture_kafka_server(
     session_datadir: Path,
     session_logdir: Path,
     kafka_description: KafkaDescription,
-    port_range: PortRangeInclusive,
 ) -> Iterator[KafkaServers]:
     bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
 
@@ -127,7 +102,6 @@ def fixture_kafka_server(
         session_datadir,
         session_logdir,
         kafka_description,
-        port_range,
     )
 
 
@@ -135,7 +109,6 @@ def create_kafka_server(
     session_datadir: Path,
     session_logdir: Path,
     kafka_description: KafkaDescription,
-    port_range: PortRangeInclusive,
     kafka_properties: dict[str, int | str] | None = None,
 ) -> Iterator[KafkaServers]:
     if kafka_properties is None:
@@ -151,9 +124,9 @@ def create_kafka_server(
     worker_id = os.environ.get("PYTEST_XDIST_WORKER")
 
     with ExitStack() as stack:
-        zk_client_port = stack.enter_context(port_range.allocate_port())
-        zk_admin_port = stack.enter_context(port_range.allocate_port())
-        kafka_plaintext_port = stack.enter_context(port_range.allocate_port())
+        zk_client_port = stack.enter_context(allocate_port())
+        zk_admin_port = stack.enter_context(allocate_port())
+        kafka_plaintext_port = stack.enter_context(allocate_port())
 
         with FileLock(str(lock_file)):
             if transfer_file.exists():
@@ -229,7 +202,7 @@ def create_kafka_server(
 
 
 @pytest.fixture(scope="function", name="producer")
-def fixture_producer(kafka_servers: KafkaServers) -> KafkaProducer:
+def fixture_producer(kafka_servers: KafkaServers) -> Iterator[KafkaProducer]:
     yield KafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers)
 
 
@@ -259,7 +232,7 @@ def fixture_consumer(
 async def fixture_asyncproducer(
     kafka_servers: KafkaServers,
     loop: asyncio.AbstractEventLoop,
-) -> Iterator[AsyncKafkaProducer]:
+) -> AsyncGenerator[AsyncKafkaProducer, None]:
     asyncproducer = AsyncKafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers, loop=loop)
     await asyncproducer.start()
     yield asyncproducer
@@ -270,7 +243,7 @@ async def fixture_asyncproducer(
 async def fixture_asyncconsumer(
     kafka_servers: KafkaServers,
     loop: asyncio.AbstractEventLoop,
-) -> Iterator[AsyncKafkaConsumer]:
+) -> AsyncGenerator[AsyncKafkaConsumer, None]:
     asyncconsumer = AsyncKafkaConsumer(
         bootstrap_servers=kafka_servers.bootstrap_servers,
         loop=loop,
@@ -507,7 +480,6 @@ async def fixture_registry_async_pair(
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     session_logdir: Path,
     kafka_servers: KafkaServers,
-    port_range: PortRangeInclusive,
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
@@ -517,7 +489,6 @@ async def fixture_registry_async_pair(
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],
         data_dir=session_logdir / _clear_test_name(request.node.name),
-        port_range=port_range,
     ) as endpoints:
         yield [server.endpoint.to_url() for server in endpoints]
 
@@ -528,7 +499,6 @@ async def fixture_registry_cluster(
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     session_logdir: Path,
     kafka_servers: KafkaServers,
-    port_range: PortRangeInclusive,
 ) -> AsyncIterator[RegistryDescription]:
     # Do not start a registry when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
@@ -545,7 +515,6 @@ async def fixture_registry_cluster(
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
-        port_range=port_range,
     ) as servers:
         yield servers[0]
 
@@ -555,7 +524,7 @@ async def fixture_registry_async_client(
     request: SubRequest,
     registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-) -> Client:
+) -> AsyncGenerator[Client, None]:
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
@@ -612,7 +581,6 @@ async def fixture_registry_https_endpoint(
     kafka_servers: KafkaServers,
     server_cert: str,
     server_key: str,
-    port_range: PortRangeInclusive,
 ) -> AsyncIterator[str]:
     # Do not start a registry when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
@@ -631,7 +599,6 @@ async def fixture_registry_https_endpoint(
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
-        port_range=port_range,
     ) as servers:
         yield servers[0].endpoint.to_url()
 
@@ -671,7 +638,6 @@ async def fixture_registry_http_auth_endpoint(
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     session_logdir: Path,
     kafka_servers: KafkaServers,
-    port_range: PortRangeInclusive,
 ) -> AsyncIterator[str]:
     # Do not start a registry when the user provided an external service. Doing
     # so would cause this node to join the existing group and participate in
@@ -689,7 +655,6 @@ async def fixture_registry_http_auth_endpoint(
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
-        port_range=port_range,
     ) as servers:
         yield servers[0].endpoint.to_url()
 
@@ -732,7 +697,6 @@ async def fixture_registry_async_auth_pair(
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     session_logdir: Path,
     kafka_servers: KafkaServers,
-    port_range: PortRangeInclusive,
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
 
@@ -748,7 +712,6 @@ async def fixture_registry_async_auth_pair(
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],
         data_dir=session_logdir / _clear_test_name(request.node.name),
-        port_range=port_range,
     ) as endpoints:
         yield [server.endpoint.to_url() for server in endpoints]
 
