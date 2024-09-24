@@ -7,7 +7,7 @@ See LICENSE for details
 from karapace.config import set_config_defaults
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.network import allocate_port
 from tests.integration.utils.rest_client import RetryRestClient
 from tests.utils import new_random_name
 
@@ -38,9 +38,9 @@ def has_master(mc: MasterCoordinator) -> bool:
 
 @pytest.mark.timeout(60)  # Github workflows need a bit of extra time
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
-async def test_master_selection(port_range: PortRangeInclusive, kafka_servers: KafkaServers, strategy: str) -> None:
+async def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> None:
     # Use random port to allow for parallel runs.
-    with port_range.allocate_port() as port1, port_range.allocate_port() as port2:
+    with allocate_port() as port1, allocate_port() as port2:
         port_aa, port_bb = sorted((port1, port2))
         client_id_aa = new_random_name("master_selection_aa_")
         client_id_bb = new_random_name("master_selection_bb_")
@@ -99,7 +99,7 @@ async def test_master_selection(port_range: PortRangeInclusive, kafka_servers: K
             await mc_bb.close()
 
 
-async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers) -> None:
     """Test that primary selection works when mixed set of roles is configured for Karapace instances.
 
     The Kafka group coordinator leader can be any node, it has no relation to Karapace primary role eligibility.
@@ -109,7 +109,7 @@ async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, p
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
 
-    with port_range.allocate_port() as port1, port_range.allocate_port() as port2, port_range.allocate_port() as port3:
+    with allocate_port() as port1, allocate_port() as port2, allocate_port() as port3:
         config_primary = set_config_defaults(
             {
                 "advertised_hostname": "127.0.0.1",
@@ -166,11 +166,11 @@ async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers, p
             await primary.close()
 
 
-async def test_no_eligible_master(kafka_servers: KafkaServers, port_range: PortRangeInclusive) -> None:
+async def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
     client_id = new_random_name("master_selection_")
     group_id = new_random_name("group_id")
 
-    with port_range.allocate_port() as port:
+    with allocate_port() as port:
         config_aa = set_config_defaults(
             {
                 "advertised_hostname": "127.0.0.1",
