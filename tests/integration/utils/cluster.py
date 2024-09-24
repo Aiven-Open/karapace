@@ -2,14 +2,16 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from contextlib import asynccontextmanager, ExitStack
 from dataclasses import dataclass
 from karapace.config import Config, set_config_defaults, write_config
 from pathlib import Path
-from tests.integration.utils.network import PortRangeInclusive
+from tests.integration.utils.network import allocate_port
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.utils import new_random_name, popen_karapace_all
-from typing import AsyncIterator, List
+from typing import AsyncIterator
 
 
 @dataclass(frozen=True)
@@ -30,10 +32,9 @@ class RegistryDescription:
 
 @asynccontextmanager
 async def start_schema_registry_cluster(
-    config_templates: List[Config],
+    config_templates: list[Config],
     data_dir: Path,
-    port_range: PortRangeInclusive,
-) -> AsyncIterator[List[RegistryDescription]]:
+) -> AsyncIterator[list[RegistryDescription]]:
     """Start a cluster of schema registries, one process per `config_templates`."""
     for template in config_templates:
         assert "bootstrap_uri" in template, "base_config must have the value `bootstrap_uri` set"
@@ -67,7 +68,7 @@ async def start_schema_registry_cluster(
             )
             actual_group_id = config.setdefault("group_id", group_id)
 
-            port = config.setdefault("port", stack.enter_context(port_range.allocate_port()))
+            port = config.setdefault("port", stack.enter_context(allocate_port()))
             assert isinstance(port, int), "Port must be an integer"
 
             group_dir = data_dir / str(actual_group_id)

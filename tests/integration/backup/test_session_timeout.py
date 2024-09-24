@@ -12,7 +12,6 @@ from pathlib import Path
 from tests.integration.conftest import create_kafka_server
 from tests.integration.utils.config import KafkaDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.integration.utils.network import PortRangeInclusive
 
 import pytest
 
@@ -26,7 +25,6 @@ GROUP_MAX_SESSION_TIMEOUT_MS = 70000
 @pytest.fixture(scope="function", name="kafka_server_session_timeout")
 def fixture_kafka_server(
     kafka_description: KafkaDescription,
-    port_range: PortRangeInclusive,
     tmp_path_factory: pytest.TempPathFactory,
 ):
     # use custom data and log dir to avoid conflict with other kafka servers
@@ -40,7 +38,6 @@ def fixture_kafka_server(
         session_datadir,
         session_logdir,
         kafka_description,
-        port_range,
         kafka_config_extra,
     )
 
