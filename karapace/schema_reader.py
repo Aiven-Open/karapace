@@ -363,8 +363,14 @@ class KafkaSchemaReader(Thread):
 
                 assert message_key is not None
                 key = json_decode(message_key)
+            except AssertionError as exc:
+                LOG.warning("Empty msg.key() at offset %s", msg.offset())
+                self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
+                continue  # [non-strict mode]
             except JSONDecodeError as exc:
-                LOG.warning("Invalid JSON in msg.key() at offset %s", msg.offset())
+                non_bytes_key = msg.key().decode()  # type: ignore[union-attr]
+                LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, msg.offset())
                 self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
