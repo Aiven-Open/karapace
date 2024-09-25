@@ -3,12 +3,6 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
-ifdef CI
-PYENV    ?= $(PYTHON)
-else
-PYENV    ?= pyenv exec python
-endif
-
 PYTHON_VERSION ?= 3.8
 
 define PIN_VERSIONS_COMMAND
@@ -36,7 +30,7 @@ all: version
 venv: venv/.make
 venv/.make:
 	rm -fr '$(VENV_DIR)'
-	$(PYENV) -m venv '$(VENV_DIR)'
+	$(PYTHON) -m venv '$(VENV_DIR)'
 	$(PIP) install --upgrade pip
 	touch '$(@)'
 

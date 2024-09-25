@@ -664,12 +664,6 @@ and install the required software for development. Use ``make unit-tests`` and
 ``make test`` to execute both. You can set ``PYTEST_ARGS`` to customize the
 execution (e.g. ``PYTEST_ARGS=--maxfail=1 make test``).
 
-By default ``pyenv`` is expected to be installed and in ``PATH``. This ensures
-on all platforms that arbitrary Python versions can be used for development. It
-is possible to overwrite this by setting ``PYENV`` to something else (e.g.
-``PYENV=python3 make venv`` to simply use the global Python executable). The
-default Python version is defined in ``.python-version``.
-
 Karapace currently depends on various system software to be installed. The
 installation of these is automated for some operation systems, but not all. At
 the time of writing Java, the Protobuf Compiler, and the Snappy shared library
