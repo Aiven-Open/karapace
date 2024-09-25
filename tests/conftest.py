@@ -15,7 +15,7 @@ import re
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
 KAFKA_VERION_OPT = "--kafka-version"
-KAFKA_VERSION = "2.7.0"
+KAFKA_VERSION = "3.4.1"
 LOG_DIR_OPT = "--log-dir"
 VERSION_REGEX = "([0-9]+[.])*[0-9]+"
 
