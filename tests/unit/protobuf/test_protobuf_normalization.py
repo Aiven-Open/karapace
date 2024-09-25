@@ -68,10 +68,20 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 enum MyEnum {
     option (my_option) = "my_value";
     option (my_option2) = "my_value2";
     option (my_option3) = "my_value3";
+
+    ACTIVE = 0;
 }
 """
 
@@ -80,10 +90,20 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 enum MyEnum {
     option (my_option3) = "my_value3";
     option (my_option) = "my_value";
     option (my_option2) = "my_value2";
+
+    ACTIVE = 0;
 }
 """
 
@@ -91,6 +111,14 @@ PROTO_WITH_OPTIONS_IN_SERVICE_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.ServiceOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 service MyService {
     option (my_option) = "my_value";
@@ -104,6 +132,14 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.ServiceOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 service MyService {
     option (my_option3) = "my_value3";
     option (my_option) = "my_value";
@@ -115,6 +151,18 @@ PROTO_WITH_OPTIONS_IN_RPC_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MethodOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
+message Foo {
+    string res = 1;
+}
 
 service MyService {
     rpc MyRpc (Foo) returns (Foo) {
@@ -130,6 +178,18 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MethodOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
+message Foo {
+    string res = 1;
+}
+
 service MyService {
     rpc MyRpc (Foo) returns (Foo) {
         option (my_option3) = "my_value3";
@@ -139,48 +199,26 @@ service MyService {
 }
 """
 
-PROTO_WITH_OPTIONS_IN_EXTEND_ORDERED = """\
-syntax = "proto3";
-
-package pkg;
-
-message Foo {
-    string fieldA = 1;
-}
-
-extend Foo {
-    option (my_option) = "my_value";
-    option (my_option2) = "my_value2";
-    option (my_option3) = "my_value3";
-}
-"""
-
-PROTO_WITH_OPTIONS_IN_EXTEND_UNORDERED = """\
-syntax = "proto3";
-
-package pkg;
-
-message Foo {
-    string fieldA = 1;
-}
-
-extend Foo {
-    option (my_option3) = "my_value3";
-    option (my_option) = "my_value";
-    option (my_option2) = "my_value2";
-}
-"""
-
 PROTO_WITH_OPTIONS_IN_ONEOF_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.OneofOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 message Foo {
     oneof my_oneof {
         option (my_option) = "my_value";
         option (my_option2) = "my_value2";
         option (my_option3) = "my_value3";
+
+        string test = 1;
     }
 }
 """
@@ -190,11 +228,21 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.OneofOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 message Foo {
     oneof my_oneof {
         option (my_option3) = "my_value3";
         option (my_option) = "my_value";
         option (my_option2) = "my_value2";
+
+        string test = 1;
     }
 }
 """
@@ -203,6 +251,14 @@ PROTO_WITH_OPTIONS_IN_ENUM_CONSTANTS_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumValueOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 enum MyEnum {
     MY_ENUM_CONSTANT = 0 [(my_option) = "my_value", (my_option2) = "my_value2", (my_option3) = "my_value3"];
@@ -214,6 +270,14 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumValueOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 enum MyEnum {
     MY_ENUM_CONSTANT = 0 [(my_option3) = "my_value3", (my_option) = "my_value", (my_option2) = "my_value2"];
 }
@@ -223,6 +287,14 @@ PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 message Foo {
     string fieldA = 1 [(my_option) = "my_value", (my_option2) = "my_value2", (my_option3) = "my_value3"];
@@ -234,6 +306,14 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 message Foo {
     string fieldA = 1 [(my_option3) = "my_value3", (my_option) = "my_value", (my_option2) = "my_value2"];
 }
@@ -244,11 +324,21 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 message Foo {
     enum MyEnum {
         option (my_option) = "my_value";
         option (my_option2) = "my_value2";
         option (my_option3) = "my_value3";
+
+        ACTIVE = 0;
     }
 }
 """
@@ -258,11 +348,21 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 message Foo {
     enum MyEnum {
         option (my_option3) = "my_value3";
         option (my_option) = "my_value";
         option (my_option2) = "my_value2";
+
+        ACTIVE = 0;
     }
 }
 """
@@ -271,6 +371,14 @@ PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_WITH_OPTIONS_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 message Foo {
     message Bar {
@@ -284,6 +392,14 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 message Foo {
     message Bar {
         string fieldA = 1 [(my_option3) = "my_value3", (my_option) = "my_value", (my_option2) = "my_value2"];
@@ -296,6 +412,14 @@ PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 enum MyEnum {
     MY_ENUM_CONSTANT = 0;
@@ -311,6 +435,14 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 enum MyEnum {
     MY_ENUM_CONSTANT = 0;
 }
@@ -324,6 +456,14 @@ PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_WITH_OPTIONS_ORDERED = """\
 syntax = "proto3";
 
 package pkg;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumValueOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
 
 enum MyEnum {
     MY_ENUM_CONSTANT = 0 [(my_option) = "my_value", (my_option2) = "my_value2", (my_option3) = "my_value3"];
@@ -339,6 +479,14 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumValueOptions {
+  string my_option = 50002;
+  string my_option2 = 50003;
+  string my_option3 = 50004;
+}
+
 enum MyEnum {
     MY_ENUM_CONSTANT = 0 [(my_option3) = "my_value3", (my_option) = "my_value", (my_option2) = "my_value2"];
 }
@@ -353,6 +501,50 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumValueOptions {
+  string my_option_EnumValue = 50002;
+  string my_option2_EnumValue = 50003;
+  string my_option3_EnumValue = 50004;
+}
+
+extend google.protobuf.EnumOptions {
+  string my_option_Enum = 50002;
+  string my_option2_Enum = 50003;
+  string my_option3_Enum = 50004;
+}
+
+extend google.protobuf.FieldOptions {
+  string my_option_Field = 50002;
+  string my_option2_Field = 50003;
+  string my_option3_Field = 50004;
+}
+
+extend google.protobuf.OneofOptions {
+  string my_option_Oneof = 50002;
+  string my_option2_Oneof = 50003;
+  string my_option3_Oneof = 50004;
+}
+
+extend google.protobuf.MessageOptions {
+  string my_option_Message = 50002;
+  string my_option2_Message = 50003;
+  string my_option3_Message = 50004;
+}
+
+extend google.protobuf.MethodOptions {
+  string my_option_Method = 50002;
+  string my_option2_Method = 50003;
+  string my_option3_Method = 50004;
+}
+
+extend google.protobuf.ServiceOptions {
+  string my_option_Service = 50002;
+  string my_option2_Service = 50003;
+  string my_option3_Service = 50004;
+}
+
 option cc_generic_services = true;
 option java_generate_equals_and_hash = true;
 option java_generic_services = true;
@@ -373,47 +565,45 @@ message Foo {
 
   message NestedFoo {
     string fieldA = 1;
-    option (my_option) = "my_value";
-    option (my_option2) = "my_value2";
+    option (my_option_Message) = "my_value";
+    option (my_option2_Message) = "my_value2";
   }
 
 
-  option (my_option3) = "my_value3";
-  option (my_option2) = "my_value2";
-  option (my_option) = "my_value";
+  option (my_option3_Message) = "my_value3";
+  option (my_option2_Message) = "my_value2";
+  option (my_option_Message) = "my_value";
 
 
   oneof my_oneof {
-    option (my_option3) = "my_value3";
-    option (my_option2) = "my_value2";
-    option (my_option) = "my_value";
+    option (my_option3_Oneof) = "my_value3";
+    option (my_option2_Oneof) = "my_value2";
+    option (my_option_Oneof) = "my_value";
+
+    string test = 5;
   }
 
 
  enum MyEnum {
-   option (my_option3) = "my_value3";
-   option (my_option2) = "my_value2";
-   option (my_option) = "my_value";
+   option (my_option3_Enum) = "my_value3";
+   option (my_option2_Enum) = "my_value2";
+   option (my_option_Enum) = "my_value";
+
+   ACTIVE = 0;
  }
 }
 
 
-extend Foo {
-    option (my_option3) = "my_value3";
-    option (my_option2) = "my_value2";
-    option (my_option) = "my_value";
-}
-
 service MyService {
-    option (my_option3) = "my_value3";
-    option (my_option2) = "my_value2";
-    option (my_option) = "my_value";
+    option (my_option3_Service) = "my_value3";
+    option (my_option2_Service) = "my_value2";
+    option (my_option_Service) = "my_value";
 
 
     rpc MyRpc (Foo) returns (Foo) {
-        option (my_option) = "my_value";
-        option (my_option2) = "my_value2";
-        option (my_option3) = "my_value3";
+        option (my_option_Method) = "my_value";
+        option (my_option2_Method) = "my_value2";
+        option (my_option3_Method) = "my_value3";
     }
 }
 
@@ -425,6 +615,50 @@ syntax = "proto3";
 
 package pkg;
 
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumValueOptions {
+  string my_option_EnumValue = 50002;
+  string my_option2_EnumValue = 50003;
+  string my_option3_EnumValue = 50004;
+}
+
+extend google.protobuf.EnumOptions {
+  string my_option_Enum = 50002;
+  string my_option2_Enum = 50003;
+  string my_option3_Enum = 50004;
+}
+
+extend google.protobuf.FieldOptions {
+  string my_option_Field = 50002;
+  string my_option2_Field = 50003;
+  string my_option3_Field = 50004;
+}
+
+extend google.protobuf.OneofOptions {
+  string my_option_Oneof = 50002;
+  string my_option2_Oneof = 50003;
+  string my_option3_Oneof = 50004;
+}
+
+extend google.protobuf.MessageOptions {
+  string my_option_Message = 50002;
+  string my_option2_Message = 50003;
+  string my_option3_Message = 50004;
+}
+
+extend google.protobuf.MethodOptions {
+  string my_option_Method = 50002;
+  string my_option2_Method = 50003;
+  string my_option3_Method = 50004;
+}
+
+extend google.protobuf.ServiceOptions {
+  string my_option_Service = 50002;
+  string my_option2_Service = 50003;
+  string my_option3_Service = 50004;
+}
+
 option cc_generic_services = true;
 option java_outer_classname = "FooProto";
 option optimize_for = SPEED;
@@ -445,45 +679,42 @@ message Foo {
 
   message NestedFoo {
     string fieldA = 1;
-    option (my_option2) = "my_value2";
-    option (my_option) = "my_value";
+    option (my_option2_Message) = "my_value2";
+    option (my_option_Message) = "my_value";
   }
 
-  option (my_option2) = "my_value2";
-  option (my_option3) = "my_value3";
-  option (my_option) = "my_value";
+  option (my_option2_Message) = "my_value2";
+  option (my_option3_Message) = "my_value3";
+  option (my_option_Message) = "my_value";
 
   oneof my_oneof {
-    option (my_option) = "my_value";
-    option (my_option3) = "my_value3";
-    option (my_option2) = "my_value2";
+    option (my_option_Oneof) = "my_value";
+    option (my_option3_Oneof) = "my_value3";
+    option (my_option2_Oneof) = "my_value2";
+
+    string test = 5;
   }
 
 
  enum MyEnum {
-   option (my_option) = "my_value";
-   option (my_option3) = "my_value3";
-   option (my_option2) = "my_value2";
+   option (my_option_Enum) = "my_value";
+   option (my_option3_Enum) = "my_value3";
+   option (my_option2_Enum) = "my_value2";
+
+   ACTIVE = 0;
  }
 }
 
 
-extend Foo {
-    option (my_option2) = "my_value2";
-    option (my_option3) = "my_value3";
-    option (my_option) = "my_value";
-}
-
-
 service MyService {
-    option (my_option2) = "my_value2";
-    option (my_option) = "my_value";
-    option (my_option3) = "my_value3";
+    option (my_option2_Service) = "my_value2";
+    option (my_option_Service) = "my_value";
+    option (my_option3_Service) = "my_value3";
 
     rpc MyRpc (Foo) returns (Foo) {
-        option (my_option2) = "my_value2";
-        option (my_option3) = "my_value3";
-        option (my_option) = "my_value";
+        option (my_option2_Method) = "my_value2";
+        option (my_option3_Method) = "my_value3";
+        option (my_option_Method) = "my_value";
     }
 }
 
@@ -498,7 +729,6 @@ service MyService {
         (PROTO_WITH_OPTIONS_IN_ENUM_ORDERED, PROTO_WITH_OPTIONS_IN_ENUM_UNORDERED),
         (PROTO_WITH_OPTIONS_IN_SERVICE_ORDERED, PROTO_WITH_OPTIONS_IN_SERVICE_UNORDERED),
         (PROTO_WITH_OPTIONS_IN_RPC_ORDERED, PROTO_WITH_OPTIONS_IN_RPC_UNORDERED),
-        (PROTO_WITH_OPTIONS_IN_EXTEND_ORDERED, PROTO_WITH_OPTIONS_IN_EXTEND_UNORDERED),
         (PROTO_WITH_OPTIONS_IN_ONEOF_ORDERED, PROTO_WITH_OPTIONS_IN_ONEOF_UNORDERED),
         (PROTO_WITH_OPTIONS_IN_ENUM_CONSTANTS_ORDERED, PROTO_WITH_OPTIONS_IN_ENUM_CONSTANTS_UNORDERED),
         (PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_ORDERED, PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_UNORDERED),
@@ -537,6 +767,53 @@ def test_differently_ordered_options_normalizes_equally(ordered_schema: str, uno
     assert normalize(ordered_proto).to_schema() == normalize(unordered_proto).to_schema()
 
 
+@pytest.mark.parametrize(
+    ("ordered_schema", "unordered_schema"),
+    (
+        (PROTO_WITH_OPTIONS_ORDERED, PROTO_WITH_OPTIONS_UNORDERED),
+        (PROTO_WITH_OPTIONS_IN_ENUM_ORDERED, PROTO_WITH_OPTIONS_IN_ENUM_UNORDERED),
+        (PROTO_WITH_OPTIONS_IN_SERVICE_ORDERED, PROTO_WITH_OPTIONS_IN_SERVICE_UNORDERED),
+        (PROTO_WITH_OPTIONS_IN_RPC_ORDERED, PROTO_WITH_OPTIONS_IN_RPC_UNORDERED),
+        (PROTO_WITH_OPTIONS_IN_ONEOF_ORDERED, PROTO_WITH_OPTIONS_IN_ONEOF_UNORDERED),
+        (PROTO_WITH_OPTIONS_IN_ENUM_CONSTANTS_ORDERED, PROTO_WITH_OPTIONS_IN_ENUM_CONSTANTS_UNORDERED),
+        (PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_ORDERED, PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_UNORDERED),
+        (PROTO_WITH_NEASTED_ENUM_IN_MESSAGE_WITH_OPTIONS_ORDERED, PROTO_WITH_NEASTED_ENUM_IN_MESSAGE_WITH_OPTIONS_UNORDERED),
+        (
+            PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_WITH_OPTIONS_ORDERED,
+            PROTO_WITH_OPTIONS_IN_FIELD_OF_MESSAGE_WITH_OPTIONS_UNORDERED,
+        ),
+        (PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_ORDERED, PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_UNORDERED),
+        (
+            PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_WITH_OPTIONS_ORDERED,
+            PROTO_WITH_OPTIONS_IN_FIELD_OF_ENUM_WITH_OPTIONS_UNORDERED,
+        ),
+        (PROTO_WITH_COMPLEX_SCHEMA_ORDERED, PROTO_WITH_COMPLEX_SCHEMA_UNORDERED),
+    ),
+)
+def test_differently_ordered_options_normalizes_equally_with_formatter(ordered_schema: str, unordered_schema: str) -> None:
+    ordered_proto = parse_protobuf_schema_definition(
+        schema_definition=ordered_schema,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+        use_protobuf_formatter=True,
+    )
+    unordered_proto = parse_protobuf_schema_definition(
+        schema_definition=unordered_schema,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+        use_protobuf_formatter=True,
+    )
+
+    result = CompareResult()
+    ordered_proto.compare(unordered_proto, result)
+    assert result.is_compatible()
+    assert ordered_proto.schema == unordered_proto.schema
+
+
 DEPENDENCY = """\
 syntax = "proto3";
 package my.awesome.customer.v1;
@@ -560,8 +837,8 @@ option java_multiple_files = true;
 option java_outer_classname = "EventValueProto";
 option java_package = "com.my.awesome.customer.v1";
 option objc_class_prefix = "TDD";
-option php_metadata_namespace = "My\\Awesome\\Customer\\V1";
-option php_namespace = "My\\Awesome\\Customer\\V1";
+option php_metadata_namespace = "My\\\\Awesome\\\\Customer\\\\V1";
+option php_namespace = "My\\\\Awesome\\\\Customer\\\\V1";
 option ruby_package = "My::Awesome::Customer::V1";
 
 message EventValue {
@@ -584,8 +861,8 @@ option java_multiple_files = true;
 option java_outer_classname = "EventValueProto";
 option java_package = "com.my.awesome.customer.v1";
 option objc_class_prefix = "TDD";
-option php_metadata_namespace = "My\\Awesome\\Customer\\V1";
-option php_namespace = "My\\Awesome\\Customer\\V1";
+option php_metadata_namespace = "My\\\\Awesome\\\\Customer\\\\V1";
+option php_namespace = "My\\\\Awesome\\\\Customer\\\\V1";
 option ruby_package = "My::Awesome::Customer::V1";
 
 message EventValue {
@@ -667,6 +944,34 @@ def test_full_path_and_simple_names_are_equal() -> None:
     ), "also the string rendering shouldn't change a simple name notation protofile"
 
 
+def test_full_path_and_simple_names_are_equal_with_formatter() -> None:
+    no_ref_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, DEPENDENCY, normalize=True)
+    dep = Dependency("my/awesome/customer/v1/nested_value.proto", Subject("nested_value"), Version(1), no_ref_schema)
+    dependencies = {"my/awesome/customer/v1/nested_value.proto": dep}
+    fully_qualitifed_simple_name_notation = parse_protobuf_schema_definition(
+        schema_definition=PROTO_WITH_SIMPLE_NAMES,
+        references=None,
+        dependencies=dependencies,
+        validate_references=True,
+        normalize=True,
+        use_protobuf_formatter=True,
+    )
+    fully_qualitifed_dot_notation = parse_protobuf_schema_definition(
+        schema_definition=PROTO_WITH_FULLY_QUALIFIED_PATHS,
+        references=None,
+        dependencies=dependencies,
+        validate_references=True,
+        normalize=True,
+        use_protobuf_formatter=True,
+    )
+    result = CompareResult()
+    fully_qualitifed_simple_name_notation.compare(fully_qualitifed_dot_notation, result)
+    assert result.is_compatible(), "normalized schemas are not compatible"
+    assert (
+        fully_qualitifed_dot_notation.schema == fully_qualitifed_simple_name_notation.schema
+    ), "normalized schemas should match"
+
+
 TRICKY_DEPENDENCY = """\
 syntax = "proto3";
 package org.my.awesome.customer.v1;
@@ -725,3 +1030,36 @@ def test_full_path_and_simple_names_are_not_equal_if_simple_name_is_not_unique()
     ).to_schema()
 
     assert normalized_schema == schema, "Since the simple name is not unique identifying the type isn't replacing the source"
+
+
+def test_full_path_and_simple_names_are_not_equal_if_simple_name_is_not_unique_with_formatter() -> None:
+    no_ref_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, DEPENDENCY, normalize=True)
+    tricky_no_ref_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, TRICKY_DEPENDENCY, normalize=True)
+    dep = Dependency("my/awesome/customer/v1/nested_value.proto", Subject("nested_value"), Version(1), no_ref_schema)
+    tricky_dep = Dependency(
+        "org/my/awesome/customer/v1/nested_value.proto", Subject("tricky_nested_value"), Version(1), tricky_no_ref_schema
+    )
+    dependencies = {
+        "my/awesome/customer/v1/nested_value.proto": dep,
+        "org/my/awesome/customer/v1/nested_value.proto": tricky_dep,
+    }
+    schema = parse_protobuf_schema_definition(
+        schema_definition=PROTO_WITH_FULLY_QUALIFIED_PATHS_AND_TRICKY_DEPENDENCY,
+        references=None,
+        dependencies=dependencies,
+        validate_references=True,
+        normalize=False,
+        use_protobuf_formatter=True,
+    )
+    normalized_schema = parse_protobuf_schema_definition(
+        schema_definition=PROTO_WITH_FULLY_QUALIFIED_PATHS_AND_TRICKY_DEPENDENCY,
+        references=None,
+        dependencies=dependencies,
+        validate_references=True,
+        normalize=False,
+        use_protobuf_formatter=True,
+    )
+
+    assert (
+        normalized_schema.schema == schema.schema
+    ), "Since the simple name is not unique identifying the type isn't replacing the source"
