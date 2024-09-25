@@ -9,5 +9,6 @@ include setup.py
 include setup.cfg
 include LICENSE
 include MANIFEST.in
+include *.so
 
 recursive-exclude examples *~ *.pyc \.*

@@ -7,9 +7,9 @@ confluent-kafka==2.4.0
 isodate<1
 jsonschema<5
 lz4
-networkx<4
+networkx==3.1
 protobuf<4
-pyjwt>=2.4.0<3
+pyjwt>=2.4.0,<3
 python-dateutil<3
 python-snappy
 rich~=13.7.1

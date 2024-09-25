@@ -4,7 +4,7 @@ karapace - setup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from setuptools import find_packages, setup
+from setuptools import Extension, find_packages, setup
 
 import os
 import version
@@ -21,6 +21,7 @@ setup(
     version=version_for_setup_py,
     zip_safe=False,
     packages=find_packages(exclude=["test"]),
+    setup_requires=["setuptools-golang"],
     install_requires=[
         "accept-types",
         "aiohttp",
@@ -70,4 +71,12 @@ setup(
         "Topic :: Database :: Database Engines/Servers",
         "Topic :: Software Development :: Libraries",
     ],
+    include_package_data=True,
+    ext_modules=[
+        Extension(
+            "protopacelib",
+            ["go/protopace/main.go"],
+        ),
+    ],
+    build_golang={"root": "go/protopace"},
 )
