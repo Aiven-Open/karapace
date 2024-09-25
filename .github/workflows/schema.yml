@@ -21,7 +21,7 @@ jobs:
             requirements.txt
       - name: Install libsnappy-dev
         run: sudo apt install libsnappy-dev
-      - run: pip install -r requirements/requirements.txt
+      - run: make install
       # Compare with latest release when running on main.
       - run: make schema against=$(git describe --abbrev=0 --tags)
         if: github.ref == 'refs/heads/main'
