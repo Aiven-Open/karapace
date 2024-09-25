@@ -44,5 +44,10 @@ jobs:
     - name: Install libsnappy-dev
       run: sudo apt install libsnappy-dev
     - name: Install requirements and typing requirements
-      run: pip install .[typing]
-    - run: mypy
+      run: |
+        python -m venv venv
+        source ./venv/bin/activate
+        pip --require-virtualenv install .[typing]
+    - run: |
+        source ./venv/bin/activate
+        mypy src

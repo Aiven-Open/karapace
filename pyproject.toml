@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools > 64", "setuptools-scm", "setuptools-golang"]
+requires = ["setuptools > 64", "setuptools-scm > 8.0.0", "setuptools-golang"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -103,11 +103,8 @@ typing = [
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.packages.find]
-include = ["karapace"]
-
 [tool.setuptools_scm]
-version_file = "karapace/version.py"
+version_file = "src/karapace/version.py"
 
 [tool.black]
 target-version = ["py38"]

@@ -29,7 +29,7 @@ COPY . /build/karapace-repo
 WORKDIR /build/karapace-repo
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${KARAPACE_VERSION}" ]; then \
-        PRETEND_VERSION="$(python -c 'from karapace import version; print(version.__version__)')"; \
+        PRETEND_VERSION="$(python -c 'from src.karapace import version; print(version.__version__)')"; \
     else \
         PRETEND_VERSION=$KARAPACE_VERSION; \
     fi; \

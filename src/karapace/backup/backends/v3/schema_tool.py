@@ -58,6 +58,17 @@ def relative_path(path: pathlib.Path) -> pathlib.Path:
     return pathlib.Path(str_path[len(cwd) + 1 :]) if str_path.startswith(cwd) else path
 
 
+def target_has_source_layout(git_target: str) -> bool:
+    with subprocess.Popen(
+        ["git", "show", f"{git_target}:src"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as cp:
+        if cp.returncode == 128:
+            return False
+        return True
+
+
 def check_compatibility(git_target: str) -> None:
     errored = False
     found_any = False
@@ -70,8 +81,13 @@ def check_compatibility(git_target: str) -> None:
 
     subprocess.run(["git", "fetch", remote, branch], check=True, capture_output=True)
 
+    # Does the target version have source layout
+    source_layout = target_has_source_layout(git_target)
+
     for file in schema_directory.glob(f"*{extension}"):
         relative = relative_path(file)
+        if source_layout:
+            relative = pathlib.Path(*relative.parts[1:])
         with subprocess.Popen(
             ["git", "show", f"{git_target}:{relative}"],
             stdout=subprocess.PIPE,
