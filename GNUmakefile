@@ -42,29 +42,42 @@ venv/.make:
 
 .PHONY: install
 install: venv/.deps
-venv/.deps: requirements/requirements-dev.txt requirements/requirements.txt | venv/.make
+venv/.deps: venv/.make
 	set +x
 	source ./bin/get-java
 	source ./bin/get-protoc
 	source ./bin/get-snappy
 	set -x
-	$(PIP) install --use-pep517 . .[dev]
+	$(PIP) install --use-pep517 .
 	$(PIP) check
 	touch '$(@)'
+
+.PHONY: install-dev
+install-dev: venv/.deps-dev
+venv/.deps-dev: venv/.make
+	set +x
+	source ./bin/get-java
+	source ./bin/get-protoc
+	source ./bin/get-snappy
+	set -x
+	$(PIP) install -e .[dev]
+	$(PIP) check
+	touch '$(@)'
+
 
 .PHONY: test
 tests: unit-tests integration-tests
 
 .PHONY: unit-tests
 unit-tests: export PYTEST_ARGS ?=
-unit-tests: venv/.deps
+unit-tests: venv/.deps-dev
 	rm -fr runtime/*
 	$(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/unit/
 	rm -fr runtime/*
 
 .PHONY: integration-tests
 unit-tests: export PYTEST_ARGS ?=
-integration-tests: venv/.deps
+integration-tests: venv/.deps-dev
 	rm -fr runtime/*
 	$(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
 	rm -fr runtime/*
@@ -82,7 +95,7 @@ cleanest: cleaner
 	rm -fr '$(VENV_DIR)'
 
 .PHONY: requirements
-requirements: export CUSTOM_COMPILE_COMMAND='make requirements'
+requirements:
 requirements:
 	$(PIP) install --upgrade pip setuptools pip-tools
 	$(PIP) install .[dev,typing]

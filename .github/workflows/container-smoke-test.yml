@@ -18,10 +18,11 @@ jobs:
           fetch-depth: 0
 
       - name: Install requirements
-        run: pip install .
+        run: make install
 
       - name: Resolve Karapace version
         run: |
+          source ./venv/bin/activate
           KARAPACE_VERSION=$(python -c "from karapace import version; print(version.__version__)")
           echo KARAPACE_VERSION=$KARAPACE_VERSION >> $GITHUB_ENV
 
