@@ -213,7 +213,7 @@ def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_sche
     ok1_message.value.return_value = schema_str
     ok1_message.offset.return_value = 1
     invalid_key_message = Mock(spec=Message)
-    invalid_key_message.key.return_value = "invalid-key"
+    invalid_key_message.key.return_value = b"invalid-key"
     invalid_key_message.error.return_value = None
     invalid_key_message.value.return_value = schema_str
     invalid_key_message.offset.return_value = 2
@@ -388,7 +388,16 @@ def fixture_message_factory() -> Callable[[bytes, bytes, int], Message]:
             schema_type=None,
             message_type=MessageType.schema,
             expected_error=CorruptKafkaRecordException,
-            expected_log_message="Invalid JSON in msg.key() at offset 1",
+            expected_log_message='Invalid JSON in msg.key(): {subject1::::"test""version":1"magic":1} at offset 1',
+        ),
+        KafkaMessageHandlingErrorTestCase(
+            test_name="Message key is empty, i.e. `null/None`",
+            key=None,
+            value=b'{"value": "value does not matter at this stage, just correct JSON"}',
+            schema_type=None,
+            message_type=MessageType.schema,
+            expected_error=CorruptKafkaRecordException,
+            expected_log_message="Empty msg.key() at offset 1",
         ),
         KafkaMessageHandlingErrorTestCase(
             test_name="Keytype is missing from message key",
