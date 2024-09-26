@@ -352,12 +352,14 @@ class KarapaceSchemaRegistry:
                 result = self.check_schema_compatibility(new_schema, subject)
 
                 if is_incompatible(result):
-                    message = set(result.messages).pop() if result.messages else ""
                     LOG.warning(
                         "Incompatible schema: %s, incompatibilities: %s", result.compatibility, result.incompatibilities
                     )
                     compatibility_mode = self.get_compatibility_mode(subject=subject)
-                    raise IncompatibleSchema(f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}")
+                    raise IncompatibleSchema(
+                        f"Incompatible schema, compatibility_mode={compatibility_mode.value}. "
+                        f"Incompatibilities: {', '.join(result.messages)[:300]}"
+                    )
 
                 # We didn't find an existing schema and the schema is compatible so go and create one
                 version = self.database.get_next_version(subject=subject)

@@ -1123,8 +1123,8 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
         expected=409,
         expected_msg=(
             # ACTUALLY THERE NO MESSAGE_DROP!!!
-            "Incompatible schema, compatibility_mode=BACKWARD "
-            "Incompatible modification Modification.MESSAGE_DROP found"
+            "Incompatible schema, compatibility_mode=BACKWARD. "
+            "Incompatibilities: Incompatible modification Modification.MESSAGE_DROP found"
         ),
     )
     print(f"Adding new schema, subject: '{testdata.subject}'\n{testdata.schema_str}")

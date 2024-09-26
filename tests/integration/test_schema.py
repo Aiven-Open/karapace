@@ -332,7 +332,8 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
         json={"schema": json.dumps(schema)},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
+    assert res.json().get("incompatibilities") == "reader type: string not compatible with writer type: int"
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -536,7 +537,7 @@ async def test_type_compatibility(registry_async_client: Client, trail: str) -> 
             json={"schema": json.dumps(schema)},
         )
         assert res.status_code == 200
-        assert res.json() == {"is_compatible": expected}
+        assert res.json().get("is_compatible") == expected
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -3243,7 +3244,7 @@ async def test_schema_non_compliant_name_in_existing(
         json={"schema": json.dumps(evolved_schema)},
     )
     assert res.status_code == 200
-    assert not res.json().get("is_compatible")
+    assert res.json().get("is_compatible") is False
 
     # Post evolved schema, should not be compatible and rejected.
     res = await registry_async_client.post(
@@ -3253,7 +3254,10 @@ async def test_schema_non_compliant_name_in_existing(
     assert res.status_code == 409
     assert res.json() == {
         "error_code": 409,
-        "message": "Incompatible schema, compatibility_mode=BACKWARD expected: compliant_name_test.test-schema",
+        "message": (
+            "Incompatible schema, compatibility_mode=BACKWARD. "
+            "Incompatibilities: expected: compliant_name_test.test-schema"
+        ),
     }
 
     # Send compatibility configuration for subject that disabled backwards compatibility.
