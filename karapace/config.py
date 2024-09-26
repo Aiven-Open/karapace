@@ -82,6 +82,7 @@ class Config(TypedDict):
     statsd_port: int
     kafka_schema_reader_strict_mode: bool
     kafka_retriable_errors_silenced: bool
+    use_protobuf_formatter: bool
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -158,6 +159,7 @@ DEFAULTS: ConfigDefaults = {
     "statsd_port": 8125,
     "kafka_schema_reader_strict_mode": False,
     "kafka_retriable_errors_silenced": True,
+    "use_protobuf_formatter": False,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 

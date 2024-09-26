@@ -20,3 +20,6 @@ locust
 
 # Sentry SDK
 sentry-sdk
+
+# Golang
+setuptools-golang
