@@ -475,6 +475,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``true``
      - If enabled, kafka errors which can be retried or custom errors specififed for the service will not be raised,
        instead, a warning log is emitted. This will denoise issue tracking systems, i.e. sentry
+   * - ``use_protobuf_formatter``
+     - ``false``
+     - If protobuf formatter should be used on protobuf schemas in order to normalize schemas. The formatter is used on top and independent of regular normalization and schemas will be persisted in a formatted state.
 
 
 Authentication and authorization of Karapace Schema Registry REST API

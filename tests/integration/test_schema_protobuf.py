@@ -43,6 +43,7 @@ log = logging.getLogger(__name__)
 # This test ProtoBuf schemas in subject registeration, compatibility of evolved version and querying the schema
 # w.r.t. normalization of whitespace and other minor differences to verify equality and inequality comparison of such schemas
 @pytest.mark.parametrize("trail", ["", "/"])
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_schema_normalization(registry_async_client: Client, trail: str) -> None:
     subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
 
@@ -175,6 +176,7 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
     assert evolved_id == res.json()["id"], "Check returns evolved id"
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_schema_references(registry_async_client: Client) -> None:
     customer_schema = """
                 |syntax = "proto3";
@@ -310,6 +312,7 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     assert res.status_code == 200
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> None:
     no_ref = """
              |syntax = "proto3";
@@ -384,6 +387,7 @@ async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> No
     assert "id" in res.json()
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
     customer_schema = """
             |syntax = "proto3";
@@ -963,6 +967,7 @@ message WithReference {
     ],
     ids=str,
 )
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 @pytest.mark.parametrize("metadata", [None, {}])
 @pytest.mark.parametrize("rule_set", [None, {}])
 async def test_references(
@@ -1019,6 +1024,7 @@ async def test_references(
                 assert fetch_schema_res.status_code == 200
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_reference_update_creates_new_schema_version(registry_async_client: Client):
     test_schemas = [
         TestCaseSchema(
@@ -1079,6 +1085,7 @@ async def test_reference_update_creates_new_schema_version(registry_async_client
         assert res.json_result.get("id") == expected_schema_id
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_error(registry_async_client: Client) -> None:
     testdata = TestCaseSchema(
         schema_type=SchemaType.PROTOBUF,
@@ -1129,6 +1136,7 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
     assert res.status_code == 200
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_missing_google_import(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_missing_google_import")()
 
@@ -1149,6 +1157,7 @@ message UsingGoogleTypesWithoutImport {
     assert myjson["error_code"] == 42201 and '"google.type.PostalAddress" is not defined' in myjson["message"]
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_customer_update(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_customer_update")()
 
@@ -1185,6 +1194,7 @@ message Customer {
     assert res.status_code == 200
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_binary_serialized(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_binary_serialized")()
 
@@ -1236,6 +1246,7 @@ message Dog {
     assert schema_id == res.json()["id"]
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_update_ordering(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_update_ordering")()
 
@@ -1315,7 +1326,12 @@ message Foo {
 """
 
 
-async def test_registering_normalized_schema(registry_async_client: Client) -> None:
+@pytest.mark.parametrize(
+    "registry_cluster, status",
+    [({"config": {}}, 404), ({"config": {"use_protobuf_formatter": True}}, 200)],
+    indirect=["registry_cluster"],
+)
+async def test_registering_normalized_schema(registry_async_client: Client, status: int) -> None:
     subject = create_subject_name_factory("test_protobuf_normalization")()
 
     body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
@@ -1327,7 +1343,7 @@ async def test_registering_normalized_schema(registry_async_client: Client) -> N
 
     body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
     res = await registry_async_client.post(f"subjects/{subject}", json=body)
-    assert res.status_code == 404
+    assert res.status_code == status
 
     res = await registry_async_client.post(f"subjects/{subject}?normalize=true", json=body)
 
@@ -1336,6 +1352,7 @@ async def test_registering_normalized_schema(registry_async_client: Client) -> N
     assert original_schema_id == res.json()["id"]
 
 
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_normalized_schema_idempotence_produce_and_fetch(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_normalization")()
 
