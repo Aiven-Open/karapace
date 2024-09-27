@@ -65,6 +65,73 @@ schema_avro_json_evolution = json.dumps(
     }
 )
 
+schema_avro_corrupted_but_valid_json = """
+    {
+        "namespace": "example.avro",
+        "typTheCorruptionIsHere": "record",
+        "name": "CorruptedSchemaButValidJson",
+        "fields": [
+            {"name": "name", "type": "string"}
+        ]
+    }
+"""
+
+schema_avro_corrupted_but_valid_json = (
+    b'"' + schema_avro_corrupted_but_valid_json.translate(str.maketrans({'"': '\\"', "\n": "\\n"})).encode() + b'"'
+)
+
+schema_avro_referencing_corrupted_but_valid_json = """
+    {
+        "fields": [
+            {"name": "name", "type": "string"},
+            {"name": "corruptedSchema", "type": "CorruptedSchemaButValidJson"}
+        ],
+        "name": "InvalidSchemaRef",
+        "namespace": "com.netapp",
+        "type": "record"
+    }
+"""
+
+schema_avro_referencing_corrupted_but_valid_json = (
+    b'"'
+    + schema_avro_referencing_corrupted_but_valid_json.translate(str.maketrans({'"': '\\"', "\n": "\\n"})).encode()
+    + b'"'
+)
+
+
+schema_avro_corrupted_and_invalid_json = """
+    {
+        "namespace": "example.avro",
+        "typ----corruption here--ecord",
+        "name": "CorruptedSchemaAndInvalidJson",
+        "fields": [
+            {"name": "name", "type": "string"}
+        ]
+    }
+"""
+
+schema_avro_corrupted_and_invalid_json = (
+    b'"' + schema_avro_corrupted_and_invalid_json.translate(str.maketrans({'"': '\\"', "\n": "\\n"})).encode() + b'"'
+)
+
+schema_avro_referencing_corrupted_and_invalid_json = """
+    {
+        "fields": [
+            {"name": "name", "type": "string"},
+            {"name": "corruptedSchema", "type": "CorruptedSchemaAndInvalidJson"}
+        ],
+        "name": "InvalidSchemaRef",
+        "namespace": "com.netapp",
+        "type": "record"
+    }
+"""
+
+schema_avro_referencing_corrupted_and_invalid_json = (
+    b'"'
+    + schema_avro_referencing_corrupted_and_invalid_json.translate(str.maketrans({'"': '\\"', "\n": "\\n"})).encode()
+    + b'"'
+)
+
 
 test_objects_jsonschema = [{"foo": 100}, {"foo": 200}]
 
