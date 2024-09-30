@@ -30,11 +30,11 @@ override the ``bootstrap_uri`` config value, one would use the environment varia
 ``KARAPACE_BOOTSTRAP_URI``. Here_ you can find an example configuration file to give you an idea
 what you need to change.
 
-.. _`Here`: https://github.com/aiven/karapace/blob/main/karapace.config.json
+.. _`Here`: https://github.com/Aiven-Open/karapace/blob/main/karapace.config.json
 
 Source install
 --------------
 
 Alternatively you can do a source install using::
 
-  python setup.py install
+  pip install .

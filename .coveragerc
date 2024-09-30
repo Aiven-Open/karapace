@@ -1,4 +1,4 @@
 [run]
-branch = True
-relative_files = True
-source = karapace
+branch = true
+relative_files = true
+source = src/karapace

@@ -13,11 +13,23 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        # Need fetch-depth 0 to fetch tags, see https://github.com/actions/checkout/issues/701
+        with:
+          fetch-depth: 0
 
-      - name: Build karapace/version.py
-        run: python version.py
+      - name: Install requirements
+        run: make install
 
-      - name: Build and start services
+      - name: Resolve Karapace version
+        run: |
+          source ./venv/bin/activate
+          KARAPACE_VERSION=$(python -c "from karapace import version; print(version.__version__)")
+          echo KARAPACE_VERSION=$KARAPACE_VERSION >> $GITHUB_ENV
+
+      - name: Build container
+        run: docker build --build-arg KARAPACE_VERSION=${{ env.KARAPACE_VERSION }} --file=container/Dockerfile .
+
+      - name: Run container
         run: docker compose --file=container/compose.yml up --build --wait --detach
 
       - name: Smoke test registry
