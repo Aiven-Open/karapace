@@ -21,12 +21,17 @@ jobs:
             requirements.txt
       - name: Install libsnappy-dev
         run: sudo apt install libsnappy-dev
-      - run: make install
+      - name: Install requirements
+        run: make install-dev
       # Compare with latest release when running on main.
-      - run: make schema against=$(git describe --abbrev=0 --tags)
+      - run: |
+          source ./venv/bin/activate
+          make schema against=$(git describe --abbrev=0 --tags)
         if: github.ref == 'refs/heads/main'
       # Compare with main when running on branches/PRs.
-      - run: make schema
+      - run: |
+          source ./venv/bin/activate
+          make schema
         if: github.ref != 'refs/heads/main'
       - run: |
           diff=$(git --no-pager diff)

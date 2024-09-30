@@ -12,15 +12,15 @@ Contributions are very welcome on Karapace. When contributing please keep this i
 
 There is very little you need to get started coding for Karapace:
 
-- Use [one of the supported python versions](https://github.com/aiven/karapace/blob/master/setup.py)
-  documented in the `setup.py` classifiers.
+- Use [one of the supported python versions](https://github.com/Aiven-Open/karapace/blob/master/pyproject.toml)
+  documented in the `project:requires-python`.
 - Create [a virtual environment](https://docs.python.org/3/tutorial/venv.html) and install the dev dependencies in it:
 
 ```python
 python -m venv <path_to_venv>
 source <path_to_venv>/bin/activate
-pip install -r ./requirements/requirements-dev.txt
-pip install -e .
+pip install .
+pip install -e .[dev,typing]
 ```
 
 ## Website
@@ -55,7 +55,6 @@ To run the tests use the binary `pytest` available in the virtualenv. It will do
 used in the tests for you:
 
 ```sh
-make karapace/version.py
 pytest tests/unit
 pytest tests/integration
 ```
@@ -75,7 +74,7 @@ The code is statically checked and formatted using [a few tools][requirements-de
 To run these automatically on each commit please enable the [pre-commit](https://pre-commit.com)
 hooks.
 
-[requirements-dev]: https://github.com/aiven/karapace/blob/master/requirements/requirements-dev.txt
+[requirements-dev]: https://github.com/Aiven-Open/karapace/blob/master/requirements/requirements-dev.txt
 
 ## Manual testing
 
@@ -90,7 +89,7 @@ karapace karapace.config.json
 ### Configuration
 
 To see descriptions of configuration keys see our
-[README](https://github.com/aiven/karapace#configuration-keys).
+[README](https://github.com/Aiven-Open/karapace#configuration-keys).
 
 Each configuration key can be overridden with an environment variable prefixed with `KARAPACE_`,
 exception being configuration keys that actually start with the `karapace` string. For example, to

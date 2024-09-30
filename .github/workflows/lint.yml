@@ -26,8 +26,6 @@ jobs:
         python-version: '3.12'
     - name: Install libsnappy-dev
       run: sudo apt install libsnappy-dev
-    # required for pylint
-    - run: make karapace/version.py
     - run: pip install pre-commit
     - uses: actions/cache@v3
       with:
@@ -45,6 +43,11 @@ jobs:
         python-version: '3.12'
     - name: Install libsnappy-dev
       run: sudo apt install libsnappy-dev
-    - run: pip install -r requirements/requirements.txt -r requirements/requirements-typing.txt
-    - run: make karapace/version.py
-    - run: mypy
+    - name: Install requirements and typing requirements
+      run: |
+        python -m venv venv
+        source ./venv/bin/activate
+        pip --require-virtualenv install .[typing]
+    - run: |
+        source ./venv/bin/activate
+        mypy src

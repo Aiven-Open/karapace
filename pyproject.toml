@@ -1,3 +1,111 @@
+[build-system]
+requires = ["setuptools > 64", "setuptools-scm > 8.0.0", "setuptools-golang"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "karapace"
+requires-python = ">= 3.8"
+dynamic = ["version"]
+readme = "README.rst"
+license = {file = "LICENSE"}
+dependencies = [
+  "accept-types < 1",
+  "aiohttp < 4",
+  "aiokafka == 0.10.0",
+  "cachetools == 5.3.3",
+  "confluent-kafka == 2.4.0",
+  "isodate < 1",
+  "jsonschema < 5",
+  "lz4",
+  "networkx < 4",
+  "protobuf < 4",
+  "pyjwt >= 2.4.0 , < 3",
+  "python-dateutil < 3",
+  "python-snappy",
+  "rich ~= 13.7.1",
+  "tenacity < 10",
+  "typing-extensions",
+  "ujson < 6",
+  "watchfiles < 1",
+  "xxhash ~= 3.3",
+  "zstandard",
+  "prometheus-client == 0.20.0",
+  "yarl == 1.12.1",
+
+  # Patched dependencies
+  #
+  # Note: It is important to use commits to reference patched dependencies. This
+  # has two advantages:
+  # - Reproducible builds
+  # - The contents of the file change, which invalidates the existing docker
+  #   images and forces a new image generation.
+  #
+  "avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c76ca2.tar.gz#subdirectory=lang/py",
+]
+
+classifiers=[
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database :: Database Engines/Servers",
+  "Topic :: Software Development :: Libraries",
+]
+
+[project.scripts]
+karapace = "karapace.karapace_all:main"
+karapace_schema_backup = "karapace.backup.cli:main"
+karapace_mkpasswd = "karapace.auth:main"
+
+[project.urls]
+Homepage = "https://karapace.io"
+Repository = "https://github.com/Aiven-Open/karapace/"
+Issues = "https://github.com/Aiven-Open/karapace/issues"
+
+[project.optional-dependencies]
+sentry-sdk = ["sentry-sdk>=1.6.0"]
+ujson = ["ujson"]
+dev = [
+  # Developer QoL
+  "pdbpp",
+
+  # testing
+  "filelock",
+  "hypothesis",
+  "psutil",
+  "pytest",
+  "pytest-cov",
+  "pytest-random-order",
+  "pytest-timeout",
+  "pytest-xdist[psutil]",
+  "requests",
+
+  # performance test
+  "locust",
+
+  # Sentry SDK
+  "sentry-sdk"
+]
+typing = [
+  "mypy",
+  "sentry-sdk",
+  "types-cachetools",
+  "types-jsonschema",
+  "types-protobuf < 4"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools_scm]
+version_file = "src/karapace/version.py"
+
 [tool.black]
 target-version = ["py38"]
 line-length = 125
