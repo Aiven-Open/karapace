@@ -3,7 +3,7 @@ Karapace
 
 ``karapace``. Your Apache Kafka® essentials in one tool.
 
-An `open-source <https://github.com/aiven/karapace/blob/master/LICENSE>`_ implementation
+An `open-source <https://github.com/Aiven-Open/karapace/blob/master/LICENSE>`_ implementation
 of `Kafka REST <https://docs.confluent.io/platform/current/kafka-rest/index.html#features>`_ and
 `Schema Registry <https://docs.confluent.io/platform/current/schema-registry/index.html>`_.
 
@@ -81,14 +81,14 @@ override the ``bootstrap_uri`` config value, one would use the environment varia
 ``KARAPACE_BOOTSTRAP_URI``. Here_ you can find an example configuration file to give you an idea
 what you need to change.
 
-.. _`Here`: https://github.com/aiven/karapace/blob/master/karapace.config.json
+.. _`Here`: https://github.com/Aiven-Open/karapace/blob/master/karapace.config.json
 
 Source install
 --------------
 
 Alternatively you can do a source install using::
 
-  python setup.py install
+  pip install .
 
 Quickstart
 ==========
@@ -651,7 +651,7 @@ If you don't need or want to have the Karapace images around you can now proceed
 Installed from Sources
 ----------------------
 
-If you installed Karapace from the sources via ``python setup.py install``, it can be uninstalled with the following ``pip`` command::
+Karapace is installed ``pip install .``, it can be uninstalled with the following ``pip`` command::
 
     pip uninstall karapace
 
@@ -663,12 +663,6 @@ and install the required software for development. Use ``make unit-tests`` and
 ``make integration-tests`` to execute the respective test suite, or simply
 ``make test`` to execute both. You can set ``PYTEST_ARGS`` to customize the
 execution (e.g. ``PYTEST_ARGS=--maxfail=1 make test``).
-
-By default ``pyenv`` is expected to be installed and in ``PATH``. This ensures
-on all platforms that arbitrary Python versions can be used for development. It
-is possible to overwrite this by setting ``PYENV`` to something else (e.g.
-``PYENV=python3 make venv`` to simply use the global Python executable). The
-default Python version is defined in ``.python-version``.
 
 Karapace currently depends on various system software to be installed. The
 installation of these is automated for some operation systems, but not all. At
@@ -695,11 +689,8 @@ targets that correctly clean the ``runtime`` directory without deleting it, but
 keep this in mind whenever you are not using ``make`` (e.g. running tests from
 your IDE).
 
-Note that the pre-commit checks are currently not working with the default
-Python version. This is because isort dropped Python 3.7 support. You have to
-use at least Python 3.8 for the pre-commit checks. Use ``pipx`` or ``brew`` or
-… to install pre-commit and use the global installation, there is also no
-dependency on it.
+Use ``pipx`` or ``brew`` to install ``pre-commit`` and use the global installation,
+there is also no dependency on it.
 
 License
 =======
@@ -714,7 +705,7 @@ Contact
 =======
 
 Bug reports and patches are very welcome, please post them as GitHub issues
-and pull requests at https://github.com/aiven/karapace .  Any possible
+and pull requests at https://github.com/Aiven-Open/karapace .  Any possible
 vulnerabilities or other serious issues should be reported directly to the
 maintainers <opensource@aiven.io>.
 
@@ -735,6 +726,6 @@ to them for pioneering the concept.
 .. _`Aiven`: https://aiven.io/
 
 Recent contributors are listed on the GitHub project page,
-https://github.com/aiven/karapace/graphs/contributors
+https://github.com/Aiven-Open/karapace/graphs/contributors
 
 Copyright ⓒ 2021 Aiven Ltd.

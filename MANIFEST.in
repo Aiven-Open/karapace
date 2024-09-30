@@ -1,14 +1,11 @@
-include karapace/*.py
+graft src
 include karapace.json
 include karapace.unit
 include tests/*.py
 include scripts/*
 include README.rst
-include version.py
-include setup.py
-include setup.cfg
+include pyproject.toml
 include LICENSE
 include MANIFEST.in
-include *.so
 
 recursive-exclude examples *~ *.pyc \.*
