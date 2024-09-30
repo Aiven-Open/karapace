@@ -6,7 +6,14 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiokafka.client import UnknownTopicOrPartitionError
-from aiokafka.errors import AuthenticationFailedError, for_code, IllegalStateError, KafkaTimeoutError, NoBrokersAvailable
+from aiokafka.errors import (
+    AuthenticationFailedError,
+    for_code,
+    IllegalStateError,
+    KafkaTimeoutError,
+    KafkaUnavailableError,
+    NoBrokersAvailable,
+)
 from collections.abc import Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
@@ -52,6 +59,8 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
         return KafkaTimeoutError()
     if code == KafkaError._STATE:  # pylint: disable=protected-access
         return IllegalStateError()
+    if code == KafkaError._RESOLVE:  # pylint: disable=protected-access
+        return KafkaUnavailableError()
 
     return for_code(code)
 
