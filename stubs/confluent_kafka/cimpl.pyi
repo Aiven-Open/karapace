@@ -11,6 +11,7 @@ class KafkaError:
     _UNKNOWN_PARTITION: int
     _TIMED_OUT: int
     _STATE: int
+    _RESOLVE: int
     UNKNOWN_TOPIC_OR_PART: int
 
     def code(self) -> int: ...
