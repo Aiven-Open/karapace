@@ -86,7 +86,7 @@ def check_compatibility(git_target: str) -> None:
 
     for file in schema_directory.glob(f"*{extension}"):
         relative = relative_path(file)
-        if source_layout:
+        if not source_layout:
             relative = pathlib.Path(*relative.parts[1:])
         with subprocess.Popen(
             ["git", "show", f"{git_target}:{relative}"],
