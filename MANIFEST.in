@@ -1,4 +1,5 @@
 graft src
+graft go
 include karapace.json
 include karapace.unit
 include tests/*.py
