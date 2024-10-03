@@ -11,6 +11,7 @@ from aiokafka.errors import (
     InvalidReplicationFactorError,
     KafkaConfigurationError,
     KafkaTimeoutError,
+    KafkaUnavailableError,
     LeaderNotAvailableError,
     NoBrokersAvailable,
     NodeNotReadyError,
@@ -250,6 +251,8 @@ class KafkaSchemaReader(Thread):
                 except ShutdownException:
                     self._stop_schema_reader.set()
                     shutdown()
+                except KafkaUnavailableError:
+                    LOG.warning("Kafka cluster is unavailable or broker can't be resolved.")
                 except Exception as e:  # pylint: disable=broad-except
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
                     LOG.warning("Unexpected exception in schema reader loop - %s", e)
