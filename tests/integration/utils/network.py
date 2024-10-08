@@ -2,8 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from collections.abc import Iterator
 from contextlib import closing, contextmanager
-from typing import Iterator
 
 import socket
 

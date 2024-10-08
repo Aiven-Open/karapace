@@ -6,9 +6,10 @@ See LICENSE for details
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/TypeElement.kt
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
-from typing import Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from karapace.protobuf.compare_result import CompareResult

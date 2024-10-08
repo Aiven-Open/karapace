@@ -7,7 +7,7 @@ See LICENSE for details
 
 # Support of known dependencies
 
-from typing import Any, Dict, Set
+from typing import Any
 
 
 def static_init(cls: Any) -> object:
@@ -18,9 +18,9 @@ def static_init(cls: Any) -> object:
 
 @static_init  # pylint: disable=used-before-assignment
 class KnownDependency:
-    index: Dict = dict()
-    index_simple: Dict = dict()
-    map: Dict = {
+    index: dict = dict()
+    index_simple: dict = dict()
+    map: dict = {
         "google/protobuf/any.proto": ["google.protobuf.Any"],
         "google/protobuf/api.proto": ["google.protobuf.Api", "google.protobuf.Method", "google.protobuf.Mixin"],
         "google/protobuf/descriptor.proto": [
@@ -108,7 +108,7 @@ class KnownDependency:
 
 
 class DependenciesHardcoded:
-    index: Set[str] = {
+    index: set[str] = {
         "bool",
         "bytes",
         "double",

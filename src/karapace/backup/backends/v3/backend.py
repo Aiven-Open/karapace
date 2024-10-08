@@ -9,6 +9,7 @@ from .errors import DecodeError, InconsistentOffset, InvalidChecksum, OffsetMism
 from .readers import read_metadata, read_records
 from .schema import ChecksumAlgorithm, DataFile, Header, Metadata, Record
 from .writers import write_metadata, write_record
+from collections.abc import Generator, Iterator, Mapping, Sequence
 from confluent_kafka import Message
 from dataclasses import dataclass
 from karapace.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
@@ -18,7 +19,7 @@ from karapace.dataclasses import default_dataclass
 from karapace.utils import assert_never
 from karapace.version import __version__
 from pathlib import Path
-from typing import Callable, ContextManager, Final, Generator, IO, Iterator, Mapping, Sequence, TypeVar
+from typing import Callable, ContextManager, Final, IO, TypeVar
 from typing_extensions import TypeAlias
 
 import datetime

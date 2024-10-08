@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
-PYTHON_VERSION ?= 3.8
+PYTHON_VERSION ?= 3.9
 
 define PIN_VERSIONS_COMMAND
 pip install pip-tools && \

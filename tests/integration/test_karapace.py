@@ -2,13 +2,13 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from collections.abc import Iterator
 from contextlib import closing, contextmanager, ExitStack
 from karapace.config import set_config_defaults
 from pathlib import Path
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.process import stop_process
 from tests.utils import popen_karapace_all
-from typing import Iterator
 
 import json
 import socket

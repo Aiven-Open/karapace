@@ -6,11 +6,11 @@ See LICENSE for details
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ExtendElement.kt
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.location import Location
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import Sequence
 
 
 @dataclass

@@ -25,7 +25,6 @@ from karapace.karapace import empty_response, KarapaceBase
 from karapace.serialization import DeserializationError, InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
 from karapace.utils import convert_to_int, json_decode, JSONDecodeError
 from struct import error as UnpackError
-from typing import Tuple
 from urllib.parse import urljoin
 
 import asyncio
@@ -58,7 +57,7 @@ class ConsumerManager:
         if not cond:
             KarapaceBase.r(content_type=content_type, status=code, body={"message": message, "error_code": sub_code})
 
-    def _assert_consumer_exists(self, internal_name: Tuple[str, str], content_type: str) -> None:
+    def _assert_consumer_exists(self, internal_name: tuple[str, str], content_type: str) -> None:
         if internal_name not in self.consumers:
             KarapaceBase.not_found(
                 message=f"Consumer for {internal_name} not found among {list(self.consumers.keys())}",
@@ -116,7 +115,7 @@ class ConsumerManager:
             )
 
     @staticmethod
-    def create_internal_name(group_name: str, consumer_name: str) -> Tuple[str, str]:
+    def create_internal_name(group_name: str, consumer_name: str) -> tuple[str, str]:
         return group_name, consumer_name
 
     @staticmethod
@@ -156,7 +155,7 @@ class ConsumerManager:
     async def create_consumer(self, group_name: str, request_data: dict, content_type: str):
         group_name = group_name.strip("/")
         consumer_name: str = request_data.get("name") or new_name()
-        internal_name: Tuple[str, str] = self.create_internal_name(group_name, consumer_name)
+        internal_name: tuple[str, str] = self.create_internal_name(group_name, consumer_name)
         async with self.consumer_locks[internal_name]:
             if internal_name in self.consumers:
                 LOG.warning(
@@ -238,7 +237,7 @@ class ConsumerManager:
                     raise
                 await asyncio.sleep(1)
 
-    async def delete_consumer(self, internal_name: Tuple[str, str], content_type: str):
+    async def delete_consumer(self, internal_name: tuple[str, str], content_type: str):
         LOG.info("Deleting consumer for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
@@ -253,7 +252,7 @@ class ConsumerManager:
 
     # OFFSETS
     async def commit_offsets(
-        self, internal_name: Tuple[str, str], content_type: str, request_data: dict, cluster_metadata: dict
+        self, internal_name: tuple[str, str], content_type: str, request_data: dict, cluster_metadata: dict
     ):
         LOG.info("Committing offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
@@ -283,7 +282,7 @@ class ConsumerManager:
                 KarapaceBase.internal_error(message=f"error sending commit request: {e}", content_type=content_type)
         empty_response()
 
-    async def get_offsets(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
+    async def get_offsets(self, internal_name: tuple[str, str], content_type: str, request_data: dict):
         LOG.info("Retrieving offsets for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
@@ -315,7 +314,7 @@ class ConsumerManager:
         KarapaceBase.r(body=response, content_type=content_type)
 
     # SUBSCRIPTION
-    async def set_subscription(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
+    async def set_subscription(self, internal_name: tuple[str, str], content_type: str, request_data: dict):
         LOG.info("Updating subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         topics = request_data.get("topics", [])
@@ -343,14 +342,14 @@ class ConsumerManager:
             finally:
                 LOG.info("Done updating subscription")
 
-    async def get_subscription(self, internal_name: Tuple[str, str], content_type: str):
+    async def get_subscription(self, internal_name: tuple[str, str], content_type: str):
         LOG.info("Retrieving subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
             KarapaceBase.r(content_type=content_type, body={"topics": list(consumer.subscription())})
 
-    async def delete_subscription(self, internal_name: Tuple[str, str], content_type: str):
+    async def delete_subscription(self, internal_name: tuple[str, str], content_type: str):
         LOG.info("Deleting subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
@@ -358,7 +357,7 @@ class ConsumerManager:
         empty_response()
 
     # ASSIGNMENTS
-    async def set_assignments(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
+    async def set_assignments(self, internal_name: tuple[str, str], content_type: str, request_data: dict):
         LOG.info("Updating assignments for %s to %r", internal_name, request_data)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "partitions", content_type)
@@ -377,7 +376,7 @@ class ConsumerManager:
             finally:
                 LOG.info("Done updating assignment")
 
-    async def get_assignments(self, internal_name: Tuple[str, str], content_type: str):
+    async def get_assignments(self, internal_name: tuple[str, str], content_type: str):
         LOG.info("Retrieving assignment for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
@@ -388,7 +387,7 @@ class ConsumerManager:
             )
 
     # POSITIONS
-    async def seek_to(self, internal_name: Tuple[str, str], content_type: str, request_data: dict):
+    async def seek_to(self, internal_name: tuple[str, str], content_type: str, request_data: dict):
         LOG.info("Resetting offsets for %s to %r", internal_name, request_data)
         self._assert_consumer_exists(internal_name, content_type)
         self._assert_has_key(request_data, "offsets", content_type)
@@ -410,7 +409,7 @@ class ConsumerManager:
             empty_response()
 
     async def seek_limit(
-        self, internal_name: Tuple[str, str], content_type: str, request_data: dict, beginning: bool = True
+        self, internal_name: tuple[str, str], content_type: str, request_data: dict, beginning: bool = True
     ):
         direction = "beginning" if beginning else "end"
         LOG.info("Seeking %s offsets", direction)
@@ -443,7 +442,7 @@ class ConsumerManager:
                     sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
                 )
 
-    async def fetch(self, internal_name: Tuple[str, str], content_type: str, formats: dict, query_params: dict):
+    async def fetch(self, internal_name: tuple[str, str], content_type: str, formats: dict, query_params: dict):
         LOG.info("Running fetch for name %s with parameters %r and formats %r", internal_name, query_params, formats)
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:

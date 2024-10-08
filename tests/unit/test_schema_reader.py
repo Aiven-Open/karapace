@@ -27,7 +27,7 @@ from karapace.schema_type import SchemaType
 from karapace.typing import SchemaId, Version
 from tests.base_testcase import BaseTestCase
 from tests.utils import schema_protobuf_invalid_because_corrupted, schema_protobuf_with_invalid_ref
-from typing import Callable, List, Tuple
+from typing import Callable
 from unittest.mock import Mock
 
 import confluent_kafka
@@ -336,8 +336,8 @@ class KafkaMessageHandlingErrorTestCase(BaseTestCase):
 
 
 @pytest.fixture(name="schema_reader_with_consumer_messages_factory")
-def fixture_schema_reader_with_consumer_messages_factory() -> Callable[[Tuple[List[Message]]], KafkaSchemaReader]:
-    def factory(consumer_messages: Tuple[List[Message]]) -> KafkaSchemaReader:
+def fixture_schema_reader_with_consumer_messages_factory() -> Callable[[tuple[list[Message]]], KafkaSchemaReader]:
+    def factory(consumer_messages: tuple[list[Message]]) -> KafkaSchemaReader:
         key_formatter_mock = Mock(spec=KeyFormatter)
         consumer_mock = Mock(spec=KafkaConsumer)
 
@@ -507,7 +507,7 @@ def fixture_message_factory() -> Callable[[bytes, bytes, int], Message]:
 def test_message_error_handling(
     caplog: LogCaptureFixture,
     test_case: KafkaMessageHandlingErrorTestCase,
-    schema_reader_with_consumer_messages_factory: Callable[[Tuple[List[Message]]], KafkaSchemaReader],
+    schema_reader_with_consumer_messages_factory: Callable[[tuple[list[Message]]], KafkaSchemaReader],
     message_factory: Callable[[bytes, bytes, int], Message],
 ) -> None:
     message = message_factory(key=test_case.key, value=test_case.value)
@@ -528,7 +528,7 @@ def test_message_error_handling(
 
 def test_message_error_handling_with_invalid_reference_schema_protobuf(
     caplog: LogCaptureFixture,
-    schema_reader_with_consumer_messages_factory: Callable[[Tuple[List[Message]]], KafkaSchemaReader],
+    schema_reader_with_consumer_messages_factory: Callable[[tuple[list[Message]]], KafkaSchemaReader],
     message_factory: Callable[[bytes, bytes, int], Message],
 ) -> None:
     # Given an invalid schema (corrupted)

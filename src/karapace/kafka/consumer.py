@@ -6,11 +6,12 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiokafka.errors import IllegalStateError, KafkaTimeoutError
+from collections.abc import Iterable
 from confluent_kafka import Consumer, Message, TopicPartition
 from confluent_kafka.admin import PartitionMetadata
 from confluent_kafka.error import KafkaException
 from karapace.kafka.common import _KafkaConfigMixin, KafkaClientParams, raise_from_kafkaexception
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, TypeVar
 from typing_extensions import Unpack
 
 import asyncio

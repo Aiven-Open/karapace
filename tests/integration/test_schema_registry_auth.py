@@ -15,7 +15,6 @@ from tests.utils import (
     test_objects_avro,
     wait_for_topics,
 )
-from typing import List
 from urllib.parse import quote
 
 import aiohttp
@@ -205,7 +204,7 @@ async def test_sr_ids(registry_async_retry_client_auth: RetryRestClient) -> None
 
 
 async def test_sr_auth_forwarding(
-    registry_async_auth_pair: List[str], registry_async_retry_client_auth: RetryRestClient
+    registry_async_auth_pair: list[str], registry_async_retry_client_auth: RetryRestClient
 ) -> None:
     auth = aiohttp.BasicAuth("admin", "admin")
 

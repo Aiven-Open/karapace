@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AsyncExitStack, closing
 from karapace.compatibility import check_compatibility, CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -29,7 +30,6 @@ from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion,
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, Mode, SchemaId, Subject, Version
-from typing import Sequence
 
 import asyncio
 import logging

@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from karapace.errors import InvalidSchema
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
@@ -19,7 +20,7 @@ from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
 from types import MappingProxyType
-from typing import Any, Sequence
+from typing import Any
 
 import base64
 import google.protobuf.descriptor

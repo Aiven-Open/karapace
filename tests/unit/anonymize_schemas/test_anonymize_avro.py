@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.anonymize_schemas.anonymize_avro import anonymize
-from typing import Dict, Union
+from typing import Union
 
 import json
 import pytest
@@ -565,6 +565,6 @@ EMPTY_STR = ""
         [EMPTY_STR, EMPTY_STR],
     ],
 )
-def test_anonymize(test_schema: str, expected_schema: Union[str, Dict[str, str]]):
+def test_anonymize(test_schema: str, expected_schema: Union[str, dict[str, str]]):
     res = anonymize(test_schema)
     assert res == expected_schema

@@ -5,8 +5,9 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from aiohttp import BasicAuth, ClientSession
+from collections.abc import Awaitable, Mapping
 from karapace.typing import JsonData
-from typing import Awaitable, Callable, Mapping, Optional, Union
+from typing import Callable, Optional, Union
 from urllib.parse import urljoin
 
 import logging

@@ -5,10 +5,11 @@ See LICENSE for details
 from __future__ import annotations
 
 from .introspect import record_schema
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, fields, is_dataclass
 from enum import Enum
 from functools import lru_cache, partial
-from typing import Callable, cast, IO, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union
+from typing import Callable, cast, IO, TYPE_CHECKING, TypeVar, Union
 from typing_extensions import get_args, get_origin, Self
 
 import avro

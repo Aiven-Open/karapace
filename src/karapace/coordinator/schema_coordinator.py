@@ -25,11 +25,12 @@ from aiokafka.protocol.group import (
     SyncGroupRequest_v3,
 )
 from aiokafka.util import create_future, create_task
+from collections.abc import Coroutine, Sequence
 from karapace.dataclasses import default_dataclass
 from karapace.typing import JsonData
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
-from typing import Any, Coroutine, Final, Sequence
+from typing import Any, Final
 from typing_extensions import TypedDict
 
 import aiokafka.errors as Errors
