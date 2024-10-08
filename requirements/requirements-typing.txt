@@ -118,7 +118,7 @@ typing-extensions==4.12.2
     #   mypy
 ujson==5.10.0
     # via karapace (/karapace/pyproject.toml)
-urllib3==2.2.2
+urllib3==2.2.3
     # via sentry-sdk
 watchfiles==0.24.0
     # via karapace (/karapace/pyproject.toml)
