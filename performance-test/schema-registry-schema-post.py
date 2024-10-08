@@ -5,7 +5,6 @@ See LICENSE for details
 from dataclasses import dataclass, field
 from locust import FastHttpUser, task
 from locust.contrib.fasthttp import ResponseContextManager
-from typing import Dict
 
 import json
 import random
@@ -17,7 +16,7 @@ SchemaId = int
 @dataclass
 class TestData:
     count: int = 0
-    schemas: Dict[uuid.UUID, SchemaId] = field(default_factory=dict)
+    schemas: dict[uuid.UUID, SchemaId] = field(default_factory=dict)
 
 
 SUBJECTS = ["test-subject-1", "test-subject-2"]

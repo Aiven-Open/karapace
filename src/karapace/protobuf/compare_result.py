@@ -4,7 +4,6 @@ See LICENSE for details
 """
 from dataclasses import dataclass, field
 from enum import auto, Enum
-from typing import List
 
 
 class Modification(Enum):
@@ -68,9 +67,9 @@ class ModificationRecord:
 
 class CompareResult:
     def __init__(self) -> None:
-        self.result: List[ModificationRecord] = []
-        self.path: List[str] = []
-        self.canonical_name: List[str] = []
+        self.result: list[ModificationRecord] = []
+        self.path: list[str] = []
+        self.canonical_name: list[str] = []
 
     def push_path(self, name_element: str, canonical: bool = False) -> None:
         if canonical:

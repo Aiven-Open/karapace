@@ -4,13 +4,13 @@ See LICENSE for details
 """
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/Util.kt
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from karapace.protobuf.option_element import OptionElement
 
 
-def append_documentation(data: List[str], documentation: str) -> None:
+def append_documentation(data: list[str], documentation: str) -> None:
     if not documentation:
         return
 
@@ -25,7 +25,7 @@ def append_documentation(data: List[str], documentation: str) -> None:
         data.append("\n")
 
 
-def append_options(data: List[str], options: List["OptionElement"]) -> None:
+def append_options(data: list[str], options: list["OptionElement"]) -> None:
     count = len(options)
     if count == 1:
         data.append("[")
@@ -52,7 +52,7 @@ def try_to_schema(obj: "OptionElement") -> str:
         raise
 
 
-def append_indented(data: List[str], value: str) -> None:
+def append_indented(data: list[str], value: str) -> None:
     lines = value.split("\n")
     if len(lines) > 1 and not lines[-1]:
         del lines[-1]

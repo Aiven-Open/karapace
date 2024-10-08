@@ -12,7 +12,7 @@ from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Any, Dict, Final, Optional, Union
+from typing import Any, Final, Optional, Union
 
 import logging
 import time
@@ -103,7 +103,7 @@ class KarapaceProducer:
                 )
             )
 
-    def send_message(self, *, key: Dict[str, Any], value: Optional[Dict[str, Any]]) -> None:
+    def send_message(self, *, key: dict[str, Any], value: Optional[dict[str, Any]]) -> None:
         key_bytes = self._key_formatter.format_key(key)
         value_bytes: Union[bytes, str] = b""
         if value is not None:

@@ -3,10 +3,10 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from .config import Config
+from collections.abc import Iterator
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
-from typing import Iterator
 
 import contextlib
 

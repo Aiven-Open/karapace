@@ -6,7 +6,6 @@ See LICENSE for details
 from dataclasses import dataclass, field
 from functools import cached_property
 from karapace.errors import InvalidSchema
-from typing import Dict, List
 
 import ctypes
 import importlib.util
@@ -41,11 +40,11 @@ class FormatResult(ctypes.Structure):
 class Proto:
     name: str
     schema: str
-    dependencies: List["Proto"] = field(default_factory=list)
+    dependencies: list["Proto"] = field(default_factory=list)
 
     @cached_property
-    def all_dependencies(self) -> List["Proto"]:
-        dependencies: Dict[str, "Proto"] = {}
+    def all_dependencies(self) -> list["Proto"]:
+        dependencies: dict[str, "Proto"] = {}
         for dep in self.dependencies:
             if dep.dependencies:
                 dependencies.update([(d.name, d) for d in dep.all_dependencies])

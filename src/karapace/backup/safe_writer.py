@@ -4,9 +4,10 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
 from tempfile import mkstemp, TemporaryDirectory
-from typing import Final, Generator, IO, Literal
+from typing import Final, IO, Literal
 from typing_extensions import TypeAlias
 
 import contextlib

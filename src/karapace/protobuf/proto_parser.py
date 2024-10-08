@@ -28,7 +28,7 @@ from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.syntax_reader import SyntaxReader
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import MAX_TAG_VALUE
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 
 class Context(Enum):
@@ -73,17 +73,17 @@ class Context(Enum):
 class ProtoParser:
     def __init__(self, location: Location, data: str) -> None:
         self.location = location
-        self.imports: List[str] = []
-        self.nested_types: List[TypeElement] = []
-        self.services: List[str] = []
-        self.extends_list: List[str] = []
-        self.options: List[str] = []
+        self.imports: list[str] = []
+        self.nested_types: list[TypeElement] = []
+        self.services: list[str] = []
+        self.extends_list: list[str] = []
+        self.options: list[str] = []
         self.declaration_count = 0
         self.syntax: Optional[Syntax] = None
         self.package_name: Optional[str] = None
         self.prefix = ""
         self.data = data
-        self.public_imports: List[str] = []
+        self.public_imports: list[str] = []
         self.reader = SyntaxReader(data, location)
 
     def read_proto_file(self) -> ProtoFileElement:
@@ -226,13 +226,13 @@ class ProtoParser:
     def read_message(self, location: Location, documentation: str) -> MessageElement:
         """Reads a message declaration."""
         name: str = self.reader.read_name()
-        fields: List[FieldElement] = []
-        one_ofs: List[OneOfElement] = []
-        nested_types: List[TypeElement] = []
-        extensions: List[ExtensionsElement] = []
-        options: List[OptionElement] = []
-        reserveds: List[ReservedElement] = []
-        groups: List[GroupElement] = []
+        fields: list[FieldElement] = []
+        one_ofs: list[OneOfElement] = []
+        nested_types: list[TypeElement] = []
+        extensions: list[ExtensionsElement] = []
+        options: list[OptionElement] = []
+        reserveds: list[ReservedElement] = []
+        groups: list[GroupElement] = []
 
         previous_prefix = self.prefix
         self.prefix = f"{self.prefix}{name}."

@@ -12,7 +12,7 @@ from karapace.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
-from typing import Callable, Dict, NoReturn, Optional, overload, Union
+from typing import Callable, NoReturn, Optional, overload, Union
 
 import aiohttp
 import aiohttp.web
@@ -63,7 +63,7 @@ class HTTPRequest:
         *,
         url: str,
         query,
-        headers: Dict[str, str],
+        headers: dict[str, str],
         path_for_stats: str,
         method: str,
         content_type: Optional[str] = None,
@@ -71,7 +71,7 @@ class HTTPRequest:
     ):
         self.url = url
         self.headers = headers
-        self._header_cache: Dict[str, Optional[str]] = {}
+        self._header_cache: dict[str, Optional[str]] = {}
         self.query = query
         self.content_type = content_type
         self.accepts = accepts
@@ -120,7 +120,7 @@ class HTTPResponse(Exception):
         *,
         status: HTTPStatus = HTTPStatus.OK,
         content_type: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
     ) -> None:
         self.body = body
         self.status = status

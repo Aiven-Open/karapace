@@ -6,12 +6,12 @@ See LICENSE for details
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ServiceElement.kt
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from karapace.protobuf.location import Location
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.rpc_element import RpcElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import Sequence
 
 
 @dataclass

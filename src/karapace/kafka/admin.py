@@ -5,7 +5,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Container, Iterable
 from concurrent.futures import Future
 from confluent_kafka import TopicPartition
 from confluent_kafka.admin import (
@@ -27,7 +27,6 @@ from karapace.kafka.common import (
     single_futmap_result,
     UnknownTopicOrPartitionError,
 )
-from typing import Container
 
 
 class KafkaAdminClient(_KafkaConfigMixin, AdminClient):

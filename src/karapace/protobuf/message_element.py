@@ -7,6 +7,7 @@ See LICENSE for details
 # compatibility routine added
 from __future__ import annotations
 
+from collections.abc import Sequence
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
@@ -19,7 +20,6 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import Sequence
 
 
 class MessageElement(TypeElement):

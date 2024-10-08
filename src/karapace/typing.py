@@ -4,15 +4,16 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
-from typing import Any, ClassVar, Dict, List, Mapping, NewType, Sequence, Union
+from typing import Any, ClassVar, NewType, Union
 from typing_extensions import TypeAlias
 
 import functools
 
-JsonArray: TypeAlias = List["JsonData"]
-JsonObject: TypeAlias = Dict[str, "JsonData"]
+JsonArray: TypeAlias = list["JsonData"]
+JsonObject: TypeAlias = dict[str, "JsonData"]
 JsonScalar: TypeAlias = Union[str, int, float, None]
 JsonData: TypeAlias = Union[JsonScalar, JsonObject, JsonArray]
 
@@ -23,8 +24,8 @@ ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 
 Subject = NewType("Subject", str)
 VersionTag = Union[str, int]
-SchemaMetadata = NewType("SchemaMetadata", Dict[str, Any])
-SchemaRuleSet = NewType("SchemaRuleSet", Dict[str, Any])
+SchemaMetadata = NewType("SchemaMetadata", dict[str, Any])
+SchemaRuleSet = NewType("SchemaRuleSet", dict[str, Any])
 
 # note: the SchemaID is a unique id among all the schemas (and each version should be assigned to a different id)
 # basically the same SchemaID refer always to the same TypedSchema.

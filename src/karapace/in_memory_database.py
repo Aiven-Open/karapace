@@ -7,12 +7,12 @@ See LICENSE for details
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from karapace.schema_models import SchemaVersion, TypedSchema, Versioner
 from karapace.schema_references import Reference, Referents
 from karapace.typing import SchemaId, Subject, Version
 from threading import Lock, RLock
-from typing import Iterable, Sequence
 
 import logging
 

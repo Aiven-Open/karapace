@@ -12,7 +12,6 @@ from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from types import MappingProxyType
-from typing import Dict
 
 import datetime
 
@@ -82,7 +81,7 @@ def protobuf_to_dict(
     use_enum_labels=True,
     including_default_value_fields=True,
     lowercase_enum_lables=False,
-) -> Dict[object, object]:
+) -> dict[object, object]:
     type_callable_map = TYPE_CALLABLE_MAP
     result_dict = {}
     extensions = {}
