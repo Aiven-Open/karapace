@@ -4,12 +4,13 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Generator, Sequence
 from karapace.anonymize_schemas import anonymize_avro
 from karapace.backup.backends.reader import BaseItemsBackupReader
 from karapace.backup.backends.writer import BaseKVBackupWriter, StdOut
 from karapace.utils import json_decode, json_encode
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Final, Generator, IO, Sequence
+from typing import Any, ClassVar, Final, IO
 
 import base64
 import contextlib
@@ -61,8 +62,8 @@ class AnonymizeAvroWriter(_BaseV2Writer):
         # Check that the message has key `schema` and type is Avro schema.
         # The Avro schemas may have `schemaType` key, if not present the schema is Avro.
 
-        key = json_decode(key_bytes, Dict[str, str])
-        value = json_decode(value_bytes, Dict[str, str])
+        key = json_decode(key_bytes, dict[str, str])
+        value = json_decode(value_bytes, dict[str, str])
 
         if value and "schema" in value and value.get("schemaType", "AVRO") == "AVRO":
             original_schema: Any = json_decode(value["schema"])

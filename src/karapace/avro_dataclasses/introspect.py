@@ -6,11 +6,11 @@ See LICENSE for details
 from __future__ import annotations
 
 from .schema import AvroType, EnumType, FieldSchema, MapType, RecordSchema
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import Field, fields, is_dataclass, MISSING
 from enum import Enum
 from functools import lru_cache
-from typing import Final, get_args, get_origin, Sequence, TYPE_CHECKING, TypeVar, Union
+from typing import Final, get_args, get_origin, TYPE_CHECKING, TypeVar, Union
 
 import datetime
 import uuid

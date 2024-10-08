@@ -21,6 +21,7 @@ from aiokafka.errors import (
     UnknownTopicOrPartitionError,
 )
 from avro.schema import Schema as AvroSchema
+from collections.abc import Mapping, Sequence
 from confluent_kafka import Message, TopicPartition
 from contextlib import closing, ExitStack
 from enum import Enum
@@ -45,7 +46,7 @@ from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaId, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Thread
-from typing import Final, Mapping, Sequence
+from typing import Final
 
 import json
 import logging

@@ -5,12 +5,12 @@ See LICENSE for details
 from copy import copy
 from jsonschema import Draft7Validator
 from karapace.compatibility.jsonschema.types import BooleanSchema, Instance, Keyword, Subschema
-from typing import Any, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Optional, TypeVar, Union
 
 import re
 
 T = TypeVar("T")
-JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, Type[BooleanSchema]]
+JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, type[BooleanSchema]]
 
 
 def normalize_schema(validator: Draft7Validator) -> Any:
@@ -53,7 +53,7 @@ def normalize_schema_rec(validator: Draft7Validator, original_schema: Any) -> An
     return normalized
 
 
-def maybe_get_subschemas_and_type(schema: Any) -> Optional[Tuple[List[Any], Subschema]]:
+def maybe_get_subschemas_and_type(schema: Any) -> Optional[tuple[list[Any], Subschema]]:
     """If schema contains `anyOf`, `allOf`, or `oneOf`, return it.
 
     This will also normalized schemas with a list of types to a `anyOf`, e..g:

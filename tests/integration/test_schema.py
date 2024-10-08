@@ -21,7 +21,6 @@ from tests.utils import (
     create_subject_name_factory,
     repeat_until_successful_request,
 )
-from typing import List, Tuple
 
 import asyncio
 import json
@@ -1060,7 +1059,7 @@ async def test_transitive_compatibility(registry_async_client: Client) -> None:
     assert res_json["error_code"] == 409
 
 
-async def assert_schema_versions(client: Client, trail: str, schema_id: int, expected: List[Tuple[str, int]]) -> None:
+async def assert_schema_versions(client: Client, trail: str, schema_id: int, expected: list[tuple[str, int]]) -> None:
     """
     Calls /schemas/ids/{schema_id}/versions and asserts the expected results were in the response.
     """
@@ -1084,7 +1083,7 @@ async def assert_schema_versions_failed(client: Client, trail: str, schema_id: i
 
 async def register_schema(
     registry_async_client: Client, trail: str, subject: str, schema_str: str, schema_type: SchemaType = SchemaType.AVRO
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     # Register to get the id
     payload = {"schema": schema_str}
     if schema_type == SchemaType.JSONSCHEMA:

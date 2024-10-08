@@ -5,6 +5,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
 from karapace.protobuf.extend_element import ExtendElement
@@ -20,7 +21,6 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.type_tree import TypeTree
-from typing import Sequence
 
 import abc
 

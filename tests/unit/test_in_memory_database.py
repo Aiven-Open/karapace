@@ -5,6 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from confluent_kafka.cimpl import KafkaError
 from karapace.config import DEFAULTS
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
@@ -17,7 +18,7 @@ from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import Reference, Referents
 from karapace.typing import SchemaId, Version
 from pathlib import Path
-from typing import Final, Iterable, Sequence
+from typing import Final
 
 TEST_DATA_FOLDER: Final = Path("tests/unit/test_data/")
 

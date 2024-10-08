@@ -18,7 +18,6 @@ from tests.base_testcase import BaseTestCase
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.schemas.json_schemas import FALSE_SCHEMA, TRUE_SCHEMA
 from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name, new_topic
-from typing import List, Tuple
 
 import asyncio
 import pytest
@@ -204,7 +203,7 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
 
 @dataclass
 class DetectKeyFormatCase(BaseTestCase):
-    raw_msgs: List[Tuple[bytes, bytes]]
+    raw_msgs: list[tuple[bytes, bytes]]
     expected: KeyMode
 
 

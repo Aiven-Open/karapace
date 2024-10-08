@@ -10,9 +10,9 @@ from . import api
 from .errors import BackupDataRestorationError, StaleConsumerError
 from .poll_timeout import PollTimeout
 from aiokafka.errors import BrokerResponseError
+from collections.abc import Iterator
 from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
-from typing import Iterator
 
 import argparse
 import contextlib

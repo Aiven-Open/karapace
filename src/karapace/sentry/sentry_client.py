@@ -4,8 +4,8 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from karapace.sentry.sentry_client_api import KarapaceSentryConfig, SentryClientAPI
-from typing import Mapping
 
 # The Sentry SDK is optional, omit pylint import error
 import sentry_sdk

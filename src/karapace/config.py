@@ -6,11 +6,12 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
 from karapace.typing import ElectionStrategy, NameStrategy
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
-from typing import IO, Mapping
+from typing import IO
 from typing_extensions import NotRequired, TypedDict
 
 import logging
