@@ -4,10 +4,11 @@ karapace
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from collections.abc import Mapping
 from dataclasses import field
 from karapace.avro_dataclasses.models import AvroModel
 from karapace.dataclasses import default_dataclass
-from typing import Mapping, Optional, Tuple
+from typing import Optional
 
 import datetime
 import enum
@@ -56,7 +57,7 @@ class Metadata(AvroModel):
     partition_count: int = field(metadata={"type": "int"})
     replication_factor: int = field(metadata={"type": "int"})
     topic_configurations: Mapping[str, str]
-    data_files: Tuple[DataFile, ...]
+    data_files: tuple[DataFile, ...]
     checksum_algorithm: ChecksumAlgorithm = ChecksumAlgorithm.unknown
 
     def __post_init__(self) -> None:
@@ -78,7 +79,7 @@ class Header(AvroModel):
 class Record(AvroModel):
     key: Optional[bytes]
     value: Optional[bytes]
-    headers: Tuple[Header, ...]
+    headers: tuple[Header, ...]
     offset: int = field(metadata={"type": "long"})
     timestamp: int = field(metadata={"type": "long"})
     # In order to reduce the impact of checksums on total file sizes, especially

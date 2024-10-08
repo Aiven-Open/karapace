@@ -12,7 +12,7 @@ from karapace.utils import json_encode
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from typing import Any, Dict
+from typing import Any
 
 import base64
 import json
@@ -73,7 +73,7 @@ COMPATIBILITY_CHANGE = {"compatibility": "NONE"}
 EXPECTED_COMPATIBILITY_CHANGE = {"compatibilityLevel": "NONE"}
 
 
-async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, Any]) -> None:
+async def insert_data(c: Client, schemaType: str, subject: str, data: dict[str, Any]) -> None:
     schema_string = json.dumps(data)
     res = await c.post(
         f"subjects/{subject}/versions",
@@ -83,7 +83,7 @@ async def insert_data(c: Client, schemaType: str, subject: str, data: Dict[str, 
     assert "id" in res.json()
 
 
-async def insert_compatibility_level_change(c: Client, subject: str, data: Dict[str, Any]) -> None:
+async def insert_compatibility_level_change(c: Client, subject: str, data: dict[str, Any]) -> None:
     res = await c.put(
         f"config/{subject}",
         json=data,

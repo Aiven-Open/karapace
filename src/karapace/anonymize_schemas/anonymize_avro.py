@@ -4,7 +4,7 @@ karapace - anonymize avro
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from typing import Any, Dict, List, Union
+from typing import Any, Union
 from typing_extensions import TypeAlias
 
 import hashlib
@@ -95,7 +95,7 @@ def anonymize_name(name: str) -> str:
     return NAME_ANONYMIZABLE_PATTERN.sub(anonymize_element, name)
 
 
-Schema: TypeAlias = Union[str, Dict[str, Any], List[Any]]
+Schema: TypeAlias = Union[str, dict[str, Any], list[Any]]
 
 
 def anonymize(input_schema: Schema) -> Schema:
@@ -105,10 +105,10 @@ def anonymize(input_schema: Schema) -> Schema:
         if input_schema in ALL_TYPES:
             return input_schema
         return anonymize_name(input_schema)
-    elif isinstance(input_schema, List):
+    elif isinstance(input_schema, list):
         return [anonymize(value) for value in input_schema]
-    elif isinstance(input_schema, Dict):
-        output_schema: Dict[str, Any] = {}
+    elif isinstance(input_schema, dict):
+        output_schema: dict[str, Any] = {}
         for key, value in input_schema.items():
             if key in KEYWORDS:
                 output_schema[key] = anonymize(value)

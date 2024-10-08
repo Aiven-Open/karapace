@@ -7,14 +7,14 @@ from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.exception import IllegalArgumentException
 from karapace.protobuf.proto_type import ProtoType
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, Optional, TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from karapace.protobuf.field_element import FieldElement
     from karapace.protobuf.message_element import MessageElement
 
 
-def compute_name(t: ProtoType, result_path: List[str], package_name: str, types: dict) -> Optional[str]:
+def compute_name(t: ProtoType, result_path: list[str], package_name: str, types: dict) -> Optional[str]:
     string = t.string
 
     if string.startswith("."):
@@ -41,10 +41,10 @@ class CompareTypes:
         self.self_package_name = self_package_name or ""
         self.other_package_name = other_package_name or ""
 
-        self.self_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
-        self.other_types: Dict[str, Union[TypeRecord, TypeRecordMap]] = {}
-        self.locked_messages: List["MessageElement"] = []
-        self.environment: List["MessageElement"] = []
+        self.self_types: dict[str, Union[TypeRecord, TypeRecordMap]] = {}
+        self.other_types: dict[str, Union[TypeRecord, TypeRecordMap]] = {}
+        self.locked_messages: list["MessageElement"] = []
+        self.environment: list["MessageElement"] = []
         self.result = result
 
     def add_a_type(self, prefix: str, package_name: str, type_element: TypeElement, types: dict) -> None:

@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from karapace.client import Client
 from karapace.kafka.admin import KafkaAdminClient
@@ -23,7 +24,7 @@ from tests.utils import (
     test_objects_avro_evolution,
     wait_for_topics,
 )
-from typing import Any, Mapping
+from typing import Any
 
 import asyncio
 import base64

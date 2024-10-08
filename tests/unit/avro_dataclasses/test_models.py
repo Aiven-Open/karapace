@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from dataclasses import dataclass, field
 from karapace.avro_dataclasses.models import AvroModel
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import datetime
 import enum
@@ -21,7 +21,7 @@ class Symbol(enum.Enum):
 @dataclass(frozen=True)
 class NestedModel:
     bool_field: bool
-    values: Tuple[int, ...]
+    values: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -29,14 +29,14 @@ class RecordModel(AvroModel):
     symbol: Symbol
     height: int = field(metadata={"type": "long"})
     name: str
-    nested: Tuple[NestedModel, ...]
+    nested: tuple[NestedModel, ...]
     dt: datetime.datetime
     id: uuid.UUID
 
 
 @dataclass(frozen=True)
 class HasList(AvroModel):
-    values: List[NestedModel]
+    values: list[NestedModel]
 
 
 @dataclass(frozen=True)

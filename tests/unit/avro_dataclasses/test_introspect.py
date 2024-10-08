@@ -2,11 +2,12 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, Field, field, fields
 from enum import Enum
 from karapace.avro_dataclasses.introspect import field_schema, record_schema, UnsupportedAnnotation
 from karapace.avro_dataclasses.schema import FieldSchema
-from typing import Final, Mapping, Optional, Sequence, Tuple
+from typing import Final, Optional
 
 import datetime
 import pytest
@@ -35,8 +36,8 @@ class ValidRecord:
     optional_bytes_field: Optional[bytes]
     enum_field: Symbols
     dt_field: datetime.datetime
-    int_array: Tuple[int, ...]
-    nested_values: Tuple[Nested, ...]
+    int_array: tuple[int, ...]
+    nested_values: tuple[Nested, ...]
 
     enum_field_default: Symbols = Symbols.a
     int_field_default: int = 123
@@ -49,9 +50,9 @@ valid_fields: Final[Mapping[str, Field]] = {field.name: field for field in field
 @dataclass
 class InvalidRecord:
     any_tuple: tuple
-    homogenous_short_tuple: Tuple[int]
-    homogenous_bi_tuple: Tuple[int, int]
-    homogenous_tri_tuple: Tuple[int, int, int]
+    homogenous_short_tuple: tuple[int]
+    homogenous_bi_tuple: tuple[int, int]
+    homogenous_tri_tuple: tuple[int, int, int]
     any_list: list
     any_sequence: Sequence
 
