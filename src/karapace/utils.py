@@ -246,19 +246,6 @@ class DebugAccessLogger(AccessLogger):
             self.logger.exception("Error in logging")
 
 
-def remove_prefix(string: str, prefix: str) -> str:
-    """
-    Not available in python 3.8.
-    """
-    i = 0
-    while i < len(string) and i < len(prefix):
-        if string[i] != prefix[i]:
-            return string
-        i += 1
-
-    return string[i:]
-
-
 def shutdown():
     """
     Send a SIGTERM into the current running application process, which should initiate shutdown logic.

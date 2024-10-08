@@ -20,7 +20,6 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.type_tree import TypeTree
-from karapace.utils import remove_prefix
 from typing import Sequence
 
 import abc
@@ -90,7 +89,7 @@ class NormalizedOneOfElement(OneOfElement):
 
 def normalize_type_field_element(type_field: FieldElement, package: str, type_tree: TypeTree) -> NormalizedFieldElement:
     sorted_options = None if type_field.options is None else list(sorted(type_field.options, key=sort_by_name))
-    field_type_normalized = remove_prefix(remove_prefix(type_field.element_type, "."), f"{package}.")
+    field_type_normalized = type_field.element_type.removeprefix(".").removeprefix(f"{package}.")
     reference_in_type_tree = type_tree.type_in_tree(field_type_normalized)
     google_included_type = (
         field_type_normalized in KnownDependency.index_simple or field_type_normalized in KnownDependency.index
