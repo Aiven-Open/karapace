@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_7ab06134ce77b4a1_compare_type_storage_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.1">coverage.py v7.6.1</a>,
-            created at 2024-10-02 08:28 +0000
+            created at 2024-10-08 13:26 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -88,14 +88,14 @@
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">Copyright (c) 2023 Aiven Ltd</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">See LICENSE for details</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">itertools</span> <span class="key">import</span> <span class="nam">chain</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">compare_result</span> <span class="key">import</span> <span class="nam">CompareResult</span><span class="op">,</span> <span class="nam">Modification</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">compare_type_storage</span> <span class="key">import</span> <span class="nam">CompareTypes</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">enum_element</span> <span class="key">import</span> <span class="nam">EnumElement</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">exception</span> <span class="key">import</span> <span class="nam">IllegalStateException</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">message_element</span> <span class="key">import</span> <span class="nam">MessageElement</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">type_element</span> <span class="key">import</span> <span class="nam">TypeElement</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">typing</span> <span class="key">import</span> <span class="nam">Sequence</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">collections</span><span class="op">.</span><span class="nam">abc</span> <span class="key">import</span> <span class="nam">Sequence</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">from</span> <span class="nam">itertools</span> <span class="key">import</span> <span class="nam">chain</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">compare_result</span> <span class="key">import</span> <span class="nam">CompareResult</span><span class="op">,</span> <span class="nam">Modification</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">compare_type_storage</span> <span class="key">import</span> <span class="nam">CompareTypes</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">enum_element</span> <span class="key">import</span> <span class="nam">EnumElement</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">exception</span> <span class="key">import</span> <span class="nam">IllegalStateException</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">message_element</span> <span class="key">import</span> <span class="nam">MessageElement</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">type_element</span> <span class="key">import</span> <span class="nam">TypeElement</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">def</span> <span class="nam">compare_type_lists</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -157,7 +157,7 @@
             <a class="nav" href="z_7ab06134ce77b4a1_compare_type_storage_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.1">coverage.py v7.6.1</a>,
-            created at 2024-10-02 08:28 +0000
+            created at 2024-10-08 13:26 +0000
         </p>
     </div>
 </footer>
