@@ -11,7 +11,7 @@ from aiohttp.web_request import Request
 from collections.abc import Awaitable
 from functools import partial
 from http import HTTPStatus
-from karapace.config import Config
+from karapace.config import Config, service_without_secret
 from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.typing import JsonObject
 from karapace.utils import json_encode
@@ -33,6 +33,7 @@ class KarapaceBase(RestApp):
         self.health_hooks: list[HealthHook] = []
         # Do not use rapu's etag, readiness and other wrapping
         self.app.router.add_route("GET", "/_health", self.health)
+        self.app.router.add_route("GET", "/_config", self.config_endpoint)
 
         self.kafka_timeout = 10
         self.route("/", callback=self.root_get, method="GET")
@@ -90,6 +91,13 @@ class KarapaceBase(RestApp):
 
     async def root_get(self) -> NoReturn:
         self.r({}, "application/json")
+
+    async def config_endpoint(self, _request: Request) -> aiohttp.web.Response:
+        return aiohttp.web.Response(
+            body=json_encode(service_without_secret(self.config), binary=True, compact=True),
+            status=HTTPStatus.OK.value,
+            headers={"Content-Type": "application/json"},
+        )
 
     async def health(self, _request: Request) -> aiohttp.web.Response:
         resp: JsonObject = {

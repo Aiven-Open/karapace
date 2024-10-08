@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from karapace.client import Client
+from karapace.config import Config, IGNORED_FIELDS, SECRET_FIELDS
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.producer import KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
@@ -56,6 +57,36 @@ async def test_health_endpoint(rest_async_client: Client) -> None:
     assert "karapace_version" in response
     assert response["process_uptime_sec"] >= 0
     assert response["karapace_version"] == __version__
+
+
+def test_secret_fields_are_config_fields() -> None:
+    config_keys = list(Config.__annotations__)
+    for key in SECRET_FIELDS:
+        assert key in config_keys
+
+
+def test_ignored_fields_are_config_fields() -> None:
+    config_keys = list(Config.__annotations__)
+    for key in IGNORED_FIELDS:
+        assert key in config_keys
+
+
+async def test_config_endpoint(rest_async_client: Client) -> None:
+    res = await rest_async_client.get("/_config")
+    assert res.status_code == 200
+    response = res.json()
+    required_keys = list(Config.__annotations__)
+
+    for key in required_keys:
+        if key not in IGNORED_FIELDS:
+            assert key in response, "Need to explicitly decide if config needs to be shown as plaintext or hidden"
+
+    for key in response:
+        if key not in IGNORED_FIELDS:
+            assert key in required_keys, "All keys should be a config or explicitly ignored"
+
+    for key in SECRET_FIELDS:
+        assert response[key] == "REDACTED"
 
 
 async def test_request_body_too_large(rest_async_client: KafkaAdminClient, admin_client: Client) -> None:

@@ -8,16 +8,27 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
-from karapace.typing import ElectionStrategy, NameStrategy
+from karapace.typing import ElectionStrategy, JsonObject, NameStrategy
 from karapace.utils import json_decode, json_encode, JSONDecodeError
 from pathlib import Path
-from typing import IO
+from typing import Final, IO
 from typing_extensions import NotRequired, TypedDict
 
 import logging
 import os
 import socket
 import ssl
+
+SECRET_FIELDS: Final = (
+    "bootstrap_uri",
+    "sasl_bootstrap_uri",
+    "registry_password",
+    "ssl_password",
+    "sasl_plain_password",
+    "sasl_oauth_token",
+)
+
+IGNORED_FIELDS: Final = ("sentry", "tags")
 
 
 class Config(TypedDict):
@@ -87,6 +98,72 @@ class Config(TypedDict):
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
+
+
+def service_without_secret(config: Config) -> JsonObject:
+    plaintext_config: JsonObject = {
+        "access_logs_debug": config["access_logs_debug"],
+        "access_log_class": config["access_log_class"],
+        "advertised_hostname": config["advertised_hostname"],
+        "advertised_port": config["advertised_port"],
+        "advertised_protocol": config["advertised_protocol"],
+        "client_id": config["client_id"],
+        "compatibility": config["compatibility"],
+        "connections_max_idle_ms": config["connections_max_idle_ms"],
+        "consumer_enable_auto_commit": config["consumer_enable_auto_commit"],
+        "consumer_request_timeout_ms": config["consumer_request_timeout_ms"],
+        "consumer_request_max_bytes": config["consumer_request_max_bytes"],
+        "consumer_idle_disconnect_timeout": config["consumer_idle_disconnect_timeout"],
+        "fetch_min_bytes": config["fetch_min_bytes"],
+        "group_id": config["group_id"],
+        "host": config["host"],
+        "port": config["port"],
+        # the file itself shouldn't be a problem, just the content should be protected
+        "server_tls_certfile": config["server_tls_certfile"],
+        "server_tls_keyfile": config["server_tls_keyfile"],
+        "registry_host": config["registry_host"],
+        "registry_port": config["registry_port"],
+        "registry_user": config["registry_user"],
+        "registry_ca": config["registry_ca"],
+        "registry_authfile": config["registry_authfile"],
+        "rest_authorization": config["rest_authorization"],
+        "rest_base_uri": config["rest_base_uri"],
+        "log_level": config["log_level"],
+        "log_format": config["log_format"],
+        "master_eligibility": config["master_eligibility"],
+        "replication_factor": config["replication_factor"],
+        "security_protocol": config["security_protocol"],
+        "ssl_cafile": config["ssl_cafile"],
+        "ssl_certfile": config["ssl_certfile"],
+        "ssl_keyfile": config["ssl_keyfile"],
+        "ssl_check_hostname": config["ssl_check_hostname"],
+        "ssl_crlfile": config["ssl_crlfile"],
+        "sasl_mechanism": config["sasl_mechanism"],
+        "sasl_plain_username": config["sasl_plain_username"],
+        "topic_name": config["topic_name"],
+        "metadata_max_age_ms": config["metadata_max_age_ms"],
+        "admin_metadata_max_age": config["admin_metadata_max_age"],
+        "producer_acks": config["producer_acks"],
+        "producer_compression_type": config["producer_compression_type"],
+        "producer_count": config["producer_count"],
+        "producer_linger_ms": config["producer_linger_ms"],
+        "producer_max_request_size": config["producer_max_request_size"],
+        "session_timeout_ms": config["session_timeout_ms"],
+        "karapace_rest": config["karapace_rest"],
+        "karapace_registry": config["karapace_registry"],
+        "name_strategy": config["name_strategy"],
+        "name_strategy_validation": config["name_strategy_validation"],
+        "master_election_strategy": config["master_election_strategy"],
+        "protobuf_runtime_directory": config["protobuf_runtime_directory"],
+        "statsd_host": config["statsd_host"],
+        "statsd_port": config["statsd_port"],
+        "kafka_schema_reader_strict_mode": config["kafka_schema_reader_strict_mode"],
+        "kafka_retriable_errors_silenced": config["kafka_retriable_errors_silenced"],
+        "use_protobuf_formatter": config["use_protobuf_formatter"],
+    }
+    for key in SECRET_FIELDS:
+        plaintext_config[key] = "REDACTED"
+    return plaintext_config
 
 
 class ConfigDefaults(Config, total=False):
