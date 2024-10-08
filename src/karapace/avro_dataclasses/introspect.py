@@ -10,11 +10,7 @@ from collections.abc import Mapping
 from dataclasses import Field, fields, is_dataclass, MISSING
 from enum import Enum
 from functools import lru_cache
-from typing import Final, Sequence, TYPE_CHECKING, TypeVar, Union
-
-# Note: It's important get_args and get_origin are imported from typing_extensions
-# until support for Python 3.8 is dropped.
-from typing_extensions import get_args, get_origin
+from typing import Final, get_args, get_origin, Sequence, TYPE_CHECKING, TypeVar, Union
 
 import datetime
 import uuid

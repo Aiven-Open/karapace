@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from karapace.dataclasses import default_dataclass
-from karapace.utils import remove_prefix
 
 import itertools
 
@@ -84,7 +83,7 @@ class TypeTree:
         return tree
 
     def type_in_tree(self, queried_type: str) -> TypeTree | None:
-        return TypeTree._type_in_tree(self, remove_prefix(queried_type, ".").split("."))
+        return TypeTree._type_in_tree(self, queried_type.removeprefix(".").split("."))
 
     def expand_missing_absolute_path(self) -> Sequence[str]:
         oldest_import = self.oldest_matching_import()
