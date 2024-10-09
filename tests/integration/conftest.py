@@ -79,7 +79,7 @@ def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
         kafka_tgz=RUNTIME_DIR / kafka_tgz,
         install_dir=kafka_dir,
         download_url=kafka_url,
-        protocol_version="2.7",
+        protocol_version="3.4.1",
     )
 
 
