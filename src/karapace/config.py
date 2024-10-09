@@ -49,6 +49,7 @@ class Config(TypedDict):
     registry_authfile: str | None
     rest_authorization: bool
     rest_base_uri: str | None
+    log_handler: str | None
     log_level: str
     log_format: str
     master_eligibility: bool
@@ -126,6 +127,7 @@ DEFAULTS: ConfigDefaults = {
     "registry_authfile": None,
     "rest_authorization": False,
     "rest_base_uri": None,
+    "log_handler": "stdout",
     "log_level": "DEBUG",
     "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
     "master_eligibility": True,

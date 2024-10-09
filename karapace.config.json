@@ -9,6 +9,7 @@
     "group_id": "schema-registry",
     "host": "127.0.0.1",
     "log_level": "DEBUG",
+    "log_handler": "stdout",
     "port": 8081,
     "server_tls_certfile": null,
     "server_tls_keyfile": null,
