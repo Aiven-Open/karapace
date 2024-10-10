@@ -4,7 +4,7 @@ from ._listoffsets import ListOffsetsResultInfo, OffsetSpec
 from ._metadata import BrokerMetadata, ClusterMetadata, PartitionMetadata, TopicMetadata
 from ._resource import ResourceType
 from concurrent.futures import Future
-from confluent_kafka import IsolationLevel, TopicPartition
+from confluent_kafka import IsolationLevel, TopicCollection, TopicPartition
 from typing import Callable
 
 __all__ = (
@@ -52,3 +52,4 @@ class AdminClient:
     def describe_configs(
         self, resources: list[ConfigResource], request_timeout: float = -1
     ) -> dict[ConfigResource, Future[dict[str, ConfigEntry]]]: ...
+    def describe_topics(self, topics: TopicCollection) -> dict[str, Future]: ...

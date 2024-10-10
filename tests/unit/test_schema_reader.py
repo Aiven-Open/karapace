@@ -6,7 +6,7 @@ See LICENSE for details
 """
 
 from _pytest.logging import LogCaptureFixture
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from confluent_kafka import Message
 from dataclasses import dataclass
 from karapace.config import DEFAULTS
@@ -25,9 +25,10 @@ from karapace.schema_reader import (
 )
 from karapace.schema_type import SchemaType
 from karapace.typing import SchemaId, Version
+from pytest import MonkeyPatch
 from tests.base_testcase import BaseTestCase
 from tests.utils import schema_protobuf_invalid_because_corrupted, schema_protobuf_with_invalid_ref
-from typing import Callable
+from typing import Callable, Optional
 from unittest.mock import Mock
 
 import confluent_kafka
@@ -323,6 +324,84 @@ def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture) -> None:
             assert log.name == "karapace.schema_reader"
             assert log.levelname == "WARNING"
             assert log.message == "Hard delete: version: Version(2) for subject: 'test-subject' did not exist, should have"
+
+
+@dataclass
+class HealthCheckTestCase(BaseTestCase):
+    current_time: float
+    consecutive_unexpected_errors: int
+    consecutive_unexpected_errors_start: float
+    healthy: bool
+    check_topic_error: Optional[Exception] = None
+
+
+@pytest.mark.parametrize(
+    "testcase",
+    [
+        HealthCheckTestCase(
+            test_name="No errors",
+            current_time=0,
+            consecutive_unexpected_errors=0,
+            consecutive_unexpected_errors_start=0,
+            healthy=True,
+        ),
+        HealthCheckTestCase(
+            test_name="10 errors in 5 seconds",
+            current_time=5,
+            consecutive_unexpected_errors=10,
+            consecutive_unexpected_errors_start=0,
+            healthy=True,
+        ),
+        HealthCheckTestCase(
+            test_name="1 error in 20 seconds",
+            current_time=20,
+            consecutive_unexpected_errors=1,
+            consecutive_unexpected_errors_start=0,
+            healthy=True,
+        ),
+        HealthCheckTestCase(
+            test_name="3 errors in 10 seconds",
+            current_time=10,
+            consecutive_unexpected_errors=3,
+            consecutive_unexpected_errors_start=0,
+            healthy=False,
+        ),
+        HealthCheckTestCase(
+            test_name="check topic error",
+            current_time=5,
+            consecutive_unexpected_errors=1,
+            consecutive_unexpected_errors_start=0,
+            healthy=False,
+            check_topic_error=Exception("Somethings wrong"),
+        ),
+    ],
+)
+async def test_schema_reader_health_check(testcase: HealthCheckTestCase, monkeypatch: MonkeyPatch) -> None:
+    offset_watcher = OffsetWatcher()
+    key_formatter_mock = Mock()
+    admin_client_mock = Mock()
+
+    emtpy_future = Future()
+    if testcase.check_topic_error:
+        emtpy_future.set_exception(testcase.check_topic_error)
+    else:
+        emtpy_future.set_result(None)
+    admin_client_mock.describe_topics.return_value = {DEFAULTS["topic_name"]: emtpy_future}
+
+    schema_reader = KafkaSchemaReader(
+        config=DEFAULTS,
+        offset_watcher=offset_watcher,
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+    )
+
+    monkeypatch.setattr(time, "monotonic", lambda: testcase.current_time)
+    schema_reader.admin_client = admin_client_mock
+    schema_reader.consecutive_unexpected_errors = testcase.consecutive_unexpected_errors
+    schema_reader.consecutive_unexpected_errors_start = testcase.consecutive_unexpected_errors_start
+
+    assert await schema_reader.is_healthy() == testcase.healthy
 
 
 @dataclass
