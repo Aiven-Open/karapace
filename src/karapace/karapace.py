@@ -12,6 +12,7 @@ from collections.abc import Awaitable
 from functools import partial
 from http import HTTPStatus
 from karapace.config import Config
+from karapace.dataclasses import default_dataclass
 from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.typing import JsonObject
 from karapace.utils import json_encode
@@ -22,7 +23,14 @@ from typing_extensions import TypeAlias
 import aiohttp.web
 import time
 
-HealthHook: TypeAlias = Callable[[], Awaitable[JsonObject]]
+
+@default_dataclass
+class HealthCheck:
+    status: JsonObject
+    healthy: bool
+
+
+HealthHook: TypeAlias = Callable[[], Awaitable[HealthCheck]]
 
 
 class KarapaceBase(RestApp):
@@ -96,11 +104,15 @@ class KarapaceBase(RestApp):
             "process_uptime_sec": int(time.monotonic() - self._process_start_time),
             "karapace_version": __version__,
         }
+        status_code = HTTPStatus.OK
         for hook in self.health_hooks:
-            resp.update(await hook())
+            check = await hook()
+            resp.update(check.status)
+            if not check.healthy:
+                status_code = HTTPStatus.SERVICE_UNAVAILABLE
         return aiohttp.web.Response(
             body=json_encode(resp, binary=True, compact=True),
-            status=HTTPStatus.OK.value,
+            status=status_code.value,
             headers={"Content-Type": "application/json"},
         )
 

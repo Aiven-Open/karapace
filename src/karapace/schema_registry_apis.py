@@ -28,13 +28,13 @@ from karapace.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.karapace import KarapaceBase
+from karapace.karapace import HealthCheck, KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
+from karapace.typing import JsonData, SchemaId, Subject, Version
 from karapace.utils import JSONDecodeError
 from typing import Any
 
@@ -98,7 +98,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.app.on_startup.append(self._create_forward_client)
         self.health_hooks.append(self.schema_registry_health)
 
-    async def schema_registry_health(self) -> JsonObject:
+    async def schema_registry_health(self) -> HealthCheck:
         resp = {}
         if self._auth is not None:
             resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
@@ -115,7 +115,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         resp["schema_registry_primary_url"] = cs.primary_url
         resp["schema_registry_coordinator_running"] = cs.is_running
         resp["schema_registry_coordinator_generation_id"] = cs.group_generation_id
-        return resp
+
+        healthy = True
+        if not await self.schema_registry.schema_reader.is_healthy():
+            healthy = False
+
+        return HealthCheck(status=resp, healthy=healthy)
 
     async def _start_schema_registry(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         """Callback for aiohttp.Application.on_startup"""
