@@ -149,6 +149,10 @@ Test the compatibility of a schema with the latest schema under subject "test-ke
     http://localhost:8081/compatibility/subjects/test-key/versions/latest
   {"is_compatible":true}
 
+NOTE: if the subject's compatibility mode is transitive (BACKWARD_TRANSITIVE, FORWARD_TRANSITIVE or FULL_TRANSITIVE) then the
+compatibility is checked not only against the latest schema, but also against all previous schemas, as it would be done
+when trying to register the new schema through the `subjects/<subject-key>/versions` endpoint.
+
 Get current global backwards compatibility setting value::
 
   $ curl -X GET http://localhost:8081/config
