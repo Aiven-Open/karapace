@@ -42,10 +42,17 @@ def _field_type_array(field: Field, origin: type, type_: object) -> AvroType:
     else:
         (inner_type,) = get_args(type_)
 
+    items: AvroType
+    if is_dataclass(inner_type):
+        assert isinstance(inner_type, type)
+        items = record_schema(inner_type)
+    else:
+        items = _field_type(field, inner_type)
+
     return {
         "name": f"one_of_{field.name}",
         "type": "array",
-        "items": (record_schema(inner_type) if is_dataclass(inner_type) else _field_type(field, inner_type)),
+        "items": items,
     }
 
 
@@ -128,7 +135,7 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
 T = TypeVar("T", str, int, bool, Enum, None)
 
 
-def transform_default(type_: type[T], default: T) -> str | int | bool | None:
+def transform_default(type_: type[T] | str, default: T) -> str | int | bool | None:
     if isinstance(default, Enum):
         assert isinstance(type_, type)
         assert issubclass(type_, Enum)
