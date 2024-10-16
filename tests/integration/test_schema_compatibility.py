@@ -44,7 +44,7 @@ class SchemaCompatibilityTestCase(BaseTestCase):
     register_baseline_schemas: SchemaRegitrationFunc
     expected_is_compatible: bool | None
     expected_status_code: int
-    expected_incompatibilities: str | None
+    expected_incompatibilities: list[str] | None
 
 
 async def _register_baseline_schemas_no_incompatibilities(registry_async_client: Client, subject: Subject) -> None:
@@ -149,7 +149,7 @@ async def _set_compatibility_mode(registry_async_client: Client, subject: Subjec
             new_schema=json.dumps(schema_int),
             expected_is_compatible=False,
             expected_status_code=200,
-            expected_incompatibilities="reader type: int not compatible with writer type: double",
+            expected_incompatibilities=["reader type: int not compatible with writer type: double"],
         ),
         # Case 3
         # Same as previous case, but in non-transitive mode
@@ -161,7 +161,7 @@ async def _set_compatibility_mode(registry_async_client: Client, subject: Subjec
             new_schema=json.dumps(schema_int),
             expected_is_compatible=False,
             expected_status_code=200,
-            expected_incompatibilities="reader type: int not compatible with writer type: string",
+            expected_incompatibilities=["reader type: int not compatible with writer type: string"],
         ),
         # Case 4
         # Same as case 2, but with a deleted schema among baseline ones
@@ -175,7 +175,7 @@ async def _set_compatibility_mode(registry_async_client: Client, subject: Subjec
             new_schema=json.dumps(schema_int),
             expected_is_compatible=False,
             expected_status_code=200,
-            expected_incompatibilities="reader type: int not compatible with writer type: double",
+            expected_incompatibilities=["reader type: int not compatible with writer type: double"],
         ),
         # Case 5
         # Same as case 3, but with a deleted schema among baseline ones
@@ -188,7 +188,7 @@ async def _set_compatibility_mode(registry_async_client: Client, subject: Subjec
             new_schema=json.dumps(schema_int),
             expected_is_compatible=False,
             expected_status_code=200,
-            expected_incompatibilities="reader type: int not compatible with writer type: string",
+            expected_incompatibilities=["reader type: int not compatible with writer type: string"],
         ),
         # Case 6
         # A new schema and no baseline schemas
@@ -232,4 +232,4 @@ async def test_schema_compatibility(test_case: SchemaCompatibilityTestCase, regi
 
     assert res.status_code == test_case.expected_status_code
     assert res.json().get("is_compatible") == test_case.expected_is_compatible
-    assert res.json().get("incompatibilities", None) == test_case.expected_incompatibilities
+    assert res.json().get("messages") == test_case.expected_incompatibilities
