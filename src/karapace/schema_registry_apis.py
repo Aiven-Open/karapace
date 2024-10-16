@@ -412,8 +412,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             result = SchemaCompatibility.check_compatibility(old_schema, new_schema, compatibility_mode)
 
         if is_incompatible(result):
-            maybe_truncated_error = ", ".join(result.messages)[:300]
-            self.r({"is_compatible": False, "incompatibilities": maybe_truncated_error}, content_type)
+            self.r({"is_compatible": False, "messages": list(result.messages)}, content_type)
         self.r({"is_compatible": True}, content_type)
 
     async def schemas_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None):

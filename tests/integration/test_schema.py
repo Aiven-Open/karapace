@@ -333,7 +333,7 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
     )
     assert res.status_code == 200
     assert res.json().get("is_compatible") is False
-    assert res.json().get("incompatibilities") == "reader type: string not compatible with writer type: int"
+    assert res.json().get("messages") == ["reader type: string not compatible with writer type: int"]
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
