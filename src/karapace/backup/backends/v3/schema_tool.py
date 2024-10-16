@@ -60,14 +60,10 @@ def relative_path(path: pathlib.Path) -> pathlib.Path:
 
 
 def target_has_source_layout(git_target: str) -> bool:
-    with subprocess.Popen(
-        ["git", "show", f"{git_target}:src"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    ) as cp:
-        if cp.returncode == 128:
-            return False
-        return True
+    cp = subprocess.run(["git", "show", f"{git_target}:src"], capture_output=True, check=False)
+    if cp.returncode == 128:
+        return False
+    return True
 
 
 def check_compatibility(git_target: str) -> None:
