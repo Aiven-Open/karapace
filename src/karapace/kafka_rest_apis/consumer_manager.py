@@ -150,6 +150,16 @@ class ConsumerManager:
             message=message,
         )
 
+    @staticmethod
+    def _unprocessable_entity(*, message: str, content_type: str) -> None:
+        ConsumerManager._assert(
+            cond=False,
+            code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+            content_type=content_type,
+            message=message,
+        )
+
     # external api below
     # CONSUMER
     async def create_consumer(self, group_name: str, request_data: dict, content_type: str):
@@ -318,7 +328,11 @@ class ConsumerManager:
         LOG.info("Updating subscription for %s", internal_name)
         self._assert_consumer_exists(internal_name, content_type)
         topics = request_data.get("topics", [])
+        if topics and not isinstance(topics, list):
+            self._unprocessable_entity(message="Topics is expected to be list of strings", content_type=content_type)
         topics_pattern = request_data.get("topic_pattern")
+        if topics_pattern and not isinstance(topics_pattern, str):
+            self._unprocessable_entity(message="Topic patterns is expected to be a string", content_type=content_type)
         if not (topics or topics_pattern):
             self._illegal_state_fail(
                 message="Neither topic_pattern nor topics are present in request", content_type=content_type
