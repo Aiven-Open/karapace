@@ -167,6 +167,16 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.status_code == 409, "Expecting status code 409 on assign after subscribe on the same consumer instance"
 
+    # topics parameter is expected to be array, 4xx error returned
+    res = await rest_async_client.post(sub_path, json={"topics": topic_name}, headers=REST_HEADERS["json"])
+    assert res.status_code == 422, "Expecting status code 422 on subscription update with invalid topics param"
+
+    # topic pattern parameter is expected to be a string, 4xx error returned
+    res = await rest_async_client.post(
+        sub_path, json={"topic_pattern": ["not", "a", "string"]}, headers=REST_HEADERS["json"]
+    )
+    assert res.status_code == 422, "Expecting status code 422 on subscription update with invalid topics param"
+
 
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_seek(rest_async_client, admin_client, trail):
