@@ -25,7 +25,7 @@
 | src/karapace/backup/backends/v3/errors.py             |       27 |        0 |        0 |        0 |    100% |           |
 | src/karapace/backup/backends/v3/readers.py            |       47 |        0 |        8 |        0 |    100% |           |
 | src/karapace/backup/backends/v3/schema.py             |       64 |        0 |        0 |        0 |    100% |           |
-| src/karapace/backup/backends/v3/schema\_tool.py       |       87 |       87 |       26 |        0 |      0% |     7-161 |
+| src/karapace/backup/backends/v3/schema\_tool.py       |       79 |       79 |       22 |        0 |      0% |     7-145 |
 | src/karapace/backup/backends/v3/writers.py            |       46 |        1 |        4 |        1 |     96% |        24 |
 | src/karapace/backup/backends/writer.py                |       48 |        1 |        0 |        0 |     98% |       175 |
 | src/karapace/backup/cli.py                            |       79 |       10 |       18 |        2 |     86% |122-137, 146, 158-166, 168-174, 178 |
@@ -125,7 +125,7 @@
 | src/karapace/typing.py                                |       70 |        2 |        8 |        2 |     95% |    76, 88 |
 | src/karapace/utils.py                                 |      127 |       44 |       28 |        3 |     61% |31-33, 45-47, 52, 57, 62, 67, 73-82, 93, 105, 118, 132, 137, 152, 156, 198, 206-209, 228-246 |
 | src/karapace/version.py                               |       11 |        2 |        2 |        1 |     77% |       5-6 |
-|                                             **TOTAL** | **10807** | **2163** | **3064** |  **378** | **77%** |           |
+|                                             **TOTAL** | **10799** | **2155** | **3060** |  **378** | **77%** |           |
 
 
 ## Setup coverage badge
