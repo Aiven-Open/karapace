@@ -7,9 +7,9 @@ PYTHON_VERSION ?= 3.9
 
 define PIN_VERSIONS_COMMAND
 pip install pip-tools && \
-	python -m piptools compile -o /karapace/requirements/requirements.txt /karapace/pyproject.toml && \
-	python -m piptools compile --extra dev -o /karapace/requirements/requirements-dev.txt /karapace/pyproject.toml && \
-	python -m piptools compile --extra typing -o /karapace/requirements/requirements-typing.txt /karapace/pyproject.toml
+	python -m piptools compile --upgrade -o /karapace/requirements/requirements.txt /karapace/pyproject.toml && \
+	python -m piptools compile --upgrade --extra dev -o /karapace/requirements/requirements-dev.txt /karapace/pyproject.toml && \
+	python -m piptools compile --upgrade --extra typing -o /karapace/requirements/requirements-typing.txt /karapace/pyproject.toml
 endef
 
 
