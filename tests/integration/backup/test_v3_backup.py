@@ -119,14 +119,13 @@ def test_roundtrip_from_kafka_state(
     admin_client.update_topic_config(new_topic.topic, {"max.message.bytes": "999"})
 
     # Populate topic.
-    producer.send(
+    first_record_fut = producer.send(
         new_topic.topic,
         key=b"bar",
         value=b"foo",
         partition=0,
-        timestamp=1683474641,
     )
-    producer.send(
+    second_record_fut = producer.send(
         new_topic.topic,
         key=b"foo",
         value=b"bar",
@@ -135,9 +134,11 @@ def test_roundtrip_from_kafka_state(
             ("some-header", b"some header value"),
             ("other-header", b"some other header value"),
         ],
-        timestamp=1683474657,
     )
     producer.flush()
+
+    first_message_timestamp = first_record_fut.result(timeout=5).timestamp()[1]
+    second_message_timestamp = second_record_fut.result(timeout=5).timestamp()[1]
 
     topic_config = get_topic_configurations(admin_client, new_topic.topic, {ConfigSource.DYNAMIC_TOPIC_CONFIG})
 
@@ -212,7 +213,7 @@ def test_roundtrip_from_kafka_state(
     # Note: This might be unreliable due to not using idempotent producer, i.e. we have
     # no guarantee against duplicates currently.
     assert first_record.offset() == 0
-    assert first_record.timestamp()[1] == 1683474641
+    assert first_record.timestamp()[1] == first_message_timestamp
     assert first_record.timestamp()[0] == Timestamp.CREATE_TIME
     assert first_record.key() == b"bar"
     assert first_record.value() == b"foo"
@@ -223,7 +224,7 @@ def test_roundtrip_from_kafka_state(
     assert second_record.topic() == new_topic.topic
     assert second_record.partition() == partition
     assert second_record.offset() == 1
-    assert second_record.timestamp()[1] == 1683474657
+    assert second_record.timestamp()[1] == second_message_timestamp
     assert second_record.timestamp()[0] == Timestamp.CREATE_TIME
     assert second_record.key() == b"foo"
     assert second_record.value() == b"bar"
