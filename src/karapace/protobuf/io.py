@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Generator, Iterable
 from io import BytesIO
 from karapace.config import Config
 from karapace.protobuf.encoding_variants import read_indexes, write_indexes
@@ -14,7 +15,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.type_element import TypeElement
 from multiprocessing import Process, Queue
 from pathlib import Path
-from typing import Dict, Final, Generator, Iterable, Protocol
+from typing import Final, Protocol
 from typing_extensions import Self, TypeAlias
 
 import hashlib
@@ -209,7 +210,7 @@ def read_in_forked_multiprocess_process(
         finally:
             p.join()
             reader_queue.close()
-        if isinstance(result, Dict):
+        if isinstance(result, dict):
             return result
         if isinstance(result, BaseException):
             raise result

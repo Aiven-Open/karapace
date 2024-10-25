@@ -5,6 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiokafka.errors import UnknownTopicOrPartitionError
+from collections.abc import Iterator
 from confluent_kafka import Message, TopicPartition
 from confluent_kafka.admin import NewTopic
 from dataclasses import fields
@@ -27,7 +28,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from typing import Iterator, NoReturn
+from typing import NoReturn
 from unittest.mock import patch
 
 import datetime

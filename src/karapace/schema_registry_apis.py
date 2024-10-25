@@ -9,8 +9,9 @@ from contextlib import AsyncExitStack
 from enum import Enum, unique
 from http import HTTPStatus
 from karapace.auth import HTTPAuthorizer, Operation, User
-from karapace.compatibility import check_compatibility, CompatibilityModes
+from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
+from karapace.compatibility.schema_compatibility import SchemaCompatibility
 from karapace.config import Config
 from karapace.errors import (
     IncompatibleSchema,
@@ -28,7 +29,7 @@ from karapace.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.karapace import KarapaceBase
+from karapace.karapace import HealthCheck, KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
@@ -98,7 +99,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self.app.on_startup.append(self._create_forward_client)
         self.health_hooks.append(self.schema_registry_health)
 
-    async def schema_registry_health(self) -> JsonObject:
+    async def schema_registry_health(self) -> HealthCheck:
         resp = {}
         if self._auth is not None:
             resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
@@ -115,7 +116,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         resp["schema_registry_primary_url"] = cs.primary_url
         resp["schema_registry_coordinator_running"] = cs.is_running
         resp["schema_registry_coordinator_generation_id"] = cs.group_generation_id
-        return resp
+
+        healthy = True
+        if not await self.schema_registry.schema_reader.is_healthy():
+            healthy = False
+
+        return HealthCheck(status=resp, healthy=healthy)
 
     async def _start_schema_registry(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         """Callback for aiohttp.Application.on_startup"""
@@ -375,62 +381,11 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         )
 
     async def compatibility_check(
-        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
+        self, content_type: str, *, subject: Subject, version: str, request: HTTPRequest, user: User | None = None
     ) -> None:
         """Check for schema compatibility"""
 
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
-        body = request.json
-        schema_type = self._validate_schema_type(content_type=content_type, data=body)
-        references = self._validate_references(content_type, schema_type, body)
-        try:
-            references, new_schema_dependencies = self.schema_registry.resolve_references(references)
-            new_schema = ValidatedTypedSchema.parse(
-                schema_type=schema_type,
-                schema_str=body["schema"],
-                references=references,
-                dependencies=new_schema_dependencies,
-                use_protobuf_formatter=self.config["use_protobuf_formatter"],
-            )
-        except InvalidSchema:
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
-                    "message": f"Invalid {schema_type} schema",
-                },
-                content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY,
-            )
-        try:
-            old = self.schema_registry.subject_version_get(subject=subject, version=Versioner.V(version))
-        except InvalidVersion:
-            self._invalid_version(content_type, version)
-        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                    "message": f"Version {version} not found.",
-                },
-                content_type=content_type,
-                status=HTTPStatus.NOT_FOUND,
-            )
-        old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
-        try:
-            old_references = old.get("references", None)
-            old_dependencies = None
-            if old_references:
-                old_references, old_dependencies = self.schema_registry.resolve_references(old_references)
-            old_schema = ParsedTypedSchema.parse(old_schema_type, old["schema"], old_references, old_dependencies)
-        except InvalidSchema:
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
-                    "message": f"Found an invalid {old_schema_type} schema registered",
-                },
-                content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY,
-            )
 
         try:
             compatibility_mode = self.schema_registry.get_compatibility_mode(subject=subject)
@@ -446,13 +401,18 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
-        result = check_compatibility(
-            old_schema=old_schema,
-            new_schema=new_schema,
-            compatibility_mode=compatibility_mode,
-        )
+        new_schema = self.get_new_schema(request.json, content_type)
+        old_schema = self.get_old_schema(subject, Versioner.V(version), content_type)
+        if compatibility_mode.is_transitive():
+            # Ignore the schema version provided in the rest api call (`version`)
+            # Instead check against all previous versions (including `version` if existing)
+            result = self.schema_registry.check_schema_compatibility(new_schema, subject)
+        else:
+            # Check against the schema version provided in the rest api call (`version`)
+            result = SchemaCompatibility.check_compatibility(old_schema, new_schema, compatibility_mode)
+
         if is_incompatible(result):
-            self.r({"is_compatible": False}, content_type)
+            self.r({"is_compatible": False, "messages": list(result.messages)}, content_type)
         self.r({"is_compatible": True}, content_type)
 
     async def schemas_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None):
@@ -1365,3 +1325,57 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             content_type=content_type,
             status=HTTPStatus.INTERNAL_SERVER_ERROR,
         )
+
+    def get_new_schema(self, body: JsonObject, content_type: str) -> ValidatedTypedSchema:
+        schema_type = self._validate_schema_type(content_type=content_type, data=body)
+        references = self._validate_references(content_type, schema_type, body)
+        try:
+            references, new_schema_dependencies = self.schema_registry.resolve_references(references)
+            return ValidatedTypedSchema.parse(
+                schema_type=schema_type,
+                schema_str=body["schema"],
+                references=references,
+                dependencies=new_schema_dependencies,
+                use_protobuf_formatter=self.config["use_protobuf_formatter"],
+            )
+        except InvalidSchema:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
+                    "message": f"Invalid {schema_type} schema",
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+
+    def get_old_schema(self, subject: Subject, version: Version, content_type: str) -> ParsedTypedSchema:
+        try:
+            old = self.schema_registry.subject_version_get(subject=subject, version=version)
+        except InvalidVersion:
+            self._invalid_version(content_type, version)
+        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
+                    "message": f"Version {version} not found.",
+                },
+                content_type=content_type,
+                status=HTTPStatus.NOT_FOUND,
+            )
+        old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
+        try:
+            old_references = old.get("references", None)
+            old_dependencies = None
+            if old_references:
+                old_references, old_dependencies = self.schema_registry.resolve_references(old_references)
+            old_schema = ParsedTypedSchema.parse(old_schema_type, old["schema"], old_references, old_dependencies)
+            return old_schema
+        except InvalidSchema:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
+                    "message": f"Found an invalid {old_schema_type} schema registered",
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )

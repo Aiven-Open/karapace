@@ -149,6 +149,10 @@ Test the compatibility of a schema with the latest schema under subject "test-ke
     http://localhost:8081/compatibility/subjects/test-key/versions/latest
   {"is_compatible":true}
 
+NOTE: if the subject's compatibility mode is transitive (BACKWARD_TRANSITIVE, FORWARD_TRANSITIVE or FULL_TRANSITIVE) then the
+compatibility is checked not only against the latest schema, but also against all previous schemas, as it would be done
+when trying to register the new schema through the `subjects/<subject-key>/versions` endpoint.
+
 Get current global backwards compatibility setting value::
 
   $ curl -X GET http://localhost:8081/config
@@ -478,6 +482,15 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``use_protobuf_formatter``
      - ``false``
      - If protobuf formatter should be used on protobuf schemas in order to normalize schemas. The formatter is used on top and independent of regular normalization and schemas will be persisted in a formatted state.
+   * - ``log_handler``
+     - ``stdout``
+     - Select the log handler. Default is standard output. Alternative log handler is ``systemd``.
+   * - ``log_level``
+     - ``DEBUG``
+     - Logging level. Default level is debug.
+   * - ``log_format``
+     - ``%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s``
+     - Log format
 
 
 Authentication and authorization of Karapace Schema Registry REST API

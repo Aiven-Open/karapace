@@ -6,10 +6,11 @@ See LICENSE for details
 """
 from . import schema
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityType
+from collections.abc import Generator
 from karapace.avro_dataclasses.introspect import record_schema
 from karapace.avro_dataclasses.models import AvroModel
 from karapace.schema_models import parse_avro_schema_definition
-from typing import Final, Generator, Tuple, Type
+from typing import Final
 
 import argparse
 import json
@@ -19,7 +20,7 @@ import subprocess
 import sys
 
 
-def types() -> Generator[Tuple[str, Type[AvroModel]], None, None]:
+def types() -> Generator[tuple[str, type[AvroModel]], None, None]:
     for name, value in schema.__dict__.items():
         try:
             if issubclass(value, AvroModel) and value != AvroModel:
@@ -58,17 +59,6 @@ def relative_path(path: pathlib.Path) -> pathlib.Path:
     return pathlib.Path(str_path[len(cwd) + 1 :]) if str_path.startswith(cwd) else path
 
 
-def target_has_source_layout(git_target: str) -> bool:
-    with subprocess.Popen(
-        ["git", "show", f"{git_target}:src"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    ) as cp:
-        if cp.returncode == 128:
-            return False
-        return True
-
-
 def check_compatibility(git_target: str) -> None:
     errored = False
     found_any = False
@@ -81,13 +71,8 @@ def check_compatibility(git_target: str) -> None:
 
     subprocess.run(["git", "fetch", remote, branch], check=True, capture_output=True)
 
-    # Does the target version have source layout
-    source_layout = target_has_source_layout(git_target)
-
     for file in schema_directory.glob(f"*{extension}"):
         relative = relative_path(file)
-        if not source_layout:
-            relative = pathlib.Path(*relative.parts[1:])
         with subprocess.Popen(
             ["git", "show", f"{git_target}:{relative}"],
             stdout=subprocess.PIPE,

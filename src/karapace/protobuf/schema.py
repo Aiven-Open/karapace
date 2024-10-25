@@ -5,6 +5,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from karapace.dataclasses import default_dataclass
 
 # Ported from square/wire:
@@ -26,7 +27,6 @@ from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.type_tree import SourceFileReference, TypeTree
 from karapace.protobuf.utils import append_documentation, append_indented
 from karapace.schema_references import Reference
-from typing import Mapping, Sequence
 
 import binascii
 

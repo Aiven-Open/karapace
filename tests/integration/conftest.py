@@ -9,6 +9,7 @@ from __future__ import annotations
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
+from collections.abc import AsyncGenerator, AsyncIterator, Iterator
 from confluent_kafka.admin import NewTopic
 from contextlib import ExitStack
 from dataclasses import asdict
@@ -35,7 +36,6 @@ from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_successful_request
-from typing import AsyncGenerator, AsyncIterator, Iterator
 from urllib.parse import urlparse
 
 import asyncio
@@ -79,7 +79,7 @@ def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
         kafka_tgz=RUNTIME_DIR / kafka_tgz,
         install_dir=kafka_dir,
         download_url=kafka_url,
-        protocol_version="2.7",
+        protocol_version="3.4.1",
     )
 
 

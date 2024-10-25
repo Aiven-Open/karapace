@@ -8,6 +8,7 @@ from .cimpl import (
     TIMESTAMP_CREATE_TIME,
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
+    TopicCollection,
     TopicPartition,
 )
 
@@ -22,4 +23,5 @@ __all__ = (
     "TIMESTAMP_LOG_APPEND_TIME",
     "TIMESTAMP_NOT_AVAILABLE",
     "TopicPartition",
+    "TopicCollection",
 )

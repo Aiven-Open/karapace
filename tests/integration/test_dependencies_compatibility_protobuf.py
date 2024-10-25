@@ -183,7 +183,7 @@ async def test_protobuf_schema_compatibility_dependencies(registry_async_client:
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -271,7 +271,7 @@ async def test_protobuf_schema_compatibility_dependencies1(registry_async_client
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
 
 
 # Do compatibility check when message field is altered from referenced type to google type
@@ -339,7 +339,7 @@ message TestMessage {
         json={"schemaType": "PROTOBUF", "schema": evolved_schema},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
 
 
 # Do compatibility check when message field is altered from google type to referenced type
@@ -407,7 +407,7 @@ message TestMessage {
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": container_references},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -491,7 +491,7 @@ async def test_protobuf_schema_compatibility_dependencies2(registry_async_client
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
 
 
 SIMPLE_SCHEMA = """\

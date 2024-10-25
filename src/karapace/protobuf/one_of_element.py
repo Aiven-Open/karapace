@@ -7,6 +7,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification
 from karapace.protobuf.compare_type_storage import CompareTypes
@@ -14,7 +15,6 @@ from karapace.protobuf.field_element import FieldElement
 from karapace.protobuf.group_element import GroupElement
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.utils import append_documentation, append_indented
-from typing import Sequence
 
 
 class OneOfElement:

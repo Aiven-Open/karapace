@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from avro.errors import SchemaParseException
 from avro.schema import parse as avro_parse, Schema as AvroSchema
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
@@ -26,7 +27,7 @@ from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonObject, SchemaId, Subject, Version, VersionTag
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Collection, Dict, Final, final, Mapping, Sequence
+from typing import Any, cast, Final, final
 
 import avro.schema
 import hashlib
@@ -128,7 +129,7 @@ class TypedSchema:
     def to_dict(self) -> JsonObject:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
-        return json_decode(self.schema_str, Dict[str, Any])
+        return json_decode(self.schema_str, dict[str, Any])
 
     def fingerprint(self) -> str:
         if self._fingerprint_cached is None:

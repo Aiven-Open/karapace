@@ -21,7 +21,8 @@ from aiokafka.errors import (
     UnknownTopicOrPartitionError,
 )
 from avro.schema import Schema as AvroSchema
-from confluent_kafka import Message, TopicPartition
+from collections.abc import Mapping, Sequence
+from confluent_kafka import Message, TopicCollection, TopicPartition
 from contextlib import closing, ExitStack
 from enum import Enum
 from jsonschema.validators import Draft7Validator
@@ -45,8 +46,9 @@ from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaId, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Thread
-from typing import Final, Mapping, Sequence
+from typing import Final
 
+import asyncio
 import json
 import logging
 import time
@@ -60,6 +62,11 @@ OFFSET_EMPTY: Final = -1
 
 KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS: Final = 2.0
 SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS: Final = 5.0
+
+# If handle_messages throws at least UNHEALTHY_CONSECUTIVE_ERRORS
+# for UNHEALTHY_TIMEOUT_SECONDS the SchemaReader will be reported unhealthy
+UNHEALTHY_TIMEOUT_SECONDS: Final = 10.0
+UNHEALTHY_CONSECUTIVE_ERRORS: Final = 3
 
 # For good startup performance the consumption of multiple
 # records for each consume round is essential.
@@ -175,6 +182,9 @@ class KafkaSchemaReader(Thread):
         self.start_time = time.monotonic()
         self.startup_previous_processed_offset = 0
 
+        self.consecutive_unexpected_errors: int = 0
+        self.consecutive_unexpected_errors_start: float = 0
+
     def close(self) -> None:
         LOG.info("Closing schema_reader")
         self._stop_schema_reader.set()
@@ -248,14 +258,43 @@ class KafkaSchemaReader(Thread):
                     self.offset = self._get_beginning_offset()
                 try:
                     self.handle_messages()
+                    self.consecutive_unexpected_errors = 0
                 except ShutdownException:
                     self._stop_schema_reader.set()
                     shutdown()
                 except KafkaUnavailableError:
+                    self.consecutive_unexpected_errors += 1
                     LOG.warning("Kafka cluster is unavailable or broker can't be resolved.")
                 except Exception as e:  # pylint: disable=broad-except
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
+                    self.consecutive_unexpected_errors += 1
+                    if self.consecutive_unexpected_errors == 1:
+                        self.consecutive_unexpected_errors_start = time.monotonic()
                     LOG.warning("Unexpected exception in schema reader loop - %s", e)
+
+    async def is_healthy(self) -> bool:
+        if (
+            self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
+            and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
+        ):
+            LOG.warning(
+                "Health check failed with %s consecutive errors in %s seconds", self.consecutive_unexpected_errors, duration
+            )
+            return False
+
+        try:
+            # Explicitly check if topic exists.
+            # This needs to be done because in case of missing topic the consumer will not repeat the error
+            # on conscutive consume calls and instead will return empty list.
+            assert self.admin_client is not None
+            topic = self.config["topic_name"]
+            res = self.admin_client.describe_topics(TopicCollection([topic]))
+            await asyncio.wrap_future(res[topic])
+        except Exception as e:  # pylint: disable=broad-except
+            LOG.warning("Health check failed with %r", e)
+            return False
+
+        return True
 
     def _get_beginning_offset(self) -> int:
         assert self.consumer is not None, "Thread must be started"

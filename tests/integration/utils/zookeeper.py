@@ -7,10 +7,9 @@ from subprocess import Popen
 from tests.integration.utils.config import KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
-from typing import List
 
 
-def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> List[str]:
+def zk_java_args(cfg_path: Path, kafka_description: KafkaDescription) -> list[str]:
     msg = f"Couldn't find kafka installation at {kafka_description.install_dir} to run integration tests."
     assert kafka_description.install_dir.exists(), msg
     java_args = [

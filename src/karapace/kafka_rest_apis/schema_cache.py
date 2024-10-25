@@ -5,9 +5,10 @@ See LICENSE for details
 
 from abc import ABC, abstractmethod
 from cachetools import TTLCache
+from collections.abc import MutableMapping
 from karapace.schema_models import TypedSchema
 from karapace.typing import SchemaId, Subject
-from typing import Dict, Final, MutableMapping, Optional
+from typing import Final, Optional
 
 import hashlib
 
@@ -36,7 +37,7 @@ class SchemaCacheProtocol(ABC):
 
 class TopicSchemaCache:
     def __init__(self) -> None:
-        self._topic_cache: Dict[Subject, SchemaCache] = {}
+        self._topic_cache: dict[Subject, SchemaCache] = {}
         self._empty_schema_cache: Final = EmptySchemaCache()
 
     def get_schema_id(self, topic: Subject, schema: TypedSchema) -> Optional[SchemaId]:
@@ -60,7 +61,7 @@ class TopicSchemaCache:
 
 class SchemaCache(SchemaCacheProtocol):
     def __init__(self) -> None:
-        self._schema_hash_str_to_id: Dict[str, SchemaId] = {}
+        self._schema_hash_str_to_id: dict[str, SchemaId] = {}
         self._id_to_schema_str: MutableMapping[SchemaId, TypedSchema] = TTLCache(maxsize=100, ttl=600)
 
     def get_schema_id(self, schema: TypedSchema) -> Optional[SchemaId]:

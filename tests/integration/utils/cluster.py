@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, ExitStack
 from dataclasses import dataclass
 from karapace.config import Config, set_config_defaults, write_config
@@ -11,7 +12,6 @@ from pathlib import Path
 from tests.integration.utils.network import allocate_port
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.utils import new_random_name, popen_karapace_all
-from typing import AsyncIterator
 
 
 @dataclass(frozen=True)
