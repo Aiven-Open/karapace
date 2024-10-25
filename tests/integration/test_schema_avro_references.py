@@ -247,7 +247,7 @@ async def test_avro_references_compatibility(registry_async_client: Client) -> N
         },
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json() == {"is_compatible": False, "messages": ["reader type: string not compatible with writer type: int"]}
 
 
 async def test_avro_union_references(registry_async_client: Client) -> None:
@@ -291,5 +291,5 @@ async def test_avro_incompatible_name_references(registry_async_client: Client) 
         },
     )
     assert res.status_code == 409
-    msg = "Incompatible schema, compatibility_mode=BACKWARD expected: com.netapp.Address"
+    msg = "Incompatible schema, compatibility_mode=BACKWARD. Incompatibilities: expected: com.netapp.Address"
     assert res.json()["message"] == msg
