@@ -54,6 +54,30 @@ SCHEMA_PERSON = {
     ],
 }
 
+SCHEMA_PERSON_RECURSIVE = {
+    "type": "record",
+    "name": "PersonRecursive",
+    "namespace": "com.netapp",
+    "fields": [
+        {"name": "name", "type": "string"},
+        {"name": "age", "type": "int"},
+        {"name": "job", "type": "Job"},
+        {"name": "father", "type": "PersonRecursive"},
+    ],
+}
+
+SCHEMA_JOB_INDIRECT_RECURSIVE = {
+    "type": "record",
+    "name": "JobIndirectRecursive",
+    "namespace": "com.netapp",
+    "fields": [
+        {"name": "title", "type": "string"},
+        {"name": "salary", "type": "double"},
+        {"name": "consultant", "type": "Person"},
+    ],
+}
+
+
 SCHEMA_PERSON_AGE_INT_LONG = {
     "type": "record",
     "name": "Person",
@@ -149,6 +173,12 @@ def person_references(subject_prefix: str) -> list:
     ]
 
 
+def job_indirect_recursive_references(subject_prefix: str) -> list:
+    return [
+        {"name": "person.avsc", "subject": f"{subject_prefix}person", "version": 1},
+    ]
+
+
 def stored_person_subject(subject_prefix: str, subject_id: int) -> dict:
     return {
         "id": subject_id,
@@ -206,12 +236,14 @@ async def basic_avro_references_fill_test(registry_async_client: Client, subject
     res = await registry_async_client.post(f"subjects/{subject_prefix}job/versions", json={"schema": json.dumps(SCHEMA_JOB)})
     assert res.status_code == 200
     assert "id" in res.json()
+
     res = await registry_async_client.post(
         f"subjects/{subject_prefix}person/versions",
         json={"schemaType": "AVRO", "schema": json.dumps(SCHEMA_PERSON), "references": person_references(subject_prefix)},
     )
     assert res.status_code == 200
     assert "id" in res.json()
+
     return res
 
 
@@ -293,3 +325,34 @@ async def test_avro_incompatible_name_references(registry_async_client: Client) 
     assert res.status_code == 409
     msg = "Incompatible schema, compatibility_mode=BACKWARD. Incompatibilities: expected: com.netapp.Address"
     assert res.json()["message"] == msg
+
+
+async def test_recursive_reference(registry_async_client: Client) -> None:
+    subject_prefix = create_subject_name_factory("avro-recursive-reference")()
+    await basic_avro_references_fill_test(registry_async_client, subject_prefix)
+    res = await registry_async_client.post(
+        f"subjects/{subject_prefix}person-recursive/versions",
+        json={
+            "schemaType": "AVRO",
+            "schema": json.dumps(SCHEMA_PERSON_RECURSIVE),
+            "references": person_references(subject_prefix),
+        },
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
+
+
+# This test fails because indirect references are not implemented
+async def test_indirect_recursive_reference(registry_async_client: Client) -> None:
+    subject_prefix = create_subject_name_factory("avro-indirect-recursive-reference")()
+    await basic_avro_references_fill_test(registry_async_client, subject_prefix)
+    res = await registry_async_client.post(
+        f"subjects/{subject_prefix}person-indirect-recursive/versions",
+        json={
+            "schemaType": "AVRO",
+            "schema": json.dumps(SCHEMA_JOB_INDIRECT_RECURSIVE),
+            "references": job_indirect_recursive_references(subject_prefix),
+        },
+    )
+    assert res.status_code == 200
+    assert "id" in res.json()
