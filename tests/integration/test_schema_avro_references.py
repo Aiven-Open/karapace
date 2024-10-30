@@ -49,7 +49,7 @@ SCHEMA_PERSON = {
     "fields": [
         {"name": "name", "type": "string"},
         {"name": "age", "type": "int"},
-        {"name": "address", "type": "Address"},
+        # {"name": "address", "type": "Address"},
         {"name": "job", "type": "Job"},
     ],
 }
@@ -61,7 +61,7 @@ SCHEMA_PERSON_AGE_INT_LONG = {
     "fields": [
         {"name": "name", "type": "string"},
         {"name": "age", "type": "long"},
-        {"name": "address", "type": "Address"},
+        # {"name": "address", "type": "Address"},
         {"name": "job", "type": "Job"},
     ],
 }
@@ -73,7 +73,7 @@ SCHEMA_PERSON_AGE_LONG_STRING = {
     "fields": [
         {"name": "name", "type": "string"},
         {"name": "age", "type": "string"},
-        {"name": "address", "type": "Address"},
+        # {"name": "address", "type": "Address"},
         {"name": "job", "type": "Job"},
     ],
 }
@@ -85,7 +85,7 @@ SCHEMA_UNION_REFERENCES = {
     "fields": [
         {"name": "name", "type": "string"},
         {"name": "age", "type": "int"},
-        {"name": "address", "type": "Address"},
+        # {"name": "address", "type": "Address"},
         {"name": "job", "type": "Job"},
         {
             "name": "children",
@@ -109,7 +109,7 @@ SCHEMA_UNION_REFERENCES2 = [
         "fields": [
             {"name": "name", "type": "string"},
             {"name": "age", "type": "int"},
-            {"name": "address", "type": "Address"},
+            # {"name": "address", "type": "Address"},
             {"name": "job", "type": "Job"},
         ],
     },
@@ -120,7 +120,7 @@ SCHEMA_UNION_REFERENCES2 = [
         "fields": [
             {"name": "name", "type": "string"},
             {"name": "age", "type": "int"},
-            {"name": "address", "type": "Address"},
+            # {"name": "address", "type": "Address"},
         ],
     },
 ]
@@ -144,7 +144,7 @@ def address_references(subject_prefix: str) -> list:
 
 def person_references(subject_prefix: str) -> list:
     return [
-        {"name": "address.avsc", "subject": f"{subject_prefix}address", "version": 1},
+        # {"name": "address.avsc", "subject": f"{subject_prefix}address", "version": 1},
         {"name": "job.avsc", "subject": f"{subject_prefix}job", "version": 1},
     ]
 
@@ -153,7 +153,7 @@ def stored_person_subject(subject_prefix: str, subject_id: int) -> dict:
     return {
         "id": subject_id,
         "references": [
-            {"name": "address.avsc", "subject": f"{subject_prefix}address", "version": 1},
+            # {"name": "address.avsc", "subject": f"{subject_prefix}address", "version": 1},
             {"name": "job.avsc", "subject": f"{subject_prefix}job", "version": 1},
         ],
         "schema": json.dumps(
@@ -161,7 +161,7 @@ def stored_person_subject(subject_prefix: str, subject_id: int) -> dict:
                 "fields": [
                     {"name": "name", "type": "string"},
                     {"name": "age", "type": "int"},
-                    {"name": "address", "type": "Address"},
+                    # {"name": "address", "type": "Address"},
                     {"name": "job", "type": "Job"},
                 ],
                 "name": "Person",
