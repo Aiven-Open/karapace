@@ -1354,14 +1354,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         except InvalidVersion:
             self._invalid_version(content_type, version)
         except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
-                    "message": f"Version {version} not found.",
-                },
-                content_type=content_type,
-                status=HTTPStatus.NOT_FOUND,
-            )
+            self.r({"is_compatible": True}, content_type)
+
         old_schema_type = self._validate_schema_type(content_type=content_type, data=old)
         try:
             old_references = old.get("references", None)
