@@ -261,3 +261,21 @@ schema_protobuf_nested_field_bin_protoc = (
     "lzdGVyLk1ldGFkYXRhEhYKDmNvbXBhbnlfbnVtYmVyGAIgASgJGhYKCE1ldGFkYXRhEgoK"
     "AmlkGAEgASgJYgZwcm90bzM="
 )
+
+schema_protobuf_optionals_bin = (
+    "Cgp0ZXN0LnByb3RvIqYBCgpEaW1lbnNpb25zEhEKBHNpemUYASABKAFIAIgBARISCgV3aWR0aBgCIAEoAUgBiAEBEhMKBmhlaWdodBgDIAEo"
+    + "AUgCiAEBEhMKBmxlbmd0aBgEIAEoAUgDiAEBEhMKBndlaWdodBgFIAEoAUgEiAEBQgcKBV9zaXplQggKBl93aWR0aEIJCgdfaGVpZ2h0Qg"
+    + "kKB19sZW5ndGhCCQoHX3dlaWdodGIGcHJvdG8z"
+)
+
+schema_protobuf_optionals = """\
+syntax = "proto3";
+
+message Dimensions {
+  optional double size = 1;
+  optional double width = 2;
+  optional double height = 3;
+  optional double length = 4;
+  optional double weight = 5;
+}
+"""
