@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from aiokafka.errors import UnknownTopicOrPartitionError
+from aiokafka.errors import InvalidReplicationFactorError, UnknownTopicOrPartitionError
 from collections.abc import Iterator
 from confluent_kafka import Message, TopicPartition
 from confluent_kafka.admin import NewTopic
@@ -696,6 +696,56 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
                 backup_location=metadata_path,
                 topic_name=TopicName(topic_name),
             )
+
+
+def test_backup_restoration_override_replication_factor(
+    admin_client: KafkaAdminClient,
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+    new_topic: NewTopic,
+) -> None:
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / new_topic.topic
+    metadata_path = backup_directory / f"{new_topic.topic}.metadata"
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+        }
+    )
+
+    # pupulate the topic and create a backup
+    for i in range(10):
+        producer.send(
+            new_topic.topic,
+            key=f"message-key-{i}",
+            value=f"message-value-{i}-" + 1000 * "X",
+        )
+    producer.flush()
+    api.create_backup(
+        config=config,
+        backup_location=backup_directory,
+        topic_name=TopicName(new_topic.topic),
+        version=BackupVersion.V3,
+        replication_factor=6,
+    )
+
+    # make sure topic doesn't exist beforehand.
+    _delete_topic(admin_client, new_topic.topic)
+
+    # assert that the restore would fail without the replication factor override
+    with pytest.raises(InvalidReplicationFactorError):
+        api.restore_backup(
+            config=config,
+            backup_location=metadata_path,
+            topic_name=TopicName(new_topic.topic),
+        )
+
+    # finally restore the backup with override
+    api.restore_backup(
+        config=config,
+        backup_location=metadata_path,
+        topic_name=TopicName(new_topic.topic),
+        override_replication_factor=1,
+    )
 
 
 def no_color_env() -> dict[str, str]:
