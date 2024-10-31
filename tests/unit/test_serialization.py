@@ -4,7 +4,9 @@ See LICENSE for details
 """
 from karapace.client import Path
 from karapace.config import DEFAULTS, read_config
+from karapace.dependency import Dependency
 from karapace.schema_models import SchemaType, ValidatedTypedSchema, Versioner
+from karapace.schema_references import Reference
 from karapace.serialization import (
     flatten_unions,
     get_subject_name,
@@ -16,7 +18,7 @@ from karapace.serialization import (
     START_BYTE,
     write_value,
 )
-from karapace.typing import NameStrategy, Subject, SubjectType
+from karapace.typing import NameStrategy, Subject, SubjectType, Version
 from tests.utils import schema_avro_json, test_objects_avro
 from unittest.mock import call, Mock
 
@@ -28,6 +30,7 @@ import json
 import logging
 import pytest
 import struct
+import textwrap
 
 log = logging.getLogger(__name__)
 
@@ -439,4 +442,90 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
     assert (
         get_subject_name(topic_name="foo", schema=TYPED_PROTOBUF_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
         == expected_subject
+    )
+
+
+def test_avro_reference() -> None:
+    country_schema = ValidatedTypedSchema.parse(
+        schema_type=SchemaType.AVRO,
+        schema_str=textwrap.dedent(
+            """\
+            {
+                "type": "record",
+                "name": "Country",
+                "namespace": "com.netapp",
+                "fields": [{"name": "name", "type": "string"}, {"name": "code", "type": "string"}]
+            }
+            """
+        ),
+    )
+    address_schema = ValidatedTypedSchema.parse(
+        schema_type=SchemaType.AVRO,
+        schema_str=textwrap.dedent(
+            """\
+            {
+                "type": "record",
+                "name": "Address",
+                "namespace": "com.netapp",
+                "fields": [
+                    {"name": "street", "type": "string"},
+                    {"name": "city", "type": "string"},
+                    {"name": "postalCode", "type": "string"},
+                    {"name": "country", "type": "Country"}
+                ]
+            }
+            """
+        ),
+        references=[Reference(name="country.avsc", subject=Subject("country"), version=Version(1))],
+        dependencies={
+            "country": Dependency(
+                name="country",
+                subject=Subject("country"),
+                version=Version(1),
+                target_schema=country_schema,
+            ),
+        },
+    )
+
+    # Check that the reference schema (Country) has been inlined
+    assert address_schema.schema_wrapped == textwrap.dedent(
+        """\
+        {
+            "type": "record",
+            "name": "Address",
+            "namespace": "com.netapp",
+            "fields": [
+                {
+                    "type": "string",
+                    "name": "street"
+                },
+                {
+                    "type": "string",
+                    "name": "city"
+                },
+                {
+                    "type": "string",
+                    "name": "postalCode"
+                },
+                {
+                    "type": {
+                        "type": "record",
+                        "name": "Country",
+                        "namespace": "com.netapp",
+                        "fields": [
+                            {
+                                "type": "string",
+                                "name": "name"
+                            },
+                            {
+                                "type": "string",
+                                "name": "code"
+                            }
+                        ]
+                    },
+                    "name": "country"
+                }
+            ]
+        }
+        """
     )
