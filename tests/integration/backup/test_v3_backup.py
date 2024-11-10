@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from aiokafka.errors import UnknownTopicOrPartitionError
+from aiokafka.errors import InvalidReplicationFactorError, UnknownTopicOrPartitionError
 from collections.abc import Iterator
 from confluent_kafka import Message, TopicPartition
 from confluent_kafka.admin import NewTopic
@@ -119,14 +119,13 @@ def test_roundtrip_from_kafka_state(
     admin_client.update_topic_config(new_topic.topic, {"max.message.bytes": "999"})
 
     # Populate topic.
-    producer.send(
+    first_record_fut = producer.send(
         new_topic.topic,
         key=b"bar",
         value=b"foo",
         partition=0,
-        timestamp=1683474641,
     )
-    producer.send(
+    second_record_fut = producer.send(
         new_topic.topic,
         key=b"foo",
         value=b"bar",
@@ -135,9 +134,11 @@ def test_roundtrip_from_kafka_state(
             ("some-header", b"some header value"),
             ("other-header", b"some other header value"),
         ],
-        timestamp=1683474657,
     )
     producer.flush()
+
+    first_message_timestamp = first_record_fut.result(timeout=5).timestamp()[1]
+    second_message_timestamp = second_record_fut.result(timeout=5).timestamp()[1]
 
     topic_config = get_topic_configurations(admin_client, new_topic.topic, {ConfigSource.DYNAMIC_TOPIC_CONFIG})
 
@@ -212,7 +213,7 @@ def test_roundtrip_from_kafka_state(
     # Note: This might be unreliable due to not using idempotent producer, i.e. we have
     # no guarantee against duplicates currently.
     assert first_record.offset() == 0
-    assert first_record.timestamp()[1] == 1683474641
+    assert first_record.timestamp()[1] == first_message_timestamp
     assert first_record.timestamp()[0] == Timestamp.CREATE_TIME
     assert first_record.key() == b"bar"
     assert first_record.value() == b"foo"
@@ -223,7 +224,7 @@ def test_roundtrip_from_kafka_state(
     assert second_record.topic() == new_topic.topic
     assert second_record.partition() == partition
     assert second_record.offset() == 1
-    assert second_record.timestamp()[1] == 1683474657
+    assert second_record.timestamp()[1] == second_message_timestamp
     assert second_record.timestamp()[0] == Timestamp.CREATE_TIME
     assert second_record.key() == b"foo"
     assert second_record.value() == b"bar"
@@ -695,6 +696,56 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
                 backup_location=metadata_path,
                 topic_name=TopicName(topic_name),
             )
+
+
+def test_backup_restoration_override_replication_factor(
+    admin_client: KafkaAdminClient,
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+    new_topic: NewTopic,
+) -> None:
+    backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / new_topic.topic
+    metadata_path = backup_directory / f"{new_topic.topic}.metadata"
+    config = set_config_defaults(
+        {
+            "bootstrap_uri": kafka_servers.bootstrap_servers,
+        }
+    )
+
+    # pupulate the topic and create a backup
+    for i in range(10):
+        producer.send(
+            new_topic.topic,
+            key=f"message-key-{i}",
+            value=f"message-value-{i}-" + 1000 * "X",
+        )
+    producer.flush()
+    api.create_backup(
+        config=config,
+        backup_location=backup_directory,
+        topic_name=TopicName(new_topic.topic),
+        version=BackupVersion.V3,
+        replication_factor=6,
+    )
+
+    # make sure topic doesn't exist beforehand.
+    _delete_topic(admin_client, new_topic.topic)
+
+    # assert that the restore would fail without the replication factor override
+    with pytest.raises(InvalidReplicationFactorError):
+        api.restore_backup(
+            config=config,
+            backup_location=metadata_path,
+            topic_name=TopicName(new_topic.topic),
+        )
+
+    # finally restore the backup with override
+    api.restore_backup(
+        config=config,
+        backup_location=metadata_path,
+        topic_name=TopicName(new_topic.topic),
+        override_replication_factor=1,
+    )
 
 
 def no_color_env() -> dict[str, str]:
