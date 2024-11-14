@@ -9,163 +9,110 @@ from __future__ import annotations
 from collections.abc import Mapping
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
 from karapace.typing import ElectionStrategy, NameStrategy
-from karapace.utils import json_decode, json_encode, JSONDecodeError
+from karapace.utils import json_encode
 from pathlib import Path
-from typing import IO
-from typing_extensions import NotRequired, TypedDict
+from pydantic import BaseSettings
 
 import logging
 import os
 import socket
 import ssl
 
-
-class Config(TypedDict):
-    access_logs_debug: bool
-    access_log_class: type | None
-    advertised_hostname: str
-    advertised_port: int
-    advertised_protocol: str
-    bootstrap_uri: str
-    sasl_bootstrap_uri: str | None
-    client_id: str
-    compatibility: str
-    connections_max_idle_ms: int
-    consumer_enable_auto_commit: bool
-    consumer_request_timeout_ms: int
-    consumer_request_max_bytes: int
-    consumer_idle_disconnect_timeout: int
-    fetch_min_bytes: int
-    group_id: str
-    host: str
-    port: int
-    server_tls_certfile: str | None
-    server_tls_keyfile: str | None
-    registry_host: str
-    registry_port: int
-    registry_user: str | None
-    registry_password: str | None
-    registry_ca: str | None
-    registry_authfile: str | None
-    rest_authorization: bool
-    rest_base_uri: str | None
-    log_handler: str | None
-    log_level: str
-    log_format: str
-    master_eligibility: bool
-    replication_factor: int
-    security_protocol: str
-    ssl_cafile: str | None
-    ssl_certfile: str | None
-    ssl_keyfile: str | None
-    ssl_check_hostname: bool
-    ssl_crlfile: str | None
-    ssl_password: str | None
-    sasl_mechanism: str | None
-    sasl_plain_username: str | None
-    sasl_plain_password: str | None
-    sasl_oauth_token: str | None
-    topic_name: str
-    metadata_max_age_ms: int
-    admin_metadata_max_age: int
-    producer_acks: int
-    producer_compression_type: str | None
-    producer_count: int
-    producer_linger_ms: int
-    producer_max_request_size: int
-    session_timeout_ms: int
-    karapace_rest: bool
-    karapace_registry: bool
-    name_strategy: str
-    name_strategy_validation: bool
-    master_election_strategy: str
-    protobuf_runtime_directory: str
-    statsd_host: str
-    statsd_port: int
-    kafka_schema_reader_strict_mode: bool
-    kafka_retriable_errors_silenced: bool
-    use_protobuf_formatter: bool
-    waiting_time_before_acting_as_master_ms: int
-
-    sentry: NotRequired[Mapping[str, object]]
-    tags: NotRequired[Mapping[str, object]]
+HOSTNAME = socket.gethostname()
 
 
-class ConfigDefaults(Config, total=False):
-    ...
+class Config(BaseSettings):
+    access_logs_debug: bool = False
+    access_log_class: type | None = None
+    advertised_hostname: str = HOSTNAME
+    advertised_port: int = 8081
+    advertised_protocol: str = "http"
+    bootstrap_uri: str = "127.0.0.1:9092"
+    sasl_bootstrap_uri: str | None = None
+    client_id: str = "sr-1"
+    compatibility: str = "BACKWARD"
+    connections_max_idle_ms: int = 15000
+    consumer_enable_auto_commit: bool = True
+    consumer_request_timeout_ms: int = 11000
+    consumer_request_max_bytes: int = 67108864
+    consumer_idle_disconnect_timeout: int = 0
+    fetch_min_bytes: int = 1
+    group_id: str = "schema-registry"
+    http_request_max_size: int | None = None
+    host: str = "127.0.0.1"
+    port: int = 8081
+    server_tls_certfile: str | None = None
+    server_tls_keyfile: str | None = None
+    registry_host: str = "127.0.0.1"
+    registry_port: int = 8081
+    registry_user: str | None = None
+    registry_password: str | None = None
+    registry_ca: str | None = None
+    registry_authfile: str | None = None
+    rest_authorization: bool = False
+    rest_base_uri: str | None = None
+    log_handler: str | None = "stdout"
+    log_level: str = "DEBUG"
+    log_format: str = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
+    master_eligibility: bool = True
+    replication_factor: int = 1
+    security_protocol: str = "PLAINTEXT"
+    ssl_cafile: str | None = None
+    ssl_certfile: str | None = None
+    ssl_keyfile: str | None = None
+    ssl_check_hostname: bool = True
+    ssl_crlfile: str | None = None
+    ssl_password: str | None = None
+    sasl_mechanism: str | None = None
+    sasl_plain_username: str | None = None
+    sasl_plain_password: str | None = None
+    sasl_oauth_token: str | None = None
+    topic_name: str = DEFAULT_SCHEMA_TOPIC
+    metadata_max_age_ms: int = 60000
+    admin_metadata_max_age: int = 5
+    producer_acks: int = 1
+    producer_compression_type: str | None = None
+    producer_count: int = 5
+    producer_linger_ms: int = 100
+    producer_max_request_size: int = DEFAULT_PRODUCER_MAX_REQUEST
+    session_timeout_ms: int = 10000
+    karapace_rest: bool = False
+    karapace_registry: bool = False
+    name_strategy: str = "topic_name"
+    name_strategy_validation: bool = True
+    master_election_strategy: str = "lowest"
+    protobuf_runtime_directory: str = "runtime"
+    statsd_host: str = "127.0.0.1"
+    statsd_port: int = 8125
+    kafka_schema_reader_strict_mode: bool = False
+    kafka_retriable_errors_silenced: bool = True
+    use_protobuf_formatter: bool = False
+    waiting_time_before_acting_as_master_ms: int = 5000
+
+    sentry: Mapping[str, object] | None = None
+    tags: Mapping[str, object] | None = None
+
+    # add rest uri if not set
+    # f"{new_config['advertised_protocol']}://{new_config['advertised_hostname']}:{new_config['advertised_port']}"
+
+    # set tags if not set
+    #  new_config["tags"]["app"] = "Karapace"
+
+    def to_env_str(self) -> str:
+        env_lines: list[str] = []
+        for key, value in self.dict().items():
+            if value is not None:
+                env_lines.append(f"{key.upper()}={value}")
+        return "\n".join(env_lines)
+
+
+# class ConfigDefaults(Config, total=False):
+#    ...
 
 
 LOG = logging.getLogger(__name__)
 HOSTNAME = socket.gethostname()
 SASL_PLAIN_PASSWORD = "sasl_plain_password"
-DEFAULTS: ConfigDefaults = {
-    "access_logs_debug": False,
-    "access_log_class": None,
-    "advertised_port": None,
-    "advertised_hostname": HOSTNAME,
-    "advertised_protocol": "http",
-    "bootstrap_uri": "127.0.0.1:9092",
-    "sasl_bootstrap_uri": None,
-    "client_id": "sr-1",
-    "compatibility": "BACKWARD",
-    "connections_max_idle_ms": 15000,
-    "consumer_enable_auto_commit": True,
-    "consumer_request_timeout_ms": 11000,
-    "consumer_request_max_bytes": 67108864,
-    "consumer_idle_disconnect_timeout": 0,
-    "fetch_min_bytes": 1,
-    "group_id": "schema-registry",
-    "http_request_max_size": None,
-    "host": "127.0.0.1",
-    "port": 8081,
-    "server_tls_certfile": None,
-    "server_tls_keyfile": None,
-    "registry_host": "127.0.0.1",
-    "registry_port": 8081,
-    "registry_user": None,
-    "registry_password": None,
-    "registry_ca": None,
-    "registry_authfile": None,
-    "rest_authorization": False,
-    "rest_base_uri": None,
-    "log_handler": "stdout",
-    "log_level": "DEBUG",
-    "log_format": "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s",
-    "master_eligibility": True,
-    "replication_factor": 1,
-    "security_protocol": "PLAINTEXT",
-    "ssl_cafile": None,
-    "ssl_certfile": None,
-    "ssl_keyfile": None,
-    "ssl_check_hostname": True,
-    "ssl_crlfile": None,
-    "ssl_password": None,
-    "sasl_mechanism": None,
-    "sasl_plain_username": None,
-    SASL_PLAIN_PASSWORD: None,
-    "sasl_oauth_token": None,
-    "topic_name": DEFAULT_SCHEMA_TOPIC,
-    "metadata_max_age_ms": 60000,
-    "admin_metadata_max_age": 5,
-    "producer_acks": 1,
-    "producer_compression_type": None,
-    "producer_count": 5,
-    "producer_linger_ms": 100,
-    "producer_max_request_size": DEFAULT_PRODUCER_MAX_REQUEST,
-    "session_timeout_ms": 10000,
-    "karapace_rest": False,
-    "karapace_registry": False,
-    "name_strategy": "topic_name",
-    "name_strategy_validation": True,
-    "master_election_strategy": "lowest",
-    "protobuf_runtime_directory": "runtime",
-    "statsd_host": "127.0.0.1",
-    "statsd_port": 8125,
-    "kafka_schema_reader_strict_mode": False,
-    "kafka_retriable_errors_silenced": True,
-    "use_protobuf_formatter": False,
-    "waiting_time_before_acting_as_master_ms": 5000,
-}
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
 
@@ -186,9 +133,9 @@ def parse_env_value(value: str) -> str | int | bool:
     return value
 
 
-def set_config_defaults(config: ConfigDefaults) -> Config:
-    new_config = DEFAULTS.copy()
-    new_config.update(config)
+def set_config_defaults(config: Config) -> Config:
+    # new_config = DEFAULTS.copy()
+    new_config = Config(config)
 
     # Fallback to default port if `advertised_port` is not set
     if new_config["advertised_port"] is None:
@@ -222,34 +169,34 @@ def set_config_defaults(config: ConfigDefaults) -> Config:
         # Set the default aiohttp client max size
         new_config["http_request_max_size"] = DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
 
-    set_settings_from_environment(new_config)
+    #    set_settings_from_environment(new_config)
     set_sentry_dsn_from_environment(new_config)
     validate_config(new_config)
     return new_config
 
 
-def set_settings_from_environment(config: Config) -> None:
-    """The environment variables have precedence and overwrite the configuration settings."""
-    for config_name in DEFAULTS:
-        config_name_with_prefix = config_name if config_name.startswith("karapace") else f"karapace_{config_name}"
-        env_name = config_name_with_prefix.upper()
-        env_val = os.environ.get(env_name)
-        if env_val is not None:
-            if config_name not in SECRET_CONFIG_OPTIONS:
-                LOG.info(
-                    "Populating config value %r from env var %r with %r instead of config file",
-                    config_name,
-                    env_name,
-                    env_val,
-                )
-            else:
-                LOG.info(
-                    "Populating config value %r from env var %r instead of config file",
-                    config_name,
-                    env_name,
-                )
-
-            config[config_name] = parse_env_value(env_val)
+# def set_settings_from_environment(config: Config) -> None:
+#    """The environment variables have precedence and overwrite the configuration settings."""
+#    for config_name in DEFAULTS:
+#        config_name_with_prefix = config_name if config_name.startswith("karapace") else f"karapace_{config_name}"
+#        env_name = config_name_with_prefix.upper()
+#        env_val = os.environ.get(env_name)
+#        if env_val is not None:
+#            if config_name not in SECRET_CONFIG_OPTIONS:
+#                LOG.info(
+#                    "Populating config value %r from env var %r with %r instead of config file",
+#                    config_name,
+#                    env_name,
+#                    env_val,
+#                )
+#            else:
+#                LOG.info(
+#                    "Populating config value %r from env var %r instead of config file",
+#                    config_name,
+#                    env_name,
+#                )
+#
+#            config[config_name] = parse_env_value(env_val)
 
 
 def set_sentry_dsn_from_environment(config: Config) -> None:
@@ -290,13 +237,16 @@ def write_config(config_path: Path, custom_values: Config) -> None:
     config_path.write_text(json_encode(custom_values))
 
 
-def read_config(config_handler: IO) -> Config:
-    try:
-        config = json_decode(config_handler)
-    except JSONDecodeError as ex:
-        raise InvalidConfiguration("Configuration is not a valid JSON") from ex
+def write_env_file(dot_env_path: Path, config: Config) -> None:
+    dot_env_path.write_text(config.to_env_str())
 
-    return set_config_defaults(config)
+
+# def read_config(config_handler: IO) -> Config:
+#    try:
+#        config = json_decode(config_handler)
+#    except JSONDecodeError as ex:
+#        raise InvalidConfiguration("Configuration is not a valid JSON") from ex
+#    return set_config_defaults(config)
 
 
 def create_client_ssl_context(config: Config) -> ssl.SSLContext | None:
