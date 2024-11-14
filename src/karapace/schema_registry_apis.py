@@ -555,8 +555,8 @@ class KarapaceSchemaRegistryController:
         return CompatibilityResponse(compatibility=self.schema_registry.schema_reader.config.compatibility)
 
     # async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
-    async def subjects_list(self, deleted: bool, user: User | None = None) -> list[Subject]:
-        subjects = self.schema_registry.database.find_subjects(include_deleted=deleted)
+    async def subjects_list(self, deleted: bool, user: User | None = None) -> list[str]:
+        subjects = [str(subject) for subject in self.schema_registry.database.find_subjects(include_deleted=deleted)]
         if self._auth is not None:
             subjects = list(
                 filter(
@@ -777,10 +777,10 @@ class KarapaceSchemaRegistryController:
             )
 
     #    async def subject_version_referencedby_get(self, content_type, *, subject, version, user: User | None = None):
-    async def subject_version_referencedby_get(self, *, subject: str, version, user: User | None = None) -> list[SchemaId]:
+    async def subject_version_referencedby_get(self, *, subject: str, version, user: User | None = None) -> list[int]:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
-        referenced_by: list[SchemaId] = []
+        referenced_by: list[int] = []
         try:
             referenced_by = await self.schema_registry.subject_version_referencedby_get(
                 Subject(subject), Versioner.V(version)
