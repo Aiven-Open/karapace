@@ -20,6 +20,8 @@ import ssl
 
 HOSTNAME = socket.gethostname()
 
+HOSTNAME = socket.gethostname()
+
 
 class Config(BaseSettings):
     access_logs_debug: bool = False
