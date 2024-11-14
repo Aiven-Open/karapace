@@ -5,7 +5,7 @@ See LICENSE for details
 
 from fastapi import APIRouter
 from karapace.dependencies import KarapaceSchemaRegistryControllerDep
-from karapace.routers.requests import SchemaRequest
+from karapace.routers.requests import CompatibilityCheckResponse, SchemaRequest
 
 compatibility_router = APIRouter(
     prefix="/compatibility",
@@ -20,5 +20,5 @@ async def compatibility_get(
     subject: str,
     version: str,  # TODO support actual Version object
     schema_request: SchemaRequest,
-):
+) -> CompatibilityCheckResponse:
     return await controller.compatibility_check(subject=subject, schema_request=schema_request, version=version)

@@ -5,7 +5,7 @@ See LICENSE for details
 
 from fastapi import APIRouter
 from karapace.dependencies import KarapaceSchemaRegistryControllerDep
-from karapace.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse
+from karapace.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 
 subjects_router = APIRouter(
     prefix="/subjects",
@@ -18,7 +18,7 @@ subjects_router = APIRouter(
 async def subjects_get(
     controller: KarapaceSchemaRegistryControllerDep,
     deleted: bool = False,
-):
+) -> list[str]:
     return await controller.subjects_list(deleted=deleted)
 
 
@@ -40,7 +40,7 @@ async def subjects_subject_delete(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     permanent: bool = False,
-):
+) -> list[int]:
     return await controller.subject_delete(subject=subject, permanent=permanent)
 
 
@@ -59,7 +59,7 @@ async def subjects_subject_versions_list(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     deleted: bool = False,
-):
+) -> list[int]:
     return await controller.subject_versions_list(subject=subject, deleted=deleted)
 
 
@@ -69,7 +69,7 @@ async def subjects_subject_version_get(
     subject: str,
     version: str,
     deleted: bool = False,
-):
+) -> SubjectSchemaVersionResponse:
     return await controller.subject_version_get(subject=subject, version=version, deleted=deleted)
 
 
@@ -79,7 +79,7 @@ async def subjects_subject_version_delete(
     subject: str,
     version: str,
     permanent: bool = False,
-):
+) -> int:
     return await controller.subject_version_delete(subject=subject, version=version, permanent=permanent)
 
 
@@ -88,7 +88,7 @@ async def subjects_subject_version_schema_get(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     version: str,
-):
+) -> str:
     return await controller.subject_version_schema_get(subject=subject, version=version)
 
 
@@ -97,5 +97,5 @@ async def subjects_subject_version_referenced_by(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     version: str,
-):
+) -> list[int]:
     return await controller.subject_version_referencedby_get(subject=subject, version=version)
