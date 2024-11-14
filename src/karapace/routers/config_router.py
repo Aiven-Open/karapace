@@ -5,7 +5,7 @@ See LICENSE for details
 
 from fastapi import APIRouter
 from karapace.dependencies import KarapaceSchemaRegistryControllerDep
-from karapace.routers.requests import CompatibilityRequest
+from karapace.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse
 
 config_router = APIRouter(
     prefix="/config",
@@ -17,12 +17,14 @@ config_router = APIRouter(
 @config_router.get("")
 async def config_get(
     controller: KarapaceSchemaRegistryControllerDep,
-):
+) -> CompatibilityLevelResponse:
     return await controller.config_get()
 
 
 @config_router.put("")
-async def config_put(controller: KarapaceSchemaRegistryControllerDep, compatibility_level_request: CompatibilityRequest):
+async def config_put(
+    controller: KarapaceSchemaRegistryControllerDep, compatibility_level_request: CompatibilityRequest
+) -> CompatibilityResponse:
     return await controller.config_set(compatibility_level_request=compatibility_level_request)
 
 
@@ -31,7 +33,7 @@ async def config_get_subject(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     defaultToGlobal: bool = False,
-):
+) -> CompatibilityLevelResponse:
     return await controller.config_subject_get(subject=subject, default_to_global=defaultToGlobal)
 
 
@@ -40,10 +42,10 @@ async def config_set_subject(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     compatibility_level_request: CompatibilityRequest,
-):
+) -> CompatibilityResponse:
     return await controller.config_subject_set(subject=subject, compatibility_level_request=compatibility_level_request)
 
 
 @config_router.delete("/{subject}")
-async def config_delete_subject(controller: KarapaceSchemaRegistryControllerDep, subject: str):
+async def config_delete_subject(controller: KarapaceSchemaRegistryControllerDep, subject: str) -> CompatibilityResponse:
     return await controller.config_subject_delete(subject=subject)
