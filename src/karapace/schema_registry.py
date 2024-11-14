@@ -41,6 +41,7 @@ LOG = logging.getLogger(__name__)
 
 class KarapaceSchemaRegistry:
     def __init__(self, config: Config) -> None:
+        # TODO: compatibility was previously in mutable dict, fix the runtime config to be distinct from static config.
         self.config = config
         self._key_formatter = KeyFormatter()
 
@@ -67,7 +68,7 @@ class KarapaceSchemaRegistry:
 
     @property
     def compatibility(self) -> str:
-        return str(self.config["compatibility"])
+        return str(self.config.compatibility)
 
     def get_schemas(self, subject: Subject, *, include_deleted: bool = False) -> list[SchemaVersion]:
         schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=include_deleted)
@@ -106,7 +107,7 @@ class KarapaceSchemaRegistry:
         compatibility = self.database.get_subject_compatibility(subject=subject)
         if compatibility is None:
             # If no subject compatiblity found, use global compatibility
-            compatibility = self.config["compatibility"]
+            compatibility = self.config.compatibility
         try:
             compatibility_mode = CompatibilityModes(compatibility)
         except ValueError as e:

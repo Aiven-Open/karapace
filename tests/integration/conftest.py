@@ -510,9 +510,8 @@ async def fixture_registry_cluster(
         endpoint = RegistryEndpoint(registry.scheme, registry.hostname, registry.port)
         yield RegistryDescription(endpoint, "_schemas")
         return
-    user_config = request.param.get("config", {}) if hasattr(request, "param") else {}
-    config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
-    config.update(user_config)
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),

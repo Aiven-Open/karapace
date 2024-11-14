@@ -73,7 +73,7 @@ UNHEALTHY_CONSECUTIVE_ERRORS: Final = 3
 # Consumer default is 1 message for each consume call and after
 # startup the default is a good value. If consumer would expect
 # more messages it would return control back after timeout and
-# making schema storing latency to be `processing time + timeout`.
+# Making schema storing latency to be `processing time + timeout`.
 MAX_MESSAGES_TO_CONSUME_ON_STARTUP: Final = 1000
 MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP: Final = 1
 MESSAGE_CONSUME_TIMEOUT_SECONDS: Final = 0.2
@@ -95,37 +95,37 @@ class MessageType(Enum):
 
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
-    session_timeout_ms = config["session_timeout_ms"]
+    session_timeout_ms = config.session_timeout_ms
     return KafkaConsumer(
-        bootstrap_servers=config["bootstrap_uri"],
-        topic=config["topic_name"],
+        bootstrap_servers=config.bootstrap_uri,
+        topic=config.topic_name,
         enable_auto_commit=False,
-        client_id=config["client_id"],
+        client_id=config.client_id,
         fetch_max_wait_ms=50,
-        security_protocol=config["security_protocol"],
-        ssl_cafile=config["ssl_cafile"],
-        ssl_certfile=config["ssl_certfile"],
-        ssl_keyfile=config["ssl_keyfile"],
-        sasl_mechanism=config["sasl_mechanism"],
-        sasl_plain_username=config["sasl_plain_username"],
-        sasl_plain_password=config["sasl_plain_password"],
+        security_protocol=config.security_protocol,
+        ssl_cafile=config.ssl_cafile,
+        ssl_certfile=config.ssl_certfile,
+        ssl_keyfile=config.ssl_keyfile,
+        sasl_mechanism=config.sasl_mechanism,
+        sasl_plain_username=config.sasl_plain_username,
+        sasl_plain_password=config.sasl_plain_password,
         auto_offset_reset="earliest",
         session_timeout_ms=session_timeout_ms,
-        metadata_max_age_ms=config["metadata_max_age_ms"],
+        metadata_max_age_ms=config.metadata_max_age_ms,
     )
 
 
 def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
     return KafkaAdminClient(
-        bootstrap_servers=config["bootstrap_uri"],
-        client_id=config["client_id"],
-        security_protocol=config["security_protocol"],
-        ssl_cafile=config["ssl_cafile"],
-        ssl_certfile=config["ssl_certfile"],
-        ssl_keyfile=config["ssl_keyfile"],
-        sasl_mechanism=config["sasl_mechanism"],
-        sasl_plain_username=config["sasl_plain_username"],
-        sasl_plain_password=config["sasl_plain_password"],
+        bootstrap_servers=config.bootstrap_uri,
+        client_id=config.client_id,
+        security_protocol=config.security_protocol,
+        ssl_cafile=config.ssl_cafile,
+        ssl_certfile=config.ssl_certfile,
+        ssl_keyfile=config.ssl_keyfile,
+        sasl_mechanism=config.sasl_mechanism,
+        sasl_plain_username=config.sasl_plain_username,
+        sasl_plain_password=config.sasl_plain_password,
     )
 
 
@@ -146,7 +146,7 @@ class KafkaSchemaReader(Thread):
 
         self.database = database
         self.admin_client: KafkaAdminClient | None = None
-        self.topic_replication_factor = self.config["replication_factor"]
+        self.topic_replication_factor = self.config.replication_factor
         self.consumer: KafkaConsumer | None = None
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
@@ -229,26 +229,26 @@ class KafkaSchemaReader(Thread):
             schema_topic_exists = False
             while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
-                    LOG.info("[Schema Topic] Creating %r", self.config["topic_name"])
+                    LOG.info("[Schema Topic] Creating %r", self.config.topic_name)
                     topic = self.admin_client.new_topic(
-                        name=self.config["topic_name"],
+                        name=self.config.topic_name,
                         num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
-                        replication_factor=self.config["replication_factor"],
+                        replication_factor=self.config.replication_factor,
                         config={"cleanup.policy": "compact"},
                     )
                     LOG.info("[Schema Topic] Successfully created %r", topic.topic)
                     schema_topic_exists = True
                 except TopicAlreadyExistsError:
-                    LOG.warning("[Schema Topic] Already exists %r", self.config["topic_name"])
+                    LOG.warning("[Schema Topic] Already exists %r", self.config.topic_name)
                     schema_topic_exists = True
                 except InvalidReplicationFactorError:
                     LOG.info(
                         "[Schema Topic] Failed to create topic %r, not enough Kafka brokers ready yet, retrying",
-                        self.config["topic_name"],
+                        self.config.topic_name,
                     )
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
                 except:  # pylint: disable=bare-except
-                    LOG.exception("[Schema Topic] Failed to create %r, retrying", self.config["topic_name"])
+                    LOG.exception("[Schema Topic] Failed to create %r, retrying", self.config.topic_name)
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
 
             while not self._stop_schema_reader.is_set():
@@ -287,7 +287,7 @@ class KafkaSchemaReader(Thread):
             # This needs to be done because in case of missing topic the consumer will not repeat the error
             # on conscutive consume calls and instead will return empty list.
             assert self.admin_client is not None
-            topic = self.config["topic_name"]
+            topic = self.config.topic_name
             res = self.admin_client.describe_topics(TopicCollection([topic]))
             await asyncio.wrap_future(res[topic])
         except Exception as e:  # pylint: disable=broad-except
@@ -300,7 +300,7 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
+            beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config.topic_name, 0))
             # The `-1` decrement here is due to historical reasons (evolution of schema reader and offset watcher):
             # * The first `OffsetWatcher` implementation neeeded this for flagging empty offsets
             # * Then synchronization and locking was changed and this remained
@@ -325,7 +325,7 @@ class KafkaSchemaReader(Thread):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
+            _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config.topic_name, 0))
         except KafkaTimeoutError:
             LOG.warning("Reading end offsets timed out.")
             return False
@@ -419,7 +419,7 @@ class KafkaSchemaReader(Thread):
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
                 LOG.error(
                     "Kafka authorization error when consuming from %s: %s %s",
-                    self.config["topic_name"],
+                    self.config.topic_name,
                     exc,
                     msg.error(),
                 )
@@ -533,7 +533,7 @@ class KafkaSchemaReader(Thread):
                 self.database.set_subject_compatibility(subject=subject, compatibility=value["compatibilityLevel"])
         elif value is not None:
             LOG.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
-            self.config["compatibility"] = value["compatibilityLevel"]
+            self.config.compatibility = value["compatibilityLevel"]
 
     def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
         if value is None:
