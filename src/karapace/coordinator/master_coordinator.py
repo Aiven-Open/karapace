@@ -108,23 +108,23 @@ class MasterCoordinator:
 
     def init_kafka_client(self) -> AIOKafkaClient:
         ssl_context = create_ssl_context(
-            cafile=self._config["ssl_cafile"],
-            certfile=self._config["ssl_certfile"],
-            keyfile=self._config["ssl_keyfile"],
+            cafile=self._config.ssl_cafile,
+            certfile=self._config.ssl_certfile,
+            keyfile=self._config.ssl_keyfile,
         )
 
         return AIOKafkaClient(
-            bootstrap_servers=self._config["bootstrap_uri"],
-            client_id=self._config["client_id"],
-            metadata_max_age_ms=self._config["metadata_max_age_ms"],
+            bootstrap_servers=self._config.bootstrap_uri,
+            client_id=self._config.client_id,
+            metadata_max_age_ms=self._config.metadata_max_age_ms,
             request_timeout_ms=DEFAULT_REQUEST_TIMEOUT_MS,
             # Set default "PLAIN" if not configured, aiokafka expects
             # security protocol for SASL but requires a non-null value
             # for sasl mechanism.
-            sasl_mechanism=self._config["sasl_mechanism"] or "PLAIN",
-            sasl_plain_username=self._config["sasl_plain_username"],
-            sasl_plain_password=self._config["sasl_plain_password"],
-            security_protocol=self._config["security_protocol"],
+            sasl_mechanism=self._config.sasl_mechanism or "PLAIN",
+            sasl_plain_username=self._config.sasl_plain_username,
+            sasl_plain_password=self._config.sasl_plain_password,
+            security_protocol=self._config.security_protocol,
             ssl_context=ssl_context,
         )
 
@@ -134,14 +134,14 @@ class MasterCoordinator:
         schema_coordinator = SchemaCoordinator(
             client=self._kafka_client,
             schema_reader_stopper=self._schema_reader_stopper,
-            election_strategy=self._config.get("master_election_strategy", "lowest"),
-            group_id=self._config["group_id"],
-            hostname=self._config["advertised_hostname"],
-            master_eligibility=self._config["master_eligibility"],
-            port=self._config["advertised_port"],
-            scheme=self._config["advertised_protocol"],
-            session_timeout_ms=self._config["session_timeout_ms"],
-            waiting_time_before_acting_as_master_ms=self._config["waiting_time_before_acting_as_master_ms"],
+            election_strategy=self._config.master_election_strategy,
+            group_id=self._config.group_id,
+            hostname=self._config.advertised_hostname,
+            master_eligibility=self._config.master_eligibility,
+            port=self._config.advertised_port,
+            scheme=self._config.advertised_protocol,
+            session_timeout_ms=self._config.session_timeout_ms,
+            waiting_time_before_acting_as_master_ms=self._config.waiting_time_before_acting_as_master_ms,
         )
         schema_coordinator.start()
         return schema_coordinator
@@ -151,7 +151,7 @@ class MasterCoordinator:
         generation = self._sc.generation if self._sc is not None else OffsetCommitRequest.DEFAULT_GENERATION_ID
         return SchemaCoordinatorStatus(
             is_primary=self._sc.are_we_master() if self._sc is not None else None,
-            is_primary_eligible=self._config["master_eligibility"],
+            is_primary_eligible=self._config.master_eligibility,
             primary_url=self._sc.master_url if self._sc is not None else None,
             is_running=True,
             group_generation_id=generation if generation is not None else -1,
