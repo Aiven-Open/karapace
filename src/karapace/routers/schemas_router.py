@@ -5,6 +5,7 @@ See LICENSE for details
 
 from fastapi import APIRouter
 from karapace.dependencies import KarapaceSchemaRegistryControllerDep
+from karapace.routers.requests import SchemasResponse
 
 schemas_router = APIRouter(
     prefix="/schemas",
@@ -23,14 +24,14 @@ async def schemas_get_list(
     return await controller.schemas_list(deleted=deleted, latest_only=latestOnly)
 
 
-@schemas_router.get("/ids/{schema_id}")
+@schemas_router.get("/ids/{schema_id}", response_model_exclude_none=True)
 async def schemas_get(
     controller: KarapaceSchemaRegistryControllerDep,
     schema_id: str,  # TODO: type to actual type
     includeSubjects: bool = False,  # TODO: include subjects?
     fetchMaxId: bool = False,  # TODO: fetch max id?
     format: str = "",
-):
+) -> SchemasResponse:
     return await controller.schemas_get(
         schema_id=schema_id,
         include_subjects=includeSubjects,
