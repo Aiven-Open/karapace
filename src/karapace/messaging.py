@@ -28,8 +28,8 @@ class KarapaceProducer:
         self._offset_watcher = offset_watcher
         self._key_formatter = key_formatter
         self._kafka_timeout = 10
-        self._schemas_topic = self._config["topic_name"]
-        self._x_origin_host_header: Final = ("X-Origin-Host", self._config["host"].encode())
+        self._schemas_topic = self._config.topic_name
+        self._x_origin_host_header: Final = ("X-Origin-Host", self._config.host.encode())
 
     def initialize_karapace_producer(
         self,
@@ -37,18 +37,18 @@ class KarapaceProducer:
         while True:
             try:
                 self._producer = KafkaProducer(
-                    bootstrap_servers=self._config["bootstrap_uri"],
+                    bootstrap_servers=self._config.bootstrap_uri,
                     verify_connection=False,
-                    security_protocol=self._config["security_protocol"],
-                    ssl_cafile=self._config["ssl_cafile"],
-                    ssl_certfile=self._config["ssl_certfile"],
-                    ssl_keyfile=self._config["ssl_keyfile"],
-                    sasl_mechanism=self._config["sasl_mechanism"],
-                    sasl_plain_username=self._config["sasl_plain_username"],
-                    sasl_plain_password=self._config["sasl_plain_password"],
-                    metadata_max_age_ms=self._config["metadata_max_age_ms"],
+                    security_protocol=self._config.security_protocol,
+                    ssl_cafile=self._config.ssl_cafile,
+                    ssl_certfile=self._config.ssl_certfile,
+                    ssl_keyfile=self._config.ssl_keyfile,
+                    sasl_mechanism=self._config.sasl_mechanism,
+                    sasl_plain_username=self._config.sasl_plain_username,
+                    sasl_plain_password=self._config.sasl_plain_password,
+                    metadata_max_age_ms=self._config.metadata_max_age_ms,
                     socket_timeout_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
-                    connections_max_idle_ms=self._config["connections_max_idle_ms"],  # helps through cluster upgrades ??
+                    connections_max_idle_ms=self._config.connections_max_idle_ms,  # helps through cluster upgrades ??
                 )
                 return
             except:  # pylint: disable=bare-except
