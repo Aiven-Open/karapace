@@ -1672,6 +1672,7 @@ async def test_schema_lifecycle(registry_async_client: Client, trail: str) -> No
 
     res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert res.status_code == 404
+    print(res.json())
     assert res.json()["error_code"] == 40401
     assert res.json()["message"] == f"Subject '{subject}' not found."
     res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
