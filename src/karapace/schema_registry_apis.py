@@ -837,7 +837,8 @@ class KarapaceSchemaRegistryController:
         references = self._validate_references(schema_request=schema_request)
 
         try:
-            references, resolved_dependencies = self.schema_registry.resolve_references(references)
+            # references, resolved_dependencies = self.schema_registry.resolve_references(references)
+            resolved_dependencies = {}
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_request.schema_type,
                 schema_str=schema_request.schema_str,
@@ -931,7 +932,8 @@ class KarapaceSchemaRegistryController:
     def get_new_schema(self, schema_request: SchemaRequest) -> ValidatedTypedSchema:
         references = self._validate_references(schema_request=schema_request)
         try:
-            references, new_schema_dependencies = self.schema_registry.resolve_references(references)
+            # references, new_schema_dependencies = self.schema_registry.resolve_references(references)
+            new_schema_dependencies = {}
             return ValidatedTypedSchema.parse(
                 schema_type=schema_request.schema_type,
                 schema_str=schema_request.schema_str,
