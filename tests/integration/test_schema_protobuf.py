@@ -12,7 +12,7 @@ from karapace.schema_type import SchemaType
 from karapace.typing import JsonData, SchemaMetadata, SchemaRuleSet
 from tests.base_testcase import BaseTestCase
 from tests.utils import create_subject_name_factory
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import logging
 import pytest
@@ -472,7 +472,7 @@ class TestCaseSchema:
     schema_type: SchemaType
     schema_str: str
     subject: str
-    references: Optional[List[JsonData]] = None
+    references: Optional[list[JsonData]] = None
     expected: int = 200
     expected_msg: str = ""
     expected_error_code: Optional[int] = None
@@ -501,7 +501,7 @@ class TestCaseHardDeleteSchema(TestCaseDeleteSchema):
 
 @dataclass
 class ReferenceTestCase(BaseTestCase):
-    schemas: List[Union[TestCaseSchema, TestCaseDeleteSchema]]
+    schemas: list[Union[TestCaseSchema, TestCaseDeleteSchema]]
 
 
 # Base case
@@ -1123,8 +1123,8 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
         expected=409,
         expected_msg=(
             # ACTUALLY THERE NO MESSAGE_DROP!!!
-            "Incompatible schema, compatibility_mode=BACKWARD "
-            "Incompatible modification Modification.MESSAGE_DROP found"
+            "Incompatible schema, compatibility_mode=BACKWARD. "
+            "Incompatibilities: Incompatible modification Modification.MESSAGE_DROP found"
         ),
     )
     print(f"Adding new schema, subject: '{testdata.subject}'\n{testdata.schema_str}")

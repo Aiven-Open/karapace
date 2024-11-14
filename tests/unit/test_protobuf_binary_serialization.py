@@ -16,6 +16,8 @@ from tests.schemas.protobuf import (
     schema_protobuf_nested_message4_bin_protoc,
     schema_protobuf_oneof,
     schema_protobuf_oneof_bin,
+    schema_protobuf_optionals,
+    schema_protobuf_optionals_bin,
     schema_protobuf_order_after,
     schema_protobuf_order_after_bin,
     schema_protobuf_plain,
@@ -89,6 +91,7 @@ message EventKey {
         (schema_protobuf_references, schema_protobuf_references_bin),
         (schema_protobuf_references2, schema_protobuf_references2_bin),
         (schema_protobuf_complex, schema_protobuf_complex_bin),
+        (schema_protobuf_optionals, schema_protobuf_optionals_bin),
     ],
 )
 def test_schema_deserialize(schema_plain, schema_serialized):
@@ -125,6 +128,7 @@ def test_protoc_serialized_schema_deserialize(schema_plain, schema_serialized):
         schema_protobuf_references,
         schema_protobuf_references2,
         schema_protobuf_complex,
+        schema_protobuf_optionals,
     ],
 )
 def test_simple_schema_serialize(schema):

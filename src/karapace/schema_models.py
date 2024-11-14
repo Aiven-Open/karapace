@@ -6,8 +6,9 @@ from __future__ import annotations
 
 from avro.errors import SchemaParseException
 from avro.schema import parse as avro_parse, Schema as AvroSchema
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
-from jsonschema import Draft7Validator
+from jsonschema import Draft7Validator, RefResolver
 from jsonschema.exceptions import SchemaError
 from karapace.dependency import Dependency
 from karapace.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
@@ -26,7 +27,7 @@ from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonObject, SchemaId, Subject, Version, VersionTag
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Collection, Dict, Final, final, Mapping, Sequence
+from typing import Any, cast, Final, final
 
 import hashlib
 import logging
@@ -46,8 +47,12 @@ def parse_avro_schema_definition(s: str, validate_enum_symbols: bool = True, val
     return avro_parse(json_encode(json_data), validate_enum_symbols=validate_enum_symbols, validate_names=validate_names)
 
 
-def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
-    """Parses and validates `schema_definition`.
+class InvalidValidatorRegistry(Exception):
+    pass
+
+
+def parse_jsonschema_definition(schema_definition: str, resolver: RefResolver | None = None) -> Draft7Validator:
+    """Parses and validates `schema_definition` with its `dependencies`.
 
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
@@ -56,6 +61,8 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
     #  use bool values and fail if we assert isinstance(_, dict).
     Draft7Validator.check_schema(schema)  # type: ignore[arg-type]
+    if resolver:
+        return Draft7Validator(schema, resolver=resolver)  # type: ignore[arg-type]
     return Draft7Validator(schema)  # type: ignore[arg-type]
 
 
@@ -126,7 +133,7 @@ class TypedSchema:
     def to_dict(self) -> JsonObject:
         if self.schema_type is SchemaType.PROTOBUF:
             raise InvalidSchema("Protobuf do not support to_dict serialization")
-        return json_decode(self.schema_str, Dict[str, Any])
+        return json_decode(self.schema_str, dict[str, Any])
 
     def fingerprint(self) -> str:
         if self._fingerprint_cached is None:
@@ -194,6 +201,40 @@ class TypedSchema:
         return parsed_typed_schema.schema
 
 
+def json_resolver(schema_str: str, dependencies: Mapping[str, Dependency] | None = None) -> RefResolver | None:
+    # RefResolver is deprecated but it still used in karapace code
+    # see normalize_schema_rec() function in src/karapace/compatibility/jsonschema/utils.py
+    # In case when karapace JSON support will be updated we must rewrite this code to use
+    # referencing.Registry instead of RefResolver
+    schema_store: dict = {}
+    stack: list[tuple[str, Mapping[str, Dependency] | None]] = [(schema_str, dependencies)]
+    if dependencies is None:
+        return None
+    while stack:
+        current_schema_str, current_dependencies = stack.pop()
+        if current_dependencies:
+            stack.append((current_schema_str, None))
+            for dependency in current_dependencies.values():
+                stack.append((dependency.schema.schema_str, dependency.schema.dependencies))
+        else:
+            schema_json = json_decode(current_schema_str)
+            if isinstance(schema_json, dict):
+                schema_store[schema_json["$id"]] = schema_json
+            else:
+                # In the case of schemas with references, we only support schemas with a canonical structure,
+                # which must include a $id in the reference.
+                raise InvalidSchema
+    main_schema_json = json_decode(schema_str)
+    if not isinstance(main_schema_json, dict):
+        # In the case of schemas with references, we only support schemas with a canonical structure, which must
+        # contain an $id tag within the reference. Simple main schemas of types such as bool, int, str, etc.,
+        # are not supported.
+        raise InvalidSchema
+
+    resolver = RefResolver.from_schema(main_schema_json, store=schema_store)
+    return resolver
+
+
 def parse(
     schema_type: SchemaType,
     schema_str: str,
@@ -220,7 +261,7 @@ def parse(
 
     elif schema_type is SchemaType.JSONSCHEMA:
         try:
-            parsed_schema = parse_jsonschema_definition(schema_str)
+            parsed_schema = parse_jsonschema_definition(schema_str, resolver=json_resolver(schema_str, dependencies))
             # TypeError - Raised when the user forgets to encode the schema as a string.
         except (TypeError, JSONDecodeError, SchemaError, AssertionError) as e:
             raise InvalidSchema from e

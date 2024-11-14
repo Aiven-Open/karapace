@@ -4,8 +4,8 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from karapace.sentry.sentry_client_api import KarapaceSentryConfig, SentryClientAPI
-from typing import Mapping
 
 # The Sentry SDK is optional, omit pylint import error
 import sentry_sdk
@@ -41,6 +41,8 @@ class SentryClient(SentryClientAPI):
         # Don't send library logged errors to Sentry as there is also proper return value or raised exception to calling code
         from sentry_sdk.integrations.logging import ignore_logger
 
+        ignore_logger("aiokafka")
+        ignore_logger("aiokafka.*")
         ignore_logger("kafka")
         ignore_logger("kafka.*")
 

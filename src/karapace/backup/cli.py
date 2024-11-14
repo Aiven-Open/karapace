@@ -10,9 +10,9 @@ from . import api
 from .errors import BackupDataRestorationError, StaleConsumerError
 from .poll_timeout import PollTimeout
 from aiokafka.errors import BrokerResponseError
+from collections.abc import Iterator
 from karapace.backup.api import VerifyLevel
 from karapace.config import Config, read_config
-from typing import Iterator
 
 import argparse
 import contextlib
@@ -76,6 +76,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
+    parser_restore.add_argument(
+        "--override-replication-factor",
+        help=(
+            "Override the replication factor that is save in the backup. This is needed when restoring a backup from a"
+            "downsized cluster (like scaling down from 6 to 3 nodes). This has effect only for V3 backups."
+        ),
+        type=int,
+    )
+
     return parser.parse_args()
 
 
@@ -115,6 +124,7 @@ def dispatch(args: argparse.Namespace) -> None:
                 backup_location=api.locate_backup_file(location),
                 topic_name=api.normalize_topic_name(args.topic, config),
                 skip_topic_creation=args.skip_topic_creation,
+                override_replication_factor=args.override_replication_factor,
             )
         except BackupDataRestorationError:
             traceback.print_exc()

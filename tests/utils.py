@@ -10,7 +10,7 @@ from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, Callable, IO, List, Union
+from typing import Any, Callable, IO, Union
 from urllib.parse import quote
 
 import asyncio
@@ -264,7 +264,7 @@ def new_topic(admin_client: KafkaAdminClient, prefix: str = "topic", *, num_part
     return topic_name
 
 
-async def wait_for_topics(rest_async_client: Client, topic_names: List[str], timeout: float, sleep: float) -> None:
+async def wait_for_topics(rest_async_client: Client, topic_names: list[str], timeout: float, sleep: float) -> None:
     for topic in topic_names:
         expiration = Expiration.from_timeout(timeout=timeout)
         topic_found = False

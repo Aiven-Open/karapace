@@ -4,9 +4,12 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
+from collections.abc import Sequence
 from contextlib import AsyncExitStack, closing
-from karapace.compatibility import check_compatibility, CompatibilityModes
+from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
+from karapace.compatibility.schema_compatibility import SchemaCompatibility
 from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.dependency import Dependency
@@ -29,7 +32,6 @@ from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion,
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, Mode, SchemaId, Subject, Version
-from typing import Sequence
 
 import asyncio
 import logging
@@ -281,7 +283,7 @@ class KarapaceSchemaRegistry:
             return list(referenced_by)
         return []
 
-    def _resolve_and_parse(self, schema: TypedSchema) -> ParsedTypedSchema:
+    def resolve_and_parse(self, schema: TypedSchema) -> ParsedTypedSchema:
         references, dependencies = self.resolve_references(schema.references) if schema.references else (None, None)
         return ParsedTypedSchema.parse(
             schema_type=schema.schema_type,
@@ -325,12 +327,8 @@ class KarapaceSchemaRegistry:
                 )
             else:
                 # First check if any of the existing schemas for the subject match
-                live_schema_versions = {
-                    version_id: schema_version
-                    for version_id, schema_version in all_schema_versions.items()
-                    if schema_version.deleted is False
-                }
-                if not live_schema_versions:  # Previous ones have been deleted by the user.
+                live_versions = self.get_live_versions_sorted(all_schema_versions)
+                if not live_versions:  # Previous ones have been deleted by the user.
                     version = self.database.get_next_version(subject=subject)
                     schema_id = self.database.get_schema_id(new_schema)
                     LOG.debug(
@@ -351,32 +349,17 @@ class KarapaceSchemaRegistry:
                     )
                     return schema_id
 
-                compatibility_mode = self.get_compatibility_mode(subject=subject)
+                result = self.check_schema_compatibility(new_schema, subject)
 
-                # Run a compatibility check between on file schema(s) and the one being submitted now
-                # the check is either towards the latest one or against all previous ones in case of
-                # transitive mode
-                schema_versions = sorted(live_schema_versions)
-                if compatibility_mode.is_transitive():
-                    check_against = schema_versions
-                else:
-                    check_against = [schema_versions[-1]]
-
-                for old_version in check_against:
-                    parsed_old_schema = self._resolve_and_parse(all_schema_versions[old_version].schema)
-                    result = check_compatibility(
-                        old_schema=parsed_old_schema,
-                        new_schema=new_schema,
-                        compatibility_mode=compatibility_mode,
+                if is_incompatible(result):
+                    LOG.warning(
+                        "Incompatible schema: %s, incompatibilities: %s", result.compatibility, result.incompatibilities
                     )
-                    if is_incompatible(result):
-                        message = set(result.messages).pop() if result.messages else ""
-                        LOG.warning(
-                            "Incompatible schema: %s, incompatibilities: %s", result.compatibility, result.incompatibilities
-                        )
-                        raise IncompatibleSchema(
-                            f"Incompatible schema, compatibility_mode={compatibility_mode.value} {message}"
-                        )
+                    compatibility_mode = self.get_compatibility_mode(subject=subject)
+                    raise IncompatibleSchema(
+                        f"Incompatible schema, compatibility_mode={compatibility_mode.value}. "
+                        f"Incompatibilities: {', '.join(result.messages)[:300]}"
+                    )
 
                 # We didn't find an existing schema and the schema is compatible so go and create one
                 version = self.database.get_next_version(subject=subject)
@@ -465,3 +448,48 @@ class KarapaceSchemaRegistry:
         key = {"subject": subject, "magic": 0, "keytype": "DELETE_SUBJECT"}
         value = {"subject": subject, "version": version.value}
         self.producer.send_message(key=key, value=value)
+
+    def check_schema_compatibility(
+        self,
+        new_schema: ValidatedTypedSchema,
+        subject: Subject,
+    ) -> SchemaCompatibilityResult:
+        result = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
+
+        compatibility_mode = self.get_compatibility_mode(subject=subject)
+        all_schema_versions: dict[Version, SchemaVersion] = self.database.find_subject_schemas(
+            subject=subject, include_deleted=True
+        )
+        live_versions = self.get_live_versions_sorted(all_schema_versions)
+
+        if not live_versions:
+            old_versions = []
+        elif compatibility_mode.is_transitive():
+            # Check against all versions
+            old_versions = live_versions
+        else:
+            # Only check against latest version
+            old_versions = [live_versions[-1]]
+
+        for old_version in old_versions:
+            old_parsed_schema = self.resolve_and_parse(all_schema_versions[old_version].schema)
+
+            result = SchemaCompatibility.check_compatibility(
+                old_schema=old_parsed_schema,
+                new_schema=new_schema,
+                compatibility_mode=compatibility_mode,
+            )
+
+            if is_incompatible(result):
+                return result
+
+        return result
+
+    @staticmethod
+    def get_live_versions_sorted(all_schema_versions: dict[Version, SchemaVersion]) -> list[Version]:
+        live_schema_versions = {
+            version_id: schema_version
+            for version_id, schema_version in all_schema_versions.items()
+            if schema_version.deleted is False
+        }
+        return sorted(live_schema_versions)

@@ -18,13 +18,14 @@ from aiokafka.protocol.group import (
     SyncGroupResponse_v0 as SyncGroupResponse,
 )
 from aiokafka.util import create_future, create_task
+from collections.abc import AsyncGenerator, Iterator
 from karapace.coordinator.schema_coordinator import Assignment, SchemaCoordinator, SchemaCoordinatorGroupRebalance
 from karapace.utils import json_encode
 from karapace.version import __version__
 from tenacity import retry, stop_after_delay, TryAgain, wait_fixed
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
-from typing import AsyncGenerator, Final, Iterator
+from typing import Final
 from unittest import mock
 
 import aiokafka.errors as Errors

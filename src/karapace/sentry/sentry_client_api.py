@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 from typing_extensions import TypeAlias
 
 KarapaceSentryConfig: TypeAlias = "Mapping[str, object] | None"

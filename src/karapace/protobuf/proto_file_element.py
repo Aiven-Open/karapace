@@ -2,6 +2,8 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from collections.abc import Sequence
+
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElement.kt
 from karapace.dependency import Dependency
@@ -13,12 +15,12 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import Dict, List, NewType, Optional, Sequence
+from typing import NewType, Optional
 
 
-def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[Dict[str, Dependency]], is_self: bool):
+def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[dict[str, Dependency]], is_self: bool):
     for dep in dependencies.values():
-        types: List[TypeElement] = dep.schema.schema.proto_file_element.types
+        types: list[TypeElement] = dep.schema.schema.proto_file_element.types
         sub_deps = dep.schema.schema.dependencies
         package_name = dep.schema.schema.proto_file_element.package_name
         type_: TypeElement
@@ -131,8 +133,8 @@ class ProtoFileElement:
         self,
         other: "ProtoFileElement",
         result: CompareResult,
-        self_dependencies: Optional[Dict[str, Dependency]] = None,
-        other_dependencies: Optional[Dict[str, Dependency]] = None,
+        self_dependencies: Optional[dict[str, Dependency]] = None,
+        other_dependencies: Optional[dict[str, Dependency]] = None,
     ) -> CompareResult:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 

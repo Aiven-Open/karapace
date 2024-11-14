@@ -10,10 +10,11 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from karapace.config import Config
 from karapace.sentry import get_sentry_client
-from typing import Any, Final, Iterator
+from typing import Any, Final
 
 import datetime
 import logging

@@ -22,7 +22,7 @@ from .errors import (
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
 from aiokafka.errors import KafkaError, TopicAlreadyExistsError
-from collections.abc import Sized
+from collections.abc import Iterator, Mapping, Sized
 from concurrent.futures import Future
 from confluent_kafka import Message, TopicPartition
 from enum import Enum
@@ -42,7 +42,7 @@ from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import Callable, Iterator, Literal, Mapping, NewType, TypeVar
+from typing import Callable, Literal, NewType, TypeVar
 
 import contextlib
 import datetime
@@ -373,13 +373,20 @@ def _handle_restore_topic(
     instruction: RestoreTopic,
     config: Config,
     skip_topic_creation: bool = False,
+    override_replication_factor: int | None = None,
 ) -> None:
     if skip_topic_creation:
         return
+    repl_factor = instruction.replication_factor
+    if override_replication_factor is not None:
+        LOG.info(
+            "Overriding replication factor with: %d (was: %d)", override_replication_factor, instruction.replication_factor
+        )
+        repl_factor = override_replication_factor
     if not _maybe_create_topic(
         config=config,
         name=instruction.topic_name,
-        replication_factor=instruction.replication_factor,
+        replication_factor=repl_factor,
         topic_configs=instruction.topic_configs,
     ):
         raise BackupTopicAlreadyExists(f"Topic to restore '{instruction.topic_name}' already exists")
@@ -426,6 +433,7 @@ def restore_backup(
     backup_location: ExistingFile,
     topic_name: TopicName,
     skip_topic_creation: bool = False,
+    override_replication_factor: int | None = None,
 ) -> None:
     """Restores a backup from the specified location into the configured topic.
 
@@ -475,7 +483,7 @@ def restore_backup(
                 _handle_restore_topic_legacy(instruction, config, skip_topic_creation)
                 producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, RestoreTopic):
-                _handle_restore_topic(instruction, config, skip_topic_creation)
+                _handle_restore_topic(instruction, config, skip_topic_creation, override_replication_factor)
                 producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, ProducerSend):
                 if producer is None:

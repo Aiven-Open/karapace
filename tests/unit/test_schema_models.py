@@ -10,13 +10,13 @@ from karapace.errors import InvalidVersion, VersionNotFoundException
 from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Versioner
 from karapace.schema_type import SchemaType
 from karapace.typing import Version, VersionTag
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import operator
 import pytest
 
 # Schema versions factory fixture type
-SVFCallable = Callable[[None], Callable[[int, Dict[str, Any]], Dict[int, SchemaVersion]]]
+SVFCallable = Callable[[None], Callable[[int, dict[str, Any]], dict[int, SchemaVersion]]]
 
 
 class TestVersion:
@@ -90,8 +90,8 @@ class TestVersioner:
         self,
         avro_schema: str,
         avro_schema_parsed: AvroSchema,
-    ) -> Callable[[Version, Dict[str, Any]], Dict[Version, SchemaVersion]]:
-        def schema_versions(version: Version, schema_version_data: Optional[Dict[str, Any]] = None):
+    ) -> Callable[[Version, dict[str, Any]], dict[Version, SchemaVersion]]:
+        def schema_versions(version: Version, schema_version_data: Optional[dict[str, Any]] = None):
             schema_version_data = schema_version_data or dict()
             base_schema_version_data = dict(
                 subject="test-topic",

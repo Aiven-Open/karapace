@@ -5,7 +5,7 @@ See LICENSE for details
 from karapace.utils import Expiration
 from subprocess import Popen
 from tests.integration.utils.network import port_is_listening
-from typing import List, Optional
+from typing import Optional
 
 import os
 import signal
@@ -45,7 +45,7 @@ def stop_process(proc: Optional[Popen]) -> None:
             pass
 
 
-def get_java_process_configuration(java_args: List[str]) -> List[str]:
+def get_java_process_configuration(java_args: list[str]) -> list[str]:
     command = [
         "/usr/bin/java",
         "-server",

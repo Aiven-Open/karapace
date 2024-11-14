@@ -5,7 +5,7 @@ See LICENSE for details
 from avro.compatibility import SchemaCompatibilityResult
 from pathlib import Path
 from tempfile import mkstemp
-from typing import List, Optional
+from typing import Optional
 
 import json
 import os
@@ -15,19 +15,19 @@ import re
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
 KAFKA_VERION_OPT = "--kafka-version"
-KAFKA_VERSION = "2.7.0"
+KAFKA_VERSION = "3.4.1"
 LOG_DIR_OPT = "--log-dir"
 VERSION_REGEX = "([0-9]+[.])*[0-9]+"
 
 
-def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
+def pytest_assertrepr_compare(op, left, right) -> Optional[list[str]]:
     if isinstance(left, SchemaCompatibilityResult) and isinstance(right, SchemaCompatibilityResult) and op in ("==", "!="):
         lines = ["Comparing SchemaCompatibilityResult instances:"]
 
         def pad(depth: int, *msg: str) -> str:
             return "  " * depth + " ".join(msg)
 
-        def list_details(header: str, depth: int, items: List[str]) -> None:
+        def list_details(header: str, depth: int, items: list[str]) -> None:
             qty = len(items)
 
             if qty == 1:
@@ -56,7 +56,7 @@ def pytest_assertrepr_compare(op, left, right) -> Optional[List[str]]:
     return None
 
 
-def split_by_comma(arg: str) -> List[str]:
+def split_by_comma(arg: str) -> list[str]:
     return arg.split(",")
 
 

@@ -7,7 +7,6 @@ See LICENSE for details
 
 from io import BytesIO
 from karapace.protobuf.exception import IllegalArgumentException
-from typing import List
 
 ZERO_BYTE = b"\x00"
 
@@ -33,7 +32,7 @@ def read_varint(bio: BytesIO) -> int:
             return varint
 
 
-def read_indexes(bio: BytesIO) -> List[int]:
+def read_indexes(bio: BytesIO) -> list[int]:
     try:
         size: int = read_varint(bio)
     except EOFError:
@@ -67,6 +66,6 @@ def write_varint(bio: BytesIO, value: int) -> int:
     return written_bytes
 
 
-def write_indexes(bio: BytesIO, indexes: List[int]) -> None:
+def write_indexes(bio: BytesIO, indexes: list[int]) -> None:
     for i in indexes:
         write_varint(bio, i)

@@ -4,6 +4,7 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from karapace.errors import InvalidSchema
 from karapace.protobuf.enum_constant_element import EnumConstantElement
 from karapace.protobuf.enum_element import EnumElement
@@ -19,7 +20,7 @@ from karapace.protobuf.reserved_element import ReservedElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
 from types import MappingProxyType
-from typing import Any, Sequence
+from typing import Any
 
 import base64
 import google.protobuf.descriptor
@@ -92,17 +93,31 @@ def _deserialize_msg(msgtype: Any) -> MessageElement:
     for nested_enum in msgtype.enum_type:
         nested_types.append(_deserialize_enum(nested_enum))
 
-    one_ofs: list[OneOfElement] = [OneOfElement(oneof.name) for oneof in msgtype.oneof_decl]
+    one_ofs: list[OneOfElement | None] = [OneOfElement(oneof.name) for oneof in msgtype.oneof_decl]
 
     for f in msgtype.field:
         sf = _deserialize_field(f)
-        if f.HasField("oneof_index"):
+        is_oneof = f.HasField("oneof_index")
+        is_proto3_optional = f.HasField("oneof_index") and f.HasField("proto3_optional") and f.proto3_optional
+        if is_proto3_optional:
+            # Every proto3 optional field is placed into a one-field oneof, called a "synthetic" oneof,
+            # as it was not present in the source .proto file.
+            # This will make sure that we don't interpret those optionals as oneof.
+            one_ofs[f.oneof_index] = None
+            fields.append(sf)
+        elif is_oneof:
             one_ofs[f.oneof_index].fields.append(sf)
         else:
             fields.append(sf)
 
+    one_ofs_filtered: list[OneOfElement] = [oneof for oneof in one_ofs if oneof is not None]
     return MessageElement(
-        DEFAULT_LOCATION, msgtype.name, nested_types=nested_types, reserveds=reserveds, fields=fields, one_ofs=one_ofs
+        DEFAULT_LOCATION,
+        msgtype.name,
+        nested_types=nested_types,
+        reserveds=reserveds,
+        fields=fields,
+        one_ofs=one_ofs_filtered,
     )
 
 

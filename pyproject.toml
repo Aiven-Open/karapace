@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "karapace"
-requires-python = ">= 3.8"
+requires-python = ">= 3.9"
 dynamic = ["version"]
 readme = "README.rst"
 license = {file = "LICENSE"}
@@ -49,7 +49,6 @@ classifiers=[
   "Intended Audience :: Information Technology",
   "Intended Audience :: System Administrators",
   "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -70,6 +69,7 @@ Issues = "https://github.com/Aiven-Open/karapace/issues"
 
 [project.optional-dependencies]
 sentry-sdk = ["sentry-sdk>=1.6.0"]
+systemd-logging = ["systemd-python==235"]
 ujson = ["ujson"]
 dev = [
   # Developer QoL
@@ -107,5 +107,5 @@ include-package-data = true
 version_file = "src/karapace/version.py"
 
 [tool.black]
-target-version = ["py38"]
+target-version = ["py39"]
 line-length = 125

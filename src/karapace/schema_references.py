@@ -7,11 +7,12 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from karapace.dataclasses import default_dataclass
 from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
-from typing import cast, List, Mapping, NewType, TypeVar
+from typing import cast, NewType, TypeVar
 
-Referents = NewType("Referents", List[SchemaId])
+Referents = NewType("Referents", list[SchemaId])
 
 T = TypeVar("T")
 

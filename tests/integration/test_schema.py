@@ -21,7 +21,6 @@ from tests.utils import (
     create_subject_name_factory,
     repeat_until_successful_request,
 )
-from typing import List, Tuple
 
 import asyncio
 import json
@@ -333,7 +332,8 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
         json={"schema": json.dumps(schema)},
     )
     assert res.status_code == 200
-    assert res.json() == {"is_compatible": False}
+    assert res.json().get("is_compatible") is False
+    assert res.json().get("messages") == ["reader type: string not compatible with writer type: int"]
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -537,7 +537,7 @@ async def test_type_compatibility(registry_async_client: Client, trail: str) -> 
             json={"schema": json.dumps(schema)},
         )
         assert res.status_code == 200
-        assert res.json() == {"is_compatible": expected}
+        assert res.json().get("is_compatible") == expected
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -1060,7 +1060,7 @@ async def test_transitive_compatibility(registry_async_client: Client) -> None:
     assert res_json["error_code"] == 409
 
 
-async def assert_schema_versions(client: Client, trail: str, schema_id: int, expected: List[Tuple[str, int]]) -> None:
+async def assert_schema_versions(client: Client, trail: str, schema_id: int, expected: list[tuple[str, int]]) -> None:
     """
     Calls /schemas/ids/{schema_id}/versions and asserts the expected results were in the response.
     """
@@ -1084,7 +1084,7 @@ async def assert_schema_versions_failed(client: Client, trail: str, schema_id: i
 
 async def register_schema(
     registry_async_client: Client, trail: str, subject: str, schema_str: str, schema_type: SchemaType = SchemaType.AVRO
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     # Register to get the id
     payload = {"schema": schema_str}
     if schema_type == SchemaType.JSONSCHEMA:
@@ -3244,7 +3244,7 @@ async def test_schema_non_compliant_name_in_existing(
         json={"schema": json.dumps(evolved_schema)},
     )
     assert res.status_code == 200
-    assert not res.json().get("is_compatible")
+    assert res.json().get("is_compatible") is False
 
     # Post evolved schema, should not be compatible and rejected.
     res = await registry_async_client.post(
@@ -3254,7 +3254,10 @@ async def test_schema_non_compliant_name_in_existing(
     assert res.status_code == 409
     assert res.json() == {
         "error_code": 409,
-        "message": "Incompatible schema, compatibility_mode=BACKWARD expected: compliant_name_test.test-schema",
+        "message": (
+            "Incompatible schema, compatibility_mode=BACKWARD. "
+            "Incompatibilities: expected: compliant_name_test.test-schema"
+        ),
     }
 
     # Send compatibility configuration for subject that disabled backwards compatibility.

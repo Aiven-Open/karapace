@@ -8,8 +8,9 @@ from .checksum import RunningChecksum
 from .constants import V3_MARKER
 from .errors import InvalidChecksum, InvalidHeader, TooFewRecords, TooManyRecords, UnexpectedEndOfData
 from .schema import Metadata, Record
+from collections.abc import Generator
 from karapace.avro_dataclasses.models import AvroModel
-from typing import Generator, IO, TypeVar
+from typing import IO, TypeVar
 
 import io
 import struct
