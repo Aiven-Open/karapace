@@ -512,6 +512,10 @@ async def fixture_registry_cluster(
         return
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+
+    user_config = request.param.get("config", {}) if hasattr(request, "param") else {}
+    config.__dict__.update(user_config)
+
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),

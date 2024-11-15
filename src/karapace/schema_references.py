@@ -73,6 +73,7 @@ class Reference:
         )
 
 
+# TODO remove
 def reference_from_mapping(
     data: Mapping[str, object],
 ) -> Reference | LatestVersionReference:
