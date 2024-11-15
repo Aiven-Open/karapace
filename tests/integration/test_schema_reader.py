@@ -4,7 +4,7 @@ See LICENSE for details
 """
 from contextlib import closing
 from dataclasses import dataclass
-from karapace.config import set_config_defaults
+from karapace.config import Config, set_config_defaults
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.in_memory_database import InMemoryDatabase
@@ -62,14 +62,12 @@ async def test_regression_soft_delete_schemas_should_be_registered(
     subject = create_subject_name_factory(test_name)()
     group_id = create_group_name_factory(test_name)()
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "admin_metadata_max_age": 2,
-            "group_id": group_id,
-            "topic_name": topic_name,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age=2
+    config.group_id=group_id
+    config.topic_name=topic_name
+
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     try:
@@ -156,13 +154,11 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
     subject = create_subject_name_factory(test_name)()
     group_id = create_group_name_factory(test_name)()
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "admin_metadata_max_age": 2,
-            "group_id": group_id,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age=2
+    config.group_id=group_id
+
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     try:
@@ -260,14 +256,12 @@ async def test_key_format_detection(
         )
     producer.flush()
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "admin_metadata_max_age": 2,
-            "group_id": group_id,
-            "topic_name": test_topic,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age=2
+    config.group_id=group_id
+    config.topic_name=test_topic
+
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     try:
