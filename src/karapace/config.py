@@ -24,8 +24,8 @@ HOSTNAME = socket.gethostname()
 class Config(BaseSettings):
     access_logs_debug: bool = False
     access_log_class: type | None = None
-    advertised_hostname: str = HOSTNAME
-    advertised_port: int = 8081
+    advertised_hostname: str | None = None
+    advertised_port: int | None = None
     advertised_protocol: str = "http"
     bootstrap_uri: str = "127.0.0.1:9092"
     sasl_bootstrap_uri: str | None = None
@@ -98,6 +98,18 @@ class Config(BaseSettings):
     # set tags if not set
     #  new_config["tags"]["app"] = "Karapace"
 
+    def get_advertised_port(self) -> int:
+        return self.advertised_port or self.port
+
+    def get_advertised_hostname(self) -> str:
+        return self.advertised_hostname or self.host
+
+    def get_rest_base_uri(self) -> str:
+        return (
+            self.rest_base_uri
+            or f"{self.advertised_protocol}://{self.get_advertised_hostname()}:{self.get_advertised_port()}"
+        )
+
     def to_env_str(self) -> str:
         env_lines: list[str] = []
         for key, value in self.dict().items():
@@ -134,12 +146,9 @@ def parse_env_value(value: str) -> str | int | bool:
 
 
 def set_config_defaults(config: Config) -> Config:
-    # new_config = DEFAULTS.copy()
-    new_config = Config(config)
-
     # Fallback to default port if `advertised_port` is not set
-    if new_config["advertised_port"] is None:
-        new_config["advertised_port"] = new_config["port"]
+    if config["advertised_port"] is None:
+        config["advertised_port"] = new_config["port"]
 
     # Fallback to `advertised_*` constructed URI if not set
     if new_config["rest_base_uri"] is None:
