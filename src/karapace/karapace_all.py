@@ -8,13 +8,18 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 # from aiohttp.web_log import AccessLogger
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from http import HTTPStatus
 from karapace import version as karapace_version
 from karapace.config import Config
+from karapace.content_type import check_schema_headers
 from karapace.instrumentation.prometheus import PrometheusInstrumentation
+from karapace.routers.errors import KarapaceValidationError
 from karapace.schema_registry import KarapaceSchemaRegistry
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.requests import Request as StarletteHTTPRequest
 
 import logging
 import os
@@ -39,7 +44,7 @@ def _configure_logging(*, config: Config) -> None:
     elif "stdout" == log_handler or log_handler is None:
         root_handler = logging.StreamHandler(stream=sys.stdout)
     else:
-        logging.basicConfig(level=logging.INFO, format=config.log_format)
+        logging.basicConfig(level=config.log_level, format=config.log_format)
         logging.getLogger().setLevel(config.log_level)
         logging.warning("Log handler %s not recognized, root handler not set.", log_handler)
 
@@ -50,6 +55,7 @@ def _configure_logging(*, config: Config) -> None:
         logging.root.addHandler(root_handler)
 
     logging.root.setLevel(config.log_level)
+    logging.getLogger("uvicorn").setLevel(config.log_level)
 
 
 #    if config.access_logs_debug is True:
@@ -74,7 +80,7 @@ SCHEMA_REGISTRY = KarapaceSchemaRegistry(config=CONFIG)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     try:
         await SCHEMA_REGISTRY.start()
         await SCHEMA_REGISTRY.get_master()
@@ -87,8 +93,49 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(_: StarletteHTTPRequest, exc: StarletteHTTPException):
     return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: StarletteHTTPRequest, exc: RequestValidationError):
+    error_code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+    if isinstance(exc, KarapaceValidationError):
+        error_code = exc.error_code
+        message = exc.body
+    else:
+        message = exc.errors()
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error_code": error_code,
+            "message": message,
+        },
+    )
+
+
+@app.middleware("http")
+async def set_content_types(request: Request, call_next):
+    try:
+        response_content_type = check_schema_headers(request)
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            headers=exc.headers,
+            content=exc.detail,
+        )
+
+    # Schema registry supports application/octet-stream, assumption is JSON object body.
+    # Force internally to use application/json in this case for compatibility.
+    if request.headers.get("Content-Type") == "application/octet-stream":
+        new_headers = request.headers.mutablecopy()
+        new_headers["Content-Type"] = "application/json"
+        request._headers = new_headers
+        request.scope.update(headers=request.headers.raw)
+
+    response = await call_next(request)
+    response.headers["Content-Type"] = response_content_type
+    return response
 
 
 if CONFIG.karapace_registry:
@@ -97,6 +144,7 @@ if CONFIG.karapace_registry:
     from karapace.routers.health_router import health_router
     from karapace.routers.master_available_router import master_availability_router
     from karapace.routers.mode_router import mode_router
+    from karapace.routers.root_router import root_router
     from karapace.routers.schemas_router import schemas_router
     from karapace.routers.subjects_router import subjects_router
 
@@ -105,6 +153,7 @@ if CONFIG.karapace_registry:
     app.include_router(health_router)
     app.include_router(master_availability_router)
     app.include_router(mode_router)
+    app.include_router(root_router)
     app.include_router(schemas_router)
     app.include_router(subjects_router)
 if CONFIG.karapace_rest:

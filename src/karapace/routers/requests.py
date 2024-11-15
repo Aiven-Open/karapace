@@ -3,8 +3,9 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+from karapace.routers.errors import KarapaceValidationError
 from karapace.schema_type import SchemaType
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Any
 
 
@@ -14,6 +15,18 @@ class SchemaRequest(BaseModel):
     references: list[Any] = Field(default_factory=list)
     metadata: Any | None
     ruleSet: Any | None
+
+    class Config:
+        extra = "forbid"
+
+    @validator("schema_str")
+    def validate_schema(cls, schema_str: str) -> str:
+        if not schema_str and not schema_str.strip():
+            raise KarapaceValidationError(
+                error_code=42201,
+                error="Empty schema",
+            )
+        return schema_str
 
 
 class SchemaResponse(BaseModel):

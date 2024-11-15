@@ -62,6 +62,7 @@ async def start_schema_registry_cluster(
             config.advertised_hostname = host
             config.topic_name = schemas_topic
             config.karapace_registry = True
+            config.log_level = "DEBUG"
             config.log_format = "%(asctime)s [%(threadName)s] %(filename)s:%(funcName)s:%(lineno)d %(message)s"
             actual_group_id = config.group_id = group_id
 
