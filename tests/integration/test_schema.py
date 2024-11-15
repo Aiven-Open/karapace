@@ -294,7 +294,7 @@ async def test_compatibility_endpoint(registry_async_client: Client, trail: str)
         f"subjects/{subject}/versions{trail}",
         json=-1,
     )
-    assert res.status_code == 400
+    assert res.status_code == 422
 
     schema = {
         "type": "record",
@@ -1464,6 +1464,20 @@ async def test_schema_missing_body(registry_async_client: Client, trail: str) ->
         json={},
     )
     assert res.status_code == 422
+    assert res.json()["error_code"] == 422
+    assert res.json()["message"] == [{"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"}]
+
+
+async def test_schema_missing_schema_body_ok(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_schema_missing_schema_body_ok")()
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={
+            "schema": "",
+        },
+    )
+    assert res.status_code == 422
     assert res.json()["error_code"] == 42201
     assert res.json()["message"] == "Empty schema"
 
@@ -1562,9 +1576,9 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
 
     # Schema not included in the request body
     res = await registry_async_client.post(f"subjects/{subject_1}", json={})
-    assert res.status_code == 500
-    assert res.json()["error_code"] == 500
-    assert res.json()["message"] == f"Error while looking up schema under subject {subject_1}"
+    assert res.status_code == 422
+    assert res.json()["error_code"] == 422
+    assert res.json()["message"] == [{"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"}]
 
     # Schema not included in the request body for subject that does not exist
     subject_3 = subject_name_factory()
@@ -1572,9 +1586,9 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
         f"subjects/{subject_3}",
         json={},
     )
-    assert res.status_code == 404
-    assert res.json()["error_code"] == 40401
-    assert res.json()["message"] == f"Subject '{subject_3}' not found."
+    assert res.status_code == 422
+    assert res.json()["error_code"] == 422
+    assert res.json()["message"] == [{"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"}]
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -2339,19 +2353,24 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
         res = await registry_async_client.post(endpoint, json={"invalid_field": "invalid_value"})
         assert res.status_code == 422
         assert res.json()["error_code"] == 422
-        assert res.json()["message"] == "Unrecognized field: invalid_field"
+        assert res.json()["message"] == [
+            {"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"},
+            {"loc": ["body", "invalid_field"], "msg": "extra fields not permitted", "type": "value_error.extra"},
+        ]
         # Additional field
         res = await registry_async_client.post(
             endpoint, json={"schema": '{"type": "string"}', "invalid_field": "invalid_value"}
         )
         assert res.status_code == 422
         assert res.json()["error_code"] == 422
-        assert res.json()["message"] == "Unrecognized field: invalid_field"
+        assert res.json()["message"] == [
+            {"loc": ["body", "invalid_field"], "msg": "extra fields not permitted", "type": "value_error.extra"}
+        ]
         # Invalid body type
         res = await registry_async_client.post(endpoint, json="invalid")
-        assert res.status_code == 400
-        assert res.json()["error_code"] == 400
-        assert res.json()["message"] == "Malformed request"
+        assert res.status_code == 422
+        assert res.json()["error_code"] == 422
+        assert res.json()["message"] == [{"loc": ["body"], "msg": "value is not a valid dict", "type": "type_error.dict"}]
 
 
 async def test_version_number_validation(registry_async_client: Client) -> None:
