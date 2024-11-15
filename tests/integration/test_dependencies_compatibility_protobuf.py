@@ -8,13 +8,10 @@ from karapace.client import Client
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from tests.utils import create_subject_name_factory
 
-import pytest
 
-
-@pytest.mark.parametrize("trail", ["", "/"])
-async def test_protobuf_schema_compatibility(registry_async_client: Client, trail: str) -> None:
-    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
-    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+async def test_protobuf_schema_compatibility(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
     original_dependencies = """
@@ -69,7 +66,7 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
 
     original_references = [{"name": "container1.proto", "subject": "container1", "version": 1}]
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}",
+        f"subjects/{subject}/versions",
         json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
     )
     assert res.status_code == 200
@@ -91,18 +88,17 @@ async def test_protobuf_schema_compatibility(registry_async_client: Client, trai
     evolved_schema = trim_margin(evolved_schema)
     evolved_references = [{"name": "container2.proto", "subject": "container2", "version": 1}]
     res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        f"compatibility/subjects/{subject}/versions/latest",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
     assert res.json() == {"is_compatible": True}
 
 
-@pytest.mark.parametrize("trail", ["", "/"])
-async def test_protobuf_schema_compatibility_dependencies(registry_async_client: Client, trail: str) -> None:
-    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+async def test_protobuf_schema_compatibility_dependencies(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
 
-    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
     original_dependencies = """
@@ -157,7 +153,7 @@ async def test_protobuf_schema_compatibility_dependencies(registry_async_client:
 
     original_references = [{"name": "container1.proto", "subject": "container1", "version": 1}]
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}",
+        f"subjects/{subject}/versions",
         json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
     )
     assert res.status_code == 200
@@ -179,18 +175,17 @@ async def test_protobuf_schema_compatibility_dependencies(registry_async_client:
     evolved_schema = trim_margin(evolved_schema)
     evolved_references = [{"name": "container2.proto", "subject": "container2", "version": 1}]
     res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        f"compatibility/subjects/{subject}/versions/latest",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
     assert res.json().get("is_compatible") is False
 
 
-@pytest.mark.parametrize("trail", ["", "/"])
-async def test_protobuf_schema_compatibility_dependencies1(registry_async_client: Client, trail: str) -> None:
-    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+async def test_protobuf_schema_compatibility_dependencies1(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
 
-    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
     original_dependencies = """
@@ -245,7 +240,7 @@ async def test_protobuf_schema_compatibility_dependencies1(registry_async_client
 
     original_references = [{"name": "container1.proto", "subject": "container1", "version": 1}]
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}",
+        f"subjects/{subject}/versions",
         json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
     )
     assert res.status_code == 200
@@ -267,7 +262,7 @@ async def test_protobuf_schema_compatibility_dependencies1(registry_async_client
     evolved_schema = trim_margin(evolved_schema)
     evolved_references = [{"name": "container2.proto", "subject": "container2", "version": 1}]
     res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        f"compatibility/subjects/{subject}/versions/latest",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
@@ -410,11 +405,10 @@ message TestMessage {
     assert res.json().get("is_compatible") is False
 
 
-@pytest.mark.parametrize("trail", ["", "/"])
-async def test_protobuf_schema_compatibility_dependencies2(registry_async_client: Client, trail: str) -> None:
-    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+async def test_protobuf_schema_compatibility_dependencies2(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
 
-    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
     original_dependencies = """
@@ -466,7 +460,7 @@ async def test_protobuf_schema_compatibility_dependencies2(registry_async_client
 
     original_references = [{"name": "container1.proto", "subject": "container1", "version": 1}]
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}",
+        f"subjects/{subject}/versions",
         json={"schemaType": "PROTOBUF", "schema": original_schema, "references": original_references},
     )
     assert res.status_code == 200
@@ -487,7 +481,7 @@ async def test_protobuf_schema_compatibility_dependencies2(registry_async_client
     evolved_schema = trim_margin(evolved_schema)
     evolved_references = [{"name": "container2.proto", "subject": "container2", "version": 1}]
     res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        f"compatibility/subjects/{subject}/versions/latest",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema, "references": evolved_references},
     )
     assert res.status_code == 200
@@ -511,23 +505,35 @@ async def test_protobuf_schema_references_rejected_values(registry_async_client:
     res = await registry_async_client.post(
         f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": 1}
     )
-    assert res.status_code == 400
+    assert res.status_code == 422
+    assert res.json()["message"] == [
+        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+    ]
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": "foo"}
     )
-    assert res.status_code == 400
+    assert res.status_code == 422
+    assert res.json()["message"] == [
+        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+    ]
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": False}
     )
-    assert res.status_code == 400
+    assert res.status_code == 422
+    assert res.json()["message"] == [
+        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+    ]
 
     res = await registry_async_client.post(
         f"subjects/{subject}/versions",
         json={"schemaType": "PROTOBUF", "schema": SIMPLE_SCHEMA, "references": {"this_is_object": True}},
     )
-    assert res.status_code == 400
+    assert res.status_code == 422
+    assert res.json()["message"] == [
+        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+    ]
 
 
 async def test_protobuf_schema_references_valid_values(registry_async_client: Client) -> None:
