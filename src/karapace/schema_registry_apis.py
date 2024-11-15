@@ -47,7 +47,7 @@ from karapace.routers.requests import (
     SubjectVersion,
 )
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
-from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
+from karapace.schema_references import LatestVersionReference, Reference
 from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.statsd import StatsClient
 from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
@@ -872,42 +872,41 @@ class KarapaceSchemaRegistryController:
 
     def _validate_references(
         self,
-        content_type: str,
-        schema_type: SchemaType,
-        body: JsonData,
+        schema_request: SchemaRequest,
     ) -> list[Reference | LatestVersionReference] | None:
-        references = body.get("references", [])
+        references = schema_request.references
         # Allow passing `null` as value for compatibility
         if references is None:
             return None
-        if not isinstance(references, list):
-            self.r(
-                body={
-                    "error_code": SchemaErrorCodes.HTTP_BAD_REQUEST.value,
-                    "message": "Expected array of `references`",
-                },
-                content_type=content_type,
-                status=HTTPStatus.BAD_REQUEST,
-            )
-        if references and schema_type != SchemaType.PROTOBUF:
-            self.r(
-                body={
+        if references and schema_request.schema_type != SchemaType.PROTOBUF:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
                     "error_code": SchemaErrorCodes.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value,
                     "message": SchemaErrorMessages.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value.format(
-                        schema_type=schema_type.value
+                        schema_type=schema_request.schema_type.value
                     ),
                 },
-                content_type=content_type,
-                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
         validated_references = []
-        for reference_data in references:
-            try:
-                reference = reference_from_mapping(reference_data)
-            except (TypeError, KeyError) as exc:
-                raise InvalidReferences from exc
-            validated_references.append(reference)
+        for reference in references:
+            version = Versioner.V(reference.version)
+            if version.is_latest:
+                validated_references.append(
+                    LatestVersionReference(
+                        name=reference.name,
+                        subject=Subject(reference.subject),
+                    )
+                )
+            else:
+                validated_references.append(
+                    Reference(
+                        name=reference.name,
+                        subject=Subject(reference.subject),
+                        version=version,
+                    )
+                )
         if validated_references:
             return validated_references
         return None
@@ -927,11 +926,10 @@ class KarapaceSchemaRegistryController:
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
             )
-        # TODO
         references = None
         new_schema_dependencies = None
-        # references = self._validate_references(content_type, schema_type, body)
-        # references, new_schema_dependencies = self.schema_registry.resolve_references(references)
+        references = self._validate_references(schema_request)
+        references, new_schema_dependencies = self.schema_registry.resolve_references(references)
 
         new_schema: ParsedTypedSchema | None = None
         try:
@@ -1028,15 +1026,10 @@ class KarapaceSchemaRegistryController:
         self.log.debug("POST with subject: %r, request: %r", subject, schema_request)
         _validate_subject(subject=subject)
 
-        # TODO
-        # self._validate_schema_request_body(content_type, body)
-        # self._validate_schema_key(schema_request)
-        # references = self._validate_references(content_type, schema_type, body)
-        references = None
+        references = self._validate_references(schema_request=schema_request)
 
         try:
-            # references, resolved_dependencies = self.schema_registry.resolve_references(references)
-            resolved_dependencies = {}
+            references, resolved_dependencies = self.schema_registry.resolve_references(references)
             new_schema = ValidatedTypedSchema.parse(
                 schema_type=schema_request.schema_type,
                 schema_str=schema_request.schema_str,
@@ -1174,11 +1167,10 @@ class KarapaceSchemaRegistryController:
         )
 
     def get_new_schema(self, schema_request: SchemaRequest) -> ValidatedTypedSchema:
-        #        schema_type = self._validate_schema_type(content_type=content_type, data=body)
-        #        references = self._validate_references(content_type, schema_type, body)
+        references = self._validate_references(schema_request=schema_request)
         references = None
         try:
-            # references, new_schema_dependencies = self.schema_registry.resolve_references(references)
+            references, new_schema_dependencies = self.schema_registry.resolve_references(references)
             new_schema_dependencies = {}
             return ValidatedTypedSchema.parse(
                 schema_type=schema_request.schema_type,
