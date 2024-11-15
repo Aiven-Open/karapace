@@ -14,8 +14,8 @@ compatibility_router = APIRouter(
 )
 
 
-@compatibility_router.get("/subject/{subject}/versions/{version}")
-async def compatibility_get(
+@compatibility_router.post("/subjects/{subject}/versions/{version}", response_model_exclude_none=True)
+async def compatibility_post(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     version: str,  # TODO support actual Version object

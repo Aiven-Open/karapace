@@ -57,7 +57,7 @@ async def schemas_get_versions(
     return await controller.schemas_get_versions(schema_id=schema_id, deleted=deleted)
 
 
-@schemas_router.get("/ids/{schema_id}/types")
+@schemas_router.get("/types")
 async def schemas_get_subjects_list(
     controller: KarapaceSchemaRegistryControllerDep,
 ) -> list[str]:
