@@ -4,7 +4,7 @@ karapace - master coordination test
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.config import set_config_defaults
+from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.typing import SchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
@@ -56,26 +56,21 @@ async def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> N
         client_id_bb = new_random_name("master_selection_bb_")
         group_id = new_random_name("group_id")
 
-        config_aa = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id_aa,
-                "group_id": group_id,
-                "port": port_aa,
-                "master_election_strategy": strategy,
-            }
-        )
-        config_bb = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id_bb,
-                "group_id": group_id,
-                "port": port_bb,
-                "master_election_strategy": strategy,
-            }
-        )
+        config_aa = Config()
+        config_aa.advertised_hostname = "127.0.0.1"
+        config_aa.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+        config_aa.client_id = client_id_aa
+        config_aa.group_id = group_id
+        config_aa.port = port_aa
+        config_aa.master_election_strategy = strategy
+
+        config_bb = Config()
+        config_bb.advertised_hostname = "127.0.0.1"
+        config_bb.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+        config_bb.client_id = client_id_bb
+        config_bb.group_id = group_id
+        config_bb.port = port_bb
+        config_bb.master_election_strategy = strategy
 
         mc_aa = await init_admin(config_aa)
         mc_bb = await init_admin(config_bb)
@@ -95,7 +90,7 @@ async def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> N
                 await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
-            master_url = f'http://{master.config["host"]}:{master.config["port"]}'
+            master_url = f"http://{master.config.host}:{master.config.port}"
             assert master.schema_coordinator is not None
             assert slave.schema_coordinator is not None
             assert master.schema_coordinator.election_strategy == strategy
@@ -120,36 +115,29 @@ async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers) -
     group_id = new_random_name("group_id")
 
     with allocate_port() as port1, allocate_port() as port2, allocate_port() as port3:
-        config_primary = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port1,
-                "master_eligibility": True,
-            }
-        )
-        config_non_primary_1 = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port2,
-                "master_eligibility": False,
-            }
-        )
-        config_non_primary_2 = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port3,
-                "master_eligibility": False,
-            }
-        )
+        config_primary = Config()
+        config_primary.advertised_hostname = "127.0.0.1"
+        config_primary.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+        config_primary.client_id = client_id
+        config_primary.group_id = group_id
+        config_primary.port = port1
+        config_primary.master_eligibility = True
+
+        config_non_primary_1 = Config()
+        config_non_primary_1.advertised_hostname = "127.0.0.1"
+        config_non_primary_1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+        config_non_primary_1.client_id = client_id
+        config_non_primary_1.group_id = group_id
+        config_non_primary_1.port = port2
+        config_non_primary_1.master_eligibility = False
+
+        config_non_primary_2 = Config()
+        config_non_primary_2.advertised_hostname = "127.0.0.1"
+        config_non_primary_2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+        config_non_primary_2.client_id = client_id
+        config_non_primary_2.group_id = group_id
+        config_non_primary_2.port = port3
+        config_non_primary_2.master_eligibility = False
 
         non_primary_1 = await init_admin(config_non_primary_1)
         non_primary_2 = await init_admin(config_non_primary_2)
@@ -166,7 +154,7 @@ async def test_mixed_eligibility_for_primary_role(kafka_servers: KafkaServers) -
                 await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
-            primary_url = f'http://{primary.config["host"]}:{primary.config["port"]}'
+            primary_url = f"http://{primary.config.host}:{primary.config.port}"
             assert primary.schema_coordinator.master_url == primary_url
             assert non_primary_1.schema_coordinator.master_url == primary_url
             assert non_primary_2.schema_coordinator.master_url == primary_url
@@ -181,16 +169,13 @@ async def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
     group_id = new_random_name("group_id")
 
     with allocate_port() as port:
-        config_aa = set_config_defaults(
-            {
-                "advertised_hostname": "127.0.0.1",
-                "bootstrap_uri": kafka_servers.bootstrap_servers,
-                "client_id": client_id,
-                "group_id": group_id,
-                "port": port,
-                "master_eligibility": False,
-            }
-        )
+        config_aa = Config()
+        config_aa.advertised_hostname = "127.0.0.1"
+        config_aa.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+        config_aa.client_id = client_id
+        config_aa.group_id = group_id
+        config_aa.port = port
+        config_aa.master_eligibility = False
 
         mc = await init_admin(config_aa)
         try:
