@@ -34,19 +34,19 @@ async def master_available(
     schema_registry: SchemaRegistryDep,
     response: Response,
 ) -> MasterAvailabilityResponse:
-    primary_info = await self.schema_registry.get_master()
-    self.log.info("are master %s, master url %s", primary_info.primary, primary_info.primary_url)
+    primary_info = await schema_registry.get_master()
+    LOG.info("are master %s, master url %s", primary_info.primary, primary_info.primary_url)
     response.headers.update(NO_CACHE_HEADER)
 
     if (
         schema_registry.schema_reader.master_coordinator._sc is not None  # pylint: disable=protected-access
         and schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()  # pylint: disable=protected-access
     ):
-        return MasterAvailabilityResponse(master_available=are_we_master)
+        return MasterAvailabilityResponse(master_available=primary_info.primary)
 
     if (
         primary_info.primary_url is None
-        or f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in primary_info.primary_url
+        or f"{config.advertised_hostname}:{config.advertised_port}" in primary_info.primary_url
     ):
         return NO_MASTER
 
