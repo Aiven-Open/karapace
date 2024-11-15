@@ -55,6 +55,7 @@ from karapace.utils import JSONDecodeError
 from typing import Any, cast
 
 import async_timeout
+import json
 import logging
 import time
 
@@ -229,7 +230,7 @@ class KarapaceSchemaRegistryController:
             )
         return schema_versions
 
-    def _invalid_version(self, content_type, version: int):
+    def _invalid_version(self, version: str | int):
         """Shall be called when InvalidVersion is raised"""
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -636,10 +637,6 @@ class KarapaceSchemaRegistryController:
             subject_data = self.schema_registry.subject_version_get(
                 Subject(subject), Versioner.V(version), include_deleted=deleted
             )
-            if "compatibility" in subject_data:
-                del subject_data["compatibility"]
-            # Return also compatibility information to compatibility check
-            compatibility = self.schema_registry.database.get_subject_compatibility(subject=subject)
             return SubjectSchemaVersionResponse(
                 subject=subject_data["subject"],
                 version=subject_data["version"],
@@ -647,7 +644,7 @@ class KarapaceSchemaRegistryController:
                 schema=subject_data["schema"],
                 references=subject_data.get("references", None),
                 schema_type=subject_data.get("schemaType", None),
-                compatibility=compatibility,
+                compatibility=None,  # Do not return compatibility from this endpoint.
             )
         except (SubjectNotFoundException, SchemasNotFoundException):
             raise HTTPException(
@@ -666,7 +663,7 @@ class KarapaceSchemaRegistryController:
                 },
             )
         except InvalidVersion:
-            self._invalid_version("application/json", version)  # TODO Content type
+            self._invalid_version(version)
 
     async def subject_version_delete(
         #        self, content_type: str, *, subject: str, version: str, request: HTTPRequest, user: User | None = None
@@ -736,7 +733,7 @@ class KarapaceSchemaRegistryController:
                     },
                 )
             except InvalidVersion:
-                self._invalid_version("application/json", int(version))  # TODO: content type
+                self._invalid_version(version)
         elif not master_url:
             self.no_master_error(content_type)
         else:
@@ -750,14 +747,14 @@ class KarapaceSchemaRegistryController:
         subject: str,
         version: str,
         user: User | None = None,
-    ) -> str:
+    ) -> dict:
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
             subject_data = self.schema_registry.subject_version_get(Subject(subject), Versioner.V(version))
-            return cast(str, subject_data["schema"])
+            return json.loads(cast(str, subject_data["schema"]))  # TODO typing
         except InvalidVersion:
-            self._invalid_version("application/json", int(version))  # TODO: content type
+            self._invalid_version(version)
         except VersionNotFoundException:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -801,7 +798,7 @@ class KarapaceSchemaRegistryController:
                 },
             )
         except InvalidVersion:
-            self._invalid_version("application/json", version)  # TODO: content type
+            self._invalid_version(version)
 
         return referenced_by
 
@@ -930,8 +927,8 @@ class KarapaceSchemaRegistryController:
                 },
             )
         # TODO
-        references = []
-        new_schema_dependencies = {}
+        references = None
+        new_schema_dependencies = None
         # references = self._validate_references(content_type, schema_type, body)
         # references, new_schema_dependencies = self.schema_registry.resolve_references(references)
 
@@ -1034,7 +1031,7 @@ class KarapaceSchemaRegistryController:
         # self._validate_schema_request_body(content_type, body)
         # self._validate_schema_key(schema_request)
         # references = self._validate_references(content_type, schema_type, body)
-        references = []
+        references = None
 
         try:
             # references, resolved_dependencies = self.schema_registry.resolve_references(references)
@@ -1176,7 +1173,7 @@ class KarapaceSchemaRegistryController:
     def get_new_schema(self, schema_request: SchemaRequest) -> ValidatedTypedSchema:
         #        schema_type = self._validate_schema_type(content_type=content_type, data=body)
         #        references = self._validate_references(content_type, schema_type, body)
-        references = []
+        references = None
         try:
             # references, new_schema_dependencies = self.schema_registry.resolve_references(references)
             new_schema_dependencies = {}
@@ -1203,7 +1200,7 @@ class KarapaceSchemaRegistryController:
             old = self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
             # TODO remove content type
-            self._invalid_version("application/json", version.value)
+            self._invalid_version(version.value)
         except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

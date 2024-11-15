@@ -7,6 +7,11 @@ from fastapi import APIRouter
 from karapace.dependencies import KarapaceSchemaRegistryControllerDep
 from karapace.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 
+import logging
+
+LOG = logging.getLogger(__name__)
+
+
 subjects_router = APIRouter(
     prefix="/subjects",
     tags=["subjects"],
@@ -22,7 +27,7 @@ async def subjects_get(
     return await controller.subjects_list(deleted=deleted)
 
 
-@subjects_router.post("/{subject}")
+@subjects_router.post("/{subject}", response_model_exclude_none=True)
 async def subjects_subject_post(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
@@ -63,7 +68,7 @@ async def subjects_subject_versions_list(
     return await controller.subject_versions_list(subject=subject, deleted=deleted)
 
 
-@subjects_router.get("/{subject}/versions/{version}")
+@subjects_router.get("/{subject}/versions/{version}", response_model_exclude_none=True)
 async def subjects_subject_version_get(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
@@ -88,7 +93,7 @@ async def subjects_subject_version_schema_get(
     controller: KarapaceSchemaRegistryControllerDep,
     subject: str,
     version: str,
-) -> str:
+) -> dict:
     return await controller.subject_version_schema_get(subject=subject, version=version)
 
 
