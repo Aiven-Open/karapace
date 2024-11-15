@@ -9,10 +9,16 @@ from pydantic import BaseModel, Field, validator
 from typing import Any
 
 
+class SchemaReference(BaseModel):
+    name: str
+    subject: str
+    version: int
+
+
 class SchemaRequest(BaseModel):
     schema_str: str = Field(alias="schema")
     schema_type: SchemaType = Field(alias="schemaType", default=SchemaType.AVRO)
-    references: list[Any] = Field(default_factory=list)
+    references: list[SchemaReference] = Field(default_factory=list)
     metadata: Any | None
     ruleSet: Any | None
 
