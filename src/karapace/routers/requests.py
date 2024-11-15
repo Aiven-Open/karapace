@@ -18,7 +18,7 @@ class SchemaReference(BaseModel):
 class SchemaRequest(BaseModel):
     schema_str: str = Field(alias="schema")
     schema_type: SchemaType = Field(alias="schemaType", default=SchemaType.AVRO)
-    references: list[SchemaReference] = Field(default_factory=list)
+    references: list[SchemaReference] | None = None
     metadata: Any | None
     ruleSet: Any | None
 

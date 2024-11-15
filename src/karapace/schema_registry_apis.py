@@ -254,7 +254,6 @@ class KarapaceSchemaRegistryController:
         user: User | None = None,
     ) -> CompatibilityCheckResponse:
         """Check for schema compatibility"""
-
         self._check_authorization(user, Operation.Read, f"Subject:{subject}")
 
         try:
@@ -1168,10 +1167,8 @@ class KarapaceSchemaRegistryController:
 
     def get_new_schema(self, schema_request: SchemaRequest) -> ValidatedTypedSchema:
         references = self._validate_references(schema_request=schema_request)
-        references = None
         try:
             references, new_schema_dependencies = self.schema_registry.resolve_references(references)
-            new_schema_dependencies = {}
             return ValidatedTypedSchema.parse(
                 schema_type=schema_request.schema_type,
                 schema_str=schema_request.schema_str,
@@ -1194,7 +1191,6 @@ class KarapaceSchemaRegistryController:
         try:
             old = self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
-            # TODO remove content type
             self._invalid_version(version.value)
         except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
             raise HTTPException(
