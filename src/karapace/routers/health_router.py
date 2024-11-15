@@ -3,12 +3,12 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from karapace.dependencies import SchemaRegistryDep
 from pydantic import BaseModel
 
 
-class Status(BaseModel):
+class HealthStatus(BaseModel):
     schema_registry_ready: bool
     schema_registry_startup_time_sec: float
     schema_registry_reader_current_offset: int
@@ -21,12 +21,12 @@ class Status(BaseModel):
 
 
 class HealthCheck(BaseModel):
-    status: Status
+    status: HealthStatus
     healthy: bool
 
 
 health_router = APIRouter(
-    prefix="/health",
+    prefix="/_health",
     tags=["health"],
     responses={404: {"description": "Not found"}},
 )
@@ -42,7 +42,7 @@ async def health(
 
     cs = schema_registry.mc.get_coordinator_status()
 
-    status = Status(
+    health_status = HealthStatus(
         schema_registry_ready=schema_registry.schema_reader.ready,
         schema_registry_startup_time_sec=starttime,
         schema_registry_reader_current_offset=schema_registry.schema_reader.offset,
@@ -56,8 +56,9 @@ async def health(
     # if self._auth is not None:
     #    resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
 
-    healthy = True
     if not await schema_registry.schema_reader.is_healthy():
-        healthy = False
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
-    return HealthCheck(status=status, healthy=healthy)
+    return HealthCheck(status=health_status, healthy=True)
