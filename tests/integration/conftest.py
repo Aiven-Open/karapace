@@ -483,8 +483,10 @@ async def fixture_registry_async_pair(
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
-    config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
-    config2: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
 
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],

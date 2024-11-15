@@ -94,9 +94,9 @@ class MasterCoordinator:
             client=self._kafka_client,
             election_strategy=self._config.master_election_strategy,
             group_id=self._config.group_id,
-            hostname=self._config.advertised_hostname,
+            hostname=self._config.get_advertised_hostname(),
             master_eligibility=self._config.master_eligibility,
-            port=self._config.advertised_port,
+            port=self._config.get_advertised_port(),
             scheme=self._config.advertised_protocol,
             session_timeout_ms=self._config.session_timeout_ms,
         )
