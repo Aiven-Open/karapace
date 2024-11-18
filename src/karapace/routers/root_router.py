@@ -5,7 +5,6 @@ See LICENSE for details
 
 from fastapi import APIRouter
 
-
 root_router = APIRouter(
     tags=["root"],
     responses={404: {"description": "Not found"}},

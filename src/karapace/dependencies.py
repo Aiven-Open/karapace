@@ -5,6 +5,7 @@ See LICENSE for details
 
 from fastapi import Depends
 from karapace.config import Config
+from karapace.forward_client import ForwardClient
 from karapace.karapace_all import CONFIG, SCHEMA_REGISTRY
 from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.schema_registry_apis import KarapaceSchemaRegistryController
@@ -44,3 +45,16 @@ async def get_controller(
 
 
 KarapaceSchemaRegistryControllerDep = Annotated[KarapaceSchemaRegistryController, Depends(get_controller)]
+
+
+FORWARD_CLIENT: ForwardClient | None = None
+
+
+def get_forward_client() -> ForwardClient:
+    global FORWARD_CLIENT
+    if not FORWARD_CLIENT:
+        FORWARD_CLIENT = ForwardClient()
+    return FORWARD_CLIENT
+
+
+ForwardClientDep = Annotated[ForwardClient, Depends(get_forward_client)]

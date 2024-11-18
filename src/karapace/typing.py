@@ -23,7 +23,6 @@ ArgJsonArray: TypeAlias = Sequence["ArgJsonData"]
 ArgJsonObject: TypeAlias = Mapping[str, "ArgJsonData"]
 ArgJsonData: TypeAlias = Union[JsonScalar, ArgJsonObject, ArgJsonArray]
 
-Subject = NewType("Subject", str)
 VersionTag = Union[str, int]
 SchemaMetadata = NewType("SchemaMetadata", dict[str, Any])
 SchemaRuleSet = NewType("SchemaRuleSet", dict[str, Any])
@@ -32,6 +31,19 @@ SchemaRuleSet = NewType("SchemaRuleSet", dict[str, Any])
 # basically the same SchemaID refer always to the same TypedSchema.
 SchemaId = NewType("SchemaId", int)
 TopicName = NewType("TopicName", str)
+
+
+class Subject(str):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, subject_str: str) -> str:
+        """Subject may not contain control characters."""
+        if bool([c for c in subject_str if (ord(c) <= 31 or (ord(c) >= 127 and ord(c) <= 159))]):
+            raise ValueError(f"The specified subject '{subject_str}' is not a valid.")
+        return subject_str
 
 
 class StrEnum(str, Enum):
