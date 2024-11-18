@@ -1,3 +1,8 @@
+"""
+Copyright (c) 2024 Aiven Ltd
+See LICENSE for details
+"""
+
 from enum import Enum, unique
 from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
