@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from enum import Enum, unique
-from fastapi import status
+from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
 
 
@@ -37,3 +37,13 @@ class KarapaceValidationError(RequestValidationError):
     def __init__(self, error_code: int, error: str):
         super().__init__(errors=[], body=error)
         self.error_code = error_code
+
+
+def no_primary_url_error() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={
+            "error_code": SchemaErrorCodes.NO_MASTER_ERROR,
+            "message": "Error while forwarding the request to the master.",
+        },
+    )

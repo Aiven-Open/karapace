@@ -3,12 +3,14 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from karapace.config import LOG
-from karapace.dependencies import ConfigDep, SchemaRegistryDep
+from karapace.dependencies import ConfigDep, ForwardClientDep, SchemaRegistryDep
 from pydantic import BaseModel
 from typing import Final
 
+import json
 import logging
 
 LOG = logging.getLogger(__name__)
@@ -32,6 +34,8 @@ NO_CACHE_HEADER: Final = {"Cache-Control": "no-store, no-cache, must-revalidate"
 async def master_available(
     config: ConfigDep,
     schema_registry: SchemaRegistryDep,
+    forward_client: ForwardClientDep,
+    request: Request,
     response: Response,
 ) -> MasterAvailabilityResponse:
     primary_info = await schema_registry.get_master()
@@ -50,5 +54,12 @@ async def master_available(
     ):
         return NO_MASTER
 
-    # Forwarding not implemented yet.
-    return NO_MASTER
+    forward_response = await forward_client.forward_request_remote(request=request, primary_url=master_url)
+    if isinstance(response, JSONResponse):
+        response_json = json.loads(forward_response.body)
+        return MasterAvailabilityResponse(master_available=response_json["master_availability"])
+
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=forward_response.body,
+    )
