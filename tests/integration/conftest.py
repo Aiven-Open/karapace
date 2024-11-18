@@ -597,11 +597,11 @@ async def fixture_registry_https_endpoint(
         yield registry_url
         return
 
-    config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "server_tls_certfile": server_cert,
-        "server_tls_keyfile": server_key,
-    }
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.server_tls_certfile = server_cert
+    config.server_tls_keyfile = server_key
+
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
@@ -654,10 +654,10 @@ async def fixture_registry_http_auth_endpoint(
         yield registry_url
         return
 
-    config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "registry_authfile": "tests/integration/config/karapace.auth.json",
-    }
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.registry_authfile = "tests/integration/config/karapace.auth.json"
+
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
@@ -706,14 +706,13 @@ async def fixture_registry_async_auth_pair(
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
 
-    config1: Config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "registry_authfile": "tests/integration/config/karapace.auth.json",
-    }
-    config2: Config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "registry_authfile": "tests/integration/config/karapace.auth.json",
-    }
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.registry_authfile = "tests/integration/config/karapace.auth.json"
+
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.registry_authfile = "tests/integration/config/karapace.auth.json"
 
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],

@@ -52,9 +52,6 @@ async def start_schema_registry_cluster(
     all_registries = []
     with ExitStack() as stack:
         for pos, config in enumerate(config_templates):
-            # config = dict(template)
-            # del template
-
             # For testing we don't want to expose the hostname, usually the loopback interface is
             # used (127.0.0.1), and the name resolution would instead return the machine's network
             # address, (e.g. 192.168.0.1), which would cause connect failures
