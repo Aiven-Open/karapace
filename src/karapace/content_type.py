@@ -9,7 +9,6 @@ from fastapi import HTTPException, Request, status
 
 import logging
 
-
 LOG = logging.getLogger(__name__)
 
 JSON_CONTENT_TYPE = "application/json"
