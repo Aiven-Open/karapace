@@ -5,13 +5,14 @@ See LICENSE for details
 
 from karapace.routers.errors import KarapaceValidationError
 from karapace.schema_type import SchemaType
+from karapace.typing import Subject
 from pydantic import BaseModel, Field, validator
 from typing import Any
 
 
 class SchemaReference(BaseModel):
     name: str
-    subject: str
+    subject: Subject
     version: int
 
 
@@ -36,7 +37,7 @@ class SchemaRequest(BaseModel):
 
 
 class SchemaResponse(BaseModel):
-    subject: str
+    subject: Subject
     version: int
     schema_id: int = Field(alias="id")
     schema_str: str = Field(alias="schema")
@@ -45,14 +46,14 @@ class SchemaResponse(BaseModel):
 
 class SchemasResponse(BaseModel):
     schema_str: str = Field(alias="schema")
-    subjects: list[str] | None = None
+    subjects: list[Subject] | None = None
     schema_type: SchemaType | None = None
     references: list[Any] | None = None  # TODO: typing
     maxId: int | None = None
 
 
 class SchemaListingItem(BaseModel):
-    subject: str
+    subject: Subject
     schema_str: str = Field(alias="schema")
     version: int
     schema_id: int = Field(alias="id")
@@ -86,12 +87,12 @@ class ModeResponse(BaseModel):
 
 
 class SubjectVersion(BaseModel):
-    subject: str
+    subject: Subject
     version: int
 
 
 class SubjectSchemaVersionResponse(BaseModel):
-    subject: str
+    subject: Subject
     version: int
     schema_id: int = Field(alias="id")
     schema_str: str = Field(alias="schema")
