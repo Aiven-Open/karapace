@@ -5,6 +5,7 @@ See LICENSE for details
 
 from fastapi import APIRouter
 from karapace.dependencies import KarapaceSchemaRegistryControllerDep
+from karapace.typing import Subject
 
 mode_router = APIRouter(
     prefix="/mode",
@@ -23,6 +24,6 @@ async def mode_get(
 @mode_router.get("/{subject}")
 async def mode_get_subject(
     controller: KarapaceSchemaRegistryControllerDep,
-    subject: str,
+    subject: Subject,
 ):
     return await controller.get_subject_mode(subject=subject)
