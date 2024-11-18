@@ -1,3 +1,8 @@
+"""
+Copyright (c) 2024 Aiven Ltd
+See LICENSE for details
+"""
+
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from karapace.version import __version__
