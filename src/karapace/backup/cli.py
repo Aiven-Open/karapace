@@ -12,7 +12,7 @@ from .poll_timeout import PollTimeout
 from aiokafka.errors import BrokerResponseError
 from collections.abc import Iterator
 from karapace.backup.api import VerifyLevel
-from karapace.config import Config, read_config
+from karapace.config import Config, read_env_file
 
 import argparse
 import contextlib
@@ -89,8 +89,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_config(args: argparse.Namespace) -> Config:
-    with open(args.config) as buffer:
-        return read_config(buffer)
+    return read_env_file(args.config)
 
 
 def dispatch(args: argparse.Namespace) -> None:
