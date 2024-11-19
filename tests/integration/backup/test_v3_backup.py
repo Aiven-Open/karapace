@@ -17,7 +17,7 @@ from karapace.backup.backends.v3.schema import Metadata
 from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
-from karapace.config import Config, set_config_defaults
+from karapace.config import Config
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.kafka.producer import KafkaProducer
@@ -49,12 +49,10 @@ def config_fixture(
     kafka_servers: KafkaServers,
     registry_cluster: RegistryDescription,
 ) -> Config:
-    return set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": registry_cluster.schemas_topic,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = registry_cluster.schemas_topic
+    return config
 
 
 @pytest.fixture(scope="function", name="config_file")
@@ -67,13 +65,10 @@ def config_file_fixture(
     file_path = directory_path / "config.json"
     try:
         file_path.write_text(
-            json.dumps(
-                {
-                    "bootstrap_uri": kafka_servers.bootstrap_servers,
-                    "topic_name": registry_cluster.schemas_topic,
-                },
-                indent=2,
-            )
+            f"""\
+            BOOTSTRAP_URI={kafka_servers.bootstrap_servers[0]}
+            TOPIC_NAME={registry_cluster.schemas_topic}
+            """
         )
         yield file_path
     finally:
@@ -557,23 +552,20 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
     # Make sure topic doesn't exist beforehand.
     _delete_topic(admin_client, topic_name)
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
 
     class LowTimeoutProducer:
         def __init__(self):
             self._producer = KafkaProducer(
-                bootstrap_servers=config["bootstrap_uri"],
-                security_protocol=config["security_protocol"],
-                ssl_cafile=config["ssl_cafile"],
-                ssl_certfile=config["ssl_certfile"],
-                ssl_keyfile=config["ssl_keyfile"],
-                sasl_mechanism=config["sasl_mechanism"],
-                sasl_plain_username=config["sasl_plain_username"],
-                sasl_plain_password=config["sasl_plain_password"],
+                bootstrap_servers=config.bootstrap_uri,
+                security_protocol=config.security_protocol,
+                ssl_cafile=config.ssl_cafile,
+                ssl_certfile=config.ssl_certfile,
+                ssl_keyfile=config.ssl_keyfile,
+                sasl_mechanism=config.sasl_mechanism,
+                sasl_plain_username=config.sasl_plain_username,
+                sasl_plain_password=config.sasl_plain_password,
                 socket_timeout_ms=5000,
             )
 
@@ -606,11 +598,8 @@ def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_p
     # Make sure topic doesn't exist beforehand.
     _delete_topic(admin_client, topic_name)
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
 
     class FailToSendProducer(KafkaProducer):
         def send(self, *args, **kwargs):
@@ -619,14 +608,14 @@ def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_p
     class FailToSendProducerContext:
         def __init__(self):
             self._producer = FailToSendProducer(
-                bootstrap_servers=config["bootstrap_uri"],
-                security_protocol=config["security_protocol"],
-                ssl_cafile=config["ssl_cafile"],
-                ssl_certfile=config["ssl_certfile"],
-                ssl_keyfile=config["ssl_keyfile"],
-                sasl_mechanism=config["sasl_mechanism"],
-                sasl_plain_username=config["sasl_plain_username"],
-                sasl_plain_password=config["sasl_plain_password"],
+                bootstrap_servers=config.bootstrap_uri,
+                security_protocol=config.security_protocol,
+                ssl_cafile=config.ssl_cafile,
+                ssl_certfile=config.ssl_certfile,
+                ssl_keyfile=config.ssl_keyfile,
+                sasl_mechanism=config.sasl_mechanism,
+                sasl_plain_username=config.sasl_plain_username,
+                sasl_plain_password=config.sasl_plain_password,
             )
 
         def __enter__(self):
@@ -656,11 +645,8 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
     # Make sure topic doesn't exist beforehand.
     _delete_topic(admin_client, topic_name)
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
 
     class FailToSendProducer(KafkaProducer):
         def send(self, *args, **kwargs):
@@ -672,14 +658,14 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
     class FailToSendProducerContext:
         def __init__(self):
             self._producer = FailToSendProducer(
-                bootstrap_servers=config["bootstrap_uri"],
-                security_protocol=config["security_protocol"],
-                ssl_cafile=config["ssl_cafile"],
-                ssl_certfile=config["ssl_certfile"],
-                ssl_keyfile=config["ssl_keyfile"],
-                sasl_mechanism=config["sasl_mechanism"],
-                sasl_plain_username=config["sasl_plain_username"],
-                sasl_plain_password=config["sasl_plain_password"],
+                bootstrap_servers=config.bootstrap_uri,
+                security_protocol=config.security_protocol,
+                ssl_cafile=config.ssl_cafile,
+                ssl_certfile=config.ssl_certfile,
+                ssl_keyfile=config.ssl_keyfile,
+                sasl_mechanism=config.sasl_mechanism,
+                sasl_plain_username=config.sasl_plain_username,
+                sasl_plain_password=config.sasl_plain_password,
             )
 
         def __enter__(self):
@@ -706,11 +692,9 @@ def test_backup_restoration_override_replication_factor(
 ) -> None:
     backup_directory = Path(__file__).parent.parent.resolve() / "test_data" / "backup_v3_single_partition" / new_topic.topic
     metadata_path = backup_directory / f"{new_topic.topic}.metadata"
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-        }
-    )
+
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
 
     # pupulate the topic and create a backup
     for i in range(10):
@@ -1194,12 +1178,9 @@ def test_backup_creation_succeeds_no_duplicate_offsets(
     producer.flush()
 
     backup_location = tmp_path / "fails.log"
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": new_topic.topic,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = new_topic.topic
 
     class SlowConsumer(KafkaConsumer):
         def poll(self, *args, **kwargs):

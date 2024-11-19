@@ -112,7 +112,7 @@ def normalize_topic_name(
     topic_option: str | None,
     config: Config,
 ) -> TopicName:
-    return TopicName(topic_option or config["topic_name"])
+    return TopicName(topic_option or config.topic_name)
 
 
 class BackupVersion(Enum):
@@ -354,17 +354,17 @@ def _handle_restore_topic_legacy(
 ) -> None:
     if skip_topic_creation:
         return
-    if config["topic_name"] != instruction.topic_name:
+    if config.topic_name != instruction.topic_name:
         LOG.warning(
             "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
-            config["topic_name"],
+            config.topic_name,
             instruction.topic_name,
         )
         return
     _maybe_create_topic(
         config=config,
         name=instruction.topic_name,
-        replication_factor=config["replication_factor"],
+        replication_factor=config.replication_factor,
         topic_configs={"cleanup.policy": "compact"},
     )
 
@@ -441,9 +441,7 @@ def restore_backup(
         see Kafka implementation.
     :raises BackupTopicAlreadyExists: if backup version is V3 and topic already exists
     """
-    key_formatter = (
-        KeyFormatter() if topic_name == constants.DEFAULT_SCHEMA_TOPIC or config.get("force_key_correction", False) else None
-    )
+    key_formatter = KeyFormatter() if topic_name == constants.DEFAULT_SCHEMA_TOPIC or config.force_key_correction else None
 
     backup_version = BackupVersion.identify(backup_location)
     backend_type = backup_version.reader
@@ -591,7 +589,7 @@ def create_backup(
             started_at=start_time,
             finished_at=end_time,
             partition_count=1,
-            replication_factor=replication_factor if replication_factor is not None else config["replication_factor"],
+            replication_factor=replication_factor if replication_factor is not None else config.replication_factor,
             topic_configurations=topic_configurations,
             data_files=[data_file] if data_file else [],
         )

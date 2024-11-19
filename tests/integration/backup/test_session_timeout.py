@@ -5,7 +5,7 @@ See LICENSE for details
 from aiokafka.errors import NoBrokersAvailable
 from confluent_kafka.admin import NewTopic
 from karapace.backup.api import BackupVersion, create_backup
-from karapace.config import Config, DEFAULTS, set_config_defaults
+from karapace.config import Config
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka_utils import kafka_producer_from_config
 from pathlib import Path
@@ -55,9 +55,9 @@ def test_producer_with_custom_kafka_properties_does_not_fail(
     This test ensures that the `session.timeout.ms` can be injected in
     the kafka config so that the exception isn't raised
     """
-    config = set_config_defaults(
-        Config(bootstrap_uri=kafka_server_session_timeout.bootstrap_servers, session_timeout_ms=SESSION_TIMEOUT_MS)
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
+    config.session_timeout_ms = SESSION_TIMEOUT_MS
 
     admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
     admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
@@ -101,6 +101,12 @@ def test_producer_with_custom_kafka_properties_fail(
     admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
     admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
 
+    config = Config()
+    # TODO: This test is broken. Test has used localhost:9092 when this should use
+    # the configured broker from kafka_server_session.
+    # config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
+    config.bootstrap_uri = "localhost:9092"
+
     with pytest.raises(NoBrokersAvailable):
-        with kafka_producer_from_config(DEFAULTS) as producer:
+        with kafka_producer_from_config(config) as producer:
             _ = producer
