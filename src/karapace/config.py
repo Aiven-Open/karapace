@@ -37,6 +37,7 @@ class Config(BaseSettings):
     consumer_request_max_bytes: int = 67108864
     consumer_idle_disconnect_timeout: int = 0
     fetch_min_bytes: int = 1
+    force_key_correction: bool = False
     group_id: str = "schema-registry"
     http_request_max_size: int | None = None
     host: str = "127.0.0.1"
@@ -249,12 +250,15 @@ def write_env_file(dot_env_path: Path, config: Config) -> None:
     dot_env_path.write_text(config.to_env_str())
 
 
-# def read_config(config_handler: IO) -> Config:
-#    try:
-#        config = json_decode(config_handler)
-#    except JSONDecodeError as ex:
-#        raise InvalidConfiguration("Configuration is not a valid JSON") from ex
-#    return set_config_defaults(config)
+def read_env_file(env_file_path: str) -> Config:
+    return Config(_env_file=env_file_path, _env_file_encoding="utf-8")
+
+    Config()
+    try:
+        config = json_decode(config_handler)
+    except JSONDecodeError as ex:
+        raise InvalidConfiguration("Configuration is not a valid JSON") from ex
+    return set_config_defaults(config)
 
 
 def create_client_ssl_context(config: Config) -> ssl.SSLContext | None:

@@ -7,7 +7,7 @@ See LICENSE for details
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
 from karapace.client import Client
-from karapace.config import set_config_defaults
+from karapace.config import Config
 from karapace.utils import json_encode
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
@@ -110,12 +110,9 @@ async def test_export_anonymized_avro_schemas(
 
     # Get the backup
     export_location = tmp_path / "export.log"
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": registry_cluster.schemas_topic,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = registry_cluster.schemas_topic
     api.create_backup(
         config=config,
         backup_location=export_location,
