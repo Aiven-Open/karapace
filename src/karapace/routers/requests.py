@@ -47,7 +47,7 @@ class SchemaResponse(BaseModel):
 class SchemasResponse(BaseModel):
     schema_str: str = Field(alias="schema")
     subjects: list[Subject] | None = None
-    schema_type: SchemaType | None = None
+    schema_type: SchemaType | None = Field(alias="schemaType", default=None)
     references: list[Any] | None = None  # TODO: typing
     maxId: int | None = None
 
@@ -57,7 +57,7 @@ class SchemaListingItem(BaseModel):
     schema_str: str = Field(alias="schema")
     version: int
     schema_id: int = Field(alias="id")
-    schemaType: str
+    schema_type: SchemaType | None = Field(alias="schemaType", default=None)
     references: list[Any] | None
 
 
@@ -97,5 +97,5 @@ class SubjectSchemaVersionResponse(BaseModel):
     schema_id: int = Field(alias="id")
     schema_str: str = Field(alias="schema")
     references: list[Any] | None = None
-    schema_type: str | None = None
+    schema_type: SchemaType | None = Field(alias="schemaType", default=None)
     compatibility: str | None = None
