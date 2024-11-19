@@ -334,23 +334,14 @@ def python_exe() -> str:
     return python
 
 
-def fastapi_executable() -> str:
-    if os.environ.get("VIRTUAL_ENV"):
-        return os.environ["VIRTUAL_ENV"] + "/bin/fastapi"
-    else:
-        # TODO: Is this feasible, run which to find fastapi if not in virtualenv?
-        return os.popen("which fastapi").read()
-
-
-def popen_karapace_all(*, host: str, port: int, env_path: Union[Path, str], stdout: IO, stderr: IO, **kwargs) -> Popen:
+def popen_karapace_all(*, env_path: Union[Path, str], stdout: IO, stderr: IO, **kwargs) -> Popen:
     kwargs["stdout"] = stdout
     kwargs["stderr"] = stderr
     return Popen(
-        [fastapi_executable(), "run", "--host", host, "--port", str(port), "src/karapace/karapace_all.py"],
+        [python_exe(), "-m", "karapace.karapace_all"],
         env={"KARAPACE_DOTENV": str(env_path)},
         **kwargs,
     )
-    # return Popen([python_exe(), "-m", "karapace.karapace_all", str(config_path)], **kwargs)
 
 
 class StubMessage:
