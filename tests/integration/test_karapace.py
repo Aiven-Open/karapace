@@ -49,6 +49,6 @@ def test_regression_server_must_exit_on_exception(
         errfile = stack.enter_context((tmp_path / "karapace.err").open("w"))
 
         write_env_file(dot_env_path=env_path, config=config)
-        process = popen_karapace_all(host=config.host, port=port, env_path=env_path, stdout=logfile, stderr=errfile)
+        process = popen_karapace_all(env_path=env_path, stdout=logfile, stderr=errfile)
         stack.callback(stop_process, process)  # make sure to stop the process if the test fails
         assert process.wait(timeout=10) != 0, "Process should have exited with an error, port is already is use"

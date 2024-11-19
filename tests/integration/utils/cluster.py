@@ -77,7 +77,7 @@ async def start_schema_registry_cluster(
 
             logfile = stack.enter_context(open(log_path, "w"))
             errfile = stack.enter_context(open(error_path, "w"))
-            process = popen_karapace_all(host=host, port=port, env_path=env_path, stdout=logfile, stderr=errfile)
+            process = popen_karapace_all(env_path=env_path, stdout=logfile, stderr=errfile)
             stack.callback(stop_process, process)
             all_processes.append(process)
 
