@@ -6,7 +6,9 @@ See LICENSE for details
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from karapace.config import LOG
-from karapace.dependencies import ConfigDep, ForwardClientDep, SchemaRegistryDep
+from karapace.dependencies.config_dependency import ConfigDep
+from karapace.dependencies.forward_client_dependency import ForwardClientDep
+from karapace.dependencies.schema_registry_dependency import SchemaRegistryDep
 from pydantic import BaseModel
 from typing import Final
 
