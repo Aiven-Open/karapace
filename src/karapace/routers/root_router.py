@@ -12,5 +12,5 @@ root_router = APIRouter(
 
 
 @root_router.get("/")
-async def compatibility_post() -> dict:
+async def root() -> dict:
     return {}
