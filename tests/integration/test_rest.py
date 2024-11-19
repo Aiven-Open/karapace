@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from karapace.client import Client
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.producer import KafkaProducer
-from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
 from karapace.schema_type import SchemaType
 from karapace.version import __version__
+from rest_proxy import KafkaRest, SUBJECT_VALID_POSTFIX
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
     new_random_name,

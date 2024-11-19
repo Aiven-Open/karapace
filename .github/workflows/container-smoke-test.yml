@@ -37,3 +37,6 @@ jobs:
 
       - name: Smoke test REST proxy
         run: bin/smoke-test-rest.sh
+
+      - name: Smoke test REST proxy standalone
+        run: bin/smoke-test-rest-proxy.sh

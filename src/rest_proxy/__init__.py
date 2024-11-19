@@ -23,14 +23,6 @@ from karapace.config import Config
 from karapace.errors import InvalidSchema
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.producer import AsyncKafkaProducer
-from karapace.kafka_rest_apis.authentication import (
-    get_auth_config_from_header,
-    get_expiration_time_from_header,
-    get_kafka_client_auth_parameters_from_config,
-)
-from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
-from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
-from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.karapace import KarapaceBase
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from karapace.schema_models import TypedSchema, ValidatedTypedSchema
@@ -44,6 +36,14 @@ from karapace.serialization import (
 )
 from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
 from karapace.utils import convert_to_int, json_encode
+from rest_proxy.authentication import (
+    get_auth_config_from_header,
+    get_expiration_time_from_header,
+    get_kafka_client_auth_parameters_from_config,
+)
+from rest_proxy.consumer_manager import ConsumerManager
+from rest_proxy.error_codes import RESTErrorCodes
+from rest_proxy.schema_cache import TopicSchemaCache
 from typing import Callable, TypedDict
 
 import asyncio

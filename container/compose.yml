@@ -111,6 +111,34 @@ services:
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
 
+  karapace-rest-proxy:
+    image: ghcr.io/aiven-open/karapace:develop
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+    entrypoint:
+      - /bin/bash
+      - /opt/karapace/start.sh
+      - rest_proxy
+    depends_on:
+      - kafka
+      - karapace-registry
+    ports:
+      - "8083:8083"
+    environment:
+      KARAPACE_PORT: 8083
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_HOST: karapace-registry
+      KARAPACE_REGISTRY_PORT: 8081
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: WARNING
+      KARAPACE_STATSD_HOST: statsd-exporter
+      KARAPACE_STATSD_PORT: 8125
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+
   prometheus:
     image: prom/prometheus
     volumes:
