@@ -15,7 +15,7 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
 from karapace.client import Client
-from karapace.config import Config, set_config_defaults, write_config
+from karapace.config import Config, write_config
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
@@ -277,15 +277,12 @@ async def fixture_rest_async(
 
     config_path = tmp_path / "karapace_config.json"
 
-    config = set_config_defaults(
-        {
-            "admin_metadata_max_age": 2,
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            # Use non-default max request size for REST producer.
-            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
-            "waiting_time_before_acting_as_master_ms": 300,
-        }
-    )
+    config = Config()
+    config.admin_metadata_max_age = 2
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    # Use non-default max request size for REST producer.
+    config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
+    config.waiting_time_before_acting_as_master_ms = 300
     write_config(config_path, config)
     rest = KafkaRest(config=config)
 
@@ -351,16 +348,13 @@ async def fixture_rest_async_novalidation(
 
     config_path = tmp_path / "karapace_config.json"
 
-    config = set_config_defaults(
-        {
-            "admin_metadata_max_age": 2,
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            # Use non-default max request size for REST producer.
-            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
-            "name_strategy_validation": False,  # This should be only difference from rest_async
-            "waiting_time_before_acting_as_master_ms": 300,
-        }
-    )
+    config = Config()
+    config.admin_metadata_max_age = 2
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    # Use non-default max request size for REST producer.
+    config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
+    config.name_strategy_validation = False  # This should be only difference from rest_async
+    config.waiting_time_before_acting_as_master_ms = 300
     write_config(config_path, config)
     rest = KafkaRest(config=config)
 
@@ -424,17 +418,14 @@ async def fixture_rest_async_registry_auth(
         return
 
     registry = urlparse(registry_async_client_auth.server_uri)
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "admin_metadata_max_age": 2,
-            "registry_host": registry.hostname,
-            "registry_port": registry.port,
-            "registry_user": "admin",
-            "registry_password": "admin",
-            "waiting_time_before_acting_as_master_ms": 300,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age = 2
+    config.registry_host = registry.hostname
+    config.registry_port = registry.port
+    config.registry_user = "admin"
+    config.registry_password = "admin"
+    config.waiting_time_before_acting_as_master_ms = 300
     rest = KafkaRest(config=config)
 
     try:

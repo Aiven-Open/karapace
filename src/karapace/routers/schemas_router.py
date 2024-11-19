@@ -4,7 +4,8 @@ See LICENSE for details
 """
 
 from fastapi import APIRouter
-from karapace.dependencies import KarapaceSchemaRegistryControllerDep
+from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep, CurrentUserDep
+from karapace.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
 from karapace.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
 
 schemas_router = APIRouter(
@@ -18,15 +19,24 @@ schemas_router = APIRouter(
 @schemas_router.get("")
 async def schemas_get_list(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     deleted: bool = False,
     latestOnly: bool = False,
 ) -> list[SchemaListingItem]:
-    return await controller.schemas_list(deleted=deleted, latest_only=latestOnly)
+    return await controller.schemas_list(
+        deleted=deleted,
+        latest_only=latestOnly,
+        user=user,
+        authorizer=authorizer,
+    )
 
 
 @schemas_router.get("/ids/{schema_id}", response_model_exclude_none=True)
 async def schemas_get(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     schema_id: str,  # TODO: type to actual type
     includeSubjects: bool = False,  # TODO: include subjects?
     fetchMaxId: bool = False,  # TODO: fetch max id?
@@ -37,6 +47,8 @@ async def schemas_get(
         include_subjects=includeSubjects,
         fetch_max_id=fetchMaxId,
         format_serialized=format,
+        user=user,
+        authorizer=authorizer,
     )
 
 
@@ -51,10 +63,17 @@ async def schemas_get(
 @schemas_router.get("/ids/{schema_id}/versions")
 async def schemas_get_versions(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     schema_id: str,
     deleted: bool = False,
 ) -> list[SubjectVersion]:
-    return await controller.schemas_get_versions(schema_id=schema_id, deleted=deleted)
+    return await controller.schemas_get_versions(
+        schema_id=schema_id,
+        deleted=deleted,
+        user=user,
+        authorizer=authorizer,
+    )
 
 
 @schemas_router.get("/types")
