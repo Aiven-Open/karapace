@@ -47,3 +47,10 @@ def no_primary_url_error() -> HTTPException:
             "message": "Error while forwarding the request to the master.",
         },
     )
+
+
+def unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={"message": "Forbidden"},
+    )

@@ -9,14 +9,12 @@ from dataclasses import dataclass, field
 from enum import Enum, unique
 from hmac import compare_digest
 from karapace.config import InvalidConfiguration
-from karapace.rapu import JSON_CONTENT_TYPE
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
+from typing import override, Protocol
 from typing_extensions import TypedDict
 from watchfiles import awatch, Change
 
-import aiohttp
-import aiohttp.web
 import argparse
 import asyncio
 import base64
@@ -28,6 +26,10 @@ import secrets
 import sys
 
 log = logging.getLogger(__name__)
+
+
+class AuthenticationError(Exception):
+    pass
 
 
 @unique
@@ -95,13 +97,66 @@ class AuthData(TypedDict):
     permissions: list[ACLEntryData]
 
 
-class ACLAuthorizer:
+class AuthenticateProtocol(Protocol):
+    def authenticate(self, *, username: str, password: str) -> User:
+        ...
+
+
+class AuthorizeProtocol(Protocol):
+    def get_user(self, username: str) -> User:
+        ...
+
+    def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
+        ...
+
+    def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool:
+        ...
+
+
+class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
+    async def close(self) -> None:
+        ...
+
+    async def start(self, stats: StatsClient) -> None:
+        ...
+
+
+class NoAuthAndAuthz(AuthenticatorAndAuthorizer):
+    @override
+    def authenticate(self, *, username: str, password: str) -> User:
+        return None
+
+    @override
+    def get_user(self, username: str) -> User:
+        return None
+
+    @override
+    def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
+        return True
+
+    @override
+    def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool:
+        return True
+
+    @override
+    async def close(self) -> None:
+        pass
+
+    @override
+    async def start(self, stats: StatsClient) -> None:
+        pass
+
+
+class ACLAuthorizer(AuthorizeProtocol):
     def __init__(self, *, user_db: dict[str, User] | None = None, permissions: list[ACLEntry] | None = None) -> None:
         self.user_db = user_db or {}
         self.permissions = permissions or []
 
-    def get_user(self, username: str) -> User | None:
-        return self.user_db.get(username)
+    def get_user(self, username: str) -> User:
+        user = self.user_db.get(username)
+        if not user:
+            raise ValueError("No user found")
+        return user
 
     def _check_resources(self, resources: list[str], aclentry: ACLEntry) -> bool:
         for resource in resources:
@@ -115,6 +170,7 @@ class ACLAuthorizer:
         An entry at minimum gives Read permission. Write permission implies Read."""
         return operation == Operation.Read or aclentry.operation == Operation.Write
 
+    @override
     def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
         if user is None:
             return False
@@ -128,6 +184,7 @@ class ACLAuthorizer:
                 return True
         return False
 
+    @override
     def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool:
         """Checks that user is authorized to one of the resources in the list.
 
@@ -147,7 +204,7 @@ class ACLAuthorizer:
         return False
 
 
-class HTTPAuthorizer(ACLAuthorizer):
+class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
     def __init__(self, filename: str) -> None:
         super().__init__()
         self._auth_filename: str = filename
@@ -161,7 +218,8 @@ class HTTPAuthorizer(ACLAuthorizer):
     def authfile_last_modified(self) -> float:
         return self._auth_mtime
 
-    async def start_refresh_task(self, stats: StatsClient) -> None:
+    @override
+    async def start(self, stats: StatsClient) -> None:
         """Start authfile refresher task"""
 
         async def _refresh_authfile() -> None:
@@ -187,6 +245,7 @@ class HTTPAuthorizer(ACLAuthorizer):
 
         self._refresh_auth_task = asyncio.create_task(_refresh_authfile())
 
+    @override
     async def close(self) -> None:
         if self._refresh_auth_task is not None:
             self._refresh_auth_awatch_stop_event.set()
@@ -226,30 +285,11 @@ class HTTPAuthorizer(ACLAuthorizer):
         except Exception as ex:
             raise InvalidConfiguration("Failed to load auth file") from ex
 
-    def authenticate(self, request: aiohttp.web.Request) -> User:
-        auth_header = request.headers.get("Authorization")
-        if auth_header is None:
-            raise aiohttp.web.HTTPUnauthorized(
-                headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
-                text='{"message": "Unauthorized"}',
-                content_type=JSON_CONTENT_TYPE,
-            )
-        try:
-            auth = aiohttp.BasicAuth.decode(auth_header)
-        except ValueError:
-            # pylint: disable=raise-missing-from
-            raise aiohttp.web.HTTPUnauthorized(
-                headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
-                text='{"message": "Unauthorized"}',
-                content_type=JSON_CONTENT_TYPE,
-            )
-        user = self.get_user(auth.login)
-        if user is None or not user.compare_password(auth.password):
-            raise aiohttp.web.HTTPUnauthorized(
-                headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
-                text='{"message": "Unauthorized"}',
-                content_type=JSON_CONTENT_TYPE,
-            )
+    @override
+    def authenticate(self, *, username: str, password: str) -> User:
+        user = self.get_user(username)
+        if user is None or not user.compare_password(password):
+            raise AuthenticationError()
 
         return user
 

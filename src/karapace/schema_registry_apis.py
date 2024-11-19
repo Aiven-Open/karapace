@@ -5,10 +5,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from avro.errors import SchemaParseException
-from contextlib import AsyncExitStack
 from enum import Enum, unique
 from fastapi import HTTPException, Request, Response, status
-from karapace.auth import HTTPAuthorizer, Operation, User
+from karapace.auth.auth import Operation, User
+from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep
 from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.compatibility.schema_compatibility import SchemaCompatibility
@@ -108,35 +108,10 @@ class KarapaceSchemaRegistryController:
         self.config = config
         self._process_start_time = time.monotonic()
         self.stats = stats
-
-        self._auth: HTTPAuthorizer | None = None
-        if self.config.registry_authfile is not None:
-            self._auth = HTTPAuthorizer(str(self.config.registry_authfile))
-
         self.schema_registry = schema_registry
-
-        self._forward_client = None
-
-    #    async def _start_authorizer(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
-    #        """Callback for aiohttp.Application.on_startup"""
-    #        await self._auth.start_refresh_task(self.stats)
-
-    def _check_authorization(self, user: User | None, operation: Operation, resource: str) -> None:
-        if self._auth:
-            if not self._auth.check_authorization(user, operation, resource):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={"message": "Forbidden"},
-                )
 
     def _add_schema_registry_routes(self) -> None:
         pass
-
-    async def close(self) -> None:
-        LOG.info("Closing karapace_schema_registry_controller")
-        async with AsyncExitStack() as stack:
-            if self._auth is not None:
-                stack.push_async_callback(self._auth.close)
 
     def _subject_get(self, subject: Subject, include_deleted: bool = False) -> dict[Version, SchemaVersion]:
         try:
@@ -178,11 +153,8 @@ class KarapaceSchemaRegistryController:
         subject: Subject,
         schema_request: SchemaRequest,
         version: str,
-        user: User | None = None,
     ) -> CompatibilityCheckResponse:
         """Check for schema compatibility"""
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
         try:
             compatibility_mode = self.schema_registry.get_compatibility_mode(subject=subject)
         except ValueError as ex:
@@ -210,11 +182,18 @@ class KarapaceSchemaRegistryController:
             return CompatibilityCheckResponse(is_compatible=False, messages=list(result.messages))
         return CompatibilityCheckResponse(is_compatible=True)
 
-    async def schemas_list(self, *, deleted: bool, latest_only: bool, user: User | None = None) -> list[SchemaListingItem]:
+    async def schemas_list(
+        self,
+        *,
+        deleted: bool,
+        latest_only: bool,
+        user: User | None,
+        authorizer: AuthenticatorAndAuthorizerDep | None,
+    ) -> list[SchemaListingItem]:
         schemas = await self.schema_registry.schemas_list(include_deleted=deleted, latest_only=latest_only)
         response_schemas: list[SchemaListingItem] = []
         for subject, schema_versions in schemas.items():
-            if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+            if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue
             for schema_version in schema_versions:
                 references: list[Any] | None = None
@@ -240,7 +219,8 @@ class KarapaceSchemaRegistryController:
         fetch_max_id: bool,
         include_subjects: bool,
         format_serialized: str,
-        user: User | None = None,
+        user: User | None,
+        authorizer: AuthenticatorAndAuthorizerDep,
     ) -> SchemasResponse:
         try:
             parsed_schema_id = SchemaId(int(schema_id))
@@ -255,14 +235,14 @@ class KarapaceSchemaRegistryController:
 
         def _has_subject_with_id() -> bool:
             # Fast path
-            if self._auth is None or self._auth.check_authorization(user, Operation.Read, "Subject:*"):
+            if authorizer is None or authorizer.check_authorization(user, Operation.Read, "Subject:*"):
                 return True
 
             subjects = self.schema_registry.database.subjects_for_schema(schema_id=parsed_schema_id)
             resources = [f"Subject:{subject}" for subject in subjects]
-            return self._auth.check_authorization_any(user=user, operation=Operation.Read, resources=resources)
+            return authorizer.check_authorization_any(user=user, operation=Operation.Read, resources=resources)
 
-        if self._auth:
+        if authorizer:
             has_subject = _has_subject_with_id()
             if not has_subject:
                 raise HTTPException(
@@ -315,7 +295,8 @@ class KarapaceSchemaRegistryController:
         *,
         schema_id: str,
         deleted: bool,
-        user: User | None = None,
+        user: User | None,
+        authorizer: AuthenticatorAndAuthorizerDep,
     ) -> list[SubjectVersion]:
         try:
             schema_id_int = SchemaId(int(schema_id))
@@ -331,7 +312,7 @@ class KarapaceSchemaRegistryController:
         subject_versions = []
         for subject_version in self.schema_registry.get_subject_versions_for_schema(schema_id_int, include_deleted=deleted):
             subject = subject_version["subject"]
-            if self._auth and not self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+            if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
                 continue
             subject_versions.append(
                 # TODO correct typing
@@ -345,18 +326,16 @@ class KarapaceSchemaRegistryController:
     async def schemas_types(self) -> list[str]:
         return ["JSON", "AVRO", "PROTOBUF"]
 
-    async def config_get(self, *, user: User | None = None) -> CompatibilityLevelResponse:
-        self._check_authorization(user, Operation.Read, "Config:")
-
+    async def config_get(self) -> CompatibilityLevelResponse:
         # Note: The format sent by the user differs from the return value, this
         # is for compatibility reasons.
         return CompatibilityLevelResponse(compatibilityLevel=self.schema_registry.schema_reader.config.compatibility)
 
     async def config_set(
-        self, *, compatibility_level_request: CompatibilityRequest, user: User | None = None
+        self,
+        *,
+        compatibility_level_request: CompatibilityRequest,
     ) -> CompatibilityResponse:
-        self._check_authorization(user, Operation.Write, "Config:")
-
         try:
             compatibility_level = CompatibilityModes(compatibility_level_request.compatibility)
         except (ValueError, KeyError):
@@ -376,10 +355,7 @@ class KarapaceSchemaRegistryController:
         *,
         subject: str,
         default_to_global: bool,
-        user: User | None = None,
     ) -> CompatibilityLevelResponse:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
         # Config for a subject can exist without schemas so no need to check for their existence
         assert self.schema_registry.schema_reader, "KarapaceSchemaRegistry not initialized. Missing call to _init"
         if self.schema_registry.database.find_subject(subject=Subject(subject)) is None:
@@ -412,10 +388,7 @@ class KarapaceSchemaRegistryController:
         *,
         subject: str,
         compatibility_level_request: CompatibilityRequest,
-        user: User | None = None,
     ) -> CompatibilityResponse:
-        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-
         try:
             compatibility_level = CompatibilityModes(compatibility_level_request.compatibility)
         except (ValueError, KeyError):
@@ -434,24 +407,21 @@ class KarapaceSchemaRegistryController:
         self,
         *,
         subject: str,
-        user: User | None = None,
     ) -> CompatibilityResponse:
-        if self._auth:
-            if not self._auth.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={"message": "Forbidden"},
-                )
-
         self.schema_registry.send_config_subject_delete_message(subject=Subject(subject))
         return CompatibilityResponse(compatibility=self.schema_registry.schema_reader.config.compatibility)
 
-    async def subjects_list(self, deleted: bool, user: User | None = None) -> list[str]:
+    async def subjects_list(
+        self,
+        deleted: bool,
+        user: User | None,
+        authorizer: AuthenticatorAndAuthorizerDep | None,
+    ) -> list[str]:
         subjects = [str(subject) for subject in self.schema_registry.database.find_subjects(include_deleted=deleted)]
-        if self._auth is not None:
+        if authorizer:
             subjects = list(
                 filter(
-                    lambda subject: self._auth.check_authorization(user, Operation.Read, f"Subject:{subject}"),
+                    lambda subject: authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"),
                     subjects,
                 )
             )
@@ -462,10 +432,7 @@ class KarapaceSchemaRegistryController:
         *,
         subject: str,
         permanent: bool,
-        user: User | None = None,
     ) -> list[int]:
-        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-
         try:
             version_list = await self.schema_registry.subject_delete_local(subject=Subject(subject), permanent=permanent)
             return [version.value for version in version_list]
@@ -511,10 +478,7 @@ class KarapaceSchemaRegistryController:
         subject: str,
         version: str,
         deleted: bool,
-        user: User | None = None,
     ) -> SubjectSchemaVersionResponse:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
         try:
             subject_data = self.schema_registry.subject_version_get(
                 Subject(subject), Versioner.V(version), include_deleted=deleted
@@ -553,10 +517,7 @@ class KarapaceSchemaRegistryController:
         subject: str,
         version: str,
         permanent: bool,
-        user: User | None = None,
     ) -> int:
-        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
-
         try:
             resolved_version = await self.schema_registry.subject_version_delete_local(
                 Subject(subject), Versioner.V(version), permanent
@@ -618,10 +579,7 @@ class KarapaceSchemaRegistryController:
         *,
         subject: str,
         version: str,
-        user: User | None = None,
     ) -> dict:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
         try:
             subject_data = self.schema_registry.subject_version_get(Subject(subject), Versioner.V(version))
             return json.loads(cast(str, subject_data["schema"]))  # TODO typing
@@ -644,9 +602,12 @@ class KarapaceSchemaRegistryController:
                 },
             )
 
-    async def subject_version_referencedby_get(self, *, subject: str, version, user: User | None = None) -> list[int]:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
+    async def subject_version_referencedby_get(
+        self,
+        *,
+        subject: str,
+        version,
+    ) -> list[int]:
         referenced_by: list[int] = []
         try:
             referenced_by = await self.schema_registry.subject_version_referencedby_get(
@@ -678,9 +639,7 @@ class KarapaceSchemaRegistryController:
         *,
         subject: str,
         deleted: bool,
-        user: User | None = None,
     ) -> list[int]:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
         try:
             schema_versions = self.schema_registry.subject_get(Subject(subject), include_deleted=deleted)
             version_list = [version.value for version in schema_versions]
@@ -766,9 +725,7 @@ class KarapaceSchemaRegistryController:
         schema_request: SchemaRequest,
         deleted: bool,
         normalize: bool,
-        user: User | None = None,
     ) -> SchemaResponse:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
         try:
             subject_data = self._subject_get(subject, include_deleted=deleted)
         except (SchemasNotFoundException, SubjectNotFoundException):
@@ -872,11 +829,9 @@ class KarapaceSchemaRegistryController:
         subject: str,
         schema_request: SchemaRequest,
         normalize: bool,
-        user: User | None = None,
         forward_client: ForwardClient,
         request: Request,
     ) -> SchemaIdResponse | Response:
-        self._check_authorization(user, Operation.Write, f"Subject:{subject}")
         LOG.debug("POST with subject: %r, request: %r", subject, schema_request)
 
         references = self._validate_references(schema_request=schema_request)
@@ -949,22 +904,14 @@ class KarapaceSchemaRegistryController:
         else:
             return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
 
-    async def get_global_mode(
-        self,
-        *,
-        user: User | None = None,
-    ) -> ModeResponse:
-        self._check_authorization(user, Operation.Read, "Config:")
+    async def get_global_mode(self) -> ModeResponse:
         return ModeResponse(mode=str(self.schema_registry.get_global_mode()))
 
     async def get_subject_mode(
         self,
         *,
         subject: str,
-        user: User | None = None,
     ) -> ModeResponse:
-        self._check_authorization(user, Operation.Read, f"Subject:{subject}")
-
         if self.schema_registry.database.find_subject(subject=Subject(subject)) is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

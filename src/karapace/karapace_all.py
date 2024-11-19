@@ -13,8 +13,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from http import HTTPStatus
 from karapace import version as karapace_version
+from karapace.auth.auth import AuthenticatorAndAuthorizer
+from karapace.auth.dependencies import AuthorizationDependencyManager
 from karapace.config import Config
 from karapace.content_type import check_schema_headers
+from karapace.dependencies.config_dependency import ConfigDependencyManager
+from karapace.dependencies.schema_registry_dependency import SchemaRegistryDependencyManager
 from karapace.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.routers.errors import KarapaceValidationError
 from karapace.schema_registry import KarapaceSchemaRegistry
@@ -22,7 +26,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request as StarletteHTTPRequest
 
 import logging
-import os
 import sys
 
 # from karapace.kafka_rest_apis import KafkaRest
@@ -55,7 +58,7 @@ def _configure_logging(*, config: Config) -> None:
         logging.root.addHandler(root_handler)
 
     logging.root.setLevel(config.log_level)
-    logging.getLogger("uvicorn").setLevel(config.log_level)
+    logging.getLogger("uvicorn.error").setLevel(config.log_level)
 
 
 #    if config.access_logs_debug is True:
@@ -64,8 +67,7 @@ def _configure_logging(*, config: Config) -> None:
 #    else:
 #        config["access_log_class"] = AccessLogger
 
-env_file = os.environ.get("KARAPACE_DOTENV", None)
-CONFIG = Config(_env_file=env_file, _env_file_encoding="utf-8")
+CONFIG = ConfigDependencyManager.get_config()
 _configure_logging(config=CONFIG)
 
 # config_without_secrets = {}
@@ -76,17 +78,24 @@ _configure_logging(config=CONFIG)
 # logging.log(logging.DEBUG, "Config %r", config_without_secrets)
 logging.log(logging.INFO, "Karapace version %s", karapace_version)
 
-SCHEMA_REGISTRY = KarapaceSchemaRegistry(config=CONFIG)
-
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    schema_registry: KarapaceSchemaRegistry | None = None
+    authorizer: AuthenticatorAndAuthorizer | None = None
     try:
-        await SCHEMA_REGISTRY.start()
-        await SCHEMA_REGISTRY.get_master()
+        schema_registry = await SchemaRegistryDependencyManager.get_schema_registry()
+        await schema_registry.start()
+        await schema_registry.get_master()
+        authorizer = AuthorizationDependencyManager.get_authorizer()
+        # if authorizer is not None:
+        #    await authorizer.start(StatsDependencyManager.get_stats())
         yield
     finally:
-        await SCHEMA_REGISTRY.close()
+        if schema_registry:
+            await schema_registry.close()
+        if authorizer:
+            await authorizer.close()
 
 
 app = FastAPI(lifespan=lifespan)

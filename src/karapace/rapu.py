@@ -172,7 +172,10 @@ class RestApp:
         self.not_ready_handler = not_ready_handler
 
     def _create_aiohttp_application(self, *, config: Config) -> aiohttp.web.Application:
-        return aiohttp.web.Application(client_max_size=config["http_request_max_size"])
+        if config.http_request_max_size:
+            return aiohttp.web.Application(client_max_size=config.http_request_max_size)
+        else:
+            return aiohttp.web.Application()
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
         await self.close()
@@ -487,9 +490,9 @@ class RestApp:
 
         aiohttp.web.run_app(
             app=self.app,
-            host=self.config["host"],
-            port=self.config["port"],
+            host=self.config.host,
+            port=self.config.port,
             ssl_context=ssl_context,
-            access_log_class=self.config["access_log_class"],
+            access_log_class=self.config.access_log_class,
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )

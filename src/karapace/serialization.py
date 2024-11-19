@@ -12,6 +12,7 @@ from collections.abc import MutableMapping
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
+from karapace.config import Config
 from karapace.dependency import Dependency
 from karapace.errors import InvalidReferences
 from karapace.protobuf.exception import ProtobufTypeException
@@ -279,20 +280,20 @@ def get_subject_name(
 class SchemaRegistrySerializer:
     def __init__(
         self,
-        config: dict,
+        config: Config,
     ) -> None:
         self.config = config
         self.state_lock = asyncio.Lock()
         session_auth: BasicAuth | None = None
-        if self.config.get("registry_user") and self.config.get("registry_password"):
-            session_auth = BasicAuth(self.config.get("registry_user"), self.config.get("registry_password"), encoding="utf8")
-        if self.config.get("registry_ca"):
-            registry_url = f"https://{self.config['registry_host']}:{self.config['registry_port']}"
+        if self.config.registry_user and self.config.registry_password:
+            session_auth = BasicAuth(self.config.registry_user, self.config.registry_password, encoding="utf8")
+        if self.config.registry_ca:
+            registry_url = f"https://{self.config.registry_host}:{self.config.registry_port}"
             registry_client = SchemaRegistryClient(
-                registry_url, server_ca=self.config["registry_ca"], session_auth=session_auth
+                registry_url, server_ca=self.config.registry_ca, session_auth=session_auth
             )
         else:
-            registry_url = f"http://{self.config['registry_host']}:{self.config['registry_port']}"
+            registry_url = f"http://{self.config.registry_host}:{self.config.registry_port}"
             registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth)
         self.registry_client: SchemaRegistryClient | None = registry_client
         self.ids_to_schemas: dict[int, TypedSchema] = {}
@@ -442,7 +443,7 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
-def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
+def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(writers_schema=schema.schema)
         return reader.read(BinaryDecoder(bio))
@@ -464,7 +465,7 @@ def read_value(config: dict, schema: TypedSchema, bio: io.BytesIO):
     raise ValueError("Unknown schema type")
 
 
-def write_value(config: dict, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
+def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
         if avro.io.validate(schema.schema, value):
