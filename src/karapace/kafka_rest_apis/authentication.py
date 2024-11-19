@@ -69,7 +69,7 @@ def get_auth_config_from_header(
 
     if token_type == TokenType.BASIC.value:
         basic_auth = aiohttp.BasicAuth.decode(auth_header)
-        sasl_mechanism = config["sasl_mechanism"]
+        sasl_mechanism = config.sasl_mechanism
         if sasl_mechanism is None:
             sasl_mechanism = "PLAIN"
 
@@ -141,15 +141,15 @@ def get_kafka_client_auth_parameters_from_config(
 
     :param config: Current config of Karapace
     """
-    if config["sasl_mechanism"] == "OAUTHBEARER":
-        assert config["sasl_oauth_token"] is not None, "Config missing `sasl_oauth_token` with OAUTHBEARER `sasl_mechanism`"
+    if config.sasl_mechanism == "OAUTHBEARER":
+        assert config.sasl_oauth_token is not None, "Config missing `sasl_oauth_token` with OAUTHBEARER `sasl_mechanism`"
         return {
-            "sasl_mechanism": config["sasl_mechanism"],
-            "sasl_oauth_token_provider": SimpleOauthTokenProvider(config["sasl_oauth_token"]),
+            "sasl_mechanism": config.sasl_mechanism,
+            "sasl_oauth_token_provider": SimpleOauthTokenProvider(config.sasl_oauth_token),
         }
 
     return {
-        "sasl_mechanism": config["sasl_mechanism"],
-        "sasl_plain_username": config["sasl_plain_username"],
-        "sasl_plain_password": config["sasl_plain_password"],
+        "sasl_mechanism": config.sasl_mechanism,
+        "sasl_plain_username": config.sasl_plain_username,
+        "sasl_plain_password": config.sasl_plain_password,
     }

@@ -4,8 +4,12 @@ See LICENSE for details
 """
 
 from fastapi import APIRouter, Request
-from karapace.dependencies import ForwardClientDep, KarapaceSchemaRegistryControllerDep, SchemaRegistryDep
-from karapace.routers.errors import no_primary_url_error
+from karapace.auth.auth import Operation
+from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep, CurrentUserDep
+from karapace.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
+from karapace.dependencies.forward_client_dependency import ForwardClientDep
+from karapace.dependencies.schema_registry_dependency import SchemaRegistryDep
+from karapace.routers.errors import no_primary_url_error, unauthorized
 from karapace.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from karapace.typing import Subject
 
@@ -24,19 +28,30 @@ subjects_router = APIRouter(
 @subjects_router.get("")
 async def subjects_get(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     deleted: bool = False,
 ) -> list[str]:
-    return await controller.subjects_list(deleted=deleted)
+    return await controller.subjects_list(
+        deleted=deleted,
+        user=user,
+        authorizer=authorizer,
+    )
 
 
 @subjects_router.post("/{subject}", response_model_exclude_none=True)
 async def subjects_subject_post(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     schema_request: SchemaRequest,
     deleted: bool = False,
     normalize: bool = False,
 ) -> SchemaResponse:
+    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+        raise unauthorized()
+
     return await controller.subjects_schema_post(
         subject=subject,
         schema_request=schema_request,
@@ -51,9 +66,14 @@ async def subjects_subject_delete(
     controller: KarapaceSchemaRegistryControllerDep,
     schema_registry: SchemaRegistryDep,
     forward_client: ForwardClientDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     permanent: bool = False,
 ) -> list[int]:
+    if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
+        raise unauthorized()
+
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
         return await controller.subject_delete(subject=subject, permanent=permanent)
@@ -68,10 +88,15 @@ async def subjects_subject_versions_post(
     request: Request,
     controller: KarapaceSchemaRegistryControllerDep,
     forward_client: ForwardClientDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     schema_request: SchemaRequest,
     normalize: bool = False,
 ) -> SchemaIdResponse:
+    if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
+        raise unauthorized()
+
     # TODO: split the functionality so primary error and forwarding can be handled here
     # and local/primary write is in controller.
     return await controller.subject_post(
@@ -86,19 +111,29 @@ async def subjects_subject_versions_post(
 @subjects_router.get("/{subject}/versions")
 async def subjects_subject_versions_list(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     deleted: bool = False,
 ) -> list[int]:
+    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+        raise unauthorized()
+
     return await controller.subject_versions_list(subject=subject, deleted=deleted)
 
 
 @subjects_router.get("/{subject}/versions/{version}", response_model_exclude_none=True)
 async def subjects_subject_version_get(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     version: str,
     deleted: bool = False,
 ) -> SubjectSchemaVersionResponse:
+    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+        raise unauthorized()
+
     return await controller.subject_version_get(subject=subject, version=version, deleted=deleted)
 
 
@@ -108,10 +143,15 @@ async def subjects_subject_version_delete(
     controller: KarapaceSchemaRegistryControllerDep,
     schema_registry: SchemaRegistryDep,
     forward_client: ForwardClientDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     version: str,
     permanent: bool = False,
 ) -> int:
+    if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
+        raise unauthorized()
+
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
         return await controller.subject_version_delete(subject=subject, version=version, permanent=permanent)
@@ -124,16 +164,26 @@ async def subjects_subject_version_delete(
 @subjects_router.get("/{subject}/versions/{version}/schema")
 async def subjects_subject_version_schema_get(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     version: str,
 ) -> dict:
+    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+        raise unauthorized()
+
     return await controller.subject_version_schema_get(subject=subject, version=version)
 
 
 @subjects_router.get("/{subject}/versions/{version}/referencedby")
 async def subjects_subject_version_referenced_by(
     controller: KarapaceSchemaRegistryControllerDep,
+    user: CurrentUserDep,
+    authorizer: AuthenticatorAndAuthorizerDep,
     subject: Subject,
     version: str,
 ) -> list[int]:
+    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
+        raise unauthorized()
+
     return await controller.subject_version_referencedby_get(subject=subject, version=version)
