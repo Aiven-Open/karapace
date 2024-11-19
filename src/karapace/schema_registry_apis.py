@@ -285,7 +285,7 @@ class KarapaceSchemaRegistryController:
         return SchemasResponse(
             schema=schema_str,
             subjects=subjects,
-            schema_type=schema_type,
+            schemaType=schema_type,
             references=references,
             maxId=maxId,
         )
@@ -489,7 +489,7 @@ class KarapaceSchemaRegistryController:
                 id=subject_data["id"],
                 schema=subject_data["schema"],
                 references=subject_data.get("references", None),
-                schema_type=subject_data.get("schemaType", None),
+                schemaType=subject_data.get("schemaType", None),
                 compatibility=None,  # Do not return compatibility from this endpoint.
             )
         except (SubjectNotFoundException, SchemasNotFoundException):
