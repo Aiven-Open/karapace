@@ -47,7 +47,7 @@ def new_name() -> str:
 class ConsumerManager:
     def __init__(self, config: Config, deserializer: SchemaRegistrySerializer) -> None:
         self.config = config
-        self.base_uri = self.config["rest_base_uri"]
+        self.base_uri = self.config.rest_base_uri
         self.deserializer = deserializer
         self.consumers = {}
         self.consumer_locks = defaultdict(Lock)
@@ -191,15 +191,15 @@ class ConsumerManager:
                 request_data,
             )
             try:
-                enable_commit = request_data.get("auto.commit.enable", self.config["consumer_enable_auto_commit"])
+                enable_commit = request_data.get("auto.commit.enable", self.config.consumer_enable_auto_commit)
                 if isinstance(enable_commit, str):
                     enable_commit = enable_commit.lower() == "true"
                 request_data["consumer.request.timeout.ms"] = request_data.get(
-                    "consumer.request.timeout.ms", self.config["consumer_request_timeout_ms"]
+                    "consumer.request.timeout.ms", self.config.consumer_request_timeout_ms
                 )
                 request_data["auto.commit.enable"] = enable_commit
                 request_data["auto.offset.reset"] = request_data.get("auto.offset.reset", "earliest")
-                fetch_min_bytes = request_data.get("fetch.min.bytes", self.config["fetch_min_bytes"])
+                fetch_min_bytes = request_data.get("fetch.min.bytes", self.config.fetch_min_bytes)
                 c = await self.create_kafka_consumer(fetch_min_bytes, group_name, consumer_name, request_data)
             except KafkaConfigurationError as e:
                 KarapaceBase.internal_error(str(e), content_type)
@@ -212,28 +212,29 @@ class ConsumerManager:
     async def create_kafka_consumer(self, fetch_min_bytes, group_name, client_id: str, request_data):
         for retry in [True, True, False]:
             try:
-                session_timeout_ms = self.config["session_timeout_ms"]
+                session_timeout_ms = self.config.session_timeout_ms
                 request_timeout_ms = max(
                     session_timeout_ms,
                     DEFAULT_REQUEST_TIMEOUT_MS,
                     request_data["consumer.request.timeout.ms"],
                 )
                 c = AsyncKafkaConsumer(
-                    bootstrap_servers=self.config["bootstrap_uri"],
+                    bootstrap_servers=self.config.bootstrap_uri,
                     auto_offset_reset=request_data["auto.offset.reset"],
                     client_id=client_id,
                     enable_auto_commit=request_data["auto.commit.enable"],
-                    fetch_max_wait_ms=self.config.get("consumer_fetch_max_wait_ms"),
-                    fetch_message_max_bytes=self.config["consumer_request_max_bytes"],
+                    # TODO: fix the fetch max wait not in the config class
+                    # fetch_max_wait_ms=self.config.consumer_fetch_max_wait_ms,
+                    fetch_message_max_bytes=self.config.consumer_request_max_bytes,
                     fetch_min_bytes=max(1, fetch_min_bytes),  # Discard earlier negative values
                     group_id=group_name,
-                    security_protocol=self.config["security_protocol"],
+                    security_protocol=self.config.security_protocol,
                     session_timeout_ms=session_timeout_ms,
                     socket_timeout_ms=request_timeout_ms,
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_crlfile=self.config["ssl_crlfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
+                    ssl_cafile=self.config.ssl_cafile,
+                    ssl_certfile=self.config.ssl_certfile,
+                    ssl_crlfile=self.config.ssl_crlfile,
+                    ssl_keyfile=self.config.ssl_keyfile,
                     topic_metadata_refresh_interval_ms=request_data.get("topic.metadata.refresh.interval.ms"),
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
@@ -476,14 +477,12 @@ class ConsumerManager:
                 timeout = (
                     int(query_params["timeout"])
                     if "timeout" in query_params
-                    else consumer_config["consumer.request.timeout.ms"]
+                    else consumer_config.consumer.request.timeout.ms
                 )
                 # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
                 # respecting the max fetch request size
                 max_bytes = (
-                    int(query_params["max_bytes"])
-                    if "max_bytes" in query_params
-                    else self.config["consumer_request_max_bytes"]
+                    int(query_params["max_bytes"]) if "max_bytes" in query_params else self.config.consumer_request_max_bytes
                 )
             except ValueError:
                 KarapaceBase.internal_error(message=f"Invalid request parameters: {query_params}", content_type=content_type)

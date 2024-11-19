@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from fastapi import APIRouter, HTTPException, status
-from karapace.dependencies import SchemaRegistryDep
+from karapace.dependencies.schema_registry_dependency import SchemaRegistryDep
 from pydantic import BaseModel
 
 
