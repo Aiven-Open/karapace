@@ -13,7 +13,7 @@
 | src/karapace/avro\_dataclasses/models.py              |       99 |        6 |       32 |        4 |     92% |21, 106-107, 109, 112, 132 |
 | src/karapace/avro\_dataclasses/schema.py              |       33 |        0 |        0 |        0 |    100% |           |
 | src/karapace/backup/\_\_init\_\_.py                   |        0 |        0 |        0 |        0 |    100% |           |
-| src/karapace/backup/api.py                            |      299 |       17 |       98 |       13 |     91% |142, 152-154, 168, 172, 279-281, 385, 400->exit, 480->489, 482, 529, 531, 567-571, 671, 687 |
+| src/karapace/backup/api.py                            |      303 |       17 |      100 |       13 |     92% |142, 152-154, 168, 172, 279-281, 392, 407->exit, 488->497, 490, 537, 539, 575-579, 679, 695 |
 | src/karapace/backup/backends/\_\_init\_\_.py          |        0 |        0 |        0 |        0 |    100% |           |
 | src/karapace/backup/backends/reader.py                |       50 |        1 |        2 |        0 |     98% |        83 |
 | src/karapace/backup/backends/v1.py                    |       13 |        0 |        2 |        0 |    100% |           |
@@ -28,7 +28,7 @@
 | src/karapace/backup/backends/v3/schema\_tool.py       |       79 |       79 |       22 |        0 |      0% |     7-145 |
 | src/karapace/backup/backends/v3/writers.py            |       46 |        1 |        4 |        1 |     96% |        24 |
 | src/karapace/backup/backends/writer.py                |       48 |        1 |        0 |        0 |     98% |       175 |
-| src/karapace/backup/cli.py                            |       79 |       10 |       18 |        2 |     86% |122-137, 146, 158-166, 168-174, 178 |
+| src/karapace/backup/cli.py                            |       80 |       10 |       18 |        2 |     86% |132-147, 156, 168-176, 178-184, 188 |
 | src/karapace/backup/encoders.py                       |       20 |        0 |       12 |        0 |    100% |           |
 | src/karapace/backup/errors.py                         |       42 |        7 |        0 |        0 |     83% |57, 62, 67, 72, 80, 85, 90 |
 | src/karapace/backup/poll\_timeout.py                  |       30 |        0 |        4 |        0 |    100% |           |
@@ -69,7 +69,7 @@
 | src/karapace/kafka\_utils.py                          |       20 |        0 |        0 |        0 |    100% |           |
 | src/karapace/karapace.py                              |       59 |        8 |        4 |        1 |     83% |60, 76, 90, 100, 109-112 |
 | src/karapace/karapace\_all.py                         |       74 |       14 |       20 |        8 |     77% |33-35, 39-41, 43->49, 52-53, 71-72, 74-75, 80-81, 99, 102->exit |
-| src/karapace/key\_format.py                           |       31 |        0 |        6 |        0 |    100% |           |
+| src/karapace/key\_format.py                           |       36 |        0 |        6 |        0 |    100% |           |
 | src/karapace/messaging.py                             |       57 |       24 |       10 |        1 |     51% |54-56, 60->exit, 64-100, 107-111 |
 | src/karapace/offset\_watcher.py                       |       14 |        1 |        0 |        0 |     93% |        24 |
 | src/karapace/protobuf/\_\_init\_\_.py                 |        0 |        0 |        0 |        0 |    100% |           |
@@ -118,14 +118,14 @@
 | src/karapace/schema\_registry\_apis.py                |      550 |      407 |      138 |        7 |     22% |91-92, 103-124, 136, 139-141, 145, 151, 154, 341->343, 344, 347-367, 371, 388-416, 419-439, 448-512, 517-541, 544, 547-551, 554-579, 584-610, 627-652, 662-677, 680-689, 694-747, 752-779, 784-854, 859-876, 886-911, 916-923, 934-935, 946, 966-987, 990-991, 1006-1040, 1045-1151, 1168-1251, 1259-1260, 1273-1285, 1292-1295, 1300-1317, 1320, 1330-1342, 1352-1374 |
 | src/karapace/schema\_type.py                          |        6 |        0 |        0 |        0 |    100% |           |
 | src/karapace/sentry/\_\_init\_\_.py                   |       16 |        3 |        0 |        0 |     81% | 11, 25-26 |
-| src/karapace/sentry/sentry\_client.py                 |       21 |        0 |        2 |        1 |     96% |  58->exit |
+| src/karapace/sentry/sentry\_client.py                 |       23 |        0 |        2 |        1 |     96% |  60->exit |
 | src/karapace/sentry/sentry\_client\_api.py            |       13 |        2 |        0 |        0 |     85% |    23, 26 |
 | src/karapace/serialization.py                         |      276 |       28 |       88 |       13 |     89% |84, 122, 139, 150, 154, 180-181, 211, 225-226, 233, 247-248, 290-291, 340->343, 374, 379, 450-455, 461-464, 482, 491 |
 | src/karapace/statsd.py                                |       61 |        9 |       16 |        4 |     81% |36-38, 62, 71, 73-75, 77 |
 | src/karapace/typing.py                                |       70 |        2 |        8 |        2 |     95% |    76, 88 |
 | src/karapace/utils.py                                 |      127 |       44 |       28 |        3 |     61% |31-33, 45-47, 52, 57, 62, 67, 73-82, 93, 105, 118, 132, 137, 152, 156, 198, 206-209, 228-246 |
 | src/karapace/version.py                               |       11 |        2 |        2 |        1 |     77% |       5-6 |
-|                                             **TOTAL** | **10812** | **2154** | **3066** |  **377** | **77%** |           |
+|                                             **TOTAL** | **10824** | **2154** | **3068** |  **377** | **77%** |           |
 
 
 ## Setup coverage badge
