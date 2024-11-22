@@ -9,9 +9,9 @@ from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep, CurrentUse
 from karapace.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
 from karapace.dependencies.forward_client_dependency import ForwardClientDep
 from karapace.dependencies.schema_registry_dependency import SchemaRegistryDep
-from karapace.routers.errors import no_primary_url_error, unauthorized
-from karapace.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from karapace.typing import Subject
+from schema_registry.routers.errors import no_primary_url_error, unauthorized
+from schema_registry.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 
 import logging
 

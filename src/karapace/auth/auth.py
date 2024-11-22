@@ -11,8 +11,8 @@ from hmac import compare_digest
 from karapace.config import InvalidConfiguration
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
-from typing import override, Protocol
-from typing_extensions import TypedDict
+from typing import Protocol
+from typing_extensions import override, TypedDict
 from watchfiles import awatch, Change
 
 import argparse

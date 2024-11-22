@@ -67,21 +67,10 @@ services:
       - kafka
     ports:
       - "8081:8081"
+    volumes:
+    - ./karapace.env:/opt/karapace/karapace.env
     environment:
-      KARAPACE_ADVERTISED_HOSTNAME: karapace-registry
-      KARAPACE_BOOTSTRAP_URI: kafka:29092
-      KARAPACE_PORT: 8081
-      KARAPACE_HOST: 0.0.0.0
-      KARAPACE_CLIENT_ID: karapace
-      KARAPACE_GROUP_ID: karapace-registry
-      KARAPACE_MASTER_ELIGIBILITY: "true"
-      KARAPACE_TOPIC_NAME: _schemas
-      KARAPACE_LOG_LEVEL: WARNING
-      KARAPACE_COMPATIBILITY: FULL
-      KARAPACE_STATSD_HOST: statsd-exporter
-      KARAPACE_STATSD_PORT: 8125
-      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
-      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_DOTENV: /opt/karapace/karapace.env
 
   karapace-rest:
     image: ghcr.io/aiven-open/karapace:develop

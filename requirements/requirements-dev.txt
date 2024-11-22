@@ -8,15 +8,20 @@ accept-types==0.4.1
     # via karapace (/karapace/pyproject.toml)
 aiohappyeyeballs==2.4.3
     # via aiohttp
-aiohttp==3.10.10
+aiohttp==3.10.11
     # via karapace (/karapace/pyproject.toml)
 aiokafka==0.10.0
     # via karapace (/karapace/pyproject.toml)
 aiosignal==1.3.1
     # via aiohttp
 anyio==4.6.2.post1
-    # via watchfiles
-async-timeout==4.0.3
+    # via
+    #   httpx
+    #   starlette
+    #   watchfiles
+asgiref==3.8.1
+    # via opentelemetry-instrumentation-asgi
+async-timeout==5.0.1
     # via
     #   aiohttp
     #   aiokafka
@@ -38,20 +43,35 @@ cachetools==5.3.3
 certifi==2024.8.30
     # via
     #   geventhttpclient
+    #   httpcore
+    #   httpx
     #   requests
     #   sentry-sdk
 charset-normalizer==3.4.0
     # via requests
 click==8.1.7
-    # via flask
+    # via
+    #   flask
+    #   typer
+    #   uvicorn
 configargparse==1.7
     # via locust
 confluent-kafka==2.4.0
     # via karapace (/karapace/pyproject.toml)
-coverage[toml]==7.6.4
+coverage[toml]==7.6.7
     # via pytest-cov
 cramjam==2.9.0
     # via python-snappy
+dependency-injector==4.43.0
+    # via karapace (/karapace/pyproject.toml)
+deprecated==1.2.15
+    # via
+    #   opentelemetry-api
+    #   opentelemetry-semantic-conventions
+dnspython==2.7.0
+    # via email-validator
+email-validator==2.2.0
+    # via fastapi
 exceptiongroup==1.2.2
     # via
     #   anyio
@@ -61,9 +81,13 @@ execnet==2.1.1
     # via pytest-xdist
 fancycompleter==0.9.1
     # via pdbpp
+fastapi[standard]==0.115.5
+    # via karapace (/karapace/pyproject.toml)
+fastapi-cli[standard]==0.0.5
+    # via fastapi
 filelock==3.16.1
     # via karapace (/karapace/pyproject.toml)
-flask==3.0.3
+flask==3.1.0
     # via
     #   flask-cors
     #   flask-login
@@ -84,15 +108,29 @@ geventhttpclient==2.3.1
     # via locust
 greenlet==3.1.1
     # via gevent
-hypothesis==6.118.8
+h11==0.14.0
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.7
+    # via httpx
+httptools==0.6.4
+    # via uvicorn
+httpx==0.27.2
+    # via fastapi
+hypothesis==6.119.4
     # via karapace (/karapace/pyproject.toml)
 idna==3.10
     # via
     #   anyio
+    #   email-validator
+    #   httpx
     #   requests
     #   yarl
 importlib-metadata==8.5.0
-    # via flask
+    # via
+    #   flask
+    #   opentelemetry-api
 iniconfig==2.0.0
     # via pytest
 isodate==0.7.2
@@ -100,12 +138,14 @@ isodate==0.7.2
 itsdangerous==2.2.0
     # via flask
 jinja2==3.1.4
-    # via flask
+    # via
+    #   fastapi
+    #   flask
 jsonschema==4.23.0
     # via karapace (/karapace/pyproject.toml)
 jsonschema-specifications==2024.10.1
     # via jsonschema
-locust==2.32.2
+locust==2.32.3
     # via karapace (/karapace/pyproject.toml)
 lz4==4.3.3
     # via karapace (/karapace/pyproject.toml)
@@ -125,9 +165,38 @@ multidict==6.1.0
     #   yarl
 networkx==3.2.1
     # via karapace (/karapace/pyproject.toml)
+opentelemetry-api==1.28.2
+    # via
+    #   karapace (/karapace/pyproject.toml)
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+opentelemetry-instrumentation==0.49b2
+    # via
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-asgi==0.49b2
+    # via opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-fastapi==0.49b2
+    # via karapace (/karapace/pyproject.toml)
+opentelemetry-sdk==1.28.2
+    # via karapace (/karapace/pyproject.toml)
+opentelemetry-semantic-conventions==0.49b2
+    # via
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-sdk
+opentelemetry-util-http==0.49b2
+    # via
+    #   opentelemetry-instrumentation-asgi
+    #   opentelemetry-instrumentation-fastapi
 packaging==24.2
     # via
     #   aiokafka
+    #   opentelemetry-instrumentation
     #   pytest
 pdbpp==0.10.3
     # via karapace (/karapace/pyproject.toml)
@@ -142,11 +211,15 @@ psutil==6.1.0
     #   karapace (/karapace/pyproject.toml)
     #   locust
     #   pytest-xdist
+pydantic==1.10.17
+    # via
+    #   fastapi
+    #   karapace (/karapace/pyproject.toml)
 pygments==2.18.0
     # via
     #   pdbpp
     #   rich
-pyjwt==2.9.0
+pyjwt==2.10.0
     # via karapace (/karapace/pyproject.toml)
 pyrepl==0.9.0
     # via fancycompleter
@@ -167,8 +240,14 @@ pytest-xdist[psutil]==3.6.1
     # via karapace (/karapace/pyproject.toml)
 python-dateutil==2.9.0.post0
     # via karapace (/karapace/pyproject.toml)
+python-dotenv==1.0.1
+    # via uvicorn
+python-multipart==0.0.17
+    # via fastapi
 python-snappy==0.7.3
     # via karapace (/karapace/pyproject.toml)
+pyyaml==6.0.2
+    # via uvicorn
 pyzmq==26.2.0
     # via locust
 referencing==0.35.1
@@ -180,19 +259,29 @@ requests==2.32.3
     #   karapace (/karapace/pyproject.toml)
     #   locust
 rich==13.7.1
-    # via karapace (/karapace/pyproject.toml)
+    # via
+    #   karapace (/karapace/pyproject.toml)
+    #   typer
 rpds-py==0.21.0
     # via
     #   jsonschema
     #   referencing
-sentry-sdk==2.18.0
+sentry-sdk==2.19.0
     # via karapace (/karapace/pyproject.toml)
+shellingham==1.5.4
+    # via typer
 six==1.16.0
-    # via python-dateutil
+    # via
+    #   dependency-injector
+    #   python-dateutil
 sniffio==1.3.1
-    # via anyio
+    # via
+    #   anyio
+    #   httpx
 sortedcontainers==2.4.0
     # via hypothesis
+starlette==0.41.3
+    # via fastapi
 tenacity==9.0.0
     # via karapace (/karapace/pyproject.toml)
 tomli==2.1.0
@@ -200,12 +289,21 @@ tomli==2.1.0
     #   coverage
     #   locust
     #   pytest
+typer==0.13.1
+    # via fastapi-cli
 typing-extensions==4.12.2
     # via
     #   anyio
+    #   asgiref
+    #   fastapi
     #   karapace (/karapace/pyproject.toml)
     #   locust
     #   multidict
+    #   opentelemetry-sdk
+    #   pydantic
+    #   starlette
+    #   typer
+    #   uvicorn
 ujson==5.10.0
     # via karapace (/karapace/pyproject.toml)
 urllib3==2.2.3
@@ -213,8 +311,18 @@ urllib3==2.2.3
     #   geventhttpclient
     #   requests
     #   sentry-sdk
+uvicorn[standard]==0.32.1
+    # via
+    #   fastapi
+    #   fastapi-cli
+uvloop==0.21.0
+    # via uvicorn
 watchfiles==0.24.0
-    # via karapace (/karapace/pyproject.toml)
+    # via
+    #   karapace (/karapace/pyproject.toml)
+    #   uvicorn
+websockets==14.1
+    # via uvicorn
 werkzeug==3.1.3
     # via
     #   flask
@@ -222,6 +330,10 @@ werkzeug==3.1.3
     #   locust
 wmctrl==0.5
     # via pdbpp
+wrapt==1.17.0
+    # via
+    #   deprecated
+    #   opentelemetry-instrumentation
 xxhash==3.5.0
     # via karapace (/karapace/pyproject.toml)
 yarl==1.12.1

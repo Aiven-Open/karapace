@@ -33,6 +33,10 @@ dependencies = [
   "zstandard",
   "prometheus-client == 0.20.0",
   "yarl == 1.12.1",
+  "opentelemetry-api == 1.28.2",
+  "opentelemetry-sdk == 1.28.2",
+  "opentelemetry-instrumentation-fastapi == 0.49b2",
+  "dependency-injector == 4.43.0",
 
   # Patched dependencies
   #

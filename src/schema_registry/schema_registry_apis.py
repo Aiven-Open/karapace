@@ -5,7 +5,6 @@ See LICENSE for details
 from __future__ import annotations
 
 from avro.errors import SchemaParseException
-from enum import Enum, unique
 from fastapi import HTTPException, Request, Response, status
 from karapace.auth.auth import Operation, User
 from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep
@@ -31,8 +30,14 @@ from karapace.errors import (
 )
 from karapace.forward_client import ForwardClient
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
-from karapace.routers.errors import no_primary_url_error
-from karapace.routers.requests import (
+from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
+from karapace.schema_references import LatestVersionReference, Reference
+from karapace.schema_registry import KarapaceSchemaRegistry
+from karapace.statsd import StatsClient
+from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
+from karapace.utils import JSONDecodeError
+from schema_registry.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
+from schema_registry.routers.requests import (
     CompatibilityCheckResponse,
     CompatibilityLevelResponse,
     CompatibilityRequest,
@@ -46,12 +51,6 @@ from karapace.routers.requests import (
     SubjectSchemaVersionResponse,
     SubjectVersion,
 )
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
-from karapace.schema_references import LatestVersionReference, Reference
-from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.statsd import StatsClient
-from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
-from karapace.utils import JSONDecodeError
 from typing import Any, cast
 
 import json
@@ -59,46 +58,6 @@ import logging
 import time
 
 LOG = logging.getLogger(__name__)
-
-
-# TODO Remove, already in router/errors
-@unique
-class SchemaErrorCodes(Enum):
-    HTTP_BAD_REQUEST = status.HTTP_400_BAD_REQUEST
-    HTTP_NOT_FOUND = status.HTTP_404_NOT_FOUND
-    HTTP_CONFLICT = status.HTTP_409_CONFLICT
-    HTTP_UNPROCESSABLE_ENTITY = status.HTTP_422_UNPROCESSABLE_ENTITY
-    HTTP_INTERNAL_SERVER_ERROR = status.HTTP_500_INTERNAL_SERVER_ERROR
-    SUBJECT_NOT_FOUND = 40401
-    VERSION_NOT_FOUND = 40402
-    SCHEMA_NOT_FOUND = 40403
-    SUBJECT_SOFT_DELETED = 40404
-    SUBJECT_NOT_SOFT_DELETED = 40405
-    SCHEMAVERSION_SOFT_DELETED = 40406
-    SCHEMAVERSION_NOT_SOFT_DELETED = 40407
-    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_ERROR_CODE = 40408
-    INVALID_VERSION_ID = 42202
-    INVALID_COMPATIBILITY_LEVEL = 42203
-    INVALID_SCHEMA = 42201
-    INVALID_SUBJECT = 42208
-    SCHEMA_TOO_LARGE_ERROR_CODE = 42209
-    REFERENCES_SUPPORT_NOT_IMPLEMENTED = 44302
-    REFERENCE_EXISTS = 42206
-    NO_MASTER_ERROR = 50003
-
-
-@unique
-class SchemaErrorMessages(Enum):
-    SUBJECT_NOT_FOUND_FMT = "Subject '{subject}' not found."
-    INVALID_COMPATIBILITY_LEVEL = (
-        "Invalid compatibility level. Valid values are none, backward, "
-        "forward, full, backward_transitive, forward_transitive, and "
-        "full_transitive"
-    )
-    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT = (
-        "Subject '{subject}' does not have subject-level compatibility configured"
-    )
-    REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
 
 
 class KarapaceSchemaRegistryController:

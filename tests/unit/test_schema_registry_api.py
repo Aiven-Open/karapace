@@ -7,7 +7,7 @@ from karapace.config import DEFAULTS, set_config_defaults
 from karapace.rapu import HTTPResponse
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.schema_registry_apis import KarapaceSchemaRegistryController
+from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
 from unittest.mock import ANY, AsyncMock, Mock, patch, PropertyMock
 
 import asyncio
@@ -31,7 +31,7 @@ async def test_validate_schema_request_body() -> None:
 
 
 async def test_forward_when_not_ready() -> None:
-    with patch("karapace.schema_registry_apis.KarapaceSchemaRegistry") as schema_registry_class:
+    with patch("schema_registry.schema_registry_apis.KarapaceSchemaRegistry") as schema_registry_class:
         schema_reader_mock = Mock(spec=KafkaSchemaReader)
         ready_property_mock = PropertyMock(return_value=False)
         schema_registry = AsyncMock(spec=KarapaceSchemaRegistry)

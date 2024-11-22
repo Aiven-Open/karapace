@@ -33,6 +33,20 @@ class SchemaErrorCodes(Enum):
     NO_MASTER_ERROR = 50003
 
 
+@unique
+class SchemaErrorMessages(Enum):
+    SUBJECT_NOT_FOUND_FMT = "Subject '{subject}' not found."
+    INVALID_COMPATIBILITY_LEVEL = (
+        "Invalid compatibility level. Valid values are none, backward, "
+        "forward, full, backward_transitive, forward_transitive, and "
+        "full_transitive"
+    )
+    SUBJECT_LEVEL_COMPATIBILITY_NOT_CONFIGURED_FMT = (
+        "Subject '{subject}' does not have subject-level compatibility configured"
+    )
+    REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
+
+
 class KarapaceValidationError(RequestValidationError):
     def __init__(self, error_code: int, error: str):
         super().__init__(errors=[], body=error)
