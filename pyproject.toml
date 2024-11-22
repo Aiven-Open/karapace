@@ -113,7 +113,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-schema_registry = ["*.yaml"]
+karapace = ["*.yaml"]
 
 [tool.setuptools_scm]
 version_file = "src/karapace/version.py"

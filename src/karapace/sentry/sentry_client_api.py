@@ -5,14 +5,11 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing_extensions import TypeAlias
-
-KarapaceSentryConfig: TypeAlias = "Mapping[str, object] | None"
 
 
 class SentryClientAPI:
-    def __init__(self, sentry_config: KarapaceSentryConfig) -> None:
-        self.sentry_config = sentry_config or {}
+    def __init__(self, sentry_dsn: str) -> None:
+        self.sentry_dsn = sentry_dsn
 
     def unexpected_exception(
         self,

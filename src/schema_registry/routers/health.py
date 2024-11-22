@@ -3,9 +3,11 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import APIRouter, HTTPException, status
-from schema_registry.dependencies.schema_registry_dependency import SchemaRegistryDep
+from dependency_injector.wiring import inject, Provide
+from fastapi import APIRouter, Depends, HTTPException, status
+from karapace.schema_registry import KarapaceSchemaRegistry
 from pydantic import BaseModel
+from schema_registry.container import SchemaRegistryContainer
 
 
 class HealthStatus(BaseModel):
@@ -33,8 +35,9 @@ health_router = APIRouter(
 
 
 @health_router.get("")
+@inject
 async def health(
-    schema_registry: SchemaRegistryDep,
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
 ) -> HealthCheck:
     starttime = 0.0
     if schema_registry.schema_reader.ready:

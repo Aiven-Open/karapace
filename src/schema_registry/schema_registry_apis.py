@@ -5,13 +5,14 @@ See LICENSE for details
 from __future__ import annotations
 
 from avro.errors import SchemaParseException
-from fastapi import HTTPException, Request, Response, status
-from karapace.auth.auth import Operation, User
-from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep
+from dependency_injector.wiring import inject, Provide
+from fastapi import Depends, HTTPException, Request, Response, status
+from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
 from karapace.compatibility.schema_compatibility import SchemaCompatibility
 from karapace.config import Config
+from karapace.container import KarapaceContainer
 from karapace.errors import (
     IncompatibleSchema,
     InvalidReferences,
@@ -63,6 +64,9 @@ LOG = logging.getLogger(__name__)
 class KarapaceSchemaRegistryController:
     def __init__(self, config: Config, schema_registry: KarapaceSchemaRegistry, stats: StatsClient) -> None:
         # super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
+
+        print("+++++++++========")
+        print(schema_registry)
 
         self.config = config
         self._process_start_time = time.monotonic()
@@ -141,13 +145,14 @@ class KarapaceSchemaRegistryController:
             return CompatibilityCheckResponse(is_compatible=False, messages=list(result.messages))
         return CompatibilityCheckResponse(is_compatible=True)
 
+    @inject
     async def schemas_list(
         self,
         *,
         deleted: bool,
         latest_only: bool,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizerDep | None,
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
     ) -> list[SchemaListingItem]:
         schemas = await self.schema_registry.schemas_list(include_deleted=deleted, latest_only=latest_only)
         response_schemas: list[SchemaListingItem] = []
@@ -171,6 +176,7 @@ class KarapaceSchemaRegistryController:
 
         return response_schemas
 
+    @inject
     async def schemas_get(
         self,
         *,
@@ -179,7 +185,7 @@ class KarapaceSchemaRegistryController:
         include_subjects: bool,
         format_serialized: str,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizerDep,
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
     ) -> SchemasResponse:
         try:
             parsed_schema_id = SchemaId(int(schema_id))
@@ -213,6 +219,8 @@ class KarapaceSchemaRegistryController:
                 )
 
         schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
+        print("+++++++++========")
+        print(schema)
         if not schema:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -249,13 +257,14 @@ class KarapaceSchemaRegistryController:
             maxId=maxId,
         )
 
+    @inject
     async def schemas_get_versions(
         self,
         *,
         schema_id: str,
         deleted: bool,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizerDep,
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
     ) -> list[SubjectVersion]:
         try:
             schema_id_int = SchemaId(int(schema_id))
@@ -370,11 +379,12 @@ class KarapaceSchemaRegistryController:
         self.schema_registry.send_config_subject_delete_message(subject=Subject(subject))
         return CompatibilityResponse(compatibility=self.schema_registry.schema_reader.config.compatibility)
 
+    @inject
     async def subjects_list(
         self,
         deleted: bool,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizerDep | None,
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
     ) -> list[str]:
         subjects = [str(subject) for subject in self.schema_registry.database.find_subjects(include_deleted=deleted)]
         if authorizer:

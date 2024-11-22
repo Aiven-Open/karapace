@@ -7,23 +7,32 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
 from karapace.typing import ElectionStrategy, NameStrategy
 from karapace.utils import json_encode
 from pathlib import Path
-from pydantic import BaseSettings
+from pydantic import BaseModel, BaseSettings, PyObject
+from typing import Final
 
 import logging
 import os
 import socket
 import ssl
 
+KARAPACE_ROOT: Final[Path] = Path(__file__).parent
+KARAPACE_BASE_CONFIG_YAML_PATH: Final[Path] = KARAPACE_ROOT / "base_config.yaml"
+
 HOSTNAME = socket.gethostname()
+
+
+class KarapaceTags(BaseModel):
+    app: str = "Karapace"
 
 
 class Config(BaseSettings):
     access_logs_debug: bool = False
-    access_log_class: type | None = None
+    access_log_class: PyObject = "aiohttp.web_log.AccessLogger"
     advertised_hostname: str | None = None
     advertised_port: int | None = None
     advertised_protocol: str = "http"
@@ -58,6 +67,7 @@ class Config(BaseSettings):
     master_eligibility: bool = True
     replication_factor: int = 1
     security_protocol: str = "PLAINTEXT"
+    ssl_ciphers: str | None = None
     ssl_cafile: str | None = None
     ssl_certfile: str | None = None
     ssl_keyfile: str | None = None
@@ -88,9 +98,9 @@ class Config(BaseSettings):
     kafka_schema_reader_strict_mode: bool = False
     kafka_retriable_errors_silenced: bool = True
     use_protobuf_formatter: bool = False
+    sentry_dsn: str | None = None
 
-    sentry: Mapping[str, object] | None = None
-    tags: Mapping[str, object] | None = None
+    tags: KarapaceTags = KarapaceTags()
 
     # add rest uri if not set
     # f"{new_config['advertised_protocol']}://{new_config['advertised_hostname']}:{new_config['advertised_port']}"
@@ -116,6 +126,40 @@ class Config(BaseSettings):
             if value is not None:
                 env_lines.append(f"{key.upper()}={value}")
         return "\n".join(env_lines)
+
+    def set_config_defaults(self, new_config: Mapping[str, str]) -> Config:
+        config = deepcopy(self)
+        for key, value in new_config.items():
+            setattr(config, key, value)
+
+        # Fallback to default port if `advertised_port` is not set
+        if config.advertised_port is None:
+            config.advertised_port = new_config["port"]
+
+        # Fallback to `advertised_*` constructed URI if not set
+        if config.rest_base_uri is None:
+            config.rest_base_uri = f"{config.advertised_protocol}://{config.advertised_hostname}:{config.advertised_port}"
+
+        # Set the aiohttp client max size if REST Proxy is enabled and producer max request configuration is altered
+        # from default and aiohttp client max size is not set
+        # Use the http request max size from the configuration without altering if set.
+        if (
+            config.karapace_rest
+            and config.producer_max_request_size > DEFAULT_PRODUCER_MAX_REQUEST
+            and config.http_request_max_size is None
+        ):
+            # REST Proxy API configuration for producer max request size must be taken into account
+            # also for the aiohttp.web.Application client max size.
+            # Always add the aiohttp default client max size as the headroom above the producer max request size.
+            # The input JSON size for REST Proxy is not easy to estimate, lot of small records in single request has
+            # a lot of overhead due to JSON structure.
+            config.http_request_max_size = config.producer_max_request_size + DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
+        elif config.http_request_max_size is None:
+            # Set the default aiohttp client max size
+            config.http_request_max_size = DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
+
+        validate_config(config)
+        return config
 
 
 # class ConfigDefaults(Config, total=False):
@@ -143,45 +187,6 @@ def parse_env_value(value: str) -> str | int | bool:
     if value.lower() == "true":
         return True
     return value
-
-
-def set_config_defaults(config: Config) -> Config:
-    # Fallback to default port if `advertised_port` is not set
-    if config["advertised_port"] is None:
-        config["advertised_port"] = new_config["port"]
-
-    # Fallback to `advertised_*` constructed URI if not set
-    if new_config["rest_base_uri"] is None:
-        new_config[
-            "rest_base_uri"
-        ] = f"{new_config['advertised_protocol']}://{new_config['advertised_hostname']}:{new_config['advertised_port']}"
-
-    # Tag app should always be karapace
-    new_config.setdefault("tags", {})
-    new_config["tags"]["app"] = "Karapace"
-
-    # Set the aiohttp client max size if REST Proxy is enabled and producer max request configuration is altered from default
-    # and aiohttp client max size is not set
-    # Use the http request max size from the configuration without altering if set.
-    if (
-        new_config["karapace_rest"]
-        and new_config["producer_max_request_size"] > DEFAULT_PRODUCER_MAX_REQUEST
-        and new_config["http_request_max_size"] is None
-    ):
-        # REST Proxy API configuration for producer max request size must be taken into account
-        # also for the aiohttp.web.Application client max size.
-        # Always add the aiohttp default client max size as the headroom above the producer max request size.
-        # The input JSON size for REST Proxy is not easy to estimate, lot of small records in single request has
-        # a lot of overhead due to JSON structure.
-        new_config["http_request_max_size"] = new_config["producer_max_request_size"] + DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
-    elif new_config["http_request_max_size"] is None:
-        # Set the default aiohttp client max size
-        new_config["http_request_max_size"] = DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
-
-    #    set_settings_from_environment(new_config)
-    set_sentry_dsn_from_environment(new_config)
-    validate_config(new_config)
-    return new_config
 
 
 # def set_settings_from_environment(config: Config) -> None:
@@ -218,7 +223,7 @@ def set_sentry_dsn_from_environment(config: Config) -> None:
 
 
 def validate_config(config: Config) -> None:
-    master_election_strategy = config["master_election_strategy"]
+    master_election_strategy = config.master_election_strategy
     try:
         ElectionStrategy(master_election_strategy.lower())
     except ValueError:
@@ -227,7 +232,7 @@ def validate_config(config: Config) -> None:
             f"Invalid master election strategy: {master_election_strategy}, valid values are {valid_strategies}"
         ) from None
 
-    name_strategy = config["name_strategy"]
+    name_strategy = config.name_strategy
     try:
         NameStrategy(name_strategy)
     except ValueError:
@@ -236,7 +241,7 @@ def validate_config(config: Config) -> None:
             f"Invalid default name strategy: {name_strategy}, valid values are {valid_strategies}"
         ) from None
 
-    if config["rest_authorization"] and config["sasl_bootstrap_uri"] is None:
+    if config.rest_authorization and config.sasl_bootstrap_uri is None:
         raise InvalidConfiguration(
             "Using 'rest_authorization' requires configuration value for 'sasl_bootstrap_uri' to be set"
         )
@@ -253,17 +258,10 @@ def write_env_file(dot_env_path: Path, config: Config) -> None:
 def read_env_file(env_file_path: str) -> Config:
     return Config(_env_file=env_file_path, _env_file_encoding="utf-8")
 
-    Config()
-    try:
-        config = json_decode(config_handler)
-    except JSONDecodeError as ex:
-        raise InvalidConfiguration("Configuration is not a valid JSON") from ex
-    return set_config_defaults(config)
-
 
 def create_client_ssl_context(config: Config) -> ssl.SSLContext | None:
     # taken from conn.py, as it adds a lot more logic to the context configuration than the initial version
-    if config["security_protocol"] in ("PLAINTEXT", "SASL_PLAINTEXT"):
+    if config.security_protocol in ("PLAINTEXT", "SASL_PLAINTEXT"):
         return None
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
     ssl_context.options |= ssl.OP_NO_SSLv2
@@ -271,30 +269,30 @@ def create_client_ssl_context(config: Config) -> ssl.SSLContext | None:
     ssl_context.options |= ssl.OP_NO_TLSv1
     ssl_context.options |= ssl.OP_NO_TLSv1_1
     ssl_context.verify_mode = ssl.CERT_OPTIONAL
-    if config["ssl_check_hostname"]:
+    if config.ssl_check_hostname:
         ssl_context.check_hostname = True
-    if config["ssl_cafile"]:
-        ssl_context.load_verify_locations(config["ssl_cafile"])
+    if config.ssl_cafile:
+        ssl_context.load_verify_locations(config.ssl_cafile)
         ssl_context.verify_mode = ssl.CERT_REQUIRED
-    if config["ssl_certfile"] and config["ssl_keyfile"]:
+    if config.ssl_certfile and config.ssl_keyfile:
         ssl_context.load_cert_chain(
-            certfile=config["ssl_certfile"],
-            keyfile=config["ssl_keyfile"],
-            password=config["ssl_password"],
+            certfile=config.ssl_certfile,
+            keyfile=config.ssl_keyfile,
+            password=config.ssl_password,
         )
-    if config["ssl_crlfile"]:
+    if config.ssl_crlfile:
         if not hasattr(ssl, "VERIFY_CRL_CHECK_LEAF"):
             raise RuntimeError("This version of Python does not support ssl_crlfile!")
-        ssl_context.load_verify_locations(config["ssl_crlfile"])
+        ssl_context.load_verify_locations(config.ssl_crlfile)
         ssl_context.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
-    if config.get("ssl_ciphers"):
-        ssl_context.set_ciphers(config["ssl_ciphers"])
+    if config.ssl_ciphers:
+        ssl_context.set_ciphers(config.ssl_ciphers)
     return ssl_context
 
 
 def create_server_ssl_context(config: Config) -> ssl.SSLContext | None:
-    tls_certfile = config["server_tls_certfile"]
-    tls_keyfile = config["server_tls_keyfile"]
+    tls_certfile = config.server_tls_certfile
+    tls_keyfile = config.server_tls_keyfile
     if tls_certfile is None:
         if tls_keyfile is None:
             # Neither config value set, do not use TLS

@@ -18,6 +18,7 @@ from binascii import Error as B64DecodeError
 from collections import namedtuple
 from confluent_kafka.error import KafkaException
 from contextlib import AsyncExitStack
+from copy import deepcopy
 from http import HTTPStatus
 from karapace.config import Config
 from karapace.errors import InvalidSchema
@@ -304,7 +305,8 @@ class KafkaRest(KarapaceBase):
 
                     key = auth_header
                     if self.proxies.get(key) is None:
-                        config = self.config.copy()
+                        # config = self.config.copy()
+                        config = deepcopy(self.config)
                         config.bootstrap_uri = config.sasl_bootstrap_uri
                         config.security_protocol = (
                             "SASL_SSL" if config.security_protocol in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"

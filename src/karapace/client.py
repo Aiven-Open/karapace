@@ -52,6 +52,7 @@ class Client:
         client_factory: Callable[..., Awaitable[ClientSession]] = _get_aiohttp_client,
         server_ca: Optional[str] = None,
         session_auth: Optional[BasicAuth] = None,
+        default_headers: Optional[Headers] = None,
     ) -> None:
         self.server_uri = server_uri or ""
         self.session_auth = session_auth
@@ -60,6 +61,7 @@ class Client:
         # kafka_rest_api main, when KafkaRest is created), we can't create the aiohttp here.
         # Instead we wait for the first query in async context and lazy-initialize aiohttp client.
         self.client_factory = client_factory
+        self.default_headers = default_headers or Headers()
 
         self.ssl_mode: Union[None, bool, ssl.SSLContext]
         if server_ca is None:
@@ -68,6 +70,13 @@ class Client:
             self.ssl_mode = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             self.ssl_mode.load_verify_locations(cafile=server_ca)
         self._client: Optional[ClientSession] = None
+
+    def add_default_headers(self, headers: Headers) -> None:
+        _headers = Headers()
+        _headers.update(self.default_headers)
+        if headers:
+            _headers.update(headers)
+        return _headers
 
     def path_for(self, path: Path) -> str:
         return urljoin(self.server_uri, path)
@@ -95,8 +104,7 @@ class Client:
         json_response: bool = True,
     ) -> Result:
         path = self.path_for(path)
-        if not headers:
-            headers = {}
+        headers = self.add_default_headers(headers)
         client = await self.get_client()
         async with client.get(
             path,
@@ -117,8 +125,7 @@ class Client:
         auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
-        if not headers:
-            headers = {}
+        headers = self.add_default_headers(headers)
         client = await self.get_client()
         async with client.delete(
             path,
@@ -137,8 +144,8 @@ class Client:
         auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
-        if not headers:
-            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+        headers = self.add_default_headers(headers)
+        headers.update({"Content-Type": "application/vnd.schemaregistry.v1+json"})
 
         client = await self.get_client()
         async with client.post(
@@ -159,8 +166,8 @@ class Client:
         auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
-        if not headers:
-            headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+        headers = self.add_default_headers(headers)
+        headers.update({"Content-Type": "application/vnd.schemaregistry.v1+json"})
 
         client = await self.get_client()
         async with client.put(
@@ -181,6 +188,7 @@ class Client:
         auth: Optional[BasicAuth] = None,
     ) -> Result:
         path = self.path_for(path)
+        headers = self.add_default_headers(headers)
         client = await self.get_client()
         async with client.put(
             path,

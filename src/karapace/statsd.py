@@ -29,7 +29,7 @@ class StatsClient:
         self._dest_addr: Final = (config.statsd_host, config.statsd_port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags: Final = config.tags or {}
-        self.sentry_client: Final = get_sentry_client(sentry_config=(config.sentry or None))
+        self.sentry_client: Final = get_sentry_client(sentry_dsn=config.sentry_dsn)
 
     @contextmanager
     def timing_manager(self, metric: str, tags: dict | None = None) -> Iterator[None]:

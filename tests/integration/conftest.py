@@ -7,6 +7,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from _pytest.fixtures import SubRequest
+from aiohttp import BasicAuth
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
 from collections.abc import AsyncGenerator, AsyncIterator, Iterator
@@ -15,7 +16,8 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
 from karapace.client import Client
-from karapace.config import Config, write_config
+from karapace.config import Config, KARAPACE_BASE_CONFIG_YAML_PATH, write_config
+from karapace.container import KarapaceContainer
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
@@ -66,6 +68,18 @@ def _clear_test_name(name: str) -> str:
     return re.sub(r"[\W]", "_", name)[:30]
 
 
+@pytest.fixture(scope="session", name="basic_auth")
+def fixture_basic_auth() -> BasicAuth:
+    return BasicAuth("test", "test")
+
+
+@pytest.fixture(name="karapace_container", scope="session")
+def fixture_karapace_container() -> KarapaceContainer:
+    container = KarapaceContainer()
+    container.base_config.from_yaml(KARAPACE_BASE_CONFIG_YAML_PATH, envs_required=True, required=True)
+    return container
+
+
 @pytest.fixture(scope="session", name="kafka_description")
 def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
     kafka_version = request.config.getoption("kafka_version") or KAFKA_VERSION
@@ -84,24 +98,11 @@ def fixture_kafka_description(request: SubRequest) -> KafkaDescription:
 
 
 @pytest.fixture(scope="session", name="kafka_servers")
-def fixture_kafka_server(
-    request: SubRequest,
-    session_datadir: Path,
-    session_logdir: Path,
-    kafka_description: KafkaDescription,
-) -> Iterator[KafkaServers]:
-    bootstrap_servers = request.config.getoption("kafka_bootstrap_servers")
-
-    if bootstrap_servers:
-        kafka_servers = KafkaServers(bootstrap_servers)
-        wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
-        yield kafka_servers
-        return
-
-    yield from create_kafka_server(
-        session_datadir,
-        session_logdir,
-        kafka_description,
+def fixture_kafka_server(karapace_container: KarapaceContainer) -> Iterator[KafkaServers]:
+    yield KafkaServers(
+        [
+            karapace_container.config().bootstrap_uri,
+        ]
     )
 
 
@@ -152,8 +153,8 @@ def create_kafka_server(
 
                 data_dir = session_datadir / "kafka"
                 log_dir = session_logdir / "kafka"
-                data_dir.mkdir(parents=True)
-                log_dir.mkdir(parents=True)
+                data_dir.mkdir(parents=True, exist_ok=True)
+                log_dir.mkdir(parents=True, exist_ok=True)
                 kafka_config = KafkaConfig(
                     datadir=str(data_dir),
                     logdir=str(log_dir),
@@ -262,6 +263,7 @@ async def fixture_rest_async(
     request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
     tmp_path: Path,
+    karapace_container: KarapaceContainer,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -276,12 +278,12 @@ async def fixture_rest_async(
 
     config_path = tmp_path / "karapace_config.json"
 
-    config = Config()
+    config = karapace_container.config()
     config.admin_metadata_max_age = 2
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     # Use non-default max request size for REST producer.
     config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
-    write_config(config_path, config)
+    # write_config(config_path, config)
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -295,36 +297,44 @@ async def fixture_rest_async(
 @pytest.fixture(scope="function", name="rest_async_client")
 async def fixture_rest_async_client(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    karapace_container: KarapaceContainer,
     rest_async: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
-    rest_url = request.config.getoption("rest_url")
-
-    # client and server_uri are incompatible settings.
-    if rest_url:
-        client = Client(server_uri=rest_url)
-    else:
-
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
-            return await aiohttp_client(rest_async.app)
-
-        client = Client(client_factory=get_client)
-
+    client = Client(
+        server_uri=karapace_container.config().rest_base_uri,
+        server_ca=request.config.getoption("server_ca"),
+    )
     try:
-        # wait until the server is listening, otherwise the tests may fail
-        await repeat_until_successful_request(
-            client.get,
-            "brokers",
-            json_data=None,
-            headers=None,
-            error_msg="REST API is unreachable",
-            timeout=10,
-            sleep=0.3,
-        )
         yield client
     finally:
         await client.close()
+    # rest_url = request.config.getoption("rest_url")
+
+    # # client and server_uri are incompatible settings.
+    # if rest_url:
+    #     client = Client(server_uri=rest_url)
+    # else:
+
+    #     async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+    #         return await aiohttp_client(rest_async.app)
+
+    #     client = Client(client_factory=get_client)
+
+    # try:
+    #     # wait until the server is listening, otherwise the tests may fail
+    #     await repeat_until_successful_request(
+    #         client.get,
+    #         "brokers",
+    #         json_data=None,
+    #         headers=None,
+    #         error_msg="REST API is unreachable",
+    #         timeout=10,
+    #         sleep=0.3,
+    #     )
+    #     yield client
+    # finally:
+    #     await client.close()
 
 
 @pytest.fixture(scope="function", name="rest_async_novalidation")
@@ -519,25 +529,16 @@ async def fixture_registry_cluster(
 @pytest.fixture(scope="function", name="registry_async_client")
 async def fixture_registry_async_client(
     request: SubRequest,
+    basic_auth: BasicAuth,
     registry_cluster: RegistryDescription,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
 ) -> AsyncGenerator[Client, None]:
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
+        session_auth=basic_auth,
+        # default_headers=Headers(Accept="application/json")
     )
-
     try:
-        # wait until the server is listening, otherwise the tests may fail
-        await repeat_until_successful_request(
-            client.get,
-            "subjects",
-            json_data=None,
-            headers=None,
-            error_msg=f"Registry API {client.server_uri} is unreachable",
-            timeout=10,
-            sleep=0.3,
-        )
         yield client
     finally:
         await client.close()
@@ -715,7 +716,4 @@ async def fixture_registry_async_auth_pair(
 @pytest.fixture(scope="function", name="new_topic")
 def topic_fixture(admin_client: KafkaAdminClient) -> NewTopic:
     topic_name = secrets.token_hex(4)
-    try:
-        yield admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
-    finally:
-        admin_client.delete_topic(topic_name)
+    return admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)

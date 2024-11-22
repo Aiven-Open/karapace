@@ -5,34 +5,32 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Mapping
-from karapace.sentry.sentry_client_api import KarapaceSentryConfig, SentryClientAPI
+from karapace.sentry.sentry_client_api import SentryClientAPI
 
 # The Sentry SDK is optional, omit pylint import error
 import sentry_sdk
 
 
 class SentryClient(SentryClientAPI):
-    def __init__(self, sentry_config: KarapaceSentryConfig) -> None:
-        super().__init__(sentry_config=sentry_config)
+    def __init__(self, sentry_dsn: str) -> None:
+        super().__init__(sentry_dsn=sentry_dsn)
         self._initialize_sentry()
 
     def _initialize_sentry(self) -> None:
-        sentry_config = (
-            dict(self.sentry_config)
-            if self.sentry_config is not None
-            else {
-                "ignore_errors": [
-                    "ClientConnectorError",  # aiohttp
-                    "ClientPayloadError",  # aiohttp
-                    "ConnectionRefusedError",  # kafka (asyncio)
-                    "ConnectionResetError",  # kafka, requests
-                    "IncompleteReadError",  # kafka (asyncio)
-                    "ServerDisconnectedError",  # aiohttp
-                    "ServerTimeoutError",  # aiohttp
-                    "TimeoutError",  # kafka
-                ]
-            }
-        )
+        sentry_config = {
+            "dsn": self.sentry_dsn,
+            "default_integrations": False,
+            "ignore_errors": [
+                "ClientConnectorError",  # aiohttp
+                "ClientPayloadError",  # aiohttp
+                "ConnectionRefusedError",  # kafka (asyncio)
+                "ConnectionResetError",  # kafka, requests
+                "IncompleteReadError",  # kafka (asyncio)
+                "ServerDisconnectedError",  # aiohttp
+                "ServerTimeoutError",  # aiohttp
+                "TimeoutError",  # kafka
+            ],
+        }
 
         # If the DSN is not in the config or in SENTRY_DSN environment variable
         # the Sentry client does not send any events.

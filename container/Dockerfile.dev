@@ -22,8 +22,9 @@ RUN wget --progress=dot:giga "https://go.dev/dl/go${GO_VERSION}.linux-$(dpkg --p
 # the cache will be invalidated and the image regenerated, which is the
 # intended behavior.
 COPY ./requirements/requirements.txt /build/
+COPY ./requirements/requirements-dev.txt /build/
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install -r /build/requirements.txt
+    python3 -m pip install -r /build/requirements.txt -r /build/requirements-dev.txt
 
 COPY . /build/karapace-repo
 WORKDIR /build/karapace-repo
@@ -59,6 +60,3 @@ COPY ./container/healthcheck.py /opt/karapace
 
 WORKDIR /opt/karapace
 USER karapace
-
-HEALTHCHECK --interval=10s --timeout=30s --retries=3 --start-period=60s \
-    CMD python3 healthcheck.py http://localhost:$KARAPACE_PORT/_health || exit 1

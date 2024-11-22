@@ -58,7 +58,7 @@ configargparse==1.7
     # via locust
 confluent-kafka==2.4.0
     # via karapace (/karapace/pyproject.toml)
-coverage[toml]==7.6.7
+coverage[toml]==7.6.8
     # via pytest-cov
 cramjam==2.9.0
     # via python-snappy
@@ -104,7 +104,7 @@ gevent==24.11.1
     # via
     #   geventhttpclient
     #   locust
-geventhttpclient==2.3.1
+geventhttpclient==2.3.3
     # via locust
 greenlet==3.1.1
     # via gevent

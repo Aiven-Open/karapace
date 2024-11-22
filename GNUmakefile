@@ -3,6 +3,7 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
+CLI   ?= docker-compose -f container/compose.yml run karapace-cli
 PYTHON_VERSION ?= 3.9
 
 define PIN_VERSIONS_COMMAND
@@ -102,3 +103,9 @@ schema:
 .PHONY: pin-requirements
 pin-requirements:
 	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -it -v .:/karapace --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
+
+cli:
+	# $(CLI) python3 -m pytest -vvv tests/integration/test_client.py
+	# $(CLI) python3 -m pytest -vvv tests/integration/schema_registry/test_jsonschema.py
+	$(CLI) python3 -m pytest -vvv tests/integration/
+	# $(CLI) python3 -m pytest -vvv tests/unit

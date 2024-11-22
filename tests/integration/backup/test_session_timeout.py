@@ -43,7 +43,8 @@ def fixture_kafka_server(
 
 
 def test_producer_with_custom_kafka_properties_does_not_fail(
-    kafka_server_session_timeout: KafkaServers,
+    kafka_servers: KafkaServers,
+    admin_client: KafkaAdminClient,
     new_topic: NewTopic,
     tmp_path: Path,
 ) -> None:
@@ -56,11 +57,8 @@ def test_producer_with_custom_kafka_properties_does_not_fail(
     the kafka config so that the exception isn't raised
     """
     config = Config()
-    config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config.session_timeout_ms = SESSION_TIMEOUT_MS
-
-    admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
-    admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
 
     with kafka_producer_from_config(config) as producer:
         producer.send(
@@ -87,7 +85,8 @@ def test_producer_with_custom_kafka_properties_does_not_fail(
 
 
 def test_producer_with_custom_kafka_properties_fail(
-    kafka_server_session_timeout: KafkaServers,
+    kafka_servers: KafkaServers,
+    admin_client: KafkaAdminClient,
     new_topic: NewTopic,
 ) -> None:
     """
@@ -98,9 +97,6 @@ def test_producer_with_custom_kafka_properties_fail(
     This test ensures that the `session.timeout.ms` can be injected in
     the kafka config so that the exception isn't raised
     """
-    admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
-    admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
-
     config = Config()
     # TODO: This test is broken. Test has used localhost:9092 when this should use
     # the configured broker from kafka_server_session.

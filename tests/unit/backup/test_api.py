@@ -5,7 +5,6 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiokafka.errors import KafkaError, TopicAlreadyExistsError
-from karapace import config
 from karapace.backup.api import (
     _admin,
     _consumer,
@@ -22,6 +21,7 @@ from karapace.backup.backends.writer import StdOut
 from karapace.backup.errors import BackupError, PartitionCountError
 from karapace.config import Config
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.container import KarapaceContainer
 from karapace.kafka.consumer import KafkaConsumer, PartitionMetadata
 from karapace.kafka.producer import KafkaProducer
 from pathlib import Path
@@ -41,10 +41,12 @@ patch_admin_new = mock.patch(
 class TestAdmin:
     @mock.patch("time.sleep", autospec=True)
     @patch_admin_new
-    def test_retries_on_kafka_error(self, admin_new: MagicMock, sleep_mock: MagicMock) -> None:
+    def test_retries_on_kafka_error(
+        self, admin_new: MagicMock, sleep_mock: MagicMock, karapace_container: KarapaceContainer
+    ) -> None:
         admin_mock = admin_new.return_value
         admin_new.side_effect = [KafkaError("1"), KafkaError("2"), admin_mock]
-        with _admin(config.DEFAULTS) as admin:
+        with _admin(karapace_container.config()) as admin:
             assert admin is admin_mock
         assert sleep_mock.call_count == 2  # proof that we waited between retries
 
@@ -56,41 +58,48 @@ class TestAdmin:
         admin_new: MagicMock,
         sleep_mock: MagicMock,
         e: type[BaseException],
+        karapace_container: KarapaceContainer,
     ) -> None:
         admin_new.side_effect = e
-        with pytest.raises(e), _admin(config.DEFAULTS):
+        with pytest.raises(e), _admin(karapace_container.config()):
             pass
         assert sleep_mock.call_count == 0  # proof that we did not retry
 
 
 class TestHandleRestoreTopic:
     @patch_admin_new
-    def test_calls_admin_create_topics(self, admin_new: MagicMock) -> None:
+    def test_calls_admin_create_topics(self, admin_new: MagicMock, karapace_container: KarapaceContainer) -> None:
         new_topic: MagicMock = admin_new.return_value.new_topic
         topic_configs = {"cleanup.policy": "compact"}
-        _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs=topic_configs)
+        _maybe_create_topic(
+            DEFAULT_SCHEMA_TOPIC, config=karapace_container.config(), replication_factor=1, topic_configs=topic_configs
+        )
 
         new_topic.assert_called_once_with(
             DEFAULT_SCHEMA_TOPIC,
             num_partitions=1,
-            replication_factor=config.DEFAULTS["replication_factor"],
+            replication_factor=karapace_container.config().replication_factor,
             config=topic_configs,
         )
 
     @patch_admin_new
-    def test_gracefully_handles_topic_already_exists_error(self, admin_new: MagicMock) -> None:
+    def test_gracefully_handles_topic_already_exists_error(
+        self, admin_new: MagicMock, karapace_container: KarapaceContainer
+    ) -> None:
         new_topic: MagicMock = admin_new.return_value.new_topic
         new_topic.side_effect = TopicAlreadyExistsError()
-        _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs={})
+        _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=karapace_container.config(), replication_factor=1, topic_configs={})
         new_topic.assert_called_once()
 
     @patch_admin_new
-    def test_retries_for_kafka_errors(self, admin_new: MagicMock) -> None:
+    def test_retries_for_kafka_errors(self, admin_new: MagicMock, karapace_container: KarapaceContainer) -> None:
         new_topic: MagicMock = admin_new.return_value.new_topic
         new_topic.side_effect = [KafkaError("1"), KafkaError("2"), None]
 
         with mock.patch("time.sleep", autospec=True):
-            _maybe_create_topic(DEFAULT_SCHEMA_TOPIC, config=config.DEFAULTS, replication_factor=1, topic_configs={})
+            _maybe_create_topic(
+                DEFAULT_SCHEMA_TOPIC, config=karapace_container.config(), replication_factor=1, topic_configs={}
+            )
 
         assert new_topic.call_count == 3
 
@@ -98,17 +107,19 @@ class TestHandleRestoreTopic:
     def test_noop_for_custom_name_on_legacy_versions(
         self,
         admin_new: MagicMock,
+        karapace_container: KarapaceContainer,
     ) -> None:
         new_topic: MagicMock = admin_new.return_value.new_topic
         assert "custom-name" != DEFAULT_SCHEMA_TOPIC
         instruction = RestoreTopicLegacy(topic_name="custom-name", partition_count=1)
-        _handle_restore_topic_legacy(instruction, config.DEFAULTS)
+        _handle_restore_topic_legacy(instruction, karapace_container.config())
         new_topic.assert_not_called()
 
     @patch_admin_new
     def test_allows_custom_name_on_v3(
         self,
         admin_new: MagicMock,
+        karapace_container: KarapaceContainer,
     ) -> None:
         new_topic: MagicMock = admin_new.return_value.new_topic
         topic_name = "custom-name"
@@ -117,7 +128,7 @@ class TestHandleRestoreTopic:
         instruction = RestoreTopic(
             topic_name="custom-name", partition_count=1, replication_factor=2, topic_configs=topic_configs
         )
-        _handle_restore_topic(instruction, config.DEFAULTS)
+        _handle_restore_topic(instruction, karapace_container.config())
 
         new_topic.assert_called_once_with(topic_name, num_partitions=1, replication_factor=2, config=topic_configs)
 
@@ -125,11 +136,12 @@ class TestHandleRestoreTopic:
     def test_skip_topic_creation(
         self,
         admin_new: MagicMock,
+        karapace_container: KarapaceContainer,
     ) -> None:
         new_topic: MagicMock = admin_new.return_value.new_topic
         _handle_restore_topic(
             RestoreTopic(topic_name="custom-name", partition_count=1, replication_factor=2, topic_configs={}),
-            config.DEFAULTS,
+            karapace_container.config(),
             skip_topic_creation=True,
         )
         _handle_restore_topic_legacy(
@@ -137,7 +149,7 @@ class TestHandleRestoreTopic:
                 topic_name="custom-name",
                 partition_count=1,
             ),
-            config.DEFAULTS,
+            karapace_container.config(),
             skip_topic_creation=True,
         )
 
@@ -171,11 +183,12 @@ class TestClients:
         client_class: type[KafkaConsumer | KafkaProducer],
         partitions_method: FunctionType,
         close_method_name: str,
+        karapace_container: KarapaceContainer,
     ) -> None:
         with mock.patch(f"{client_class.__module__}.{client_class.__qualname__}.__new__", autospec=True) as client_ctor:
             client_mock = client_ctor.return_value
             getattr(client_mock, partitions_method.__name__).return_value = self._partition_metadata()
-            with ctx_mng(config.DEFAULTS, "topic") as client:
+            with ctx_mng(karapace_container.config(), "topic") as client:
                 assert client is client_mock
             assert getattr(client_mock, close_method_name).call_count == 1
 
@@ -194,12 +207,13 @@ class TestClients:
         partitions_method: FunctionType,
         partition_count: int,
         close_method_name: str,
+        karapace_container: KarapaceContainer,
     ) -> None:
         with mock.patch(f"{client_class.__module__}.{client_class.__qualname__}.__new__", autospec=True) as client_ctor:
             client_mock = client_ctor.return_value
             getattr(client_mock, partitions_method.__name__).return_value = self._partition_metadata(partition_count)
             with pytest.raises(PartitionCountError):
-                with ctx_mng(config.DEFAULTS, "topic") as client:
+                with ctx_mng(karapace_container.config(), "topic") as client:
                     assert client == client_mock
             assert getattr(client_mock, close_method_name).call_count == 1
 
@@ -271,6 +285,6 @@ class TestNormalizeTopicName:
         fake_config = cast(Config, {})
         assert normalize_topic_name("some-topic", fake_config) == "some-topic"
 
-    def test_defaults_to_config(self) -> None:
-        fake_config = cast(Config, {"topic_name": "default-topic"})
+    def test_defaults_to_config(self, karapace_container: KarapaceContainer) -> None:
+        fake_config = karapace_container.config().set_config_defaults({"topic_name": "default-topic"})
         assert normalize_topic_name(None, fake_config) == "default-topic"

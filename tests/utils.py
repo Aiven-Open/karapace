@@ -198,8 +198,8 @@ REST_HEADERS = {
         "Accept": "application/vnd.kafka.binary.v2+json, application/vnd.kafka.v2+json, application/json, */*",
     },
     "avro": {
-        "Content-Type": "application/vnd.kafka.avro.v2+json",
-        "Accept": "application/vnd.kafka.avro.v2+json, application/vnd.kafka.v2+json, application/json, */*",
+        "Content-Type": "application/vnd.kafka.avro.v1+json",
+        "Accept": "*/*",
     },
     "protobuf": {
         "Content-Type": "application/vnd.kafka.protobuf.v2+json",

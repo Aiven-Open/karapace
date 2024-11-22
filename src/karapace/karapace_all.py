@@ -4,61 +4,35 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from contextlib import closing
+from dependency_injector.wiring import inject, Provide
 from karapace import version as karapace_version
-from karapace.config import read_config
+from karapace.config import Config, KARAPACE_BASE_CONFIG_YAML_PATH
+from karapace.container import KarapaceContainer
 from karapace.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.kafka_rest_apis import KafkaRest
-from karapace.logging import configure_logging
-from karapace.rapu import RestApp
-from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
+from karapace.logging import configure_logging, log_config_without_secrets
 
 import argparse
 import logging
 import sys
 
 
-class KarapaceAll(KafkaRest, KarapaceSchemaRegistryController):
-    pass
-
-
-def main() -> int:
+@inject
+def main(
+    config: Config = Provide[KarapaceContainer.config],
+    prometheus: PrometheusInstrumentation = Provide[KarapaceContainer.prometheus],
+) -> int:
     parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
     parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
-    parser.add_argument("config_file", help="configuration file path", type=argparse.FileType())
-    arg = parser.parse_args()
-
-    with closing(arg.config_file):
-        config = read_config(arg.config_file)
-
+    parser.parse_args()
     configure_logging(config=config)
+    log_config_without_secrets(config=config)
 
-    app: RestApp
-    if config["karapace_rest"] and config["karapace_registry"]:
-        info_str = "both services"
-        app = KarapaceAll(config=config)
-    elif config["karapace_rest"]:
-        info_str = "karapace rest"
-        app = KafkaRest(config=config)
-    elif config["karapace_registry"]:
-        info_str = "karapace schema registry"
-        app = KarapaceSchemaRegistryController(config=config)
-    else:
-        print("Both rest and registry options are disabled, exiting")
-        return 1
-
-    info_str_separator = "=" * 100
-    logging.log(logging.INFO, "\n%s\nStarting %s\n%s", info_str_separator, info_str, info_str_separator)
-
-    config_without_secrets = {}
-    for key, value in config.items():
-        if "password" in key:
-            value = "****"
-        config_without_secrets[key] = value
-    logging.log(logging.DEBUG, "Config %r", config_without_secrets)
+    logging.info("\n%s\nStarting %s\n%s", ("=" * 100), "Starting Karapace Rest Proxy", ("=" * 100))
+    app = KafkaRest(config=config)
 
     try:
-        PrometheusInstrumentation.setup_metrics(app=app)
+        prometheus.setup_metrics(app=app)
         app.run()  # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
     except Exception as ex:  # pylint: disable-broad-except
         app.stats.unexpected_exception(ex=ex, where="karapace")
@@ -67,4 +41,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    container = KarapaceContainer()
+    container.base_config.from_yaml(KARAPACE_BASE_CONFIG_YAML_PATH, envs_required=True, required=True)
+    container.wire(modules=[__name__])
     sys.exit(main())

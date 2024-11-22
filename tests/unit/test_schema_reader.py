@@ -9,7 +9,7 @@ from _pytest.logging import LogCaptureFixture
 from concurrent.futures import Future, ThreadPoolExecutor
 from confluent_kafka import Message
 from dataclasses import dataclass
-from karapace.config import DEFAULTS
+from karapace.container import KarapaceContainer
 from karapace.errors import CorruptKafkaRecordException, ShutdownException
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.consumer import KafkaConsumer
@@ -154,7 +154,7 @@ class ReadinessTestCase(BaseTestCase):
         ),
     ],
 )
-def test_readiness_check(testcase: ReadinessTestCase) -> None:
+def test_readiness_check(testcase: ReadinessTestCase, karapace_container: KarapaceContainer) -> None:
     key_formatter_mock = Mock()
     consumer_mock = Mock()
     consumer_mock.consume.return_value = []
@@ -163,7 +163,7 @@ def test_readiness_check(testcase: ReadinessTestCase) -> None:
 
     offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=offset_watcher,
         key_formatter=key_formatter_mock,
         master_coordinator=None,
@@ -176,7 +176,7 @@ def test_readiness_check(testcase: ReadinessTestCase) -> None:
     assert schema_reader.ready is testcase.expected
 
 
-def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
+def test_num_max_messages_to_consume_moved_to_one_after_ready(karapace_container: KarapaceContainer) -> None:
     key_formatter_mock = Mock()
     consumer_mock = Mock()
     consumer_mock.consume.return_value = []
@@ -185,7 +185,7 @@ def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
 
     offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=offset_watcher,
         key_formatter=key_formatter_mock,
         master_coordinator=None,
@@ -200,7 +200,9 @@ def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
-def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_schemas_topic() -> None:
+def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_schemas_topic(
+    karapace_container: KarapaceContainer,
+) -> None:
     key_formatter_mock = Mock(spec=KeyFormatter)
     consumer_mock = Mock(spec=KafkaConsumer)
 
@@ -230,7 +232,7 @@ def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_sche
 
     offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=offset_watcher,
         key_formatter=key_formatter_mock,
         master_coordinator=None,
@@ -255,7 +257,7 @@ def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_sche
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
-def test_soft_deleted_schema_storing() -> None:
+def test_soft_deleted_schema_storing(karapace_container: KarapaceContainer) -> None:
     """This tests a case when _schemas has been compacted and only
     the soft deleted version of the schema is present.
     """
@@ -287,7 +289,7 @@ def test_soft_deleted_schema_storing() -> None:
 
     offset_watcher = OffsetWatcher()
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=offset_watcher,
         key_formatter=key_formatter_mock,
         master_coordinator=None,
@@ -302,14 +304,14 @@ def test_soft_deleted_schema_storing() -> None:
     assert soft_deleted_stored_schema is not None
 
 
-def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture) -> None:
+def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture, karapace_container: KarapaceContainer) -> None:
     database_mock = Mock(spec=InMemoryDatabase)
     database_mock.find_subject.return_value = True
     database_mock.find_subject_schemas.return_value = {
         Version(1): "SchemaVersion"
     }  # `SchemaVersion` is an actual object, simplified for test
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=OffsetWatcher(),
         key_formatter=KeyFormatter(),
         master_coordinator=None,
@@ -376,7 +378,9 @@ class HealthCheckTestCase(BaseTestCase):
         ),
     ],
 )
-async def test_schema_reader_health_check(testcase: HealthCheckTestCase, monkeypatch: MonkeyPatch) -> None:
+async def test_schema_reader_health_check(
+    testcase: HealthCheckTestCase, monkeypatch: MonkeyPatch, karapace_container: KarapaceContainer
+) -> None:
     offset_watcher = OffsetWatcher()
     key_formatter_mock = Mock()
     admin_client_mock = Mock()
@@ -386,10 +390,10 @@ async def test_schema_reader_health_check(testcase: HealthCheckTestCase, monkeyp
         emtpy_future.set_exception(testcase.check_topic_error)
     else:
         emtpy_future.set_result(None)
-    admin_client_mock.describe_topics.return_value = {DEFAULTS["topic_name"]: emtpy_future}
+    admin_client_mock.describe_topics.return_value = {karapace_container.config().topic_name: emtpy_future}
 
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=offset_watcher,
         key_formatter=key_formatter_mock,
         master_coordinator=None,
@@ -415,7 +419,9 @@ class KafkaMessageHandlingErrorTestCase(BaseTestCase):
 
 
 @pytest.fixture(name="schema_reader_with_consumer_messages_factory")
-def fixture_schema_reader_with_consumer_messages_factory() -> Callable[[tuple[list[Message]]], KafkaSchemaReader]:
+def fixture_schema_reader_with_consumer_messages_factory(
+    karapace_container: KarapaceContainer,
+) -> Callable[[tuple[list[Message]]], KafkaSchemaReader]:
     def factory(consumer_messages: tuple[list[Message]]) -> KafkaSchemaReader:
         key_formatter_mock = Mock(spec=KeyFormatter)
         consumer_mock = Mock(spec=KafkaConsumer)
@@ -425,8 +431,7 @@ def fixture_schema_reader_with_consumer_messages_factory() -> Callable[[tuple[li
         consumer_mock.get_watermark_offsets.return_value = (0, 4)
 
         # Update the config to run the schema reader in strict mode so errors can be raised
-        config = DEFAULTS.copy()
-        config["kafka_schema_reader_strict_mode"] = True
+        config = karapace_container.config().set_config_defaults({"kafka_schema_reader_strict_mode": True})
 
         offset_watcher = OffsetWatcher()
         schema_reader = KafkaSchemaReader(

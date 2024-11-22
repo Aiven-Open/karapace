@@ -31,6 +31,7 @@ def configure_logging(*, config: Config) -> None:
         logging.root.addHandler(root_handler)
 
     logging.root.setLevel(config.log_level)
+    logging.getLogger("aiohttp.access").setLevel(config.log_level)
     logging.getLogger("uvicorn.error").setLevel(config.log_level)
 
 
