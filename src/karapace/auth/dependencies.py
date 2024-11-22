@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.security.base import SecurityBase
 from karapace.auth.auth import AuthenticationError, AuthenticatorAndAuthorizer, HTTPAuthorizer, NoAuthAndAuthz, User
-from karapace.dependencies.config_dependency import ConfigDependencyManager
+from schema_registry.dependencies.config_dependency import ConfigDependencyManager
 from typing import Annotated, Optional
 
 import logging

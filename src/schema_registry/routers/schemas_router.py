@@ -5,7 +5,7 @@ See LICENSE for details
 
 from fastapi import APIRouter
 from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep, CurrentUserDep
-from karapace.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
+from schema_registry.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
 from schema_registry.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
 
 schemas_router = APIRouter(

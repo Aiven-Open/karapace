@@ -6,9 +6,9 @@ See LICENSE for details
 from fastapi import APIRouter, Request
 from karapace.auth.auth import Operation
 from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep, CurrentUserDep
-from karapace.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
-from karapace.dependencies.forward_client_dependency import ForwardClientDep
-from karapace.dependencies.schema_registry_dependency import SchemaRegistryDep
+from schema_registry.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
+from schema_registry.dependencies.forward_client_dependency import ForwardClientDep
+from schema_registry.dependencies.schema_registry_dependency import SchemaRegistryDep
 from karapace.typing import Subject
 from schema_registry.routers.errors import no_primary_url_error, unauthorized
 from schema_registry.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse

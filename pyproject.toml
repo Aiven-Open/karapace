@@ -109,6 +109,12 @@ typing = [
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+schema_registry = ["*.yaml"]
+
 [tool.setuptools_scm]
 version_file = "src/karapace/version.py"
 

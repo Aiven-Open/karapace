@@ -28,7 +28,6 @@ rest)
     exec python3 -m karapace.karapace_all /opt/karapace/rest.config.json
     ;;
 registry)
-    echo "Starting Karapace Schema Registry"
     exec python3 -m schema_registry
     ;;
 *)

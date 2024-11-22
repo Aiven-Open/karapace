@@ -5,7 +5,7 @@ See LICENSE for details
 
 
 from fastapi import Depends
-from karapace.dependencies.config_dependency import ConfigDependencyManager
+from schema_registry.dependencies.config_dependency import ConfigDependencyManager
 from karapace.statsd import StatsClient
 from typing import Annotated
 
