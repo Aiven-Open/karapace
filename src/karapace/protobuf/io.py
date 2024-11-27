@@ -97,7 +97,7 @@ def get_protobuf_class_instance(
     class_name: str,
     cfg: Config,
 ) -> _ProtobufModel:
-    directory = Path(cfg["protobuf_runtime_directory"])
+    directory = Path(cfg.protobuf_runtime_directory)
     deps_list = crawl_dependencies(schema)
     root_class_name = ""
     for value in deps_list.values():

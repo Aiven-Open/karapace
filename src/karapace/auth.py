@@ -11,7 +11,7 @@ from hmac import compare_digest
 from karapace.config import Config, InvalidConfiguration
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
-from typing import Protocol
+from typing import Final, Protocol
 from typing_extensions import override, TypedDict
 from watchfiles import awatch, Change
 
@@ -114,6 +114,8 @@ class AuthorizeProtocol(Protocol):
 
 
 class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
+    MUST_AUTHENTICATE: Final[bool] = True
+
     async def close(self) -> None:
         ...
 
@@ -122,6 +124,8 @@ class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
 
 
 class NoAuthAndAuthz(AuthenticatorAndAuthorizer):
+    MUST_AUTHENTICATE: Final[bool] = False
+
     @override
     def authenticate(self, *, username: str, password: str) -> User:
         return None
@@ -205,9 +209,9 @@ class ACLAuthorizer(AuthorizeProtocol):
 
 
 class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, auth_file: str) -> None:
         super().__init__()
-        self._auth_filename: str = config.registry_authfile
+        self._auth_filename: str = auth_file
         self._auth_mtime: float = -1
         self._refresh_auth_task: asyncio.Task | None = None
         self._refresh_auth_awatch_stop_event = asyncio.Event()

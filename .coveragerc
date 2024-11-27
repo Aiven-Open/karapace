@@ -1,4 +1,8 @@
 [run]
 branch = true
 relative_files = true
-source = src/karapace
+source = src
+disable_warnings = module-not-measured, no-data-collected
+
+[report]
+skip_empty = true

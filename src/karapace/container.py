@@ -13,18 +13,13 @@ from karapace.statsd import StatsClient
 
 
 class KarapaceContainer(containers.DeclarativeContainer):
-    base_config = providers.Configuration()
-    config = providers.Singleton(
-        Config,
-        _env_file=base_config.karapace.env_file,
-        _env_file_encoding=base_config.karapace.env_file_encoding,
-    )
+    config = providers.Singleton(Config)
 
     statsd = providers.Singleton(StatsClient, config=config)
 
     no_auth_authorizer = providers.Singleton(NoAuthAndAuthz)
 
-    http_authorizer = providers.Singleton(HTTPAuthorizer, config=config)
+    http_authorizer = providers.Singleton(HTTPAuthorizer, auth_file=config().registry_authfile)
 
     schema_registry = providers.Singleton(KarapaceSchemaRegistry, config=config)
 
