@@ -17,7 +17,7 @@ env:
   KARAPACE_DOTENV: ${{ github.workspace }}/karapace.config.env
 
 jobs:
-  tests:
+  unit-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -41,11 +41,49 @@ jobs:
       with:
         go-version: '1.21.0'
 
+    - name: Install requirements
+      run: make install
+
+    - name: Resolve Karapace version
+      run: |
+        source ./venv/bin/activate
+        KARAPACE_VERSION=$(python -c "from karapace import version; print(version.__version__)")
+        echo KARAPACE_VERSION=$KARAPACE_VERSION >> $GITHUB_ENV
+
+    - name: Run containers
+      run: KARAPACE_VERSION=${{ env.KARAPACE_VERSION }} docker compose --file=container/compose.yml up --build --wait --detach
+
     - run: make install-dev
-    - run: make unit-tests
+    - run: make unit-tests-in-docker
       env:
         COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
         PYTEST_ARGS: "--cov=src --cov-append --numprocesses 4"
+        KARAPACE_VERSION=: ${{ env.KARAPACE_VERSION }}
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.10', '3.11', '3.12' ]
+    env:
+      PYTEST_ADDOPTS: >-
+        --log-dir=/tmp/ci-logs
+        --log-file=/tmp/ci-logs/pytest.log
+        --showlocals
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        cache: pip
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21.0'
+
     - run: make integration-tests
       env:
         COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
@@ -57,6 +95,7 @@ jobs:
       with:
         name: karapace-integration-test-logs-${{ matrix.python-version }}
         path: /tmp/ci-logs
+
     - name: Archive coverage file
       uses: actions/upload-artifact@v4
       with:
