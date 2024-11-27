@@ -5,7 +5,7 @@ See LICENSE for details
 
 from karapace.schema_type import SchemaType
 from karapace.typing import Subject
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from schema_registry.routers.errors import KarapaceValidationError
 from typing import Any
 
@@ -20,13 +20,12 @@ class SchemaRequest(BaseModel):
     schema_str: str = Field(alias="schema")
     schema_type: SchemaType = Field(alias="schemaType", default=SchemaType.AVRO)
     references: list[SchemaReference] | None = None
-    metadata: Any | None
-    ruleSet: Any | None
+    metadata: Any | None = None
+    ruleSet: Any | None = None
+    model_config = ConfigDict(extra="forbid")
 
-    class Config:
-        extra = "forbid"
-
-    @validator("schema_str")
+    @field_validator("schema_str")
+    @classmethod
     def validate_schema(cls, schema_str: str) -> str:
         if not schema_str and not schema_str.strip():
             raise KarapaceValidationError(
@@ -58,7 +57,7 @@ class SchemaListingItem(BaseModel):
     version: int
     schema_id: int = Field(alias="id")
     schema_type: SchemaType | None = Field(alias="schemaType", default=None)
-    references: list[Any] | None
+    references: list[Any] | None = None
 
 
 class SchemaIdResponse(BaseModel):

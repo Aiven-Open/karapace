@@ -13,24 +13,17 @@ from typing import Annotated
 
 @inject
 async def get_current_user(
-    credentials: Annotated[HTTPBasicCredentials, Depends(HTTPBasic())],
+    credentials: Annotated[HTTPBasicCredentials, Depends(HTTPBasic(auto_error=False))],
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
 ) -> User:
-    import logging
-
-    logging.info("get_current_user ++++++++++++=============")
-    logging.info(f"credentials: {credentials}")
-    logging.info(f"authorizer: {authorizer}")
-    if authorizer and not credentials:
+    if authorizer.MUST_AUTHENTICATE and not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Unauthorized"},
             headers={"WWW-Authenticate": 'Basic realm="Karapace Schema Registry"'},
         )
-    assert authorizer is not None
-    assert credentials is not None
-    username: str = credentials.username
-    password: str = credentials.password
+    username: str = credentials.username if credentials else ""
+    password: str = credentials.password if credentials else ""
     try:
         return authorizer.authenticate(username=username, password=password)
     except AuthenticationError as exc:

@@ -22,6 +22,7 @@ LOG = logging.getLogger(__name__)
 
 class PrometheusInstrumentation:
     METRICS_ENDPOINT_PATH: Final[str] = "/metrics"
+    CONTENT_TYPE_LATEST: Final[str] = "text/plain; version=0.0.4; charset=utf-8"
     START_TIME_REQUEST_KEY: Final[str] = "start_time"
 
     registry: Final[CollectorRegistry] = CollectorRegistry()
