@@ -1307,7 +1307,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if auth_header is not None:
             headers["Authorization"] = auth_header
 
-        with async_timeout.timeout(timeout):
+        async with async_timeout.timeout(timeout):
             async with func(url, headers=headers, json=body) as response:
                 if response.headers.get("content-type", "").startswith(JSON_CONTENT_TYPE):
                     resp_content = await response.json()
