@@ -10,7 +10,7 @@ from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, Callable, IO, Union
+from typing import Any, Callable, IO
 from urllib.parse import quote
 
 import asyncio
@@ -344,12 +344,12 @@ def python_exe() -> str:
     return python
 
 
-def popen_karapace_all(*, env_path: Union[Path, str], stdout: IO, stderr: IO, **kwargs) -> Popen:
+def popen_karapace_all(*, module: str, env: dict[str], stdout: IO, stderr: IO, **kwargs) -> Popen:
     kwargs["stdout"] = stdout
     kwargs["stderr"] = stderr
     return Popen(
-        [python_exe(), "-m", "karapace.karapace_all"],
-        env={"KARAPACE_DOTENV": str(env_path)},
+        [python_exe(), "-m", module],
+        env=env,
         **kwargs,
     )
 

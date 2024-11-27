@@ -3,13 +3,14 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from dependency_injector.wiring import inject, Provide
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
-from karapace.config import LOG
-from karapace.dependencies.config_dependency import ConfigDep
-from karapace.dependencies.forward_client_dependency import ForwardClientDep
-from karapace.dependencies.schema_registry_dependency import SchemaRegistryDep
+from karapace.config import Config
+from karapace.forward_client import ForwardClient
+from karapace.schema_registry import KarapaceSchemaRegistry
 from pydantic import BaseModel
+from schema_registry.container import SchemaRegistryContainer
 from typing import Final
 
 import json
@@ -33,12 +34,13 @@ NO_CACHE_HEADER: Final = {"Cache-Control": "no-store, no-cache, must-revalidate"
 
 
 @master_availability_router.get("")
-async def master_available(
-    config: ConfigDep,
-    schema_registry: SchemaRegistryDep,
-    forward_client: ForwardClientDep,
+@inject
+async def master_availability(
     request: Request,
     response: Response,
+    config: Config = Depends(Provide[SchemaRegistryContainer.karapace_container.config]),
+    forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
 ) -> MasterAvailabilityResponse:
     are_we_master, master_url = await schema_registry.get_master()
     LOG.info("are master %s, master url %s", are_we_master, master_url)

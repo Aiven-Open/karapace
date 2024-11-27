@@ -65,9 +65,6 @@ class KarapaceSchemaRegistryController:
     def __init__(self, config: Config, schema_registry: KarapaceSchemaRegistry, stats: StatsClient) -> None:
         # super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
 
-        print("+++++++++========")
-        print(schema_registry)
-
         self.config = config
         self._process_start_time = time.monotonic()
         self.stats = stats
@@ -219,8 +216,6 @@ class KarapaceSchemaRegistryController:
                 )
 
         schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
-        print("+++++++++========")
-        print(schema)
         if not schema:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

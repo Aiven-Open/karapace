@@ -477,7 +477,7 @@ class ConsumerManager:
                 timeout = (
                     int(query_params["timeout"])
                     if "timeout" in query_params
-                    else consumer_config.consumer.request.timeout.ms
+                    else consumer_config["consumer.request.timeout.ms"]
                 )
                 # we get to be more in line with the confluent proxy by doing a bunch of fetches each time and
                 # respecting the max fetch request size

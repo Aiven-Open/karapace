@@ -3,7 +3,6 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from avro.compatibility import SchemaCompatibilityResult
-from karapace.config import KARAPACE_BASE_CONFIG_YAML_PATH
 from karapace.container import KarapaceContainer
 from pathlib import Path
 from schema_registry.container import SchemaRegistryContainer
@@ -186,9 +185,7 @@ def fixture_tmp_file():
 
 @pytest.fixture(name="karapace_container", scope="session")
 def fixture_karapace_container() -> KarapaceContainer:
-    container = KarapaceContainer()
-    container.base_config.from_yaml(KARAPACE_BASE_CONFIG_YAML_PATH, envs_required=True, required=True)
-    return container
+    return KarapaceContainer()
 
 
 @pytest.fixture
