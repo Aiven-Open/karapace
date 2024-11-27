@@ -1,0 +1,3 @@
+karapace:
+  env_file: ${KARAPACE_DOTENV}
+  env_file_encoding: utf-8
