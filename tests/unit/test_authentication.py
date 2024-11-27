@@ -4,8 +4,9 @@ See LICENSE for details
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from http import HTTPStatus
-from karapace.config import ConfigDefaults, set_config_defaults
+from karapace.container import KarapaceContainer
 from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
@@ -13,6 +14,7 @@ from karapace.kafka_rest_apis.authentication import (
     SimpleOauthTokenProvider,
 )
 from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
+from typing import Any
 
 import base64
 import datetime
@@ -31,11 +33,11 @@ def _assert_unauthorized_http_response(http_response: HTTPResponse) -> None:
     "auth_header",
     (None, "Digest foo=bar"),
 )
-def test_get_auth_config_from_header_raises_unauthorized_on_invalid_header(auth_header: str | None) -> None:
-    config = set_config_defaults({})
-
+def test_get_auth_config_from_header_raises_unauthorized_on_invalid_header(
+    karapace_container: KarapaceContainer, auth_header: str | None
+) -> None:
     with pytest.raises(HTTPResponse) as exc_info:
-        get_auth_config_from_header(auth_header, config)
+        get_auth_config_from_header(auth_header, karapace_container.config())
 
     _assert_unauthorized_http_response(exc_info.value)
 
@@ -66,9 +68,12 @@ def test_get_auth_config_from_header_raises_unauthorized_on_invalid_header(auth_
     ),
 )
 def test_get_auth_config_from_header(
-    auth_header: str, config_override: ConfigDefaults, expected_auth_config: ConfigDefaults
+    karapace_container: KarapaceContainer,
+    auth_header: str,
+    config_override: Mapping[str, Any],
+    expected_auth_config: Mapping[str, Any],
 ) -> None:
-    config = set_config_defaults(config_override)
+    config = karapace_container.config().set_config_defaults(new_config=config_override)
     auth_config = get_auth_config_from_header(auth_header, config)
     assert auth_config == expected_auth_config
 
@@ -109,9 +114,11 @@ def test_simple_oauth_token_provider_returns_configured_token_and_expiry() -> No
     assert token_provider.token_with_expiry() == (token, expiry_timestamp)
 
 
-def test_get_client_auth_parameters_from_config_sasl_plain() -> None:
-    config = set_config_defaults(
-        {"sasl_mechanism": "PLAIN", "sasl_plain_username": "username", "sasl_plain_password": "password"}
+def test_get_client_auth_parameters_from_config_sasl_plain(
+    karapace_container: KarapaceContainer,
+) -> None:
+    config = karapace_container.config().set_config_defaults(
+        new_config={"sasl_mechanism": "PLAIN", "sasl_plain_username": "username", "sasl_plain_password": "password"},
     )
 
     client_auth_params = get_kafka_client_auth_parameters_from_config(config)
@@ -123,10 +130,14 @@ def test_get_client_auth_parameters_from_config_sasl_plain() -> None:
     }
 
 
-def test_get_client_auth_parameters_from_config_oauth() -> None:
+def test_get_client_auth_parameters_from_config_oauth(
+    karapace_container: KarapaceContainer,
+) -> None:
     expiry_timestamp = 1697013997
     token = jwt.encode({"exp": expiry_timestamp}, "secret")
-    config = set_config_defaults({"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token": token})
+    config = karapace_container.config().set_config_defaults(
+        new_config={"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token": token}
+    )
 
     client_auth_params = get_kafka_client_auth_parameters_from_config(config)
 
