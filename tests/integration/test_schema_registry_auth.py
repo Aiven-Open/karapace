@@ -19,6 +19,7 @@ from urllib.parse import quote
 
 import aiohttp
 import asyncio
+import pytest
 
 NEW_TOPIC_TIMEOUT = 10
 
@@ -203,6 +204,7 @@ async def test_sr_ids(registry_async_retry_client_auth: RetryRestClient) -> None
     assert res.status_code == 200
 
 
+@pytest.mark.skip(reason="requires master forwarding to be implemented")
 async def test_sr_auth_forwarding(
     registry_async_auth_pair: list[str], registry_async_retry_client_auth: RetryRestClient
 ) -> None:

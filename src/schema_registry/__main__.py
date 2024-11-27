@@ -2,7 +2,6 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
-from karapace.config import KARAPACE_BASE_CONFIG_YAML_PATH
 from karapace.container import KarapaceContainer
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.factory import create_karapace_application, karapace_schema_registry_lifespan
@@ -11,6 +10,7 @@ import schema_registry.factory
 import schema_registry.routers.compatibility
 import schema_registry.routers.config
 import schema_registry.routers.health
+import schema_registry.routers.master_availability
 import schema_registry.routers.metrics
 import schema_registry.routers.mode
 import schema_registry.routers.schemas
@@ -21,7 +21,6 @@ import uvicorn
 
 if __name__ == "__main__":
     container = KarapaceContainer()
-    container.base_config.from_yaml(KARAPACE_BASE_CONFIG_YAML_PATH, envs_required=True, required=True)
     container.wire(
         modules=[
             __name__,
@@ -42,6 +41,7 @@ if __name__ == "__main__":
             schema_registry.routers.config,
             schema_registry.routers.compatibility,
             schema_registry.routers.mode,
+            schema_registry.routers.master_availability,
         ]
     )
 

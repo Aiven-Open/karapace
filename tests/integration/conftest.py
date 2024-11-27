@@ -15,14 +15,19 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
 from karapace.client import Client
-from karapace.config import Config, write_config
+from karapace.config import Config
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
-from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint, start_schema_registry_cluster
+from tests.integration.utils.cluster import (
+    after_master_is_available,
+    RegistryDescription,
+    RegistryEndpoint,
+    start_schema_registry_cluster,
+)
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.kafka_server import (
     configure_and_start_kafka,
@@ -39,7 +44,6 @@ from tests.utils import repeat_until_master_is_available, repeat_until_successfu
 from urllib.parse import urlparse
 
 import asyncio
-import contextlib
 import json
 import os
 import pathlib
@@ -149,12 +153,12 @@ def create_kafka_server(
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
-                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
+                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=KAFKA_WAIT_TIMEOUT)
 
                 data_dir = session_datadir / "kafka"
                 log_dir = session_logdir / "kafka"
-                data_dir.mkdir(parents=True)
-                log_dir.mkdir(parents=True)
+                data_dir.mkdir(parents=True, exist_ok=True)
+                log_dir.mkdir(parents=True, exist_ok=True)
                 kafka_config = KafkaConfig(
                     datadir=str(data_dir),
                     logdir=str(log_dir),
@@ -262,7 +266,6 @@ async def fixture_asyncconsumer(
 async def fixture_rest_async(
     request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -275,15 +278,12 @@ async def fixture_rest_async(
         yield None
         return
 
-    config_path = tmp_path / "karapace_config.json"
-
     config = Config()
     config.admin_metadata_max_age = 2
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     # Use non-default max request size for REST producer.
     config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
     config.waiting_time_before_acting_as_master_ms = 300
-    write_config(config_path, config)
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -333,7 +333,6 @@ async def fixture_rest_async_client(
 async def fixture_rest_async_novalidation(
     request: SubRequest,
     loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -346,8 +345,6 @@ async def fixture_rest_async_novalidation(
         yield None
         return
 
-    config_path = tmp_path / "karapace_config.json"
-
     config = Config()
     config.admin_metadata_max_age = 2
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
@@ -355,7 +352,6 @@ async def fixture_rest_async_novalidation(
     config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
     config.name_strategy_validation = False  # This should be only difference from rest_async
     config.waiting_time_before_acting_as_master_ms = 300
-    write_config(config_path, config)
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -686,21 +682,6 @@ async def fixture_registry_async_client_auth(
         )
         await repeat_until_master_is_available(client)
         yield client
-    finally:
-        await client.close()
-
-
-@contextlib.asynccontextmanager
-async def after_master_is_available(
-    registry_instances: list[RegistryDescription], server_ca: str | None
-) -> AsyncIterator[None]:
-    client = Client(
-        server_uri=registry_instances[0].endpoint.to_url(),
-        server_ca=server_ca,
-    )
-    try:
-        await repeat_until_master_is_available(client)
-        yield
     finally:
         await client.close()
 

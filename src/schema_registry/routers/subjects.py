@@ -80,10 +80,10 @@ async def subjects_subject_delete(
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.subject_delete(subject=subject, permanent=permanent)
-    elif not primary_url:
+    elif not primary_info.primary_url:
         raise no_primary_url_error()
     else:
         return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
@@ -162,10 +162,10 @@ async def subjects_subject_version_delete(
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.subject_version_delete(subject=subject, version=version, permanent=permanent)
-    elif not primary_url:
+    elif not primary_info.primary_url:
         raise no_primary_url_error()
     else:
         return await forward_client.forward_request_remote(request=request, primary_url=primary_url)

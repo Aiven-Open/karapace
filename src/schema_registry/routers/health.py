@@ -15,9 +15,9 @@ class HealthStatus(BaseModel):
     schema_registry_startup_time_sec: float
     schema_registry_reader_current_offset: int
     schema_registry_reader_highest_offset: int
-    schema_registry_is_primary: bool | None
+    schema_registry_is_primary: bool | None = None
     schema_registry_is_primary_eligible: bool
-    schema_registry_primary_url: str | None
+    schema_registry_primary_url: str | None = None
     schema_registry_coordinator_running: bool
     schema_registry_coordinator_generation_id: int
 
@@ -40,13 +40,13 @@ async def health(
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
 ) -> HealthCheck:
     starttime = 0.0
-    if schema_registry.schema_reader.ready:
+    if schema_registry.schema_reader.ready():
         starttime = schema_registry.schema_reader.last_check - schema_registry.schema_reader.start_time
 
     cs = schema_registry.mc.get_coordinator_status()
 
     health_status = HealthStatus(
-        schema_registry_ready=schema_registry.schema_reader.ready,
+        schema_registry_ready=schema_registry.schema_reader.ready(),
         schema_registry_startup_time_sec=starttime,
         schema_registry_reader_current_offset=schema_registry.schema_reader.offset,
         schema_registry_reader_highest_offset=schema_registry.schema_reader.highest_offset(),

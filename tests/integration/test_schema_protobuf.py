@@ -4,16 +4,22 @@ karapace - schema tests
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 from karapace.client import Client
+from karapace.config import Config
 from karapace.errors import InvalidTest
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonData, SchemaMetadata, SchemaRuleSet
+from pathlib import Path
 from tests.base_testcase import BaseTestCase
+from tests.integration.utils.cluster import after_master_is_available, start_schema_registry_cluster
+from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import create_subject_name_factory
-from typing import Optional, Union
 
+import asyncio
 import logging
 import pytest
 
@@ -472,10 +478,10 @@ class TestCaseSchema:
     schema_type: SchemaType
     schema_str: str
     subject: str
-    references: Optional[list[JsonData]] = None
+    references: list[JsonData] | None = None
     expected: int = 200
     expected_msg: str = ""
-    expected_error_code: Optional[int] = None
+    expected_error_code: int | None = None
 
 
 TestCaseSchema.__test__ = False
@@ -488,7 +494,7 @@ class TestCaseDeleteSchema:
     schema_id: int
     expected: int = 200
     expected_msg: str = ""
-    expected_error_code: Optional[int] = None
+    expected_error_code: int | None = None
 
 
 TestCaseDeleteSchema.__test__ = False
@@ -501,7 +507,7 @@ class TestCaseHardDeleteSchema(TestCaseDeleteSchema):
 
 @dataclass
 class ReferenceTestCase(BaseTestCase):
-    schemas: list[Union[TestCaseSchema, TestCaseDeleteSchema]]
+    schemas: list[TestCaseSchema | TestCaseDeleteSchema]
 
 
 # Base case
@@ -1326,30 +1332,43 @@ message Foo {
 """
 
 
-@pytest.mark.parametrize(
-    "registry_cluster, status",
-    [({"config": {}}, 404), ({"config": {"use_protobuf_formatter": True}}, 200)],
-    indirect=["registry_cluster"],
-)
-async def test_registering_normalized_schema(registry_async_client: Client, status: int) -> None:
+async def test_registering_normalized_schema(session_logdir: Path, kafka_servers: KafkaServers) -> None:
     subject = create_subject_name_factory("test_protobuf_normalization")()
 
-    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
-    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
 
-    assert res.status_code == 200
-    assert "id" in res.json()
-    original_schema_id = res.json()["id"]
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.use_protobuf_formatter = True
 
-    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
-    res = await registry_async_client.post(f"subjects/{subject}", json=body)
-    assert res.status_code == status
+    async with start_schema_registry_cluster(
+        config_templates=[config1, config2],
+        data_dir=session_logdir / subject,
+    ) as endpoints:
+        async with after_master_is_available(endpoints, None):
+            servers = [server.endpoint.to_url() for server in endpoints]
+            client1 = Client(server_uri=servers[0], server_ca=None)
+            client2 = Client(server_uri=servers[1], server_ca=None)
 
-    res = await registry_async_client.post(f"subjects/{subject}?normalize=true", json=body)
+            await asyncio.sleep(10)
 
-    assert res.status_code == 200
-    assert "id" in res.json()
-    assert original_schema_id == res.json()["id"]
+            body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
+            res = await client1.post(f"subjects/{subject}/versions?normalize=true", json=body)
+
+            assert res.status_code == 200
+            assert "id" in res.json()
+            original_schema_id = res.json()["id"]
+
+            body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
+            res = await client1.post(f"subjects/{subject}", json=body)
+            assert res.status_code == 404
+
+            res = await client2.post(f"subjects/{subject}?normalize=true", json=body)
+
+            assert res.status_code == 200
+            assert "id" in res.json()
+            assert original_schema_id == res.json()["id"]
 
 
 @pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
