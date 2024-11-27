@@ -2,8 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.client import Path
-from karapace.config import DEFAULTS, read_config
+from karapace.container import KarapaceContainer
 from karapace.schema_models import SchemaType, ValidatedTypedSchema, Versioner
 from karapace.serialization import (
     flatten_unions,
@@ -12,6 +11,7 @@ from karapace.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
+    SchemaRegistryClient,
     SchemaRegistrySerializer,
     START_BYTE,
     write_value,
@@ -109,16 +109,16 @@ TYPED_PROTOBUF_SCHEMA = ValidatedTypedSchema.parse(
 )
 
 
-async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySerializer:
-    with open(config_path, encoding="utf8") as handler:
-        config = read_config(handler)
-    serializer = SchemaRegistrySerializer(config=config)
+async def make_ser_deser(
+    karapace_container: KarapaceContainer, mock_client: SchemaRegistryClient
+) -> SchemaRegistrySerializer:
+    serializer = SchemaRegistrySerializer(config=karapace_container.config())
     await serializer.registry_client.close()
     serializer.registry_client = mock_client
     return serializer
 
 
-async def test_happy_flow(default_config_path: Path):
+async def test_happy_flow(karapace_container: KarapaceContainer):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), Versioner.V(1)))
@@ -127,7 +127,7 @@ async def test_happy_flow(default_config_path: Path):
     schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
     mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
-    serializer = await make_ser_deser(default_config_path, mock_registry_client)
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
     assert len(serializer.ids_to_schemas) == 0
     schema = await serializer.get_schema_for_subject(Subject("top"))
     for o in test_objects_avro:
@@ -213,7 +213,7 @@ def test_flatten_unions_map() -> None:
     assert flatten_unions(typed_schema.schema, record) == flatten_record
 
 
-def test_avro_json_write_invalid() -> None:
+def test_avro_json_write_invalid(karapace_container: KarapaceContainer) -> None:
     schema = {
         "namespace": "io.aiven.data",
         "name": "Test",
@@ -236,10 +236,10 @@ def test_avro_json_write_invalid() -> None:
 
     for record in records:
         with pytest.raises(avro.errors.AvroTypeException):
-            write_value(DEFAULTS, typed_schema, bio, record)
+            write_value(karapace_container.config(), typed_schema, bio, record)
 
 
-def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> None:
+def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions(karapace_container: KarapaceContainer) -> None:
     """Backwards compatibility test for Avro data using JSON encoding.
 
     The initial behavior of the API was incorrect, and it accept data with
@@ -299,24 +299,24 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions() -> No
 
     buffer_a = io.BytesIO()
     buffer_b = io.BytesIO()
-    write_value(DEFAULTS, typed_schema, buffer_a, properly_tagged_encoding_a)
-    write_value(DEFAULTS, typed_schema, buffer_b, missing_tag_encoding_a)
+    write_value(karapace_container.config(), typed_schema, buffer_a, properly_tagged_encoding_a)
+    write_value(karapace_container.config(), typed_schema, buffer_b, missing_tag_encoding_a)
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
     buffer_a = io.BytesIO()
     buffer_b = io.BytesIO()
-    write_value(DEFAULTS, typed_schema, buffer_a, properly_tagged_encoding_b)
-    write_value(DEFAULTS, typed_schema, buffer_b, missing_tag_encoding_b)
+    write_value(karapace_container.config(), typed_schema, buffer_a, properly_tagged_encoding_b)
+    write_value(karapace_container.config(), typed_schema, buffer_b, missing_tag_encoding_b)
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
 
 
-async def test_serialization_fails(default_config_path: Path):
+async def test_serialization_fails(karapace_container: KarapaceContainer):
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result((1, ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), Versioner.V(1)))
     mock_registry_client.get_schema.return_value = get_latest_schema_future
 
-    serializer = await make_ser_deser(default_config_path, mock_registry_client)
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
     with pytest.raises(InvalidMessageSchema):
         schema = await serializer.get_schema_for_subject(Subject("topic"))
         await serializer.serialize(schema, {"foo": "bar"})
@@ -324,13 +324,13 @@ async def test_serialization_fails(default_config_path: Path):
     assert mock_registry_client.method_calls == [call.get_schema("topic")]
 
 
-async def test_deserialization_fails(default_config_path: Path):
+async def test_deserialization_fails(karapace_container: KarapaceContainer):
     mock_registry_client = Mock()
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result((ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json), [Subject("stub")]))
     mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
-    deserializer = await make_ser_deser(default_config_path, mock_registry_client)
+    deserializer = await make_ser_deser(karapace_container, mock_registry_client)
     invalid_header_payload = struct.pack(">bII", 1, 500, 500)
     with pytest.raises(InvalidMessageHeader):
         await deserializer.deserialize(invalid_header_payload)

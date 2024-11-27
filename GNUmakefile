@@ -3,7 +3,9 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
-PYTHON_VERSION ?= 3.9
+PYTHON_VERSION ?= 3.10
+DOCKER_COMPOSE ?= docker compose
+KARAPACE-CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run karapace-cli
 
 define PIN_VERSIONS_COMMAND
 pip install pip-tools && \
@@ -102,3 +104,10 @@ schema:
 .PHONY: pin-requirements
 pin-requirements:
 	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -it -v .:/karapace --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
+
+.PHONY: unit-tests-in-docker
+unit-tests-in-docker: export PYTEST_ARGS ?=
+unit-tests-in-docker:
+	rm -fr runtime/*
+	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/unit/
+	rm -fr runtime/*
