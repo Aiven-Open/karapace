@@ -2,7 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.config import read_config
+from karapace.container import KarapaceContainer
 from karapace.dependency import Dependency
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.schema_models import ParsedTypedSchema, SchemaType, Versioner
@@ -11,11 +11,11 @@ from karapace.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
+    SchemaRegistryClient,
     SchemaRegistrySerializer,
     START_BYTE,
 )
 from karapace.typing import Subject
-from pathlib import Path
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
 from unittest.mock import call, Mock
 
@@ -27,16 +27,16 @@ import struct
 log = logging.getLogger(__name__)
 
 
-async def make_ser_deser(config_path: str, mock_client) -> SchemaRegistrySerializer:
-    with open(config_path, encoding="utf8") as handler:
-        config = read_config(handler)
-    serializer = SchemaRegistrySerializer(config=config)
+async def make_ser_deser(
+    karapace_container: KarapaceContainer, mock_client: SchemaRegistryClient
+) -> SchemaRegistrySerializer:
+    serializer = SchemaRegistrySerializer(config=karapace_container.config())
     await serializer.registry_client.close()
     serializer.registry_client = mock_client
     return serializer
 
 
-async def test_happy_flow(default_config_path: Path):
+async def test_happy_flow(karapace_container: KarapaceContainer):
     mock_protobuf_registry_client = Mock()
     schema_for_id_one_future = asyncio.Future()
     schema_for_id_one_future.set_result(
@@ -49,7 +49,7 @@ async def test_happy_flow(default_config_path: Path):
     )
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
-    serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    serializer = await make_ser_deser(karapace_container, mock_protobuf_registry_client)
     assert len(serializer.ids_to_schemas) == 0
     schema = await serializer.get_schema_for_subject("top")
     for o in test_objects_protobuf:
@@ -62,7 +62,7 @@ async def test_happy_flow(default_config_path: Path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-async def test_happy_flow_references(default_config_path: Path):
+async def test_happy_flow_references(karapace_container: KarapaceContainer):
     no_ref_schema_str = """
     |syntax = "proto3";
     |
@@ -117,7 +117,7 @@ async def test_happy_flow_references(default_config_path: Path):
     get_latest_schema_future.set_result((1, ref_schema, Versioner.V(1)))
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
-    serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    serializer = await make_ser_deser(karapace_container, mock_protobuf_registry_client)
     assert len(serializer.ids_to_schemas) == 0
     schema = await serializer.get_schema_for_subject("top")
     for o in test_objects:
@@ -130,7 +130,7 @@ async def test_happy_flow_references(default_config_path: Path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-async def test_happy_flow_references_two(default_config_path: Path):
+async def test_happy_flow_references_two(karapace_container: KarapaceContainer):
     no_ref_schema_str = """
     |syntax = "proto3";
     |
@@ -204,7 +204,7 @@ async def test_happy_flow_references_two(default_config_path: Path):
     get_latest_schema_future.set_result((1, ref_schema_two, Versioner.V(1)))
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
-    serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    serializer = await make_ser_deser(karapace_container, mock_protobuf_registry_client)
     assert len(serializer.ids_to_schemas) == 0
     schema = await serializer.get_schema_for_subject("top")
     for o in test_objects:
@@ -217,7 +217,7 @@ async def test_happy_flow_references_two(default_config_path: Path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top"), call.get_schema_for_id(1)]
 
 
-async def test_serialization_fails(default_config_path: Path):
+async def test_serialization_fails(karapace_container: KarapaceContainer):
     mock_protobuf_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
     get_latest_schema_future.set_result(
@@ -225,7 +225,7 @@ async def test_serialization_fails(default_config_path: Path):
     )
     mock_protobuf_registry_client.get_schema.return_value = get_latest_schema_future
 
-    serializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    serializer = await make_ser_deser(karapace_container, mock_protobuf_registry_client)
     with pytest.raises(InvalidMessageSchema):
         schema = await serializer.get_schema_for_subject("top")
         await serializer.serialize(schema, test_fail_objects_protobuf[0])
@@ -240,10 +240,10 @@ async def test_serialization_fails(default_config_path: Path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema("top")]
 
 
-async def test_deserialization_fails(default_config_path: Path):
+async def test_deserialization_fails(karapace_container: KarapaceContainer):
     mock_protobuf_registry_client = Mock()
 
-    deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    deserializer = await make_ser_deser(karapace_container, mock_protobuf_registry_client)
     invalid_header_payload = struct.pack(">bII", 1, 500, 500)
     with pytest.raises(InvalidMessageHeader):
         await deserializer.deserialize(invalid_header_payload)
@@ -259,10 +259,10 @@ async def test_deserialization_fails(default_config_path: Path):
     assert mock_protobuf_registry_client.method_calls == [call.get_schema_for_id(500)]
 
 
-async def test_deserialization_fails2(default_config_path: Path):
+async def test_deserialization_fails2(karapace_container: KarapaceContainer):
     mock_protobuf_registry_client = Mock()
 
-    deserializer = await make_ser_deser(default_config_path, mock_protobuf_registry_client)
+    deserializer = await make_ser_deser(karapace_container, mock_protobuf_registry_client)
     invalid_header_payload = struct.pack(">bII", 1, 500, 500)
     with pytest.raises(InvalidMessageHeader):
         await deserializer.deserialize(invalid_header_payload)
