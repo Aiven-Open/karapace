@@ -12,18 +12,13 @@ from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER
 from karapace.typing import ElectionStrategy, NameStrategy
 from karapace.utils import json_encode
 from pathlib import Path
-from pydantic import BaseModel, BaseSettings, PyObject
-from typing import Final
+from pydantic import BaseModel, ImportString
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import logging
 import os
 import socket
 import ssl
-
-KARAPACE_ROOT: Final[Path] = Path(__file__).parent
-KARAPACE_BASE_CONFIG_YAML_PATH: Final[Path] = KARAPACE_ROOT / "base_config.yaml"
-
-HOSTNAME = socket.gethostname()
 
 HOSTNAME = socket.gethostname()
 
@@ -33,12 +28,14 @@ class KarapaceTags(BaseModel):
 
 
 class Config(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="karapace_", env_ignore_empty=True)
+
     access_logs_debug: bool = False
-    access_log_class: PyObject = "aiohttp.web_log.AccessLogger"
+    access_log_class: ImportString = "karapace.utils.DebugAccessLogger"
     advertised_hostname: str | None = None
     advertised_port: int | None = None
     advertised_protocol: str = "http"
-    bootstrap_uri: str = "127.0.0.1:9092"
+    bootstrap_uri: str = "kafka:29092"
     sasl_bootstrap_uri: str | None = None
     client_id: str = "sr-1"
     compatibility: str = "BACKWARD"
@@ -55,7 +52,7 @@ class Config(BaseSettings):
     port: int = 8081
     server_tls_certfile: str | None = None
     server_tls_keyfile: str | None = None
-    registry_host: str = "127.0.0.1"
+    registry_host: str = "karapace-schema-registry"
     registry_port: int = 8081
     registry_user: str | None = None
     registry_password: str | None = None
@@ -95,7 +92,7 @@ class Config(BaseSettings):
     name_strategy_validation: bool = True
     master_election_strategy: str = "lowest"
     protobuf_runtime_directory: str = "runtime"
-    statsd_host: str = "127.0.0.1"
+    statsd_host: str = "statsd-exporter"
     statsd_port: int = 8125
     kafka_schema_reader_strict_mode: bool = False
     kafka_retriable_errors_silenced: bool = True
@@ -130,14 +127,15 @@ class Config(BaseSettings):
                 env_lines.append(f"{key.upper()}={value}")
         return "\n".join(env_lines)
 
-    def set_config_defaults(self, new_config: Mapping[str, str]) -> Config:
+    def set_config_defaults(self, new_config: Mapping[str, str] | None = None) -> Config:
         config = deepcopy(self)
-        for key, value in new_config.items():
-            setattr(config, key, value)
+        if new_config:
+            for key, value in new_config.items():
+                setattr(config, key, value)
 
         # Fallback to default port if `advertised_port` is not set
         if config.advertised_port is None:
-            config.advertised_port = new_config["port"]
+            config.advertised_port = config.port
 
         # Fallback to `advertised_*` constructed URI if not set
         if config.rest_base_uri is None:

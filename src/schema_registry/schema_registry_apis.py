@@ -65,9 +65,6 @@ class KarapaceSchemaRegistryController:
     def __init__(self, config: Config, schema_registry: KarapaceSchemaRegistry, stats: StatsClient) -> None:
         # super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
 
-        print("+++++++++========")
-        print(schema_registry)
-
         self.config = config
         self._process_start_time = time.monotonic()
         self.stats = stats
@@ -219,8 +216,6 @@ class KarapaceSchemaRegistryController:
                 )
 
         schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
-        print("+++++++++========")
-        print(schema)
         if not schema:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -836,8 +831,8 @@ class KarapaceSchemaRegistryController:
         if schema_id is not None:
             return SchemaIdResponse(id=schema_id)
 
-        i_am_primary, primary_url = await self.schema_registry.get_master()
-        if i_am_primary:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             try:
                 schema_id = await self.schema_registry.write_new_schema_local(Subject(subject), new_schema, references)
                 return SchemaIdResponse(id=schema_id)
@@ -868,7 +863,7 @@ class KarapaceSchemaRegistryController:
             except Exception as xx:
                 raise xx
 
-        elif not primary_url:
+        elif not primary_info.primary_url:
             raise no_primary_url_error()
         else:
             return await forward_client.forward_request_remote(request=request, primary_url=primary_url)

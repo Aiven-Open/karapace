@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dependency_injector.wiring import inject, Provide
 from karapace import version as karapace_version
-from karapace.config import Config, KARAPACE_BASE_CONFIG_YAML_PATH
+from karapace.config import Config
 from karapace.container import KarapaceContainer
 from karapace.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.kafka_rest_apis import KafkaRest
@@ -42,6 +42,5 @@ def main(
 
 if __name__ == "__main__":
     container = KarapaceContainer()
-    container.base_config.from_yaml(KARAPACE_BASE_CONFIG_YAML_PATH, envs_required=True, required=True)
     container.wire(modules=[__name__])
     sys.exit(main())

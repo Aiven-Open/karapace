@@ -10,7 +10,6 @@
 !LICENSE
 !pyproject.toml
 !setup.py
-!container/start.sh
 !container/healthcheck.py
 
 # Ignore some files in source directories.

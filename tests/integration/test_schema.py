@@ -9,9 +9,9 @@ from http import HTTPStatus
 from karapace.client import Client
 from karapace.kafka.producer import KafkaProducer
 from karapace.rapu import is_success
-from karapace.schema_registry_apis import SchemaErrorMessages
 from karapace.schema_type import SchemaType
 from karapace.utils import json_encode
+from schema_registry.schema_registry_apis import SchemaErrorMessages
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
@@ -1428,7 +1428,7 @@ async def test_schema_missing_body(registry_async_client: Client) -> None:
     )
     assert res.status_code == 422
     assert res.json()["error_code"] == 422
-    assert res.json()["message"] == [{"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"}]
+    assert res.json()["message"] == [{"type": "missing", "loc": ["body", "schema"], "msg": "Field required", "input": {}}]
 
 
 async def test_schema_missing_schema_body_ok(registry_async_client: Client) -> None:
@@ -1539,7 +1539,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     res = await registry_async_client.post(f"subjects/{subject_1}", json={})
     assert res.status_code == 422
     assert res.json()["error_code"] == 422
-    assert res.json()["message"] == [{"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"}]
+    assert res.json()["message"] == [{"type": "missing", "loc": ["body", "schema"], "msg": "Field required", "input": {}}]
 
     # Schema not included in the request body for subject that does not exist
     subject_3 = subject_name_factory()
@@ -1549,7 +1549,7 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     )
     assert res.status_code == 422
     assert res.json()["error_code"] == 422
-    assert res.json()["message"] == [{"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"}]
+    assert res.json()["message"] == [{"type": "missing", "loc": ["body", "schema"], "msg": "Field required", "input": {}}]
 
 
 async def test_schema_lifecycle(registry_async_client: Client) -> None:
@@ -2306,8 +2306,18 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
         assert res.status_code == 422
         assert res.json()["error_code"] == 422
         assert res.json()["message"] == [
-            {"loc": ["body", "schema"], "msg": "field required", "type": "value_error.missing"},
-            {"loc": ["body", "invalid_field"], "msg": "extra fields not permitted", "type": "value_error.extra"},
+            {
+                "type": "missing",
+                "loc": ["body", "schema"],
+                "msg": "Field required",
+                "input": {"invalid_field": "invalid_value"},
+            },
+            {
+                "type": "extra_forbidden",
+                "loc": ["body", "invalid_field"],
+                "msg": "Extra inputs are not permitted",
+                "input": "invalid_value",
+            },
         ]
         # Additional field
         res = await registry_async_client.post(
@@ -2316,13 +2326,25 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
         assert res.status_code == 422
         assert res.json()["error_code"] == 422
         assert res.json()["message"] == [
-            {"loc": ["body", "invalid_field"], "msg": "extra fields not permitted", "type": "value_error.extra"}
+            {
+                "type": "extra_forbidden",
+                "loc": ["body", "invalid_field"],
+                "msg": "Extra inputs are not permitted",
+                "input": "invalid_value",
+            },
         ]
         # Invalid body type
         res = await registry_async_client.post(endpoint, json="invalid")
         assert res.status_code == 422
         assert res.json()["error_code"] == 422
-        assert res.json()["message"] == [{"loc": ["body"], "msg": "value is not a valid dict", "type": "type_error.dict"}]
+        assert res.json()["message"] == [
+            {
+                "type": "model_attributes_type",
+                "loc": ["body"],
+                "msg": "Input should be a valid dictionary or object to extract fields from",
+                "input": "invalid",
+            }
+        ]
 
 
 async def test_version_number_validation(registry_async_client: Client) -> None:
