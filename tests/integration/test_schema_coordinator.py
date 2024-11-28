@@ -23,6 +23,7 @@ from karapace.coordinator.schema_coordinator import Assignment, SchemaCoordinato
 from karapace.utils import json_encode
 from karapace.version import __version__
 from tenacity import retry, stop_after_delay, TryAgain, wait_fixed
+from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
 from typing import Final
@@ -33,6 +34,7 @@ import asyncio
 import contextlib
 import logging
 import pytest
+import time
 
 UNKNOWN_MEMBER_ID = JoinGroupRequest.UNKNOWN_MEMBER_ID
 
@@ -55,6 +57,7 @@ async def fixture_admin(
 ) -> AsyncGenerator:
     coordinator = SchemaCoordinator(
         mocked_client,
+        AlwaysAvailableSchemaReaderStoppper(),
         "test-host",
         10101,
         "https",
@@ -111,8 +114,11 @@ async def test_coordinator_workflow(
     # Check if 2 coordinators will coordinate rebalances correctly
     # Check if the initial group join is performed correctly with minimal
     # setup
+
+    waiting_time_before_acting_as_master_sec = 6
     coordinator = SchemaCoordinator(
         client,
+        AlwaysAvailableSchemaReaderStoppper(),
         "test-host-1",
         10101,
         "https",
@@ -122,17 +128,26 @@ async def test_coordinator_workflow(
         session_timeout_ms=10000,
         heartbeat_interval_ms=500,
         retry_backoff_ms=100,
+        # removing 1 second to consider the network latency in the rest of the test
+        waiting_time_before_acting_as_master_ms=(waiting_time_before_acting_as_master_sec - 1) * 1000,
     )
     coordinator.start()
     assert coordinator.coordinator_id is None
     await wait_for_ready(coordinator)
     await coordinator.ensure_coordinator_known()
-    await wait_for_primary_state(coordinator)
+    assert coordinator.coordinator_id is not None
+
+    assert not coordinator.are_we_master()
+    # waiting a little bit more since the cluster needs to setup.
+    await asyncio.sleep(2 * waiting_time_before_acting_as_master_sec)
+    assert not coordinator.are_we_master(), "last fetch before being available as master"
+    assert coordinator.are_we_master(), f"after {waiting_time_before_acting_as_master_sec} seconds we can act as a master"
 
     # Check if adding an additional coordinator will rebalance correctly
     client2 = await _get_client(kafka_servers=kafka_servers)
     coordinator2 = SchemaCoordinator(
         client2,
+        AlwaysAvailableSchemaReaderStoppper(),
         "test-host-2",
         10100,
         "https",
@@ -155,14 +170,45 @@ async def test_coordinator_workflow(
     secondary = coordinator if primary_selection_strategy == "highest" else coordinator2
     secondary_client = client if primary_selection_strategy == "highest" else client2
 
-    await wait_for_primary_state(primary)
-    assert not secondary.are_we_master
+    if primary == coordinator2:
+        # we need to disable the master for `waiting_time_before_acting_as_master_sec` seconds each time,
+        # a new node its elected as master.
+        # if the coordinator its `coordinator1` since isn't changed we don't have to wait
+        # for the `waiting_time_before_acting_as_master_sec` seconds.
+
+        # give time to the election to be forwarded to all the coordinators.
+        await asyncio.sleep(3)
+
+        assert (
+            not primary.are_we_master()
+        ), "after a change in the coordinator we can act as a master until we wait for the required time"
+        assert not secondary.are_we_master(), "also the second cannot be immediately a master"
+        # after that time the primary can act as a master
+        await asyncio.sleep(waiting_time_before_acting_as_master_sec)
+        assert not primary.are_we_master(), "Last fetch before being available as master"
+        assert not secondary.are_we_master(), "secondary cannot be master"
+
+    assert primary.are_we_master()
+    assert not secondary.are_we_master()
 
     # Check is closing the primary coordinator will rebalance the secondary to change to primary
     await primary.close()
     await primary_client.close()
 
-    await wait_for_primary_state(secondary)
+    now = time.time()
+    while time.time() - now < waiting_time_before_acting_as_master_sec:
+        assert not secondary.are_we_master(), (
+            f"Cannot become master before {waiting_time_before_acting_as_master_sec} seconds "
+            f"for the late records that can arrive from the previous master"
+        )
+        await asyncio.sleep(0.5)
+
+    attempts = 0
+    while not secondary.are_we_master():
+        attempts += 1
+        if attempts >= 1000:
+            raise ValueError("The master should have been elected")
+        await asyncio.sleep(0.5)
     await secondary.close()
     await secondary_client.close()
 
@@ -385,6 +431,7 @@ async def test_coordinator_metadata_update(client: AIOKafkaClient) -> None:
     try:
         coordinator = SchemaCoordinator(
             client,
+            AlwaysAvailableSchemaReaderStoppper(),
             "test-host",
             10101,
             "https",
@@ -427,6 +474,7 @@ async def test_coordinator__send_req(client: AIOKafkaClient) -> None:
     try:
         coordinator = SchemaCoordinator(
             client,
+            AlwaysAvailableSchemaReaderStoppper(),
             "test-host",
             10101,
             "https",
@@ -465,6 +513,7 @@ async def test_coordinator_ensure_coordinator_known(client: AIOKafkaClient) -> N
     try:
         coordinator = SchemaCoordinator(
             client,
+            AlwaysAvailableSchemaReaderStoppper(),
             "test-host",
             10101,
             "https",
@@ -546,6 +595,7 @@ async def test_coordinator__do_heartbeat(client: AIOKafkaClient) -> None:
     try:
         coordinator = SchemaCoordinator(
             client,
+            AlwaysAvailableSchemaReaderStoppper(),
             "test-host",
             10101,
             "https",
@@ -634,6 +684,7 @@ async def test_coordinator__heartbeat_routine(client: AIOKafkaClient) -> None:
     try:
         coordinator = SchemaCoordinator(
             client,
+            AlwaysAvailableSchemaReaderStoppper(),
             "test-host",
             10101,
             "https",
@@ -705,6 +756,7 @@ async def test_coordinator__coordination_routine(client: AIOKafkaClient) -> None
     try:
         coordinator = SchemaCoordinator(
             client,
+            AlwaysAvailableSchemaReaderStoppper(),
             "test-host",
             10101,
             "https",

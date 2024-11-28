@@ -85,6 +85,7 @@ class Config(TypedDict):
     kafka_schema_reader_strict_mode: bool
     kafka_retriable_errors_silenced: bool
     use_protobuf_formatter: bool
+    waiting_time_before_acting_as_master_ms: int
 
     sentry: NotRequired[Mapping[str, object]]
     tags: NotRequired[Mapping[str, object]]
@@ -163,6 +164,7 @@ DEFAULTS: ConfigDefaults = {
     "kafka_schema_reader_strict_mode": False,
     "kafka_retriable_errors_silenced": True,
     "use_protobuf_formatter": False,
+    "waiting_time_before_acting_as_master_ms": 5000,
 }
 SECRET_CONFIG_OPTIONS = [SASL_PLAIN_PASSWORD]
 
