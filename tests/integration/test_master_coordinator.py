@@ -6,6 +6,7 @@ See LICENSE for details
 """
 from karapace.config import set_config_defaults
 from karapace.coordinator.master_coordinator import MasterCoordinator
+from karapace.typing import SchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import allocate_port
 from tests.integration.utils.rest_client import RetryRestClient
@@ -16,9 +17,18 @@ import json
 import pytest
 
 
+class AlwaysAvailableSchemaReaderStoppper(SchemaReaderStoppper):
+    def ready(self) -> bool:
+        return True
+
+    def set_not_ready(self) -> None:
+        pass
+
+
 async def init_admin(config):
     mc = MasterCoordinator(config=config)
-    await mc.start()
+    mc.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
+    mc.start()
     return mc
 
 
@@ -28,15 +38,15 @@ def is_master(mc: MasterCoordinator) -> bool:
     This takes care of a race condition were the flag `master` is set but
     `master_url` is not yet set.
     """
-    return bool(mc.schema_coordinator and mc.schema_coordinator.are_we_master and mc.schema_coordinator.master_url)
+    return bool(mc.schema_coordinator and mc.schema_coordinator.are_we_master() and mc.schema_coordinator.master_url)
 
 
 def has_master(mc: MasterCoordinator) -> bool:
     """True if `mc` has a master."""
-    return bool(mc.schema_coordinator and not mc.schema_coordinator.are_we_master and mc.schema_coordinator.master_url)
+    return bool(mc.schema_coordinator and not mc.schema_coordinator.are_we_master() and mc.schema_coordinator.master_url)
 
 
-@pytest.mark.timeout(60)  # Github workflows need a bit of extra time
+@pytest.mark.timeout(65)  # Github workflows need a bit of extra time
 @pytest.mark.parametrize("strategy", ["lowest", "highest"])
 async def test_master_selection(kafka_servers: KafkaServers, strategy: str) -> None:
     # Use random port to allow for parallel runs.
@@ -185,11 +195,11 @@ async def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
         mc = await init_admin(config_aa)
         try:
             # Wait for the election to happen, ie. flag is not None
-            while not mc.schema_coordinator or mc.schema_coordinator.are_we_master is None:
+            while not mc.schema_coordinator or mc.schema_coordinator.are_we_master() is None:
                 await asyncio.sleep(0.5)
 
             # Make sure the end configuration is as expected
-            assert mc.schema_coordinator.are_we_master is False
+            assert mc.schema_coordinator.are_we_master() is False
             assert mc.schema_coordinator.master_url is None
         finally:
             await mc.close()
