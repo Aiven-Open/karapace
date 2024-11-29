@@ -31,7 +31,7 @@ from karapace.errors import (
 )
 from karapace.karapace import HealthCheck, KarapaceBase
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
-from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE, SERVER_NAME
+from karapace.rapu import HTTPRequest, HTTPResponse, JSON_CONTENT_TYPE, SERVER_NAME
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.schema_registry import KarapaceSchemaRegistry
@@ -103,8 +103,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         resp = {}
         if self._auth is not None:
             resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
-        resp["schema_registry_ready"] = self.schema_registry.schema_reader.ready
-        if self.schema_registry.schema_reader.ready:
+        resp["schema_registry_ready"] = self.schema_registry.schema_reader.ready()
+        if self.schema_registry.schema_reader.ready():
             resp["schema_registry_startup_time_sec"] = (
                 self.schema_registry.schema_reader.last_check - self._process_start_time
             )
@@ -140,20 +140,21 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if not self._auth.check_authorization(user, operation, resource):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
 
-    async def _forward_if_not_ready_to_serve(self, request: HTTPRequest) -> None:
-        if self.schema_registry.schema_reader.ready:
+    async def _forward_if_not_ready_to_serve(self, request: HTTPRequest, content_type: str | None = None) -> None:
+        if self.schema_registry.schema_reader.ready():
             pass
         else:
             # Not ready, still loading the state.
             # Needs only the master_url
             _, master_url = await self.schema_registry.get_master(ignore_readiness=True)
+            returned_content_type = request.get_header("Content-Type") if content_type is None else content_type
             if not master_url:
                 self.no_master_error(request.content_type)
             elif f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in master_url:
                 # If master url is the same as the url of this Karapace respond 503.
                 self.r(
                     body="",
-                    content_type=request.get_header("Content-Type"),
+                    content_type=returned_content_type,
                     status=HTTPStatus.SERVICE_UNAVAILABLE,
                 )
             else:
@@ -162,7 +163,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     request=request,
                     body=request.json,
                     url=url,
-                    content_type=request.get_header("Content-Type"),
+                    content_type=returned_content_type,
                     method=request.method,
                 )
 
@@ -205,6 +206,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             method="GET",
             schema_request=True,
             auth=self._auth,
+        )
+        self.route(
+            "/master_available",
+            callback=self.master_available,
+            method="GET",
+            with_request=True,
         )
         self.route(
             "/config",
@@ -675,6 +682,34 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
+
+    async def master_available(self, *, request: HTTPRequest) -> None:
+        no_cache_header = {"Cache-Control": "no-store, no-cache, must-revalidate"}
+        are_we_master, master_url = await self.schema_registry.get_master()
+        self.log.info("are master %s, master url %s", are_we_master, master_url)
+
+        if (
+            self.schema_registry.schema_reader.master_coordinator._sc is not None  # pylint: disable=protected-access
+            and self.schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()  # pylint: disable=protected-access
+        ):
+            raise HTTPResponse(
+                body={"master_available": are_we_master},
+                status=HTTPStatus.OK,
+                content_type=JSON_CONTENT_TYPE,
+                headers=no_cache_header,
+            )
+
+        if master_url is None or f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in master_url:
+            raise HTTPResponse(
+                body={"master_available": False},
+                status=HTTPStatus.OK,
+                content_type=JSON_CONTENT_TYPE,
+                headers=no_cache_header,
+            )
+
+        await self._forward_request_remote(
+            request=request, body={}, url=f"{master_url}/master_available", content_type=JSON_CONTENT_TYPE, method="GET"
+        )
 
     async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
         deleted = request.query.get("deleted", "false").lower() == "true"
@@ -1314,7 +1349,9 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 else:
                     resp_content = await response.text()
 
-        self.r(body=resp_content, content_type=content_type, status=HTTPStatus(response.status))
+        raise HTTPResponse(
+            body=resp_content, content_type=content_type, status=HTTPStatus(response.status), headers=response.headers
+        )
 
     def no_master_error(self, content_type: str) -> None:
         self.r(

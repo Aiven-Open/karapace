@@ -15,6 +15,7 @@ from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.utils import json_encode
 from tests.base_testcase import BaseTestCase
+from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.schemas.json_schemas import FALSE_SCHEMA, TRUE_SCHEMA
 from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name, new_topic
@@ -70,8 +71,9 @@ async def test_regression_soft_delete_schemas_should_be_registered(
         }
     )
     master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     try:
-        await master_coordinator.start()
+        master_coordinator.start()
         database = InMemoryDatabase()
         offset_watcher = OffsetWatcher()
         schema_reader = KafkaSchemaReader(
@@ -162,8 +164,9 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
         }
     )
     master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     try:
-        await master_coordinator.start()
+        master_coordinator.start()
         database = InMemoryDatabase()
         offset_watcher = OffsetWatcher()
         schema_reader = KafkaSchemaReader(
@@ -266,8 +269,9 @@ async def test_key_format_detection(
         }
     )
     master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
     try:
-        await master_coordinator.start()
+        master_coordinator.start()
         key_formatter = KeyFormatter()
         database = InMemoryDatabase()
         offset_watcher = OffsetWatcher()
