@@ -27,7 +27,7 @@ from aiokafka.protocol.group import (
 from aiokafka.util import create_future, create_task
 from collections.abc import Coroutine, Sequence
 from karapace.dataclasses import default_dataclass
-from karapace.typing import JsonData
+from karapace.typing import JsonData, SchemaReaderStoppper
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
 from typing import Any, Final
@@ -118,12 +118,12 @@ class SchemaCoordinator:
     Contains original comments and also Schema Registry specific comments.
     """
 
-    are_we_master: bool | None = None
     master_url: str | None = None
 
     def __init__(
         self,
         client: AIOKafkaClient,
+        schema_reader_stopper: SchemaReaderStoppper,
         hostname: str,
         port: int,
         scheme: str,
@@ -135,6 +135,7 @@ class SchemaCoordinator:
         rebalance_timeout_ms: int = 30000,
         retry_backoff_ms: int = 100,
         session_timeout_ms: int = 10000,
+        waiting_time_before_acting_as_master_ms: int = 5000,
     ) -> None:
         # Coordination flags and futures
         self._client: Final = client
@@ -147,7 +148,17 @@ class SchemaCoordinator:
         self.scheme: Final = scheme
         self.master_eligibility: Final = master_eligibility
         self.master_url: str | None = None
-        self.are_we_master = False
+        self._schema_reader_stopper = schema_reader_stopper
+        self._are_we_master: bool | None = False
+        # a value that its strictly higher than any clock, so we are sure
+        # we are never going to consider this the leader without explictly passing
+        # from False to True for the `_are_we_master` variable.
+        self._initial_election_sec: float | None = float("infinity")
+        # used to understand if I need to wait the `waiting_time_before_acting_as_master_ms`
+        # before acting as a leader or not, if the last time I was leader was less than 5 seconds
+        # ago I can skip the waiting phase (note that I'm always using my own time, no problems due
+        # to skew of clocks between machines).
+        self._last_time_i_was_leader: float = float("-infinity")
 
         self.rejoin_needed_fut: asyncio.Future[None] | None = None
         self._coordinator_dead_fut: asyncio.Future[None] | None = None
@@ -163,6 +174,7 @@ class SchemaCoordinator:
         self._rebalance_timeout_ms: Final = rebalance_timeout_ms
         self._retry_backoff_ms: Final = retry_backoff_ms
         self._session_timeout_ms: Final = session_timeout_ms
+        self._waiting_time_before_acting_as_master_ms: Final = waiting_time_before_acting_as_master_ms
 
         self._coordinator_lookup_lock: Final = asyncio.Lock()
         self._coordination_task: asyncio.Future[None] | None = None
@@ -181,6 +193,48 @@ class SchemaCoordinator:
         self._closing: asyncio.Future[None] | None = None
 
         self._metadata_snapshot: list[Assignment] = []
+
+    def is_master_assigned_to_myself(self) -> bool:
+        return self._are_we_master or False
+
+    def are_we_master(self) -> bool | None:
+        """
+        After a new election its made we should wait for a while since the previous master could have produced
+        a new message shortly before being disconnected from the cluster.
+        If this is true the max id selected for the next schema ID, so we can create
+        two schemas with the same id (or even more if rapid elections are one after another).
+        The fix its to wait for ~= 5 seconds if new messages arrives before becoming available as a master.
+        The condition to resume being the master its:
+        no new messages are still to be processed + at least 5 seconds have passed since we were elected master
+        """
+        if self._are_we_master is None:
+            # `self._are_we_master` is `None` only during the perform of the assignment
+            # where we don't know if we are master yet
+            LOG.warning("No new elections performed yet.")
+            return None
+
+        if not self._ready or not self._schema_reader_stopper.ready():
+            return False
+
+        if self._are_we_master and self._initial_election_sec is not None:
+            # `time.monotonic()` because we don't want the time to go back or forward because of
+            #  e.g. ntp
+            if time.monotonic() > self._initial_election_sec + (self._waiting_time_before_acting_as_master_ms / 1000):
+                # set the value to `None` since it's expensive to call each time the monotonic clock.
+                LOG.info("Declaring myself as master since %s are passed!", self._waiting_time_before_acting_as_master_ms)
+                self._initial_election_sec = None
+                # this is the last point in time were we wait till to the end of the log queue for new
+                # incoming messages.
+                self._schema_reader_stopper.set_not_ready()
+                return False
+
+            LOG.info(
+                "Newly elected as master, waiting %s ms before writing any schema to let other requests complete",
+                self._waiting_time_before_acting_as_master_ms,
+            )
+            return False
+
+        return self._are_we_master
 
     def start(self) -> None:
         """Must be called after creating SchemaCoordinator object to initialize
@@ -281,6 +335,10 @@ class SchemaCoordinator:
                 LOG.warning("LeaveGroup request failed: %s", err)
             else:
                 LOG.info("LeaveGroup request succeeded")
+        # to avoid sleeping if we were the master, a new actor join the cluster
+        # and we are immediately elected as leader again.
+        if self.are_we_master():
+            self._last_time_i_was_leader = time.monotonic()
         self.reset_generation()
 
     def _handle_metadata_update(self, _: ClusterMetadata) -> None:
@@ -349,7 +407,7 @@ class SchemaCoordinator:
             response_data.protocol,
             response_data.members,
         )
-        self.are_we_master = None
+        self._are_we_master = None
         error = NO_ERROR
         urls = {}
         fallback_urls = {}
@@ -417,13 +475,40 @@ class SchemaCoordinator:
         # On Kafka protocol we can be assigned to be master, but if not master eligible, then we're not master for real
         if member_assignment["master"] == member_id and member_identity["master_eligibility"]:
             self.master_url = master_url
-            self.are_we_master = True
+            self._are_we_master = True
+            ive_never_been_a_master = self._last_time_i_was_leader == float("-inf")
+            another_master_could_have_been_elected = (
+                self._last_time_i_was_leader + (self._waiting_time_before_acting_as_master_ms / 1000) < time.monotonic()
+            )
+            if ive_never_been_a_master or another_master_could_have_been_elected:
+                # we need to wait late record arrivals only in the case there
+                # was a master change, the time before acting its always respect
+                # to which was the previous master (if we were master no need
+                # to wait more before acting)
+                self._schema_reader_stopper.set_not_ready()
+                # flag that its set at startup, fix this
+                # `time.monotonic()` because we don't want the time to go back or forward because of e.g. ntp
+                self._initial_election_sec = time.monotonic()
+
+                LOG.info(
+                    "Declaring myself as not master for %s milliseconds, "
+                    "another master meanwhile could have added other records",
+                    self._waiting_time_before_acting_as_master_ms,
+                )
+            else:
+                LOG.info(
+                    "Starting immediately serving requests since I was master less than %s milliseconds ago, "
+                    "no other masters could have written a new schema meanwhile",
+                    self._waiting_time_before_acting_as_master_ms,
+                )
         elif not member_identity["master_eligibility"]:
+            LOG.warning("Member %s is not eligible as a master", member_id)
             self.master_url = None
-            self.are_we_master = False
+            self._are_we_master = False
         else:
+            LOG.info("We are not elected as master")
             self.master_url = master_url
-            self.are_we_master = False
+            self._are_we_master = False
         self._ready = True
         return None
 
@@ -434,6 +519,7 @@ class SchemaCoordinator:
         """
         if self._coordinator_dead_fut is not None and self.coordinator_id is not None:
             LOG.warning("Marking the coordinator dead (node %s)for group %s.", self.coordinator_id, self.group_id)
+            self._are_we_master = False
             self.coordinator_id = None
             self._coordinator_dead_fut.set_result(None)
 
@@ -441,6 +527,8 @@ class SchemaCoordinator:
         """Coordinator did not recognize either generation or member_id. Will
         need to re-join the group.
         """
+        LOG.info("Resetting generation status")
+        self._are_we_master = False
         self.generation = OffsetCommitRequest.DEFAULT_GENERATION_ID
         self.member_id = JoinGroupRequest[0].UNKNOWN_MEMBER_ID
         self.request_rejoin()
@@ -514,6 +602,8 @@ class SchemaCoordinator:
             try:
                 await self.ensure_coordinator_known()
                 if self.need_rejoin():
+                    if self.are_we_master():
+                        self._last_time_i_was_leader = time.monotonic()
                     new_assignment = await self.ensure_active_group()
                     if not new_assignment:
                         continue

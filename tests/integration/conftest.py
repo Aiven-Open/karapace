@@ -35,10 +35,11 @@ from tests.integration.utils.process import stop_process, wait_for_port_subproce
 from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
-from tests.utils import repeat_until_successful_request
+from tests.utils import repeat_until_master_is_available, repeat_until_successful_request
 from urllib.parse import urlparse
 
 import asyncio
+import contextlib
 import json
 import os
 import pathlib
@@ -282,6 +283,7 @@ async def fixture_rest_async(
             "bootstrap_uri": kafka_servers.bootstrap_servers,
             # Use non-default max request size for REST producer.
             "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
+            "waiting_time_before_acting_as_master_ms": 300,
         }
     )
     write_config(config_path, config)
@@ -356,6 +358,7 @@ async def fixture_rest_async_novalidation(
             # Use non-default max request size for REST producer.
             "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
             "name_strategy_validation": False,  # This should be only difference from rest_async
+            "waiting_time_before_acting_as_master_ms": 300,
         }
     )
     write_config(config_path, config)
@@ -429,6 +432,7 @@ async def fixture_rest_async_registry_auth(
             "registry_port": registry.port,
             "registry_user": "admin",
             "registry_password": "admin",
+            "waiting_time_before_acting_as_master_ms": 300,
         }
     )
     rest = KafkaRest(config=config)
@@ -490,7 +494,8 @@ async def fixture_registry_async_pair(
         config_templates=[config1, config2],
         data_dir=session_logdir / _clear_test_name(request.node.name),
     ) as endpoints:
-        yield [server.endpoint.to_url() for server in endpoints]
+        async with after_master_is_available(endpoints, request.config.getoption("server_ca")):
+            yield [server.endpoint.to_url() for server in endpoints]
 
 
 @pytest.fixture(scope="function", name="registry_cluster")
@@ -542,6 +547,7 @@ async def fixture_registry_async_client(
             timeout=10,
             sleep=0.3,
         )
+        await repeat_until_master_is_available(client)
         yield client
     finally:
         await client.close()
@@ -682,7 +688,23 @@ async def fixture_registry_async_client_auth(
             timeout=10,
             sleep=0.3,
         )
+        await repeat_until_master_is_available(client)
         yield client
+    finally:
+        await client.close()
+
+
+@contextlib.asynccontextmanager
+async def after_master_is_available(
+    registry_instances: list[RegistryDescription], server_ca: str | None
+) -> AsyncIterator[None]:
+    client = Client(
+        server_uri=registry_instances[0].endpoint.to_url(),
+        server_ca=server_ca,
+    )
+    try:
+        await repeat_until_master_is_available(client)
+        yield
     finally:
         await client.close()
 
@@ -714,7 +736,8 @@ async def fixture_registry_async_auth_pair(
         config_templates=[config1, config2],
         data_dir=session_logdir / _clear_test_name(request.node.name),
     ) as endpoints:
-        yield [server.endpoint.to_url() for server in endpoints]
+        async with after_master_is_available(endpoints, request.config.getoption("server_ca")):
+            yield [server.endpoint.to_url() for server in endpoints]
 
 
 @pytest.fixture(scope="function", name="new_topic")
