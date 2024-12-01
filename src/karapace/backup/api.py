@@ -373,13 +373,20 @@ def _handle_restore_topic(
     instruction: RestoreTopic,
     config: Config,
     skip_topic_creation: bool = False,
+    override_replication_factor: int | None = None,
 ) -> None:
     if skip_topic_creation:
         return
+    repl_factor = instruction.replication_factor
+    if override_replication_factor is not None:
+        LOG.info(
+            "Overriding replication factor with: %d (was: %d)", override_replication_factor, instruction.replication_factor
+        )
+        repl_factor = override_replication_factor
     if not _maybe_create_topic(
         config=config,
         name=instruction.topic_name,
-        replication_factor=instruction.replication_factor,
+        replication_factor=repl_factor,
         topic_configs=instruction.topic_configs,
     ):
         raise BackupTopicAlreadyExists(f"Topic to restore '{instruction.topic_name}' already exists")
@@ -426,6 +433,7 @@ def restore_backup(
     backup_location: ExistingFile,
     topic_name: TopicName,
     skip_topic_creation: bool = False,
+    override_replication_factor: int | None = None,
 ) -> None:
     """Restores a backup from the specified location into the configured topic.
 
@@ -475,7 +483,7 @@ def restore_backup(
                 _handle_restore_topic_legacy(instruction, config, skip_topic_creation)
                 producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, RestoreTopic):
-                _handle_restore_topic(instruction, config, skip_topic_creation)
+                _handle_restore_topic(instruction, config, skip_topic_creation, override_replication_factor)
                 producer = stack.enter_context(_producer(config, instruction.topic_name))
             elif isinstance(instruction, ProducerSend):
                 if producer is None:

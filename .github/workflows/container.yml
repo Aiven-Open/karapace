@@ -33,7 +33,7 @@ jobs:
         run: |
           echo is_release=${{ contains(github.ref, 'refs/tags/') }} | tee -a $GITHUB_OUTPUT
           echo is_dev=${{ ! contains(github.ref, 'refs/tags/') }} | tee -a $GITHUB_OUTPUT
-          echo version=$(git describe --always --tags) | tee -a $GITHUB_OUTPUT
+          echo version=$(git describe --tags | cut -d '-' -f -2 | sed 's/-/.dev/g') | tee -a $GITHUB_OUTPUT
 
       # QEMU is used to set up VMs for building non-x86_64 images.
       - name: Set up QEMU
