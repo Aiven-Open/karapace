@@ -39,10 +39,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 FROM python:3.10.11-slim-bullseye AS karapace
 
 # Setup user and directories.
-RUN groupadd --system karapace \
- && useradd --system --gid karapace karapace \
+# https://docs.redhat.com/en/documentation/openshift_container_platform/4.17/html/images/creating-images#use-uid_create-images
+RUN useradd --system --gid 0 karapace \
  && mkdir /opt/karapace /opt/karapace/runtime /var/log/karapace \
- && chown --recursive karapace:karapace /opt/karapace /var/log/karapace
+ && chgrp -R 0  /opt/karapace /opt/karapace/runtime /var/log/karapace \
+ && chmod -R g+rwX /opt/karapace
 
 # Install protobuf compiler.
 ARG PROTOBUF_COMPILER_VERSION="3.12.4-1+deb11u1"
@@ -56,8 +57,8 @@ COPY --from=builder /venv /venv
 ENV PATH="/venv/bin:$PATH"
 
 COPY ./container/start.sh /opt/karapace
-RUN chmod 500 /opt/karapace/start.sh \
- && chown karapace:karapace /opt/karapace/start.sh
+RUN chmod 550 /opt/karapace/start.sh \
+ && chgrp -R 0  /opt/karapace/start.sh
 
 COPY ./container/healthcheck.py /opt/karapace
 
