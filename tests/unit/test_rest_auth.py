@@ -6,7 +6,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.config import set_config_defaults
-from karapace.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
+from rest_proxy import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
 from unittest.mock import call, Mock
 
 import asyncio

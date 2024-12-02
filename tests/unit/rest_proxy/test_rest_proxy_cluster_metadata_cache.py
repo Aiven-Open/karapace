@@ -4,8 +4,8 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 from karapace.config import DEFAULTS
-from karapace.kafka_rest_apis import UserRestProxy
 from karapace.serialization import SchemaRegistrySerializer
+from rest_proxy import UserRestProxy
 from unittest.mock import patch
 
 import copy
