@@ -55,10 +55,6 @@ RUN apt-get update \
 COPY --from=builder /venv /venv
 ENV PATH="/venv/bin:$PATH"
 
-COPY ./container/start.sh /opt/karapace
-RUN chmod 500 /opt/karapace/start.sh \
- && chown karapace:karapace /opt/karapace/start.sh
-
 COPY ./container/healthcheck.py /opt/karapace
 
 WORKDIR /opt/karapace

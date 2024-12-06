@@ -507,7 +507,7 @@ async def test_protobuf_schema_references_rejected_values(registry_async_client:
     )
     assert res.status_code == 422
     assert res.json()["message"] == [
-        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+        {"type": "list_type", "loc": ["body", "references"], "msg": "Input should be a valid list", "input": 1}
     ]
 
     res = await registry_async_client.post(
@@ -515,7 +515,7 @@ async def test_protobuf_schema_references_rejected_values(registry_async_client:
     )
     assert res.status_code == 422
     assert res.json()["message"] == [
-        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+        {"type": "list_type", "loc": ["body", "references"], "msg": "Input should be a valid list", "input": "foo"}
     ]
 
     res = await registry_async_client.post(
@@ -523,7 +523,7 @@ async def test_protobuf_schema_references_rejected_values(registry_async_client:
     )
     assert res.status_code == 422
     assert res.json()["message"] == [
-        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+        {"type": "list_type", "loc": ["body", "references"], "msg": "Input should be a valid list", "input": False}
     ]
 
     res = await registry_async_client.post(
@@ -532,7 +532,12 @@ async def test_protobuf_schema_references_rejected_values(registry_async_client:
     )
     assert res.status_code == 422
     assert res.json()["message"] == [
-        {"loc": ["body", "references"], "msg": "value is not a valid list", "type": "type_error.list"}
+        {
+            "type": "list_type",
+            "loc": ["body", "references"],
+            "msg": "Input should be a valid list",
+            "input": {"this_is_object": True},
+        }
     ]
 
 

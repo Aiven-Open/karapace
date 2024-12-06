@@ -3,6 +3,7 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 from _pytest.logging import LogCaptureFixture
+from karapace.container import KarapaceContainer
 from karapace.errors import CorruptKafkaRecordException
 from karapace.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
 
@@ -12,11 +13,13 @@ import pytest
 
 
 @pytest.fixture(name="kafka_error_handler")
-def fixture_kafka_error_handler() -> KafkaErrorHandler:
-    config = {
-        "kafka_schema_reader_strict_mode": False,
-        "kafka_retriable_errors_silenced": True,
-    }
+def fixture_kafka_error_handler(karapace_container: KarapaceContainer) -> KafkaErrorHandler:
+    config = karapace_container.config().set_config_defaults(
+        {
+            "kafka_schema_reader_strict_mode": False,
+            "kafka_retriable_errors_silenced": True,
+        }
+    )
     return KafkaErrorHandler(config=config)
 
 

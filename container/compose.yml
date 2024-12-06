@@ -4,7 +4,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     ports:
-      - "2181:2181"
+      - 2181:2181
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -14,8 +14,8 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9101:9101"  # JMX
-      - "9092:9092"  # Kafka
+      - 9101:9101  # JMX
+      - 9092:9092  # Kafka
     environment:
       # Listeners:
       # PLAINTEXT_HOST -> Expose kafka to the host network
@@ -23,7 +23,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-registry:8081
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-schema-registry:8081
       # Metrics:
       KAFKA_JMX_PORT: 9101
       KAFKA_JMX_HOSTNAME: localhost
@@ -54,62 +54,99 @@ services:
       KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 6000
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
 
-  karapace-registry:
+  karapace-schema-registry:
     image: ghcr.io/aiven-open/karapace:develop
     build:
       context: ..
       dockerfile: container/Dockerfile
+      args:
+        KARAPACE_VERSION: $KARAPACE_VERSION
     entrypoint:
-      - /bin/bash
-      - /opt/karapace/start.sh
-      - registry
+      - python3
+      - -m
+      - schema_registry
     depends_on:
       - kafka
     ports:
-      - "8081:8081"
+      - 8081:8081
     environment:
-      KARAPACE_ADVERTISED_HOSTNAME: karapace-registry
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry
       KARAPACE_BOOTSTRAP_URI: kafka:29092
       KARAPACE_PORT: 8081
       KARAPACE_HOST: 0.0.0.0
-      KARAPACE_CLIENT_ID: karapace
-      KARAPACE_GROUP_ID: karapace-registry
-      KARAPACE_MASTER_ELIGIBILITY: "true"
+      KARAPACE_CLIENT_ID: karapace-schema-registry
+      KARAPACE_GROUP_ID: karapace-schema-registry
+      KARAPACE_MASTER_ELIGIBILITY: true
       KARAPACE_TOPIC_NAME: _schemas
-      KARAPACE_LOG_LEVEL: WARNING
+      KARAPACE_LOG_LEVEL: DEBUG
       KARAPACE_COMPATIBILITY: FULL
       KARAPACE_STATSD_HOST: statsd-exporter
       KARAPACE_STATSD_PORT: 8125
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
 
-  karapace-rest:
+  karapace-rest-proxy:
     image: ghcr.io/aiven-open/karapace:develop
     build:
       context: ..
       dockerfile: container/Dockerfile
+      args:
+        KARAPACE_VERSION: $KARAPACE_VERSION
     entrypoint:
-      - /bin/bash
-      - /opt/karapace/start.sh
-      - rest
+      - python3
+      - -m
+      - karapace.karapace_all
     depends_on:
       - kafka
-      - karapace-registry
+      - karapace-schema-registry
     ports:
-      - "8082:8082"
+      - 8082:8082
     environment:
+      KARAPACE_KARAPACE_REST: true
       KARAPACE_PORT: 8082
       KARAPACE_HOST: 0.0.0.0
-      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy
       KARAPACE_BOOTSTRAP_URI: kafka:29092
-      KARAPACE_REGISTRY_HOST: karapace-registry
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry
       KARAPACE_REGISTRY_PORT: 8081
       KARAPACE_ADMIN_METADATA_MAX_AGE: 0
-      KARAPACE_LOG_LEVEL: WARNING
+      KARAPACE_LOG_LEVEL: DEBUG
       KARAPACE_STATSD_HOST: statsd-exporter
       KARAPACE_STATSD_PORT: 8125
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+
+  karapace-cli:
+    image: ghcr.io/aiven-open/karapace:cli
+    build:
+      context: ..
+      dockerfile: container/Dockerfile.dev
+      args:
+        KARAPACE_VERSION: $KARAPACE_VERSION
+        RUNNER_UID: $RUNNER_UID
+        RUNNER_GID: $RUNNER_GID
+    tty: true
+    depends_on:
+      - kafka
+      - karapace-schema-registry
+      - karapace-rest-proxy
+    volumes:
+    - ../tests:/opt/karapace/tests
+    - ../pytest.ini:/opt/karapace/pytest.ini
+    - ../mypy.ini:/opt/karapace/mypy.ini
+    - ../.flake8:/opt/karapace/.flake8
+    - ../.isort.cfg:/opt/karapace/.isort.cfg
+    - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
+    - ../.pylintrc:/opt/karapace/.pylintrc
+    - ../.coveragerc:/opt/karapace/.coveragerc
+    - ../.coverage.3.9:/opt/karapace/coverage/.coverage.3.9
+    - ../.coverage.3.10:/opt/karapace/coverage/.coverage.3.10
+    - ../.coverage.3.11:/opt/karapace/coverage/.coverage.3.11
+    - ../.coverage.3.12:/opt/karapace/coverage/.coverage.3.12
+    environment:
+      - COVERAGE_FILE
+      - COVERAGE_RCFILE=/opt/karapace/.coveragerc
 
   prometheus:
     image: prom/prometheus

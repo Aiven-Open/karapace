@@ -25,7 +25,7 @@ def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription
     zk_dir = Path(config.path)
     cfg_path = zk_dir / "zoo.cfg"
     logs_dir = zk_dir / "logs"
-    logs_dir.mkdir(parents=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
 
     zoo_cfg = {
         # Number of milliseconds of each tick

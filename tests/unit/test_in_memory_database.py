@@ -7,8 +7,8 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from confluent_kafka.cimpl import KafkaError
-from karapace.config import DEFAULTS
 from karapace.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.container import KarapaceContainer
 from karapace.in_memory_database import InMemoryDatabase, KarapaceDatabase, Subject, SubjectData
 from karapace.kafka.types import Timestamp
 from karapace.key_format import KeyFormatter
@@ -214,7 +214,7 @@ def compute_schema_id_to_subjects(
     return schema_id_to_duplicated_subjects
 
 
-def test_can_ingest_schemas_from_log() -> None:
+def test_can_ingest_schemas_from_log(karapace_container: KarapaceContainer) -> None:
     """
     Test for the consistency of a backup, this checks that each SchemaID its unique in the backup.
     The format of the log its the one obtained by running:
@@ -228,7 +228,7 @@ def test_can_ingest_schemas_from_log() -> None:
 
     database = WrappedInMemoryDatabase()
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=OffsetWatcher(),
         key_formatter=KeyFormatter(),
         master_coordinator=None,

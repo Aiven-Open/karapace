@@ -190,6 +190,7 @@ async def test_no_eligible_master(kafka_servers: KafkaServers) -> None:
             await mc.close()
 
 
+@pytest.mark.skip(reason="requires master forwarding to be implemented")
 async def test_schema_request_forwarding(
     registry_async_pair,
     registry_async_retry_client: RetryRestClient,

@@ -8,11 +8,11 @@ from base64 import b64encode
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from hmac import compare_digest
-from karapace.config import InvalidConfiguration
+from karapace.config import Config, InvalidConfiguration
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
-from typing import override, Protocol
-from typing_extensions import TypedDict
+from typing import Final, Protocol
+from typing_extensions import override, TypedDict
 from watchfiles import awatch, Change
 
 import argparse
@@ -114,6 +114,8 @@ class AuthorizeProtocol(Protocol):
 
 
 class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
+    MUST_AUTHENTICATE: Final[bool] = True
+
     async def close(self) -> None:
         ...
 
@@ -122,6 +124,8 @@ class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
 
 
 class NoAuthAndAuthz(AuthenticatorAndAuthorizer):
+    MUST_AUTHENTICATE: Final[bool] = False
+
     @override
     def authenticate(self, *, username: str, password: str) -> User:
         return None
@@ -205,14 +209,12 @@ class ACLAuthorizer(AuthorizeProtocol):
 
 
 class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
-    def __init__(self, filename: str) -> None:
+    def __init__(self, auth_file: str) -> None:
         super().__init__()
-        self._auth_filename: str = filename
+        self._auth_filename: str = auth_file
         self._auth_mtime: float = -1
         self._refresh_auth_task: asyncio.Task | None = None
         self._refresh_auth_awatch_stop_event = asyncio.Event()
-        # Once first, can raise if file not valid
-        self._load_authfile()
 
     @property
     def authfile_last_modified(self) -> float:
@@ -221,6 +223,7 @@ class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
     @override
     async def start(self, stats: StatsClient) -> None:
         """Start authfile refresher task"""
+        self._load_authfile()
 
         async def _refresh_authfile() -> None:
             """Reload authfile, but keep old auth data if loading fails"""
@@ -292,6 +295,14 @@ class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
             raise AuthenticationError()
 
         return user
+
+
+def get_authorizer(
+    config: Config,
+    http_authorizer: HTTPAuthorizer,
+    no_auth_authorizer: NoAuthAndAuthz,
+) -> AuthenticatorAndAuthorizer:
+    return http_authorizer if config.registry_authfile else no_auth_authorizer
 
 
 def main() -> int:

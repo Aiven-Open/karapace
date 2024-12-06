@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
+from pydantic import ValidationInfo
 from typing import Any, ClassVar, NewType, Union
 from typing_extensions import TypeAlias
 
@@ -35,11 +36,13 @@ TopicName = NewType("TopicName", str)
 
 class Subject(str):
     @classmethod
+    # TODO[pydantic]: We couldn't refactor `__get_validators__`, please create the `__get_pydantic_core_schema__` manually.
+    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
     def __get_validators__(cls):
         yield cls.validate
 
     @classmethod
-    def validate(cls, subject_str: str) -> str:
+    def validate(cls, subject_str: str, _: ValidationInfo) -> str:
         """Subject may not contain control characters."""
         if bool([c for c in subject_str if (ord(c) <= 31 or (ord(c) >= 127 and ord(c) <= 159))]):
             raise ValueError(f"The specified subject '{subject_str}' is not a valid.")
