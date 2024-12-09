@@ -8,6 +8,9 @@ on:
 jobs:
   smoke-test-container:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.10', '3.11', '3.12' ]
     env:
       BUILDKIT_PROGRESS: plain
     steps:
@@ -18,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install requirements
-        run: make install
+        run: make install-dev
 
       - name: Resolve Karapace version
         run: |
@@ -32,6 +35,7 @@ jobs:
       - name: Run container
         run: make start-karapace-docker-resources
         env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
           KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
           RUNNER_UID: ${{ env.RUNNER_UID }}
           RUNNER_GID: ${{ env.RUNNER_GID }}
