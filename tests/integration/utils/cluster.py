@@ -81,15 +81,15 @@ async def start_schema_registry_cluster(
             }
             process = popen_karapace_all(module="schema_registry", env=env, stdout=logfile, stderr=errfile)
             stack.callback(stop_process, process)
-            all_processes.append((process, port))
+            all_processes.append((process, port, config.host))
 
             protocol = "http" if config.server_tls_keyfile is None else "https"
             endpoint = RegistryEndpoint(protocol, config.host, port)
             description = RegistryDescription(endpoint, schemas_topic)
             all_registries.append(description)
 
-        for process, port in all_processes:
-            wait_for_port_subprocess(port, process, hostname=config.host, wait_time=120)
+        for process, port, host in all_processes:
+            wait_for_port_subprocess(port, process, hostname=host, wait_time=120)
 
         yield all_registries
 

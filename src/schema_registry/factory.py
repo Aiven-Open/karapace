@@ -17,6 +17,7 @@ from schema_registry.container import SchemaRegistryContainer
 from schema_registry.http_handlers import setup_exception_handlers
 from schema_registry.middlewares import setup_middlewares
 from schema_registry.routers.setup import setup_routers
+from typing import AsyncContextManager, Callable
 
 import logging
 
@@ -44,12 +45,18 @@ async def karapace_schema_registry_lifespan(
             stastd.close()
 
 
-def create_karapace_application(*, config: Config, lifespan: AsyncGenerator[None, None]) -> FastAPI:
+def create_karapace_application(
+    *,
+    config: Config,
+    lifespan: Callable[
+        [FastAPI, StatsClient, KarapaceSchemaRegistry, AuthenticatorAndAuthorizer], AsyncContextManager[None]
+    ],
+) -> FastAPI:
     configure_logging(config=config)
     log_config_without_secrets(config=config)
     logging.info("Starting Karapace Schema Registry (%s)", karapace_version.__version__)
 
-    app = FastAPI(lifespan=lifespan)
+    app = FastAPI(lifespan=lifespan)  # type: ignore[arg-type]
     setup_routers(app=app)
     setup_exception_handlers(app=app)
     setup_middlewares(app=app)

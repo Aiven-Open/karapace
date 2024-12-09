@@ -122,7 +122,7 @@ class Config(BaseSettings):
 
     def to_env_str(self) -> str:
         env_lines: list[str] = []
-        for key, value in self.dict().items():
+        for key, value in self.model_dump().items():
             if value is not None:
                 env_lines.append(f"{key.upper()}={value}")
         return "\n".join(env_lines)

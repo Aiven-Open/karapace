@@ -3,14 +3,16 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from collections.abc import Awaitable
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from karapace.content_type import check_schema_headers
+from typing import Callable
 
 
 def setup_middlewares(app: FastAPI) -> None:
     @app.middleware("http")
-    async def set_content_types(request: Request, call_next):
+    async def set_content_types(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         try:
             response_content_type = check_schema_headers(request)
         except HTTPException as exc:
@@ -25,7 +27,7 @@ def setup_middlewares(app: FastAPI) -> None:
         if request.headers.get("Content-Type") == "application/octet-stream":
             new_headers = request.headers.mutablecopy()
             new_headers["Content-Type"] = "application/json"
-            request._headers = new_headers
+            request._headers = new_headers  # pylint: disable=protected-access
             request.scope.update(headers=request.headers.raw)
 
         response = await call_next(request)

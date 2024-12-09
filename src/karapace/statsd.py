@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from karapace.config import Config
+from karapace.config import Config, KarapaceTags
 from karapace.sentry import get_sentry_client
 from typing import Any, Final
 
@@ -28,7 +28,7 @@ class StatsClient:
     def __init__(self, config: Config) -> None:
         self._dest_addr: Final = (config.statsd_host, config.statsd_port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags: Final = config.tags or {}
+        self._tags: Final[KarapaceTags] = config.tags
         self.sentry_client: Final = get_sentry_client(sentry_config=(config.sentry or None))
 
     @contextmanager

@@ -14,11 +14,11 @@ from starlette.requests import Request as StarletteHTTPRequest
 
 def setup_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(_: StarletteHTTPRequest, exc: StarletteHTTPException):
+    async def http_exception_handler(_: StarletteHTTPRequest, exc: StarletteHTTPException) -> JSONResponse:
         return JSONResponse(status_code=exc.status_code, content=exc.detail)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(_: StarletteHTTPRequest, exc: RequestValidationError):
+    async def validation_exception_handler(_: StarletteHTTPRequest, exc: RequestValidationError) -> JSONResponse:
         error_code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         if isinstance(exc, KarapaceValidationError):
             error_code = exc.error_code
