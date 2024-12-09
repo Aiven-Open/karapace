@@ -85,7 +85,7 @@ async def subjects_subject_delete(
         return await controller.subject_delete(subject=subject, permanent=permanent)
     if not primary_url:
         raise no_primary_url_error()
-    return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+    return await forward_client.forward_request_remote(request=request, primary_url=primary_url, response_type=list[int])
 
 
 @subjects_router.post("/{subject}/versions")
@@ -166,7 +166,7 @@ async def subjects_subject_version_delete(
         return await controller.subject_version_delete(subject=subject, version=version, permanent=permanent)
     if not primary_url:
         raise no_primary_url_error()
-    return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+    return await forward_client.forward_request_remote(request=request, primary_url=primary_url, response_type=int)
 
 
 @subjects_router.get("/{subject}/versions/{version}/schema")
