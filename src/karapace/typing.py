@@ -5,11 +5,11 @@ See LICENSE for details
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
 from pydantic import ValidationInfo
-from typing import Any, ClassVar, NewType, Union
+from typing import Any, Callable, ClassVar, NewType, Union
 from typing_extensions import TypeAlias
 
 import functools
@@ -38,7 +38,7 @@ class Subject(str):
     @classmethod
     # TODO[pydantic]: We couldn't refactor `__get_validators__`, please create the `__get_pydantic_core_schema__` manually.
     # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
-    def __get_validators__(cls):
+    def __get_validators__(cls) -> Generator[Callable[[str, ValidationInfo], str], None, None]:
         yield cls.validate
 
     @classmethod
