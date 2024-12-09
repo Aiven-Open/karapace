@@ -15,7 +15,7 @@ from typing import Annotated
 async def get_current_user(
     credentials: Annotated[HTTPBasicCredentials, Depends(HTTPBasic(auto_error=False))],
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
-) -> User:
+) -> User | None:
     if authorizer.MUST_AUTHENTICATE and not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
