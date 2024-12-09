@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from avro.errors import SchemaParseException
 from dependency_injector.wiring import inject, Provide
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, status
 from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -794,7 +794,7 @@ class KarapaceSchemaRegistryController:
         normalize: bool,
         forward_client: ForwardClient,
         request: Request,
-    ) -> SchemaIdResponse | Response:
+    ) -> SchemaIdResponse:
         LOG.debug("POST with subject: %r, request: %r", subject, schema_request)
 
         references = self._validate_references(schema_request=schema_request)
@@ -865,7 +865,9 @@ class KarapaceSchemaRegistryController:
         elif not primary_info.primary_url:
             raise no_primary_url_error()
         else:
-            return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+            return await forward_client.forward_request_remote(
+                request=request, primary_url=primary_url, response_type=SchemaIdResponse
+            )
 
     async def get_global_mode(self) -> ModeResponse:
         return ModeResponse(mode=str(self.schema_registry.get_global_mode()))
