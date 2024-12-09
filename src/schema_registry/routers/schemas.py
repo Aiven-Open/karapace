@@ -3,10 +3,14 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import APIRouter
-from karapace.auth.dependencies import AuthenticatorAndAuthorizerDep, CurrentUserDep
-from karapace.dependencies.controller_dependency import KarapaceSchemaRegistryControllerDep
-from karapace.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
+from dependency_injector.wiring import inject, Provide
+from fastapi import APIRouter, Depends
+from karapace.auth import AuthenticatorAndAuthorizer, User
+from schema_registry.container import SchemaRegistryContainer
+from schema_registry.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
+from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
+from schema_registry.user import get_current_user
+from typing import Annotated
 
 schemas_router = APIRouter(
     prefix="/schemas",
@@ -17,12 +21,13 @@ schemas_router = APIRouter(
 
 # TODO is this needed? Is this actually the ids/schema/id/schema??
 @schemas_router.get("")
+@inject
 async def schemas_get_list(
-    controller: KarapaceSchemaRegistryControllerDep,
-    user: CurrentUserDep,
-    authorizer: AuthenticatorAndAuthorizerDep,
+    user: Annotated[User, Depends(get_current_user)],
     deleted: bool = False,
     latestOnly: bool = False,
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[SchemaListingItem]:
     return await controller.schemas_list(
         deleted=deleted,
@@ -33,14 +38,15 @@ async def schemas_get_list(
 
 
 @schemas_router.get("/ids/{schema_id}", response_model_exclude_none=True)
+@inject
 async def schemas_get(
-    controller: KarapaceSchemaRegistryControllerDep,
-    user: CurrentUserDep,
-    authorizer: AuthenticatorAndAuthorizerDep,
+    user: Annotated[User, Depends(get_current_user)],
     schema_id: str,  # TODO: type to actual type
     includeSubjects: bool = False,  # TODO: include subjects?
     fetchMaxId: bool = False,  # TODO: fetch max id?
     format: str = "",
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemasResponse:
     return await controller.schemas_get(
         schema_id=schema_id,
@@ -61,12 +67,13 @@ async def schemas_get(
 
 
 @schemas_router.get("/ids/{schema_id}/versions")
+@inject
 async def schemas_get_versions(
-    controller: KarapaceSchemaRegistryControllerDep,
-    user: CurrentUserDep,
-    authorizer: AuthenticatorAndAuthorizerDep,
+    user: Annotated[User, Depends(get_current_user)],
     schema_id: str,
     deleted: bool = False,
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[SubjectVersion]:
     return await controller.schemas_get_versions(
         schema_id=schema_id,
@@ -77,7 +84,8 @@ async def schemas_get_versions(
 
 
 @schemas_router.get("/types")
+@inject
 async def schemas_get_subjects_list(
-    controller: KarapaceSchemaRegistryControllerDep,
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[str]:
     return await controller.schemas_types()

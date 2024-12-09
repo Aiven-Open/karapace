@@ -3,7 +3,7 @@
 retries=5
 
 for ((i = 0; i <= retries; i++)); do
-    response=$(curl --silent --verbose --fail http://localhost:8082/topics)
+    response=$(curl --silent --verbose --fail "http://localhost:$KARAPACE_PORT/topics")
 
     if [[ $response == '["_schemas","__consumer_offsets"]' ]]; then
         echo "Ok!"
