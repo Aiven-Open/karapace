@@ -124,6 +124,7 @@ services:
       dockerfile: container/Dockerfile.dev
       args:
         KARAPACE_VERSION: $KARAPACE_VERSION
+        PYTHON_VERSION: $PYTHON_VERSION
         RUNNER_UID: $RUNNER_UID
         RUNNER_GID: $RUNNER_GID
     tty: true

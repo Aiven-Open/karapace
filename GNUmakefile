@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
-PYTHON_VERSION ?= 3.9
+PYTHON_VERSION ?= 3.10
 DOCKER_COMPOSE ?= docker compose
 KARAPACE-CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run --rm karapace-cli
 
@@ -105,6 +105,10 @@ schema:
 pin-requirements:
 	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -it -v .:/karapace --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
 
+.PHONY: stop-karapace-docker-resources
+stop-karapace-docker-resources:
+	$(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
+
 .PHONY: start-karapace-docker-resources
 start-karapace-docker-resources: export KARAPACE_VERSION ?= 4.1.1.dev44+gac20eeed.d20241205
 start-karapace-docker-resources:
@@ -121,15 +125,15 @@ unit-tests-in-docker: start-karapace-docker-resources
 
 .PHONY: e2e-tests-in-docker
 e2e-tests-in-docker: export PYTEST_ARGS ?=
-e2e-tests-in-docker: start-karapace-docker-resources
+e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
-	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/test_karapace.py
+	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
 	rm -fr runtime/*
 
 .PHONY: integration-tests-in-docker
 integration-tests-in-docker: export PYTEST_ARGS ?=
-integration-tests-in-docker: start-karapace-docker-resources
+integration-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
 	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
