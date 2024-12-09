@@ -421,7 +421,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except JSONDecodeError as exc:
-                non_bytes_key = msg.key().decode()  # type: ignore[union-attr]
+                non_bytes_key = msg.key().decode()
                 LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, msg.offset())
                 self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
