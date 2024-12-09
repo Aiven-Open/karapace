@@ -119,7 +119,7 @@ class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
     async def close(self) -> None:
         ...
 
-    async def start(self, stats: StatsClient) -> None:
+    async def start(self, stats: StatsClient) -> None:  # pylint: disable=unused-argument
         ...
 
 
