@@ -114,5 +114,5 @@ include-package-data = true
 version_file = "src/karapace/version.py"
 
 [tool.black]
-target-version = ["py39"]
+target-version = ["py310", "py311"]
 line-length = 125
