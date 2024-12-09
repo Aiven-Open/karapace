@@ -46,9 +46,8 @@ class ForwardClient:
                         status_code=response.status,
                         headers=response.headers,
                     )
-                else:
-                    return PlainTextResponse(
-                        content=await response.text(),
-                        status_code=response.status,
-                        headers=response.headers,
-                    )
+                return PlainTextResponse(
+                    content=await response.text(),
+                    status_code=response.status,
+                    headers=response.headers,
+                )
