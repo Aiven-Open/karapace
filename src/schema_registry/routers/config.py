@@ -51,11 +51,11 @@ async def config_put(
         raise unauthorized()
 
     primary_info = await schema_registry.get_master()
-    if primary_info.primary:        return await controller.config_set(compatibility_level_request=compatibility_level_request)
+    if primary_info.primary:
+        return await controller.config_set(compatibility_level_request=compatibility_level_request)
     elif not primary_info.primary_url:
         raise no_primary_url_error()
-    else:
-        return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+    return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
 
 
 @config_router.get("/{subject}")
@@ -93,8 +93,7 @@ async def config_set_subject(
         return await controller.config_subject_set(subject=subject, compatibility_level_request=compatibility_level_request)
     elif not primary_info.primary_url:
         raise no_primary_url_error()
-    else:
-        return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+    return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
 
 
 @config_router.delete("/{subject}")
@@ -116,5 +115,4 @@ async def config_delete_subject(
         return await controller.config_subject_delete(subject=subject)
     elif not primary_info.primary_url:
         raise no_primary_url_error()
-    else:
-        return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+    return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
