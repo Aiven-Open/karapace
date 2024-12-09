@@ -1,5 +1,7 @@
+ARG PYTHON_VERSION
+
 # Current versions of avro and zstandard don't yet have wheels for 3.11.
-FROM python:3.10.11-bullseye AS builder
+FROM python:${PYTHON_VERSION}-bullseye AS builder
 
 ARG KARAPACE_VERSION
 ARG RUNNER_UID

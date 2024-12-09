@@ -4,7 +4,8 @@
 
 # Include source directories and files required for building.
 !go
-!src
+!src/karapace
+!src/schema_registry
 !requirements/*.txt
 !README.rst
 !LICENSE
