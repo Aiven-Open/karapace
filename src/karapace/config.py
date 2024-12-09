@@ -92,7 +92,7 @@ class Config(BaseSettings):
     name_strategy_validation: bool = True
     master_election_strategy: str = "lowest"
     protobuf_runtime_directory: str = "runtime"
-    statsd_host: str = "statsd-exporter"
+    statsd_host: str | None = None
     statsd_port: int = 8125
     kafka_schema_reader_strict_mode: bool = False
     kafka_retriable_errors_silenced: bool = True
