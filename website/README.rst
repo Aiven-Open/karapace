@@ -6,7 +6,7 @@ A static HTML site, generated with Sphinx. You can find the website source in th
 Dependencies
 ------------
 
-You need Python 3.9+. Install the dependencies with ``pip``::
+You need Python 3.10+. Install the dependencies with ``pip``::
 
     pip install -r requirements.txt
 
