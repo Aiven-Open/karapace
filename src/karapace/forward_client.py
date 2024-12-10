@@ -24,10 +24,10 @@ class ForwardClient:
     USER_AGENT = f"Karapace/{__version__}"
 
     def __init__(self) -> None:
-        self._forward_client: aiohttp.ClientSession | None = None
+        self._forward_client: aiohttp.ClientSession = aiohttp.ClientSession(headers={"User-Agent": self.USER_AGENT})
 
-    def _get_forward_client(self) -> aiohttp.ClientSession:
-        return aiohttp.ClientSession(headers={"User-Agent": ForwardClient.USER_AGENT})
+    async def close(self) -> None:
+        await self._forward_client.close()
 
     def _acceptable_response_content_type(self, *, content_type: str) -> bool:
         return (
@@ -42,11 +42,7 @@ class ForwardClient:
     ) -> bytes:
         LOG.info("Forwarding %s request to remote url: %r since we're not the master", request.method, request.url)
         timeout = 60.0
-        headers = request.headers.mutablecopy()
-        func = getattr(self._get_forward_client(), request.method.lower())
-        # auth_header = request.headers.get("Authorization")
-        # if auth_header is not None:
-        #    headers["Authorization"] = auth_header
+        func = getattr(self._forward_client, request.method.lower())
 
         forward_url = f"{primary_url}{request.url.path}"
         if request.url.query:
@@ -55,7 +51,7 @@ class ForwardClient:
 
         async with async_timeout.timeout(timeout):
             body_data = await request.body()
-            async with func(forward_url, headers=headers, data=body_data) as response:
+            async with func(forward_url, headers=request.headers.mutablecopy(), data=body_data) as response:
                 if self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
                     return await response.text()
                 LOG.error("Unknown response for forwarded request: %s", response)
