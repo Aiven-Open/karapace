@@ -5,9 +5,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from aiohttp import BasicAuth, ClientSession
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from karapace.typing import JsonData
-from typing import Callable, Optional, Union
 from urllib.parse import urljoin
 
 import logging
@@ -19,7 +18,7 @@ Headers = dict
 LOG = logging.getLogger(__name__)
 
 
-async def _get_aiohttp_client(*, auth: Optional[BasicAuth] = None) -> ClientSession:
+async def _get_aiohttp_client(*, auth: BasicAuth | None = None) -> ClientSession:
     return ClientSession(auth=auth)
 
 
@@ -28,7 +27,7 @@ class Result:
         self,
         status: int,
         json_result: JsonData,
-        headers: Optional[Mapping] = None,
+        headers: Mapping | None = None,
     ) -> None:
         self.status_code = status
         self.json_result = json_result
@@ -48,10 +47,10 @@ class Result:
 class Client:
     def __init__(
         self,
-        server_uri: Optional[str] = None,
+        server_uri: str | None = None,
         client_factory: Callable[..., Awaitable[ClientSession]] = _get_aiohttp_client,
-        server_ca: Optional[str] = None,
-        session_auth: Optional[BasicAuth] = None,
+        server_ca: str | None = None,
+        session_auth: BasicAuth | None = None,
     ) -> None:
         self.server_uri = server_uri or ""
         self.session_auth = session_auth
@@ -61,13 +60,13 @@ class Client:
         # Instead we wait for the first query in async context and lazy-initialize aiohttp client.
         self.client_factory = client_factory
 
-        self.ssl_mode: Union[None, bool, ssl.SSLContext]
+        self.ssl_mode: None | bool | ssl.SSLContext
         if server_ca is None:
             self.ssl_mode = False
         else:
             self.ssl_mode = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             self.ssl_mode.load_verify_locations(cafile=server_ca)
-        self._client: Optional[ClientSession] = None
+        self._client: ClientSession | None = None
 
     def path_for(self, path: Path) -> str:
         return urljoin(self.server_uri, path)
@@ -89,9 +88,9 @@ class Client:
         self,
         path: Path,
         json: JsonData = None,
-        headers: Optional[Headers] = None,
-        auth: Optional[BasicAuth] = None,
-        params: Optional[Mapping[str, str]] = None,
+        headers: Headers | None = None,
+        auth: BasicAuth | None = None,
+        params: Mapping[str, str] | None = None,
         json_response: bool = True,
     ) -> Result:
         path = self.path_for(path)
@@ -113,8 +112,8 @@ class Client:
     async def delete(
         self,
         path: Path,
-        headers: Optional[Headers] = None,
-        auth: Optional[BasicAuth] = None,
+        headers: Headers | None = None,
+        auth: BasicAuth | None = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -133,8 +132,8 @@ class Client:
         self,
         path: Path,
         json: JsonData,
-        headers: Optional[Headers] = None,
-        auth: Optional[BasicAuth] = None,
+        headers: Headers | None = None,
+        auth: BasicAuth | None = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -155,8 +154,8 @@ class Client:
         self,
         path: Path,
         json: JsonData,
-        headers: Optional[Headers] = None,
-        auth: Optional[BasicAuth] = None,
+        headers: Headers | None = None,
+        auth: BasicAuth | None = None,
     ) -> Result:
         path = self.path_for(path)
         if not headers:
@@ -177,8 +176,8 @@ class Client:
         self,
         path: Path,
         data: JsonData,
-        headers: Optional[Headers],
-        auth: Optional[BasicAuth] = None,
+        headers: Headers | None,
+        auth: BasicAuth | None = None,
     ) -> Result:
         path = self.path_for(path)
         client = await self.get_client()

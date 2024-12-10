@@ -7,7 +7,6 @@ from karapace.container import KarapaceContainer
 from pathlib import Path
 from schema_registry.container import SchemaRegistryContainer
 from tempfile import mkstemp
-from typing import Optional
 
 import json
 import os
@@ -22,7 +21,7 @@ LOG_DIR_OPT = "--log-dir"
 VERSION_REGEX = "([0-9]+[.])*[0-9]+"
 
 
-def pytest_assertrepr_compare(op, left, right) -> Optional[list[str]]:
+def pytest_assertrepr_compare(op, left, right) -> list[str] | None:
     if isinstance(left, SchemaCompatibilityResult) and isinstance(right, SchemaCompatibilityResult) and op in ("==", "!="):
         lines = ["Comparing SchemaCompatibilityResult instances:"]
 

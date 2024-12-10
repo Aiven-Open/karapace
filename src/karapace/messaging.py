@@ -12,7 +12,7 @@ from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Any, Final, Optional, Union
+from typing import Any, Final
 
 import logging
 import time
@@ -23,7 +23,7 @@ X_REGISTRY_VERSION_HEADER = ("X-Registry-Version", f"karapace-{__version__}".enc
 
 class KarapaceProducer:
     def __init__(self, *, config: Config, offset_watcher: OffsetWatcher, key_formatter: KeyFormatter):
-        self._producer: Optional[KafkaProducer] = None
+        self._producer: KafkaProducer | None = None
         self._config = config
         self._offset_watcher = offset_watcher
         self._key_formatter = key_formatter
@@ -60,7 +60,7 @@ class KarapaceProducer:
         if self._producer is not None:
             self._producer.flush()
 
-    def _send_kafka_message(self, key: Union[bytes, str], value: Union[bytes, str]) -> None:
+    def _send_kafka_message(self, key: bytes | str, value: bytes | str) -> None:
         assert self._producer is not None
 
         if isinstance(key, str):
@@ -103,9 +103,9 @@ class KarapaceProducer:
                 )
             )
 
-    def send_message(self, *, key: dict[str, Any], value: Optional[dict[str, Any]]) -> None:
+    def send_message(self, *, key: dict[str, Any], value: dict[str, Any] | None) -> None:
         key_bytes = self._key_formatter.format_key(key)
-        value_bytes: Union[bytes, str] = b""
+        value_bytes: bytes | str = b""
         if value is not None:
             value_bytes = json_encode(value, binary=True, compact=True)
         self._send_kafka_message(key=key_bytes, value=value_bytes)

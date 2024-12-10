@@ -28,7 +28,6 @@ from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.syntax_reader import SyntaxReader
 from karapace.protobuf.type_element import TypeElement
 from karapace.protobuf.utils import MAX_TAG_VALUE
-from typing import Optional, Union
 
 
 class Context(Enum):
@@ -79,8 +78,8 @@ class ProtoParser:
         self.extends_list: list[str] = []
         self.options: list[str] = []
         self.declaration_count = 0
-        self.syntax: Optional[Syntax] = None
-        self.package_name: Optional[str] = None
+        self.syntax: Syntax | None = None
+        self.package_name: str | None = None
         self.prefix = ""
         self.data = data
         self.public_imports: list[str] = []
@@ -127,21 +126,21 @@ class ProtoParser:
 
     def read_declaration(
         self, documentation: str, context: Context
-    ) -> Union[
-        None,
-        OptionElement,
-        ReservedElement,
-        RpcElement,
-        MessageElement,
-        EnumElement,
-        EnumConstantElement,
-        ServiceElement,
-        ExtendElement,
-        ExtensionsElement,
-        OneOfElement,
-        GroupElement,
-        FieldElement,
-    ]:
+    ) -> (
+        None
+        | OptionElement
+        | ReservedElement
+        | RpcElement
+        | MessageElement
+        | EnumElement
+        | EnumConstantElement
+        | ServiceElement
+        | ExtendElement
+        | ExtensionsElement
+        | OneOfElement
+        | GroupElement
+        | FieldElement
+    ):
         index = self.declaration_count
         self.declaration_count += 1
 
@@ -155,21 +154,21 @@ class ProtoParser:
         # TODO(benoit) Let's better parse the proto keywords. We are pretty weak when field/constants
         #  are named after any of the label we check here.
 
-        result: Union[
-            None,
-            OptionElement,
-            ReservedElement,
-            RpcElement,
-            MessageElement,
-            EnumElement,
-            EnumConstantElement,
-            ServiceElement,
-            ExtendElement,
-            ExtensionsElement,
-            OneOfElement,
-            GroupElement,
-            FieldElement,
-        ] = None
+        result: (
+            None
+            | OptionElement
+            | ReservedElement
+            | RpcElement
+            | MessageElement
+            | EnumElement
+            | EnumConstantElement
+            | ServiceElement
+            | ExtendElement
+            | ExtensionsElement
+            | OneOfElement
+            | GroupElement
+            | FieldElement
+        ) = None
         # pylint no-else-return
         if label == "package" and context.permits_package():
             self.package_name = self.reader.read_name()
@@ -349,8 +348,8 @@ class ProtoParser:
                 pass
         return EnumElement(location, name, documentation, options, constants)
 
-    def read_field(self, documentation: str, location: Location, word: str) -> Union[GroupElement, FieldElement]:
-        label: Union[None, Field.Label]
+    def read_field(self, documentation: str, location: Location, word: str) -> GroupElement | FieldElement:
+        label: None | Field.Label
         atype: str
         if word == "required":
             self.reader.expect_with_location(
@@ -382,7 +381,7 @@ class ProtoParser:
         return self.read_field_with_label(location, documentation, label, atype)
 
     def read_field_with_label(
-        self, location: Location, documentation: str, label: Union[None, Field.Label], atype: str
+        self, location: Location, documentation: str, label: None | Field.Label, atype: str
     ) -> FieldElement:
         """Reads an field declaration and returns it."""
         name = self.reader.read_name()
@@ -410,20 +409,20 @@ class ProtoParser:
             options,
         )
 
-    def strip_default(self, options: list) -> Union[str, None]:
+    def strip_default(self, options: list) -> str | None:
         """Defaults aren't options."""
         return self.strip_value("default", options)
 
-    def strip_json_name(self, options: list) -> Union[None, str]:
+    def strip_json_name(self, options: list) -> None | str:
         """`json_name` isn't an option."""
         return self.strip_value("json_name", options)
 
     @staticmethod
-    def strip_value(name: str, options: list) -> Union[None, str]:
+    def strip_value(name: str, options: list) -> None | str:
         """This finds an option named [name], removes, and returns it.
         Returns None if no [name] option is present.
         """
-        result: Union[None, str] = None
+        result: None | str = None
         for element in options[:]:
             if element.name == name:
                 options.remove(element)
@@ -464,7 +463,7 @@ class ProtoParser:
         self,
         location: Location,
         documentation: str,
-        label: Union[None, Field.Label],
+        label: None | Field.Label,
     ) -> GroupElement:
         name = self.reader.read_word()
         self.reader.require("=")

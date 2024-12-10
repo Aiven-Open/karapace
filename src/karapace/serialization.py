@@ -7,7 +7,7 @@ from __future__ import annotations
 from aiohttp import BasicAuth
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from cachetools import TTLCache
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 from functools import lru_cache
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
@@ -22,7 +22,7 @@ from karapace.schema_models import InvalidSchema, ParsedTypedSchema, SchemaType,
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping
 from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType, Version
 from karapace.utils import json_decode, json_encode
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import quote
 
 import asyncio

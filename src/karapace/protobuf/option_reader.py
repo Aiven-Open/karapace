@@ -7,7 +7,6 @@ See LICENSE for details
 from dataclasses import dataclass
 from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.syntax_reader import SyntaxReader
-from typing import Union
 
 
 @dataclass
@@ -130,7 +129,7 @@ class OptionReader:
                 self.reader.peek_char(";")
 
     @staticmethod
-    def add_to_list(_list: list, value: Union[list, str]) -> None:
+    def add_to_list(_list: list, value: list | str) -> None:
         """Adds an object or objects to a List."""
         if isinstance(value, list):
             for v in list(value):

@@ -5,7 +5,6 @@ See LICENSE for details
 from karapace.utils import Expiration
 from subprocess import Popen
 from tests.integration.utils.network import port_is_listening
-from typing import Optional
 
 import os
 import signal
@@ -35,7 +34,7 @@ def wait_for_port_subprocess(
     print(f"Server `{hostname}:{port}` listening after {elapsed} seconds")
 
 
-def stop_process(proc: Optional[Popen]) -> None:
+def stop_process(proc: Popen | None) -> None:
     if proc:
         try:
             os.kill(proc.pid, signal.SIGKILL)

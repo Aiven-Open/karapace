@@ -4,12 +4,11 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from collections.abc import Generator, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from karapace.dataclasses import default_dataclass
 from karapace.typing import JsonData, JsonObject
 from pathlib import Path
-from typing import Callable, ClassVar, Final, IO, Optional, TypeVar, Union
-from typing_extensions import TypeAlias
+from typing import ClassVar, Final, IO, Optional, TypeAlias, TypeVar, Union
 
 import abc
 
