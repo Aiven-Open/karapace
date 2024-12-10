@@ -5,6 +5,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiokafka.errors import KafkaError, TopicAlreadyExistsError
+from collections.abc import Callable
 from karapace.backup.api import (
     _admin,
     _consumer,
@@ -26,7 +27,7 @@ from karapace.kafka.consumer import KafkaConsumer, PartitionMetadata
 from karapace.kafka.producer import KafkaProducer
 from pathlib import Path
 from types import FunctionType
-from typing import Callable, cast, ContextManager
+from typing import cast, ContextManager
 from unittest import mock
 from unittest.mock import MagicMock
 

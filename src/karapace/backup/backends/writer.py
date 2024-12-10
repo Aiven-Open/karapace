@@ -8,8 +8,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from confluent_kafka import Message
 from karapace.backup.safe_writer import bytes_writer, str_writer
 from pathlib import Path
-from typing import ContextManager, Generic, IO, Literal, TypeVar
-from typing_extensions import TypeAlias
+from typing import ContextManager, Generic, IO, Literal, TypeAlias, TypeVar
 
 import abc
 import contextlib

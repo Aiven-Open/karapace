@@ -6,7 +6,7 @@ See LICENSE for details
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
 from karapace.protobuf.exception import IllegalStateException
 from karapace.protobuf.location import Location
-from typing import NoReturn, Union
+from typing import NoReturn
 
 
 class SyntaxReader:
@@ -34,7 +34,7 @@ class SyntaxReader:
         """Reads a non-whitespace character 'c'"""
         self.expect(self.read_char() == c, f"expected '{c}'")
 
-    def peek_char(self, ch: str = None) -> Union[bool, str]:
+    def peek_char(self, ch: str = None) -> bool | str:
         """Peeks a non-whitespace character and returns it. The only difference between this and
         [read_char] is that this doesn't consume the char.
         """
@@ -80,7 +80,7 @@ class SyntaxReader:
                 self.expect(self.pos < len(self.data), "unexpected end of file")
                 c = self.data[self.pos]
                 self.pos += 1
-                d: Union[str, None] = {
+                d: str | None = {
                     "a": "\u0007",  # Alert.
                     "b": "\b",  # Backspace.
                     "f": "\u000c",  # Form feed.

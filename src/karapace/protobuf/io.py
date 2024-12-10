@@ -15,8 +15,8 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.protobuf.type_element import TypeElement
 from multiprocessing import Process, Queue
 from pathlib import Path
-from typing import Final, Protocol
-from typing_extensions import Self, TypeAlias
+from typing import Final, Protocol, TypeAlias
+from typing_extensions import Self
 
 import hashlib
 import importlib

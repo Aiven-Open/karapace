@@ -4,12 +4,12 @@ See LICENSE for details
 """
 from __future__ import annotations
 
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from karapace.client import Client
 from karapace.typing import JsonObject, Subject
 from tests.base_testcase import BaseTestCase
-from typing import Any, Callable, Final
+from typing import Any, Final
 
 import json
 import logging

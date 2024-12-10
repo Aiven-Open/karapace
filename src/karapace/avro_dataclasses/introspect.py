@@ -10,7 +10,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import Field, fields, is_dataclass, MISSING
 from enum import Enum
 from functools import lru_cache
-from typing import Final, get_args, get_origin, TYPE_CHECKING, TypeVar, Union
+from types import UnionType
+from typing import Final, get_args, get_origin, TYPE_CHECKING, TypeVar
 
 import datetime
 import uuid
@@ -90,7 +91,7 @@ def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too
     origin = get_origin(type_)
 
     # Handle union types.
-    if origin is Union:
+    if origin is UnionType:
         return [_field_type(field, unit) for unit in get_args(type_)]  # type: ignore[misc]
 
     # Handle array types.
