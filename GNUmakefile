@@ -72,7 +72,7 @@ unit-tests: venv/.deps-dev
 	rm -fr runtime/*
 
 .PHONY: integration-tests
-unit-tests: export PYTEST_ARGS ?=
+integration-tests: export PYTEST_ARGS ?=
 integration-tests: venv/.deps-dev
 	rm -fr runtime/*
 	$(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
