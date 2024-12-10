@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
-PYTHON_VERSION ?= 3.9
+PYTHON_VERSION ?= 3.10
 DOCKER_COMPOSE ?= docker compose
 KARAPACE-CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run --rm karapace-cli
 
@@ -108,8 +108,8 @@ pin-requirements:
 .PHONY: start-karapace-docker-resources
 start-karapace-docker-resources: export KARAPACE_VERSION ?= 4.1.1.dev44+gac20eeed.d20241205
 start-karapace-docker-resources:
-	sudo touch .coverage.3.9 .coverage.3.10 .coverage.3.11 .coverage.3.12
-	sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.3.9 .coverage.3.10 .coverage.3.11 .coverage.3.12
+	sudo touch .coverage.3.10 .coverage.3.11 .coverage.3.12
+	sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.3.10 .coverage.3.11 .coverage.3.12
 	$(DOCKER_COMPOSE) -f container/compose.yml up -d --build --wait --detach
 
 .PHONY: unit-tests-in-docker
