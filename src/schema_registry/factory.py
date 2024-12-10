@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI
 from karapace import version as karapace_version
 from karapace.auth import AuthenticatorAndAuthorizer
 from karapace.config import Config
+from karapace.forward_client import ForwardClient
 from karapace.logging_setup import configure_logging, log_config_without_secrets
 from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.statsd import StatsClient
@@ -26,6 +27,7 @@ import logging
 @inject
 async def karapace_schema_registry_lifespan(
     _: FastAPI,
+    forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
     stastd: StatsClient = Depends(Provide[SchemaRegistryContainer.karapace_container.statsd]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
@@ -37,19 +39,17 @@ async def karapace_schema_registry_lifespan(
 
         yield
     finally:
-        if schema_registry:
-            await schema_registry.close()
-        if authorizer:
-            await authorizer.close()
-        if stastd:
-            stastd.close()
+        await schema_registry.close()
+        await authorizer.close()
+        await forward_client.close()
+        stastd.close()
 
 
 def create_karapace_application(
     *,
     config: Config,
     lifespan: Callable[
-        [FastAPI, StatsClient, KarapaceSchemaRegistry, AuthenticatorAndAuthorizer], AsyncContextManager[None]
+        [FastAPI, ForwardClient, StatsClient, KarapaceSchemaRegistry, AuthenticatorAndAuthorizer], AsyncContextManager[None]
     ],
 ) -> FastAPI:
     configure_logging(config=config)
