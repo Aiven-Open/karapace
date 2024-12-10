@@ -11,7 +11,7 @@ from hmac import compare_digest
 from karapace.config import Config, InvalidConfiguration
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
-from typing import Final, Protocol
+from typing import Protocol
 from typing_extensions import override, TypedDict
 from watchfiles import awatch, Change
 
@@ -98,12 +98,12 @@ class AuthData(TypedDict):
 
 
 class AuthenticateProtocol(Protocol):
-    def authenticate(self, *, username: str, password: str) -> User:
+    def authenticate(self, *, username: str, password: str) -> User | None:
         ...
 
 
 class AuthorizeProtocol(Protocol):
-    def get_user(self, username: str) -> User:
+    def get_user(self, username: str) -> User | None:
         ...
 
     def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
@@ -114,24 +114,24 @@ class AuthorizeProtocol(Protocol):
 
 
 class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
-    MUST_AUTHENTICATE: Final[bool] = True
+    MUST_AUTHENTICATE: bool = True
 
     async def close(self) -> None:
         ...
 
-    async def start(self, stats: StatsClient) -> None:
+    async def start(self, stats: StatsClient) -> None:  # pylint: disable=unused-argument
         ...
 
 
 class NoAuthAndAuthz(AuthenticatorAndAuthorizer):
-    MUST_AUTHENTICATE: Final[bool] = False
+    MUST_AUTHENTICATE: bool = False
 
     @override
-    def authenticate(self, *, username: str, password: str) -> User:
+    def authenticate(self, *, username: str, password: str) -> User | None:
         return None
 
     @override
-    def get_user(self, username: str) -> User:
+    def get_user(self, username: str) -> User | None:
         return None
 
     @override
@@ -156,7 +156,7 @@ class ACLAuthorizer(AuthorizeProtocol):
         self.user_db = user_db or {}
         self.permissions = permissions or []
 
-    def get_user(self, username: str) -> User:
+    def get_user(self, username: str) -> User | None:
         user = self.user_db.get(username)
         if not user:
             raise ValueError("No user found")
@@ -289,7 +289,7 @@ class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
             raise InvalidConfiguration("Failed to load auth file") from ex
 
     @override
-    def authenticate(self, *, username: str, password: str) -> User:
+    def authenticate(self, *, username: str, password: str) -> User | None:
         user = self.get_user(username)
         if user is None or not user.compare_password(password):
             raise AuthenticationError()

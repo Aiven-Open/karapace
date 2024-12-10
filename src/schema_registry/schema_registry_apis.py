@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from avro.errors import SchemaParseException
 from dependency_injector.wiring import inject, Provide
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, status
 from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.jsonschema.checks import is_incompatible
@@ -76,22 +76,22 @@ class KarapaceSchemaRegistryController:
     def _subject_get(self, subject: Subject, include_deleted: bool = False) -> dict[Version, SchemaVersion]:
         try:
             schema_versions = self.schema_registry.subject_get(subject, include_deleted)
-        except SubjectNotFoundException:
+        except SubjectNotFoundException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
-        except SchemasNotFoundException:
+            ) from exc
+        except SchemasNotFoundException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
+            ) from exc
         return schema_versions
 
     def _invalid_version(self, version: str | int) -> HTTPException:
@@ -117,16 +117,16 @@ class KarapaceSchemaRegistryController:
         """Check for schema compatibility"""
         try:
             compatibility_mode = self.schema_registry.get_compatibility_mode(subject=subject)
-        except ValueError as ex:
+        except ValueError as exc:
             # Using INTERNAL_SERVER_ERROR because the subject and configuration
             # should have been validated before.
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
-                    "message": str(ex),
+                    "message": str(exc),
                 },
-            )
+            ) from exc
 
         new_schema = self.get_new_schema(schema_request=schema_request)
         old_schema = self.get_old_schema(subject, Versioner.V(version))  # , content_type)
@@ -186,14 +186,14 @@ class KarapaceSchemaRegistryController:
     ) -> SchemasResponse:
         try:
             parsed_schema_id = SchemaId(int(schema_id))
-        except ValueError:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.HTTP_NOT_FOUND.value,
                     "message": "HTTP 404 Not Found",
                 },
-            )
+            ) from exc
 
         def _has_subject_with_id() -> bool:
             # Fast path
@@ -263,14 +263,14 @@ class KarapaceSchemaRegistryController:
     ) -> list[SubjectVersion]:
         try:
             schema_id_int = SchemaId(int(schema_id))
-        except ValueError:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.HTTP_NOT_FOUND.value,
                     "message": "HTTP 404 Not Found",
                 },
-            )
+            ) from exc
 
         subject_versions = []
         for subject_version in self.schema_registry.get_subject_versions_for_schema(schema_id_int, include_deleted=deleted):
@@ -301,14 +301,14 @@ class KarapaceSchemaRegistryController:
     ) -> CompatibilityResponse:
         try:
             compatibility_level = CompatibilityModes(compatibility_level_request.compatibility)
-        except (ValueError, KeyError):
+        except (ValueError, KeyError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.INVALID_COMPATIBILITY_LEVEL.value,
                     "message": SchemaErrorMessages.INVALID_COMPATIBILITY_LEVEL.value,
                 },
-            )
+            ) from exc
 
         self.schema_registry.send_config_message(compatibility_level=compatibility_level, subject=None)
         return CompatibilityResponse(compatibility=self.schema_registry.schema_reader.config.compatibility)
@@ -354,14 +354,14 @@ class KarapaceSchemaRegistryController:
     ) -> CompatibilityResponse:
         try:
             compatibility_level = CompatibilityModes(compatibility_level_request.compatibility)
-        except (ValueError, KeyError):
+        except (ValueError, KeyError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.INVALID_COMPATIBILITY_LEVEL.value,
                     "message": "Invalid compatibility level",
                 },
-            )
+            ) from exc
 
         self.schema_registry.send_config_message(compatibility_level=compatibility_level, subject=Subject(subject))
         return CompatibilityResponse(compatibility=compatibility_level.value)
@@ -400,42 +400,42 @@ class KarapaceSchemaRegistryController:
         try:
             version_list = await self.schema_registry.subject_delete_local(subject=Subject(subject), permanent=permanent)
             return [version.value for version in version_list]
-        except (SubjectNotFoundException, SchemasNotFoundException):
+        except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
-        except SubjectNotSoftDeletedException:
+            ) from exc
+        except SubjectNotSoftDeletedException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_SOFT_DELETED.value,
                     "message": f"Subject '{subject}' was not deleted first before being permanently deleted",
                 },
-            )
-        except SubjectSoftDeletedException:
+            ) from exc
+        except SubjectSoftDeletedException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_SOFT_DELETED.value,
                     "message": f"Subject '{subject}' was soft deleted.Set permanent=true to delete permanently",
                 },
-            )
+            ) from exc
 
-        except ReferenceExistsException as arg:
+        except ReferenceExistsException as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.REFERENCE_EXISTS.value,
                     "message": (
                         f"One or more references exist to the schema "
-                        f"{{magic=1,keytype=SCHEMA,subject={subject},version={arg.version}}}."
+                        f"{{magic=1,keytype=SCHEMA,subject={subject},version={exc.version}}}."
                     ),
                 },
-            )
+            ) from exc
 
     async def subject_version_get(
         self,
@@ -456,24 +456,24 @@ class KarapaceSchemaRegistryController:
                 schemaType=subject_data.get("schemaType", None),
                 compatibility=None,  # Do not return compatibility from this endpoint.
             )
-        except (SubjectNotFoundException, SchemasNotFoundException):
+        except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
-        except VersionNotFoundException:
+            ) from exc
+        except VersionNotFoundException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
                     "message": f"Version {version} not found.",
                 },
-            )
-        except InvalidVersion:
-            raise self._invalid_version(version)
+            ) from exc
+        except InvalidVersion as exc:
+            raise self._invalid_version(version) from exc
 
     async def subject_version_delete(
         self,
@@ -487,23 +487,23 @@ class KarapaceSchemaRegistryController:
                 Subject(subject), Versioner.V(version), permanent
             )
             return resolved_version.value
-        except (SubjectNotFoundException, SchemasNotFoundException):
+        except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
-        except VersionNotFoundException:
+            ) from exc
+        except VersionNotFoundException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
                     "message": f"Version {version} not found.",
                 },
-            )
-        except SchemaVersionSoftDeletedException:
+            ) from exc
+        except SchemaVersionSoftDeletedException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
@@ -513,8 +513,8 @@ class KarapaceSchemaRegistryController:
                         "Set permanent=true to delete permanently"
                     ),
                 },
-            )
-        except SchemaVersionNotSoftDeletedException:
+            ) from exc
+        except SchemaVersionNotSoftDeletedException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
@@ -523,20 +523,20 @@ class KarapaceSchemaRegistryController:
                         f"Subject '{subject}' Version {version} was not deleted " "first before being permanently deleted"
                     ),
                 },
-            )
-        except ReferenceExistsException as arg:
+            ) from exc
+        except ReferenceExistsException as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.REFERENCE_EXISTS.value,
                     "message": (
                         f"One or more references exist to the schema "
-                        f"{{magic=1,keytype=SCHEMA,subject={subject},version={arg.version}}}."
+                        f"{{magic=1,keytype=SCHEMA,subject={subject},version={exc.version}}}."
                     ),
                 },
-            )
-        except InvalidVersion:
-            self._invalid_version(version)
+            ) from exc
+        except InvalidVersion as exc:
+            raise self._invalid_version(version) from exc
 
     async def subject_version_schema_get(
         self,
@@ -547,24 +547,24 @@ class KarapaceSchemaRegistryController:
         try:
             subject_data = self.schema_registry.subject_version_get(Subject(subject), Versioner.V(version))
             return json.loads(cast(str, subject_data["schema"]))  # TODO typing
-        except InvalidVersion:
-            raise self._invalid_version(version)
-        except VersionNotFoundException:
+        except InvalidVersion as exc:
+            raise self._invalid_version(version) from exc
+        except VersionNotFoundException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
                     "message": f"Version {version} not found.",
                 },
-            )
-        except (SchemasNotFoundException, SubjectNotFoundException):
+            ) from exc
+        except (SchemasNotFoundException, SubjectNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
+            ) from exc
 
     async def subject_version_referencedby_get(
         self,
@@ -577,24 +577,24 @@ class KarapaceSchemaRegistryController:
             referenced_by = await self.schema_registry.subject_version_referencedby_get(
                 Subject(subject), Versioner.V(version)
             )
-        except (SubjectNotFoundException, SchemasNotFoundException):
+        except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
-        except VersionNotFoundException:
+            ) from exc
+        except VersionNotFoundException as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
                     "message": f"Version {version} not found.",
                 },
-            )
-        except InvalidVersion:
-            raise self._invalid_version(version)
+            ) from exc
+        except InvalidVersion as exc:
+            raise self._invalid_version(version) from exc
 
         return referenced_by
 
@@ -608,14 +608,14 @@ class KarapaceSchemaRegistryController:
             schema_versions = self.schema_registry.subject_get(Subject(subject), include_deleted=deleted)
             version_list = [version.value for version in schema_versions]
             return version_list
-        except (SubjectNotFoundException, SchemasNotFoundException):
+        except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
+            ) from exc
 
     def _validate_schema_type(self, data: JsonData) -> SchemaType:
         # TODO: simplify the calling code, this functionality should not be required
@@ -631,14 +631,14 @@ class KarapaceSchemaRegistryController:
         schema_type_unparsed = data.get("schemaType", SchemaType.AVRO.value)
         try:
             schema_type = SchemaType(schema_type_unparsed)
-        except ValueError:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                     "message": f"Invalid schemaType {schema_type_unparsed}",
                 },
-            )
+            ) from exc
         return schema_type
 
     def _validate_references(
@@ -692,14 +692,14 @@ class KarapaceSchemaRegistryController:
     ) -> SchemaResponse:
         try:
             subject_data = self._subject_get(subject, include_deleted=deleted)
-        except (SchemasNotFoundException, SubjectNotFoundException):
+        except (SchemasNotFoundException, SubjectNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
-            )
+            ) from exc
         references = None
         new_schema_dependencies = None
         references = self._validate_references(schema_request)
@@ -717,7 +717,7 @@ class KarapaceSchemaRegistryController:
                 normalize=normalize,
                 use_protobuf_formatter=self.config.use_protobuf_formatter,
             )
-        except InvalidSchema:
+        except InvalidSchema as exc:
             LOG.warning("Invalid schema: %r", schema_request.schema_str)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -725,8 +725,8 @@ class KarapaceSchemaRegistryController:
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Error while looking up schema under subject {subject}",
                 },
-            )
-        except InvalidReferences:
+            ) from exc
+        except InvalidReferences as exc:
             human_error = "Provided references is not valid"
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -734,7 +734,7 @@ class KarapaceSchemaRegistryController:
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Invalid {schema_request.schema_type} references. Error: {human_error}",
                 },
-            )
+            ) from exc
 
         # Match schemas based on version from latest to oldest
         for schema_version in sorted(subject_data.values(), key=lambda item: item.version, reverse=True):
@@ -747,11 +747,11 @@ class KarapaceSchemaRegistryController:
                     dependencies=other_dependencies,
                     normalize=normalize,
                 )
-            except InvalidSchema as e:
+            except InvalidSchema as exc:
                 failed_schema_id = schema_version.schema_id
                 LOG.exception("Existing schema failed to parse. Id: %s", failed_schema_id)
                 self.stats.unexpected_exception(
-                    ex=e, where="Matching existing schemas to posted. Failed schema id: {failed_schema_id}"
+                    ex=exc, where="Matching existing schemas to posted. Failed schema id: {failed_schema_id}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -759,7 +759,7 @@ class KarapaceSchemaRegistryController:
                         "error_code": SchemaErrorCodes.HTTP_INTERNAL_SERVER_ERROR.value,
                         "message": f"Error while looking up schema under subject {subject}",
                     },
-                )
+                ) from exc
 
             if schema_request.schema_type is SchemaType.JSONSCHEMA:
                 schema_valid = parsed_typed_schema.to_dict() == new_schema.to_dict()
@@ -776,8 +776,7 @@ class KarapaceSchemaRegistryController:
                     schema=parsed_typed_schema.schema_str,
                     schemaType=schema_type,
                 )
-            else:
-                LOG.debug("Schema %r did not match %r", schema_version, parsed_typed_schema)
+            LOG.debug("Schema %r did not match %r", schema_version, parsed_typed_schema)
 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -795,7 +794,7 @@ class KarapaceSchemaRegistryController:
         normalize: bool,
         forward_client: ForwardClient,
         request: Request,
-    ) -> SchemaIdResponse | Response:
+    ) -> SchemaIdResponse:
         LOG.debug("POST with subject: %r, request: %r", subject, schema_request)
 
         references = self._validate_references(schema_request=schema_request)
@@ -810,10 +809,10 @@ class KarapaceSchemaRegistryController:
                 normalize=normalize,
                 use_protobuf_formatter=self.config.use_protobuf_formatter,
             )
-        except (InvalidReferences, InvalidSchema, InvalidSchemaType) as e:
+        except (InvalidReferences, InvalidSchema, InvalidSchemaType) as exc:
             LOG.warning("Invalid schema: %r", schema_request.schema_str, exc_info=True)
-            if isinstance(e.__cause__, (SchemaParseException, JSONDecodeError, ProtobufUnresolvedDependencyException)):
-                human_error = f"{e.__cause__.args[0]}"  # pylint: disable=no-member
+            if isinstance(exc.__cause__, (SchemaParseException, JSONDecodeError, ProtobufUnresolvedDependencyException)):
+                human_error = f"{exc.__cause__.args[0]}"  # pylint: disable=no-member
             else:
                 from_body_schema_str = schema_request.schema_str
                 human_error = (
@@ -825,7 +824,7 @@ class KarapaceSchemaRegistryController:
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Invalid {schema_request.schema_type.value} schema. Error: {human_error}",
                 },
-            )
+            ) from exc
 
         schema_id = self.get_schema_id_if_exists(subject=Subject(subject), schema=new_schema, include_deleted=False)
         if schema_id is not None:
@@ -836,37 +835,39 @@ class KarapaceSchemaRegistryController:
             try:
                 schema_id = await self.schema_registry.write_new_schema_local(Subject(subject), new_schema, references)
                 return SchemaIdResponse(id=schema_id)
-            except InvalidSchema as ex:
+            except InvalidSchema as exc:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail={
                         "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
-                        "message": f"Invalid {schema_request.schema_type.value} schema. Error: {str(ex)}",
+                        "message": f"Invalid {schema_request.schema_type.value} schema. Error: {str(exc)}",
                     },
-                )
-            except IncompatibleSchema as ex:
+                ) from exc
+            except IncompatibleSchema as exc:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
                         "error_code": SchemaErrorCodes.HTTP_CONFLICT.value,
-                        "message": str(ex),
+                        "message": str(exc),
                     },
-                )
-            except SchemaTooLargeException:
+                ) from exc
+            except SchemaTooLargeException as exc:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail={
                         "error_code": SchemaErrorCodes.SCHEMA_TOO_LARGE_ERROR_CODE.value,
                         "message": "Schema is too large",
                     },
-                )
+                ) from exc
             except Exception as xx:
                 raise xx
 
         elif not primary_url:
             raise no_primary_url_error()
         else:
-            return await forward_client.forward_request_remote(request=request, primary_url=primary_url)
+            return await forward_client.forward_request_remote(
+                request=request, primary_url=primary_url, response_type=SchemaIdResponse
+            )
 
     async def get_global_mode(self) -> ModeResponse:
         return ModeResponse(mode=str(self.schema_registry.get_global_mode()))
@@ -903,14 +904,14 @@ class KarapaceSchemaRegistryController:
                 dependencies=new_schema_dependencies,
                 use_protobuf_formatter=self.config.use_protobuf_formatter,
             )
-        except InvalidSchema:
+        except InvalidSchema as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Invalid {schema_request.schema_type} schema",
                 },
-            )
+            ) from exc
 
     def get_old_schema(self, subject: Subject, version: Version) -> ParsedTypedSchema:
         old: JsonObject | None = None
@@ -918,14 +919,14 @@ class KarapaceSchemaRegistryController:
             old = self.schema_registry.subject_version_get(subject=subject, version=version)
         except InvalidVersion:
             self._invalid_version(version.value)
-        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException):
+        except (VersionNotFoundException, SchemasNotFoundException, SubjectNotFoundException) as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error_code": SchemaErrorCodes.VERSION_NOT_FOUND.value,
                     "message": f"Version {version} not found.",
                 },
-            )
+            ) from exc
         assert old is not None
         old_schema_type = self._validate_schema_type(data=old)
         try:
@@ -935,11 +936,11 @@ class KarapaceSchemaRegistryController:
                 old_references, old_dependencies = self.schema_registry.resolve_references(old_references)
             old_schema = ParsedTypedSchema.parse(old_schema_type, old["schema"], old_references, old_dependencies)
             return old_schema
-        except InvalidSchema:
+        except InvalidSchema as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Found an invalid {old_schema_type} schema registered",
                 },
-            )
+            ) from exc

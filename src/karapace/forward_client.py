@@ -3,9 +3,11 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import Request, Response
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi import HTTPException, Request, status
+from karapace.utils import json_decode
 from karapace.version import __version__
+from pydantic import BaseModel
+from typing import overload, TypeVar, Union
 
 import aiohttp
 import async_timeout
@@ -14,16 +16,30 @@ import logging
 LOG = logging.getLogger(__name__)
 
 
+BaseModelResponse = TypeVar("BaseModelResponse", bound=BaseModel)
+SimpleTypeResponse = TypeVar("SimpleTypeResponse", bound=Union[int, list[int]])
+
+
 class ForwardClient:
     USER_AGENT = f"Karapace/{__version__}"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._forward_client: aiohttp.ClientSession | None = None
 
     def _get_forward_client(self) -> aiohttp.ClientSession:
         return aiohttp.ClientSession(headers={"User-Agent": ForwardClient.USER_AGENT})
 
-    async def forward_request_remote(self, *, request: Request, primary_url: str) -> Response:
+    def _acceptable_response_content_type(self, *, content_type: str) -> bool:
+        return (
+            content_type.startswith("application/") and content_type.endswith("json")
+        ) or content_type == "application/octet-stream"
+
+    async def _forward_request_remote(
+        self,
+        *,
+        request: Request,
+        primary_url: str,
+    ) -> bytes:
         LOG.info("Forwarding %s request to remote url: %r since we're not the master", request.method, request.url)
         timeout = 60.0
         headers = request.headers.mutablecopy()
@@ -37,18 +53,52 @@ class ForwardClient:
             forward_url = f"{forward_url}?{request.url.query}"
         logging.error(forward_url)
 
-        with async_timeout.timeout(timeout):
+        async with async_timeout.timeout(timeout):
             body_data = await request.body()
             async with func(forward_url, headers=headers, data=body_data) as response:
-                if response.headers.get("Content-Type", "").startswith("application/json"):
-                    return JSONResponse(
-                        content=await response.text(),
-                        status_code=response.status,
-                        headers=response.headers,
-                    )
-                else:
-                    return PlainTextResponse(
-                        content=await response.text(),
-                        status_code=response.status,
-                        headers=response.headers,
-                    )
+                if self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
+                    return await response.text()
+                LOG.error("Unknown response for forwarded request: %s", response)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={
+                        "error_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        "message": "Unknown response for forwarded request.",
+                    },
+                )
+
+    @overload
+    async def forward_request_remote(
+        self,
+        *,
+        request: Request,
+        primary_url: str,
+        response_type: type[BaseModelResponse],
+    ) -> BaseModelResponse:
+        ...
+
+    @overload
+    async def forward_request_remote(
+        self,
+        *,
+        request: Request,
+        primary_url: str,
+        response_type: type[SimpleTypeResponse],
+    ) -> SimpleTypeResponse:
+        ...
+
+    async def forward_request_remote(
+        self,
+        *,
+        request: Request,
+        primary_url: str,
+        response_type: type[BaseModelResponse] | type[SimpleTypeResponse],
+    ) -> BaseModelResponse | SimpleTypeResponse:
+        body = await self._forward_request_remote(request=request, primary_url=primary_url)
+        if response_type == int:
+            return int(body)  # type: ignore[return-value]
+        if response_type == list[int]:
+            return json_decode(body, assume_type=list[int])  # type: ignore[return-value]
+        if issubclass(response_type, BaseModel):
+            return response_type.parse_raw(body)  # type: ignore[return-value]
+        raise ValueError("Did not match any expected type")

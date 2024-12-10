@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from dependency_injector.wiring import inject, Provide
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from karapace.auth import AuthenticatorAndAuthorizer, User
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
@@ -44,7 +44,7 @@ async def schemas_get(
     schema_id: str,  # TODO: type to actual type
     includeSubjects: bool = False,  # TODO: include subjects?
     fetchMaxId: bool = False,  # TODO: fetch max id?
-    format: str = "",
+    format_serialized: str = Query("", alias="format"),
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemasResponse:
@@ -52,7 +52,7 @@ async def schemas_get(
         schema_id=schema_id,
         include_subjects=includeSubjects,
         fetch_max_id=fetchMaxId,
-        format_serialized=format,
+        format_serialized=format_serialized,
         user=user,
         authorizer=authorizer,
     )
