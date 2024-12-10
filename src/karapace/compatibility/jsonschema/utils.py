@@ -5,7 +5,7 @@ See LICENSE for details
 from copy import copy
 from jsonschema import Draft7Validator
 from karapace.compatibility.jsonschema.types import BooleanSchema, Instance, Keyword, Subschema
-from typing import Any, Optional, TypeVar, Union
+from typing import Any, TypeVar, Union
 
 import re
 
@@ -53,7 +53,7 @@ def normalize_schema_rec(validator: Draft7Validator, original_schema: Any) -> An
     return normalized
 
 
-def maybe_get_subschemas_and_type(schema: Any) -> Optional[tuple[list[Any], Subschema]]:
+def maybe_get_subschemas_and_type(schema: Any) -> tuple[list[Any], Subschema] | None:
     """If schema contains `anyOf`, `allOf`, or `oneOf`, return it.
 
     This will also normalized schemas with a list of types to a `anyOf`, e..g:
@@ -218,7 +218,7 @@ def is_tuple_without_additional_items(schema: Any) -> bool:
     return is_tuple(schema) and is_false_schema(additional_items)
 
 
-def gt(left: Optional[int], right: Optional[int]) -> bool:
+def gt(left: int | None, right: int | None) -> bool:
     """Predicate greater-than that checks for nullables.
 
     When `left` is writer and `right` is reader, this can be used to check for
@@ -256,11 +256,11 @@ def gt(left: Optional[int], right: Optional[int]) -> bool:
     return bool(left is not None and right is not None and left > right)
 
 
-def lt(left: Optional[int], right: Optional[int]) -> bool:
+def lt(left: int | None, right: int | None) -> bool:
     return gt(right, left)  # pylint: disable=arguments-out-of-order
 
 
-def ne(writer: Optional[T], reader: Optional[T]) -> bool:
+def ne(writer: T | None, reader: T | None) -> bool:
     """Predicate not-equals that checks for nullables.
 
     Predicate used to check for incompatibility in constraints that accept
@@ -288,7 +288,7 @@ def ne(writer: Optional[T], reader: Optional[T]) -> bool:
     return bool(reader is not None and writer is not None and reader != writer)
 
 
-def introduced_constraint(reader: Optional[T], writer: Optional[T]) -> bool:
+def introduced_constraint(reader: T | None, writer: T | None) -> bool:
     """True if `writer` did *not* have the constraint but `reader` introduced it.
 
     A constraint limits the value domain, because of that objects that were

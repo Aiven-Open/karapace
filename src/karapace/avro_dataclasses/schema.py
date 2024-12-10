@@ -5,8 +5,8 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal
-from typing_extensions import NotRequired, TypeAlias, TypedDict
+from typing import Literal, TypeAlias
+from typing_extensions import NotRequired, TypedDict
 
 Primitive: TypeAlias = Literal["int", "long", "string", "null", "bytes", "boolean"]
 LogicalType: TypeAlias = Literal["timestamp-millis", "uuid"]

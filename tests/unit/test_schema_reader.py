@@ -6,6 +6,7 @@ See LICENSE for details
 """
 
 from _pytest.logging import LogCaptureFixture
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from confluent_kafka import Message
 from dataclasses import dataclass
@@ -28,7 +29,6 @@ from karapace.typing import SchemaId, Version
 from pytest import MonkeyPatch
 from tests.base_testcase import BaseTestCase
 from tests.utils import schema_protobuf_invalid_because_corrupted, schema_protobuf_with_invalid_ref
-from typing import Callable, Optional
 from unittest.mock import Mock
 
 import confluent_kafka
@@ -334,7 +334,7 @@ class HealthCheckTestCase(BaseTestCase):
     consecutive_unexpected_errors: int
     consecutive_unexpected_errors_start: float
     healthy: bool
-    check_topic_error: Optional[Exception] = None
+    check_topic_error: Exception | None = None
 
 
 @pytest.mark.parametrize(

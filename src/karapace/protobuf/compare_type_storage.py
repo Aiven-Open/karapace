@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from karapace.protobuf.message_element import MessageElement
 
 
-def compute_name(t: ProtoType, result_path: list[str], package_name: str, types: dict) -> Optional[str]:
+def compute_name(t: ProtoType, result_path: list[str], package_name: str, types: dict) -> str | None:
     string = t.string
 
     if string.startswith("."):
@@ -41,8 +41,8 @@ class CompareTypes:
         self.self_package_name = self_package_name or ""
         self.other_package_name = other_package_name or ""
 
-        self.self_types: dict[str, Union[TypeRecord, TypeRecordMap]] = {}
-        self.other_types: dict[str, Union[TypeRecord, TypeRecordMap]] = {}
+        self.self_types: dict[str, TypeRecord | TypeRecordMap] = {}
+        self.other_types: dict[str, TypeRecord | TypeRecordMap] = {}
         self.locked_messages: list["MessageElement"] = []
         self.environment: list["MessageElement"] = []
         self.result = result
@@ -58,8 +58,8 @@ class CompareTypes:
 
         if isinstance(type_element, MessageElement):  # add support of MapEntry messages
             if "map_entry" in type_element.options:
-                key: Optional[FieldElement] = next((f for f in type_element.fields if f.name == "key"), None)
-                value: Optional[FieldElement] = next((f for f in type_element.fields if f.name == "value"), None)
+                key: FieldElement | None = next((f for f in type_element.fields if f.name == "key"), None)
+                value: FieldElement | None = next((f for f in type_element.fields if f.name == "value"), None)
                 types[name] = TypeRecordMap(package_name, type_element, key, value)
             else:
                 types[name] = TypeRecord(package_name, type_element)
@@ -89,7 +89,7 @@ class CompareTypes:
             return type_record
         return None
 
-    def self_type_short_name(self, t: ProtoType) -> Optional[str]:
+    def self_type_short_name(self, t: ProtoType) -> str | None:
         name = compute_name(t, self.result.path, self.self_package_name, self.self_types)
         if name is None:
             raise IllegalArgumentException(f"Cannot determine message type {t}")
@@ -101,7 +101,7 @@ class CompareTypes:
             return name[(len(package_name) + 1) :]
         return name
 
-    def other_type_short_name(self, t: ProtoType) -> Optional[str]:
+    def other_type_short_name(self, t: ProtoType) -> str | None:
         name = compute_name(t, self.result.path, self.other_package_name, self.other_types)
         if name is None:
             raise IllegalArgumentException(f"Cannot determine message type {t}")

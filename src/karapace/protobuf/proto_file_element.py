@@ -15,10 +15,10 @@ from karapace.protobuf.option_element import OptionElement
 from karapace.protobuf.service_element import ServiceElement
 from karapace.protobuf.syntax import Syntax
 from karapace.protobuf.type_element import TypeElement
-from typing import NewType, Optional
+from typing import NewType
 
 
-def _collect_dependencies_types(compare_types: CompareTypes, dependencies: Optional[dict[str, Dependency]], is_self: bool):
+def _collect_dependencies_types(compare_types: CompareTypes, dependencies: dict[str, Dependency] | None, is_self: bool):
     for dep in dependencies.values():
         types: list[TypeElement] = dep.schema.schema.proto_file_element.types
         sub_deps = dep.schema.schema.dependencies
@@ -46,14 +46,14 @@ class ProtoFileElement:
     def __init__(
         self,
         location: Location,
-        package_name: Optional[PackageName] = None,
-        syntax: Optional[Syntax] = None,
-        imports: Optional[Sequence[TypeName]] = None,
-        public_imports: Optional[Sequence[TypeName]] = None,
-        types: Optional[Sequence[TypeElement]] = None,
-        services: Optional[Sequence[ServiceElement]] = None,
-        extend_declarations: Optional[Sequence[ExtendElement]] = None,
-        options: Optional[Sequence[OptionElement]] = None,
+        package_name: PackageName | None = None,
+        syntax: Syntax | None = None,
+        imports: Sequence[TypeName] | None = None,
+        public_imports: Sequence[TypeName] | None = None,
+        types: Sequence[TypeElement] | None = None,
+        services: Sequence[ServiceElement] | None = None,
+        extend_declarations: Sequence[ExtendElement] | None = None,
+        options: Sequence[OptionElement] | None = None,
     ) -> None:
         if types is None:
             types = list()
@@ -133,8 +133,8 @@ class ProtoFileElement:
         self,
         other: "ProtoFileElement",
         result: CompareResult,
-        self_dependencies: Optional[dict[str, Dependency]] = None,
-        other_dependencies: Optional[dict[str, Dependency]] = None,
+        self_dependencies: dict[str, Dependency] | None = None,
+        other_dependencies: dict[str, Dependency] | None = None,
     ) -> CompareResult:
         from karapace.protobuf.compare_type_lists import compare_type_lists
 

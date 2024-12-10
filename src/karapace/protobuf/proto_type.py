@@ -141,13 +141,13 @@ class ProtoType:
         }.get(self.simple_name, OptionElement.Kind.ENUM)
 
     @property
-    def enclosing_type_or_package(self) -> Optional[str]:
+    def enclosing_type_or_package(self) -> str | None:
         """Returns the enclosing type, or None if self type is not nested in another type."""
         dot = self.string.rfind(".")
         return None if (dot == -1) else self.string[:dot]
 
     @property
-    def type_url(self) -> Optional[str]:
+    def type_url(self) -> str | None:
         """Returns a string like "type.googleapis.com/packagename.messagename" or None if self type is
         a scalar or a map.
 

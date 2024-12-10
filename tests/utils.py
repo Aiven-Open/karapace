@@ -4,13 +4,14 @@ See LICENSE for details
 """
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from aiokafka.errors import TopicAlreadyExistsError
+from collections.abc import Callable
 from karapace.client import Client
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.protobuf.kotlin_wrapper import trim_margin
 from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, Callable, IO
+from typing import Any, IO
 from urllib.parse import quote
 
 import asyncio
