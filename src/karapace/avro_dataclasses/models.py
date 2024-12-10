@@ -5,12 +5,13 @@ See LICENSE for details
 from __future__ import annotations
 
 from .introspect import record_schema
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, fields, is_dataclass
 from enum import Enum
 from functools import lru_cache, partial
-from typing import Callable, cast, IO, TYPE_CHECKING, TypeVar, Union
-from typing_extensions import get_args, get_origin, Self
+from types import UnionType
+from typing import cast, get_args, get_origin, IO, TYPE_CHECKING, TypeVar
+from typing_extensions import Self
 
 import avro
 import avro.io
@@ -100,7 +101,7 @@ def from_avro_value(type_: object) -> Parser | None:
 
     # With the avro library we need to manually handle union types. We only support the
     # special case of nullable types for now.
-    if origin is Union:
+    if origin is UnionType:
         try:
             a, b = get_args(type_)
         except ValueError:

@@ -3,11 +3,10 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from karapace.content_type import check_schema_headers
-from typing import Callable
 
 
 def setup_middlewares(app: FastAPI) -> None:

@@ -4,14 +4,13 @@ See LICENSE for details
 """
 from datetime import timedelta
 from karapace.backup.poll_timeout import PollTimeout
-from typing import Union
 
 import pytest
 
 
 class TestPollTimeout:
     @pytest.mark.parametrize("it", ("PT0.999S", timedelta(milliseconds=999)))
-    def test_min_validation(self, it: Union[str, timedelta]) -> None:
+    def test_min_validation(self, it: str | timedelta) -> None:
         with pytest.raises(
             ValueError,
             match=r"^Poll timeout must be at least one second, got: 0:00:00.999000$",

@@ -9,10 +9,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiohttp.web import middleware, Request, Response
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from karapace.rapu import RestApp
 from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, Histogram
-from typing import Callable, Final
+from typing import Final
 
 import logging
 import time

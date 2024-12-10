@@ -16,6 +16,7 @@ from aiokafka.errors import (
 )
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from collections.abc import Callable
 from confluent_kafka.error import KafkaException
 from contextlib import AsyncExitStack
 from http import HTTPStatus
@@ -44,7 +45,7 @@ from karapace.serialization import (
 )
 from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
 from karapace.utils import convert_to_int, json_encode
-from typing import Callable, TypedDict
+from typing import TypedDict
 
 import asyncio
 import base64
