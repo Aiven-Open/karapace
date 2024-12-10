@@ -8,7 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiohttp.web_request import Request
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from functools import partial
 from http import HTTPStatus
 from karapace.config import Config
@@ -17,8 +17,7 @@ from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.typing import JsonObject
 from karapace.utils import json_encode
 from karapace.version import __version__
-from typing import Callable, NoReturn
-from typing_extensions import TypeAlias
+from typing import NoReturn, TypeAlias
 
 import aiohttp.web
 import time

@@ -2,7 +2,7 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, FastAPI
@@ -17,7 +17,7 @@ from schema_registry.container import SchemaRegistryContainer
 from schema_registry.http_handlers import setup_exception_handlers
 from schema_registry.middlewares import setup_middlewares
 from schema_registry.routers.setup import setup_routers
-from typing import AsyncContextManager, Callable
+from typing import AsyncContextManager
 
 import logging
 

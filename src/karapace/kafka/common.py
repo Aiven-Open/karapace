@@ -14,10 +14,10 @@ from aiokafka.errors import (
     KafkaUnavailableError,
     NoBrokersAvailable,
 )
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
-from typing import Any, Callable, Literal, NoReturn, Protocol, TypedDict, TypeVar
+from typing import Any, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
 import logging

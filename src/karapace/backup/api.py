@@ -22,7 +22,7 @@ from .errors import (
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
 from aiokafka.errors import KafkaError, TopicAlreadyExistsError
-from collections.abc import Iterator, Mapping, Sized
+from collections.abc import Callable, Iterator, Mapping, Sized
 from concurrent.futures import Future
 from confluent_kafka import Message, TopicPartition
 from enum import Enum
@@ -42,7 +42,7 @@ from karapace.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import Callable, Literal, NewType, TypeVar
+from typing import Literal, NewType, TypeVar
 
 import contextlib
 import datetime

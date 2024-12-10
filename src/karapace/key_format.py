@@ -10,7 +10,7 @@ from enum import Enum
 from karapace.typing import ArgJsonObject
 from karapace.utils import json_encode
 from types import MappingProxyType
-from typing import Final, Optional
+from typing import Final
 
 # used by the OrderedDict for the relative order of keys.
 SCHEMA_KEY_ORDER: Final[tuple[str, str, str, str]] = ("keytype", "subject", "version", "magic")
@@ -67,7 +67,7 @@ class KeyFormatter:
     def format_key(
         self,
         key: ArgJsonObject,
-        keymode: Optional[KeyMode] = None,
+        keymode: KeyMode | None = None,
     ) -> bytes:
         """Format key by the given keymode.
 
