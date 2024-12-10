@@ -8,14 +8,14 @@ from cachetools import TTLCache
 from collections.abc import MutableMapping
 from karapace.schema_models import TypedSchema
 from karapace.typing import SchemaId, Subject
-from typing import Final, Optional
+from typing import Final
 
 import hashlib
 
 
 class SchemaCacheProtocol(ABC):
     @abstractmethod
-    def get_schema_id(self, schema: TypedSchema) -> Optional[SchemaId]:
+    def get_schema_id(self, schema: TypedSchema) -> SchemaId | None:
         pass
 
     @abstractmethod
@@ -27,11 +27,11 @@ class SchemaCacheProtocol(ABC):
         pass
 
     @abstractmethod
-    def get_schema(self, schema_id: SchemaId) -> Optional[TypedSchema]:
+    def get_schema(self, schema_id: SchemaId) -> TypedSchema | None:
         pass
 
     @abstractmethod
-    def get_schema_str(self, schema_id: SchemaId) -> Optional[str]:
+    def get_schema_str(self, schema_id: SchemaId) -> str | None:
         pass
 
 
@@ -40,7 +40,7 @@ class TopicSchemaCache:
         self._topic_cache: dict[Subject, SchemaCache] = {}
         self._empty_schema_cache: Final = EmptySchemaCache()
 
-    def get_schema_id(self, topic: Subject, schema: TypedSchema) -> Optional[SchemaId]:
+    def get_schema_id(self, topic: Subject, schema: TypedSchema) -> SchemaId | None:
         return self._topic_cache.get(topic, self._empty_schema_cache).get_schema_id(schema)
 
     def has_schema_id(self, topic: Subject, schema_id: SchemaId) -> bool:
@@ -50,11 +50,11 @@ class TopicSchemaCache:
         schema_cache_with_defaults = self._topic_cache.setdefault(Subject(topic), SchemaCache())
         schema_cache_with_defaults.set_schema(schema_id, schema)
 
-    def get_schema(self, topic: Subject, schema_id: SchemaId) -> Optional[TypedSchema]:
+    def get_schema(self, topic: Subject, schema_id: SchemaId) -> TypedSchema | None:
         schema_cache = self._topic_cache.get(topic, self._empty_schema_cache)
         return schema_cache.get_schema(schema_id)
 
-    def get_schema_str(self, topic: Subject, schema_id: SchemaId) -> Optional[str]:
+    def get_schema_str(self, topic: Subject, schema_id: SchemaId) -> str | None:
         schema_cache = self._topic_cache.get(topic, self._empty_schema_cache)
         return schema_cache.get_schema_str(schema_id)
 
@@ -64,7 +64,7 @@ class SchemaCache(SchemaCacheProtocol):
         self._schema_hash_str_to_id: dict[str, SchemaId] = {}
         self._id_to_schema_str: MutableMapping[SchemaId, TypedSchema] = TTLCache(maxsize=100, ttl=600)
 
-    def get_schema_id(self, schema: TypedSchema) -> Optional[SchemaId]:
+    def get_schema_id(self, schema: TypedSchema) -> SchemaId | None:
         fingerprint = hashlib.sha1(str(schema).encode("utf8")).hexdigest()
 
         maybe_id = self._schema_hash_str_to_id.get(fingerprint)
@@ -83,10 +83,10 @@ class SchemaCache(SchemaCacheProtocol):
         self._schema_hash_str_to_id[fingerprint] = schema_id
         self._id_to_schema_str[schema_id] = schema
 
-    def get_schema(self, schema_id: SchemaId) -> Optional[TypedSchema]:
+    def get_schema(self, schema_id: SchemaId) -> TypedSchema | None:
         return self._id_to_schema_str.get(schema_id)
 
-    def get_schema_str(self, schema_id: SchemaId) -> Optional[str]:
+    def get_schema_str(self, schema_id: SchemaId) -> str | None:
         maybe_schema = self.get_schema(schema_id)
         return None if maybe_schema is None else str(maybe_schema)
 

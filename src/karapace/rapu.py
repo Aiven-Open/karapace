@@ -7,12 +7,13 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from accept_types import get_best_match
+from collections.abc import Callable
 from http import HTTPStatus
 from karapace.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
 from karapace.utils import json_decode, json_encode
 from karapace.version import __version__
-from typing import Callable, NoReturn, Optional, overload, Union
+from typing import NoReturn, overload
 
 import aiohttp
 import aiohttp.web
@@ -66,21 +67,21 @@ class HTTPRequest:
         headers: dict[str, str],
         path_for_stats: str,
         method: str,
-        content_type: Optional[str] = None,
-        accepts: Optional[str] = None,
+        content_type: str | None = None,
+        accepts: str | None = None,
     ):
         self.url = url
         self.headers = headers
-        self._header_cache: dict[str, Optional[str]] = {}
+        self._header_cache: dict[str, str | None] = {}
         self.query = query
         self.content_type = content_type
         self.accepts = accepts
         self.path_for_stats = path_for_stats
         self.method = method
-        self.json: Optional[dict] = None
+        self.json: dict | None = None
 
     @overload
-    def get_header(self, header: str) -> Optional[str]:
+    def get_header(self, header: str) -> str | None:
         ...
 
     @overload
@@ -112,15 +113,15 @@ class HTTPResponse(Exception):
     in response handler callbacks."""
 
     status: HTTPStatus
-    json: Union[None, list, dict]
+    json: None | list | dict
 
     def __init__(
         self,
         body,
         *,
         status: HTTPStatus = HTTPStatus.OK,
-        content_type: Optional[str] = None,
-        headers: Optional[dict[str, str]] = None,
+        content_type: str | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.body = body
         self.status = status
@@ -159,7 +160,7 @@ def http_error(message, content_type: str, code: HTTPStatus) -> NoReturn:
 
 class RestApp:
     def __init__(
-        self, *, app_name: str, config: Config, not_ready_handler: Optional[Callable[[HTTPRequest], None]] = None
+        self, *, app_name: str, config: Config, not_ready_handler: Callable[[HTTPRequest], None] | None = None
     ) -> None:
         self.app_name = app_name
         self.config = config

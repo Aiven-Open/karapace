@@ -7,7 +7,7 @@ from dataclasses import dataclass, Field, field, fields
 from enum import Enum
 from karapace.avro_dataclasses.introspect import field_schema, record_schema, UnsupportedAnnotation
 from karapace.avro_dataclasses.schema import FieldSchema
-from typing import Final, Optional
+from typing import Final
 
 import datetime
 import pytest
@@ -32,8 +32,8 @@ class ValidRecord:
     int_field: int
     explicit_int_field: int = field(metadata={"type": "int"})
     none_field: None
-    optional_field: Optional[int]
-    optional_bytes_field: Optional[bytes]
+    optional_field: int | None
+    optional_bytes_field: bytes | None
     enum_field: Symbols
     dt_field: datetime.datetime
     int_array: tuple[int, ...]

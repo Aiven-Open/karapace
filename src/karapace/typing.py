@@ -5,13 +5,12 @@ See LICENSE for details
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
 from pydantic import ValidationInfo
-from typing import Any, Callable, ClassVar, NewType, Union
-from typing_extensions import TypeAlias
+from typing import Any, ClassVar, NewType, TypeAlias, Union
 
 import functools
 

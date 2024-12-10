@@ -4,7 +4,6 @@ See LICENSE for details
 """
 from dataclasses import dataclass, field
 from karapace.avro_dataclasses.models import AvroModel
-from typing import Optional
 
 import datetime
 import enum
@@ -41,7 +40,7 @@ class HasList(AvroModel):
 
 @dataclass(frozen=True)
 class HasOptionalBytes(AvroModel):
-    value: Optional[bytes]
+    value: bytes | None
 
 
 class TestAvroModel:
