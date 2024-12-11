@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from karapace.content_type import check_schema_headers
+from schema_registry.middlewares.prometheus import setup_prometheus_middleware
 
 
 def setup_middlewares(app: FastAPI) -> None:
@@ -32,3 +33,5 @@ def setup_middlewares(app: FastAPI) -> None:
         response = await call_next(request)
         response.headers["Content-Type"] = response_content_type
         return response
+
+    setup_prometheus_middleware(app=app)
