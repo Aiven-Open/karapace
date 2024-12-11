@@ -8,17 +8,17 @@ rule_files:
 
 # A scrape configuration
 scrape_configs:
-  - job_name: karapace-registry
+  - job_name: karapace-schema-registry
     metrics_path: /metrics
     static_configs:
       - targets:
-        - karapace-registry:8081
+        - karapace-schema-registry:8081
 
-  - job_name: karapace-rest
+  - job_name: karapace-rest-proxy
     metrics_path: /metrics
     static_configs:
       - targets:
-        - karapace-rest:8082
+        - karapace-rest-proxy:8082
 
   - job_name: statsd-exporter
     metrics_path: /metrics
