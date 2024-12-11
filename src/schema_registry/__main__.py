@@ -7,6 +7,7 @@ from schema_registry.container import SchemaRegistryContainer
 from schema_registry.factory import create_karapace_application, karapace_schema_registry_lifespan
 
 import schema_registry.factory
+import schema_registry.middlewares.prometheus
 import schema_registry.routers.compatibility
 import schema_registry.routers.config
 import schema_registry.routers.health
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     schema_registry_container.wire(
         modules=[
             __name__,
+            schema_registry.middlewares.prometheus,
             schema_registry.factory,
             schema_registry.user,
             schema_registry.routers.health,
