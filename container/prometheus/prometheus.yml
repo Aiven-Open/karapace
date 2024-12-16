@@ -27,3 +27,8 @@ scrape_configs:
     static_configs:
       - targets:
         - statsd-exporter:9102
+
+  - job_name: opentelemetry-collector
+    static_configs:
+      - targets:
+        - opentelemetry-collector:8888

@@ -2,10 +2,11 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from http.client import HTTPException, HTTPResponse
 
+from fastapi.exceptions import HTTPException
 from karapace.schema_models import ValidatedTypedSchema
 from karapace.schema_type import SchemaType
+from karapace.rapu import HTTPResponse
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.reader import KafkaSchemaReader
 from unittest.mock import Mock, patch, PropertyMock

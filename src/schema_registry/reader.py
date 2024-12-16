@@ -46,6 +46,8 @@ from karapace.schema_references import LatestVersionReference, Reference, refere
 from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaReaderStoppper, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
+from schema_registry.telemetry.container import TelemetryContainer
+from schema_registry.telemetry.tracer import Tracer
 from threading import Event, Lock, Thread
 from typing import Final
 
