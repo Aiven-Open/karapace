@@ -29,9 +29,9 @@ from karapace.key_format import KeyFormatter
 from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
-from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
+from schema_registry.reader import KafkaSchemaReader
 
 import asyncio
 import logging
