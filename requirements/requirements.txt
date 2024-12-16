@@ -21,8 +21,6 @@ anyio==4.8.0
     #   httpx
     #   starlette
     #   watchfiles
-asgiref==3.8.1
-    # via opentelemetry-instrumentation-asgi
 async-lru==2.0.4
     # via karapace (/karapace/pyproject.toml)
 async-timeout==5.0.1
@@ -42,6 +40,9 @@ certifi==2025.1.31
     # via
     #   httpcore
     #   httpx
+    #   requests
+charset-normalizer==3.4.1
+    # via requests
 click==8.1.8
     # via
     #   rich-toolkit
@@ -56,6 +57,8 @@ dependency-injector==4.43.0
 deprecated==1.2.18
     # via
     #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-semantic-conventions
 dnspython==2.7.0
     # via email-validator
@@ -71,6 +74,12 @@ frozenlist==1.5.0
     # via
     #   aiohttp
     #   aiosignal
+googleapis-common-protos==1.66.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+grpcio==1.70.0
+    # via opentelemetry-exporter-otlp-proto-grpc
 h11==0.14.0
     # via
     #   httpcore
@@ -86,8 +95,9 @@ idna==3.10
     #   anyio
     #   email-validator
     #   httpx
+    #   requests
     #   yarl
-importlib-metadata==8.5.0
+importlib-metadata==8.4.0
     # via opentelemetry-api
 isodate==0.7.2
     # via karapace (/karapace/pyproject.toml)
@@ -111,42 +121,44 @@ multidict==6.1.0
     #   yarl
 networkx==3.4.2
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-api==1.28.2
+opentelemetry-api==1.27.0
     # via
     #   karapace (/karapace/pyproject.toml)
-    #   opentelemetry-instrumentation
-    #   opentelemetry-instrumentation-asgi
-    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-instrumentation==0.49b2
-    # via
-    #   opentelemetry-instrumentation-asgi
-    #   opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-asgi==0.49b2
-    # via opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-fastapi==0.49b2
+opentelemetry-exporter-otlp==1.27.0
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-sdk==1.28.2
-    # via karapace (/karapace/pyproject.toml)
-opentelemetry-semantic-conventions==0.49b2
+opentelemetry-exporter-otlp-proto-common==1.27.0
     # via
-    #   opentelemetry-instrumentation
-    #   opentelemetry-instrumentation-asgi
-    #   opentelemetry-instrumentation-fastapi
-    #   opentelemetry-sdk
-opentelemetry-util-http==0.49b2
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+    # via opentelemetry-exporter-otlp
+opentelemetry-exporter-otlp-proto-http==1.27.0
+    # via opentelemetry-exporter-otlp
+opentelemetry-proto==1.27.0
     # via
-    #   opentelemetry-instrumentation-asgi
-    #   opentelemetry-instrumentation-fastapi
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.27.0
+    # via
+    #   karapace (/karapace/pyproject.toml)
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-semantic-conventions==0.48b0
+    # via opentelemetry-sdk
 packaging==24.2
-    # via
-    #   aiokafka
-    #   opentelemetry-instrumentation
+    # via aiokafka
 prometheus-client==0.20.0
     # via karapace (/karapace/pyproject.toml)
 protobuf==3.20.3
-    # via karapace (/karapace/pyproject.toml)
+    # via
+    #   googleapis-common-protos
+    #   karapace (/karapace/pyproject.toml)
+    #   opentelemetry-proto
 pydantic==2.10.2
     # via
     #   fastapi
@@ -176,6 +188,8 @@ referencing==0.36.2
     # via
     #   jsonschema
     #   jsonschema-specifications
+requests==2.32.3
+    # via opentelemetry-exporter-otlp-proto-http
 rich==13.7.1
     # via
     #   karapace (/karapace/pyproject.toml)
@@ -204,7 +218,6 @@ typer==0.15.1
 typing-extensions==4.12.2
     # via
     #   anyio
-    #   asgiref
     #   async-lru
     #   fastapi
     #   karapace (/karapace/pyproject.toml)
@@ -218,6 +231,8 @@ typing-extensions==4.12.2
     #   uvicorn
 ujson==5.10.0
     # via karapace (/karapace/pyproject.toml)
+urllib3==2.3.0
+    # via requests
 uvicorn[standard]==0.34.0
     # via
     #   fastapi
@@ -231,9 +246,7 @@ watchfiles==0.24.0
 websockets==14.2
     # via uvicorn
 wrapt==1.17.2
-    # via
-    #   deprecated
-    #   opentelemetry-instrumentation
+    # via deprecated
 xxhash==3.5.0
     # via karapace (/karapace/pyproject.toml)
 yarl==1.12.1
