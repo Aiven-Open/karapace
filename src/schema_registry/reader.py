@@ -278,29 +278,33 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                         self.consecutive_unexpected_errors_start = time.monotonic()
                     LOG.warning("Unexpected exception in schema reader loop - %s", e)
 
-    async def is_healthy(self) -> bool:
-        if (
-            self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
-            and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
-        ):
-            LOG.warning(
-                "Health check failed with %s consecutive errors in %s seconds", self.consecutive_unexpected_errors, duration
-            )
-            return False
+    @inject
+    async def is_healthy(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> bool:
+        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.is_healthy)):
+            if (
+                self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
+                and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
+            ):
+                LOG.warning(
+                    "Health check failed with %s consecutive errors in %s seconds",
+                    self.consecutive_unexpected_errors,
+                    duration,
+                )
+                return False
 
-        try:
-            # Explicitly check if topic exists.
-            # This needs to be done because in case of missing topic the consumer will not repeat the error
-            # on conscutive consume calls and instead will return empty list.
-            assert self.admin_client is not None
-            topic = self.config.topic_name
-            res = self.admin_client.describe_topics(TopicCollection([topic]))
-            await asyncio.wrap_future(res[topic])
-        except Exception as e:  # pylint: disable=broad-except
-            LOG.warning("Health check failed with %r", e)
-            return False
+            try:
+                # Explicitly check if topic exists.
+                # This needs to be done because in case of missing topic the consumer will not repeat the error
+                # on conscutive consume calls and instead will return empty list.
+                assert self.admin_client is not None
+                topic = self.config.topic_name
+                res = self.admin_client.describe_topics(TopicCollection([topic]))
+                await asyncio.wrap_future(res[topic])
+            except Exception as e:  # pylint: disable=broad-except
+                LOG.warning("Health check failed with %r", e)
+                return False
 
-        return True
+            return True
 
     def _get_beginning_offset(self) -> int:
         assert self.consumer is not None, "Thread must be started"
@@ -369,12 +373,15 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
         return ready
 
-    def highest_offset(self) -> int:
-        return max(self._highest_offset, self._offset_watcher.greatest_offset())
+    @inject
+    def highest_offset(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> int:
+        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.highest_offset)):
+            return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     @inject
     def ready(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> bool:
-        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.ready)):
+        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.ready)) as span:
+            span.add_event("Acquiring ready lock")
             with self._ready_lock:
                 return self._ready
 
