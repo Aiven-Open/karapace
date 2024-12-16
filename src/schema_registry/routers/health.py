@@ -56,7 +56,7 @@ async def health(
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     tracer: Tracer = Depends(Provide[SchemaRegistryContainer.telemetry_container.tracer]),
 ) -> HealthCheck:
-    with tracer.get_tracer().start_span("health_check_api_handler_GET") as health_check_span:
+    with tracer.get_tracer().start_as_current_span("APIRouter: health_check") as health_check_span:
         starttime = 0.0
 
         health_check_span.add_event("Checking schema-reader is ready")

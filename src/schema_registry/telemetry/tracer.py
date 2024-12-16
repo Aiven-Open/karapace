@@ -11,6 +11,12 @@ from karapace.container import KarapaceContainer
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor, SpanProcessor
+from opentelemetry.semconv.attributes import (
+    client_attributes as C,
+    http_attributes as H,
+    server_attributes as S,
+    url_attributes as U,
+)
 from opentelemetry.trace.span import Span
 from typing import Any
 
@@ -47,22 +53,22 @@ class Tracer:
     @staticmethod
     def update_span_with_request(request: Request, span: Span) -> None:
         if span.is_recording():
-            span.set_attribute("server.scheme", request.url.scheme)
-            span.set_attribute("server.hostname", request.url.hostname or "")
-            span.set_attribute("server.port", request.url.port or "")
-            span.set_attribute("server.is_secure", request.url.is_secure)
-            span.set_attribute("request.http.method", request.method)
-            span.set_attribute("request.http.path", request.url.path)
-            span.set_attribute("request.http.client.host", request.client.host or "" if request.client else "")
-            span.set_attribute("request.http.client.port", request.client.port or "" if request.client else "")
-            span.set_attribute("request.http.headers.connection", request.headers.get("connection", ""))
-            span.set_attribute("request.http.headers.user_agent", request.headers.get("user-agent", ""))
-            span.set_attribute("request.http.headers.content_type", request.headers.get("content-type", ""))
+            span.set_attribute(C.CLIENT_ADDRESS, request.client.host or "" if request.client else "")
+            span.set_attribute(C.CLIENT_PORT, request.client.port or "" if request.client else "")
+            span.set_attribute(S.SERVER_ADDRESS, request.url.hostname or "")
+            span.set_attribute(S.SERVER_PORT, request.url.port or "")
+            span.set_attribute(U.URL_SCHEME, request.url.scheme)
+            span.set_attribute(U.URL_PATH, request.url.path)
+            span.set_attribute(H.HTTP_REQUEST_METHOD, request.method)
+            span.set_attribute(f"{H.HTTP_REQUEST_HEADER_TEMPLATE}.connection", request.headers.get("connection", ""))
+            span.set_attribute(f"{H.HTTP_REQUEST_HEADER_TEMPLATE}.user_agent", request.headers.get("user-agent", ""))
+            span.set_attribute(f"{H.HTTP_REQUEST_HEADER_TEMPLATE}.content_type", request.headers.get("content-type", ""))
 
     @staticmethod
     def update_span_with_response(response: Response, span: Span) -> None:
         if span.is_recording():
-            span.set_attribute("response.http.status_code", response.status_code)
-            span.set_attribute("response.http.media_type", response.media_type or "")
-            span.set_attribute("response.http.headers.content_type", response.headers.get("content-type", ""))
-            span.set_attribute("response.http.headers.content_length", response.headers.get("content-length", ""))
+            span.set_attribute(H.HTTP_RESPONSE_STATUS_CODE, response.status_code)
+            span.set_attribute(f"{H.HTTP_RESPONSE_HEADER_TEMPLATE}.content_type", response.headers.get("content-type", ""))
+            span.set_attribute(
+                f"{H.HTTP_RESPONSE_HEADER_TEMPLATE}.content_length", response.headers.get("content-length", "")
+            )
