@@ -29,6 +29,11 @@ class KarapaceTags(BaseModel):
 
 class KarapaceTelemetry(BaseModel):
     otel_endpoint_url: str | None = None
+    resource_service_name: str = "karapace"
+    resource_service_instance_id: str = "karapace"
+    resource_telemetry_sdk_name: str = "opentelemetry"
+    resource_telemetry_sdk_language: str = "python"
+    resource_telemetry_sdk_version: str = "1.27.0"
 
 
 class Config(BaseSettings):
