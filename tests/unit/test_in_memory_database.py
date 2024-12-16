@@ -14,10 +14,10 @@ from karapace.kafka.types import Timestamp
 from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import SchemaVersion, TypedSchema
-from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import Reference, Referents
 from karapace.typing import SchemaId, Version
 from pathlib import Path
+from schema_registry.reader import KafkaSchemaReader
 from typing import Final
 
 TEST_DATA_FOLDER: Final = Path("tests/unit/test_data/")
