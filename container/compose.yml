@@ -85,14 +85,12 @@ services:
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
       KARAPACE_TAGS__APP: karapace-schema-registry
-
       KARAPACE_TELEMETRY__OTEL_ENDPOINT_URL: http://opentelemetry-collector:4317
-      OTEL_RESOURCE_ATTRIBUTES: |
-        service.instance.id=karapace-schema-registry,
-        service.name=karapace-schema-registry,
-        telemetry.sdk.name=opentelemetry,
-        telemetry.sdk.language=python,
-        telemetry.sdk.version=1.28.2
+      KARAPACE_TELEMETRY__RESOURCE_SERVICE_NAME: karapace-schema-registry
+      KARAPACE_TELEMETRY__RESOURCE_SERVICE_INSTANCE_ID: sr1
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
 
   karapace-rest-proxy:
     image: ghcr.io/aiven-open/karapace:develop
