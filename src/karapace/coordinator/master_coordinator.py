@@ -10,10 +10,13 @@ from aiokafka import AIOKafkaClient
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
 from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitRequest
+from dependency_injector.wiring import inject, Provide
 from karapace.config import Config
 from karapace.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
 from karapace.typing import SchemaReaderStoppper
+from schema_registry.telemetry.container import TelemetryContainer
+from schema_registry.telemetry.tracer import Tracer
 from threading import Thread
 from typing import Final
 
@@ -146,16 +149,20 @@ class MasterCoordinator:
         schema_coordinator.start()
         return schema_coordinator
 
-    def get_coordinator_status(self) -> SchemaCoordinatorStatus:
-        assert self._sc is not None
-        generation = self._sc.generation if self._sc is not None else OffsetCommitRequest.DEFAULT_GENERATION_ID
-        return SchemaCoordinatorStatus(
-            is_primary=self._sc.are_we_master() if self._sc is not None else None,
-            is_primary_eligible=self._config.master_eligibility,
-            primary_url=self._sc.master_url if self._sc is not None else None,
-            is_running=True,
-            group_generation_id=generation if generation is not None else -1,
-        )
+    @inject
+    def get_coordinator_status(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> SchemaCoordinatorStatus:
+        with tracer.get_tracer().start_as_current_span(
+            tracer.get_name_from_caller_with_class(self, self.get_coordinator_status)
+        ):
+            assert self._sc is not None
+            generation = self._sc.generation if self._sc is not None else OffsetCommitRequest.DEFAULT_GENERATION_ID
+            return SchemaCoordinatorStatus(
+                is_primary=self._sc.are_we_master() if self._sc is not None else None,
+                is_primary_eligible=self._config.master_eligibility,
+                primary_url=self._sc.master_url if self._sc is not None else None,
+                is_running=True,
+                group_generation_id=generation if generation is not None else -1,
+            )
 
     def get_master_info(self) -> tuple[bool | None, str | None]:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
