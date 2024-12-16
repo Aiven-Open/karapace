@@ -7,9 +7,9 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request, Response
 from karapace.config import Config
 from karapace.forward_client import ForwardClient
-from karapace.schema_registry import KarapaceSchemaRegistry
 from pydantic import BaseModel
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.registry import KarapaceSchemaRegistry
 from typing import Final
 
 import logging
@@ -38,7 +38,7 @@ async def master_availability(
     response: Response,
     config: Config = Depends(Provide[SchemaRegistryContainer.karapace_container.config]),
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
 ) -> MasterAvailabilityResponse:
     primary_info = await schema_registry.get_master()
     LOG.info("are master %s, master url %s", primary_info.primary, primary_info.primary_url)

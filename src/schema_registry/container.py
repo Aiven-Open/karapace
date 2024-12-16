@@ -5,7 +5,7 @@ See LICENSE for details
 
 from dependency_injector import containers, providers
 from karapace.container import KarapaceContainer
-from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
+from schema_registry.controller import KarapaceSchemaRegistryController
 
 
 class SchemaRegistryContainer(containers.DeclarativeContainer):

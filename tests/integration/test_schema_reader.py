@@ -12,9 +12,9 @@ from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.producer import KafkaProducer
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_reader import KafkaSchemaReader
 from karapace.typing import PrimaryInfo
 from karapace.utils import json_encode
+from schema_registry.reader import KafkaSchemaReader
 from tests.base_testcase import BaseTestCase
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
