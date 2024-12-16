@@ -16,7 +16,10 @@ from karapace.in_memory_database import InMemoryDatabase
 from karapace.kafka.consumer import KafkaConsumer
 from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_reader import (
+from karapace.schema_type import SchemaType
+from karapace.typing import SchemaId, Version
+from pytest import MonkeyPatch
+from schema_registry.reader import (
     KafkaSchemaReader,
     MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP,
     MAX_MESSAGES_TO_CONSUME_ON_STARTUP,
@@ -24,9 +27,6 @@ from karapace.schema_reader import (
     OFFSET_EMPTY,
     OFFSET_UNINITIALIZED,
 )
-from karapace.schema_type import SchemaType
-from karapace.typing import SchemaId, Version
-from pytest import MonkeyPatch
 from tests.base_testcase import BaseTestCase
 from tests.utils import schema_protobuf_invalid_because_corrupted, schema_protobuf_with_invalid_ref
 from unittest.mock import Mock
@@ -318,12 +318,12 @@ def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture, karapace_cont
         database=database_mock,
     )
 
-    with caplog.at_level(logging.WARNING, logger="karapace.schema_reader"):
+    with caplog.at_level(logging.WARNING, logger="schema_registry.reader"):
         schema_reader._handle_msg_schema_hard_delete(  # pylint: disable=protected-access
             key={"subject": "test-subject", "version": 2}
         )
         for log in caplog.records:
-            assert log.name == "karapace.schema_reader"
+            assert log.name == "schema_registry.reader"
             assert log.levelname == "WARNING"
             assert log.message == "Hard delete: version: Version(2) for subject: 'test-subject' did not exist, should have"
 
@@ -598,14 +598,14 @@ def test_message_error_handling(
     consumer_messages = ([message],)
     schema_reader = schema_reader_with_consumer_messages_factory(consumer_messages)
 
-    with caplog.at_level(logging.WARNING, logger="karapace.schema_reader"):
+    with caplog.at_level(logging.WARNING, logger="schema_registry.reader"):
         with pytest.raises(test_case.expected_error):
             schema_reader.handle_messages()
 
         assert schema_reader.offset == 1
         assert not schema_reader.ready()
         for log in caplog.records:
-            assert log.name == "karapace.schema_reader"
+            assert log.name == "schema_registry.reader"
             assert log.levelname == "WARNING"
             assert log.message == test_case.expected_log_message
 
@@ -636,7 +636,7 @@ def test_message_error_handling_with_invalid_reference_schema_protobuf(
     )
     message_using_ref = message_factory(key=key_using_ref, value=value_using_ref)
 
-    with caplog.at_level(logging.WARN, logger="karapace.schema_reader"):
+    with caplog.at_level(logging.WARN, logger="schema_registry.reader"):
         # When handling the corrupted schema
         schema_reader = schema_reader_with_consumer_messages_factory(([message_ref],))
 
@@ -662,8 +662,8 @@ def test_message_error_handling_with_invalid_reference_schema_protobuf(
         assert len(warn_records) == 2
 
         # Check that different warnings are logged for each schema
-        assert warn_records[0].name == "karapace.schema_reader"
+        assert warn_records[0].name == "schema_registry.reader"
         assert warn_records[0].message == "Schema is not valid ProtoBuf definition"
 
-        assert warn_records[1].name == "karapace.schema_reader"
+        assert warn_records[1].name == "schema_registry.reader"
         assert warn_records[1].message == "Invalid Protobuf references"

@@ -33,10 +33,10 @@ from karapace.forward_client import ForwardClient
 from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.statsd import StatsClient
 from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from karapace.utils import JSONDecodeError
+from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
 from schema_registry.routers.requests import (
     CompatibilityCheckResponse,

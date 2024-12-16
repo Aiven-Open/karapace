@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends
 from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.typing import Subject
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.controller import KarapaceSchemaRegistryController
 from schema_registry.routers.errors import unauthorized
 from schema_registry.routers.requests import ModeResponse
-from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
 from schema_registry.user import get_current_user
 from typing import Annotated
 

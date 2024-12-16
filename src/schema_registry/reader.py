@@ -24,6 +24,7 @@ from avro.schema import Schema as AvroSchema
 from collections.abc import Mapping, Sequence
 from confluent_kafka import Message, TopicCollection, TopicPartition
 from contextlib import closing, ExitStack
+from dependency_injector.wiring import inject, Provide
 from enum import Enum
 from jsonschema.validators import Draft7Validator
 from karapace import constants
@@ -45,6 +46,8 @@ from karapace.schema_references import LatestVersionReference, Reference, refere
 from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaId, SchemaReaderStoppper, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
+from schema_registry.telemetry.container import TelemetryContainer
+from schema_registry.telemetry.tracer import Tracer
 from threading import Event, Lock, Thread
 from typing import Final
 
@@ -369,9 +372,11 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
     def highest_offset(self) -> int:
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
-    def ready(self) -> bool:
-        with self._ready_lock:
-            return self._ready
+    @inject
+    def ready(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> bool:
+        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.ready)):
+            with self._ready_lock:
+                return self._ready
 
     def set_not_ready(self) -> None:
         with self._ready_lock:

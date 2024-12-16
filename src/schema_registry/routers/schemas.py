@@ -7,8 +7,8 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Query
 from karapace.auth import AuthenticatorAndAuthorizer, User
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.controller import KarapaceSchemaRegistryController
 from schema_registry.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
-from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
 from schema_registry.user import get_current_user
 from typing import Annotated
 
