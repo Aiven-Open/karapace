@@ -11,7 +11,7 @@ from karapace.kafka.producer import KafkaProducer
 from karapace.rapu import is_success
 from karapace.schema_type import SchemaType
 from karapace.utils import json_encode
-from schema_registry.schema_registry_apis import SchemaErrorMessages
+from schema_registry.controller import SchemaErrorMessages
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
