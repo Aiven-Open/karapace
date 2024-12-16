@@ -30,7 +30,7 @@ def test_get_name_from_caller_with_class():
         def test_function(self):
             return Tracer.get_name_from_caller_with_class(self, self.test_function)
 
-    assert Test().test_function() == "Test.test_function"
+    assert Test().test_function() == "Test.test_function()"
 
 
 def test_get_span_processor_with_otel_endpoint(karapace_container: KarapaceContainer) -> None:
