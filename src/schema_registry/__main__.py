@@ -5,8 +5,11 @@ See LICENSE for details
 from karapace.container import KarapaceContainer
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.factory import create_karapace_application, karapace_schema_registry_lifespan
+from schema_registry.telemetry.container import TelemetryContainer
 
+import schema_registry.controller
 import schema_registry.factory
+import schema_registry.reader
 import schema_registry.routers.compatibility
 import schema_registry.routers.config
 import schema_registry.routers.health
@@ -15,7 +18,9 @@ import schema_registry.routers.metrics
 import schema_registry.routers.mode
 import schema_registry.routers.schemas
 import schema_registry.routers.subjects
-import schema_registry.schema_registry_apis
+import schema_registry.telemetry.middleware
+import schema_registry.telemetry.setup
+import schema_registry.telemetry.tracer
 import schema_registry.user
 import uvicorn
 
@@ -24,11 +29,23 @@ if __name__ == "__main__":
     container.wire(
         modules=[
             __name__,
-            schema_registry.schema_registry_apis,
+            schema_registry.controller,
+            schema_registry.telemetry.tracer,
         ]
     )
 
-    schema_registry_container = SchemaRegistryContainer(karapace_container=container)
+    telemetry_container = TelemetryContainer()
+    telemetry_container.wire(
+        modules=[
+            schema_registry.telemetry.setup,
+            schema_registry.telemetry.middleware,
+            schema_registry.reader,
+        ]
+    )
+
+    schema_registry_container = SchemaRegistryContainer(
+        karapace_container=container, telemetry_container=telemetry_container
+    )
     schema_registry_container.wire(
         modules=[
             __name__,
