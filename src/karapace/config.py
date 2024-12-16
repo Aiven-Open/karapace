@@ -27,8 +27,12 @@ class KarapaceTags(BaseModel):
     app: str = "Karapace"
 
 
+class KarapaceTelemetry(BaseModel):
+    otel_endpoint_url: str | None = None
+
+
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="karapace_", env_ignore_empty=True)
+    model_config = SettingsConfigDict(env_prefix="karapace_", env_ignore_empty=True, env_nested_delimiter="__")
 
     access_logs_debug: bool = False
     access_log_class: ImportString = "karapace.utils.DebugAccessLogger"
@@ -101,6 +105,7 @@ class Config(BaseSettings):
 
     sentry: Mapping[str, object] | None = None
     tags: KarapaceTags = KarapaceTags()
+    telemetry: KarapaceTelemetry = KarapaceTelemetry()
 
     # add rest uri if not set
     # f"{new_config['advertised_protocol']}://{new_config['advertised_hostname']}:{new_config['advertised_port']}"
