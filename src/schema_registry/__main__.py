@@ -27,8 +27,8 @@ import schema_registry.user
 import uvicorn
 
 if __name__ == "__main__":
-    container = KarapaceContainer()
-    container.wire(
+    karapace_container = KarapaceContainer()
+    karapace_container.wire(
         modules=[
             __name__,
             schema_registry.controller,
@@ -36,7 +36,7 @@ if __name__ == "__main__":
         ]
     )
 
-    telemetry_container = TelemetryContainer()
+    telemetry_container = TelemetryContainer(karapace_container=karapace_container)
     telemetry_container.wire(
         modules=[
             schema_registry.telemetry.setup,
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     )
 
     schema_registry_container = SchemaRegistryContainer(
-        karapace_container=container, telemetry_container=telemetry_container
+        karapace_container=karapace_container, telemetry_container=telemetry_container
     )
     schema_registry_container.wire(
         modules=[
@@ -66,7 +66,6 @@ if __name__ == "__main__":
         ]
     )
 
-    app = create_karapace_application(config=container.config(), lifespan=karapace_schema_registry_lifespan)
-    uvicorn.run(
-        app, host=container.config().host, port=container.config().port, log_level=container.config().log_level.lower()
-    )
+    config = karapace_container.config()
+    app = create_karapace_application(config=config, lifespan=karapace_schema_registry_lifespan)
+    uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level.lower())

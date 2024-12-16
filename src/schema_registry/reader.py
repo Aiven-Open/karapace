@@ -280,7 +280,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
     @inject
     async def is_healthy(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> bool:
-        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.is_healthy)):
+        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.is_healthy)):
             if (
                 self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
                 and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
@@ -375,7 +375,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
     @inject
     def highest_offset(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> int:
-        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.highest_offset)):
+        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.highest_offset)):
             return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     @inject
