@@ -25,7 +25,7 @@ class OffsetWatcher:
 
     @inject
     def greatest_offset(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> int:
-        with tracer.get_tracer().start_span(tracer.get_name_from_caller_with_class(self, self.greatest_offset)):
+        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.greatest_offset)):
             return self._greatest_offset
 
     def offset_seen(self, new_offset: int) -> None:
