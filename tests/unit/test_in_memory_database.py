@@ -15,11 +15,11 @@ from karapace.key_format import KeyFormatter
 from karapace.offset_watcher import OffsetWatcher
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import SchemaVersion, TypedSchema
-from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import Reference, Referents
 from karapace.schema_type import SchemaType
 from karapace.typing import SchemaId, Version
 from pathlib import Path
+from schema_registry.reader import KafkaSchemaReader
 from typing import Final
 
 import pytest
