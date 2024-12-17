@@ -8,6 +8,7 @@ from schema_registry.factory import create_karapace_application, karapace_schema
 from schema_registry.telemetry.container import TelemetryContainer
 
 import karapace.coordinator.master_coordinator
+import karapace.kafka.admin
 import karapace.offset_watcher
 import schema_registry.controller
 import schema_registry.factory
@@ -44,6 +45,7 @@ if __name__ == "__main__":
             schema_registry.reader,
             karapace.offset_watcher,
             karapace.coordinator.master_coordinator,
+            karapace.kafka.admin,
         ]
     )
 
