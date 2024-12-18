@@ -3,13 +3,13 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from enum import Enum, unique
+from enum import Enum, IntEnum, unique
 from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
 
 
 @unique
-class SchemaErrorCodes(Enum):
+class SchemaErrorCodes(IntEnum):
     HTTP_BAD_REQUEST = status.HTTP_400_BAD_REQUEST
     HTTP_NOT_FOUND = status.HTTP_404_NOT_FOUND
     HTTP_CONFLICT = status.HTTP_409_CONFLICT
