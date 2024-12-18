@@ -17,15 +17,18 @@ class OffsetWatcher:
     correct as long as no unclean leader election is performed.
     """
 
-    def __init__(self) -> None:
+    @inject
+    def __init__(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> None:
         # Condition used to protected _greatest_offset, any modifications to that object must
         # be performed with this condition acquired
         self._condition = Condition()
         self._greatest_offset = -1  # Would fail if initially this is 0 as it will be first offset ever.
+        self.tracer = tracer
 
-    @inject
-    def greatest_offset(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> int:
-        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.greatest_offset)):
+    def greatest_offset(self) -> int:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.greatest_offset)
+        ):
             return self._greatest_offset
 
     def offset_seen(self, new_offset: int) -> None:
