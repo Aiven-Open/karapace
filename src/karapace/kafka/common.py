@@ -17,6 +17,9 @@ from aiokafka.errors import (
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future
 from confluent_kafka.error import KafkaError, KafkaException
+from dependency_injector.wiring import inject, Provide
+from schema_registry.telemetry.container import TelemetryContainer
+from schema_registry.telemetry.tracer import Tracer
 from typing import Any, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
@@ -122,14 +125,17 @@ class _KafkaConfigMixin:
     extract configuration, initialization and connection verification.
     """
 
+    @inject
     def __init__(
         self,
         bootstrap_servers: Iterable[str] | str,
         verify_connection: bool = True,
+        tracer: Tracer = Provide[TelemetryContainer.tracer],
         **params: Unpack[KafkaClientParams],
     ) -> None:
         self._errors: set[KafkaError] = set()
         self.log = logging.getLogger(f"{self.__module__}.{self.__class__.__qualname__}")
+        self.tracer = tracer
 
         super().__init__(self._get_config_from_params(bootstrap_servers, **params))  # type: ignore[call-arg]
         self._activate_callbacks()

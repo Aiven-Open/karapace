@@ -10,11 +10,16 @@ from schema_registry.telemetry.container import TelemetryContainer
 from tempfile import mkstemp
 
 import json
+import karapace.coordinator.master_coordinator
+import karapace.kafka.common
+import karapace.offset_watcher
 import os
 import pytest
 import re
 import schema_registry.controller
 import schema_registry.reader
+import schema_registry.telemetry.middleware
+import schema_registry.telemetry.setup
 import schema_registry.telemetry.tracer
 
 pytest_plugins = "aiohttp.pytest_plugin"
@@ -204,6 +209,11 @@ def fixture_telemetry_container() -> TelemetryContainer:
     telemetry_container.wire(
         modules=[
             schema_registry.reader,
+            schema_registry.telemetry.setup,
+            schema_registry.telemetry.middleware,
+            karapace.offset_watcher,
+            karapace.coordinator.master_coordinator,
+            karapace.kafka.common,
         ]
     )
     return telemetry_container
