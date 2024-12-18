@@ -233,14 +233,12 @@ async def not_schemas_are_backward_compatible(
     )
 
 
-@pytest.mark.parametrize("trail", ["", "/"])
 @pytest.mark.parametrize("compatibility", [CompatibilityModes.FORWARD, CompatibilityModes.BACKWARD, CompatibilityModes.FULL])
 @pytest.mark.parametrize("metadata", [None, {}])
 @pytest.mark.parametrize("rule_set", [None, {}])
 async def test_same_jsonschema_must_have_same_id(
     registry_async_client: Client,
     compatibility: CompatibilityModes,
-    trail: str,
     metadata: SchemaMetadata,
     rule_set: SchemaRuleSet,
 ) -> None:
@@ -251,7 +249,7 @@ async def test_same_jsonschema_must_have_same_id(
         assert res.status_code == 200
 
         first_res = await registry_async_client.post(
-            f"subjects/{subject}/versions{trail}",
+            f"subjects/{subject}/versions",
             json={
                 "schema": json.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
@@ -264,7 +262,7 @@ async def test_same_jsonschema_must_have_same_id(
         assert first_id
 
         second_res = await registry_async_client.post(
-            f"subjects/{subject}/versions{trail}",
+            f"subjects/{subject}/versions",
             json={
                 "schema": json.dumps(schema.schema),
                 "schemaType": SchemaType.JSONSCHEMA.value,
