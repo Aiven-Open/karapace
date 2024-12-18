@@ -20,7 +20,6 @@ from confluent_kafka.admin import (
     TopicMetadata,
 )
 from confluent_kafka.error import KafkaException
-from dependency_injector.wiring import inject, Provide
 from karapace.constants import TOPIC_CREATION_TIMEOUT_S
 from karapace.kafka.common import (
     _KafkaConfigMixin,
@@ -28,8 +27,6 @@ from karapace.kafka.common import (
     single_futmap_result,
     UnknownTopicOrPartitionError,
 )
-from schema_registry.telemetry.container import TelemetryContainer
-from schema_registry.telemetry.tracer import Tracer
 
 
 class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
@@ -179,9 +176,8 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
             raise_from_kafkaexception(exc)
         return {"beginning_offset": startoffset.offset, "end_offset": endoffset.offset}
 
-    @inject
-    def describe_topics(
-        self, topics: TopicCollection, tracer: Tracer = Provide[TelemetryContainer.tracer]
-    ) -> dict[str, Future]:
-        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.describe_topics)):
+    def describe_topics(self, topics: TopicCollection) -> dict[str, Future]:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.describe_topics)
+        ):
             return super().describe_topics(topics)
