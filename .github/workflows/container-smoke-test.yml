@@ -20,14 +20,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install requirements
-        run: make install-dev
-
       - name: Resolve Karapace version
-        run: |
-          source ./venv/bin/activate
-          KARAPACE_VERSION=$(python -c "from karapace import version; print(version.__version__)")
-          echo KARAPACE_VERSION=$KARAPACE_VERSION >> $GITHUB_ENV
+        run: echo KARAPACE_VERSION="$(git describe --tags | cut -d '-' -f -2 | sed 's/-/.dev/g')" >> $GITHUB_ENV
 
       - run: echo "RUNNER_UID=$(id -u)" >> $GITHUB_ENV
       - run: echo "RUNNER_GID=$(id -g)" >> $GITHUB_ENV
