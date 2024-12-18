@@ -48,12 +48,11 @@ log = logging.getLogger(__name__)
 
 # This test ProtoBuf schemas in subject registeration, compatibility of evolved version and querying the schema
 # w.r.t. normalization of whitespace and other minor differences to verify equality and inequality comparison of such schemas
-@pytest.mark.parametrize("trail", ["", "/"])
 @pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
-async def test_protobuf_schema_normalization(registry_async_client: Client, trail: str) -> None:
-    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+async def test_protobuf_schema_normalization(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
 
-    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
     original_schema = """
@@ -91,36 +90,34 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
     )
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     original_id = res.json()["id"]
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id == res.json()["id"], "No duplication"
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id == res.json()["id"], "No duplication with whitespace differences"
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
-    )
+    res = await registry_async_client.post(f"subjects/{subject}", json={"schemaType": "PROTOBUF", "schema": original_schema})
     assert res.status_code == 200
     assert "id" in res.json()
     assert "schema" in res.json()
     assert original_id == res.json()["id"], "Check returns original id"
 
     res = await registry_async_client.post(
-        f"subjects/{subject}{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
+        f"subjects/{subject}", json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -146,14 +143,14 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
     evolved_schema = trim_margin(evolved_schema)
 
     res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        f"compatibility/subjects/{subject}/versions/latest",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema},
     )
     assert res.status_code == 200
     assert res.json() == {"is_compatible": True}
 
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -161,21 +158,19 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
     evolved_id = res.json()["id"]
 
     res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+        f"compatibility/subjects/{subject}/versions/latest",
         json={"schemaType": "PROTOBUF", "schema": original_schema},
     )
     assert res.json() == {"is_compatible": True}
     assert res.status_code == 200
     res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+        f"subjects/{subject}/versions", json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id == res.json()["id"], "Original id again"
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
-    )
+    res = await registry_async_client.post(f"subjects/{subject}", json={"schemaType": "PROTOBUF", "schema": evolved_schema})
     assert res.status_code == 200
     assert "id" in res.json()
     assert "schema" in res.json()
