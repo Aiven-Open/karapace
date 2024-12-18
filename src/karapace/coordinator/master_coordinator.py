@@ -40,7 +40,8 @@ class MasterCoordinator:
     5 milliseconds.
     """
 
-    def __init__(self, config: Config) -> None:
+    @inject
+    def __init__(self, config: Config, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> None:
         super().__init__()
         self._config: Final = config
         self._kafka_client: AIOKafkaClient | None = None
@@ -49,6 +50,7 @@ class MasterCoordinator:
         self._thread: Thread = Thread(target=self._start_loop, daemon=True)
         self._loop: asyncio.AbstractEventLoop | None = None
         self._schema_reader_stopper: SchemaReaderStoppper | None = None
+        self.tracer = tracer
 
     def set_stoppper(self, schema_reader_stopper: SchemaReaderStoppper) -> None:
         self._schema_reader_stopper = schema_reader_stopper
@@ -149,10 +151,9 @@ class MasterCoordinator:
         schema_coordinator.start()
         return schema_coordinator
 
-    @inject
-    def get_coordinator_status(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> SchemaCoordinatorStatus:
-        with tracer.get_tracer().start_as_current_span(
-            tracer.get_name_from_caller_with_class(self, self.get_coordinator_status)
+    def get_coordinator_status(self) -> SchemaCoordinatorStatus:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.get_coordinator_status)
         ):
             assert self._sc is not None
             generation = self._sc.generation if self._sc is not None else OffsetCommitRequest.DEFAULT_GENERATION_ID

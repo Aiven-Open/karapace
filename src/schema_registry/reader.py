@@ -133,6 +133,7 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
 
 
 class KafkaSchemaReader(Thread, SchemaReaderStoppper):
+    @inject
     def __init__(
         self,
         config: Config,
@@ -140,6 +141,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         key_formatter: KeyFormatter,
         database: KarapaceDatabase,
         master_coordinator: MasterCoordinator | None = None,
+        tracer: Tracer = Provide[TelemetryContainer.tracer],
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
@@ -154,6 +156,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
+        self.tracer = tracer
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
@@ -278,9 +281,10 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                         self.consecutive_unexpected_errors_start = time.monotonic()
                     LOG.warning("Unexpected exception in schema reader loop - %s", e)
 
-    @inject
-    async def is_healthy(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> bool:
-        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.is_healthy)):
+    async def is_healthy(self) -> bool:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.is_healthy)
+        ):
             if (
                 self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
                 and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
@@ -373,14 +377,16 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
         return ready
 
-    @inject
-    def highest_offset(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> int:
-        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.highest_offset)):
+    def highest_offset(self) -> int:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.highest_offset)
+        ):
             return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
-    @inject
-    def ready(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> bool:
-        with tracer.get_tracer().start_as_current_span(tracer.get_name_from_caller_with_class(self, self.ready)) as span:
+    def ready(self) -> bool:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.ready)
+        ) as span:
             span.add_event("Acquiring ready lock")
             with self._ready_lock:
                 return self._ready
