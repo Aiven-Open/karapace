@@ -9,10 +9,11 @@ from karapace.container import KarapaceContainer
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.semconv.attributes import telemetry_attributes as T
+from schema_registry.telemetry.meter import Meter
 from schema_registry.telemetry.tracer import Tracer
 
 
-def create_tracing_resource(config: Config) -> Resource:
+def create_telemetry_resource(config: Config) -> Resource:
     return Resource.create(
         {
             "service.name": config.telemetry.resource_service_name,
@@ -26,6 +27,9 @@ def create_tracing_resource(config: Config) -> Resource:
 
 class TelemetryContainer(containers.DeclarativeContainer):
     karapace_container = providers.Container(KarapaceContainer)
-    tracing_resource = providers.Factory(create_tracing_resource, config=karapace_container.config)
-    tracer_provider = providers.Singleton(TracerProvider, resource=tracing_resource)
+
+    telemetry_resource = providers.Factory(create_telemetry_resource, config=karapace_container.config)
+
+    meter = providers.Singleton(Meter)
     tracer = providers.Singleton(Tracer)
+    tracer_provider = providers.Singleton(TracerProvider, resource=telemetry_resource)
