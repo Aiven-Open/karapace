@@ -26,12 +26,13 @@ from karapace.errors import (
 )
 from karapace.in_memory_database import InMemoryDatabase
 from karapace.key_format import KeyFormatter
-from karapace.messaging import KarapaceProducer
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_references import LatestVersionReference, Reference
 from karapace.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
+from schema_registry.messaging import KarapaceProducer
 from schema_registry.reader import KafkaSchemaReader
+from schema_registry.telemetry.tracer import Tracer
 
 import asyncio
 import logging
@@ -43,6 +44,7 @@ class KarapaceSchemaRegistry:
     def __init__(self, config: Config) -> None:
         # TODO: compatibility was previously in mutable dict, fix the runtime config to be distinct from static config.
         self.config = config
+        self.tracer = Tracer()
         self._key_formatter = KeyFormatter()
 
         offset_watcher = OffsetWatcher()

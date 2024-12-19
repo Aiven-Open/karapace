@@ -24,7 +24,6 @@ from avro.schema import Schema as AvroSchema
 from collections.abc import Mapping, Sequence
 from confluent_kafka import Message, TopicCollection, TopicPartition
 from contextlib import closing, ExitStack
-from dependency_injector.wiring import inject, Provide
 from enum import Enum
 from jsonschema.validators import Draft7Validator
 from karapace import constants
@@ -46,7 +45,6 @@ from karapace.schema_references import LatestVersionReference, Reference, refere
 from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaReaderStoppper, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
-from schema_registry.telemetry.container import TelemetryContainer
 from schema_registry.telemetry.tracer import Tracer
 from threading import Event, Lock, Thread
 from typing import Final
@@ -133,7 +131,6 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
 
 
 class KafkaSchemaReader(Thread, SchemaReaderStoppper):
-    @inject
     def __init__(
         self,
         config: Config,
@@ -141,7 +138,6 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         key_formatter: KeyFormatter,
         database: KarapaceDatabase,
         master_coordinator: MasterCoordinator | None = None,
-        tracer: Tracer = Provide[TelemetryContainer.tracer],
     ) -> None:
         Thread.__init__(self, name="schema-reader")
         self.master_coordinator = master_coordinator
@@ -156,7 +152,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
-        self.tracer = tracer
+        self.tracer = Tracer()
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
