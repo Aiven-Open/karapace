@@ -3,6 +3,10 @@ global:
   scrape_timeout: 5s # How long until a scrape request times out.
   evaluation_interval: 10s # How frequently to evaluate rules.
 
+storage:
+  tsdb:
+    out_of_order_time_window: 30m
+
 rule_files:
  - /etc/prometheus/rules.yml
 
