@@ -10,12 +10,10 @@ from aiokafka import AIOKafkaClient
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
 from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitRequest
-from dependency_injector.wiring import inject, Provide
 from karapace.config import Config
 from karapace.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
 from karapace.typing import SchemaReaderStoppper
-from schema_registry.telemetry.container import TelemetryContainer
 from schema_registry.telemetry.tracer import Tracer
 from threading import Thread
 from typing import Final
@@ -40,8 +38,7 @@ class MasterCoordinator:
     5 milliseconds.
     """
 
-    @inject
-    def __init__(self, config: Config, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__()
         self._config: Final = config
         self._kafka_client: AIOKafkaClient | None = None
@@ -50,7 +47,7 @@ class MasterCoordinator:
         self._thread: Thread = Thread(target=self._start_loop, daemon=True)
         self._loop: asyncio.AbstractEventLoop | None = None
         self._schema_reader_stopper: SchemaReaderStoppper | None = None
-        self.tracer = tracer
+        self.tracer = Tracer()
 
     def set_stoppper(self, schema_reader_stopper: SchemaReaderStoppper) -> None:
         self._schema_reader_stopper = schema_reader_stopper

@@ -4,8 +4,7 @@ karapace - Karapace offset watcher
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from dependency_injector.wiring import inject, Provide
-from schema_registry.telemetry.container import TelemetryContainer
+
 from schema_registry.telemetry.tracer import Tracer
 from threading import Condition
 
@@ -17,13 +16,12 @@ class OffsetWatcher:
     correct as long as no unclean leader election is performed.
     """
 
-    @inject
-    def __init__(self, tracer: Tracer = Provide[TelemetryContainer.tracer]) -> None:
+    def __init__(self) -> None:
         # Condition used to protected _greatest_offset, any modifications to that object must
         # be performed with this condition acquired
         self._condition = Condition()
         self._greatest_offset = -1  # Would fail if initially this is 0 as it will be first offset ever.
-        self.tracer = tracer
+        self.tracer = Tracer()
 
     def greatest_offset(self) -> int:
         with self.tracer.get_tracer().start_as_current_span(
