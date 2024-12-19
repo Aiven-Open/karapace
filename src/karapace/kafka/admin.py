@@ -23,13 +23,24 @@ from confluent_kafka.error import KafkaException
 from karapace.constants import TOPIC_CREATION_TIMEOUT_S
 from karapace.kafka.common import (
     _KafkaConfigMixin,
+    KafkaClientParams,
     raise_from_kafkaexception,
     single_futmap_result,
     UnknownTopicOrPartitionError,
 )
+from schema_registry.telemetry.tracer import Tracer
+from typing_extensions import Unpack
 
 
 class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
+    def __init__(
+        self,
+        bootstrap_servers: Iterable[str] | str,
+        **params: Unpack[KafkaClientParams],
+    ) -> None:
+        self.tracer = Tracer()
+        super().__init__(bootstrap_servers, **params)
+
     def new_topic(
         self,
         name: str,

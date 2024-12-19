@@ -50,11 +50,14 @@ def test_get_span_processor_with_otel_endpoint(karapace_container: KarapaceConta
 
 
 def test_get_span_processor_without_otel_endpoint(karapace_container: KarapaceContainer) -> None:
+    config = karapace_container.config().set_config_defaults(
+        new_config={"telemetry": KarapaceTelemetry(otel_endpoint_url=None)}
+    )
     with (
         patch("schema_registry.telemetry.tracer.ConsoleSpanExporter") as mock_console_exporter,
         patch("schema_registry.telemetry.tracer.SimpleSpanProcessor") as mock_simple_span_processor,
     ):
-        processor: SpanProcessor = Tracer.get_span_processor(config=karapace_container.config())
+        processor: SpanProcessor = Tracer.get_span_processor(config=config)
         mock_simple_span_processor.assert_called_once_with(mock_console_exporter.return_value)
         assert processor is mock_simple_span_processor.return_value
 
