@@ -78,3 +78,7 @@ async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryC
             user=None,
             authorizer=None,
         )
+        with pytest.raises(HTTPResponse):
+            # prevent `future exception was never retrieved` warning logs
+            # future: <Future finished exception=HTTPResponse(status=200 body={'mock': 'response'})>
+            await mock_forward_func_future
