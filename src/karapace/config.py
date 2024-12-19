@@ -24,6 +24,7 @@ import ssl
 
 HOSTNAME = socket.gethostname()
 
+
 try:
     from opentelemetry import version as otel_version
 

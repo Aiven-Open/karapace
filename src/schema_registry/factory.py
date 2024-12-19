@@ -18,7 +18,7 @@ from schema_registry.http_handlers import setup_exception_handlers
 from schema_registry.middlewares import setup_middlewares
 from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.setup import setup_routers
-from schema_registry.telemetry.setup import setup_tracing
+from schema_registry.telemetry.setup import setup_metering, setup_tracing
 from typing import AsyncContextManager
 
 import logging
@@ -59,6 +59,7 @@ def create_karapace_application(
     app = FastAPI(lifespan=lifespan)  # type: ignore[arg-type]
 
     setup_tracing()
+    setup_metering()
     setup_routers(app=app)
     setup_exception_handlers(app=app)
     setup_middlewares(app=app)
