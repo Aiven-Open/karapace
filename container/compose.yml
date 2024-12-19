@@ -154,6 +154,11 @@ services:
 
   prometheus:
     image: prom/prometheus
+    command:
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=1d
+      - --enable-feature=otlp-write-receiver
+      - --config.file=/etc/prometheus/prometheus.yml
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./prometheus/rules.yml:/etc/prometheus/rules.yml
