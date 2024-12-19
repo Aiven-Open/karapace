@@ -194,6 +194,7 @@ def fixture_karapace_container() -> KarapaceContainer:
         modules=[
             schema_registry.controller,
             schema_registry.telemetry.tracer,
+            schema_registry.telemetry.meter,
         ]
     )
     return karapace_container
