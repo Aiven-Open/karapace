@@ -8,7 +8,12 @@ from karapace.config import Config
 from karapace.container import KarapaceContainer
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricReader, PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.export import (
+    ConsoleMetricExporter,
+    MetricExporter,
+    MetricReader,
+    PeriodicExportingMetricReader,
+)
 from typing import Final
 
 
@@ -23,7 +28,7 @@ class Meter:
     @staticmethod
     @inject
     def get_metric_reader(config: Config = Provide[KarapaceContainer.config]) -> MetricReader:
-        exporter = ConsoleMetricExporter()
+        exporter: MetricExporter = ConsoleMetricExporter()
         if config.telemetry.otel_endpoint_url:
             exporter = OTLPMetricExporter(endpoint=config.telemetry.otel_endpoint_url)
         return PeriodicExportingMetricReader(
