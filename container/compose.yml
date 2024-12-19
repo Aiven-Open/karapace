@@ -1,5 +1,3 @@
----
-version: '3'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -67,6 +65,7 @@ services:
       - schema_registry
     depends_on:
       - kafka
+      - opentelemetry-collector
     ports:
       - 8081:8081
     environment:
@@ -85,6 +84,13 @@ services:
       KARAPACE_STATSD_PORT: 8125
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_TAGS__APP: karapace-schema-registry
+      KARAPACE_TELEMETRY__OTEL_ENDPOINT_URL: http://opentelemetry-collector:4317
+      KARAPACE_TELEMETRY__RESOURCE_SERVICE_NAME: karapace-schema-registry
+      KARAPACE_TELEMETRY__RESOURCE_SERVICE_INSTANCE_ID: sr1
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
 
   karapace-rest-proxy:
     image: ghcr.io/aiven-open/karapace:develop
@@ -133,17 +139,17 @@ services:
       - karapace-schema-registry
       - karapace-rest-proxy
     volumes:
-    - ../tests:/opt/karapace/tests
-    - ../pytest.ini:/opt/karapace/pytest.ini
-    - ../mypy.ini:/opt/karapace/mypy.ini
-    - ../.flake8:/opt/karapace/.flake8
-    - ../.isort.cfg:/opt/karapace/.isort.cfg
-    - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
-    - ../.pylintrc:/opt/karapace/.pylintrc
-    - ../.coveragerc:/opt/karapace/.coveragerc
-    - ../.coverage.3.10:/opt/karapace/coverage/.coverage.3.10
-    - ../.coverage.3.11:/opt/karapace/coverage/.coverage.3.11
-    - ../.coverage.3.12:/opt/karapace/coverage/.coverage.3.12
+      - ../tests:/opt/karapace/tests
+      - ../pytest.ini:/opt/karapace/pytest.ini
+      - ../mypy.ini:/opt/karapace/mypy.ini
+      - ../.flake8:/opt/karapace/.flake8
+      - ../.isort.cfg:/opt/karapace/.isort.cfg
+      - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
+      - ../.pylintrc:/opt/karapace/.pylintrc
+      - ../.coveragerc:/opt/karapace/.coveragerc
+      - ../.coverage.3.10:/opt/karapace/coverage/.coverage.3.10
+      - ../.coverage.3.11:/opt/karapace/coverage/.coverage.3.11
+      - ../.coverage.3.12:/opt/karapace/coverage/.coverage.3.12
     environment:
       - COVERAGE_FILE
       - COVERAGE_RCFILE=/opt/karapace/.coveragerc
@@ -151,26 +157,47 @@ services:
   prometheus:
     image: prom/prometheus
     volumes:
-    - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    - ./prometheus/rules.yml:/etc/prometheus/rules.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml
+    depends_on:
+      - karapace-schema-registry
+      - karapace-rest-proxy
+      - opentelemetry-collector
     ports:
       - 9090:9090
 
   grafana:
-      image: grafana/grafana
-      environment:
-          GF_SECURITY_ADMIN_USER: karapace
-          GF_SECURITY_ADMIN_PASSWORD: karapace
-          GF_PATHS_PROVISIONING: /grafana/provisioning
-      ports:
-          - 3000:3000
-      volumes:
-          - ./grafana/dashboards:/grafana/dashboards
-          - ./grafana/provisioning:/grafana/provisioning
+    image: grafana/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: karapace
+      GF_SECURITY_ADMIN_PASSWORD: karapace
+      GF_PATHS_PROVISIONING: /grafana/provisioning
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana/dashboards:/grafana/dashboards
+      - ./grafana/provisioning:/grafana/provisioning
 
   statsd-exporter:
-      image: prom/statsd-exporter
-      command: "--statsd.listen-udp=:8125 --web.listen-address=:9102"
-      ports:
-        - 9102:9102
-        - 8125:8125/udp
+    image: prom/statsd-exporter
+    command: --statsd.listen-udp=:8125 --web.listen-address=:9102
+    ports:
+      - 9102:9102
+      - 8125:8125/udp
+
+  opentelemetry-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: --config=/etc/collector-config.yaml
+    volumes:
+      - ./opentelemetry/collector-config.yaml:/etc/collector-config.yaml
+    ports:  # 4317=OTLP-gRPC-receiver | 8888=prom-collector-metrics | 8889=prom-exporter-metrics
+      - 4317:4317
+      - 8888:8888
+      - 8889:8889
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:  # 6831=agent | 16686=UI | 14268=spans | 4317=metrics (not exposing, clashes with opentelemetry-collector)
+      - 6831:6831/udp
+      - 16686:16686
+      - 14268:14268

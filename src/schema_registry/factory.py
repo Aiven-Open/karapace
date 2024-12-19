@@ -11,13 +11,13 @@ from karapace.auth import AuthenticatorAndAuthorizer
 from karapace.config import Config
 from karapace.forward_client import ForwardClient
 from karapace.logging_setup import configure_logging, log_config_without_secrets
-from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.statsd import StatsClient
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.http_handlers import setup_exception_handlers
 from schema_registry.middlewares import setup_middlewares
+from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.setup import setup_routers
+from schema_registry.telemetry.setup import setup_tracing
 from typing import AsyncContextManager
 
 import logging
@@ -29,7 +29,7 @@ async def karapace_schema_registry_lifespan(
     _: FastAPI,
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
     stastd: StatsClient = Depends(Provide[SchemaRegistryContainer.karapace_container.statsd]),
-    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
 ) -> AsyncGenerator[None, None]:
     try:
@@ -57,10 +57,10 @@ def create_karapace_application(
     logging.info("Starting Karapace Schema Registry (%s)", karapace_version.__version__)
 
     app = FastAPI(lifespan=lifespan)  # type: ignore[arg-type]
+
+    setup_tracing()
     setup_routers(app=app)
     setup_exception_handlers(app=app)
     setup_middlewares(app=app)
-
-    FastAPIInstrumentor.instrument_app(app)
 
     return app

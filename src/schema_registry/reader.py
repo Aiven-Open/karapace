@@ -45,6 +45,7 @@ from karapace.schema_references import LatestVersionReference, Reference, refere
 from karapace.statsd import StatsClient
 from karapace.typing import JsonObject, SchemaId, SchemaReaderStoppper, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
+from schema_registry.telemetry.tracer import Tracer
 from threading import Event, Lock, Thread
 from typing import Final
 
@@ -151,6 +152,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
+        self.tracer = Tracer()
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
@@ -276,28 +278,33 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     LOG.warning("Unexpected exception in schema reader loop - %s", e)
 
     async def is_healthy(self) -> bool:
-        if (
-            self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
-            and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.is_healthy)
         ):
-            LOG.warning(
-                "Health check failed with %s consecutive errors in %s seconds", self.consecutive_unexpected_errors, duration
-            )
-            return False
+            if (
+                self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
+                and (duration := time.monotonic() - self.consecutive_unexpected_errors_start) >= UNHEALTHY_TIMEOUT_SECONDS
+            ):
+                LOG.warning(
+                    "Health check failed with %s consecutive errors in %s seconds",
+                    self.consecutive_unexpected_errors,
+                    duration,
+                )
+                return False
 
-        try:
-            # Explicitly check if topic exists.
-            # This needs to be done because in case of missing topic the consumer will not repeat the error
-            # on conscutive consume calls and instead will return empty list.
-            assert self.admin_client is not None
-            topic = self.config.topic_name
-            res = self.admin_client.describe_topics(TopicCollection([topic]))
-            await asyncio.wrap_future(res[topic])
-        except Exception as e:  # pylint: disable=broad-except
-            LOG.warning("Health check failed with %r", e)
-            return False
+            try:
+                # Explicitly check if topic exists.
+                # This needs to be done because in case of missing topic the consumer will not repeat the error
+                # on conscutive consume calls and instead will return empty list.
+                assert self.admin_client is not None
+                topic = self.config.topic_name
+                res = self.admin_client.describe_topics(TopicCollection([topic]))
+                await asyncio.wrap_future(res[topic])
+            except Exception as e:  # pylint: disable=broad-except
+                LOG.warning("Health check failed with %r", e)
+                return False
 
-        return True
+            return True
 
     def _get_beginning_offset(self) -> int:
         assert self.consumer is not None, "Thread must be started"
@@ -367,11 +374,18 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         return ready
 
     def highest_offset(self) -> int:
-        return max(self._highest_offset, self._offset_watcher.greatest_offset())
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.highest_offset)
+        ):
+            return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     def ready(self) -> bool:
-        with self._ready_lock:
-            return self._ready
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.ready)
+        ) as span:
+            span.add_event("Acquiring ready lock")
+            with self._ready_lock:
+                return self._ready
 
     def set_not_ready(self) -> None:
         with self._ready_lock:

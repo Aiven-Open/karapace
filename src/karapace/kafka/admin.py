@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Container, Iterable
 from concurrent.futures import Future
-from confluent_kafka import TopicPartition
+from confluent_kafka import TopicCollection, TopicPartition
 from confluent_kafka.admin import (
     AdminClient,
     BrokerMetadata,
@@ -23,13 +23,24 @@ from confluent_kafka.error import KafkaException
 from karapace.constants import TOPIC_CREATION_TIMEOUT_S
 from karapace.kafka.common import (
     _KafkaConfigMixin,
+    KafkaClientParams,
     raise_from_kafkaexception,
     single_futmap_result,
     UnknownTopicOrPartitionError,
 )
+from schema_registry.telemetry.tracer import Tracer
+from typing_extensions import Unpack
 
 
 class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
+    def __init__(
+        self,
+        bootstrap_servers: Iterable[str] | str,
+        **params: Unpack[KafkaClientParams],
+    ) -> None:
+        self.tracer = Tracer()
+        super().__init__(bootstrap_servers, **params)
+
     def new_topic(
         self,
         name: str,
@@ -175,3 +186,9 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
         return {"beginning_offset": startoffset.offset, "end_offset": endoffset.offset}
+
+    def describe_topics(self, topics: TopicCollection) -> dict[str, Future]:
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.describe_topics)
+        ):
+            return super().describe_topics(topics)
