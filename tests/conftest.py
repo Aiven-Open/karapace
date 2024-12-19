@@ -15,6 +15,7 @@ import os
 import pytest
 import re
 import schema_registry.controller
+import schema_registry.telemetry.meter
 import schema_registry.telemetry.middleware
 import schema_registry.telemetry.setup
 import schema_registry.telemetry.tracer
