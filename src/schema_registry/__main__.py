@@ -7,12 +7,8 @@ from schema_registry.container import SchemaRegistryContainer
 from schema_registry.factory import create_karapace_application, karapace_schema_registry_lifespan
 from schema_registry.telemetry.container import TelemetryContainer
 
-import karapace.coordinator.master_coordinator
-import karapace.kafka.common
-import karapace.offset_watcher
 import schema_registry.controller
 import schema_registry.factory
-import schema_registry.reader
 import schema_registry.routers.compatibility
 import schema_registry.routers.config
 import schema_registry.routers.health
@@ -42,10 +38,6 @@ if __name__ == "__main__":
         modules=[
             schema_registry.telemetry.setup,
             schema_registry.telemetry.middleware,
-            schema_registry.reader,
-            karapace.offset_watcher,
-            karapace.coordinator.master_coordinator,
-            karapace.kafka.common,
         ]
     )
 
