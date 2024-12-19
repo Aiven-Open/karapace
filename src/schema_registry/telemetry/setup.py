@@ -4,9 +4,12 @@ See LICENSE for details
 """
 
 from dependency_injector.wiring import inject, Provide
-from opentelemetry import trace
+from opentelemetry import metrics, trace
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from schema_registry.telemetry.container import TelemetryContainer
+from schema_registry.telemetry.meter import Meter
 from schema_registry.telemetry.tracer import Tracer
 
 import logging
@@ -22,3 +25,12 @@ def setup_tracing(
     LOG.info("Setting OTel tracing provider")
     tracer_provider.add_span_processor(tracer.get_span_processor())
     trace.set_tracer_provider(tracer_provider)
+
+
+@inject
+def setup_metering(
+    meter: Meter = Provide[TelemetryContainer.meter],
+    telemetry_resource: Resource = Provide[TelemetryContainer.telemetry_resource],
+) -> None:
+    LOG.info("Setting OTel meter provider")
+    metrics.set_meter_provider(MeterProvider(resource=telemetry_resource, metric_readers=[meter.get_metric_reader()]))
