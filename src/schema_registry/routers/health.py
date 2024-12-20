@@ -5,9 +5,12 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, HTTPException, status
-from karapace.schema_registry import KarapaceSchemaRegistry
+from opentelemetry.trace import Span
+from opentelemetry.trace.status import StatusCode
 from pydantic import BaseModel
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.registry import KarapaceSchemaRegistry
+from schema_registry.telemetry.tracer import Tracer
 
 
 class HealthStatus(BaseModel):
@@ -34,34 +37,57 @@ health_router = APIRouter(
 )
 
 
+def set_health_status_tracing_attributes(health_check_span: Span, health_status: HealthStatus) -> None:
+    health_check_span.add_event("Setting health status tracing attributes")
+    health_check_span.set_attribute("schema_registry_ready", health_status.schema_registry_ready)
+    health_check_span.set_attribute("schema_registry_startup_time_sec", health_status.schema_registry_startup_time_sec)
+    health_check_span.set_attribute(
+        "schema_registry_reader_current_offset", health_status.schema_registry_reader_current_offset
+    )
+    health_check_span.set_attribute(
+        "schema_registry_reader_highest_offset", health_status.schema_registry_reader_highest_offset
+    )
+    health_check_span.set_attribute("schema_registry_is_primary", getattr(health_status, "schema_registry_is_primary", ""))
+
+
 @health_router.get("")
 @inject
 async def health(
-    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
+    tracer: Tracer = Depends(Provide[SchemaRegistryContainer.telemetry_container.tracer]),
 ) -> HealthCheck:
-    starttime = 0.0
-    if schema_registry.schema_reader.ready():
-        starttime = schema_registry.schema_reader.last_check - schema_registry.schema_reader.start_time
+    with tracer.get_tracer().start_as_current_span("APIRouter: health_check") as health_check_span:
+        starttime = 0.0
 
-    cs = schema_registry.mc.get_coordinator_status()
+        health_check_span.add_event("Checking schema-reader is ready")
+        schema_reader_is_ready = schema_registry.schema_reader.ready()
+        if schema_reader_is_ready:
+            starttime = schema_registry.schema_reader.last_check - schema_registry.schema_reader.start_time
 
-    health_status = HealthStatus(
-        schema_registry_ready=schema_registry.schema_reader.ready(),
-        schema_registry_startup_time_sec=starttime,
-        schema_registry_reader_current_offset=schema_registry.schema_reader.offset,
-        schema_registry_reader_highest_offset=schema_registry.schema_reader.highest_offset(),
-        schema_registry_is_primary=cs.is_primary,
-        schema_registry_is_primary_eligible=cs.is_primary_eligible,
-        schema_registry_primary_url=cs.primary_url,
-        schema_registry_coordinator_running=cs.is_running,
-        schema_registry_coordinator_generation_id=cs.group_generation_id,
-    )
-    # if self._auth is not None:
-    #    resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
+        health_check_span.add_event("Getting schema-registry master-coordinator status")
+        cs = schema_registry.mc.get_coordinator_status()
 
-    if not await schema_registry.schema_reader.is_healthy():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        health_check_span.add_event("Building health status response model")
+        health_status = HealthStatus(
+            schema_registry_ready=schema_reader_is_ready,
+            schema_registry_startup_time_sec=starttime,
+            schema_registry_reader_current_offset=schema_registry.schema_reader.offset,
+            schema_registry_reader_highest_offset=schema_registry.schema_reader.highest_offset(),
+            schema_registry_is_primary=cs.is_primary,
+            schema_registry_is_primary_eligible=cs.is_primary_eligible,
+            schema_registry_primary_url=cs.primary_url,
+            schema_registry_coordinator_running=cs.is_running,
+            schema_registry_coordinator_generation_id=cs.group_generation_id,
         )
+        set_health_status_tracing_attributes(health_check_span=health_check_span, health_status=health_status)
 
-    return HealthCheck(status=health_status, healthy=True)
+        # if self._auth is not None:
+        #    resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
+
+        if not await schema_registry.schema_reader.is_healthy():
+            health_check_span.add_event("Erroring because schema-reader is not healthy")
+            health_check_span.set_status(status=StatusCode.ERROR, description="Schema reader is not healthy")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        health_check_span.add_event("Returning health check response")
+        return HealthCheck(status=health_status, healthy=True)

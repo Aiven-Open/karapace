@@ -4,6 +4,8 @@ karapace - Karapace offset watcher
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
+from schema_registry.telemetry.tracer import Tracer
 from threading import Condition
 
 
@@ -19,9 +21,13 @@ class OffsetWatcher:
         # be performed with this condition acquired
         self._condition = Condition()
         self._greatest_offset = -1  # Would fail if initially this is 0 as it will be first offset ever.
+        self.tracer = Tracer()
 
     def greatest_offset(self) -> int:
-        return self._greatest_offset
+        with self.tracer.get_tracer().start_as_current_span(
+            self.tracer.get_name_from_caller_with_class(self, self.greatest_offset)
+        ):
+            return self._greatest_offset
 
     def offset_seen(self, new_offset: int) -> None:
         with self._condition:

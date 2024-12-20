@@ -8,7 +8,6 @@ from karapace.auth import get_authorizer, HTTPAuthorizer, NoAuthAndAuthz
 from karapace.config import Config
 from karapace.forward_client import ForwardClient
 from karapace.instrumentation.prometheus import PrometheusInstrumentation
-from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.statsd import StatsClient
 
 
@@ -20,8 +19,6 @@ class KarapaceContainer(containers.DeclarativeContainer):
     no_auth_authorizer = providers.Singleton(NoAuthAndAuthz)
 
     http_authorizer = providers.Singleton(HTTPAuthorizer, auth_file=config().registry_authfile)
-
-    schema_registry = providers.Singleton(KarapaceSchemaRegistry, config=config)
 
     forward_client = providers.Singleton(ForwardClient)
 

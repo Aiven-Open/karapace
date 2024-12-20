@@ -6,12 +6,17 @@ from avro.compatibility import SchemaCompatibilityResult
 from karapace.container import KarapaceContainer
 from pathlib import Path
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.telemetry.container import TelemetryContainer
 from tempfile import mkstemp
 
 import json
 import os
 import pytest
 import re
+import schema_registry.controller
+import schema_registry.telemetry.middleware
+import schema_registry.telemetry.setup
+import schema_registry.telemetry.tracer
 
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
@@ -182,11 +187,32 @@ def fixture_tmp_file():
     path.unlink()
 
 
-@pytest.fixture(name="karapace_container", scope="session")
+@pytest.fixture(name="karapace_container", scope="session", autouse=True)
 def fixture_karapace_container() -> KarapaceContainer:
-    return KarapaceContainer()
+    karapace_container = KarapaceContainer()
+    karapace_container.wire(
+        modules=[
+            schema_registry.controller,
+            schema_registry.telemetry.tracer,
+        ]
+    )
+    return karapace_container
 
 
-@pytest.fixture
-def schema_registry_container(karapace_container: KarapaceContainer) -> SchemaRegistryContainer:
-    return SchemaRegistryContainer(karapace_container=karapace_container)
+@pytest.fixture(name="telemetry_container", scope="session", autouse=True)
+def fixture_telemetry_container() -> TelemetryContainer:
+    telemetry_container = TelemetryContainer()
+    telemetry_container.wire(
+        modules=[
+            schema_registry.telemetry.setup,
+            schema_registry.telemetry.middleware,
+        ]
+    )
+    return telemetry_container
+
+
+@pytest.fixture(name="schema_registry_container", scope="session", autouse=True)
+def fixture_schema_registry_container(
+    karapace_container: KarapaceContainer, telemetry_container: TelemetryContainer
+) -> SchemaRegistryContainer:
+    return SchemaRegistryContainer(karapace_container=karapace_container, telemetry_container=telemetry_container)

@@ -7,12 +7,12 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request
 from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.forward_client import ForwardClient
-from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.typing import Subject
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.controller import KarapaceSchemaRegistryController
+from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.errors import no_primary_url_error, unauthorized
 from schema_registry.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
-from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
 from schema_registry.user import get_current_user
 from typing import Annotated
 
@@ -74,7 +74,7 @@ async def subjects_subject_delete(
     permanent: bool = False,
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
-    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[int]:
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
@@ -155,7 +155,7 @@ async def subjects_subject_version_delete(
     permanent: bool = False,
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
-    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.karapace_container.schema_registry]),
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> int:
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):

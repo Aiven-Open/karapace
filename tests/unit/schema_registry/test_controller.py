@@ -5,8 +5,8 @@ See LICENSE for details
 from fastapi.exceptions import HTTPException
 from karapace.rapu import HTTPResponse
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
-from karapace.schema_reader import KafkaSchemaReader
 from schema_registry.container import SchemaRegistryContainer
+from schema_registry.reader import KafkaSchemaReader
 from unittest.mock import Mock, patch, PropertyMock
 
 import asyncio
@@ -45,7 +45,7 @@ async def test_validate_schema_request_body(schema_registry_container: SchemaReg
 
 
 async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryContainer) -> None:
-    with patch("karapace.container.KarapaceSchemaRegistry") as schema_registry_class:
+    with patch("schema_registry.container.KarapaceSchemaRegistry") as schema_registry_class:
         schema_reader_mock = Mock(spec=KafkaSchemaReader)
         ready_property_mock = PropertyMock(return_value=False)
         type(schema_reader_mock).ready = ready_property_mock
@@ -60,7 +60,6 @@ async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryC
         close_func.return_value = close_future_result
         schema_registry_class.close = close_func
 
-        schema_registry_container.karapace_container().schema_registry = schema_registry_class
         controller = schema_registry_container.schema_registry_controller()
         controller.schema_registry = schema_registry_class
 
@@ -78,3 +77,7 @@ async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryC
             user=None,
             authorizer=None,
         )
+        with pytest.raises(HTTPResponse):
+            # prevent `future exception was never retrieved` warning logs
+            # future: <Future finished exception=HTTPResponse(status=200 body={'mock': 'response'})>
+            await mock_forward_func_future
