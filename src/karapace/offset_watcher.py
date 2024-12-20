@@ -21,11 +21,11 @@ class OffsetWatcher:
         # be performed with this condition acquired
         self._condition = Condition()
         self._greatest_offset = -1  # Would fail if initially this is 0 as it will be first offset ever.
-        self.tracer = Tracer()
+        self._tracer = Tracer()
 
     def greatest_offset(self) -> int:
-        with self.tracer.get_tracer().start_as_current_span(
-            self.tracer.get_name_from_caller_with_class(self, self.greatest_offset)
+        with self._tracer.get_tracer().start_as_current_span(
+            self._tracer.get_name_from_caller_with_class(self, self.greatest_offset)
         ):
             return self._greatest_offset
 
