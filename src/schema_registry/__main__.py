@@ -17,6 +17,7 @@ import schema_registry.routers.metrics
 import schema_registry.routers.mode
 import schema_registry.routers.schemas
 import schema_registry.routers.subjects
+import schema_registry.telemetry.meter
 import schema_registry.telemetry.middleware
 import schema_registry.telemetry.setup
 import schema_registry.telemetry.tracer
@@ -30,6 +31,7 @@ if __name__ == "__main__":
             __name__,
             schema_registry.controller,
             schema_registry.telemetry.tracer,
+            schema_registry.telemetry.meter,
         ]
     )
 

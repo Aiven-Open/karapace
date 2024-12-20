@@ -14,6 +14,7 @@ import os
 import pytest
 import re
 import schema_registry.controller
+import schema_registry.telemetry.meter
 import schema_registry.telemetry.middleware
 import schema_registry.telemetry.setup
 import schema_registry.telemetry.tracer
@@ -194,6 +195,7 @@ def fixture_karapace_container() -> KarapaceContainer:
         modules=[
             schema_registry.controller,
             schema_registry.telemetry.tracer,
+            schema_registry.telemetry.meter,
         ]
     )
     return karapace_container
