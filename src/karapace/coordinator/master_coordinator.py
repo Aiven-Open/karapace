@@ -47,7 +47,7 @@ class MasterCoordinator:
         self._thread: Thread = Thread(target=self._start_loop, daemon=True)
         self._loop: asyncio.AbstractEventLoop | None = None
         self._schema_reader_stopper: SchemaReaderStoppper | None = None
-        self.tracer = Tracer()
+        self._tracer = Tracer()
 
     def set_stoppper(self, schema_reader_stopper: SchemaReaderStoppper) -> None:
         self._schema_reader_stopper = schema_reader_stopper
@@ -149,8 +149,8 @@ class MasterCoordinator:
         return schema_coordinator
 
     def get_coordinator_status(self) -> SchemaCoordinatorStatus:
-        with self.tracer.get_tracer().start_as_current_span(
-            self.tracer.get_name_from_caller_with_class(self, self.get_coordinator_status)
+        with self._tracer.get_tracer().start_as_current_span(
+            self._tracer.get_name_from_caller_with_class(self, self.get_coordinator_status)
         ):
             assert self._sc is not None
             generation = self._sc.generation if self._sc is not None else OffsetCommitRequest.DEFAULT_GENERATION_ID

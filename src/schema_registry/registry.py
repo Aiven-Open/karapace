@@ -44,7 +44,7 @@ class KarapaceSchemaRegistry:
     def __init__(self, config: Config) -> None:
         # TODO: compatibility was previously in mutable dict, fix the runtime config to be distinct from static config.
         self.config = config
-        self.tracer = Tracer()
+        self._tracer = Tracer()
         self._key_formatter = KeyFormatter()
 
         offset_watcher = OffsetWatcher()
