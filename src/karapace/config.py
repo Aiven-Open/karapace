@@ -24,6 +24,15 @@ import ssl
 HOSTNAME = socket.gethostname()
 
 
+OTEL_VERSION = ""
+try:
+    from opentelemetry import version as otel_version
+
+    OTEL_VERSION = otel_version.__version__
+except:  # pylint: disable=bare-except
+    pass
+
+
 class KarapaceTags(BaseModel):
     app: str = "Karapace"
 
@@ -41,7 +50,7 @@ class KarapaceTelemetry(BaseModel):
     resource_service_instance_id: str = "karapace"
     resource_telemetry_sdk_name: str = "opentelemetry"
     resource_telemetry_sdk_language: str = "python"
-    resource_telemetry_sdk_version: str = "1.27.0"
+    resource_telemetry_sdk_version: str = OTEL_VERSION
 
 
 class Config(BaseSettings):
