@@ -38,7 +38,7 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
         bootstrap_servers: Iterable[str] | str,
         **params: Unpack[KafkaClientParams],
     ) -> None:
-        self.tracer = Tracer()
+        self._tracer = Tracer()
         super().__init__(bootstrap_servers, **params)
 
     def new_topic(
@@ -188,7 +188,7 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
         return {"beginning_offset": startoffset.offset, "end_offset": endoffset.offset}
 
     def describe_topics(self, topics: TopicCollection) -> dict[str, Future]:
-        with self.tracer.get_tracer().start_as_current_span(
-            self.tracer.get_name_from_caller_with_class(self, self.describe_topics)
+        with self._tracer.get_tracer().start_as_current_span(
+            self._tracer.get_name_from_caller_with_class(self, self.describe_topics)
         ):
             return super().describe_topics(topics)
