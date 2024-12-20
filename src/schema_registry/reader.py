@@ -152,7 +152,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self._offset_watcher = offset_watcher
         self.stats = StatsClient(config=config)
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
-        self.tracer = Tracer()
+        self._tracer = Tracer()
 
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
@@ -278,8 +278,8 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     LOG.warning("Unexpected exception in schema reader loop - %s", e)
 
     async def is_healthy(self) -> bool:
-        with self.tracer.get_tracer().start_as_current_span(
-            self.tracer.get_name_from_caller_with_class(self, self.is_healthy)
+        with self._tracer.get_tracer().start_as_current_span(
+            self._tracer.get_name_from_caller_with_class(self, self.is_healthy)
         ):
             if (
                 self.consecutive_unexpected_errors >= UNHEALTHY_CONSECUTIVE_ERRORS
@@ -374,14 +374,14 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         return ready
 
     def highest_offset(self) -> int:
-        with self.tracer.get_tracer().start_as_current_span(
-            self.tracer.get_name_from_caller_with_class(self, self.highest_offset)
+        with self._tracer.get_tracer().start_as_current_span(
+            self._tracer.get_name_from_caller_with_class(self, self.highest_offset)
         ):
             return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     def ready(self) -> bool:
-        with self.tracer.get_tracer().start_as_current_span(
-            self.tracer.get_name_from_caller_with_class(self, self.ready)
+        with self._tracer.get_tracer().start_as_current_span(
+            self._tracer.get_name_from_caller_with_class(self, self.ready)
         ) as span:
             span.add_event("Acquiring ready lock")
             with self._ready_lock:
