@@ -8,7 +8,7 @@ accept-types==0.4.1
     # via karapace (/karapace/pyproject.toml)
 aiohappyeyeballs==2.4.0
     # via aiohttp
-aiohttp==3.10.5
+aiohttp==3.11.11
     # via karapace (/karapace/pyproject.toml)
 aiokafka==0.10.0
     # via karapace (/karapace/pyproject.toml)
