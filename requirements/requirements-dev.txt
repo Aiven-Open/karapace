@@ -211,7 +211,7 @@ typing-extensions==4.12.2
     #   karapace (/karapace/pyproject.toml)
 ujson==5.10.0
     # via karapace (/karapace/pyproject.toml)
-urllib3==2.2.2
+urllib3==2.3.0
     # via
     #   requests
     #   sentry-sdk
