@@ -105,7 +105,7 @@ jsonschema==4.23.0
     # via karapace (/karapace/pyproject.toml)
 jsonschema-specifications==2023.12.1
     # via jsonschema
-locust==2.25.0
+locust==2.32.5
     # via karapace (/karapace/pyproject.toml)
 lz4==4.3.3
     # via karapace (/karapace/pyproject.toml)
