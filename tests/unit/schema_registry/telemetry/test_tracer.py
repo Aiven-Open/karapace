@@ -137,7 +137,7 @@ def test_update_span_with_request():
         [
             call("client.address", "client"),
             call("client.port", 8080),
-            call("server.address", "server"),
+            call("server.address", "127.0.0.1"),
             call("server.port", 8081),
             call("url.scheme", "http"),
             call("url.path", "/test"),

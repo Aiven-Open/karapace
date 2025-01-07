@@ -80,12 +80,16 @@ class Tracer:
             span.set_attribute(key, value)
 
     @staticmethod
-    def update_span_with_request(request: Request, span: Span) -> None:
+    def update_span_with_request(
+        request: Request,
+        span: Span,
+        config: Config = Provide[KarapaceContainer.config],
+    ) -> None:
         if span.is_recording():
             span.set_attribute(C.CLIENT_ADDRESS, request.client.host or "" if request.client else "")
             span.set_attribute(C.CLIENT_PORT, request.client.port or "" if request.client else "")
-            span.set_attribute(S.SERVER_ADDRESS, request.url.hostname or "")
-            span.set_attribute(S.SERVER_PORT, request.url.port or "")
+            span.set_attribute(S.SERVER_ADDRESS, config.host)
+            span.set_attribute(S.SERVER_PORT, config.port)
             span.set_attribute(U.URL_SCHEME, request.url.scheme)
             span.set_attribute(U.URL_PATH, request.url.path)
             span.set_attribute(H.HTTP_REQUEST_METHOD, request.method)
