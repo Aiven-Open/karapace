@@ -38,7 +38,6 @@ health_router = APIRouter(
 
 
 def set_health_status_tracing_attributes(health_check_span: Span, health_status: HealthStatus) -> None:
-    health_check_span.add_event("Setting health status tracing attributes")
     health_check_span.set_attribute("schema_registry_ready", health_status.schema_registry_ready)
     health_check_span.set_attribute("schema_registry_startup_time_sec", health_status.schema_registry_startup_time_sec)
     health_check_span.set_attribute(
@@ -59,15 +58,11 @@ async def health(
     with tracer.get_tracer().start_as_current_span("APIRouter: health_check") as health_check_span:
         starttime = 0.0
 
-        health_check_span.add_event("Checking schema-reader is ready")
         schema_reader_is_ready = schema_registry.schema_reader.ready()
         if schema_reader_is_ready:
             starttime = schema_registry.schema_reader.last_check - schema_registry.schema_reader.start_time
 
-        health_check_span.add_event("Getting schema-registry master-coordinator status")
         cs = schema_registry.mc.get_coordinator_status()
-
-        health_check_span.add_event("Building health status response model")
         health_status = HealthStatus(
             schema_registry_ready=schema_reader_is_ready,
             schema_registry_startup_time_sec=starttime,
@@ -85,9 +80,7 @@ async def health(
         #    resp["schema_registry_authfile_timestamp"] = self._auth.authfile_last_modified
 
         if not await schema_registry.schema_reader.is_healthy():
-            health_check_span.add_event("Erroring because schema-reader is not healthy")
             health_check_span.set_status(status=StatusCode.ERROR, description="Schema reader is not healthy")
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        health_check_span.add_event("Returning health check response")
         return HealthCheck(status=health_status, healthy=True)
