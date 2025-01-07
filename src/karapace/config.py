@@ -15,6 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, ImportString
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import enum
 import logging
 import os
 import socket
@@ -27,8 +28,15 @@ class KarapaceTags(BaseModel):
     app: str = "Karapace"
 
 
+class KarapaceTelemetryOTelExporter(str, enum.Enum):
+    OTLP = "OTLP"
+    CONSOLE = "CONSOLE"
+    NOOP = "NOOP"
+
+
 class KarapaceTelemetry(BaseModel):
     otel_endpoint_url: str | None = None
+    otel_exporter: KarapaceTelemetryOTelExporter = KarapaceTelemetryOTelExporter.NOOP
     resource_service_name: str = "karapace"
     resource_service_instance_id: str = "karapace"
     resource_telemetry_sdk_name: str = "opentelemetry"
