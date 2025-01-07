@@ -8,6 +8,7 @@ See LICENSE for details
 from _pytest.logging import LogCaptureFixture
 from fastapi import FastAPI, Request, Response
 from opentelemetry.trace import SpanKind
+from karapace.config import Config
 from schema_registry.telemetry.middleware import setup_telemetry_middleware, telemetry_middleware
 from schema_registry.telemetry.tracer import Tracer
 from unittest.mock import AsyncMock, MagicMock
@@ -39,15 +40,17 @@ async def test_telemetry_middleware() -> None:
     response_mock = AsyncMock(spec=Response)
     response_mock.status_code = 200
 
+    config_mock = MagicMock(spec=Config)
+
     call_next = AsyncMock()
     call_next.return_value = response_mock
 
-    response = await telemetry_middleware(request=request_mock, call_next=call_next, tracer=tracer)
+    response = await telemetry_middleware(request=request_mock, call_next=call_next, tracer=tracer, config=config_mock)
     span = tracer.get_tracer.return_value.start_as_current_span.return_value.__enter__.return_value
 
     tracer.get_tracer.assert_called_once()
     tracer.get_tracer.return_value.start_as_current_span.assert_called_once_with(name="GET: /test", kind=SpanKind.SERVER)
-    tracer.update_span_with_request.assert_called_once_with(request=request_mock, span=span)
+    tracer.update_span_with_request.assert_called_once_with(request=request_mock, span=span, config=config_mock)
     tracer.update_span_with_response.assert_called_once_with(response=response_mock, span=span)
 
     # Check that the request handler is called
