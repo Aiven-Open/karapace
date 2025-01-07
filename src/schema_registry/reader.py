@@ -380,10 +380,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
     def ready(self) -> bool:
-        with self._tracer.get_tracer().start_as_current_span(
-            self._tracer.get_name_from_caller_with_class(self, self.ready)
-        ) as span:
-            span.add_event("Acquiring ready lock")
+        with self._tracer.get_tracer().start_as_current_span(self._tracer.get_name_from_caller_with_class(self, self.ready)):
             with self._ready_lock:
                 return self._ready
 
