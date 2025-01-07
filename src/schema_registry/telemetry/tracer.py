@@ -3,14 +3,22 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dependency_injector.wiring import inject, Provide
 from fastapi import Request, Response
-from karapace.config import Config
+from karapace.config import Config, KarapaceTelemetryOTelExporter
 from karapace.container import KarapaceContainer
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor, SpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    ConsoleSpanExporter,
+    SimpleSpanProcessor,
+    SpanExporter,
+    SpanExportResult,
+    SpanProcessor,
+)
 from opentelemetry.semconv.attributes import (
     client_attributes as C,
     http_attributes as H,
@@ -22,6 +30,20 @@ from opentelemetry.trace.span import Span
 import inspect
 
 
+class NOOPSpanExporter(SpanExporter):
+    """Implementation of :class:`SpanExporter` that does nothing.
+
+    This class is intended to be used when tracing exporting to an OTel backend is disabled
+    and the ConsoleExporter is too verbose to be used.
+    """
+
+    def export(self, _: Sequence[ReadableSpan]) -> SpanExportResult:
+        return SpanExportResult.SUCCESS
+
+    def force_flush(self, _: int = 0) -> bool:
+        return False
+
+
 class Tracer:
     @staticmethod
     @inject
@@ -29,12 +51,20 @@ class Tracer:
         return trace.get_tracer(f"{config.tags.app}.tracer")
 
     @staticmethod
+    def get_span_exporter(config: Config) -> SpanExporter:
+        match config.telemetry.otel_exporter:
+            case KarapaceTelemetryOTelExporter.NOOP:
+                return NOOPSpanExporter()
+            case KarapaceTelemetryOTelExporter.CONSOLE:
+                return ConsoleSpanExporter()
+            case KarapaceTelemetryOTelExporter.OTLP:
+                return OTLPSpanExporter(endpoint=config.telemetry.otel_endpoint_url)
+
+    @staticmethod
     @inject
     def get_span_processor(config: Config = Provide[KarapaceContainer.config]) -> SpanProcessor:
-        if config.telemetry.otel_endpoint_url:
-            otlp_span_exporter = OTLPSpanExporter(endpoint=config.telemetry.otel_endpoint_url)
-            return BatchSpanProcessor(otlp_span_exporter)
-        return SimpleSpanProcessor(ConsoleSpanExporter())
+        processor = BatchSpanProcessor if config.telemetry.otel_endpoint_url else SimpleSpanProcessor
+        return processor(Tracer.get_span_exporter(config=config))
 
     @staticmethod
     def get_name_from_caller() -> str:
