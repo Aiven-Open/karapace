@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .introspect import record_schema
@@ -22,8 +23,7 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 else:
 
-    class DataclassInstance:
-        ...
+    class DataclassInstance: ...
 
 
 __all__ = ("AvroModel",)

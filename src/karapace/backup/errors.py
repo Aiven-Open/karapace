@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from confluent_kafka import TopicPartition
 from karapace.backup.poll_timeout import PollTimeout
 
@@ -12,8 +13,7 @@ class BackupError(Exception):
     """Baseclass for all backup errors."""
 
 
-class EmptyPartition(BackupError):
-    ...
+class EmptyPartition(BackupError): ...
 
 
 class PartitionCountError(BackupError):

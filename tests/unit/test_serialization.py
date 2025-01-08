@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.container import KarapaceContainer
 from karapace.schema_models import SchemaType, ValidatedTypedSchema, Versioner
 from karapace.serialization import (

@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from hypothesis import given
 from hypothesis.strategies import integers
 from karapace.backup.backends.v3.errors import (

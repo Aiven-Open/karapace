@@ -5,6 +5,7 @@ fully-qualified name using the protocol buffer package.
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/ProtoType.kt
 from enum import auto, Enum

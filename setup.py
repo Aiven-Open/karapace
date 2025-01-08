@@ -3,6 +3,7 @@ karapace - setup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from setuptools import Extension, setup
 
 setup(

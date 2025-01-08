@@ -4,6 +4,7 @@ karapace - anonymize avro
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from typing import Any, TypeAlias, Union
 
 import hashlib

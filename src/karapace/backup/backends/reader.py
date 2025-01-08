@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
@@ -78,8 +79,7 @@ class BaseItemsBackupReader(BaseBackupReader, abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def items_from_file(fp: IO[str]) -> Iterator[Sequence[str]]:
-        ...
+    def items_from_file(fp: IO[str]) -> Iterator[Sequence[str]]: ...
 
     def read(
         self,

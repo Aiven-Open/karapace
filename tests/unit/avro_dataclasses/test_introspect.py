@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, Field, field, fields
 from enum import Enum

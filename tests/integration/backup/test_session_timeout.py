@@ -2,6 +2,7 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from aiokafka.errors import NoBrokersAvailable
 from confluent_kafka.admin import NewTopic
 from karapace.backup.api import BackupVersion, create_backup
