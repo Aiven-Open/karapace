@@ -2,6 +2,7 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.auth import ACLAuthorizer, ACLEntry, hash_password, HashAlgorithm, Operation, User
 
 import re

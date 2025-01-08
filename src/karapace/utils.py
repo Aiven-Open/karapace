@@ -4,6 +4,7 @@ karapace - utils
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .typing import ArgJsonData, JsonData
@@ -48,23 +49,19 @@ def _isoformat(datetime_obj: datetime) -> str:
 
 
 @overload
-def default_json_serialization(obj: datetime) -> str:
-    ...
+def default_json_serialization(obj: datetime) -> str: ...
 
 
 @overload
-def default_json_serialization(obj: timedelta) -> float:
-    ...
+def default_json_serialization(obj: timedelta) -> float: ...
 
 
 @overload
-def default_json_serialization(obj: Decimal) -> str:
-    ...
+def default_json_serialization(obj: Decimal) -> str: ...
 
 
 @overload
-def default_json_serialization(obj: MappingProxyType) -> dict:
-    ...
+def default_json_serialization(obj: MappingProxyType) -> dict: ...
 
 
 def default_json_serialization(
@@ -89,8 +86,7 @@ def json_encode(
     sort_keys: bool | None = ...,
     compact: bool | None = ...,
     indent: int | None = ...,
-) -> str:
-    ...
+) -> str: ...
 
 
 @overload
@@ -101,8 +97,7 @@ def json_encode(
     sort_keys: bool | None = ...,
     compact: bool | None = ...,
     indent: int | None = ...,
-) -> bytes:
-    ...
+) -> bytes: ...
 
 
 def json_encode(
@@ -128,13 +123,11 @@ T = TypeVar("T")
 
 
 @overload
-def json_decode(content: AnyStr | IO[AnyStr]) -> JsonData:
-    ...
+def json_decode(content: AnyStr | IO[AnyStr]) -> JsonData: ...
 
 
 @overload
-def json_decode(content: AnyStr | IO[AnyStr], assume_type: type[T]) -> T:
-    ...
+def json_decode(content: AnyStr | IO[AnyStr], assume_type: type[T]) -> T: ...
 
 
 def json_decode(

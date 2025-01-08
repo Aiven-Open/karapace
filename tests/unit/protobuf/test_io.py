@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.dependency import Dependency
 from karapace.protobuf.io import crawl_dependencies
 from karapace.protobuf.schema import ProtobufSchema

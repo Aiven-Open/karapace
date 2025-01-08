@@ -2,6 +2,7 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from _pytest.logging import LogCaptureFixture
 from karapace.container import KarapaceContainer
 from karapace.errors import CorruptKafkaRecordException

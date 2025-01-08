@@ -1381,7 +1381,7 @@ def test_default_field_with_string_escapes():
             OptionElement(
                 "x",
                 OptionElement.Kind.STRING,
-                "\u0007\b\u000C\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
+                "\u0007\b\u000c\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
             )
         ],
     )
@@ -1390,7 +1390,7 @@ def test_default_field_with_string_escapes():
         OptionElement(
             "x",
             OptionElement.Kind.STRING,
-            "\u0007\b\u000C\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
+            "\u0007\b\u000c\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
         )
         in field.options
     )
@@ -1834,7 +1834,7 @@ def test_option_numerical_bounds():
                             OptionElement(
                                 "x",
                                 OptionElement.Kind.STRING,
-                                "çok\u0007\b\u000C\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
+                                "çok\u0007\b\u000c\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
                                 "\u0001\u0001\u0011güzel",
                             )
                         ],
@@ -1849,7 +1849,7 @@ def test_option_numerical_bounds():
                             OptionElement(
                                 "x",
                                 OptionElement.Kind.STRING,
-                                "çok\u0007\b\u000C\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
+                                "çok\u0007\b\u000c\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
                                 "\u0001\u0001\u0011güzel",
                             )
                         ],
