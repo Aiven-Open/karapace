@@ -46,8 +46,8 @@ async def master_availability(
 
     if (
         schema_registry.schema_reader.master_coordinator is not None
-        and schema_registry.schema_reader.master_coordinator._sc is not None  # pylint: disable=protected-access
-        and schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()  # pylint: disable=protected-access
+        and schema_registry.schema_reader.master_coordinator._sc is not None
+        and schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()
     ):
         return MasterAvailabilityResponse(master_available=primary_info.primary)
 

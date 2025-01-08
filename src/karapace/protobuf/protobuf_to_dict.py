@@ -33,8 +33,6 @@ def timestamp_to_datetime(ts):
     return dt
 
 
-# pylint: enable=no-member
-
 EXTENSION_CONTAINER = "___X"
 
 TYPE_CALLABLE_MAP = MappingProxyType(
@@ -209,14 +207,12 @@ def _get_field_mapping(pb, dict_value, strict):
         try:
             ext_num = int(ext_num)
         except ValueError:
-            # pylint: disable=raise-missing-from
             raise ValueError("Extension keys must be integers.")
-        # pylint: disable=protected-access
+
         if ext_num not in pb._extensions_by_number:
             if strict:
                 raise KeyError(f"{pb} does not have a extension with number {key}. Perhaps you forgot to import it?")
             continue
-        # pylint: disable=protected-access
 
         ext_field = pb._extensions_by_number[ext_num]
         # noinspection PyUnusedLocal
@@ -310,7 +306,6 @@ def _string_to_enum(field, input_value, strict=False):
         input_value = field.enum_type.values_by_name[input_value].number
     except KeyError:
         if strict:
-            # pylint: disable=raise-missing-from
             raise KeyError(f"`{input_value}` is not a valid value for field `{field.name}`")
         return _string_to_enum(field, input_value.upper(), strict=True)
     return input_value

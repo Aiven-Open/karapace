@@ -43,7 +43,6 @@ def find_message_name(schema: ProtobufSchema, indexes: Iterable[int]) -> str:
         try:
             message = types[index]
         except IndexError:
-            # pylint: disable=raise-missing-from
             raise IllegalArgumentException(f"Invalid message indexes: {indexes}")
 
         if message and isinstance(message, MessageElement):
@@ -185,7 +184,7 @@ def reader_process(
         reader_queue.put(protobuf_to_dict(read_data(config, writer_schema, reader_schema, bio), True))
     # Reading happens in the forked process, catch is broad so exception will get communicated
     # back to calling process.
-    except BaseException as base_exception:  # pylint: disable=broad-except
+    except BaseException as base_exception:
         reader_queue.put(base_exception)
 
 
@@ -260,13 +259,13 @@ def writer_process(
         writer_queue.put(result)
     # Writing happens in the forked process, catch is broad so exception will get communicated
     # back to calling process.
-    except Exception as bare_exception:  # pylint: disable=broad-exception-caught
+    except Exception as bare_exception:
         try:
             raise ProtobufTypeException(writer_schema, datum) from bare_exception
         except ProtobufTypeException as protobuf_exception:
             writer_queue.put(protobuf_exception)
             raise protobuf_exception
-    except BaseException as base_exception:  # pylint: disable=broad-exception-caught
+    except BaseException as base_exception:
         writer_queue.put(base_exception)
 
 

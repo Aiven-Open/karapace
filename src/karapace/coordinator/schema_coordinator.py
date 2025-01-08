@@ -584,7 +584,7 @@ class SchemaCoordinator:
     async def _coordination_routine(self) -> None:
         try:
             await self.__coordination_routine()
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
         except Exception as exc:
             LOG.error("Unexpected error in coordinator routine", exc_info=True)

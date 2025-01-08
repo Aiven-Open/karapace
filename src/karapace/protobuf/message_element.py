@@ -92,7 +92,7 @@ class MessageElement(TypeElement):
         return "".join(result)
 
     def compare(self, other: TypeElement, result: CompareResult, types: CompareTypes) -> None:
-        from karapace.protobuf.compare_type_lists import compare_type_lists  # pylint: disable=cyclic-import
+        from karapace.protobuf.compare_type_lists import compare_type_lists
 
         if not isinstance(other, MessageElement):
             result.add_modification(Modification.TYPE_ALTER)

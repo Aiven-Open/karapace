@@ -258,7 +258,7 @@ def gt(left: int | None, right: int | None) -> bool:
 
 
 def lt(left: int | None, right: int | None) -> bool:
-    return gt(right, left)  # pylint: disable=arguments-out-of-order
+    return gt(right, left)
 
 
 def ne(writer: T | None, reader: T | None) -> bool:

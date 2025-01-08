@@ -32,8 +32,6 @@ def _noop_context(path: T) -> Iterator[T]:
 class BackupWriter(Generic[B, F], abc.ABC):
     """Common interface and base class for all backup writer backends."""
 
-    # pylint: disable=unused-argument
-
     P = TypeVar("P", bound="StdOut | Path")
 
     def prepare_location(

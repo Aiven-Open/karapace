@@ -72,16 +72,16 @@ class InvalidRecord(Exception):
 
 def topic_name_strategy(
     topic_name: str,
-    record_name: str | None,  # pylint: disable=unused-argument
+    record_name: str | None,
     subject_type: SubjectType,
 ) -> Subject:
     return Subject(f"{topic_name}-{subject_type}")
 
 
 def record_name_strategy(
-    topic_name: str,  # pylint: disable=unused-argument,
+    topic_name: str,
     record_name: str | None,
-    subject_type: SubjectType,  # pylint: disable=unused-argument
+    subject_type: SubjectType,
 ) -> Subject:
     if record_name is None:
         raise InvalidRecord(
