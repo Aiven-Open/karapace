@@ -191,7 +191,7 @@ def test_reader_raises_invalid_checksum(tmp_path: Path) -> None:
         backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
         backup_writer.store_record(buffer, make_record(topic_name, partition_index, 1))
         with mock.patch.object(
-            backup_writer._partition_stats[partition_index],  # pylint: disable=protected-access
+            backup_writer._partition_stats[partition_index],
             "get_checkpoint",
             return_value=b"not what you expected!",
             autospec=True,

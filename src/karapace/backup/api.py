@@ -171,7 +171,7 @@ def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
             result = f"failed ({outcome.exception()})"
         else:
             result = f"returned {outcome.result()!r}"
-        LOG.info(f"{description} {result}, retrying... (Ctrl+C to abort)")  # pylint: disable=logging-fstring-interpolation
+        LOG.info(f"{description} {result}, retrying... (Ctrl+C to abort)")
 
     return before_sleep
 

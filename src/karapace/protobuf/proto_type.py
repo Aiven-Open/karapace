@@ -20,7 +20,7 @@ def static_init(cls) -> object:
     return cls
 
 
-@static_init  # pylint: disable=used-before-assignment
+@static_init
 class ProtoType:
     @property
     def simple_name(self) -> str:

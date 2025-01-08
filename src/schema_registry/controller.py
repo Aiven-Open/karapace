@@ -813,7 +813,7 @@ class KarapaceSchemaRegistryController:
         except (InvalidReferences, InvalidSchema, InvalidSchemaType) as exc:
             LOG.warning("Invalid schema: %r", schema_request.schema_str, exc_info=True)
             if isinstance(exc.__cause__, (SchemaParseException, JSONDecodeError, ProtobufUnresolvedDependencyException)):
-                human_error = f"{exc.__cause__.args[0]}"  # pylint: disable=no-member
+                human_error = f"{exc.__cause__.args[0]}"
             else:
                 from_body_schema_str = schema_request.schema_str
                 human_error = (

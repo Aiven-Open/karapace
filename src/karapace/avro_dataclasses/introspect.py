@@ -57,7 +57,7 @@ def _field_type_array(field: Field, origin: type, type_: object) -> AvroType:
 sequence_types: Final = frozenset({tuple, list, Sequence})
 
 
-def _field_type(field: Field, type_: object) -> AvroType:  # pylint: disable=too-many-return-statements
+def _field_type(field: Field, type_: object) -> AvroType:
     # Handle primitives.
     if type_ is bool:
         return "boolean"

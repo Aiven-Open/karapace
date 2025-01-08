@@ -25,11 +25,11 @@ import signal
 import time
 
 if importlib.util.find_spec("ujson"):
-    from ujson import JSONDecodeError  # noqa: F401 pylint: disable=unused-import, useless-suppression
+    from ujson import JSONDecodeError  # noqa: F401
 
     import ujson as json
 else:
-    from json import JSONDecodeError  # noqa: F401 pylint: disable=unused-import, useless-suppression
+    from json import JSONDecodeError  # noqa: F401
 
     import json
 
@@ -134,7 +134,7 @@ def json_decode(
     content: AnyStr | IO[AnyStr],
     # This argument is only used to pass onto cast() via a type var, it has no runtime
     # usage.
-    assume_type: type[T] | None = None,  # pylint: disable=unused-argument
+    assume_type: type[T] | None = None,
 ) -> JsonData | T:
     if isinstance(content, (str, bytes)):
         return cast("T | None", json.loads(content))
@@ -197,7 +197,7 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
     try:
         object_[key] = int(object_[key])
     except ValueError:
-        from karapace.rapu import http_error  # pylint: disable=cyclic-import
+        from karapace.rapu import http_error
 
         http_error(
             message=f"{key} is not a valid int: {object_[key]}",
@@ -216,7 +216,7 @@ class DebugAccessLogger(AccessLogger):
         self,
         request: BaseRequest,
         response: StreamResponse,
-        time: float,  # pylint: disable=redefined-outer-name
+        time: float,
     ) -> None:
         try:
             fmt_info = self._format_line(request, response, time)
@@ -235,7 +235,7 @@ class DebugAccessLogger(AccessLogger):
                     extra[k1] = dct
 
             self.logger.debug(self._log_format % tuple(values), extra=extra)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             self.logger.exception("Error in logging")
 
 

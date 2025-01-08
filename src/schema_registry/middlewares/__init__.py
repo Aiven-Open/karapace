@@ -27,7 +27,7 @@ def setup_middlewares(app: FastAPI) -> None:
         if request.headers.get("Content-Type") == "application/octet-stream":
             new_headers = request.headers.mutablecopy()
             new_headers["Content-Type"] = "application/json"
-            request._headers = new_headers  # pylint: disable=protected-access
+            request._headers = new_headers
             request.scope.update(headers=request.headers.raw)
 
         response = await call_next(request)
