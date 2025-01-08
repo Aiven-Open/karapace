@@ -252,7 +252,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                         self.config.topic_name,
                     )
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
-                except:  # pylint: disable=bare-except
+                except Exception:
                     LOG.exception("[Schema Topic] Failed to create %r, retrying", self.config.topic_name)
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
 
