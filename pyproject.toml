@@ -81,6 +81,7 @@ ujson = ["ujson"]
 dev = [
   # Developer QoL
   "pdbpp",
+  "ruff",
 
   # testing
   "filelock",
@@ -113,6 +114,5 @@ include-package-data = true
 [tool.setuptools_scm]
 version_file = "src/karapace/version.py"
 
-[tool.black]
-target-version = ["py310", "py311"]
+[tool.ruff]
 line-length = 125
