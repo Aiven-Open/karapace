@@ -834,7 +834,7 @@ def compatibility_subschemas(
     location: list[str],
 ) -> SchemaCompatibilityResult:
     # https://json-schema.org/draft/2020-12/json-schema-core.html#rfc.section.10
-    # pylint: disable=too-many-return-statements
+
     reader_subschemas_and_type = maybe_get_subschemas_and_type(reader_schema)
     writer_subschemas_and_type = maybe_get_subschemas_and_type(writer_schema)
 

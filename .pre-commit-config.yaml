@@ -40,13 +40,6 @@ repos:
     # https://github.com/hadolint/hadolint/issues/497
     - --ignore=DL3042
 
-- repo: https://github.com/PyCQA/pylint
-  # Note: pre-commit autoupdate changes to an alpha version. Instead, manually find the
-  # latest stable version here: https://github.com/pylint-dev/pylint/releases
-  rev: v3.2.6
-  hooks:
-  - id: pylint
-
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
   rev: v0.8.6

@@ -81,9 +81,7 @@ def test_offset_watcher() -> None:
         assert consumer.result() is None, "Thread should finish without errors"
         assert producer.result() is None, "Thread should finish without errors"
 
-    assert (
-        watcher._greatest_offset == 99  # pylint: disable=protected-access
-    ), "Expected greatest offset is not one less than total count"
+    assert watcher._greatest_offset == 99, "Expected greatest offset is not one less than total count"
     assert produced_cnt == 100, "Did not produce expected amount of records"
     assert consumed_cnt == 100, "Did not consume expected amount of records"
 
@@ -319,9 +317,7 @@ def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture, karapace_cont
     )
 
     with caplog.at_level(logging.WARNING, logger="schema_registry.reader"):
-        schema_reader._handle_msg_schema_hard_delete(  # pylint: disable=protected-access
-            key={"subject": "test-subject", "version": 2}
-        )
+        schema_reader._handle_msg_schema_hard_delete(key={"subject": "test-subject", "version": 2})
         for log in caplog.records:
             assert log.name == "schema_registry.reader"
             assert log.levelname == "WARNING"
