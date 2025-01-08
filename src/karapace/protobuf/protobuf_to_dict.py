@@ -7,6 +7,7 @@ LICENSE: https://github.com/wearefair/protobuf-to-dict/blob/master/LICENSE
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from dateutil.parser import parse as date_parser
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message

@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from karapace.protobuf.compare_result import CompareResult
 from karapace.protobuf.schema import ProtobufSchema

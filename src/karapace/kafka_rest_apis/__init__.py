@@ -4,6 +4,7 @@ karapace - Rest Proxy API
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from aiokafka.errors import (

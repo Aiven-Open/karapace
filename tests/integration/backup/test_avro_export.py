@@ -4,6 +4,7 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
 from karapace.client import Client

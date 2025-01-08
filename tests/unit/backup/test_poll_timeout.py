@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from datetime import timedelta
 from karapace.backup.poll_timeout import PollTimeout
 

@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import SchemaCompatibilityType
 from karapace.compatibility import CompatibilityModes
 from karapace.compatibility.schema_compatibility import SchemaCompatibility

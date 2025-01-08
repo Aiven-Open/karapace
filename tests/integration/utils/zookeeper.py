@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaDescription, ZKConfig

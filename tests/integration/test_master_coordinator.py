@@ -4,6 +4,7 @@ karapace - master coordination test
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.config import Config
 from karapace.coordinator.master_coordinator import MasterCoordinator
 from karapace.typing import SchemaReaderStoppper

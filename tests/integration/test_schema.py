@@ -4,6 +4,7 @@ karapace - schema tests
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from attr import dataclass
 from http import HTTPStatus
 from karapace.client import Client

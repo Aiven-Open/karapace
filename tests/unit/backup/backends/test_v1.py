@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from functools import partial
 from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
 from karapace.backup.backends.v1 import SchemaBackupV1Reader

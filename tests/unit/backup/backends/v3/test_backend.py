@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from dataclasses import replace
 from karapace.backup.backends.reader import ProducerSend, RestoreTopic
 from karapace.backup.backends.v3.backend import _PartitionStats, SchemaBackupV3Reader, SchemaBackupV3Writer
