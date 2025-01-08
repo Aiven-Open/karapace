@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
@@ -183,5 +184,5 @@ def configure_and_start_kafka(
         ),
     )
     env: dict[bytes, bytes] = {}
-    proc = Popen(kafka_cmd, env=env)  # pylint: disable=consider-using-with
+    proc = Popen(kafka_cmd, env=env)
     return proc

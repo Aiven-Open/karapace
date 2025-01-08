@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from copy import copy
 from jsonschema import Draft7Validator
 from karapace.compatibility.jsonschema.types import BooleanSchema, Instance, Keyword, Subschema
@@ -257,7 +258,7 @@ def gt(left: int | None, right: int | None) -> bool:
 
 
 def lt(left: int | None, right: int | None) -> bool:
-    return gt(right, left)  # pylint: disable=arguments-out-of-order
+    return gt(right, left)
 
 
 def ne(writer: T | None, reader: T | None) -> bool:

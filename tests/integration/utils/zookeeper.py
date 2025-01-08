@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaDescription, ZKConfig
@@ -58,5 +59,5 @@ def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription
             kafka_description,
         )
     )
-    proc = Popen(java_args, env=env)  # pylint: disable=consider-using-with
+    proc = Popen(java_args, env=env)
     return proc

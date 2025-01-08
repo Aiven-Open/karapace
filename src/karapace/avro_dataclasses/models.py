@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .introspect import record_schema
@@ -22,8 +23,7 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 else:
 
-    class DataclassInstance:
-        ...
+    class DataclassInstance: ...
 
 
 __all__ = ("AvroModel",)
@@ -76,8 +76,6 @@ def optional_parser(parser: Parser | None) -> Parser | None:
 
 
 def from_avro_value(type_: object) -> Parser | None:
-    # pylint: disable=too-many-return-statements
-
     if isinstance(type_, type):
         if is_dataclass(type_):
             return partial(from_avro_dict, type_)

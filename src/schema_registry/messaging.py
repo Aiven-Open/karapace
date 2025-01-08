@@ -4,6 +4,7 @@ karapace - Karapace producer
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from aiokafka.errors import MessageSizeTooLargeError
 from karapace.config import Config
 from karapace.errors import SchemaTooLargeException
@@ -51,7 +52,7 @@ class KarapaceProducer:
                     connections_max_idle_ms=self._config.connections_max_idle_ms,  # helps through cluster upgrades ??
                 )
                 return
-            except:  # pylint: disable=bare-except
+            except Exception:
                 LOG.exception("Unable to create producer, retrying")
                 time.sleep(1)
 

@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
@@ -30,8 +31,6 @@ def _noop_context(path: T) -> Iterator[T]:
 
 class BackupWriter(Generic[B, F], abc.ABC):
     """Common interface and base class for all backup writer backends."""
-
-    # pylint: disable=unused-argument
 
     P = TypeVar("P", bound="StdOut | Path")
 
@@ -170,5 +169,4 @@ class BaseKVBackupWriter(StrBackupWriter, abc.ABC):
     def serialize_record(
         key_bytes: bytes | None,
         value_bytes: bytes | None,
-    ) -> str:
-        ...
+    ) -> str: ...

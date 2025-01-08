@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 # Ported from square/wire:
 # wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
 from karapace.protobuf.exception import IllegalStateException
@@ -223,7 +224,6 @@ class SyntaxReader:
             buffer = []
             start_of_line = True
             while self.pos + 1 < len(self.data):
-                # pylint: disable=no-else-break
                 c: str = self.data[self.pos]
                 if c == "*" and self.data[self.pos + 1] == "/":
                     self.pos += 2

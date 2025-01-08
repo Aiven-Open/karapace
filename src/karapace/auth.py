@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from base64 import b64encode
@@ -98,29 +99,23 @@ class AuthData(TypedDict):
 
 
 class AuthenticateProtocol(Protocol):
-    def authenticate(self, *, username: str, password: str) -> User | None:
-        ...
+    def authenticate(self, *, username: str, password: str) -> User | None: ...
 
 
 class AuthorizeProtocol(Protocol):
-    def get_user(self, username: str) -> User | None:
-        ...
+    def get_user(self, username: str) -> User | None: ...
 
-    def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
-        ...
+    def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool: ...
 
-    def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool:
-        ...
+    def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool: ...
 
 
 class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
     MUST_AUTHENTICATE: bool = True
 
-    async def close(self) -> None:
-        ...
+    async def close(self) -> None: ...
 
-    async def start(self, stats: StatsClient) -> None:  # pylint: disable=unused-argument
-        ...
+    async def start(self, stats: StatsClient) -> None: ...
 
 
 class NoAuthAndAuthz(AuthenticatorAndAuthorizer):
@@ -241,7 +236,7 @@ class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
                 except asyncio.CancelledError:
                     log.info("Closing schema registry ACL refresh task")
                     return
-                except Exception as ex:  # pylint: disable=broad-except
+                except Exception as ex:
                     log.exception("Schema registry auth file could not be loaded")
                     stats.unexpected_exception(ex=ex, where="schema_registry_authfile_reloader")
                     return

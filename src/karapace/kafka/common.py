@@ -50,16 +50,16 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
     """
     code = error.code()
     if code in (
-        KafkaError._NOENT,  # pylint: disable=protected-access
-        KafkaError._UNKNOWN_PARTITION,  # pylint: disable=protected-access
-        KafkaError._UNKNOWN_TOPIC,  # pylint: disable=protected-access
+        KafkaError._NOENT,
+        KafkaError._UNKNOWN_PARTITION,
+        KafkaError._UNKNOWN_TOPIC,
     ):
         return UnknownTopicOrPartitionError()
-    if code == KafkaError._TIMED_OUT:  # pylint: disable=protected-access
+    if code == KafkaError._TIMED_OUT:
         return KafkaTimeoutError()
-    if code == KafkaError._STATE:  # pylint: disable=protected-access
+    if code == KafkaError._STATE:
         return IllegalStateError()
-    if code == KafkaError._RESOLVE:  # pylint: disable=protected-access
+    if code == KafkaError._RESOLVE:
         return KafkaUnavailableError()
 
     return for_code(code)
@@ -80,8 +80,7 @@ def raise_from_kafkaexception(exc: KafkaException) -> NoReturn:
 # `karapace.kafka_rest_apis.authentication.SimpleOauthTokenProvider`
 # to avoid circular imports
 class TokenWithExpiryProvider(Protocol):
-    def token_with_expiry(self, config: str | None) -> tuple[str, int | None]:
-        ...
+    def token_with_expiry(self, config: str | None) -> tuple[str, int | None]: ...
 
 
 class KafkaClientParams(TypedDict, total=False):
@@ -208,9 +207,7 @@ class _KafkaConfigMixin:
                 # to the callback function defined in the `error_cb` config
                 self._activate_callbacks()
                 self.log.info("Could not establish connection due to errors: %s", self._errors)
-                if any(
-                    error.code() == KafkaError._AUTHENTICATION for error in self._errors  # pylint: disable=protected-access
-                ):
+                if any(error.code() == KafkaError._AUTHENTICATION for error in self._errors):
                     raise AuthenticationFailedError() from exc
                 continue
             else:

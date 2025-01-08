@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from _pytest.logging import LogCaptureFixture
 from aiohttp.client_exceptions import ClientConnectionError
 from aiohttp.web import Request
@@ -176,7 +177,7 @@ async def test_raise_connection_error_handling(
 
     app = KarapaceBase(config=karapace_container.config())
 
-    response = await app._handle_request(  # pylint: disable=protected-access
+    response = await app._handle_request(
         request=request_mock,
         path_for_stats="/",
         callback=callback_mock,

@@ -5,6 +5,7 @@ debugging and speed, and as an initial sanity check
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 from avro.name import Names
 from avro.schema import ArraySchema, Field, MapSchema, Schema, UnionSchema
@@ -641,12 +642,11 @@ long_reader_field = Field(name="tail", type_=LONG_LIST_RECORD.to_json(), has_def
 INT_LIST_RECORD._fields = (INT_LIST_RECORD.fields[0], int_reader_field)
 LONG_LIST_RECORD._fields = (LONG_LIST_RECORD.fields[0], long_reader_field)
 
-# pylint: disable=protected-access
+
 INT_LIST_RECORD._field_map = INT_LIST_RECORD.fields_dict
 LONG_LIST_RECORD._field_map = LONG_LIST_RECORD.fields_dict
 INT_LIST_RECORD._props["fields"] = INT_LIST_RECORD._fields
 LONG_LIST_RECORD._props["fields"] = LONG_LIST_RECORD._fields
-# pylint: enable=protected-access
 RECORD1_WITH_INT = parse_avro_schema_definition(
     json.dumps({"type": "record", "name": "Record1", "fields": [{"name": "field1", "type": "int"}]})
 )

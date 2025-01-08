@@ -4,6 +4,7 @@ karapace - conftest
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from _pytest.fixtures import SubRequest
@@ -95,7 +96,7 @@ async def fixture_asyncconsumer(
 @pytest.fixture(scope="function", name="registry_cluster")
 async def fixture_registry_cluster(
     karapace_container: KarapaceContainer,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
 ) -> RegistryDescription:
     protocol = "http"
     endpoint = RegistryEndpoint(
@@ -109,7 +110,7 @@ async def fixture_registry_async_client(
     request: SubRequest,
     basic_auth: BasicAuth,
     registry_cluster: RegistryDescription,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
 ) -> AsyncGenerator[Client, None]:
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),

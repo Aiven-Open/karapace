@@ -25,7 +25,7 @@ See LICENSE for details
 # -- Project information -----------------------------------------------------
 
 project = "Karapace"
-copyright = "2022, Aiven"  # pylint: disable=redefined-builtin
+copyright = "2022, Aiven"
 author = "Aiven"
 
 

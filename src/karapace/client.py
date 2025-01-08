@@ -4,6 +4,7 @@ karapace - utils
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from aiohttp import BasicAuth, ClientSession
 from collections.abc import Awaitable, Callable, Mapping
 from karapace.typing import JsonData
@@ -75,7 +76,7 @@ class Client:
         try:
             if self._client is not None:
                 await self._client.close()
-        except:  # pylint: disable=bare-except
+        except Exception:
             LOG.error("Could not close client")
 
     async def get_client(self) -> ClientSession:

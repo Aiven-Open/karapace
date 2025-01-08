@@ -4,6 +4,7 @@ karapace
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from collections.abc import Mapping
 from dataclasses import field
 from karapace.avro_dataclasses.models import AvroModel

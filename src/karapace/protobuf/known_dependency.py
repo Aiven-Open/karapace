@@ -16,7 +16,7 @@ def static_init(cls: Any) -> object:
     return cls
 
 
-@static_init  # pylint: disable=used-before-assignment
+@static_init
 class KnownDependency:
     index: dict = dict()
     index_simple: dict = dict()

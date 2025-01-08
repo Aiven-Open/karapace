@@ -4,6 +4,7 @@ karapace - schema coordinator
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from aiokafka.client import AIOKafkaClient, ConnectionGroup
@@ -582,7 +583,7 @@ class SchemaCoordinator:
     async def _coordination_routine(self) -> None:
         try:
             await self.__coordination_routine()
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:
             raise
         except Exception as exc:
             LOG.error("Unexpected error in coordinator routine", exc_info=True)

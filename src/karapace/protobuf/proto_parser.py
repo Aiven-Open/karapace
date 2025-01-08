@@ -169,7 +169,6 @@ class ProtoParser:
             | GroupElement
             | FieldElement
         ) = None
-        # pylint no-else-return
         if label == "package" and context.permits_package():
             self.package_name = self.reader.read_name()
             self.prefix = f"{self.package_name}."
@@ -504,7 +503,7 @@ class ProtoParser:
                     values.append(KotlinRange(tag_start, tag_end))
 
             ch = self.reader.read_char()
-            # pylint: disable=no-else-break
+
             if ch == ";":
                 break
             elif ch == ",":
@@ -543,7 +542,7 @@ class ProtoParser:
                 values.append(KotlinRange(start, end))
 
             ch = self.reader.read_char()
-            # pylint: disable=no-else-break
+
             if ch == ";":
                 break
             elif ch == ",":

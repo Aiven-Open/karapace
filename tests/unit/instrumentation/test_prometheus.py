@@ -92,7 +92,7 @@ class TestPrometheusInstrumentation:
 
         await prometheus.http_request_metrics_middleware(request=request, handler=handler)
 
-        assert handler.assert_awaited_once  # extra assert is to ignore pylint [pointless-statement]
+        assert handler.assert_awaited_once
         request.__setitem__.assert_called_once_with(prometheus.START_TIME_REQUEST_KEY, 10)
         request.app[prometheus.karapace_http_requests_in_progress].labels.assert_has_calls(
             [

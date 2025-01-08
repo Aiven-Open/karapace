@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from aiokafka.errors import (
     GroupAuthorizationFailedError,
     IllegalStateError,
@@ -240,7 +241,7 @@ class ConsumerManager:
                 )
                 await c.start()
                 return c
-            except:  # pylint: disable=bare-except
+            except Exception:
                 if retry:
                     LOG.warning("Unable to create consumer, retrying")
                 else:
@@ -256,7 +257,7 @@ class ConsumerManager:
                 c = self.consumers.pop(internal_name)
                 await c.consumer.stop()
                 self.consumer_locks.pop(internal_name)
-            except:  # pylint: disable=bare-except
+            except Exception:
                 LOG.exception("Unable to properly dispose of consumer")
             finally:
                 empty_response()
@@ -597,5 +598,5 @@ class ConsumerManager:
             c = self.consumers.pop(k)
             try:
                 await c.consumer.stop()
-            except:  # pylint: disable=bare-except
+            except Exception:
                 pass

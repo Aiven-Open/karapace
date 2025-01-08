@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from .checksum import RunningChecksum
 from .constants import V3_MARKER
 from .errors import IntegerAboveBound, IntegerBelowBound

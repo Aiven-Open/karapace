@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from dependency_injector.wiring import inject, Provide
@@ -34,7 +35,7 @@ def main(
     try:
         prometheus.setup_metrics(app=app)
         app.run()  # `close` will be called by the callback `close_by_app` set by `KarapaceBase`
-    except Exception as ex:  # pylint: disable-broad-except
+    except Exception as ex:
         app.stats.unexpected_exception(ex=ex, where="karapace")
         raise
     return 0

@@ -8,6 +8,7 @@ Supports telegraf's statsd protocol extension for 'key=value' tags:
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -82,7 +83,7 @@ class StatsClient:
                 parts.insert(1, f",{tag}={tag_value}".encode())
 
             self._socket.sendto(b"".join(parts), self._dest_addr)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             LOG.exception("Unexpected exception in statsd send")
 
     def close(self) -> None:

@@ -4,6 +4,7 @@ karapace - schema backup cli
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from . import api
@@ -164,7 +165,7 @@ def main() -> None:
     # TODO: This specific treatment of StaleConsumerError looks quite misplaced
     #  here, and should probably be pushed down into the (internal) API layer.
     except StaleConsumerError as e:
-        logger.error(  # pylint: disable=logging-fstring-interpolation
+        logger.error(
             f"The Kafka consumer did not receive any records for partition {e.topic_partition.partition} of topic "
             f"{e.topic_partition.topic!r} "
             f"within the poll timeout ({e.poll_timeout} seconds) while trying to reach offset {e.end_offset:,} "

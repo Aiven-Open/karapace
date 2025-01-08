@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import SchemaCompatibilityResult
 from karapace.container import KarapaceContainer
 from pathlib import Path
@@ -66,7 +67,7 @@ def split_by_comma(arg: str) -> list[str]:
     return arg.split(",")
 
 
-def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
+def pytest_addoption(parser, pluginmanager) -> None:
     # Configuration options for the services started by the test suite
     parser.addoption(
         KAFKA_VERION_OPT,

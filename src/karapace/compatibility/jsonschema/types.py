@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, unique

@@ -4,6 +4,7 @@ karapace - utils
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .typing import ArgJsonData, JsonData
@@ -24,11 +25,11 @@ import signal
 import time
 
 if importlib.util.find_spec("ujson"):
-    from ujson import JSONDecodeError  # noqa: F401 pylint: disable=unused-import, useless-suppression
+    from ujson import JSONDecodeError  # noqa: F401
 
     import ujson as json
 else:
-    from json import JSONDecodeError  # noqa: F401 pylint: disable=unused-import, useless-suppression
+    from json import JSONDecodeError  # noqa: F401
 
     import json
 
@@ -48,23 +49,19 @@ def _isoformat(datetime_obj: datetime) -> str:
 
 
 @overload
-def default_json_serialization(obj: datetime) -> str:
-    ...
+def default_json_serialization(obj: datetime) -> str: ...
 
 
 @overload
-def default_json_serialization(obj: timedelta) -> float:
-    ...
+def default_json_serialization(obj: timedelta) -> float: ...
 
 
 @overload
-def default_json_serialization(obj: Decimal) -> str:
-    ...
+def default_json_serialization(obj: Decimal) -> str: ...
 
 
 @overload
-def default_json_serialization(obj: MappingProxyType) -> dict:
-    ...
+def default_json_serialization(obj: MappingProxyType) -> dict: ...
 
 
 def default_json_serialization(
@@ -89,8 +86,7 @@ def json_encode(
     sort_keys: bool | None = ...,
     compact: bool | None = ...,
     indent: int | None = ...,
-) -> str:
-    ...
+) -> str: ...
 
 
 @overload
@@ -101,8 +97,7 @@ def json_encode(
     sort_keys: bool | None = ...,
     compact: bool | None = ...,
     indent: int | None = ...,
-) -> bytes:
-    ...
+) -> bytes: ...
 
 
 def json_encode(
@@ -128,20 +123,18 @@ T = TypeVar("T")
 
 
 @overload
-def json_decode(content: AnyStr | IO[AnyStr]) -> JsonData:
-    ...
+def json_decode(content: AnyStr | IO[AnyStr]) -> JsonData: ...
 
 
 @overload
-def json_decode(content: AnyStr | IO[AnyStr], assume_type: type[T]) -> T:
-    ...
+def json_decode(content: AnyStr | IO[AnyStr], assume_type: type[T]) -> T: ...
 
 
 def json_decode(
     content: AnyStr | IO[AnyStr],
     # This argument is only used to pass onto cast() via a type var, it has no runtime
     # usage.
-    assume_type: type[T] | None = None,  # pylint: disable=unused-argument
+    assume_type: type[T] | None = None,
 ) -> JsonData | T:
     if isinstance(content, (str, bytes)):
         return cast("T | None", json.loads(content))
@@ -204,7 +197,7 @@ def convert_to_int(object_: dict, key: str, content_type: str) -> None:
     try:
         object_[key] = int(object_[key])
     except ValueError:
-        from karapace.rapu import http_error  # pylint: disable=cyclic-import
+        from karapace.rapu import http_error
 
         http_error(
             message=f"{key} is not a valid int: {object_[key]}",
@@ -223,7 +216,7 @@ class DebugAccessLogger(AccessLogger):
         self,
         request: BaseRequest,
         response: StreamResponse,
-        time: float,  # pylint: disable=redefined-outer-name
+        time: float,
     ) -> None:
         try:
             fmt_info = self._format_line(request, response, time)
@@ -242,7 +235,7 @@ class DebugAccessLogger(AccessLogger):
                     extra[k1] = dct
 
             self.logger.debug(self._log_format % tuple(values), extra=extra)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             self.logger.exception("Error in logging")
 
 

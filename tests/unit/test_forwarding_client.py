@@ -4,6 +4,7 @@ karapace - master forwarding tests
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -40,7 +41,7 @@ def fixture_forward_client() -> ForwardClient:
 
 async def test_forward_client_close(forward_client: ForwardClient) -> None:
     await forward_client.close()
-    forward_client._forward_client.close.assert_awaited_once()  # pylint: disable=protected-access
+    forward_client._forward_client.close.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
@@ -79,7 +80,7 @@ async def test_forward_request_with_basemodel_response(forward_client: ForwardCl
 
     mock_get_func.__aenter__ = mock_aenter
     mock_get_func.__aexit__ = mock_aexit
-    forward_client._forward_client.get.return_value = mock_get_func  # pylint: disable=protected-access
+    forward_client._forward_client.get.return_value = mock_get_func
 
     response = await forward_client.forward_request_remote(
         request=mock_request,
@@ -112,7 +113,7 @@ async def test_forward_request_with_integer_list_response(forward_client: Forwar
 
     mock_get_func.__aenter__ = mock_aenter
     mock_get_func.__aexit__ = mock_aexit
-    forward_client._forward_client.get.return_value = mock_get_func  # pylint: disable=protected-access
+    forward_client._forward_client.get.return_value = mock_get_func
 
     response = await forward_client.forward_request_remote(
         request=mock_request,
@@ -145,7 +146,7 @@ async def test_forward_request_with_integer_response(forward_client: ForwardClie
 
     mock_get_func.__aenter__ = mock_aenter
     mock_get_func.__aexit__ = mock_aexit
-    forward_client._forward_client.get.return_value = mock_get_func  # pylint: disable=protected-access
+    forward_client._forward_client.get.return_value = mock_get_func
 
     response = await forward_client.forward_request_remote(
         request=mock_request,

@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from functools import partial
@@ -90,7 +91,7 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
     with backup_writer.safe_writer(file_path, False) as buffer:
         for record in records:
             backup_writer.store_record(buffer, record)
-    data_file = backup_writer.finalize_partition(  # pylint: disable=assignment-from-no-return
+    data_file = backup_writer.finalize_partition(
         index=partition_index,
         filename=file_path.name,
     )
@@ -231,7 +232,7 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
     with backup_writer.safe_writer(file_path, False) as buffer:
         for record in records:
             backup_writer.store_record(buffer, record)
-    data_file = backup_writer.finalize_partition(  # pylint: disable=assignment-from-no-return
+    data_file = backup_writer.finalize_partition(
         index=partition_index,
         filename=file_path.name,
     )
