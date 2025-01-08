@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from .config import Config
 from collections.abc import Iterator
 from karapace.kafka.admin import KafkaAdminClient

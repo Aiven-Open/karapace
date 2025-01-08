@@ -4,6 +4,7 @@ karapace - Kafka schema reader
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from aiokafka.errors import (

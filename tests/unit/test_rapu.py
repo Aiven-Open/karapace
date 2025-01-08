@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from _pytest.logging import LogCaptureFixture
 from aiohttp.client_exceptions import ClientConnectionError
 from aiohttp.web import Request

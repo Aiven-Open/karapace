@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from aiokafka.errors import TopicAlreadyExistsError
 from collections.abc import Callable

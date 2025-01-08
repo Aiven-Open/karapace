@@ -6,6 +6,7 @@ See LICENSE for details
 
 Tests are adapted from aiokafka.tests.test_coordinator
 """
+
 from __future__ import annotations
 
 from aiokafka.client import AIOKafkaClient, ConnectionGroup, CoordinationType
@@ -53,7 +54,8 @@ def fixture_mocked_aiokafka_client() -> Iterator[AIOKafkaClient]:
 
 @pytest.fixture(scope="function", name="coordinator")
 async def fixture_admin(
-    loop: asyncio.AbstractEventLoop, mocked_client: AIOKafkaClient  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
+    mocked_client: AIOKafkaClient,  # pylint: disable=unused-argument
 ) -> AsyncGenerator:
     coordinator = SchemaCoordinator(
         mocked_client,
@@ -84,7 +86,8 @@ async def _get_client(kafka_servers: KafkaServers) -> AIOKafkaClient:
 
 @pytest.fixture(scope="function", name="client")
 async def get_client(
-    loop: asyncio.AbstractEventLoop, kafka_servers: KafkaServers  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
+    kafka_servers: KafkaServers,  # pylint: disable=unused-argument
 ) -> AsyncGenerator:
     client = await _get_client(kafka_servers)
     yield client

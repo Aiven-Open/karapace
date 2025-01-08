@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.container import KarapaceContainer
 from karapace.protobuf.io import calculate_class_name
 from karapace.protobuf.kotlin_wrapper import trim_margin

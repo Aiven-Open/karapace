@@ -2,6 +2,7 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import (
     merge,
     ReaderWriterCompatibilityChecker as AvroChecker,

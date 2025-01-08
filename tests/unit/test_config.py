@@ -4,6 +4,7 @@ Test config
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST
 from karapace.container import KarapaceContainer
 

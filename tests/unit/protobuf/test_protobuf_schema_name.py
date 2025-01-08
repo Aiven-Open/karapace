@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import ValidatedTypedSchema
 from karapace.schema_type import SchemaType

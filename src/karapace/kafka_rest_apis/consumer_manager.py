@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from aiokafka.errors import (
     GroupAuthorizationFailedError,
     IllegalStateError,

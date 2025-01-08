@@ -4,6 +4,7 @@ karapace
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from . import schema
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityType
 from collections.abc import Generator

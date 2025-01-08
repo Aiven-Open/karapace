@@ -70,8 +70,7 @@ class ForwardClient:
         request: Request,
         primary_url: str,
         response_type: type[BaseModelResponse],
-    ) -> BaseModelResponse:
-        ...
+    ) -> BaseModelResponse: ...
 
     @overload
     async def forward_request_remote(
@@ -80,8 +79,7 @@ class ForwardClient:
         request: Request,
         primary_url: str,
         response_type: type[SimpleTypeResponse],
-    ) -> SimpleTypeResponse:
-        ...
+    ) -> SimpleTypeResponse: ...
 
     async def forward_request_remote(
         self,

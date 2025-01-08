@@ -4,6 +4,7 @@ karapace - Karapace producer
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from aiokafka.errors import MessageSizeTooLargeError
 from karapace.config import Config
 from karapace.errors import SchemaTooLargeException

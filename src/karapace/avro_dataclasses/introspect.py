@@ -20,16 +20,13 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 else:
 
-    class DataclassInstance:
-        ...
+    class DataclassInstance: ...
 
 
-class UnsupportedAnnotation(NotImplementedError):
-    ...
+class UnsupportedAnnotation(NotImplementedError): ...
 
 
-class UnderspecifiedAnnotation(UnsupportedAnnotation):
-    ...
+class UnderspecifiedAnnotation(UnsupportedAnnotation): ...
 
 
 def _field_type_array(field: Field, origin: type, type_: object) -> AvroType:

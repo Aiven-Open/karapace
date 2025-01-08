@@ -2,6 +2,7 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dependency_injector.wiring import inject, Provide

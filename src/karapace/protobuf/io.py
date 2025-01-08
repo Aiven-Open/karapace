@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator, Iterable
@@ -65,10 +66,13 @@ def _crawl_dependencies(
         # todo: https://github.com/aiven/karapace/issues/641
         assert isinstance(dependency.schema.schema, ProtobufSchema)
         yield from _crawl_dependencies(dependency.schema.schema)
-        yield name, {
-            "schema": str(dependency.schema.schema),
-            "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
-        }
+        yield (
+            name,
+            {
+                "schema": str(dependency.schema.schema),
+                "unique_class_name": calculate_class_name(f"{dependency.version}_{dependency.name}"),
+            },
+        )
 
 
 def crawl_dependencies(schema: ProtobufSchema) -> dict[str, dict[str, str]]:
@@ -85,11 +89,9 @@ def replace_imports(string: str, deps_list: dict[str, dict[str, str]] | None) ->
 
 
 class _ProtobufModel(Protocol):
-    def ParseFromString(self, buffer: bytes) -> Self:
-        ...
+    def ParseFromString(self, buffer: bytes) -> Self: ...
 
-    def SerializeToString(self) -> bytes:
-        ...
+    def SerializeToString(self) -> bytes: ...
 
 
 def get_protobuf_class_instance(
