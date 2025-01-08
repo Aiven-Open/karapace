@@ -59,5 +59,5 @@ def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription
             kafka_description,
         )
     )
-    proc = Popen(java_args, env=env)  # pylint: disable=consider-using-with
+    proc = Popen(java_args, env=env)
     return proc

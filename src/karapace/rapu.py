@@ -20,7 +20,7 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi  # pylint: disable=deprecated-module
+import cgi
 import hashlib
 import logging
 import re
@@ -176,7 +176,7 @@ class RestApp:
             return aiohttp.web.Application(client_max_size=config.http_request_max_size)
         return aiohttp.web.Application()
 
-    async def close_by_app(self, app: aiohttp.web.Application) -> None:  # pylint: disable=unused-argument
+    async def close_by_app(self, app: aiohttp.web.Application) -> None:
         await self.close()
 
     async def close(self) -> None:
@@ -191,7 +191,7 @@ class RestApp:
         self.stats.close()
 
     @staticmethod
-    def cors_and_server_headers_for_request(*, request, origin="*"):  # pylint: disable=unused-argument
+    def cors_and_server_headers_for_request(*, request, origin="*"):
         return {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Methods": "DELETE, GET, OPTIONS, POST, PUT",
@@ -292,17 +292,11 @@ class RestApp:
                     body_string = body.decode(charset)
                     rapu_request.json = json_decode(body_string)
                 except UnicodeDecodeError:
-                    raise HTTPResponse(  # pylint: disable=raise-missing-from
-                        body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST
-                    )
+                    raise HTTPResponse(body=f"Request body is not valid {charset}", status=HTTPStatus.BAD_REQUEST)
                 except LookupError:
-                    raise HTTPResponse(  # pylint: disable=raise-missing-from
-                        body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST
-                    )
+                    raise HTTPResponse(body=f"Unknown charset {charset}", status=HTTPStatus.BAD_REQUEST)
                 except ValueError:
-                    raise HTTPResponse(  # pylint: disable=raise-missing-from
-                        body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST
-                    )
+                    raise HTTPResponse(body="Invalid request JSON body", status=HTTPStatus.BAD_REQUEST)
 
                 # Prevent string, int etc. going further from here
                 if not isinstance(rapu_request.json, dict):
@@ -404,7 +398,7 @@ class RestApp:
             self.log.debug(error_msg, exc_info=exc)
             # No response can be returned and written to client, aiohttp expects some response here.
             resp = aiohttp.web.Response(text=error_msg, status=HTTPStatus.SERVICE_UNAVAILABLE.value)
-        except Exception as ex:  # pylint: disable=broad-except
+        except Exception as ex:
             self.stats.unexpected_exception(ex=ex, where="rapu_wrapped_callback")
             self.log.exception("Unexpected error handling user request: %s %s", request.method, request.url)
             resp = aiohttp.web.Response(text="Internal Server Error", status=HTTPStatus.INTERNAL_SERVER_ERROR.value)

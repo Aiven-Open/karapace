@@ -115,8 +115,7 @@ class AuthenticatorAndAuthorizer(AuthenticateProtocol, AuthorizeProtocol):
 
     async def close(self) -> None: ...
 
-    async def start(self, stats: StatsClient) -> None:  # pylint: disable=unused-argument
-        ...
+    async def start(self, stats: StatsClient) -> None: ...
 
 
 class NoAuthAndAuthz(AuthenticatorAndAuthorizer):
@@ -237,7 +236,7 @@ class HTTPAuthorizer(ACLAuthorizer, AuthenticatorAndAuthorizer):
                 except asyncio.CancelledError:
                     log.info("Closing schema registry ACL refresh task")
                     return
-                except Exception as ex:  # pylint: disable=broad-except
+                except Exception as ex:
                     log.exception("Schema registry auth file could not be loaded")
                     stats.unexpected_exception(ex=ex, where="schema_registry_authfile_reloader")
                     return

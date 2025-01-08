@@ -83,7 +83,7 @@ class StatsClient:
                 parts.insert(1, f",{tag}={tag_value}".encode())
 
             self._socket.sendto(b"".join(parts), self._dest_addr)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             LOG.exception("Unexpected exception in statsd send")
 
     def close(self) -> None:

@@ -76,8 +76,6 @@ def optional_parser(parser: Parser | None) -> Parser | None:
 
 
 def from_avro_value(type_: object) -> Parser | None:
-    # pylint: disable=too-many-return-statements
-
     if isinstance(type_, type):
         if is_dataclass(type_):
             return partial(from_avro_dict, type_)

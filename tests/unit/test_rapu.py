@@ -177,7 +177,7 @@ async def test_raise_connection_error_handling(
 
     app = KarapaceBase(config=karapace_container.config())
 
-    response = await app._handle_request(  # pylint: disable=protected-access
+    response = await app._handle_request(
         request=request_mock,
         path_for_stats="/",
         callback=callback_mock,

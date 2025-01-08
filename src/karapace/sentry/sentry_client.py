@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from karapace.sentry.sentry_client_api import KarapaceSentryConfig, SentryClientAPI
 
-# The Sentry SDK is optional, omit pylint import error
+# The Sentry SDK is optional
 import sentry_sdk
 
 

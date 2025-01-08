@@ -266,7 +266,7 @@ async def fixture_asyncconsumer(
 @pytest.fixture(scope="function", name="rest_async")
 async def fixture_rest_async(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -298,7 +298,7 @@ async def fixture_rest_async(
 @pytest.fixture(scope="function", name="rest_async_client")
 async def fixture_rest_async_client(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     rest_async: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
@@ -309,7 +309,7 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+        async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async.app)
 
         client = Client(client_factory=get_client)
@@ -333,7 +333,7 @@ async def fixture_rest_async_client(
 @pytest.fixture(scope="function", name="rest_async_novalidation")
 async def fixture_rest_async_novalidation(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -366,7 +366,7 @@ async def fixture_rest_async_novalidation(
 @pytest.fixture(scope="function", name="rest_async_novalidation_client")
 async def fixture_rest_async_novalidationclient(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     rest_async_novalidation: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
@@ -377,7 +377,7 @@ async def fixture_rest_async_novalidationclient(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+        async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async_novalidation.app)
 
         client = Client(client_factory=get_client)
@@ -401,7 +401,7 @@ async def fixture_rest_async_novalidationclient(
 @pytest.fixture(scope="function", name="rest_async_registry_auth")
 async def fixture_rest_async_registry_auth(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     kafka_servers: KafkaServers,
     registry_async_client_auth: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -434,7 +434,7 @@ async def fixture_rest_async_registry_auth(
 @pytest.fixture(scope="function", name="rest_async_client_registry_auth")
 async def fixture_rest_async_client_registry_auth(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     rest_async_registry_auth: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
@@ -445,7 +445,7 @@ async def fixture_rest_async_client_registry_auth(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+        async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async_registry_auth.app)
 
         client = Client(client_factory=get_client)
@@ -469,7 +469,7 @@ async def fixture_rest_async_client_registry_auth(
 @pytest.fixture(scope="function", name="registry_async_pair")
 async def fixture_registry_async_pair(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[list[str]]:
@@ -491,7 +491,7 @@ async def fixture_registry_async_pair(
 @pytest.fixture(scope="function", name="registry_cluster")
 async def fixture_registry_cluster(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[RegistryDescription]:
@@ -522,7 +522,7 @@ async def fixture_registry_cluster(
 async def fixture_registry_async_client(
     request: SubRequest,
     registry_cluster: RegistryDescription,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
 ) -> AsyncGenerator[Client, None]:
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),
@@ -576,7 +576,7 @@ def fixture_server_key(credentials_folder: str) -> str:
 @pytest.fixture(scope="function", name="registry_https_endpoint")
 async def fixture_registry_https_endpoint(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
     server_cert: str,
@@ -605,7 +605,7 @@ async def fixture_registry_https_endpoint(
 
 @pytest.fixture(scope="function", name="registry_async_client_tls")
 async def fixture_registry_async_client_tls(
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     registry_https_endpoint: str,
     server_ca: str,
 ) -> AsyncIterator[Client]:
@@ -635,7 +635,7 @@ async def fixture_registry_async_client_tls(
 @pytest.fixture(scope="function", name="registry_http_auth_endpoint")
 async def fixture_registry_http_auth_endpoint(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[str]:
@@ -662,7 +662,7 @@ async def fixture_registry_http_auth_endpoint(
 @pytest.fixture(scope="function", name="registry_async_client_auth")
 async def fixture_registry_async_client_auth(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     registry_http_auth_endpoint: str,
 ) -> AsyncIterator[Client]:
     client = Client(
@@ -695,7 +695,7 @@ async def fixture_registry_async_retry_client_auth(registry_async_client_auth: C
 @pytest.fixture(scope="function", name="registry_async_auth_pair")
 async def fixture_registry_async_auth_pair(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[list[str]]:

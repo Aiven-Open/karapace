@@ -99,7 +99,7 @@ Schema: TypeAlias = Union[str, dict[str, Any], list[Any]]
 
 
 def anonymize(input_schema: Schema) -> Schema:
-    if not input_schema:  # pylint: disable=no-else-return
+    if not input_schema:
         return input_schema
     elif isinstance(input_schema, str):
         if input_schema in ALL_TYPES:
