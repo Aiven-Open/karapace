@@ -350,7 +350,7 @@ class RestApp:
             except asyncio.CancelledError:
                 # Re-raise if aiohttp cancelled the task (e.g. client disconnected) without internal server error
                 raise
-            except:  # pylint: disable=bare-except
+            except Exception:
                 self.log.exception("Internal server error")
                 headers = {"Content-Type": "application/json"}
                 data = {"error_code": HTTPStatus.INTERNAL_SERVER_ERROR.value, "message": "Internal server error"}

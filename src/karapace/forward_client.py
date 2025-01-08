@@ -91,7 +91,7 @@ class ForwardClient:
         response_type: type[BaseModelResponse] | type[SimpleTypeResponse],
     ) -> BaseModelResponse | SimpleTypeResponse:
         body = await self._forward_request_remote(request=request, primary_url=primary_url)
-        if response_type == int:
+        if response_type is int:
             return int(body)  # type: ignore[return-value]
         if response_type == list[int]:
             return json_decode(body, assume_type=list[int])  # type: ignore[return-value]

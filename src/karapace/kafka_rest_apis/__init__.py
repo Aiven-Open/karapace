@@ -98,7 +98,7 @@ class KafkaRest(KarapaceBase):
 
             try:
                 await self._disconnect_idle_proxy_if_any()
-            except:  # pylint: disable=bare-except
+            except Exception:
                 log.exception("Disconnecting idle proxy failure")
 
     async def _disconnect_idle_proxy_if_any(self) -> None:
@@ -760,7 +760,7 @@ class UserRestProxy:
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 break
-            except:  # pylint: disable=bare-except
+            except Exception:
                 if retry:
                     log.warning("Unable to start admin client, retrying")
                 else:
@@ -1095,7 +1095,7 @@ class UserRestProxy:
         if ser_format == "binary":
             try:
                 return base64.b64decode(obj)
-            except:  # pylint: disable=bare-except
+            except Exception:
                 KafkaRest.r(
                     body={
                         "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,
