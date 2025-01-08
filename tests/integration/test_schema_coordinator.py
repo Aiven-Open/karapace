@@ -76,7 +76,7 @@ async def _get_client(kafka_servers: KafkaServers) -> AIOKafkaClient:
             client = AIOKafkaClient(bootstrap_servers=",".join(kafka_servers.bootstrap_servers))
             await client.bootstrap()
             break
-        except:  # pylint: disable=bare-except
+        except Exception:
             LOG.exception("Kafka client bootstrap failed.")
             await asyncio.sleep(0.5)
     return client

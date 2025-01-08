@@ -30,36 +30,6 @@ repos:
   hooks:
   - id: shfmt
 
-- repo: https://github.com/asottile/pyupgrade
-  rev: v3.4.0
-  hooks:
-  - id: pyupgrade
-    args: [ --py310-plus ]
-
-- repo: https://github.com/pycqa/autoflake
-  rev: v2.1.1
-  hooks:
-    - id: autoflake
-      args:
-        - --in-place
-        - --remove-all-unused-imports
-        - --ignore-init-module-imports
-
-- repo: https://github.com/PyCQA/isort
-  rev: 5.12.0
-  hooks:
-  - id: isort
-
-- repo: https://github.com/psf/black
-  rev: 23.3.0
-  hooks:
-  - id: black
-
-- repo: https://github.com/PyCQA/flake8
-  rev: 7.1.0
-  hooks:
-  - id: flake8
-
 - repo: https://github.com/hadolint/hadolint
   rev: v2.12.0
   hooks:
@@ -76,3 +46,13 @@ repos:
   rev: v3.2.6
   hooks:
   - id: pylint
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.8.6
+  hooks:
+    # Run the linter.
+    - id: ruff
+      args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format
