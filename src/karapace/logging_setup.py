@@ -10,29 +10,28 @@ import sys
 
 
 def configure_logging(*, config: Config) -> None:
-    log_handler = config.log_handler
-
     root_handler: logging.Handler | None = None
-    if "systemd" == log_handler:
-        from systemd import journal
 
-        root_handler = journal.JournalHandler(SYSLOG_IDENTIFIER="karapace")
-    elif "stdout" == log_handler or log_handler is None:
-        root_handler = logging.StreamHandler(stream=sys.stdout)
-    else:
-        logging.basicConfig(level=config.log_level, format=config.log_format)
-        logging.getLogger().setLevel(config.log_level)
-        logging.warning("Log handler %s not recognized, root handler not set.", log_handler)
+    log_handler = config.log_handler
+    match log_handler:
+        case "stdout" | None:
+            root_handler = logging.StreamHandler(stream=sys.stdout)
+        case "systemd":
+            from systemd import journal
+
+            root_handler = journal.JournalHandler(SYSLOG_IDENTIFIER="karapace")
+        case _:
+            logging.basicConfig(level=config.log_level.upper(), format=config.log_format)
+            logging.getLogger().setLevel(config.log_level.upper())
+            logging.warning("Log handler %s not recognized, root handler not set.", log_handler)
 
     if root_handler is not None:
         root_handler.setFormatter(logging.Formatter(config.log_format))
-        root_handler.setLevel(config.log_level)
+        root_handler.setLevel(config.log_level.upper())
         root_handler.set_name(name="karapace")
         logging.root.addHandler(root_handler)
 
-    logging.root.setLevel(config.log_level)
-    logging.getLogger("aiohttp.access").setLevel(config.log_level)
-    logging.getLogger("uvicorn.error").setLevel(config.log_level)
+    logging.root.setLevel(config.log_level.upper())
 
 
 def log_config_without_secrets(config: Config) -> None:

@@ -24,14 +24,12 @@ import ssl
 
 HOSTNAME = socket.gethostname()
 
-
-OTEL_VERSION = ""
 try:
     from opentelemetry import version as otel_version
 
     OTEL_VERSION = otel_version.__version__
 except Exception:
-    pass
+    OTEL_VERSION = ""
 
 
 class KarapaceTags(BaseModel):
@@ -58,7 +56,7 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="karapace_", env_ignore_empty=True, env_nested_delimiter="__")
 
     access_logs_debug: bool = False
-    access_log_class: ImportString = "karapace.utils.DebugAccessLogger"
+    access_log_class: ImportString = "aiohttp.web_log.AccessLogger"
     advertised_hostname: str | None = None
     advertised_port: int | None = None
     advertised_protocol: str = "http"
