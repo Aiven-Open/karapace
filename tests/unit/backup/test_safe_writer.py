@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.backup.safe_writer import (
     _check_destination_file,
     bytes_writer,

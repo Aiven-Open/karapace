@@ -5,6 +5,7 @@ debugging and speed, and as an initial sanity check
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 from avro.name import Names
 from avro.schema import ArraySchema, Field, MapSchema, Schema, UnionSchema

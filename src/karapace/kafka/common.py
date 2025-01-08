@@ -80,8 +80,7 @@ def raise_from_kafkaexception(exc: KafkaException) -> NoReturn:
 # `karapace.kafka_rest_apis.authentication.SimpleOauthTokenProvider`
 # to avoid circular imports
 class TokenWithExpiryProvider(Protocol):
-    def token_with_expiry(self, config: str | None) -> tuple[str, int | None]:
-        ...
+    def token_with_expiry(self, config: str | None) -> tuple[str, int | None]: ...
 
 
 class KafkaClientParams(TypedDict, total=False):
@@ -209,7 +208,8 @@ class _KafkaConfigMixin:
                 self._activate_callbacks()
                 self.log.info("Could not establish connection due to errors: %s", self._errors)
                 if any(
-                    error.code() == KafkaError._AUTHENTICATION for error in self._errors  # pylint: disable=protected-access
+                    error.code() == KafkaError._AUTHENTICATION
+                    for error in self._errors  # pylint: disable=protected-access
                 ):
                     raise AuthenticationFailedError() from exc
                 continue

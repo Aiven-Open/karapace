@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from fastapi.exceptions import HTTPException
 from karapace.rapu import HTTPResponse
 from karapace.schema_models import SchemaType, ValidatedTypedSchema

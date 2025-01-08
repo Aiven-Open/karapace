@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -19,8 +20,7 @@ StdOut: TypeAlias = Literal["", "-"]
 std_out_alias: Final = ("", "-")
 
 
-class OverwriteRefused(Exception):
-    ...
+class OverwriteRefused(Exception): ...
 
 
 def _check_destination_file(destination: Path, allow_overwrite: bool) -> None:

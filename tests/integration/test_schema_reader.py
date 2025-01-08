@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from contextlib import closing
 from dataclasses import dataclass
 from karapace.config import Config

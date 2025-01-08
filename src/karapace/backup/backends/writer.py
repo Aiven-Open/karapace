@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
@@ -170,5 +171,4 @@ class BaseKVBackupWriter(StrBackupWriter, abc.ABC):
     def serialize_record(
         key_bytes: bytes | None,
         value_bytes: bytes | None,
-    ) -> str:
-        ...
+    ) -> str: ...

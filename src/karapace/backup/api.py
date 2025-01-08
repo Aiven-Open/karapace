@@ -4,6 +4,7 @@ karapace - schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic, RestoreTopicLegacy

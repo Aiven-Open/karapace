@@ -6,6 +6,7 @@ client components for use in Aiven's REST applications.
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from accept_types import get_best_match
 from collections.abc import Callable
 from http import HTTPStatus
@@ -81,12 +82,10 @@ class HTTPRequest:
         self.json: dict | None = None
 
     @overload
-    def get_header(self, header: str) -> str | None:
-        ...
+    def get_header(self, header: str) -> str | None: ...
 
     @overload
-    def get_header(self, header: str, default_value: str) -> str:
-        ...
+    def get_header(self, header: str, default_value: str) -> str: ...
 
     def get_header(self, header, default_value=None):
         upper_cased = header.upper()

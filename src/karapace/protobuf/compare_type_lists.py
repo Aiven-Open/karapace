@@ -4,6 +4,7 @@ karapace - compare_type_lists
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from collections.abc import Sequence
 from itertools import chain
 from karapace.protobuf.compare_result import CompareResult, Modification

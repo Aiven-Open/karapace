@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from karapace.utils import Expiration
 from subprocess import Popen
 from tests.integration.utils.network import port_is_listening

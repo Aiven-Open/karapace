@@ -4,6 +4,7 @@ karapace - schema compatibility checking
 Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
+
 from enum import Enum, unique
 
 import logging
