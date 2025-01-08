@@ -110,7 +110,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
             producer.flush()
             msg = future.result()
 
-            schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+            schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
 
             schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
             assert len(schemas) == 1, "Deleted schemas must have been registered"
@@ -138,7 +138,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
             producer.flush()
             msg = future.result()
 
-            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
             assert seen is True
             assert database.global_schema_id == test_global_schema_id
 
@@ -195,7 +195,7 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
             producer.flush()
             msg = future.result()
 
-            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)  # pylint: disable=protected-access
+            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
             assert seen is True
             assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
     finally:

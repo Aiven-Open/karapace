@@ -34,12 +34,12 @@ TYPED_AVRO_SCHEMA = ValidatedTypedSchema.parse(
 
 
 async def test_validate_schema_request_body(schema_registry_container: SchemaRegistryContainer) -> None:
-    schema_registry_container.schema_registry_controller()._validate_schema_type(  # pylint: disable=W0212
+    schema_registry_container.schema_registry_controller()._validate_schema_type(
         {"schema": "{}", "schemaType": "JSON", "references": [], "metadata": {}, "ruleSet": {}}
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        schema_registry_container.schema_registry_controller()._validate_schema_type(  # pylint: disable=W0212
+        schema_registry_container.schema_registry_controller()._validate_schema_type(
             {"schema": "{}", "schemaType": "DOES_NOT_EXIST", "references": [], "unexpected_field_name": {}, "ruleSet": {}},
         )
     assert exc_info.type is HTTPException
@@ -68,7 +68,7 @@ async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryC
         mock_forward_func_future.set_exception(HTTPResponse({"mock": "response"}))
         mock_forward_func = Mock()
         mock_forward_func.return_value = mock_forward_func_future
-        controller._forward_request_remote = mock_forward_func  # pylint: disable=protected-access
+        controller._forward_request_remote = mock_forward_func
 
         assert await controller.schemas_get(
             schema_id=1,

@@ -224,7 +224,6 @@ class SyntaxReader:
             buffer = []
             start_of_line = True
             while self.pos + 1 < len(self.data):
-                # pylint: disable=no-else-break
                 c: str = self.data[self.pos]
                 if c == "*" and self.data[self.pos + 1] == "/":
                     self.pos += 2

@@ -207,7 +207,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     LOG.warning("[Admin Client] Invalid configuration. Bailing")
                     self._stop_schema_reader.set()
                     raise
-                except Exception as e:  # pylint: disable=broad-except
+                except Exception as e:
                     LOG.exception("[Admin Client] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="admin_client_instantiation")
                     self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
@@ -225,7 +225,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     LOG.warning("[Consumer] Invalid configuration. Bailing")
                     self._stop_schema_reader.set()
                     raise
-                except Exception as e:  # pylint: disable=broad-except
+                except Exception as e:
                     LOG.exception("[Consumer] Unexpected exception. Retrying")
                     self.stats.unexpected_exception(ex=e, where="consumer_instantiation")
                     self._stop_schema_reader.wait(timeout=KAFKA_CLIENT_CREATION_TIMEOUT_SECONDS)
@@ -271,7 +271,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 except KafkaUnavailableError:
                     self.consecutive_unexpected_errors += 1
                     LOG.warning("Kafka cluster is unavailable or broker can't be resolved.")
-                except Exception as e:  # pylint: disable=broad-except
+                except Exception as e:
                     self.stats.unexpected_exception(ex=e, where="schema_reader_loop")
                     self.consecutive_unexpected_errors += 1
                     if self.consecutive_unexpected_errors == 1:
@@ -301,7 +301,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 topic = self.config.topic_name
                 res = self.admin_client.describe_topics(TopicCollection([topic]))
                 await asyncio.wrap_future(res[topic])
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:
                 LOG.warning("Health check failed with %r", e)
                 return False
 
@@ -324,7 +324,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             LOG.warning("Topic does not yet exist.")
         except (LeaderNotAvailableError, NotLeaderForPartitionError):
             LOG.warning("Retrying to find leader for schema topic partition.")
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             self.stats.unexpected_exception(ex=e, where="_get_beginning_offset")
             LOG.exception("Unexpected exception when reading begin offsets.")
         return OFFSET_UNINITIALIZED
@@ -347,7 +347,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         except (LeaderNotAvailableError, NotLeaderForPartitionError):
             LOG.warning("Retrying to find leader for schema topic partition.")
             return False
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             self.stats.unexpected_exception(ex=e, where="_is_ready")
             LOG.exception("Unexpected exception when reading end offsets.")
             return False
@@ -570,7 +570,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             LOG.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
             self.config.compatibility = value["compatibilityLevel"]
 
-    def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:  # pylint: disable=unused-argument
+    def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:
         if value is None:
             LOG.warning("DELETE_SUBJECT record does not have a value, should have")
             raise ValueError("DELETE_SUBJECT record does not have a value, should have")

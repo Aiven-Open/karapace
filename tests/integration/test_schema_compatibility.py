@@ -102,7 +102,7 @@ async def _register_baseline_schemas_with_incompatibilities_and_a_deleted_schema
 
 async def _register_no_baseline_schemas(
     registry_async_client: Client,
-    subject: Subject,  # pylint: disable=unused-argument
+    subject: Subject,
 ) -> None:
     pass
 

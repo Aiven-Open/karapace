@@ -653,7 +653,7 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
         def send(self, *args, **kwargs):
             raise BufferError()
 
-        def poll(self, timeout: float) -> None:  # pylint: disable=unused-argument
+        def poll(self, timeout: float) -> None:
             return
 
     class FailToSendProducerContext:
