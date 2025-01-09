@@ -140,6 +140,9 @@ class Config(BaseSettings):
     def get_advertised_hostname(self) -> str:
         return self.advertised_hostname or self.host
 
+    def get_address(self) -> str:
+        return f"{self.host}:{self.port}"
+
     def get_rest_base_uri(self) -> str:
         return (
             self.rest_base_uri

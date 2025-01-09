@@ -50,13 +50,13 @@ async def config_put(
     if authorizer and not authorizer.check_authorization(user, Operation.Write, "Config:"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.config_set(compatibility_level_request=compatibility_level_request)
-    if not primary_url:
+    if not primary_info.primary_url:
         raise no_primary_url_error()
     return await forward_client.forward_request_remote(
-        request=request, primary_url=primary_url, response_type=CompatibilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=CompatibilityResponse
     )
 
 
@@ -90,13 +90,13 @@ async def config_set_subject(
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.config_subject_set(subject=subject, compatibility_level_request=compatibility_level_request)
-    if not primary_url:
+    if not primary_info.primary_url:
         raise no_primary_url_error()
     return await forward_client.forward_request_remote(
-        request=request, primary_url=primary_url, response_type=CompatibilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=CompatibilityResponse
     )
 
 
@@ -114,11 +114,11 @@ async def config_delete_subject(
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.config_subject_delete(subject=subject)
-    if not primary_url:
+    if not primary_info.primary_url:
         raise no_primary_url_error()
     return await forward_client.forward_request_remote(
-        request=request, primary_url=primary_url, response_type=CompatibilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=CompatibilityResponse
     )

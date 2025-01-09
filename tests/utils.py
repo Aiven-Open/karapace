@@ -21,7 +21,6 @@ import json
 import os
 import ssl
 import sys
-import time
 import uuid
 
 consumer_valid_payload = {
@@ -328,7 +327,7 @@ async def repeat_until_master_is_available(client: Client) -> None:
         reply = res.json()
         if reply is not None and "master_available" in reply and reply["master_available"] is True:
             break
-        time.sleep(1)
+        await asyncio.sleep(1)
 
 
 def write_ini(file_path: Path, ini_data: dict) -> None:
