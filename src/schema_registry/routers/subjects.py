@@ -6,6 +6,8 @@ See LICENSE for details
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request
 from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.config import Config
+from karapace.container import KarapaceContainer
 from karapace.forward_client import ForwardClient
 from karapace.typing import Subject
 from schema_registry.container import SchemaRegistryContainer
@@ -76,16 +78,19 @@ async def subjects_subject_delete(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
+    config: Config = Depends(Provide[KarapaceContainer.config]),
 ) -> list[int]:
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.subject_delete(subject=subject, permanent=permanent)
-    if not primary_url:
+    if not primary_info.primary_url:
         raise no_primary_url_error()
-    return await forward_client.forward_request_remote(request=request, primary_url=primary_url, response_type=list[int])
+    return await forward_client.forward_request_remote(
+        request=request, primary_url=primary_info.primary_url, response_type=list[int]
+    )
 
 
 @subjects_router.post("/{subject}/versions")
@@ -161,12 +166,14 @@ async def subjects_subject_version_delete(
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
-    i_am_primary, primary_url = await schema_registry.get_master()
-    if i_am_primary:
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
         return await controller.subject_version_delete(subject=subject, version=version, permanent=permanent)
-    if not primary_url:
+    if not primary_info.primary_url:
         raise no_primary_url_error()
-    return await forward_client.forward_request_remote(request=request, primary_url=primary_url, response_type=int)
+    return await forward_client.forward_request_remote(
+        request=request, primary_url=primary_info.primary_url, response_type=int
+    )
 
 
 @subjects_router.get("/{subject}/versions/{version}/schema")

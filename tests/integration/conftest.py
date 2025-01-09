@@ -284,7 +284,7 @@ async def fixture_rest_async(
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     # Use non-default max request size for REST producer.
     config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
-    config.waiting_time_before_acting_as_master_ms = 300
+    config.waiting_time_before_acting_as_master_ms = 500
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -352,7 +352,7 @@ async def fixture_rest_async_novalidation(
     # Use non-default max request size for REST producer.
     config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
     config.name_strategy_validation = False  # This should be only difference from rest_async
-    config.waiting_time_before_acting_as_master_ms = 300
+    config.waiting_time_before_acting_as_master_ms = 500
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -422,7 +422,7 @@ async def fixture_rest_async_registry_auth(
     config.registry_port = registry.port
     config.registry_user = "admin"
     config.registry_password = "admin"
-    config.waiting_time_before_acting_as_master_ms = 300
+    config.waiting_time_before_acting_as_master_ms = 500
     rest = KafkaRest(config=config)
 
     try:
@@ -477,8 +477,10 @@ async def fixture_registry_async_pair(
 
     config1 = Config()
     config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
     config2 = Config()
     config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.waiting_time_before_acting_as_master_ms = 500
 
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],
@@ -507,6 +509,7 @@ async def fixture_registry_cluster(
         return
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
 
     user_config = request.param.get("config", {}) if hasattr(request, "param") else {}
     config.__dict__.update(user_config)
@@ -593,6 +596,7 @@ async def fixture_registry_https_endpoint(
 
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
     config.server_tls_certfile = server_cert
     config.server_tls_keyfile = server_key
 
@@ -650,6 +654,7 @@ async def fixture_registry_http_auth_endpoint(
 
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
     config.registry_authfile = "tests/integration/config/karapace.auth.json"
 
     async with start_schema_registry_cluster(
@@ -703,10 +708,12 @@ async def fixture_registry_async_auth_pair(
 
     config1 = Config()
     config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
     config1.registry_authfile = "tests/integration/config/karapace.auth.json"
 
     config2 = Config()
     config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.waiting_time_before_acting_as_master_ms = 500
     config2.registry_authfile = "tests/integration/config/karapace.auth.json"
 
     async with start_schema_registry_cluster(

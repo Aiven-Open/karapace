@@ -40,8 +40,8 @@ async def master_availability(
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
 ) -> MasterAvailabilityResponse:
-    are_we_master, master_url = await schema_registry.get_master()
-    LOG.info("are master %s, master url %s", are_we_master, master_url)
+    primary_info = await schema_registry.get_master()
+    LOG.info("are master %r,", primary_info)
     response.headers.update(NO_CACHE_HEADER)
 
     if (
@@ -49,11 +49,14 @@ async def master_availability(
         and schema_registry.schema_reader.master_coordinator._sc is not None
         and schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()
     ):
-        return MasterAvailabilityResponse(master_available=are_we_master)
+        return MasterAvailabilityResponse(master_available=primary_info.primary)
 
-    if master_url is None or f"{config.advertised_hostname}:{config.advertised_port}" in master_url:
+    if (
+        primary_info.primary_url is None
+        or f"{config.advertised_hostname}:{config.advertised_port}" in primary_info.primary_url
+    ):
         return NO_MASTER
 
     return await forward_client.forward_request_remote(
-        request=request, primary_url=master_url, response_type=MasterAvailabilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=MasterAvailabilityResponse
     )
