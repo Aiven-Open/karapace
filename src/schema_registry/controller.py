@@ -863,7 +863,7 @@ class KarapaceSchemaRegistryController:
             except Exception as xx:
                 raise xx
 
-        elif not primary_info.primary_url:
+        if not primary_info.primary_url:
             raise no_primary_url_error()
         else:
             return await forward_client.forward_request_remote(

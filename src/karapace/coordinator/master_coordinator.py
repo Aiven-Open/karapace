@@ -177,7 +177,7 @@ class MasterCoordinator:
         url: str | None = None
         if (
             self._sc.master_url is not None
-            and f"{self.config.host}:{self.config.port}" not in self._sc.master_url
+            and self.config.get_address() not in self._sc.master_url
             and f"{self.config.advertised_hostname}:{self.config.advertised_port}" not in self._sc.master_url
         ):
             url = self._sc.master_url
