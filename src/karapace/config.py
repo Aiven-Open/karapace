@@ -30,7 +30,7 @@ try:
     from opentelemetry import version as otel_version
 
     OTEL_VERSION = otel_version.__version__
-except:  # pylint: disable=bare-except
+except Exception:
     pass
 
 
