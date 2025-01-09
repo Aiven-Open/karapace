@@ -405,12 +405,12 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
         watch_offsets = False
         if self.master_coordinator is not None:
-            are_we_master, _ = self.master_coordinator.get_master_info()
+            primary_info = self.master_coordinator.get_master_info()
             # keep old behavior for True. When are_we_master is False, then we are a follower, so we should not accept direct
             # writes anyway. When are_we_master is None, then this particular node is waiting for a stable value, so any
             # messages off the topic are writes performed by another node
             # Also if master_eligibility is disabled by configuration, disable writes too
-            if are_we_master is True:
+            if primary_info.primary:
                 watch_offsets = True
 
         self.consume_messages(msgs, watch_offsets)
