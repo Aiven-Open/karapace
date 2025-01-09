@@ -23,6 +23,7 @@ def main(
     config: Config = Provide[KarapaceContainer.config],
     prometheus: PrometheusInstrumentation = Provide[KarapaceContainer.prometheus],
 ) -> int:
+    config.set_config_defaults()
     parser = argparse.ArgumentParser(prog="karapace", description="Karapace: Your Kafka essentials in one tool")
     parser.add_argument("--version", action="version", help="show program version", version=karapace_version.__version__)
     parser.parse_args()

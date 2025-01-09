@@ -146,6 +146,29 @@ class Config(BaseSettings):
             or f"{self.advertised_protocol}://{self.get_advertised_hostname()}:{self.get_advertised_port()}"
         )
 
+    def get_max_request_size(self) -> int:
+        """The AIO web application requires max request size set.
+
+        Set the aiohttp client max size if REST Proxy is enabled and producer max request configuration is altered
+        from default and aiohttp client max size is not set
+        Use the http request max size from the configuration without altering if set.
+        """
+        if (
+            self.karapace_rest
+            and self.producer_max_request_size > DEFAULT_PRODUCER_MAX_REQUEST
+            and self.http_request_max_size is None
+        ):
+            # REST Proxy API configuration for producer max request size must be taken into account
+            # also for the aiohttp.web.Application client max size.
+            # Always add the aiohttp default client max size as the headroom above the producer max request size.
+            # The input JSON size for REST Proxy is not easy to estimate, lot of small records in single request has
+            # a lot of overhead due to JSON structure.
+            return self.producer_max_request_size + DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
+        elif self.http_request_max_size is None:
+            # Set the default aiohttp client max size
+            return DEFAULT_AIOHTTP_CLIENT_MAX_SIZE
+        return self.http_request_max_size
+
     def to_env_str(self) -> str:
         env_lines: list[str] = []
         for key, value in self.model_dump().items():
@@ -154,6 +177,7 @@ class Config(BaseSettings):
         return "\n".join(env_lines)
 
     def set_config_defaults(self, new_config: Mapping[str, str] | None = None) -> Config:
+        """TODO: Used from tests, this requires removal."""
         config = deepcopy(self)
         if new_config:
             for key, value in new_config.items():
