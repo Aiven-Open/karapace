@@ -173,7 +173,7 @@ class RestApp:
 
     def _create_aiohttp_application(self, *, config: Config) -> aiohttp.web.Application:
         if config.http_request_max_size:
-            return aiohttp.web.Application(client_max_size=config.http_request_max_size)
+            return aiohttp.web.Application(client_max_size=config.get_max_request_size())
         return aiohttp.web.Application()
 
     async def close_by_app(self, app: aiohttp.web.Application) -> None:
