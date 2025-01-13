@@ -92,8 +92,6 @@ class KarapaceSchemaRegistry:
     async def get_master(self) -> PrimaryInfo:
         """Resolve if current node is the primary and the primary node address.
 
-        :param bool ignore_readiness: Ignore waiting to become ready and return
-                                      follower/primary state and primary url.
         :return (bool, Optional[str]): returns the primary/follower state and primary url
         """
         async with self._master_lock:
