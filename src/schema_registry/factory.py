@@ -35,7 +35,6 @@ async def karapace_schema_registry_lifespan(
 ) -> AsyncGenerator[None, None]:
     try:
         await schema_registry.start()
-        await schema_registry.get_master()
         await authorizer.start(stats=stastd)
 
         yield
