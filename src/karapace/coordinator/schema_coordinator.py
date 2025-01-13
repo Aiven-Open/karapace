@@ -515,8 +515,7 @@ class SchemaCoordinator:
 
     def coordinator_dead(self) -> None:
         """Mark the current coordinator as dead.
-        NOTE: this will not force a group rejoin. If new coordinator is able to
-        recognize this member we will just continue with current generation.
+        NOTE: this will force a group rejoin.
         """
         if self._coordinator_dead_fut is not None and self.coordinator_id is not None:
             LOG.warning("Marking the coordinator dead (node %s)for group %s.", self.coordinator_id, self.group_id)
