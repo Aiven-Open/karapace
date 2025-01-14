@@ -43,9 +43,9 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, SchemaId, Subject, Version
+from karapace.typing import JsonObject, SchemaId, SchemaReaderStoppper, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from typing import Final
 
 import asyncio
@@ -129,7 +129,7 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
     )
 
 
-class KafkaSchemaReader(Thread):
+class KafkaSchemaReader(Thread, SchemaReaderStoppper):
     def __init__(
         self,
         config: Config,
@@ -167,7 +167,10 @@ class KafkaSchemaReader(Thread):
         # old stale version that has not been deleted yet.)
         self.offset = OFFSET_UNINITIALIZED
         self._highest_offset = OFFSET_UNINITIALIZED
-        self.ready = False
+        # when a master its elected as master we should read the last arrived messages at least
+        # once. This lock prevent the concurrent modification of the `ready` flag.
+        self._ready_lock = Lock()
+        self._ready = False
 
         # This event controls when the Reader should stop running, it will be
         # set by another thread (e.g. `KarapaceSchemaRegistry`)
@@ -302,7 +305,7 @@ class KafkaSchemaReader(Thread):
         try:
             beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config["topic_name"], 0))
             # The `-1` decrement here is due to historical reasons (evolution of schema reader and offset watcher):
-            # * The first `OffsetWatcher` implementation neeeded this for flagging empty offsets
+            # * The first `OffsetWatcher` implementation needed this for flagging empty offsets
             # * Then synchronization and locking was changed and this remained
             # * See https://github.com/Aiven-Open/karapace/pull/364/files
             # * See `OFFSET_EMPTY` and `OFFSET_UNINITIALIZED`
@@ -319,9 +322,10 @@ class KafkaSchemaReader(Thread):
         return OFFSET_UNINITIALIZED
 
     def _is_ready(self) -> bool:
-        if self.ready:
-            return True
-
+        """
+        Always call `_is_ready` only if `self._ready` is False.
+        Removed the check since now with the Lock the lookup it's a costly operation.
+        """
         assert self.consumer is not None, "Thread must be started"
 
         try:
@@ -365,6 +369,14 @@ class KafkaSchemaReader(Thread):
     def highest_offset(self) -> int:
         return max(self._highest_offset, self._offset_watcher.greatest_offset())
 
+    def ready(self) -> bool:
+        with self._ready_lock:
+            return self._ready
+
+    def set_not_ready(self) -> None:
+        with self._ready_lock:
+            self._ready = False
+
     @staticmethod
     def _parse_message_value(raw_value: str | bytes) -> JsonObject | None:
         value = json_decode(raw_value)
@@ -376,10 +388,8 @@ class KafkaSchemaReader(Thread):
 
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
-
         msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s, num_messages=self.max_messages_to_process)
-        if self.ready is False:
-            self.ready = self._is_ready()
+        self._update_is_ready_flag()
 
         watch_offsets = False
         if self.master_coordinator is not None:
@@ -433,9 +443,8 @@ class KafkaSchemaReader(Thread):
             # Default keymode is CANONICAL and preferred unless any data consumed
             # has key in non-canonical format. If keymode is set to DEPRECATED_KARAPACE
             # the subsequent keys are omitted from detection.
-            if not self.ready and self.key_formatter.get_keymode() == KeyMode.CANONICAL:
-                if msg_keymode == KeyMode.DEPRECATED_KARAPACE:
-                    self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
+            if self.key_formatter.get_keymode() == KeyMode.CANONICAL and msg_keymode == KeyMode.DEPRECATED_KARAPACE:
+                self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
 
             value = None
             message_value = msg.value()
@@ -461,13 +470,27 @@ class KafkaSchemaReader(Thread):
             else:
                 schema_records_processed_keymode_deprecated_karapace += 1
 
-            if self.ready and watch_offsets:
-                self._offset_watcher.offset_seen(self.offset)
+            with self._ready_lock:
+                if self._ready and watch_offsets:
+                    self._offset_watcher.offset_seen(self.offset)
 
         self._report_schema_metrics(
             schema_records_processed_keymode_canonical,
             schema_records_processed_keymode_deprecated_karapace,
         )
+
+    def _update_is_ready_flag(self) -> None:
+        update_ready_flag = False
+
+        # to keep the lock as few as possible.
+        with self._ready_lock:
+            if self._ready is False:
+                update_ready_flag = True
+
+        if update_ready_flag:
+            new_ready_flag = self._is_ready()
+            with self._ready_lock:
+                self._ready = new_ready_flag
 
     def _report_schema_metrics(
         self,
