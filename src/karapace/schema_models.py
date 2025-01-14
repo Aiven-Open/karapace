@@ -33,7 +33,6 @@ from typing import Any, cast, Final, final
 import hashlib
 import json
 import logging
-import re
 
 LOG = logging.getLogger(__name__)
 
@@ -199,35 +198,27 @@ class TypedSchema:
         return parsed_typed_schema.schema
 
 
-class AvroResolver:
-    def __init__(self, schema_str: str, dependencies: Mapping[str, Dependency] | None = None):
-        self.schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
-        self.dependencies = dependencies
-        self.unique_id = 0
-        self.regex = re.compile(r"^\s*\[")
+def avro_resolve(schema_str: str, dependencies: Mapping[str, Dependency] | None = None) -> list:
+    """Resolve the given ``schema_str`` with ``dependencies`` to a list of schemas
+    sorted in an order where all referenced schemas are located prior to their referrers.
 
-    def builder(self, schema_str: str, dependencies: Mapping[str, Dependency] | None = None) -> list:
-        """To support references in AVRO we iteratively merge all referenced schemas with current schema"""
-        stack: list[tuple[str, Mapping[str, Dependency] | None]] = [(schema_str, dependencies)]
-        merge: list = []
+    To support references in AVRO we iteratively merge all referenced schemas with current schema
 
-        while stack:
-            current_schema_str, current_dependencies = stack.pop()
-            if current_dependencies:
-                stack.append((current_schema_str, None))
-                for dependency in reversed(current_dependencies.values()):
-                    stack.append((dependency.schema.schema_str, dependency.schema.dependencies))
-            else:
-                self.unique_id += 1
-                merge.append(current_schema_str)
+    """
+    schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
+    stack: list[tuple[str, Mapping[str, Dependency] | None]] = [(schema_str, dependencies)]
+    merge: list = []
 
-        return merge
+    while stack:
+        current_schema_str, current_dependencies = stack.pop()
+        if current_dependencies:
+            stack.append((current_schema_str, None))
+            for dependency in reversed(current_dependencies.values()):
+                stack.append((dependency.schema.schema_str, dependency.schema.dependencies))
+        else:
+            merge.append(current_schema_str)
 
-    def resolve(self) -> list:
-        """Resolve the given ``schema_str`` with ``dependencies`` to a list of schemas
-        sorted in an order where all referenced schemas are located prior to their referrers.
-        """
-        return self.builder(self.schema_str, self.dependencies)
+    return merge
 
 
 def parse(
@@ -246,7 +237,7 @@ def parse(
     if schema_type is SchemaType.AVRO:
         try:
             if dependencies:
-                schemas_list = AvroResolver(schema_str, dependencies).resolve()
+                schemas_list = avro_resolve(schema_str, dependencies)
                 names = AvroNames(validate_names=validate_avro_names)
                 merged_schema = None
                 for schema in schemas_list:

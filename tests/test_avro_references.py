@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from karapace.dependency import Dependency
-from karapace.schema_models import AvroResolver, SchemaType, ValidatedTypedSchema
+from karapace.schema_models import avro_resolve, SchemaType, ValidatedTypedSchema
 from karapace.schema_references import Reference
 from karapace.typing import Subject, Version
 
@@ -32,8 +32,7 @@ def fixture_another_dependency_schema():
 
 
 def test_resolver_without_dependencies(base_schema):
-    resolver = AvroResolver(schema_str=base_schema)
-    resolved_schemas = resolver.resolve()
+    resolved_schemas = avro_resolve(schema_str=base_schema)
     assert resolved_schemas == [base_schema], "Expected single schema in resolved list without dependencies"
 
 
@@ -45,8 +44,7 @@ def test_resolver_with_single_dependency(base_schema, dependency_schema):
         target_schema=create_validated_schema(dependency_schema),
     )
     dependencies = {"Dependency1": dependency}
-    resolver = AvroResolver(schema_str=base_schema, dependencies=dependencies)
-    resolved_schemas = resolver.resolve()
+    resolved_schemas = avro_resolve(schema_str=base_schema, dependencies=dependencies)
     assert resolved_schemas == [dependency_schema, base_schema], "Expected dependency to be resolved before base schema"
 
 
@@ -64,26 +62,12 @@ def test_resolver_with_multiple_dependencies(base_schema, dependency_schema, ano
         target_schema=create_validated_schema(another_dependency_schema),
     )
     dependencies = {"Dependency1": dependency1, "Dependency2": dependency2}
-    resolver = AvroResolver(schema_str=base_schema, dependencies=dependencies)
-    resolved_schemas = resolver.resolve()
+    resolved_schemas = avro_resolve(schema_str=base_schema, dependencies=dependencies)
 
     # Validate both dependencies appear before the base schema, without assuming their specific order
     assert dependency_schema in resolved_schemas
     assert another_dependency_schema in resolved_schemas
     assert resolved_schemas[-1] == base_schema, "Base schema should be the last in the resolved list"
-
-
-def test_builder_unique_id_increment(base_schema, dependency_schema):
-    dependency = Dependency(
-        name="Dependency1",
-        subject=Subject("TestSubject"),
-        version=Version(1),
-        target_schema=create_validated_schema(dependency_schema),
-    )
-    dependencies = {"Dependency1": dependency}
-    resolver = AvroResolver(schema_str=base_schema, dependencies=dependencies)
-    resolver.builder(base_schema, dependencies)
-    assert resolver.unique_id == 2, "Unique ID should be incremented for each processed schema"
 
 
 def test_resolver_with_nested_dependencies(base_schema, dependency_schema, another_dependency_schema):
@@ -101,8 +85,7 @@ def test_resolver_with_nested_dependencies(base_schema, dependency_schema, anoth
         target_schema=create_validated_schema(dependency_schema, dependencies={"NestedDependency": nested_dependency}),
     )
     dependencies = {"Dependency1": dependency_with_nested}
-    resolver = AvroResolver(schema_str=base_schema, dependencies=dependencies)
-    resolved_schemas = resolver.resolve()
+    resolved_schemas = avro_resolve(schema_str=base_schema, dependencies=dependencies)
 
     # Ensure all schemas are resolved in the correct order
     assert another_dependency_schema in resolved_schemas
