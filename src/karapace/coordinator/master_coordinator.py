@@ -14,7 +14,7 @@ from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitReque
 from karapace.config import Config
 from karapace.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
-from karapace.typing import SchemaReaderStoppper
+from karapace.typing import PrimaryInfo, SchemaReaderStoppper
 from schema_registry.telemetry.tracer import Tracer
 from threading import Thread
 from typing import Final
@@ -163,18 +163,26 @@ class MasterCoordinator:
                 group_generation_id=generation if generation is not None else -1,
             )
 
-    def get_master_info(self) -> tuple[bool | None, str | None]:
+    def get_master_info(self) -> PrimaryInfo:
         """Return whether we're the master, and the actual master url that can be used if we're not"""
         if not self._sc:
-            return False, None
+            return PrimaryInfo(False, None)
 
         if not self._sc.ready():
             # we should wait for a while after we have been elected master, we should also consume
             # all the messages in the log before proceeding, check the doc of `self._sc.are_we_master`
             # for more details
-            return False, None
+            return PrimaryInfo(False, None)
 
-        return self._sc.are_we_master(), self._sc.master_url
+        url: str | None = None
+        if (
+            self._sc.master_url is not None
+            and self.config.get_address() not in self._sc.master_url
+            and f"{self.config.advertised_hostname}:{self.config.advertised_port}" not in self._sc.master_url
+        ):
+            url = self._sc.master_url
+
+        return PrimaryInfo(self._sc.are_we_master(), url)
 
     def __send_close_event(self) -> None:
         self._closing.set()

@@ -831,8 +831,8 @@ class KarapaceSchemaRegistryController:
         if schema_id is not None:
             return SchemaIdResponse(id=schema_id)
 
-        i_am_primary, primary_url = await self.schema_registry.get_master()
-        if i_am_primary:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             try:
                 schema_id = await self.schema_registry.write_new_schema_local(Subject(subject), new_schema, references)
                 return SchemaIdResponse(id=schema_id)
@@ -863,11 +863,11 @@ class KarapaceSchemaRegistryController:
             except Exception as xx:
                 raise xx
 
-        elif not primary_url:
+        if not primary_info.primary_url:
             raise no_primary_url_error()
         else:
             return await forward_client.forward_request_remote(
-                request=request, primary_url=primary_url, response_type=SchemaIdResponse
+                request=request, primary_url=primary_info.primary_url, response_type=SchemaIdResponse
             )
 
     async def get_global_mode(self) -> ModeResponse:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator, Mapping, Sequence
+from dataclasses import dataclass
 from enum import Enum, unique
 from karapace.errors import InvalidVersion
 from pydantic import ValidationInfo
@@ -128,3 +129,9 @@ class SchemaReaderStoppper(ABC):
     @abstractmethod
     def set_not_ready(self) -> None:
         pass
+
+
+@dataclass(frozen=True)
+class PrimaryInfo:
+    primary: bool
+    primary_url: str | None

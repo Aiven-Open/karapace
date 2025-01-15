@@ -1333,10 +1333,12 @@ async def test_registering_normalized_schema(session_logdir: Path, kafka_servers
 
     config1 = Config()
     config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
 
     config2 = Config()
     config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config2.use_protobuf_formatter = True
+    config2.waiting_time_before_acting_as_master_ms = 500
 
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],
@@ -1347,7 +1349,7 @@ async def test_registering_normalized_schema(session_logdir: Path, kafka_servers
             client1 = Client(server_uri=servers[0], server_ca=None)
             client2 = Client(server_uri=servers[1], server_ca=None)
 
-            await asyncio.sleep(10)
+            await asyncio.sleep(2)
 
             body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
             res = await client1.post(f"subjects/{subject}/versions?normalize=true", json=body)
