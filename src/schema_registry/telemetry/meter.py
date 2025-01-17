@@ -14,12 +14,9 @@ from opentelemetry.sdk.metrics.export import (
     MetricReader,
     PeriodicExportingMetricReader,
 )
-from typing import Final
 
 
 class Meter:
-    START_TIME_KEY: Final = "start_time"
-
     @staticmethod
     @inject
     def get_meter(config: Config = Provide[KarapaceContainer.config]) -> metrics.Meter:
