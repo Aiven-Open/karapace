@@ -10,6 +10,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.semconv.attributes import telemetry_attributes as T
 from schema_registry.telemetry.meter import Meter
+from schema_registry.telemetry.metrics import Metrics
 from schema_registry.telemetry.tracer import Tracer
 
 
@@ -31,5 +32,6 @@ class TelemetryContainer(containers.DeclarativeContainer):
     telemetry_resource = providers.Factory(create_telemetry_resource, config=karapace_container.config)
 
     meter = providers.Singleton(Meter)
+    metrics = providers.Singleton(Metrics, meter=meter)
     tracer = providers.Singleton(Tracer)
     tracer_provider = providers.Singleton(TracerProvider, resource=telemetry_resource)
