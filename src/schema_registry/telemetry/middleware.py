@@ -5,13 +5,10 @@ See LICENSE for details
 
 from collections.abc import Awaitable, Callable
 from dependency_injector.wiring import inject, Provide
-from fastapi import FastAPI, Request, Response
-from opentelemetry.metrics import Counter, Histogram, UpDownCounter
-from opentelemetry.trace import SpanKind
-from karapace.config import Config
-from karapace.container import KarapaceContainer
+from fastapi import FastAPI, Request, Response, HTTPException
+from opentelemetry.trace import SpanKind, Status, StatusCode
 from schema_registry.telemetry.container import TelemetryContainer
-from schema_registry.telemetry.meter import Meter
+from schema_registry.telemetry.metrics import Metrics
 from schema_registry.telemetry.tracer import Tracer
 
 import logging
@@ -25,61 +22,48 @@ async def telemetry_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
     tracer: Tracer = Provide[TelemetryContainer.tracer],
-    meter: Meter = Provide[TelemetryContainer.meter],
-    config: Config = Provide[KarapaceContainer.config],
-) -> Response:
-    resource = request.url.path.split("/")[1]
-    with tracer.get_tracer().start_as_current_span(name=f"{request.method}: /{resource}", kind=SpanKind.SERVER) as span:
-        span.add_event("Creating metering resources")
-        karapace_http_requests_in_progress: UpDownCounter = meter.get_meter().create_up_down_counter(
-            name="karapace_http_requests_in_progress",
-            description="In-progress requests for HTTP/TCP Protocol",
-        )
-        karapace_http_requests_duration_seconds: Histogram = meter.get_meter().create_histogram(
-            unit="seconds",
-            name="karapace_http_requests_duration_seconds",
-            description="Request Duration for HTTP/TCP Protocol",
-        )
-        karapace_http_requests_total: Counter = meter.get_meter().create_counter(
-            name="karapace_http_requests_total",
-            description="Total Request Count for HTTP/TCP Protocol",
-        )
+    metrics: Metrics = Provide[TelemetryContainer.metrics],
+) -> Response | None:
+    RESOURCE = request.url.path.split("/")[1]
+    with tracer.get_tracer().start_as_current_span(name=f"{request.method}: /{RESOURCE}", kind=SpanKind.SERVER) as SPAN:
+        SPAN.add_event("Creating metering resources")
 
         # Set start time for request
-        setattr(request.state, meter.START_TIME_KEY, time.monotonic())
+        setattr(request.state, metrics.START_TIME_KEY, time.monotonic())
+        tracer.update_span_with_request(request=request, span=SPAN)
 
-        # Extract request labels
-        path = request.url.path
-        method = request.method
+        PATH = request.url.path
+        METHOD = request.method
+        ATTRIBUTES = {"method": METHOD, "path": PATH, "resource": RESOURCE}
 
-        # Increment requests in progress before response handler
-        span.add_event("Metering requests in progress (increase)")
-        karapace_http_requests_in_progress.add(amount=1, attributes={"method": method, "path": path})
+        SPAN.add_event("Metering requests in progress (increase)")
+        metrics.karapace_http_requests_in_progress.add(amount=1, attributes=ATTRIBUTES)
 
-        # Call request handler
-        tracer.update_span_with_request(request=request, span=span)
-        span.add_event("Calling request handler")
-        response: Response = await call_next(request)
-        tracer.update_span_with_response(response=response, span=span)
-
-        # Instrument request duration
-        span.add_event("Metering request duration")
-        karapace_http_requests_duration_seconds.record(
-            amount=(time.monotonic() - getattr(request.state, meter.START_TIME_KEY)),
-            attributes={"method": method, "path": path},
-        )
-
-        # Instrument total requests
-        span.add_event("Metering total requests")
-        karapace_http_requests_total.add(
-            amount=1, attributes={"method": method, "path": path, "status": response.status_code}
-        )
-
-        # Decrement requests in progress after response handler
-        span.add_event("Metering requests in progress (decrease)")
-        karapace_http_requests_in_progress.add(amount=-1, attributes={"method": method, "path": path})
-
-        return response
+        try:
+            SPAN.add_event("Calling request handler")
+            response: Response = await call_next(request)
+            SPAN.set_status(Status(StatusCode.OK))
+        except Exception as exc:
+            status = exc.status_code if isinstance(exc, HTTPException) else 0
+            SPAN.add_event("Metering total requests on exception")
+            metrics.karapace_http_requests_total.add(amount=1, attributes={**ATTRIBUTES, "status": status})
+            SPAN.set_status(Status(StatusCode.ERROR))
+            SPAN.record_exception(exc)
+        else:
+            SPAN.add_event("Metering total requests")
+            metrics.karapace_http_requests_total.add(amount=1, attributes={**ATTRIBUTES, "status": response.status_code})
+            SPAN.add_event("Update span with response details")
+            tracer.update_span_with_response(response=response, span=SPAN)
+            return response
+        finally:
+            SPAN.add_event("Metering request duration")
+            metrics.karapace_http_requests_duration_seconds.record(
+                amount=(time.monotonic() - getattr(request.state, metrics.START_TIME_KEY)),
+                attributes=ATTRIBUTES,
+            )
+            SPAN.add_event("Metering requests in progress (decrease)")
+            metrics.karapace_http_requests_in_progress.add(amount=-1, attributes=ATTRIBUTES)
+    return None
 
 
 def setup_telemetry_middleware(app: FastAPI) -> None:
