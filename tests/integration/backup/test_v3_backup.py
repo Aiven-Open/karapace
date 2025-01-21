@@ -66,10 +66,7 @@ def config_file_fixture(
     file_path = directory_path / "config.json"
     try:
         file_path.write_text(
-            f"""\
-            BOOTSTRAP_URI={kafka_servers.bootstrap_servers[0]}
-            TOPIC_NAME={registry_cluster.schemas_topic}
-            """
+            json.dumps({"bootstrap_uri": kafka_servers.bootstrap_servers[0], "topic_name": registry_cluster.schemas_topic})
         )
         yield file_path
     finally:
