@@ -6,9 +6,9 @@ See LICENSE for details
 """
 
 from _pytest.logging import LogCaptureFixture
-from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi import FastAPI, Request, Response
 from opentelemetry.trace import SpanKind, Status, StatusCode
-from schema_registry.telemetry.metrics import Metrics
+from schema_registry.telemetry.metrics import HTTPRequestMetrics
 from schema_registry.telemetry.meter import Meter
 from schema_registry.telemetry.middleware import setup_telemetry_middleware, telemetry_middleware
 from schema_registry.telemetry.tracer import Tracer
@@ -19,14 +19,18 @@ import pytest
 
 
 @pytest.fixture
-def metrics() -> MagicMock:
+def http_request_metrics() -> MagicMock:
     return MagicMock(
-        spec=Metrics,
+        spec=HTTPRequestMetrics,
         START_TIME_KEY="start_time",
         meter=MagicMock(spec=Meter),
         karapace_http_requests_in_progress=MagicMock(),
         karapace_http_requests_duration_seconds=MagicMock(),
         karapace_http_requests_total=MagicMock(),
+        start_request=MagicMock(),
+        get_resource_from_request=MagicMock(return_value="test"),
+        record_request_exception=MagicMock(),
+        finish_request=MagicMock(),
     )
 
 
@@ -44,7 +48,7 @@ def test_setup_telemetry_middleware(caplog: LogCaptureFixture) -> None:
         app.middleware.return_value.assert_called_once_with(telemetry_middleware)
 
 
-async def test_telemetry_middleware(metrics: MagicMock) -> None:
+async def test_telemetry_middleware(http_request_metrics: MagicMock) -> None:
     tracer = MagicMock(spec=Tracer)
 
     request_mock = AsyncMock(spec=Request)
@@ -59,11 +63,10 @@ async def test_telemetry_middleware(metrics: MagicMock) -> None:
 
     SpanStatus = MagicMock(spec=Status, status_code=StatusCode.OK)
 
-    with (
-        patch("schema_registry.telemetry.middleware.time.monotonic", return_value=1),
-        patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus),
-    ):
-        response = await telemetry_middleware(request=request_mock, call_next=call_next, tracer=tracer, metrics=metrics)
+    with patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus):
+        response = await telemetry_middleware(
+            request=request_mock, call_next=call_next, tracer=tracer, http_request_metrics=http_request_metrics
+        )
         span = tracer.get_tracer.return_value.start_as_current_span.return_value.__enter__.return_value
 
         tracer.get_tracer.assert_called_once()
@@ -75,31 +78,12 @@ async def test_telemetry_middleware(metrics: MagicMock) -> None:
         call_next.assert_awaited_once_with(request_mock)
         span.set_status.assert_called_once_with(SpanStatus)
 
-        span.add_event.assert_has_calls(
+        http_request_metrics.assert_has_calls(
             [
-                call("Creating metering resources"),
-                call("Metering requests in progress (increase)"),
-                call("Calling request handler"),
-                call("Metering total requests"),
-                call("Update span with response details"),
-                call("Metering request duration"),
-                call("Metering requests in progress (decrease)"),
-            ]
-        )
-
-        metrics.assert_has_calls(
-            [
-                call.karapace_http_requests_in_progress.add(
-                    amount=1, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-                call.karapace_http_requests_total.add(
-                    amount=1, attributes={"method": "GET", "path": "/test/inner-path", "status": 200, "resource": "test"}
-                ),
-                call.karapace_http_requests_duration_seconds.record(
-                    amount=0, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-                call.karapace_http_requests_in_progress.add(
-                    amount=-1, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
+                call.get_resource_from_request(request=request_mock),
+                call.start_request(request=request_mock),
+                call.finish_request(
+                    ATTRIBUTES=http_request_metrics.start_request.return_value, request=request_mock, response=response_mock
                 ),
             ]
         )
@@ -107,121 +91,40 @@ async def test_telemetry_middleware(metrics: MagicMock) -> None:
         assert response == response_mock
 
 
-async def test_telemetry_middleware_when_call_next_raises_unknown_error(metrics: MagicMock) -> None:
+async def test_telemetry_middleware_call_next_exception(http_request_metrics: MagicMock) -> None:
     tracer = MagicMock(spec=Tracer)
 
     request_mock = AsyncMock(spec=Request)
     request_mock.method = "GET"
     request_mock.url.path = "/test/inner-path"
 
+    exception = Exception("Test exception")
     call_next = AsyncMock()
-    call_next.side_effect = Exception("Something went wrong")
+    call_next.side_effect = exception
 
     SpanStatus = MagicMock(spec=Status, status_code=StatusCode.ERROR)
 
-    with (
-        patch("schema_registry.telemetry.middleware.time.monotonic", return_value=1),
-        patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus),
-    ):
-        response = await telemetry_middleware(request=request_mock, call_next=call_next, tracer=tracer, metrics=metrics)
+    with patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus):
+        response = await telemetry_middleware(
+            request=request_mock, call_next=call_next, tracer=tracer, http_request_metrics=http_request_metrics
+        )
         span = tracer.get_tracer.return_value.start_as_current_span.return_value.__enter__.return_value
 
         tracer.get_tracer.assert_called_once()
         tracer.get_tracer.return_value.start_as_current_span.assert_called_once_with(name="GET: /test", kind=SpanKind.SERVER)
         tracer.update_span_with_request.assert_called_once_with(request=request_mock, span=span)
 
-        # Check that the request handler is called, the exception is caught and the span
-        # is not updated with response as there will be no response due to the exception
+        # Check that the request handler is called
         call_next.assert_awaited_once_with(request_mock)
         span.set_status.assert_called_once_with(SpanStatus)
-        span.record_exception.assert_called_once_with(call_next.side_effect)
-        assert not tracer.update_span_with_response.called
 
-        span.add_event.assert_has_calls(
+        http_request_metrics.assert_has_calls(
             [
-                call("Creating metering resources"),
-                call("Metering requests in progress (increase)"),
-                call("Calling request handler"),
-                call("Metering total requests on exception"),
-                call("Metering request duration"),
-                call("Metering requests in progress (decrease)"),
-            ]
-        )
-
-        metrics.assert_has_calls(
-            [
-                call.karapace_http_requests_in_progress.add(
-                    amount=1, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-                call.karapace_http_requests_total.add(
-                    amount=1, attributes={"method": "GET", "path": "/test/inner-path", "status": 0, "resource": "test"}
-                ),
-                call.karapace_http_requests_duration_seconds.record(
-                    amount=0, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-                call.karapace_http_requests_in_progress.add(
-                    amount=-1, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-            ]
-        )
-
-        assert not response
-
-
-async def test_telemetry_middleware_when_call_next_raises_http_error(metrics: MagicMock) -> None:
-    tracer = MagicMock(spec=Tracer)
-
-    request_mock = AsyncMock(spec=Request)
-    request_mock.method = "GET"
-    request_mock.url.path = "/test/inner-path"
-
-    call_next = AsyncMock()
-    call_next.side_effect = HTTPException(status_code=401, detail="Unauthorized")
-
-    SpanStatus = MagicMock(spec=Status, status_code=StatusCode.ERROR)
-
-    with (
-        patch("schema_registry.telemetry.middleware.time.monotonic", return_value=1),
-        patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus),
-    ):
-        response = await telemetry_middleware(request=request_mock, call_next=call_next, tracer=tracer, metrics=metrics)
-        span = tracer.get_tracer.return_value.start_as_current_span.return_value.__enter__.return_value
-
-        tracer.get_tracer.assert_called_once()
-        tracer.get_tracer.return_value.start_as_current_span.assert_called_once_with(name="GET: /test", kind=SpanKind.SERVER)
-        tracer.update_span_with_request.assert_called_once_with(request=request_mock, span=span)
-
-        # Check that the request handler is called, the exception is caught and the span
-        # is not updated with response as there will be no response due to the exception
-        call_next.assert_awaited_once_with(request_mock)
-        span.set_status.assert_called_once_with(SpanStatus)
-        span.record_exception.assert_called_once_with(call_next.side_effect)
-        assert not tracer.update_span_with_response.called
-
-        span.add_event.assert_has_calls(
-            [
-                call("Creating metering resources"),
-                call("Metering requests in progress (increase)"),
-                call("Calling request handler"),
-                call("Metering total requests on exception"),
-                call("Metering request duration"),
-                call("Metering requests in progress (decrease)"),
-            ]
-        )
-
-        metrics.assert_has_calls(
-            [
-                call.karapace_http_requests_in_progress.add(
-                    amount=1, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-                call.karapace_http_requests_total.add(
-                    amount=1, attributes={"method": "GET", "path": "/test/inner-path", "status": 401, "resource": "test"}
-                ),
-                call.karapace_http_requests_duration_seconds.record(
-                    amount=0, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
-                ),
-                call.karapace_http_requests_in_progress.add(
-                    amount=-1, attributes={"method": "GET", "path": "/test/inner-path", "resource": "test"}
+                call.get_resource_from_request(request=request_mock),
+                call.start_request(request=request_mock),
+                call.record_request_exception(ATTRIBUTES=http_request_metrics.start_request.return_value, exc=exception),
+                call.finish_request(
+                    ATTRIBUTES=http_request_metrics.start_request.return_value, request=request_mock, response=None
                 ),
             ]
         )
