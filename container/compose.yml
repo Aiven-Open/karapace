@@ -59,6 +59,7 @@ services:
       dockerfile: container/Dockerfile
       args:
         KARAPACE_VERSION: $KARAPACE_VERSION
+        PYTHON_VERSION: $PYTHON_VERSION
     entrypoint:
       - python3
       - -m
@@ -100,6 +101,7 @@ services:
       dockerfile: container/Dockerfile
       args:
         KARAPACE_VERSION: $KARAPACE_VERSION
+        PYTHON_VERSION: $PYTHON_VERSION
     entrypoint:
       - python3
       - -m
@@ -128,7 +130,8 @@ services:
     image: ghcr.io/aiven-open/karapace:cli
     build:
       context: ..
-      dockerfile: container/Dockerfile.dev
+      target: cli
+      dockerfile: container/Dockerfile
       args:
         KARAPACE_VERSION: $KARAPACE_VERSION
         PYTHON_VERSION: $PYTHON_VERSION
@@ -176,7 +179,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: karapace
       GF_PATHS_PROVISIONING: /grafana/provisioning
     ports:
-      - 3000:3000
+      - 9091:3000
     volumes:
       - ./grafana/dashboards:/grafana/dashboards
       - ./grafana/provisioning:/grafana/provisioning
