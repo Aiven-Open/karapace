@@ -13,7 +13,9 @@ from .poll_timeout import PollTimeout
 from aiokafka.errors import BrokerResponseError
 from collections.abc import Iterator
 from karapace.backup.api import VerifyLevel
-from karapace.config import Config, read_env_file
+from karapace.config import Config
+from pydantic_settings import BaseSettings, JsonConfigSettingsSource, PydanticBaseSettingsSource
+from typing import Type
 
 import argparse
 import contextlib
@@ -90,7 +92,37 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_config(args: argparse.Namespace) -> Config:
-    return read_env_file(args.config)
+    """Returns config for Backup tool
+
+    Karapace uses environment variables, but Backup Tool still relies on the JSON
+    configuration file.
+    """
+
+    class BackupCLIConfig(Config):
+        @classmethod
+        def settings_customise_sources(
+            cls,
+            settings_cls: Type[BaseSettings],
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
+        ) -> tuple[
+            JsonConfigSettingsSource,
+            PydanticBaseSettingsSource,
+            PydanticBaseSettingsSource,
+            PydanticBaseSettingsSource,
+            PydanticBaseSettingsSource,
+        ]:
+            return (
+                JsonConfigSettingsSource(settings_cls=settings_cls, json_file=args.config),
+                init_settings,
+                env_settings,
+                dotenv_settings,
+                file_secret_settings,
+            )
+
+    return BackupCLIConfig()
 
 
 def dispatch(args: argparse.Namespace) -> None:
