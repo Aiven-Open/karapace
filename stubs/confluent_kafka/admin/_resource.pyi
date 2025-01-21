@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import cast
 
 class ResourceType(Enum):
-    TOPIC: int
+    TOPIC = cast(int, ...)
