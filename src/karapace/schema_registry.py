@@ -170,8 +170,6 @@ class KarapaceSchemaRegistry:
                         deleted=True,
                         references=schema_version.references,
                     )
-                    if schema_version.references and len(schema_version.references) > 0:
-                        self.schema_reader.remove_referenced_by(schema_version.schema_id, schema_version.references)
             else:
                 try:
                     schema_versions_live = self.subject_get(subject, include_deleted=False)
@@ -225,8 +223,6 @@ class KarapaceSchemaRegistry:
                 deleted=True,
                 references=schema_version.references,
             )
-            if schema_version.references and len(schema_version.references) > 0:
-                self.schema_reader.remove_referenced_by(schema_version.schema_id, schema_version.references)
             return resolved_version
 
     def subject_get(self, subject: Subject, include_deleted: bool = False) -> dict[Version, SchemaVersion]:

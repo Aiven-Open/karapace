@@ -12,7 +12,7 @@ from karapace.dataclasses import default_dataclass
 from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from typing import cast, NewType, TypeVar
 
-Referents = NewType("Referents", list[SchemaId])
+Referents = NewType("Referents", set[SchemaId])
 
 T = TypeVar("T")
 

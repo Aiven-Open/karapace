@@ -43,7 +43,7 @@ from karapace.protobuf.schema import ProtobufSchema
 from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, SchemaId, SchemaReaderStoppper, Subject, Version
+from karapace.typing import JsonObject, SchemaReaderStoppper, Subject, Version
 from karapace.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Lock, Thread
 from typing import Final
@@ -660,10 +660,6 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             references=resolved_references,
         )
 
-        if resolved_references:
-            for ref in resolved_references:
-                self.database.insert_referenced_by(subject=ref.subject, version=ref.version, schema_id=schema_id)
-
     def handle_msg(self, key: dict, value: dict | None) -> None:
         if "keytype" in key:
             try:
@@ -686,13 +682,6 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 "The message %s-%s has been discarded because doesn't contain the `keytype` key in the key", key, value
             )
             raise InvalidSchema("Message key doesn't contain the `keytype` attribute")
-
-    def remove_referenced_by(
-        self,
-        schema_id: SchemaId,
-        references: Sequence[Reference],
-    ) -> None:
-        self.database.remove_referenced_by(schema_id, references)
 
     def get_referenced_by(
         self,
