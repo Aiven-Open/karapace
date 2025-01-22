@@ -6,8 +6,6 @@ See LICENSE for details
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request
 from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
-from karapace.config import Config
-from karapace.container import KarapaceContainer
 from karapace.forward_client import ForwardClient
 from karapace.typing import Subject
 from schema_registry.container import SchemaRegistryContainer
@@ -18,6 +16,7 @@ from schema_registry.routers.raw_path_router import RawPathRoute
 from schema_registry.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from schema_registry.user import get_current_user
 from typing import Annotated
+from urllib.parse import unquote_plus
 
 import logging
 
@@ -58,6 +57,7 @@ async def subjects_subject_post(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemaResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -80,8 +80,8 @@ async def subjects_subject_delete(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
-    config: Config = Depends(Provide[KarapaceContainer.config]),
 ) -> list[int]:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -107,6 +107,7 @@ async def subjects_subject_versions_post(
     normalize: bool = False,
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemaIdResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -130,6 +131,7 @@ async def subjects_subject_versions_list(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[int]:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -146,6 +148,7 @@ async def subjects_subject_version_get(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SubjectSchemaVersionResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -165,6 +168,7 @@ async def subjects_subject_version_delete(
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> int:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -187,6 +191,7 @@ async def subjects_subject_version_schema_get(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> dict:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -202,6 +207,7 @@ async def subjects_subject_version_referenced_by(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[int]:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 
