@@ -1553,8 +1553,9 @@ async def test_schema_subject_post_invalid(registry_async_client: Client) -> Non
     assert res.json()["message"] == [{"type": "missing", "loc": ["body", "schema"], "msg": "Field required", "input": {}}]
 
 
-async def test_schema_lifecycle(registry_async_client: Client) -> None:
-    subject = create_subject_name_factory("test_schema_lifecycle")()
+@pytest.mark.parametrize("subject", ["test_schema_lifecycle", "test_sche/ma_lifecycle"])
+async def test_schema_lifecycle(registry_async_client: Client, subject: str) -> None:
+    subject = create_subject_name_factory(subject)()  # subject creation urlencodes
     unique_field_factory = create_field_name_factory("unique_")
 
     unique_1 = unique_field_factory()

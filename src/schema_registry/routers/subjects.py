@@ -14,6 +14,7 @@ from schema_registry.container import SchemaRegistryContainer
 from schema_registry.controller import KarapaceSchemaRegistryController
 from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.errors import no_primary_url_error, unauthorized
+from schema_registry.routers.raw_path_router import RawPathRoute
 from schema_registry.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from schema_registry.user import get_current_user
 from typing import Annotated
@@ -27,6 +28,7 @@ subjects_router = APIRouter(
     prefix="/subjects",
     tags=["subjects"],
     responses={404: {"description": "Not found"}},
+    route_class=RawPathRoute,
 )
 
 
