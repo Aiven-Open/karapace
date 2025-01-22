@@ -14,6 +14,7 @@ from tests.utils import (
     repeat_until_master_is_available,
     repeat_until_successful_request,
 )
+from urllib.parse import quote_plus
 
 import asyncio
 import json
@@ -58,13 +59,13 @@ async def test_schema_request_forwarding(
 
     max_tries, counter = 5, 0
     wait_time = 0.5
-    subject = create_subject_name_factory(subject)()  # subject creation urlencodes
+    subject = create_subject_name_factory(subject)()
     schema = {"type": "string"}
     other_schema = {"type": "int"}
     # Config updates
     for subj_path in [None, subject]:
         if subj_path:
-            path = f"config/{subject}"
+            path = f"config/{quote_plus(subject)}"
         else:
             path = "config"
         for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
@@ -92,7 +93,7 @@ async def test_schema_request_forwarding(
     # New schema updates, last compatibility is None
     for s in [schema, other_schema]:
         resp = await request_forwarding_retry_client.post(
-            f"{slave_url}/subjects/{subject}/versions", json={"schema": json.dumps(s)}
+            f"{slave_url}/subjects/{quote_plus(subject)}/versions", json={"schema": json.dumps(s)}
         )
     assert resp.ok
     data = resp.json()
@@ -100,7 +101,7 @@ async def test_schema_request_forwarding(
     counter = 0
     while True:
         assert counter < max_tries, "Subject schema data not propagated yet"
-        resp = await request_forwarding_retry_client.get(f"{master_url}/subjects/{subject}/versions")
+        resp = await request_forwarding_retry_client.get(f"{master_url}/subjects/{quote_plus(subject)}/versions")
         if not resp.ok:
             print(f"Invalid http status code: {resp.status_code}")
             counter += 1
@@ -116,13 +117,13 @@ async def test_schema_request_forwarding(
         break
 
     # Schema deletions
-    resp = await request_forwarding_retry_client.delete(f"{slave_url}/subjects/{subject}/versions/1")
+    resp = await request_forwarding_retry_client.delete(f"{slave_url}/subjects/{quote_plus(subject)}/versions/1")
     assert resp.ok
     counter = 0
     while True:
         assert counter < max_tries, "Subject version deletion not propagated yet"
         resp = await request_forwarding_retry_client.get(
-            f"{master_url}/subjects/{subject}/versions/1", expected_response_code=404
+            f"{master_url}/subjects/{quote_plus(subject)}/versions/1", expected_response_code=404
         )
         if resp.ok:
             print(f"Subject {subject} still has version 1 on master")
@@ -137,7 +138,7 @@ async def test_schema_request_forwarding(
     assert resp.ok
     data = resp.json()
     assert subject in data
-    resp = await request_forwarding_retry_client.delete(f"{slave_url}/subjects/{subject}")
+    resp = await request_forwarding_retry_client.delete(f"{slave_url}/subjects/{quote_plus(subject)}")
     assert resp.ok
     counter = 0
     while True:
