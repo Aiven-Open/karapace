@@ -9,7 +9,11 @@ from _pytest.fixtures import SubRequest
 from collections.abc import AsyncGenerator
 from karapace.client import Client
 from tests.integration.utils.rest_client import RetryRestClient
-from tests.utils import new_random_name, repeat_until_master_is_available, repeat_until_successful_request
+from tests.utils import (
+    create_subject_name_factory,
+    repeat_until_master_is_available,
+    repeat_until_successful_request,
+)
 
 import asyncio
 import json
@@ -43,15 +47,17 @@ async def fixture_registry_async_client(
         await client.close()
 
 
+@pytest.mark.parametrize("subject", ["test_forwarding", "test_forw/arding"])
 async def test_schema_request_forwarding(
     registry_async_pair: list[str],
     request_forwarding_retry_client: RetryRestClient,
+    subject: str,
 ) -> None:
     master_url, slave_url = registry_async_pair
 
     max_tries, counter = 5, 0
     wait_time = 0.5
-    subject = new_random_name("subject")
+    subject = create_subject_name_factory(subject)()  # subject creation urlencodes
     schema = {"type": "string"}
     other_schema = {"type": "int"}
     # Config updates

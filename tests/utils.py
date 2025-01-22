@@ -13,7 +13,7 @@ from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from typing import Any, IO
-from urllib.parse import quote
+from urllib.parse import quote_plus
 
 import asyncio
 import copy
@@ -252,7 +252,7 @@ def create_id_factory(prefix: str) -> Callable[[], str]:
 
     def create_name() -> str:
         nonlocal index
-        return new_random_name(f"{quote(prefix).replace('/', '_')}_{index}_")
+        return new_random_name(f"{quote_plus(prefix)}_{index}_")
 
     return create_name
 
