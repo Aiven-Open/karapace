@@ -14,6 +14,7 @@ from schema_registry.routers.raw_path_router import RawPathRoute
 from schema_registry.routers.requests import ModeResponse
 from schema_registry.user import get_current_user
 from typing import Annotated
+from urllib.parse import unquote_plus
 
 mode_router = APIRouter(
     prefix="/mode",
@@ -44,6 +45,7 @@ async def mode_get_subject(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> ModeResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 

@@ -16,6 +16,7 @@ from schema_registry.routers.raw_path_router import RawPathRoute
 from schema_registry.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse
 from schema_registry.user import get_current_user
 from typing import Annotated
+from urllib.parse import unquote_plus
 
 
 config_router = APIRouter(
@@ -72,6 +73,7 @@ async def config_get_subject(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityLevelResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -90,6 +92,7 @@ async def config_set_subject(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 
@@ -114,6 +117,7 @@ async def config_delete_subject(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityResponse:
+    subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
         raise unauthorized()
 

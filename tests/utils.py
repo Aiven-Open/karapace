@@ -13,7 +13,6 @@ from karapace.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from typing import Any, IO
-from urllib.parse import quote_plus
 
 import asyncio
 import copy
@@ -228,7 +227,12 @@ def new_random_name(prefix: str) -> str:
 
 
 def create_subject_name_factory(prefix: str) -> Callable[[], str]:
-    return create_id_factory(f"subject_{prefix}")
+    """Creates subject from the prefix.
+
+    A slash is added to subject for validating the API behavior for url encoded subject name.
+    For example subject in the data: `test/subject` is `test%2Fsubject` in the API.
+    """
+    return create_id_factory(f"subj/ect_{prefix}")
 
 
 def create_field_name_factory(prefix: str) -> Callable[[], str]:
@@ -246,13 +250,13 @@ def create_group_name_factory(prefix: str) -> Callable[[], str]:
 def create_id_factory(prefix: str) -> Callable[[], str]:
     """
     Creates unique ids prefixed with prefix..
-    The resulting ids are safe to embed in URLs.
+    The resulting ids are NOT safe to embed in URLs.
     """
     index = 1
 
     def create_name() -> str:
         nonlocal index
-        return new_random_name(f"{quote_plus(prefix)}_{index}_")
+        return new_random_name(f"{prefix}_{index}_")
 
     return create_name
 
