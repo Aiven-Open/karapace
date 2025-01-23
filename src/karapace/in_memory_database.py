@@ -126,15 +126,7 @@ class KarapaceDatabase(ABC):
         pass
 
     @abstractmethod
-    def insert_referenced_by(self, *, subject: Subject, version: Version, schema_id: SchemaId) -> None:
-        pass
-
-    @abstractmethod
     def get_referenced_by(self, subject: Subject, version: Version) -> Referents | None:
-        pass
-
-    @abstractmethod
-    def remove_referenced_by(self, schema_id: SchemaId, references: Iterable[Reference]) -> None:
         pass
 
 
@@ -257,6 +249,9 @@ class InMemoryDatabase(KarapaceDatabase):
                     schema=schema,
                     schema_id=schema_id,
                 )
+                if references:
+                    for ref in references:
+                        self._insert_referenced_by(subject=ref.subject, version=ref.version, schema_id=schema_id)
             else:
                 self._delete_from_schema_id_on_subject(
                     subject=subject,
@@ -352,12 +347,19 @@ class InMemoryDatabase(KarapaceDatabase):
 
     def delete_subject_hard(self, *, subject: Subject) -> None:
         with self.schema_lock_thread:
+            for schema in self.subjects[subject].schemas.values():
+                if schema.references:
+                    self._remove_referenced_by(schema.schema_id, schema.references)
             del self.subjects[subject]
             self._delete_subject_from_schema_id_on_subject(subject=subject)
 
     def delete_subject_schema(self, *, subject: Subject, version: Version) -> None:
         with self.schema_lock_thread:
-            self.subjects[subject].schemas.pop(version, None)
+            schema = self.subjects[subject].schemas.pop(version, None)
+            if schema:
+                if schema.references:
+                    self._remove_referenced_by(schema.schema_id, schema.references)
+                self._delete_from_schema_id_on_subject(subject=subject, schema=schema.schema)
 
     def num_schemas(self) -> int:
         return len(self.schemas)
@@ -377,19 +379,19 @@ class InMemoryDatabase(KarapaceDatabase):
                         soft_deleted_versions += 1
         return (live_versions, soft_deleted_versions)
 
-    def insert_referenced_by(self, *, subject: Subject, version: Version, schema_id: SchemaId) -> None:
+    def _insert_referenced_by(self, *, subject: Subject, version: Version, schema_id: SchemaId) -> None:
         with self.schema_lock_thread:
             referents = self.referenced_by.get((subject, version), None)
             if referents:
-                referents.append(schema_id)
+                referents.add(schema_id)
             else:
-                self.referenced_by[(subject, version)] = Referents([schema_id])
+                self.referenced_by[(subject, version)] = Referents({schema_id})
 
     def get_referenced_by(self, subject: Subject, version: Version) -> Referents | None:
         with self.schema_lock_thread:
             return self.referenced_by.get((subject, version), None)
 
-    def remove_referenced_by(self, schema_id: SchemaId, references: Iterable[Reference]) -> None:
+    def _remove_referenced_by(self, schema_id: SchemaId, references: Iterable[Reference]) -> None:
         with self.schema_lock_thread:
             for ref in references:
                 key = (ref.subject, ref.version)

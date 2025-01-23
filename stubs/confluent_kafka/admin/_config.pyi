@@ -1,5 +1,6 @@
 from ._resource import ResourceType
 from enum import Enum
+from typing import cast
 
 class ConfigResource:
     Type = ResourceType
@@ -12,7 +13,7 @@ class ConfigResource:
     ) -> None: ...
 
 class ConfigSource(Enum):
-    UNKNOWN_CONFIG: int
-    DYNAMIC_TOPIC_CONFIG: int
+    UNKNOWN_CONFIG = cast(int, ...)
+    DYNAMIC_TOPIC_CONFIG = cast(int, ...)
 
 class ConfigEntry: ...
