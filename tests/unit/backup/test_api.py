@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from aiokafka.errors import KafkaError, TopicAlreadyExistsError
 from collections.abc import Callable
-from karapace.core.backup.api import (
+from karapace.backup.api import (
     _admin,
     _consumer,
     _handle_restore_topic,
@@ -18,9 +18,9 @@ from karapace.core.backup.api import (
     normalize_location,
     normalize_topic_name,
 )
-from karapace.core.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
-from karapace.core.backup.backends.writer import StdOut
-from karapace.core.backup.errors import BackupError, PartitionCountError
+from karapace.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
+from karapace.backup.backends.writer import StdOut
+from karapace.backup.errors import BackupError, PartitionCountError
 from karapace.core.config import Config
 from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.core.container import KarapaceContainer
@@ -35,7 +35,7 @@ from unittest.mock import MagicMock
 import pytest
 
 patch_admin_new = mock.patch(
-    "karapace.core.backup.api.KafkaAdminClient.__new__",
+    "karapace.backup.api.KafkaAdminClient.__new__",
     autospec=True,
 )
 

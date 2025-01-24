@@ -99,7 +99,7 @@ requirements:
 .PHONY: schema
 schema: against := origin/main
 schema:
-	$(PYTHON) -m karapace.core.backup.backends.v3.schema_tool --against=$(against)
+	$(PYTHON) -m karapace.backup.backends.v3.schema_tool --against=$(against)
 
 .PHONY: pin-requirements
 pin-requirements:

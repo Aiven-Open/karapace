@@ -5,7 +5,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from karapace.core.backup.encoders import encode_key, encode_value
+from karapace.backup.encoders import encode_key, encode_value
 from karapace.core.key_format import KeyFormatter
 from unittest import mock
 

@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.backup.errors import BackupError
+from karapace.backup.errors import BackupError
 
 
 class DecodeError(BackupError):

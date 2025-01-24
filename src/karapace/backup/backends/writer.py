@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
 from confluent_kafka import Message
-from karapace.core.backup.safe_writer import bytes_writer, str_writer
+from karapace.backup.safe_writer import bytes_writer, str_writer
 from pathlib import Path
 from typing import ContextManager, Generic, IO, Literal, TypeAlias, TypeVar
 

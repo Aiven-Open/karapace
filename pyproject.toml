@@ -65,7 +65,7 @@ classifiers=[
 
 [project.scripts]
 karapace = "karapace.core.karapace_all:main"
-karapace_schema_backup = "karapace.core.backup.cli:main"
+karapace_schema_backup = "karapace.backup.cli:main"
 karapace_mkpasswd = "karapace.core.auth:main"
 
 [project.urls]
