@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from karapace.core.content_type import check_schema_headers
-from schema_registry.telemetry.middleware import setup_telemetry_middleware
+from karapace.api.telemetry.middleware import setup_telemetry_middleware
 
 
 def setup_middlewares(app: FastAPI) -> None:

@@ -6,8 +6,8 @@ See LICENSE for details
 """
 
 from fastapi import Request, Response, HTTPException
-from schema_registry.telemetry.metrics import HTTPRequestMetrics
-from schema_registry.telemetry.meter import Meter
+from karapace.api.telemetry.metrics import HTTPRequestMetrics
+from karapace.api.telemetry.meter import Meter
 from unittest.mock import call, MagicMock
 from unittest.mock import AsyncMock, patch
 
@@ -62,7 +62,7 @@ def test_get_resource_from_request(http_request_metrics: HTTPRequestMetrics, req
 def test_start_request(http_request_metrics: HTTPRequestMetrics, request_mock: AsyncMock) -> None:
     http_request_metrics.karapace_http_requests_in_progress = MagicMock()
 
-    with patch("schema_registry.telemetry.metrics.time.monotonic", return_value=1):
+    with patch("karapace.api.telemetry.metrics.time.monotonic", return_value=1):
         ATTRIBUTES = http_request_metrics.start_request(request=request_mock)
         http_request_metrics.karapace_http_requests_in_progress.add.assert_called_with(amount=1, attributes=ATTRIBUTES)
         assert ATTRIBUTES == {"method": "GET", "path": "/test/inner-path", "resource": "test"}
@@ -76,7 +76,7 @@ def test_finish_request(http_request_metrics: HTTPRequestMetrics, request_mock: 
     http_request_metrics.karapace_http_requests_in_progress = MagicMock()
     http_request_metrics.karapace_http_requests_total = MagicMock()
 
-    with patch("schema_registry.telemetry.metrics.time.monotonic", return_value=3):
+    with patch("karapace.api.telemetry.metrics.time.monotonic", return_value=3):
         http_request_metrics.finish_request(ATTRIBUTES=ATTRIBUTES, request=request_mock, response=response_mock)
         http_request_metrics.karapace_http_requests_duration_seconds.record.assert_called_with(
             amount=3 - request_mock.state.start_time, attributes=ATTRIBUTES
@@ -93,7 +93,7 @@ def test_finish_request_without_response(http_request_metrics: HTTPRequestMetric
     http_request_metrics.karapace_http_requests_in_progress = MagicMock()
     http_request_metrics.karapace_http_requests_total = MagicMock()
 
-    with patch("schema_registry.telemetry.metrics.time.monotonic", return_value=3):
+    with patch("karapace.api.telemetry.metrics.time.monotonic", return_value=3):
         http_request_metrics.finish_request(ATTRIBUTES=ATTRIBUTES, request=request_mock, response=None)
         http_request_metrics.karapace_http_requests_duration_seconds.record.assert_called_with(
             amount=3 - request_mock.state.start_time, attributes=ATTRIBUTES

@@ -7,7 +7,7 @@ from fastapi import FastAPI, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from http import HTTPStatus
-from schema_registry.routers.errors import KarapaceValidationError
+from karapace.api.routers.errors import KarapaceValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request as StarletteHTTPRequest
 
