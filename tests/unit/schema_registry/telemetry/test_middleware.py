@@ -8,10 +8,10 @@ See LICENSE for details
 from _pytest.logging import LogCaptureFixture
 from fastapi import FastAPI, Request, Response
 from opentelemetry.trace import SpanKind, Status, StatusCode
-from schema_registry.telemetry.metrics import HTTPRequestMetrics
-from schema_registry.telemetry.meter import Meter
-from schema_registry.telemetry.middleware import setup_telemetry_middleware, telemetry_middleware
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.metrics import HTTPRequestMetrics
+from karapace.api.telemetry.meter import Meter
+from karapace.api.telemetry.middleware import setup_telemetry_middleware, telemetry_middleware
+from karapace.api.telemetry.tracer import Tracer
 from unittest.mock import AsyncMock, call, MagicMock, patch
 
 import logging
@@ -36,11 +36,11 @@ def http_request_metrics() -> MagicMock:
 
 def test_setup_telemetry_middleware(caplog: LogCaptureFixture) -> None:
     app = AsyncMock(spec=FastAPI)
-    with caplog.at_level(logging.INFO, logger="schema_registry.telemetry.middleware"):
+    with caplog.at_level(logging.INFO, logger="karapace.api.telemetry.middleware"):
         setup_telemetry_middleware(app=app)
 
         for log in caplog.records:
-            assert log.name == "schema_registry.telemetry.middleware"
+            assert log.name == "karapace.api.telemetry.middleware"
             assert log.levelname == "INFO"
             assert log.message == "Setting OTel tracing middleware"
 
@@ -63,7 +63,7 @@ async def test_telemetry_middleware(http_request_metrics: MagicMock) -> None:
 
     SpanStatus = MagicMock(spec=Status, status_code=StatusCode.OK)
 
-    with patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus):
+    with patch("karapace.api.telemetry.middleware.Status", return_value=SpanStatus):
         response = await telemetry_middleware(
             request=request_mock, call_next=call_next, tracer=tracer, http_request_metrics=http_request_metrics
         )
@@ -105,7 +105,7 @@ async def test_telemetry_middleware_call_next_exception(http_request_metrics: Ma
     SpanStatus = MagicMock(spec=Status, status_code=StatusCode.ERROR)
 
     response = None
-    with patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus):
+    with patch("karapace.api.telemetry.middleware.Status", return_value=SpanStatus):
         with pytest.raises(Exception) as excinfo:
             response = await telemetry_middleware(
                 request=request_mock, call_next=call_next, tracer=tracer, http_request_metrics=http_request_metrics

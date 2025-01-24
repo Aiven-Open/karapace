@@ -15,7 +15,7 @@ from karapace.core.config import Config
 from karapace.core.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.core.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
 from karapace.core.typing import PrimaryInfo, SchemaReaderStoppper
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.tracer import Tracer
 from threading import Thread
 from typing import Final
 

@@ -7,13 +7,13 @@ See LICENSE for details
 
 from karapace.core.config import KarapaceTelemetry
 from karapace.core.container import KarapaceContainer
-from schema_registry.telemetry.meter import Meter, NOOPMetricExporter
+from karapace.api.telemetry.meter import Meter, NOOPMetricExporter
 from unittest.mock import patch
 from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricExporter
 
 
 def test_meter(karapace_container: KarapaceContainer):
-    with patch("schema_registry.telemetry.meter.metrics") as mock_metrics:
+    with patch("karapace.api.telemetry.meter.metrics") as mock_metrics:
         Meter.get_meter(config=karapace_container.config())
         mock_metrics.get_meter_provider.return_value.get_meter.assert_called_once_with("Karapace.meter")
 
@@ -53,7 +53,7 @@ def test_get_metric_exporter_otlp(karapace_container: KarapaceContainer) -> None
             )
         }
     )
-    with patch("schema_registry.telemetry.meter.OTLPMetricExporter") as mock_otlp_exporter:
+    with patch("karapace.api.telemetry.meter.OTLPMetricExporter") as mock_otlp_exporter:
         exporter: MetricExporter = Meter.get_metric_exporter(config=config)
         mock_otlp_exporter.assert_called_once_with(endpoint="http://otel:4317")
         assert exporter is mock_otlp_exporter.return_value
@@ -64,8 +64,8 @@ def test_get_metric_reader_without_otel_endpoint(karapace_container: KarapaceCon
         new_config={"telemetry": KarapaceTelemetry(otel_endpoint_url=None)}
     )
     with (
-        patch("schema_registry.telemetry.meter.NOOPMetricExporter") as mock_noop_exporter,
-        patch("schema_registry.telemetry.meter.PeriodicExportingMetricReader") as mock_periodic_exporting_metric_reader,
+        patch("karapace.api.telemetry.meter.NOOPMetricExporter") as mock_noop_exporter,
+        patch("karapace.api.telemetry.meter.PeriodicExportingMetricReader") as mock_periodic_exporting_metric_reader,
     ):
         reader = Meter.get_metric_reader(config=config)
         mock_noop_exporter.assert_called_once()
@@ -86,8 +86,8 @@ def test_get_metric_reader_with_otel_endpoint(karapace_container: KarapaceContai
         }
     )
     with (
-        patch("schema_registry.telemetry.meter.OTLPMetricExporter") as mock_otlp_exporter,
-        patch("schema_registry.telemetry.meter.PeriodicExportingMetricReader") as mock_periodic_exporting_metric_reader,
+        patch("karapace.api.telemetry.meter.OTLPMetricExporter") as mock_otlp_exporter,
+        patch("karapace.api.telemetry.meter.PeriodicExportingMetricReader") as mock_periodic_exporting_metric_reader,
     ):
         reader = Meter.get_metric_reader(config=config)
         mock_otlp_exporter.assert_called_once_with(endpoint="http://otel:4317")

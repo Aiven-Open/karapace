@@ -63,7 +63,7 @@ services:
     entrypoint:
       - python3
       - -m
-      - schema_registry
+      - karapace.api
     depends_on:
       - kafka
       - opentelemetry-collector

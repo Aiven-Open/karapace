@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from opentelemetry.trace import Span
 from opentelemetry.trace.status import StatusCode
 from pydantic import BaseModel
-from schema_registry.container import SchemaRegistryContainer
-from schema_registry.registry import KarapaceSchemaRegistry
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.api.telemetry.tracer import Tracer
 
 
 class HealthStatus(BaseModel):

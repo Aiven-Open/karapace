@@ -44,9 +44,9 @@ from karapace.core.schema_references import LatestVersionReference, Reference
 from karapace.core.statsd import StatsClient
 from karapace.core.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from karapace.core.utils import JSONDecodeError
-from schema_registry.registry import KarapaceSchemaRegistry
-from schema_registry.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
-from schema_registry.routers.requests import (
+from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.api.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
+from karapace.api.routers.requests import (
     CompatibilityCheckResponse,
     CompatibilityLevelResponse,
     CompatibilityRequest,

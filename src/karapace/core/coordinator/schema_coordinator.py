@@ -30,7 +30,7 @@ from collections.abc import Coroutine, Sequence
 from karapace.core.dataclasses import default_dataclass
 from karapace.core.typing import JsonData, SchemaReaderStoppper
 from karapace.core.utils import json_decode, json_encode
-from karapace.core.version import __version__
+from karapace.version import __version__
 from typing import Any, Final
 from typing_extensions import TypedDict
 

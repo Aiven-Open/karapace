@@ -16,7 +16,7 @@ from karapace.core.dataclasses import default_dataclass
 from karapace.core.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.core.typing import JsonObject
 from karapace.core.utils import json_encode
-from karapace.core.version import __version__
+from karapace.version import __version__
 from typing import NoReturn, TypeAlias
 
 import aiohttp.web

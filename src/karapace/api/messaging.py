@@ -12,7 +12,7 @@ from karapace.core.kafka.producer import KafkaProducer
 from karapace.core.key_format import KeyFormatter
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.utils import json_encode
-from karapace.core.version import __version__
+from karapace.version import __version__
 from typing import Any, Final
 
 import logging
