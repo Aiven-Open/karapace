@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.tracer import Tracer
 from threading import Condition
 
 

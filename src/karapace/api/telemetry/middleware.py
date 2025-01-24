@@ -7,9 +7,9 @@ from collections.abc import Awaitable, Callable
 from dependency_injector.wiring import inject, Provide
 from fastapi import FastAPI, Request, Response
 from opentelemetry.trace import SpanKind, Status, StatusCode
-from schema_registry.telemetry.container import TelemetryContainer
-from schema_registry.telemetry.metrics import HTTPRequestMetrics
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.container import TelemetryContainer
+from karapace.api.telemetry.metrics import HTTPRequestMetrics
+from karapace.api.telemetry.tracer import Tracer
 
 import logging
 

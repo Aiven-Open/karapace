@@ -7,12 +7,12 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.core.typing import Subject
-from schema_registry.container import SchemaRegistryContainer
-from schema_registry.controller import KarapaceSchemaRegistryController
-from schema_registry.routers.errors import unauthorized
-from schema_registry.routers.raw_path_router import RawPathRoute
-from schema_registry.routers.requests import ModeResponse
-from schema_registry.user import get_current_user
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.controller import KarapaceSchemaRegistryController
+from karapace.api.routers.errors import unauthorized
+from karapace.api.routers.raw_path_router import RawPathRoute
+from karapace.api.routers.requests import ModeResponse
+from karapace.api.user import get_current_user
 from typing import Annotated
 from urllib.parse import unquote_plus
 

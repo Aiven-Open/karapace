@@ -82,7 +82,7 @@ async def start_schema_registry_cluster(
                 "KARAPACE_WAITING_TIME_BEFORE_ACTING_AS_MASTER_MS": str(config.waiting_time_before_acting_as_master_ms),
                 "KARAPACE_MASTER_ELIGIBILITY": str(config.master_eligibility),
             }
-            process = popen_karapace_all(module="schema_registry", env=env, stdout=logfile, stderr=errfile)
+            process = popen_karapace_all(module="karapace.api", env=env, stdout=logfile, stderr=errfile)
             stack.callback(stop_process, process)
             all_processes.append((process, port, config.host))
 

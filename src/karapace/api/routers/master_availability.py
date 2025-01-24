@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from karapace.core.config import Config
 from karapace.core.forward_client import ForwardClient
 from pydantic import BaseModel
-from schema_registry.container import SchemaRegistryContainer
-from schema_registry.registry import KarapaceSchemaRegistry
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.registry import KarapaceSchemaRegistry
 from typing import Final
 
 import logging

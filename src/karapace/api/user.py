@@ -7,7 +7,7 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from karapace.core.auth import AuthenticationError, AuthenticatorAndAuthorizer, User
-from schema_registry.container import SchemaRegistryContainer
+from karapace.api.container import SchemaRegistryContainer
 from typing import Annotated
 
 

@@ -5,7 +5,7 @@ See LICENSE for details
 
 from fastapi import HTTPException, Request, status
 from karapace.core.utils import json_decode
-from karapace.core.version import __version__
+from karapace.version import __version__
 from pydantic import BaseModel
 from typing import overload, TypeVar, Union
 
