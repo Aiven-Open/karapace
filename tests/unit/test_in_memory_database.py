@@ -20,7 +20,7 @@ from karapace.core.schema_references import Reference, Referents
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import SchemaId, Version
 from pathlib import Path
-from karapace.api.reader import KafkaSchemaReader
+from karapace.core.schema_reader import KafkaSchemaReader
 from typing import Final
 
 import pytest

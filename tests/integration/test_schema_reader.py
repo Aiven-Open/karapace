@@ -15,7 +15,7 @@ from karapace.core.key_format import KeyFormatter, KeyMode
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.typing import PrimaryInfo
 from karapace.core.utils import json_encode
-from karapace.api.reader import KafkaSchemaReader
+from karapace.core.schema_reader import KafkaSchemaReader
 from tests.base_testcase import BaseTestCase
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers

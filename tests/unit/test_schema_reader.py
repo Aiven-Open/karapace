@@ -19,7 +19,7 @@ from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import SchemaId, Version
 from pytest import MonkeyPatch
-from karapace.api.reader import (
+from karapace.core.schema_reader import (
     KafkaSchemaReader,
     MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP,
     MAX_MESSAGES_TO_CONSUME_ON_STARTUP,
@@ -316,10 +316,10 @@ def test_handle_msg_delete_subject_logs(caplog: LogCaptureFixture, karapace_cont
         database=database_mock,
     )
 
-    with caplog.at_level(logging.WARNING, logger="karapace.api.reader"):
+    with caplog.at_level(logging.WARNING, logger="karapace.core.schema_reader"):
         schema_reader._handle_msg_schema_hard_delete(key={"subject": "test-subject", "version": 2})
         for log in caplog.records:
-            assert log.name == "karapace.api.reader"
+            assert log.name == "karapace.core.schema_reader"
             assert log.levelname == "WARNING"
             assert log.message == "Hard delete: version: Version(2) for subject: 'test-subject' did not exist, should have"
 
@@ -594,14 +594,14 @@ def test_message_error_handling(
     consumer_messages = ([message],)
     schema_reader = schema_reader_with_consumer_messages_factory(consumer_messages)
 
-    with caplog.at_level(logging.WARNING, logger="karapace.api.reader"):
+    with caplog.at_level(logging.WARNING, logger="karapace.core.schema_reader"):
         with pytest.raises(test_case.expected_error):
             schema_reader.handle_messages()
 
         assert schema_reader.offset == 1
         assert not schema_reader.ready()
         for log in caplog.records:
-            assert log.name == "karapace.api.reader"
+            assert log.name == "karapace.core.schema_reader"
             assert log.levelname == "WARNING"
             assert log.message == test_case.expected_log_message
 
@@ -632,7 +632,7 @@ def test_message_error_handling_with_invalid_reference_schema_protobuf(
     )
     message_using_ref = message_factory(key=key_using_ref, value=value_using_ref)
 
-    with caplog.at_level(logging.WARN, logger="karapace.api.reader"):
+    with caplog.at_level(logging.WARN, logger="karapace.core.schema_reader"):
         # When handling the corrupted schema
         schema_reader = schema_reader_with_consumer_messages_factory(([message_ref],))
 
@@ -658,8 +658,8 @@ def test_message_error_handling_with_invalid_reference_schema_protobuf(
         assert len(warn_records) == 2
 
         # Check that different warnings are logged for each schema
-        assert warn_records[0].name == "karapace.api.reader"
+        assert warn_records[0].name == "karapace.core.schema_reader"
         assert warn_records[0].message == "Schema is not valid ProtoBuf definition"
 
-        assert warn_records[1].name == "karapace.api.reader"
+        assert warn_records[1].name == "karapace.core.schema_reader"
         assert warn_records[1].message == "Invalid Protobuf references"
