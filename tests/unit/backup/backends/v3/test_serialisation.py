@@ -5,7 +5,7 @@ See LICENSE for details
 
 from hypothesis import given
 from hypothesis.strategies import integers
-from karapace.backup.backends.v3.errors import (
+from karapace.core.backup.backends.v3.errors import (
     IntegerAboveBound,
     IntegerBelowBound,
     InvalidChecksum,
@@ -13,9 +13,9 @@ from karapace.backup.backends.v3.errors import (
     TooFewRecords,
     TooManyRecords,
 )
-from karapace.backup.backends.v3.readers import read_metadata, read_record, read_records, read_uint32, read_uint64
-from karapace.backup.backends.v3.schema import DataFile, Header, Metadata, Record
-from karapace.backup.backends.v3.writers import (
+from karapace.core.backup.backends.v3.readers import read_metadata, read_record, read_records, read_uint32, read_uint64
+from karapace.core.backup.backends.v3.schema import DataFile, Header, Metadata, Record
+from karapace.core.backup.backends.v3.writers import (
     UINT32_RANGE,
     UINT64_RANGE,
     write_metadata,

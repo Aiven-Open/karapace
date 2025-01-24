@@ -4,8 +4,8 @@ See LICENSE for details
 """
 
 from dependency_injector.wiring import inject, Provide
-from karapace.config import Config, KarapaceTelemetryOTelExporter
-from karapace.container import KarapaceContainer
+from karapace.core.config import Config, KarapaceTelemetryOTelExporter
+from karapace.core.container import KarapaceContainer
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics.export import (

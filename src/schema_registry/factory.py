@@ -7,12 +7,12 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, FastAPI
-from karapace import version as karapace_version
-from karapace.auth import AuthenticatorAndAuthorizer
-from karapace.config import Config
-from karapace.forward_client import ForwardClient
-from karapace.logging_setup import configure_logging, log_config_without_secrets
-from karapace.statsd import StatsClient
+from karapace.core import version as karapace_version
+from karapace.core.auth import AuthenticatorAndAuthorizer
+from karapace.core.config import Config
+from karapace.core.forward_client import ForwardClient
+from karapace.core.logging_setup import configure_logging, log_config_without_secrets
+from karapace.core.statsd import StatsClient
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.http_handlers import setup_exception_handlers
 from schema_registry.middlewares import setup_middlewares

@@ -7,8 +7,8 @@ See LICENSE for details
 
 from fastapi import Request
 from fastapi.exceptions import HTTPException
-from karapace.forward_client import ForwardClient
-from karapace.typing import PrimaryInfo
+from karapace.core.forward_client import ForwardClient
+from karapace.core.typing import PrimaryInfo
 from schema_registry.controller import KarapaceSchemaRegistryController
 from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.config import config_put

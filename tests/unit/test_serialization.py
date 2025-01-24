@@ -3,9 +3,9 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.container import KarapaceContainer
-from karapace.schema_models import SchemaType, ValidatedTypedSchema, Versioner
-from karapace.serialization import (
+from karapace.core.container import KarapaceContainer
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema, Versioner
+from karapace.core.serialization import (
     flatten_unions,
     get_subject_name,
     HEADER_FORMAT,
@@ -17,7 +17,7 @@ from karapace.serialization import (
     START_BYTE,
     write_value,
 )
-from karapace.typing import NameStrategy, Subject, SubjectType
+from karapace.core.typing import NameStrategy, Subject, SubjectType
 from tests.utils import schema_avro_json, test_objects_avro
 from unittest.mock import call, Mock
 

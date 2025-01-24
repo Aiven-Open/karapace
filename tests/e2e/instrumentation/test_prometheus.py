@@ -6,8 +6,8 @@ See LICENSE for details
 """
 
 from http import HTTPStatus
-from karapace.client import Client, Result
-from karapace.instrumentation.prometheus import PrometheusInstrumentation
+from karapace.core.client import Client, Result
+from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
 from prometheus_client.parser import text_string_to_metric_families
 
 

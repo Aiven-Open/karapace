@@ -3,8 +3,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.protobuf.schema import ProtobufSchema
-from karapace.protobuf.serialization import deserialize, serialize
+from karapace.core.protobuf.schema import ProtobufSchema
+from karapace.core.protobuf.serialization import deserialize, serialize
 from tests.schemas.protobuf import (
     schema_protobuf_complex,
     schema_protobuf_complex_bin,

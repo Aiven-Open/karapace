@@ -3,7 +3,7 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.container import KarapaceContainer
+from karapace.core.container import KarapaceContainer
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.factory import create_karapace_application, karapace_schema_registry_lifespan
 from schema_registry.telemetry.container import TelemetryContainer

@@ -8,17 +8,17 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from confluent_kafka.cimpl import KafkaError
-from karapace.constants import DEFAULT_SCHEMA_TOPIC
-from karapace.container import KarapaceContainer
-from karapace.in_memory_database import InMemoryDatabase, KarapaceDatabase, Subject, SubjectData
-from karapace.kafka.types import Timestamp
-from karapace.key_format import KeyFormatter
-from karapace.offset_watcher import OffsetWatcher
-from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import SchemaVersion, TypedSchema
-from karapace.schema_references import Reference, Referents
-from karapace.schema_type import SchemaType
-from karapace.typing import SchemaId, Version
+from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.core.container import KarapaceContainer
+from karapace.core.in_memory_database import InMemoryDatabase, KarapaceDatabase, Subject, SubjectData
+from karapace.core.kafka.types import Timestamp
+from karapace.core.key_format import KeyFormatter
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.protobuf.schema import ProtobufSchema
+from karapace.core.schema_models import SchemaVersion, TypedSchema
+from karapace.core.schema_references import Reference, Referents
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import SchemaId, Version
 from pathlib import Path
 from schema_registry.reader import KafkaSchemaReader
 from typing import Final

@@ -5,8 +5,8 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from karapace.container import KarapaceContainer
-from karapace.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
+from karapace.core.container import KarapaceContainer
+from karapace.core.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
 from unittest.mock import call, Mock
 
 import asyncio

@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from dependency_injector import containers, providers
-from karapace.container import KarapaceContainer
+from karapace.core.container import KarapaceContainer
 from schema_registry.controller import KarapaceSchemaRegistryController
 from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.telemetry.container import TelemetryContainer

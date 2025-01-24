@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from aiohttp import BasicAuth
 from collections.abc import Mapping
-from karapace.client import Client, Headers, Path, Result
-from karapace.typing import JsonData
+from karapace.core.client import Client, Headers, Path, Result
+from karapace.core.typing import JsonData
 from tenacity import retry, stop_after_attempt, wait_fixed
 from typing import Final
 

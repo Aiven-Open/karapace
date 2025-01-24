@@ -5,8 +5,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from tests.integration.utils.rest_client import RetryRestClient
 from tests.utils import (
     new_random_name,

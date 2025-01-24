@@ -11,11 +11,11 @@ from _pytest.fixtures import SubRequest
 from aiohttp import BasicAuth
 from collections.abc import AsyncGenerator, Iterator
 from confluent_kafka.admin import NewTopic
-from karapace.client import Client
-from karapace.container import KarapaceContainer
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
-from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
+from karapace.core.client import Client
+from karapace.core.container import KarapaceContainer
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
+from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint
 from tests.integration.utils.kafka_server import KafkaServers
 

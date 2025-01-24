@@ -7,10 +7,10 @@ See LICENSE for details
 
 from avro.schema import Schema as AvroSchema
 from collections.abc import Callable
-from karapace.errors import InvalidVersion, VersionNotFoundException
-from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Versioner
-from karapace.schema_type import SchemaType
-from karapace.typing import Version, VersionTag
+from karapace.core.errors import InvalidVersion, VersionNotFoundException
+from karapace.core.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Versioner
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import Version, VersionTag
 from typing import Any
 
 import operator
