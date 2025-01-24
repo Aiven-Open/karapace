@@ -10,7 +10,7 @@ from karapace.core.forward_client import ForwardClient
 from karapace.core.typing import Subject
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.api.routers.errors import no_primary_url_error, unauthorized
 from karapace.api.routers.raw_path_router import RawPathRoute
 from karapace.api.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse

@@ -7,7 +7,7 @@ from fastapi.exceptions import HTTPException
 from karapace.core.rapu import HTTPResponse
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.api.container import SchemaRegistryContainer
-from karapace.api.reader import KafkaSchemaReader
+from karapace.core.schema_reader import KafkaSchemaReader
 from unittest.mock import Mock, patch, PropertyMock
 
 import asyncio

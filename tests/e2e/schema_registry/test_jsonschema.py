@@ -7,7 +7,7 @@ from jsonschema import Draft7Validator
 from karapace.core.client import Client
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.typing import SchemaMetadata, SchemaRuleSet
-from karapace.api.reader import SchemaType
+from karapace.core.schema_reader import SchemaType
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
     A_DINT_B_INT_OBJECT_SCHEMA,

@@ -10,7 +10,7 @@ from fastapi.exceptions import HTTPException
 from karapace.core.forward_client import ForwardClient
 from karapace.core.typing import PrimaryInfo
 from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.api.routers.config import config_put
 from unittest.mock import AsyncMock, Mock
 

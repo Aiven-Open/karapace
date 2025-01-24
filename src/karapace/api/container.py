@@ -6,7 +6,7 @@ See LICENSE for details
 from dependency_injector import containers, providers
 from karapace.core.container import KarapaceContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.api.telemetry.container import TelemetryContainer
 
 
