@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from datetime import timedelta
-from karapace.core.backup.poll_timeout import PollTimeout
+from karapace.backup.poll_timeout import PollTimeout
 
 import pytest
 

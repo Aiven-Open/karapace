@@ -5,8 +5,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.backup import api
-from karapace.core.backup.api import BackupVersion
+from karapace.backup import api
+from karapace.backup.api import BackupVersion
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.utils import json_encode

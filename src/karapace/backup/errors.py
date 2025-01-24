@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from confluent_kafka import TopicPartition
-from karapace.core.backup.poll_timeout import PollTimeout
+from karapace.backup.poll_timeout import PollTimeout
 
 __all__ = ["BackupError", "BackupTopicAlreadyExists", "EmptyPartition", "PartitionCountError", "StaleConsumerError"]
 

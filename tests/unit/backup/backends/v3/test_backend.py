@@ -4,9 +4,9 @@ See LICENSE for details
 """
 
 from dataclasses import replace
-from karapace.core.backup.backends.reader import ProducerSend, RestoreTopic
-from karapace.core.backup.backends.v3.backend import _PartitionStats, SchemaBackupV3Reader, SchemaBackupV3Writer
-from karapace.core.backup.backends.v3.errors import (
+from karapace.backup.backends.reader import ProducerSend, RestoreTopic
+from karapace.backup.backends.v3.backend import _PartitionStats, SchemaBackupV3Reader, SchemaBackupV3Writer
+from karapace.backup.backends.v3.errors import (
     InconsistentOffset,
     InvalidChecksum,
     OffsetMismatch,
@@ -14,8 +14,8 @@ from karapace.core.backup.backends.v3.errors import (
     TooManyRecords,
     UnknownChecksumAlgorithm,
 )
-from karapace.core.backup.backends.v3.readers import read_records
-from karapace.core.backup.backends.v3.schema import ChecksumAlgorithm, DataFile
+from karapace.backup.backends.v3.readers import read_records
+from karapace.backup.backends.v3.schema import ChecksumAlgorithm, DataFile
 from karapace.core.kafka.types import Timestamp
 from pathlib import Path
 from tests.utils import StubMessage

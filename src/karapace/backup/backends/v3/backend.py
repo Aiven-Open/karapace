@@ -13,9 +13,9 @@ from .writers import write_metadata, write_record
 from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from confluent_kafka import Message
 from dataclasses import dataclass
-from karapace.core.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
-from karapace.core.backup.backends.writer import BytesBackupWriter, StdOut
-from karapace.core.backup.safe_writer import bytes_writer, staging_directory
+from karapace.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
+from karapace.backup.backends.writer import BytesBackupWriter, StdOut
+from karapace.backup.safe_writer import bytes_writer, staging_directory
 from karapace.core.dataclasses import default_dataclass
 from karapace.core.utils import assert_never
 from karapace.version import __version__
