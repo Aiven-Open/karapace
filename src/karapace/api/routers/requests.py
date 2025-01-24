@@ -6,7 +6,7 @@ See LICENSE for details
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import Subject
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from schema_registry.routers.errors import KarapaceValidationError
+from karapace.api.routers.errors import KarapaceValidationError
 from typing import Any
 
 

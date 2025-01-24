@@ -13,12 +13,12 @@ from karapace.core.config import Config
 from karapace.core.forward_client import ForwardClient
 from karapace.core.logging_setup import configure_logging, log_config_without_secrets
 from karapace.core.statsd import StatsClient
-from schema_registry.container import SchemaRegistryContainer
-from schema_registry.http_handlers import setup_exception_handlers
-from schema_registry.middlewares import setup_middlewares
-from schema_registry.registry import KarapaceSchemaRegistry
-from schema_registry.routers.setup import setup_routers
-from schema_registry.telemetry.setup import setup_metering, setup_tracing
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.http_handlers import setup_exception_handlers
+from karapace.api.middlewares import setup_middlewares
+from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.api.routers.setup import setup_routers
+from karapace.api.telemetry.setup import setup_metering, setup_tracing
 from typing import AsyncContextManager
 
 import logging

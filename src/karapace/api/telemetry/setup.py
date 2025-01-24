@@ -8,9 +8,9 @@ from opentelemetry import metrics, trace
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from schema_registry.telemetry.container import TelemetryContainer
-from schema_registry.telemetry.meter import Meter
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.container import TelemetryContainer
+from karapace.api.telemetry.meter import Meter
+from karapace.api.telemetry.tracer import Tracer
 
 import logging
 

@@ -9,9 +9,9 @@ from karapace.core.container import KarapaceContainer
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.semconv.attributes import telemetry_attributes as T
-from schema_registry.telemetry.meter import Meter
-from schema_registry.telemetry.metrics import HTTPRequestMetrics
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.meter import Meter
+from karapace.api.telemetry.metrics import HTTPRequestMetrics
+from karapace.api.telemetry.tracer import Tracer
 
 
 def create_telemetry_resource(config: Config) -> Resource:

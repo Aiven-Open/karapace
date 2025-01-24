@@ -13,7 +13,7 @@ from karapace.core.rapu import is_success
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import JsonData
 from karapace.core.utils import json_encode
-from schema_registry.controller import SchemaErrorMessages
+from karapace.api.controller import SchemaErrorMessages
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers

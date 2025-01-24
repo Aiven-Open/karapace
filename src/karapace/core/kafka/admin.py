@@ -28,7 +28,7 @@ from karapace.core.kafka.common import (
     single_futmap_result,
     UnknownTopicOrPartitionError,
 )
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.telemetry.tracer import Tracer
 from typing_extensions import Unpack
 
 

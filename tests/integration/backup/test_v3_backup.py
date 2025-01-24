@@ -24,7 +24,7 @@ from karapace.core.kafka.consumer import KafkaConsumer
 from karapace.core.kafka.producer import KafkaProducer
 from karapace.core.kafka.types import Timestamp
 from karapace.core.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
-from karapace.core.version import __version__
+from karapace.version import __version__
 from pathlib import Path
 from tempfile import mkdtemp
 from tests.integration.utils.cluster import RegistryDescription

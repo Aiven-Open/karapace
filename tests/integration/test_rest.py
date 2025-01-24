@@ -12,7 +12,7 @@ from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.producer import KafkaProducer
 from karapace.core.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
 from karapace.core.schema_type import SchemaType
-from karapace.core.version import __version__
+from karapace.version import __version__
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
     new_random_name,

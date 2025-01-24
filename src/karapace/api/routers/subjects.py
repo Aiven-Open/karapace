@@ -8,13 +8,13 @@ from fastapi import APIRouter, Depends, Request
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.core.forward_client import ForwardClient
 from karapace.core.typing import Subject
-from schema_registry.container import SchemaRegistryContainer
-from schema_registry.controller import KarapaceSchemaRegistryController
-from schema_registry.registry import KarapaceSchemaRegistry
-from schema_registry.routers.errors import no_primary_url_error, unauthorized
-from schema_registry.routers.raw_path_router import RawPathRoute
-from schema_registry.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
-from schema_registry.user import get_current_user
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.controller import KarapaceSchemaRegistryController
+from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.api.routers.errors import no_primary_url_error, unauthorized
+from karapace.api.routers.raw_path_router import RawPathRoute
+from karapace.api.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
+from karapace.api.user import get_current_user
 from typing import Annotated
 from urllib.parse import unquote_plus
 

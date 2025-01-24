@@ -141,7 +141,7 @@ integration-tests-in-docker: start-karapace-docker-resources
 
 .PHONY: type-check-mypy-in-docker
 type-check-mypy-in-docker: start-karapace-docker-resources
-	$(KARAPACE-CLI) $(PYTHON) -m mypy src
+	$(KARAPACE-CLI) $(PYTHON) -m mypy src/karapace
 
 .PHONY: cli
 cli: start-karapace-docker-resources

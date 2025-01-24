@@ -38,9 +38,9 @@ from karapace.core.schema_models import (
 )
 from karapace.core.schema_references import LatestVersionReference, Reference
 from karapace.core.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
-from schema_registry.messaging import KarapaceProducer
-from schema_registry.reader import KafkaSchemaReader
-from schema_registry.telemetry.tracer import Tracer
+from karapace.api.messaging import KarapaceProducer
+from karapace.api.reader import KafkaSchemaReader
+from karapace.api.telemetry.tracer import Tracer
 
 import asyncio
 import logging

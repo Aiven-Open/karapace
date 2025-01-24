@@ -16,7 +16,7 @@ src/karapace.egg-info/
 /kafka_*/
 venv
 *.so
-src/karapace/core/version.py
+src/karapace/version.py
 .run
 .python-version
 .hypothesis/

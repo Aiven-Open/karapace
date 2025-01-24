@@ -13,7 +13,7 @@ from http import HTTPStatus
 from karapace.core.config import Config, create_server_ssl_context
 from karapace.core.statsd import StatsClient
 from karapace.core.utils import json_decode, json_encode
-from karapace.core.version import __version__
+from karapace.version import __version__
 from typing import NoReturn, overload
 
 import aiohttp
