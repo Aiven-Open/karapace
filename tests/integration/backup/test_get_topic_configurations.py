@@ -6,7 +6,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from confluent_kafka.admin import NewTopic
-from karapace.core.backup.topic_configurations import (
+from karapace.backup.topic_configurations import (
     ALL_CONFIG_SOURCES,
     ConfigSource,
     DEFAULT_CONFIGS,

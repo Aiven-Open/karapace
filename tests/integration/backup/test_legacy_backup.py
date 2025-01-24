@@ -6,10 +6,10 @@ See LICENSE for details
 """
 
 from aiokafka.errors import InvalidTopicError
-from karapace.core.backup import api
-from karapace.core.backup.api import BackupVersion
-from karapace.core.backup.errors import StaleConsumerError
-from karapace.core.backup.poll_timeout import PollTimeout
+from karapace.backup import api
+from karapace.backup.api import BackupVersion
+from karapace.backup.errors import StaleConsumerError
+from karapace.backup.poll_timeout import PollTimeout
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.kafka.admin import KafkaAdminClient
