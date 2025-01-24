@@ -29,9 +29,9 @@ from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
 from karapace.core import constants
-from karapace.core.backup.backends.v1 import SchemaBackupV1Reader
-from karapace.core.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
-from karapace.core.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
+from karapace.backup.backends.v1 import SchemaBackupV1Reader
+from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
+from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
 from karapace.core.config import Config
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.common import translate_from_kafkaerror
