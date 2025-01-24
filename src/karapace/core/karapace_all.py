@@ -6,7 +6,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from dependency_injector.wiring import inject, Provide
-from karapace.core import version as karapace_version
+from karapace import version as karapace_version
 from karapace.core.config import Config
 from karapace.core.container import KarapaceContainer
 from karapace.core.instrumentation.prometheus import PrometheusInstrumentation

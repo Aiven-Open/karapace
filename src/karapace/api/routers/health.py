@@ -9,7 +9,7 @@ from opentelemetry.trace import Span
 from opentelemetry.trace.status import StatusCode
 from pydantic import BaseModel
 from karapace.api.container import SchemaRegistryContainer
-from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.api.telemetry.tracer import Tracer
 
 
