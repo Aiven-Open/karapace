@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from karapace.client import Client
-from karapace.typing import JsonObject, Subject
+from karapace.core.client import Client
+from karapace.core.typing import JsonObject, Subject
 from tests.base_testcase import BaseTestCase
 from typing import Any, Final
 

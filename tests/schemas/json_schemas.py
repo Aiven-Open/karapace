@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.schema_models import parse_jsonschema_definition
+from karapace.core.schema_models import parse_jsonschema_definition
 
 # boolean schemas
 NOT_OF_EMPTY_SCHEMA = parse_jsonschema_definition('{"not":{}}')

@@ -5,8 +5,8 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.config import KarapaceTelemetry
-from karapace.container import KarapaceContainer
+from karapace.core.config import KarapaceTelemetry
+from karapace.core.container import KarapaceContainer
 from schema_registry.telemetry.meter import Meter, NOOPMetricExporter
 from unittest.mock import patch
 from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricExporter

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
 from dataclasses import dataclass
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.utils import Expiration
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig

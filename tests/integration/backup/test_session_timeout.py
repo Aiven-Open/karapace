@@ -5,10 +5,10 @@ See LICENSE for details
 
 from aiokafka.errors import NoBrokersAvailable
 from confluent_kafka.admin import NewTopic
-from karapace.backup.api import BackupVersion, create_backup
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka_utils import kafka_producer_from_config
+from karapace.core.backup.api import BackupVersion, create_backup
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka_utils import kafka_producer_from_config
 from pathlib import Path
 from tests.integration.conftest import create_kafka_server
 from tests.integration.utils.config import KafkaDescription

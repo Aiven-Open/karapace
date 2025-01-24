@@ -6,13 +6,13 @@ See LICENSE for details
 """
 
 from aiokafka.errors import MessageSizeTooLargeError
-from karapace.config import Config
-from karapace.errors import SchemaTooLargeException
-from karapace.kafka.producer import KafkaProducer
-from karapace.key_format import KeyFormatter
-from karapace.offset_watcher import OffsetWatcher
-from karapace.utils import json_encode
-from karapace.version import __version__
+from karapace.core.config import Config
+from karapace.core.errors import SchemaTooLargeException
+from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.key_format import KeyFormatter
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.utils import json_encode
+from karapace.core.version import __version__
 from typing import Any, Final
 
 import logging

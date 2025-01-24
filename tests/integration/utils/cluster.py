@@ -8,8 +8,8 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, ExitStack
 from dataclasses import dataclass
-from karapace.client import Client
-from karapace.config import Config
+from karapace.core.client import Client
+from karapace.core.config import Config
 from pathlib import Path
 from tests.integration.utils.network import allocate_port
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
