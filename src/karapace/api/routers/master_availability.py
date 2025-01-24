@@ -9,7 +9,7 @@ from karapace.core.config import Config
 from karapace.core.forward_client import ForwardClient
 from pydantic import BaseModel
 from karapace.api.container import SchemaRegistryContainer
-from karapace.api.registry import KarapaceSchemaRegistry
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from typing import Final
 
 import logging
