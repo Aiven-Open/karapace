@@ -5,7 +5,7 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Response
-from karapace.instrumentation.prometheus import PrometheusInstrumentation
+from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
 from schema_registry.container import SchemaRegistryContainer
 
 metrics_router = APIRouter(

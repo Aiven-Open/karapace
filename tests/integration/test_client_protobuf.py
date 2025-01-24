@@ -3,9 +3,9 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
-from karapace.serialization import SchemaRegistryClient
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.serialization import SchemaRegistryClient
 from tests.schemas.protobuf import schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_plain
 from tests.utils import new_random_name
 

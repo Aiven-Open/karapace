@@ -6,8 +6,8 @@ See LICENSE for details
 from collections.abc import Callable, Sequence
 from dependency_injector.wiring import inject, Provide
 from fastapi import Request, Response
-from karapace.config import Config, KarapaceTelemetryOTelExporter
-from karapace.container import KarapaceContainer
+from karapace.core.config import Config, KarapaceTelemetryOTelExporter
+from karapace.core.container import KarapaceContainer
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import ReadableSpan

@@ -4,8 +4,8 @@ See LICENSE for details
 """
 
 from _pytest.logging import LogCaptureFixture
-from karapace.container import KarapaceContainer
-from karapace.logging_setup import configure_logging
+from karapace.core.container import KarapaceContainer
+from karapace.core.logging_setup import configure_logging
 from unittest.mock import patch, call
 
 import logging
@@ -19,8 +19,11 @@ def test_configure_logging_stdout_handler(caplog: LogCaptureFixture, karapace_co
             "log_level": "WARNING",
         }
     )
-    with caplog.at_level(logging.WARNING, logger="karapace.logging_setup"):
-        with patch("karapace.logging_setup.logging") as mock_logging, patch("karapace.logging_setup.sys") as mock_sys:
+    with caplog.at_level(logging.WARNING, logger="karapace.core.logging_setup"):
+        with (
+            patch("karapace.core.logging_setup.logging") as mock_logging,
+            patch("karapace.core.logging_setup.sys") as mock_sys,
+        ):
             configure_logging(config=config)
             mock_logging.assert_has_calls(
                 [
@@ -53,8 +56,8 @@ def test_configure_logging_unknown_handler(caplog: LogCaptureFixture, karapace_c
             "log_level": "DEBUG",
         }
     )
-    with caplog.at_level(logging.WARNING, logger="karapace.logging_setup"):
-        with patch("karapace.logging_setup.logging") as mock_logging:
+    with caplog.at_level(logging.WARNING, logger="karapace.core.logging_setup"):
+        with patch("karapace.core.logging_setup.logging") as mock_logging:
             configure_logging(config=config)
 
             mock_logging.assert_has_calls(
@@ -67,6 +70,6 @@ def test_configure_logging_unknown_handler(caplog: LogCaptureFixture, karapace_c
                 ]
             )
             for log in caplog.records:
-                assert log.name == "karapace.logging_setup"
+                assert log.name == "karapace.core.logging_setup"
                 assert log.levelname == "WARNING"
                 assert log.message == "Log handler unknown not recognized, root handler not set."

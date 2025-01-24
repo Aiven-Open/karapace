@@ -15,12 +15,12 @@ from confluent_kafka.admin import NewTopic
 from contextlib import ExitStack
 from dataclasses import asdict
 from filelock import FileLock
-from karapace.client import Client
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
-from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
-from karapace.kafka_rest_apis import KafkaRest
+from karapace.core.client import Client
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
+from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
+from karapace.core.kafka_rest_apis import KafkaRest
 from pathlib import Path
 from tests.conftest import KAFKA_VERSION
 from tests.integration.utils.cluster import (

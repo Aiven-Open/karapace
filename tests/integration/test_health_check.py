@@ -3,8 +3,8 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.client import Client
-from karapace.kafka.admin import KafkaAdminClient
+from karapace.core.client import Client
+from karapace.core.kafka.admin import KafkaAdminClient
 from tenacity import retry, stop_after_delay, wait_fixed
 from tests.integration.utils.cluster import RegistryDescription
 

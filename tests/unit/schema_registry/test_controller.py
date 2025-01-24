@@ -4,8 +4,8 @@ See LICENSE for details
 """
 
 from fastapi.exceptions import HTTPException
-from karapace.rapu import HTTPResponse
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.rapu import HTTPResponse
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.reader import KafkaSchemaReader
 from unittest.mock import Mock, patch, PropertyMock

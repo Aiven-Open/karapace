@@ -27,25 +27,25 @@ from confluent_kafka import Message, TopicCollection, TopicPartition
 from contextlib import closing, ExitStack
 from enum import Enum
 from jsonschema.validators import Draft7Validator
-from karapace import constants
-from karapace.config import Config
-from karapace.coordinator.master_coordinator import MasterCoordinator
-from karapace.dependency import Dependency
-from karapace.errors import InvalidReferences, InvalidSchema, InvalidVersion, ShutdownException
-from karapace.in_memory_database import KarapaceDatabase
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.common import translate_from_kafkaerror
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
-from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
-from karapace.offset_watcher import OffsetWatcher
-from karapace.protobuf.exception import ProtobufException
-from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
-from karapace.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
-from karapace.statsd import StatsClient
-from karapace.typing import JsonObject, SchemaReaderStoppper, Subject, Version
-from karapace.utils import json_decode, JSONDecodeError, shutdown
+from karapace.core import constants
+from karapace.core.config import Config
+from karapace.core.coordinator.master_coordinator import MasterCoordinator
+from karapace.core.dependency import Dependency
+from karapace.core.errors import InvalidReferences, InvalidSchema, InvalidVersion, ShutdownException
+from karapace.core.in_memory_database import KarapaceDatabase
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.common import translate_from_kafkaerror
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
+from karapace.core.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.protobuf.exception import ProtobufException
+from karapace.core.protobuf.schema import ProtobufSchema
+from karapace.core.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.core.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
+from karapace.core.statsd import StatsClient
+from karapace.core.typing import JsonObject, SchemaReaderStoppper, Subject, Version
+from karapace.core.utils import json_decode, JSONDecodeError, shutdown
 from schema_registry.telemetry.tracer import Tracer
 from threading import Event, Lock, Thread
 from typing import Final

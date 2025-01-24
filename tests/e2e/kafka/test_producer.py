@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from aiokafka.errors import MessageSizeTooLargeError, UnknownTopicOrPartitionError
 from confluent_kafka.admin import NewTopic
-from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
-from karapace.kafka.types import Timestamp
+from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
+from karapace.core.kafka.types import Timestamp
 
 import pytest
 import time

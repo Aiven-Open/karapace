@@ -9,10 +9,10 @@ from aiokafka.errors import IllegalStateError, UnknownTopicOrPartitionError
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
 from confluent_kafka.admin import NewTopic
 from confluent_kafka.error import KafkaError
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
-from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
-from karapace.utils import Expiration
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
+from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
+from karapace.core.utils import Expiration
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_topic as create_new_topic
 from typing import Final

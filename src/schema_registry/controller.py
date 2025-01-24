@@ -8,13 +8,13 @@ from __future__ import annotations
 from avro.errors import SchemaParseException
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, HTTPException, Request, status
-from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
-from karapace.compatibility import CompatibilityModes
-from karapace.compatibility.jsonschema.checks import is_incompatible
-from karapace.compatibility.schema_compatibility import SchemaCompatibility
-from karapace.config import Config
-from karapace.container import KarapaceContainer
-from karapace.errors import (
+from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.compatibility import CompatibilityModes
+from karapace.core.compatibility.jsonschema.checks import is_incompatible
+from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
+from karapace.core.config import Config
+from karapace.core.container import KarapaceContainer
+from karapace.core.errors import (
     IncompatibleSchema,
     InvalidReferences,
     InvalidSchema,
@@ -30,13 +30,20 @@ from karapace.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.forward_client import ForwardClient
-from karapace.protobuf.exception import ProtobufUnresolvedDependencyException
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
-from karapace.schema_references import LatestVersionReference, Reference
-from karapace.statsd import StatsClient
-from karapace.typing import JsonData, JsonObject, SchemaId, Subject, Version
-from karapace.utils import JSONDecodeError
+from karapace.core.forward_client import ForwardClient
+from karapace.core.protobuf.exception import ProtobufUnresolvedDependencyException
+from karapace.core.schema_models import (
+    ParsedTypedSchema,
+    SchemaType,
+    SchemaVersion,
+    TypedSchema,
+    ValidatedTypedSchema,
+    Versioner,
+)
+from karapace.core.schema_references import LatestVersionReference, Reference
+from karapace.core.statsd import StatsClient
+from karapace.core.typing import JsonData, JsonObject, SchemaId, Subject, Version
+from karapace.core.utils import JSONDecodeError
 from schema_registry.registry import KarapaceSchemaRegistry
 from schema_registry.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
 from schema_registry.routers.requests import (

@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from dataclasses import dataclass, field
-from karapace.avro_dataclasses.models import AvroModel
+from karapace.core.avro_dataclasses.models import AvroModel
 
 import datetime
 import enum

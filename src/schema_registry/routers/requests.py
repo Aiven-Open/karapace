@@ -3,8 +3,8 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.schema_type import SchemaType
-from karapace.typing import Subject
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import Subject
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from schema_registry.routers.errors import KarapaceValidationError
 from typing import Any

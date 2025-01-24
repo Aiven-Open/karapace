@@ -8,13 +8,13 @@ from __future__ import annotations
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, closing
-from karapace.compatibility import CompatibilityModes
-from karapace.compatibility.jsonschema.checks import is_incompatible
-from karapace.compatibility.schema_compatibility import SchemaCompatibility
-from karapace.config import Config
-from karapace.coordinator.master_coordinator import MasterCoordinator
-from karapace.dependency import Dependency
-from karapace.errors import (
+from karapace.core.compatibility import CompatibilityModes
+from karapace.core.compatibility.jsonschema.checks import is_incompatible
+from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
+from karapace.core.config import Config
+from karapace.core.coordinator.master_coordinator import MasterCoordinator
+from karapace.core.dependency import Dependency
+from karapace.core.errors import (
     IncompatibleSchema,
     ReferenceExistsException,
     SchemasNotFoundException,
@@ -25,12 +25,19 @@ from karapace.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.in_memory_database import InMemoryDatabase
-from karapace.key_format import KeyFormatter
-from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
-from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
+from karapace.core.in_memory_database import InMemoryDatabase
+from karapace.core.key_format import KeyFormatter
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.schema_models import (
+    ParsedTypedSchema,
+    SchemaType,
+    SchemaVersion,
+    TypedSchema,
+    ValidatedTypedSchema,
+    Versioner,
+)
+from karapace.core.schema_references import LatestVersionReference, Reference
+from karapace.core.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
 from schema_registry.messaging import KarapaceProducer
 from schema_registry.reader import KafkaSchemaReader
 from schema_registry.telemetry.tracer import Tracer

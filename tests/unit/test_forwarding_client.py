@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fastapi import Request
 from fastapi.datastructures import Headers
-from karapace.forward_client import ForwardClient
+from karapace.core.forward_client import ForwardClient
 from pydantic import BaseModel
 from starlette.datastructures import MutableHeaders
 from tests.base_testcase import BaseTestCase
@@ -32,7 +32,7 @@ class ContentTypeTestCase(BaseTestCase):
 
 @pytest.fixture(name="forward_client")
 def fixture_forward_client() -> ForwardClient:
-    with patch("karapace.forward_client.aiohttp") as mocked_aiohttp:
+    with patch("karapace.core.forward_client.aiohttp") as mocked_aiohttp:
         mocked_aiohttp.ClientSession.return_value = Mock(
             spec=aiohttp.ClientSession, headers={"User-Agent": ForwardClient.USER_AGENT}
         )

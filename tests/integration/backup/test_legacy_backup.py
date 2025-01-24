@@ -6,17 +6,17 @@ See LICENSE for details
 """
 
 from aiokafka.errors import InvalidTopicError
-from karapace.backup import api
-from karapace.backup.api import BackupVersion
-from karapace.backup.errors import StaleConsumerError
-from karapace.backup.poll_timeout import PollTimeout
-from karapace.client import Client
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.common import KafkaError
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.key_format import is_key_in_canonical_format
-from karapace.utils import Expiration
+from karapace.core.backup import api
+from karapace.core.backup.api import BackupVersion
+from karapace.core.backup.errors import StaleConsumerError
+from karapace.core.backup.poll_timeout import PollTimeout
+from karapace.core.client import Client
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.common import KafkaError
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.key_format import is_key_in_canonical_format
+from karapace.core.utils import Expiration
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers

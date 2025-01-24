@@ -3,13 +3,13 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.dependency import Dependency
-from karapace.protobuf.compare_result import CompareResult
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.schema import ProtobufSchema, SourceFileReference, TypeTree
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
-from karapace.typing import Subject
+from karapace.core.dependency import Dependency
+from karapace.core.protobuf.compare_result import CompareResult
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.schema import ProtobufSchema, SourceFileReference, TypeTree
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.typing import Subject
 from tests.schemas.protobuf import (
     schema_protobuf_compare_one,
     schema_protobuf_order_after,

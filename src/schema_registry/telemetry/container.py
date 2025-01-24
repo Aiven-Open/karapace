@@ -4,8 +4,8 @@ See LICENSE for details
 """
 
 from dependency_injector import containers, providers
-from karapace.config import Config
-from karapace.container import KarapaceContainer
+from karapace.core.config import Config
+from karapace.core.container import KarapaceContainer
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.semconv.attributes import telemetry_attributes as T

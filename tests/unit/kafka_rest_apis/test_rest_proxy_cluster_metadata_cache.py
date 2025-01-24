@@ -3,9 +3,9 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.container import KarapaceContainer
-from karapace.kafka_rest_apis import UserRestProxy
-from karapace.serialization import SchemaRegistrySerializer
+from karapace.core.container import KarapaceContainer
+from karapace.core.kafka_rest_apis import UserRestProxy
+from karapace.core.serialization import SchemaRegistrySerializer
 from unittest.mock import patch
 
 import copy
@@ -161,7 +161,7 @@ ALL_TOPIC_REQUEST = {
 async def test_cache_is_evicted_after_expiration_global_initially(karapace_container: KarapaceContainer) -> None:
     proxy = user_rest_proxy(karapace_container)
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
     ) as mocked_cluster_metadata:
         await proxy.cluster_metadata(None)
     mocked_cluster_metadata.assert_called_once_with(None)  # "initially the metadata are always old"
@@ -170,7 +170,7 @@ async def test_cache_is_evicted_after_expiration_global_initially(karapace_conta
 async def test_no_topic_means_all_metadata(karapace_container: KarapaceContainer) -> None:
     proxy = user_rest_proxy(karapace_container)
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
     ) as mocked_cluster_metadata:
         await proxy.cluster_metadata([])
     mocked_cluster_metadata.assert_called_once_with(None)
@@ -180,7 +180,7 @@ async def test_cache_is_evicted_after_expiration_global(karapace_container: Kara
     proxy = user_rest_proxy(karapace_container, max_age_metadata=10)
     proxy._global_metadata_birth = 0
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=EMPTY_REPLY
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=11):
             await proxy.cluster_metadata(None)
@@ -191,7 +191,7 @@ async def test_global_cache_is_used_for_single_topic(karapace_container: Karapac
     proxy = user_rest_proxy(karapace_container, max_age_metadata=10)
     proxy._global_metadata_birth = 0
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=11):
             await proxy.cluster_metadata(None)
@@ -204,7 +204,7 @@ async def test_global_cache_is_used_for_single_topic(karapace_container: Karapac
     assert proxy._cluster_metadata_topic_birth == {"topic_a": 11, "topic_b": 11, "__consumer_offsets": 11}
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=14):
             await proxy.cluster_metadata(["topic_a", "topic_b"])
@@ -218,7 +218,7 @@ async def test_cache_is_evicted_if_one_topic_is_expired(karapace_container: Kara
     proxy = user_rest_proxy(karapace_container, max_age_metadata=10)
     proxy._global_metadata_birth = 0
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=11):
             await proxy.cluster_metadata(None)
@@ -226,7 +226,7 @@ async def test_cache_is_evicted_if_one_topic_is_expired(karapace_container: Kara
     proxy._cluster_metadata_topic_birth = {"topic_a": 11, "topic_b": 1, "__consumer_offsets": 11}
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=14):
             await proxy.cluster_metadata(["topic_a", "topic_b"])
@@ -238,7 +238,7 @@ async def test_cache_is_evicted_if_a_topic_was_never_queries(karapace_container:
     proxy = user_rest_proxy(karapace_container, max_age_metadata=10)
     proxy._global_metadata_birth = 0
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=11):
             await proxy.cluster_metadata(None)
@@ -246,7 +246,7 @@ async def test_cache_is_evicted_if_a_topic_was_never_queries(karapace_container:
     proxy._cluster_metadata_topic_birth = {"topic_a": 11, "__consumer_offsets": 11}
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=14):
             await proxy.cluster_metadata(["topic_a", "topic_b"])
@@ -258,13 +258,13 @@ async def test_cache_is_used_if_topic_requested_is_updated(karapace_container: K
     proxy = user_rest_proxy(karapace_container, max_age_metadata=10)
     proxy._global_metadata_birth = 0
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=11):
             await proxy.cluster_metadata(None)
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=ALL_TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=14):
             await proxy.cluster_metadata(["topic_a"])
@@ -276,7 +276,7 @@ async def test_update_global_cache(karapace_container: KarapaceContainer) -> Non
     proxy = user_rest_proxy(karapace_container, max_age_metadata=10)
     proxy._global_metadata_birth = 0
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=11):
             await proxy.cluster_metadata(None)
@@ -284,7 +284,7 @@ async def test_update_global_cache(karapace_container: KarapaceContainer) -> Non
     assert mocked_cluster_metadata.call_count == 1, "should call the server for the first time"
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=21):
             await proxy.cluster_metadata(None)
@@ -299,7 +299,7 @@ async def test_update_topic_cache_do_not_evict_all_the_global_cache(karapace_con
     proxy._cluster_metadata_topic_birth = {"topic_a": 0, "topic_b": 200, "__consumer_offsets": 200}
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=208):
             res = await proxy.cluster_metadata(["topic_a"])
@@ -327,7 +327,7 @@ async def test_update_local_cache_does_not_evict_all_the_global_cache_if_no_new_
     proxy._cluster_metadata_topic_birth = {"topic_a": 0, "topic_b": 200, "__consumer_offsets": 200}
 
     with patch(
-        "karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST
     ) as mocked_cluster_metadata:
         with patch("time.monotonic", return_value=208):
             res = await proxy.cluster_metadata(["topic_a"])
@@ -357,7 +357,9 @@ async def test_update_local_cache_not_evict_all_the_global_cache_if_changed_repl
     proxy._cluster_metadata = ALL_TOPIC_REQUEST
     proxy._cluster_metadata_topic_birth = {"topic_a": 200, "topic_b": 200, "__consumer_offsets": 200}
 
-    with patch("karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_CHANGED_REPLICA):
+    with patch(
+        "karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_CHANGED_REPLICA
+    ):
         with patch("time.monotonic", return_value=500):
             await proxy.cluster_metadata(["topic_a"])
 
@@ -373,7 +375,7 @@ async def test_update_local_cache_not_evict_all_the_global_cache_if_new_topic_da
     proxy._cluster_metadata = ALL_TOPIC_REQUEST
     proxy._cluster_metadata_topic_birth = {"topic_a": 200, "topic_b": 200, "__consumer_offsets": 200}
 
-    with patch("karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_NEW_TOPIC):
+    with patch("karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_NEW_TOPIC):
         with patch("time.monotonic", return_value=200):
             await proxy.cluster_metadata(["mistery_topic"])
 
@@ -389,7 +391,7 @@ async def test_update_local_cache_not_evict_all_the_global_cache_if_new_broker_d
     proxy._cluster_metadata = ALL_TOPIC_REQUEST
     proxy._cluster_metadata_topic_birth = {"topic_a": 200, "topic_b": 200, "__consumer_offsets": 200}
 
-    with patch("karapace.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_NEW_BROKER):
+    with patch("karapace.core.kafka.admin.KafkaAdminClient.cluster_metadata", return_value=TOPIC_REQUEST_WITH_NEW_BROKER):
         with patch("time.monotonic", return_value=500):
             await proxy.cluster_metadata(["topic_a"])
 

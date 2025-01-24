@@ -10,21 +10,21 @@ from collections.abc import Iterator
 from confluent_kafka import Message, TopicPartition
 from confluent_kafka.admin import NewTopic
 from dataclasses import fields
-from karapace.backup import api
-from karapace.backup.api import _consume_records, BackupVersion, TopicName
-from karapace.backup.backends.v3.errors import InconsistentOffset
-from karapace.backup.backends.v3.readers import read_metadata
-from karapace.backup.backends.v3.schema import Metadata
-from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
-from karapace.backup.poll_timeout import PollTimeout
-from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.kafka.producer import KafkaProducer
-from karapace.kafka.types import Timestamp
-from karapace.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
-from karapace.version import __version__
+from karapace.core.backup import api
+from karapace.core.backup.api import _consume_records, BackupVersion, TopicName
+from karapace.core.backup.backends.v3.errors import InconsistentOffset
+from karapace.core.backup.backends.v3.readers import read_metadata
+from karapace.core.backup.backends.v3.schema import Metadata
+from karapace.core.backup.errors import BackupDataRestorationError, EmptyPartition
+from karapace.core.backup.poll_timeout import PollTimeout
+from karapace.core.backup.topic_configurations import ConfigSource, get_topic_configurations
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.kafka.types import Timestamp
+from karapace.core.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
+from karapace.core.version import __version__
 from pathlib import Path
 from tempfile import mkdtemp
 from tests.integration.utils.cluster import RegistryDescription
@@ -573,7 +573,7 @@ def test_backup_restoration_fails_when_topic_does_not_exist_and_skip_creation_is
         def __exit__(self, exc_type, exc_value, exc_traceback):
             self._producer.flush()
 
-    with patch("karapace.backup.api._producer") as p:
+    with patch("karapace.core.backup.api._producer") as p:
         p.return_value = LowTimeoutProducer()
         with pytest.raises(BackupDataRestorationError) as excinfo:
             api.restore_backup(
@@ -622,7 +622,7 @@ def test_backup_restoration_fails_when_producer_send_fails_on_unknown_topic_or_p
         def __exit__(self, exc_type, exc_value, exc_traceback):
             self._producer.flush()
 
-    with patch("karapace.backup.api._producer") as p:
+    with patch("karapace.core.backup.api._producer") as p:
         p.return_value = FailToSendProducerContext()
         with pytest.raises(BackupDataRestorationError):
             api.restore_backup(
@@ -672,7 +672,7 @@ def test_backup_restoration_fails_when_producer_send_fails_on_buffer_error(
         def __exit__(self, exc_type, exc_value, exc_traceback):
             self._producer.flush()
 
-    with patch("karapace.backup.api._producer") as p:
+    with patch("karapace.core.backup.api._producer") as p:
         p.return_value = FailToSendProducerContext()
         with pytest.raises(BackupDataRestorationError, match="Kafka producer buffer is full"):
             api.restore_backup(
@@ -1202,7 +1202,7 @@ def test_backup_creation_succeeds_no_duplicate_offsets(
         def __exit__(self, exc_type, exc_value, exc_traceback):
             self._consumer.close()
 
-    with patch("karapace.backup.api._consumer") as consumer_patch:
+    with patch("karapace.core.backup.api._consumer") as consumer_patch:
         consumer_patch.return_value = ConsumerContext()
         try:
             api.create_backup(

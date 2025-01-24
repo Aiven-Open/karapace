@@ -6,10 +6,10 @@ See LICENSE for details
 from _pytest.logging import LogCaptureFixture
 from aiohttp.client_exceptions import ClientConnectionError
 from aiohttp.web import Request
-from karapace.container import KarapaceContainer
-from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
-from karapace.statsd import StatsClient
+from karapace.core.container import KarapaceContainer
+from karapace.core.karapace import KarapaceBase
+from karapace.core.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
+from karapace.core.statsd import StatsClient
 from unittest.mock import Mock
 
 import logging

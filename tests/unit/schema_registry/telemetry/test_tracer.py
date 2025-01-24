@@ -6,8 +6,8 @@ See LICENSE for details
 """
 
 from fastapi import Request, Response
-from karapace.config import KarapaceTelemetry
-from karapace.container import KarapaceContainer
+from karapace.core.config import KarapaceTelemetry
+from karapace.core.container import KarapaceContainer
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SpanExporter, SpanProcessor
 from opentelemetry.trace.span import Span
 from schema_registry.telemetry.tracer import NOOPSpanExporter, Tracer

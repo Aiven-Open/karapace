@@ -5,10 +5,10 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ExtensionsElementTest.kt
 
-from karapace.protobuf.extensions_element import ExtensionsElement
-from karapace.protobuf.kotlin_wrapper import KotlinRange, trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.utils import MAX_TAG_VALUE
+from karapace.core.protobuf.extensions_element import ExtensionsElement
+from karapace.core.protobuf.kotlin_wrapper import KotlinRange, trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.utils import MAX_TAG_VALUE
 
 location = Location("", "file.proto")
 

@@ -5,8 +5,8 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends
-from karapace.auth import AuthenticatorAndAuthorizer, Operation, User
-from karapace.typing import Subject
+from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.typing import Subject
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.controller import KarapaceSchemaRegistryController
 from schema_registry.routers.errors import unauthorized

@@ -4,7 +4,7 @@ See LICENSE for details
 """
 
 from avro.compatibility import SchemaCompatibilityResult
-from karapace.container import KarapaceContainer
+from karapace.core.container import KarapaceContainer
 from pathlib import Path
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.telemetry.container import TelemetryContainer
