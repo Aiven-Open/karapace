@@ -5,26 +5,26 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ProtoParserTest.kt
 
-from karapace.protobuf.enum_constant_element import EnumConstantElement
-from karapace.protobuf.enum_element import EnumElement
-from karapace.protobuf.exception import IllegalStateException
-from karapace.protobuf.extend_element import ExtendElement
-from karapace.protobuf.extensions_element import ExtensionsElement
-from karapace.protobuf.field import Field
-from karapace.protobuf.field_element import FieldElement
-from karapace.protobuf.group_element import GroupElement
-from karapace.protobuf.kotlin_wrapper import KotlinRange, trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.message_element import MessageElement
-from karapace.protobuf.one_of_element import OneOfElement
-from karapace.protobuf.option_element import OptionElement
-from karapace.protobuf.proto_file_element import ProtoFileElement, TypeName
-from karapace.protobuf.proto_parser import ProtoParser
-from karapace.protobuf.reserved_element import ReservedElement
-from karapace.protobuf.rpc_element import RpcElement
-from karapace.protobuf.service_element import ServiceElement
-from karapace.protobuf.syntax import Syntax
-from karapace.protobuf.utils import MAX_TAG_VALUE
+from karapace.core.protobuf.enum_constant_element import EnumConstantElement
+from karapace.core.protobuf.enum_element import EnumElement
+from karapace.core.protobuf.exception import IllegalStateException
+from karapace.core.protobuf.extend_element import ExtendElement
+from karapace.core.protobuf.extensions_element import ExtensionsElement
+from karapace.core.protobuf.field import Field
+from karapace.core.protobuf.field_element import FieldElement
+from karapace.core.protobuf.group_element import GroupElement
+from karapace.core.protobuf.kotlin_wrapper import KotlinRange, trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.message_element import MessageElement
+from karapace.core.protobuf.one_of_element import OneOfElement
+from karapace.core.protobuf.option_element import OptionElement
+from karapace.core.protobuf.proto_file_element import ProtoFileElement, TypeName
+from karapace.core.protobuf.proto_parser import ProtoParser
+from karapace.core.protobuf.reserved_element import ReservedElement
+from karapace.core.protobuf.rpc_element import RpcElement
+from karapace.core.protobuf.service_element import ServiceElement
+from karapace.core.protobuf.syntax import Syntax
+from karapace.core.protobuf.utils import MAX_TAG_VALUE
 
 import pytest
 

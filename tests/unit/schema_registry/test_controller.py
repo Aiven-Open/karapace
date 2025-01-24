@@ -4,9 +4,9 @@ See LICENSE for details
 """
 
 from fastapi.exceptions import HTTPException
-from karapace.schema_models import ValidatedTypedSchema
-from karapace.schema_type import SchemaType
-from karapace.rapu import HTTPResponse
+from karapace.core.rapu import HTTPResponse
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.typing import PrimaryInfo
 from schema_registry.container import SchemaRegistryContainer
 from schema_registry.reader import KafkaSchemaReader
 from unittest.mock import Mock, patch, PropertyMock
@@ -54,6 +54,7 @@ async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryC
         schema_registry_class.schema_reader = schema_reader_mock
 
         schema_registry_class.schemas_get.return_value = TYPED_AVRO_SCHEMA
+        schema_registry_container.get_master.return_value = PrimaryInfo(primary=False, primary_url="http://primary-url")
 
         close_future_result = asyncio.Future()
         close_future_result.set_result(True)

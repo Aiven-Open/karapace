@@ -4,9 +4,9 @@ See LICENSE for details
 """
 
 from _pytest.logging import LogCaptureFixture
-from karapace.container import KarapaceContainer
-from karapace.errors import CorruptKafkaRecordException
-from karapace.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
+from karapace.core.container import KarapaceContainer
+from karapace.core.errors import CorruptKafkaRecordException
+from karapace.core.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
 
 import aiokafka.errors as Errors
 import logging
@@ -38,11 +38,11 @@ def test_handle_error_retriable_schema_coordinator(
     retriable_error: Errors.KafkaError,
 ):
     kafka_error_handler.retriable_errors_silenced = True
-    with caplog.at_level(logging.WARNING, logger="karapace.error_handler"):
+    with caplog.at_level(logging.WARNING, logger="karapace.core.error_handler"):
         kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_COORDINATOR, error=retriable_error)
 
         for log in caplog.records:
-            assert log.name == "karapace.kafka_error_handler"
+            assert log.name == "karapace.core.kafka_error_handler"
             assert log.levelname == "WARNING"
             assert log.message == f"SCHEMA_COORDINATOR encountered error - {retriable_error}"
 

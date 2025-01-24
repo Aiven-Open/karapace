@@ -10,14 +10,14 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from confluent_kafka import Message
 from dataclasses import dataclass
-from karapace.container import KarapaceContainer
-from karapace.errors import CorruptKafkaRecordException, ShutdownException
-from karapace.in_memory_database import InMemoryDatabase
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.key_format import KeyFormatter
-from karapace.offset_watcher import OffsetWatcher
-from karapace.schema_type import SchemaType
-from karapace.typing import SchemaId, Version
+from karapace.core.container import KarapaceContainer
+from karapace.core.errors import CorruptKafkaRecordException, ShutdownException
+from karapace.core.in_memory_database import InMemoryDatabase
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.key_format import KeyFormatter
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import SchemaId, Version
 from pytest import MonkeyPatch
 from schema_registry.reader import (
     KafkaSchemaReader,

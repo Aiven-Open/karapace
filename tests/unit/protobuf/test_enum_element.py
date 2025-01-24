@@ -5,11 +5,11 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/EnumElementTest.kt
 
-from karapace.protobuf.enum_constant_element import EnumConstantElement
-from karapace.protobuf.enum_element import EnumElement
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.option_element import OptionElement
+from karapace.core.protobuf.enum_constant_element import EnumConstantElement
+from karapace.core.protobuf.enum_element import EnumElement
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.option_element import OptionElement
 
 location: Location = Location("", "file.proto")
 

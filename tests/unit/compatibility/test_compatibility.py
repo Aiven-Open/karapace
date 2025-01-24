@@ -4,9 +4,9 @@ See LICENSE for details
 """
 
 from avro.compatibility import SchemaCompatibilityType
-from karapace.compatibility import CompatibilityModes
-from karapace.compatibility.schema_compatibility import SchemaCompatibility
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.compatibility import CompatibilityModes
+from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 
 import json
 

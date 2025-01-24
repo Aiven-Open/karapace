@@ -3,12 +3,12 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.container import KarapaceContainer
-from karapace.dependency import Dependency
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.schema_models import ParsedTypedSchema, SchemaType, Versioner
-from karapace.schema_references import Reference
-from karapace.serialization import (
+from karapace.core.container import KarapaceContainer
+from karapace.core.dependency import Dependency
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.schema_models import ParsedTypedSchema, SchemaType, Versioner
+from karapace.core.schema_references import Reference
+from karapace.core.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
@@ -16,7 +16,7 @@ from karapace.serialization import (
     SchemaRegistrySerializer,
     START_BYTE,
 )
-from karapace.typing import Subject
+from karapace.core.typing import Subject
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
 from unittest.mock import call, Mock
 

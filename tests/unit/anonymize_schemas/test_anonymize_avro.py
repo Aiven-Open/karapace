@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.anonymize_schemas.anonymize_avro import anonymize
+from karapace.core.anonymize_schemas.anonymize_avro import anonymize
 
 import json
 import pytest
