@@ -4,21 +4,21 @@ See LICENSE for details
 """
 
 from avro.compatibility import SchemaCompatibilityResult
-from karapace.container import KarapaceContainer
+from karapace.core.container import KarapaceContainer
 from pathlib import Path
-from schema_registry.container import SchemaRegistryContainer
-from schema_registry.telemetry.container import TelemetryContainer
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.telemetry.container import TelemetryContainer
 from tempfile import mkstemp
 
 import json
 import os
 import pytest
 import re
-import schema_registry.controller
-import schema_registry.telemetry.meter
-import schema_registry.telemetry.middleware
-import schema_registry.telemetry.setup
-import schema_registry.telemetry.tracer
+import karapace.api.controller
+import karapace.api.telemetry.tracer
+import karapace.api.telemetry.meter
+import karapace.api.telemetry.setup
+import karapace.api.telemetry.middleware
 
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
@@ -194,9 +194,9 @@ def fixture_karapace_container() -> KarapaceContainer:
     karapace_container = KarapaceContainer()
     karapace_container.wire(
         modules=[
-            schema_registry.controller,
-            schema_registry.telemetry.tracer,
-            schema_registry.telemetry.meter,
+            karapace.api.controller,
+            karapace.api.telemetry.tracer,
+            karapace.api.telemetry.meter,
         ]
     )
     return karapace_container
@@ -207,8 +207,8 @@ def fixture_telemetry_container() -> TelemetryContainer:
     telemetry_container = TelemetryContainer()
     telemetry_container.wire(
         modules=[
-            schema_registry.telemetry.setup,
-            schema_registry.telemetry.middleware,
+            karapace.api.telemetry.setup,
+            karapace.api.telemetry.middleware,
         ]
     )
     return telemetry_container

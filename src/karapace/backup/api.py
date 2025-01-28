@@ -28,18 +28,18 @@ from concurrent.futures import Future
 from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
-from karapace import constants
+from karapace.core import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.common import translate_from_kafkaerror
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.kafka.producer import KafkaProducer
-from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
-from karapace.key_format import KeyFormatter
-from karapace.utils import assert_never
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.common import translate_from_kafkaerror
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
+from karapace.core.key_format import KeyFormatter
+from karapace.core.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed

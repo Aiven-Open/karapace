@@ -6,8 +6,8 @@ See LICENSE for details
 """
 
 from dataclasses import dataclass
-from karapace.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
-from karapace.typing import JsonData
+from karapace.core.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
+from karapace.core.typing import JsonData
 from tests.base_testcase import BaseTestCase
 
 import pytest

@@ -3,7 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
+from karapace.core.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.utils import (
     consumer_valid_payload,
     new_consumer,

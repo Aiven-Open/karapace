@@ -7,7 +7,7 @@ from .checksum import RunningChecksum
 from .constants import V3_MARKER
 from .errors import IntegerAboveBound, IntegerBelowBound
 from .schema import Metadata, Record
-from karapace.avro_dataclasses.models import AvroModel
+from karapace.core.avro_dataclasses.models import AvroModel
 from typing import Final, IO, NoReturn, TypeVar
 
 import io

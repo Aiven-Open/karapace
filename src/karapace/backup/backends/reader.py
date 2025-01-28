@@ -6,8 +6,8 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
-from karapace.dataclasses import default_dataclass
-from karapace.typing import JsonData, JsonObject
+from karapace.core.dataclasses import default_dataclass
+from karapace.core.typing import JsonData, JsonObject
 from pathlib import Path
 from typing import ClassVar, Final, IO, Optional, TypeAlias, TypeVar, Union
 

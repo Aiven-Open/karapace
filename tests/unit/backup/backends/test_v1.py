@@ -7,7 +7,7 @@ from functools import partial
 from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.encoders import encode_key, encode_value
-from karapace.key_format import KeyFormatter
+from karapace.core.key_format import KeyFormatter
 from pathlib import Path
 
 import json

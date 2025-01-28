@@ -5,16 +5,16 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/MessageElementTest.kt
 
-from karapace.protobuf.extensions_element import ExtensionsElement
-from karapace.protobuf.field import Field
-from karapace.protobuf.field_element import FieldElement
-from karapace.protobuf.group_element import GroupElement
-from karapace.protobuf.kotlin_wrapper import KotlinRange, trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.message_element import MessageElement
-from karapace.protobuf.one_of_element import OneOfElement
-from karapace.protobuf.option_element import OptionElement
-from karapace.protobuf.reserved_element import ReservedElement
+from karapace.core.protobuf.extensions_element import ExtensionsElement
+from karapace.core.protobuf.field import Field
+from karapace.core.protobuf.field_element import FieldElement
+from karapace.core.protobuf.group_element import GroupElement
+from karapace.core.protobuf.kotlin_wrapper import KotlinRange, trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.message_element import MessageElement
+from karapace.core.protobuf.one_of_element import OneOfElement
+from karapace.core.protobuf.option_element import OptionElement
+from karapace.core.protobuf.reserved_element import ReservedElement
 
 location: Location = Location("", "file.proto")
 

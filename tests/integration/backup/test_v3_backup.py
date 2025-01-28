@@ -18,12 +18,12 @@ from karapace.backup.backends.v3.schema import Metadata
 from karapace.backup.errors import BackupDataRestorationError, EmptyPartition
 from karapace.backup.poll_timeout import PollTimeout
 from karapace.backup.topic_configurations import ConfigSource, get_topic_configurations
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.kafka.producer import KafkaProducer
-from karapace.kafka.types import Timestamp
-from karapace.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.kafka.types import Timestamp
+from karapace.core.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
 from karapace.version import __version__
 from pathlib import Path
 from tempfile import mkdtemp

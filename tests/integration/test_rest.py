@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from karapace.client import Client
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.producer import KafkaProducer
-from karapace.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
-from karapace.schema_type import SchemaType
+from karapace.core.client import Client
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
+from karapace.core.schema_type import SchemaType
 from karapace.version import __version__
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (

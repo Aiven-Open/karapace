@@ -521,7 +521,7 @@ Each user entry contains following attributes:
    * - ``password_hash``
      - Hash string of the password calculated using given algorithm and salt.
 
-Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or by invoking directly with ``python -m karapace.auth``. The tool generates JSON entry with these fields. ::
+Password hashing can be done using ``karapace_mkpasswd`` tool, if installed, or by invoking directly with ``python -m karapace.core.auth``. The tool generates JSON entry with these fields. ::
 
   $ karapace_mkpasswd -u user -a sha512 secret
   {

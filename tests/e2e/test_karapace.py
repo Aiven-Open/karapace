@@ -46,7 +46,7 @@ def test_regression_server_must_exit_on_exception(
             "KARAPACE_KARAPACE_REST": "true",
         }
         karapace_rest_proxy = popen_karapace_all(
-            module="karapace.karapace_all", env=karapace_rest_proxy_env, stdout=logfile, stderr=errfile
+            module="karapace.core.karapace_all", env=karapace_rest_proxy_env, stdout=logfile, stderr=errfile
         )
         stack.callback(stop_process, karapace_rest_proxy)  # make sure to stop the process if the test fails
         assert karapace_rest_proxy.wait(timeout=10) != 0, "Process should have exited with an error, port is already is use"
@@ -57,7 +57,7 @@ def test_regression_server_must_exit_on_exception(
             "KARAPACE_KARAPACE_REGISTRY": "true",
         }
         karapace_schema_registry = popen_karapace_all(
-            module="schema_registry", env=karapace_schema_registry_env, stdout=logfile, stderr=errfile
+            module="karapace.api", env=karapace_schema_registry_env, stdout=logfile, stderr=errfile
         )
         stack.callback(stop_process, karapace_schema_registry)  # make sure to stop the process if the test fails
         assert (

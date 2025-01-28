@@ -6,8 +6,8 @@ See LICENSE for details
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, Field, field, fields
 from enum import Enum
-from karapace.avro_dataclasses.introspect import field_schema, record_schema, UnsupportedAnnotation
-from karapace.avro_dataclasses.schema import FieldSchema
+from karapace.core.avro_dataclasses.introspect import field_schema, record_schema, UnsupportedAnnotation
+from karapace.core.avro_dataclasses.schema import FieldSchema
 from typing import Final
 
 import datetime

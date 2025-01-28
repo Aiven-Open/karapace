@@ -3,9 +3,9 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.client import Client
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
-from karapace.serialization import SchemaRegistryClient
+from karapace.core.client import Client
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.serialization import SchemaRegistryClient
 from tests.utils import new_random_name, schema_avro_json
 
 

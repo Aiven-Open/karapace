@@ -13,7 +13,7 @@ from .poll_timeout import PollTimeout
 from aiokafka.errors import BrokerResponseError
 from collections.abc import Iterator
 from karapace.backup.api import VerifyLevel
-from karapace.config import Config
+from karapace.core.config import Config
 from pydantic_settings import BaseSettings, JsonConfigSettingsSource, PydanticBaseSettingsSource
 from typing import Type
 

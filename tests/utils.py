@@ -6,10 +6,10 @@ See LICENSE for details
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from aiokafka.errors import TopicAlreadyExistsError
 from collections.abc import Callable
-from karapace.client import Client
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.utils import Expiration
+from karapace.core.client import Client
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
 from typing import Any, IO

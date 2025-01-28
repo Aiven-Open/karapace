@@ -7,8 +7,8 @@ See LICENSE for details
 
 from collections.abc import Mapping
 from dataclasses import field
-from karapace.avro_dataclasses.models import AvroModel
-from karapace.dataclasses import default_dataclass
+from karapace.core.avro_dataclasses.models import AvroModel
+from karapace.core.dataclasses import default_dataclass
 
 import datetime
 import enum

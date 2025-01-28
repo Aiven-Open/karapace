@@ -5,8 +5,8 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/OptionElementTest.kt
 
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.protobuf.option_element import OptionElement
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.protobuf.option_element import OptionElement
 
 
 def test_simple_to_schema():
