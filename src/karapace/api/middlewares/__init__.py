@@ -6,7 +6,7 @@ See LICENSE for details
 from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from karapace.core.content_type import check_schema_headers
+from karapace.api.content_type import check_schema_headers
 from karapace.api.telemetry.middleware import setup_telemetry_middleware
 
 
