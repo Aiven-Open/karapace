@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI
 from karapace import version as karapace_version
 from karapace.core.auth import AuthenticatorAndAuthorizer
 from karapace.core.config import Config
-from karapace.core.forward_client import ForwardClient
+from karapace.api.forward_client import ForwardClient
 from karapace.core.logging_setup import configure_logging, log_config_without_secrets
 from karapace.core.statsd import StatsClient
 from karapace.api.container import SchemaRegistryContainer

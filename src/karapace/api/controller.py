@@ -30,7 +30,7 @@ from karapace.core.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.core.forward_client import ForwardClient
+from karapace.api.forward_client import ForwardClient
 from karapace.core.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.core.schema_models import (
     ParsedTypedSchema,

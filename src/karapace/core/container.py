@@ -6,7 +6,7 @@ See LICENSE for details
 from dependency_injector import containers, providers
 from karapace.core.auth import get_authorizer, HTTPAuthorizer, NoAuthAndAuthz
 from karapace.core.config import Config
-from karapace.core.forward_client import ForwardClient
+from karapace.api.forward_client import ForwardClient
 from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.core.statsd import StatsClient
 
