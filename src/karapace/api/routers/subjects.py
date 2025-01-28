@@ -6,7 +6,7 @@ See LICENSE for details
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
-from karapace.core.forward_client import ForwardClient
+from karapace.api.forward_client import ForwardClient
 from karapace.core.typing import Subject
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
