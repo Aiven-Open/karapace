@@ -104,29 +104,32 @@ async def test_telemetry_middleware_call_next_exception(http_request_metrics: Ma
 
     SpanStatus = MagicMock(spec=Status, status_code=StatusCode.ERROR)
 
+    response = None
     with patch("schema_registry.telemetry.middleware.Status", return_value=SpanStatus):
-        response = await telemetry_middleware(
-            request=request_mock, call_next=call_next, tracer=tracer, http_request_metrics=http_request_metrics
-        )
-        span = tracer.get_tracer.return_value.start_as_current_span.return_value.__enter__.return_value
+        with pytest.raises(Exception) as excinfo:
+            response = await telemetry_middleware(
+                request=request_mock, call_next=call_next, tracer=tracer, http_request_metrics=http_request_metrics
+            )
 
-        tracer.get_tracer.assert_called_once()
-        tracer.get_tracer.return_value.start_as_current_span.assert_called_once_with(name="GET: /test", kind=SpanKind.SERVER)
-        tracer.update_span_with_request.assert_called_once_with(request=request_mock, span=span)
+    assert "Test exception" in str(excinfo.value)
+    assert response is None
+    span = tracer.get_tracer.return_value.start_as_current_span.return_value.__enter__.return_value
 
-        # Check that the request handler is called
-        call_next.assert_awaited_once_with(request_mock)
-        span.set_status.assert_called_once_with(SpanStatus)
+    tracer.get_tracer.assert_called_once()
+    tracer.get_tracer.return_value.start_as_current_span.assert_called_once_with(name="GET: /test", kind=SpanKind.SERVER)
+    tracer.update_span_with_request.assert_called_once_with(request=request_mock, span=span)
 
-        http_request_metrics.assert_has_calls(
-            [
-                call.get_resource_from_request(request=request_mock),
-                call.start_request(request=request_mock),
-                call.record_request_exception(ATTRIBUTES=http_request_metrics.start_request.return_value, exc=exception),
-                call.finish_request(
-                    ATTRIBUTES=http_request_metrics.start_request.return_value, request=request_mock, response=None
-                ),
-            ]
-        )
+    # Check that the request handler is called
+    call_next.assert_awaited_once_with(request_mock)
+    span.set_status.assert_called_once_with(SpanStatus)
 
-        assert not response
+    http_request_metrics.assert_has_calls(
+        [
+            call.get_resource_from_request(request=request_mock),
+            call.start_request(request=request_mock),
+            call.record_request_exception(ATTRIBUTES=http_request_metrics.start_request.return_value, exc=exception),
+            call.finish_request(
+                ATTRIBUTES=http_request_metrics.start_request.return_value, request=request_mock, response=None
+            ),
+        ]
+    )
