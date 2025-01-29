@@ -35,15 +35,14 @@ async def telemetry_middleware(
             http_request_metrics.record_request_exception(ATTRIBUTES=ATTRIBUTES, exc=exc)
             SPAN.set_status(Status(StatusCode.ERROR))
             SPAN.record_exception(exc)
+            http_request_metrics.finish_request(ATTRIBUTES=ATTRIBUTES, request=request, response=None)
+            raise exc
         else:
             tracer.update_span_with_response(response=response, span=SPAN)
-            return response
-        finally:
             http_request_metrics.finish_request(
                 ATTRIBUTES=ATTRIBUTES, request=request, response=response if "response" in locals() else None
             )
-
-    return None
+        return response
 
 
 def setup_telemetry_middleware(app: FastAPI) -> None:
