@@ -4,13 +4,13 @@ See LICENSE for details
 """
 
 from dependency_injector.wiring import inject, Provide
+from karapace.api.telemetry.container import TelemetryContainer
+from karapace.api.telemetry.meter import Meter
+from karapace.api.telemetry.tracer import Tracer
 from opentelemetry import metrics, trace
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from karapace.api.telemetry.container import TelemetryContainer
-from karapace.api.telemetry.meter import Meter
-from karapace.api.telemetry.tracer import Tracer
 
 import logging
 

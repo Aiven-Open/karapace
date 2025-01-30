@@ -3,14 +3,14 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import textwrap
+
 from karapace.core.dependency import Dependency
 from karapace.core.protobuf.io import crawl_dependencies
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_models import ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import Subject
-
-import textwrap
 
 
 def test_crawl_dependencies() -> None:

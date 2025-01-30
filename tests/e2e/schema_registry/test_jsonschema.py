@@ -3,11 +3,15 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import json
+
+import pytest
 from jsonschema import Draft7Validator
+
 from karapace.core.client import Client
 from karapace.core.compatibility import CompatibilityModes
-from karapace.core.typing import SchemaMetadata, SchemaRuleSet
 from karapace.core.schema_reader import SchemaType
+from karapace.core.typing import SchemaMetadata, SchemaRuleSet
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
     A_DINT_B_INT_OBJECT_SCHEMA,
@@ -99,9 +103,6 @@ from tests.schemas.json_schemas import (
     TYPES_STRING_SCHEMA,
 )
 from tests.utils import new_random_name
-
-import json
-import pytest
 
 
 async def debugging_details(

@@ -5,15 +5,16 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+
+import pytest
+
 from karapace.core.config import Config
 from karapace.core.coordinator.master_coordinator import MasterCoordinator
 from karapace.core.typing import SchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import allocate_port
 from tests.utils import new_random_name
-
-import asyncio
-import pytest
 
 
 class AlwaysAvailableSchemaReaderStoppper(SchemaReaderStoppper):

@@ -5,11 +5,13 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+from unittest.mock import patch
+
+from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricExporter
+
+from karapace.api.telemetry.meter import Meter, NOOPMetricExporter
 from karapace.core.config import KarapaceTelemetry
 from karapace.core.container import KarapaceContainer
-from karapace.api.telemetry.meter import Meter, NOOPMetricExporter
-from unittest.mock import patch
-from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricExporter
 
 
 def test_meter(karapace_container: KarapaceContainer):

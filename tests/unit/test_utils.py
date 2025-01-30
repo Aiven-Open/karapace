@@ -3,11 +3,12 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from _pytest.logging import LogCaptureFixture
-from karapace.core.utils import shutdown
+import logging
 from unittest.mock import patch
 
-import logging
+from _pytest.logging import LogCaptureFixture
+
+from karapace.core.utils import shutdown
 
 
 def test_shutdown(caplog: LogCaptureFixture) -> None:

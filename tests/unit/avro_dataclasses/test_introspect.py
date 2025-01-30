@@ -3,15 +3,16 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import datetime
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, Field, field, fields
+from dataclasses import Field, dataclass, field, fields
 from enum import Enum
-from karapace.core.avro_dataclasses.introspect import field_schema, record_schema, UnsupportedAnnotation
-from karapace.core.avro_dataclasses.schema import FieldSchema
 from typing import Final
 
-import datetime
 import pytest
+
+from karapace.core.avro_dataclasses.introspect import UnsupportedAnnotation, field_schema, record_schema
+from karapace.core.avro_dataclasses.schema import FieldSchema
 
 
 class Symbols(Enum):

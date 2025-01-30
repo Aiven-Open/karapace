@@ -5,11 +5,11 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request, Response
-from karapace.core.config import Config
-from karapace.api.forward_client import ForwardClient
-from pydantic import BaseModel
 from karapace.api.container import SchemaRegistryContainer
+from karapace.api.forward_client import ForwardClient
+from karapace.core.config import Config
 from karapace.core.schema_registry import KarapaceSchemaRegistry
+from pydantic import BaseModel
 from typing import Final
 
 import logging

@@ -10,8 +10,8 @@ from karapace import version as karapace_version
 from karapace.core.config import Config
 from karapace.core.container import KarapaceContainer
 from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
-from karapace.core.kafka_rest_apis import KafkaRest
 from karapace.core.logging_setup import configure_logging, log_config_without_secrets
+from karapace.kafka_rest_apis import KafkaRest
 
 import argparse
 import logging

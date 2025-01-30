@@ -5,11 +5,11 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from typing import Literal
 from aiohttp import BasicAuth, ClientSession
 from collections.abc import Awaitable, Callable, Mapping
 from karapace.core.typing import JsonData
-from urllib.parse import urljoin, quote_plus
+from typing import Literal
+from urllib.parse import quote_plus, urljoin
 
 import logging
 import ssl

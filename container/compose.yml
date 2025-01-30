@@ -105,7 +105,7 @@ services:
     entrypoint:
       - python3
       - -m
-      - karapace.core.karapace_all
+      - karapace.kafka_rest_apis
     depends_on:
       - kafka
       - karapace-schema-registry

@@ -3,24 +3,25 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
+import base64
+import copy
+import json
+import random
+import time
+
+import pytest
+
+from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.utils import (
+    REST_HEADERS,
     consumer_valid_payload,
     new_consumer,
     new_random_name,
     new_topic,
     repeat_until_successful_request,
-    REST_HEADERS,
     schema_data,
     wait_for_topics,
 )
-
-import base64
-import copy
-import json
-import pytest
-import random
-import time
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
@@ -37,9 +38,9 @@ async def test_create_and_delete(rest_async_client, trail):
     with_name["name"] = instance_id
     resp = await rest_async_client.post(f"/consumers/{group_name}{trail}", json=with_name, headers=header)
     assert not resp.ok
-    assert resp.status_code == 409, (
-        f"Expected conflict for instance {instance_id} and group {group_name} " f"but got a different error: {resp.body}"
-    )
+    assert (
+        resp.status_code == 409
+    ), f"Expected conflict for instance {instance_id} and group {group_name} but got a different error: {resp.body}"
     invalid_fetch = copy.copy(consumer_valid_payload)
     # add with faulty params fails
     invalid_fetch["fetch.min.bytes"] = -10
@@ -373,9 +374,9 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
             assert data[i]["partition"] == 0
             assert data[i]["offset"] >= 0
             assert data[i]["timestamp"] > 0
-            assert deserializers[fmt](data[i]["value"]) == values[fmt][i], (
-                f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {values[fmt][i]} for format {fmt}"
-            )
+            assert (
+                deserializers[fmt](data[i]["value"]) == values[fmt][i]
+            ), f"Extracted data {deserializers[fmt](data[i]['value'])} does not match {values[fmt][i]} for format {fmt}"
 
 
 async def test_consume_timeout(rest_async_client, admin_client, producer):
@@ -407,9 +408,9 @@ async def test_consume_timeout(rest_async_client, admin_client, producer):
         data = resp.json()
         assert len(data) == len(values[fmt]), f"Expected {len(values[fmt])} element in response: {resp}"
         for i in range(len(values[fmt])):
-            assert deserializers[fmt](data[i]["value"]) == values[fmt][i], (
-                f"Extracted data {deserializers[fmt](data[i]['value'])}" f" does not match {values[fmt][i]} for format {fmt}"
-            )
+            assert (
+                deserializers[fmt](data[i]["value"]) == values[fmt][i]
+            ), f"Extracted data {deserializers[fmt](data[i]['value'])} does not match {values[fmt][i]} for format {fmt}"
 
         # Now read more using explicit 5s timeout
         start_time = time.monotonic()

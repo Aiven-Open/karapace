@@ -8,6 +8,22 @@ from __future__ import annotations
 from avro.errors import SchemaParseException
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, HTTPException, Request, status
+from karapace.api.forward_client import ForwardClient
+from karapace.api.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
+from karapace.api.routers.requests import (
+    CompatibilityCheckResponse,
+    CompatibilityLevelResponse,
+    CompatibilityRequest,
+    CompatibilityResponse,
+    ModeResponse,
+    SchemaIdResponse,
+    SchemaListingItem,
+    SchemaRequest,
+    SchemaResponse,
+    SchemasResponse,
+    SubjectSchemaVersionResponse,
+    SubjectVersion,
+)
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import is_incompatible
@@ -30,7 +46,6 @@ from karapace.core.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.api.forward_client import ForwardClient
 from karapace.core.protobuf.exception import ProtobufUnresolvedDependencyException
 from karapace.core.schema_models import (
     ParsedTypedSchema,
@@ -41,25 +56,10 @@ from karapace.core.schema_models import (
     Versioner,
 )
 from karapace.core.schema_references import LatestVersionReference, Reference
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.core.statsd import StatsClient
 from karapace.core.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from karapace.core.utils import JSONDecodeError
-from karapace.core.schema_registry import KarapaceSchemaRegistry
-from karapace.api.routers.errors import no_primary_url_error, SchemaErrorCodes, SchemaErrorMessages
-from karapace.api.routers.requests import (
-    CompatibilityCheckResponse,
-    CompatibilityLevelResponse,
-    CompatibilityRequest,
-    CompatibilityResponse,
-    ModeResponse,
-    SchemaIdResponse,
-    SchemaListingItem,
-    SchemaRequest,
-    SchemaResponse,
-    SchemasResponse,
-    SubjectSchemaVersionResponse,
-    SubjectVersion,
-)
 from typing import Any, cast
 
 import json
@@ -517,8 +517,7 @@ class KarapaceSchemaRegistryController:
                 detail={
                     "error_code": SchemaErrorCodes.SCHEMAVERSION_SOFT_DELETED.value,
                     "message": (
-                        f"Subject '{subject}' Version {version} was soft deleted. "
-                        "Set permanent=true to delete permanently"
+                        f"Subject '{subject}' Version {version} was soft deleted. Set permanent=true to delete permanently"
                     ),
                 },
             ) from exc
@@ -528,7 +527,7 @@ class KarapaceSchemaRegistryController:
                 detail={
                     "error_code": SchemaErrorCodes.SCHEMAVERSION_NOT_SOFT_DELETED.value,
                     "message": (
-                        f"Subject '{subject}' Version {version} was not deleted " "first before being permanently deleted"
+                        f"Subject '{subject}' Version {version} was not deleted first before being permanently deleted"
                     ),
                 },
             ) from exc

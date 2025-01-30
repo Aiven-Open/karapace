@@ -4,9 +4,10 @@ See LICENSE for details
 """
 
 from datetime import timedelta
-from karapace.backup.poll_timeout import PollTimeout
 
 import pytest
+
+from karapace.backup.poll_timeout import PollTimeout
 
 
 class TestPollTimeout:

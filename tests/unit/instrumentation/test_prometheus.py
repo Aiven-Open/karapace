@@ -5,15 +5,16 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from _pytest.logging import LogCaptureFixture
-from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
-from karapace.core.rapu import RestApp
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
-from unittest.mock import AsyncMock, call, MagicMock, patch
+import logging
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import aiohttp.web
-import logging
 import pytest
+from _pytest.logging import LogCaptureFixture
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+
+from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
+from karapace.rapu import RestApp
 
 
 class TestPrometheusInstrumentation:

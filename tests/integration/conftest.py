@@ -7,32 +7,43 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import asyncio
+import json
+import os
+import pathlib
+import re
+import secrets
+import time
+from collections.abc import AsyncGenerator, AsyncIterator, Iterator
+from contextlib import ExitStack
+from dataclasses import asdict
+from pathlib import Path
+from urllib.parse import urlparse
+
+import pytest
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
-from collections.abc import AsyncGenerator, AsyncIterator, Iterator
 from confluent_kafka.admin import NewTopic
-from contextlib import ExitStack
-from dataclasses import asdict
 from filelock import FileLock
+
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
-from karapace.core.kafka_rest_apis import KafkaRest
-from pathlib import Path
+from karapace.kafka_rest_apis import KafkaRest
 from tests.conftest import KAFKA_VERSION
 from tests.integration.utils.cluster import (
-    after_master_is_available,
     RegistryDescription,
     RegistryEndpoint,
+    after_master_is_available,
     start_schema_registry_cluster,
 )
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.kafka_server import (
-    configure_and_start_kafka,
     KafkaServers,
+    configure_and_start_kafka,
     maybe_download_kafka,
     wait_for_kafka,
 )
@@ -42,16 +53,6 @@ from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_master_is_available, repeat_until_successful_request
-from urllib.parse import urlparse
-
-import asyncio
-import json
-import os
-import pathlib
-import pytest
-import re
-import secrets
-import time
 
 REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
 RUNTIME_DIR = REPOSITORY_DIR / "runtime"

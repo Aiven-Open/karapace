@@ -5,13 +5,14 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from _pytest.logging import LogCaptureFixture
-from opentelemetry.sdk.trace import TracerProvider
-from karapace.api.telemetry.setup import setup_tracing
-from karapace.api.telemetry.tracer import Tracer
+import logging
 from unittest.mock import MagicMock, patch
 
-import logging
+from _pytest.logging import LogCaptureFixture
+from opentelemetry.sdk.trace import TracerProvider
+
+from karapace.api.telemetry.setup import setup_tracing
+from karapace.api.telemetry.tracer import Tracer
 
 
 def test_setup_telemetry(caplog: LogCaptureFixture):

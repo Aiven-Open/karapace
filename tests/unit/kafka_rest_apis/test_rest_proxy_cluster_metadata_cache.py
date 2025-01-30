@@ -3,12 +3,12 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.container import KarapaceContainer
-from karapace.core.kafka_rest_apis import UserRestProxy
-from karapace.core.serialization import SchemaRegistrySerializer
+import copy
 from unittest.mock import patch
 
-import copy
+from karapace.core.container import KarapaceContainer
+from karapace.kafka_rest_apis import UserRestProxy
+from karapace.core.serialization import SchemaRegistrySerializer
 
 
 def user_rest_proxy(karapace_container: KarapaceContainer, max_age_metadata: int = 5) -> UserRestProxy:

@@ -5,21 +5,22 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
+import logging
+import os
+import tarfile
+import time
 from dataclasses import dataclass
-from karapace.core.kafka.admin import KafkaAdminClient
-from karapace.core.utils import Expiration
 from pathlib import Path
 from subprocess import Popen
+
+import requests
+from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
+
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.utils import Expiration
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
-
-import logging
-import os
-import requests
-import tarfile
-import time
 
 log = logging.getLogger(__name__)
 

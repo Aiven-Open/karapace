@@ -9,33 +9,40 @@ Tests are adapted from aiokafka.tests.test_coordinator
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
+import time
+from collections.abc import AsyncGenerator, Iterator
+from typing import Final
+from unittest import mock
+
+import aiokafka.errors as Errors
+import pytest
 from aiokafka.client import AIOKafkaClient, ConnectionGroup, CoordinationType
 from aiokafka.cluster import ClusterMetadata
 from aiokafka.protocol.api import Response
 from aiokafka.protocol.group import (
     HeartbeatRequest_v0 as HeartbeatRequest,
+)
+from aiokafka.protocol.group import (
     JoinGroupRequest_v0 as JoinGroupRequest,
+)
+from aiokafka.protocol.group import (
     LeaveGroupRequest_v0 as LeaveGroupRequest,
+)
+from aiokafka.protocol.group import (
     SyncGroupResponse_v0 as SyncGroupResponse,
 )
 from aiokafka.util import create_future, create_task
-from collections.abc import AsyncGenerator, Iterator
+from tenacity import TryAgain, retry, stop_after_delay, wait_fixed
+
 from karapace.core.coordinator.schema_coordinator import Assignment, SchemaCoordinator, SchemaCoordinatorGroupRebalance
 from karapace.core.utils import json_encode
 from karapace.version import __version__
-from tenacity import retry, stop_after_delay, TryAgain, wait_fixed
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
-from typing import Final
-from unittest import mock
-
-import aiokafka.errors as Errors
-import asyncio
-import contextlib
-import logging
-import pytest
-import time
 
 UNKNOWN_MEMBER_ID = JoinGroupRequest.UNKNOWN_MEMBER_ID
 

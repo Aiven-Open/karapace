@@ -8,6 +8,7 @@ from __future__ import annotations
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, closing
+from karapace.api.telemetry.tracer import Tracer
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import is_incompatible
 from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
@@ -27,6 +28,7 @@ from karapace.core.errors import (
 )
 from karapace.core.in_memory_database import InMemoryDatabase
 from karapace.core.key_format import KeyFormatter
+from karapace.core.messaging import KarapaceProducer
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.schema_models import (
     ParsedTypedSchema,
@@ -36,11 +38,9 @@ from karapace.core.schema_models import (
     ValidatedTypedSchema,
     Versioner,
 )
+from karapace.core.schema_reader import KafkaSchemaReader
 from karapace.core.schema_references import LatestVersionReference, Reference
 from karapace.core.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
-from karapace.core.messaging import KarapaceProducer
-from karapace.core.schema_reader import KafkaSchemaReader
-from karapace.api.telemetry.tracer import Tracer
 
 import asyncio
 import logging

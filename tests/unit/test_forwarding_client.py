@@ -8,16 +8,17 @@ See LICENSE for details
 from __future__ import annotations
 
 from dataclasses import dataclass
-from fastapi import Request
-from fastapi.datastructures import Headers
-from karapace.api.forward_client import ForwardClient
-from pydantic import BaseModel
-from starlette.datastructures import MutableHeaders
-from tests.base_testcase import BaseTestCase
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
+from fastapi import Request
+from fastapi.datastructures import Headers
+from pydantic import BaseModel
+from starlette.datastructures import MutableHeaders
+
+from karapace.api.forward_client import ForwardClient
+from tests.base_testcase import BaseTestCase
 
 
 class TestResponse(BaseModel):

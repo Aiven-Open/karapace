@@ -3,14 +3,14 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.container import KarapaceContainer
-from karapace.core.protobuf.io import calculate_class_name
-from karapace.core.protobuf.kotlin_wrapper import trim_margin
-
 import importlib
 import importlib.util
 import logging
 import subprocess
+
+from karapace.core.container import KarapaceContainer
+from karapace.core.protobuf.io import calculate_class_name
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
 
 log = logging.getLogger(__name__)
 

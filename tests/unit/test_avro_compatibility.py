@@ -6,13 +6,14 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import json
+
+import pytest
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityResult, SchemaCompatibilityType
 from avro.name import Names
 from avro.schema import ArraySchema, Field, MapSchema, Schema, UnionSchema
-from karapace.core.schema_models import parse_avro_schema_definition
 
-import json
-import pytest
+from karapace.core.schema_models import parse_avro_schema_definition
 
 # Schemas defined in AvroCompatibilityTest.java. Used here to ensure compatibility with the schema-registry
 schema1 = parse_avro_schema_definition('{"type":"record","name":"myrecord","fields":[{"type":"string","name":"f1"}]}')

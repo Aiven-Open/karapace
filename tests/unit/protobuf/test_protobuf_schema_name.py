@@ -3,12 +3,12 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import pytest
+
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_models import ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
 from tests.utils import schema_protobuf_second
-
-import pytest
 
 MESSAGE_WITH_ENUM = """\
 syntax = "proto3";

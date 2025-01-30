@@ -3,22 +3,23 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from avro.compatibility import SchemaCompatibilityResult
-from karapace.core.container import KarapaceContainer
-from pathlib import Path
-from karapace.api.container import SchemaRegistryContainer
-from karapace.api.telemetry.container import TelemetryContainer
-from tempfile import mkstemp
-
 import json
 import os
-import pytest
 import re
+from pathlib import Path
+from tempfile import mkstemp
+
+import pytest
+from avro.compatibility import SchemaCompatibilityResult
+
 import karapace.api.controller
-import karapace.api.telemetry.tracer
 import karapace.api.telemetry.meter
-import karapace.api.telemetry.setup
 import karapace.api.telemetry.middleware
+import karapace.api.telemetry.setup
+import karapace.api.telemetry.tracer
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.telemetry.container import TelemetryContainer
+from karapace.core.container import KarapaceContainer
 
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
@@ -92,8 +93,7 @@ def pytest_addoption(parser, pluginmanager) -> None:
     parser.addoption(
         "--registry-url",
         help=(
-            "URL of a running Schema Registry instance. If provided the test "
-            "suite will not start a Schema Registry instance"
+            "URL of a running Schema Registry instance. If provided the test suite will not start a Schema Registry instance"
         ),
     )
     parser.addoption(

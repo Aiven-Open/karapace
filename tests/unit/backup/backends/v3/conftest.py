@@ -3,11 +3,11 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import contextlib
+import io
 from collections.abc import Iterator
 from contextlib import closing
 
-import contextlib
-import io
 import pytest
 
 
