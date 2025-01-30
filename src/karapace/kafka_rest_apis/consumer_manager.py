@@ -20,11 +20,12 @@ from karapace.core.config import Config
 from karapace.core.kafka.common import translate_from_kafkaerror
 from karapace.core.kafka.consumer import AsyncKafkaConsumer
 from karapace.core.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS, Timestamp
-from karapace.core.kafka_rest_apis.authentication import get_kafka_client_auth_parameters_from_config
-from karapace.core.kafka_rest_apis.error_codes import RESTErrorCodes
-from karapace.core.karapace import empty_response, KarapaceBase
 from karapace.core.serialization import DeserializationError, InvalidMessageHeader, InvalidPayload, SchemaRegistrySerializer
-from karapace.core.utils import convert_to_int, json_decode, JSONDecodeError
+from karapace.core.utils import json_decode, JSONDecodeError
+from karapace.kafka_rest_apis.convert_to_int import convert_to_int
+from karapace.kafka_rest_apis.authentication import get_kafka_client_auth_parameters_from_config
+from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
+from karapace.kafka_rest_apis.karapace import empty_response, KarapaceBase
 from struct import error as UnpackError
 from urllib.parse import urljoin
 

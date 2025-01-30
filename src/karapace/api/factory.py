@@ -8,17 +8,17 @@ from contextlib import asynccontextmanager
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, FastAPI
 from karapace import version as karapace_version
-from karapace.core.auth import AuthenticatorAndAuthorizer
-from karapace.core.config import Config
-from karapace.api.forward_client import ForwardClient
-from karapace.core.logging_setup import configure_logging, log_config_without_secrets
-from karapace.core.statsd import StatsClient
 from karapace.api.container import SchemaRegistryContainer
+from karapace.api.forward_client import ForwardClient
 from karapace.api.http_handlers import setup_exception_handlers
 from karapace.api.middlewares import setup_middlewares
-from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.api.routers.setup import setup_routers
 from karapace.api.telemetry.setup import setup_metering, setup_tracing
+from karapace.core.auth import AuthenticatorAndAuthorizer
+from karapace.core.config import Config
+from karapace.core.logging_setup import configure_logging, log_config_without_secrets
+from karapace.core.schema_registry import KarapaceSchemaRegistry
+from karapace.core.statsd import StatsClient
 from typing import AsyncContextManager
 
 import logging

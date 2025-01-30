@@ -11,11 +11,11 @@ from aiokafka import AIOKafkaClient
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
 from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitRequest
+from karapace.api.telemetry.tracer import Tracer
 from karapace.core.config import Config
 from karapace.core.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
 from karapace.core.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
 from karapace.core.typing import PrimaryInfo, SchemaReaderStoppper
-from karapace.api.telemetry.tracer import Tracer
 from threading import Thread
 from typing import Final
 

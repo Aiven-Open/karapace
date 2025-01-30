@@ -6,11 +6,12 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, ExitStack
+from contextlib import ExitStack, asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
+
 from karapace.core.client import Client
 from karapace.core.config import Config
-from pathlib import Path
 from tests.integration.utils.network import allocate_port
 from tests.integration.utils.process import stop_process, wait_for_port_subprocess
 from tests.utils import new_random_name, popen_karapace_all, repeat_until_master_is_available
@@ -82,7 +83,7 @@ async def start_schema_registry_cluster(
                 "KARAPACE_WAITING_TIME_BEFORE_ACTING_AS_MASTER_MS": str(config.waiting_time_before_acting_as_master_ms),
                 "KARAPACE_MASTER_ELIGIBILITY": str(config.master_eligibility),
             }
-            process = popen_karapace_all(module="karapace.api", env=env, stdout=logfile, stderr=errfile)
+            process = popen_karapace_all(module="karapace", env=env, stdout=logfile, stderr=errfile)
             stack.callback(stop_process, process)
             all_processes.append((process, port, config.host))
 

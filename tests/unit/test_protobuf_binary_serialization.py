@@ -3,6 +3,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import pytest
+
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.protobuf.serialization import deserialize, serialize
 from tests.schemas.protobuf import (
@@ -29,8 +31,6 @@ from tests.schemas.protobuf import (
     schema_protobuf_references2_bin,
     schema_protobuf_references_bin,
 )
-
-import pytest
 
 schema_serialized1 = (
     "Cg5tZXNzYWdlcy5wcm90byIRCgNLZXkSCgoCaWQYASABKAUiMQoDRG9nEgwKBG5hbW"

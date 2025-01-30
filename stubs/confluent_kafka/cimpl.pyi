@@ -1,5 +1,6 @@
-from confluent_kafka.admin._metadata import ClusterMetadata
 from typing import Any, Callable, Final, overload
+
+from confluent_kafka.admin._metadata import ClusterMetadata
 
 OFFSET_BEGINNING: Final = ...
 OFFSET_END: Final = ...

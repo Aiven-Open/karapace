@@ -7,10 +7,15 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import asyncio
+import secrets
+from collections.abc import AsyncGenerator, Iterator
+
+import pytest
 from _pytest.fixtures import SubRequest
 from aiohttp import BasicAuth
-from collections.abc import AsyncGenerator, Iterator
 from confluent_kafka.admin import NewTopic
+
 from karapace.core.client import Client
 from karapace.core.container import KarapaceContainer
 from karapace.core.kafka.admin import KafkaAdminClient
@@ -18,10 +23,6 @@ from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint
 from tests.integration.utils.kafka_server import KafkaServers
-
-import asyncio
-import pytest
-import secrets
 
 
 @pytest.fixture(scope="session", name="basic_auth")

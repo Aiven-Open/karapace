@@ -7,12 +7,14 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from aiohttp import BasicAuth
 from collections.abc import Mapping
+from typing import Final
+
+from aiohttp import BasicAuth
+from tenacity import retry, stop_after_attempt, wait_fixed
+
 from karapace.core.client import Client, Headers, Path, Result
 from karapace.core.typing import JsonData
-from tenacity import retry, stop_after_attempt, wait_fixed
-from typing import Final
 
 RETRY_WAIT_SECONDS: Final = 0.5
 

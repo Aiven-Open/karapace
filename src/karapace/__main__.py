@@ -3,10 +3,10 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.container import KarapaceContainer
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.factory import create_karapace_application, karapace_schema_registry_lifespan
 from karapace.api.telemetry.container import TelemetryContainer
+from karapace.core.container import KarapaceContainer
 
 import karapace.api.controller
 import karapace.api.factory

@@ -5,6 +5,11 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+from urllib.parse import quote
+
+import aiohttp
+
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from tests.integration.utils.rest_client import RetryRestClient
@@ -16,10 +21,6 @@ from tests.utils import (
     test_objects_avro,
     wait_for_topics,
 )
-from urllib.parse import quote
-
-import aiohttp
-import asyncio
 
 NEW_TOPIC_TIMEOUT = 10
 

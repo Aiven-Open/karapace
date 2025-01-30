@@ -5,13 +5,13 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import Request, Response, HTTPException
-from karapace.api.telemetry.metrics import HTTPRequestMetrics
-from karapace.api.telemetry.meter import Meter
-from unittest.mock import call, MagicMock
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
+from fastapi import HTTPException, Request, Response
+
+from karapace.api.telemetry.meter import Meter
+from karapace.api.telemetry.metrics import HTTPRequestMetrics
 
 
 @pytest.fixture

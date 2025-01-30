@@ -1,7 +1,7 @@
-from .duration import Duration
+import datetime
 from typing import Literal, overload
 
-import datetime
+from .duration import Duration
 
 @overload
 def parse_duration(

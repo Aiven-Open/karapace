@@ -25,16 +25,6 @@ from karapace.core.config import Config
 from karapace.core.errors import InvalidSchema
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.producer import AsyncKafkaProducer
-from karapace.core.kafka_rest_apis.authentication import (
-    get_auth_config_from_header,
-    get_expiration_time_from_header,
-    get_kafka_client_auth_parameters_from_config,
-)
-from karapace.core.kafka_rest_apis.consumer_manager import ConsumerManager
-from karapace.core.kafka_rest_apis.error_codes import RESTErrorCodes
-from karapace.core.kafka_rest_apis.schema_cache import TopicSchemaCache
-from karapace.core.karapace import KarapaceBase
-from karapace.core.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from karapace.core.schema_models import TypedSchema, ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
 from karapace.core.serialization import (
@@ -45,7 +35,18 @@ from karapace.core.serialization import (
     SchemaRetrievalError,
 )
 from karapace.core.typing import NameStrategy, SchemaId, Subject, SubjectType
-from karapace.core.utils import convert_to_int, json_encode
+from karapace.core.utils import json_encode
+from karapace.kafka_rest_apis.authentication import (
+    get_auth_config_from_header,
+    get_expiration_time_from_header,
+    get_kafka_client_auth_parameters_from_config,
+)
+from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
+from karapace.kafka_rest_apis.convert_to_int import convert_to_int
+from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
+from karapace.kafka_rest_apis.karapace import KarapaceBase
+from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
+from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from typing import TypedDict
 
 import asyncio
@@ -746,7 +747,7 @@ class UserRestProxy:
                 )
             return metadata
 
-    def init_admin_client(self, verify_connection: bool = True) -> KafkaAdminClient:
+    def init_admin_client(self, verify_connection: bool = True) -> None:
         for retry in [True, True, False]:
             try:
                 self.admin_client = KafkaAdminClient(
@@ -1013,9 +1014,9 @@ class UserRestProxy:
             )
         except InvalidSchema:
             if f"{subject_type}_schema" in data:
-                err = f'schema = {data[f"{subject_type}_schema"]}'
+                err = f"schema = {data[f'{subject_type}_schema']}"
             else:
-                err = f'schema_id = {data[f"{subject_type}_schema_id"]}'
+                err = f"schema_id = {data[f'{subject_type}_schema_id']}"
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.INVALID_DATA.value,

@@ -3,13 +3,14 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+import logging
+from unittest.mock import call, patch
+
+import pytest
 from _pytest.logging import LogCaptureFixture
+
 from karapace.core.container import KarapaceContainer
 from karapace.core.logging_setup import configure_logging
-from unittest.mock import patch, call
-
-import logging
-import pytest
 
 
 def test_configure_logging_stdout_handler(caplog: LogCaptureFixture, karapace_container: KarapaceContainer) -> None:

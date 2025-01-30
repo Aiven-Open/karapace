@@ -3,17 +3,18 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import logging
+from unittest.mock import Mock
+
+import pytest
 from _pytest.logging import LogCaptureFixture
 from aiohttp.client_exceptions import ClientConnectionError
 from aiohttp.web import Request
-from karapace.core.container import KarapaceContainer
-from karapace.core.karapace import KarapaceBase
-from karapace.core.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
-from karapace.core.statsd import StatsClient
-from unittest.mock import Mock
 
-import logging
-import pytest
+from karapace.core.container import KarapaceContainer
+from karapace.kafka_rest_apis.karapace import KarapaceBase
+from karapace.core.statsd import StatsClient
+from karapace.rapu import REST_ACCEPT_RE, REST_CONTENT_TYPE_RE, HTTPRequest
 
 
 async def test_header_get():

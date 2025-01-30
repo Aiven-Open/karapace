@@ -3,16 +3,17 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi.exceptions import HTTPException
-from karapace.core.rapu import HTTPResponse
-from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
-from karapace.api.container import SchemaRegistryContainer
-from karapace.core.schema_reader import KafkaSchemaReader
-from unittest.mock import Mock, patch, PropertyMock
-
 import asyncio
 import json
+from unittest.mock import Mock, PropertyMock, patch
+
 import pytest
+from fastapi.exceptions import HTTPException
+
+from karapace.api.container import SchemaRegistryContainer
+from karapace.rapu import HTTPResponse
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.schema_reader import KafkaSchemaReader
 
 TYPED_AVRO_SCHEMA = ValidatedTypedSchema.parse(
     SchemaType.AVRO,

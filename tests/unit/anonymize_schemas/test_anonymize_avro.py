@@ -5,10 +5,11 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.anonymize_schemas.anonymize_avro import anonymize
-
 import json
+
 import pytest
+
+from karapace.core.anonymize_schemas.anonymize_avro import anonymize
 
 PRIMITIVE_TYPE_SCHEMA = json.loads('"int"')
 EXPECTED_PRIMITIVE_TYPE_SCHEMA = "int"

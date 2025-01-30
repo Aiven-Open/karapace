@@ -6,9 +6,9 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Generator, Sequence
-from karapace.core.anonymize_schemas import anonymize_avro
 from karapace.backup.backends.reader import BaseItemsBackupReader
 from karapace.backup.backends.writer import BaseKVBackupWriter, StdOut
+from karapace.core.anonymize_schemas import anonymize_avro
 from karapace.core.utils import json_decode, json_encode
 from pathlib import Path
 from typing import Any, ClassVar, Final, IO
