@@ -7,22 +7,23 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.errors import InvalidTest
 from karapace.core.protobuf.kotlin_wrapper import trim_margin
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import JsonData, SchemaMetadata, SchemaRuleSet
-from pathlib import Path
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.cluster import after_master_is_available, start_schema_registry_cluster
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import create_subject_name_factory
-
-import asyncio
-import logging
-import pytest
 
 baseurl = "http://localhost:8081"
 

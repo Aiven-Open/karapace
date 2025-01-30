@@ -5,19 +5,19 @@ See LICENSE for details
 
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ProtoFileElementTest.kt
+import copy
+
 from karapace.core.protobuf.extend_element import ExtendElement
 from karapace.core.protobuf.field import Field
 from karapace.core.protobuf.field_element import FieldElement
 from karapace.core.protobuf.kotlin_wrapper import trim_margin
 from karapace.core.protobuf.location import Location
 from karapace.core.protobuf.message_element import MessageElement
-from karapace.core.protobuf.option_element import OptionElement, PACKED_OPTION_ELEMENT
+from karapace.core.protobuf.option_element import PACKED_OPTION_ELEMENT, OptionElement
 from karapace.core.protobuf.proto_file_element import PackageName, ProtoFileElement, TypeName
 from karapace.core.protobuf.proto_parser import ProtoParser
 from karapace.core.protobuf.service_element import ServiceElement
 from karapace.core.protobuf.syntax import Syntax
-
-import copy
 
 location: Location = Location("some/folder", "file.proto")
 

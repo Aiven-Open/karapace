@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from karapace.core.config import Config
-from karapace.core.rapu import HTTPResponse, JSON_CONTENT_TYPE
+from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 from typing import NoReturn, TypedDict
 
 import aiohttp

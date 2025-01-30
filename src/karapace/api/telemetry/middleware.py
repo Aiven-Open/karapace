@@ -6,10 +6,10 @@ See LICENSE for details
 from collections.abc import Awaitable, Callable
 from dependency_injector.wiring import inject, Provide
 from fastapi import FastAPI, Request, Response
-from opentelemetry.trace import SpanKind, Status, StatusCode
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.api.telemetry.metrics import HTTPRequestMetrics
 from karapace.api.telemetry.tracer import Tracer
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 import logging
 

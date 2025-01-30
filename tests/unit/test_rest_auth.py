@@ -5,13 +5,13 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from karapace.core.container import KarapaceContainer
-from karapace.core.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
-from unittest.mock import call, Mock
-
 import asyncio
 import datetime
 import time
+from unittest.mock import Mock, call
+
+from karapace.core.container import KarapaceContainer
+from karapace.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
 
 
 def _create_mock_proxy(

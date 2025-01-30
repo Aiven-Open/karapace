@@ -3,8 +3,12 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
 from contextlib import closing
 from dataclasses import dataclass
+
+import pytest
+
 from karapace.core.config import Config
 from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.core.coordinator.master_coordinator import MasterCoordinator
@@ -13,17 +17,14 @@ from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.producer import KafkaProducer
 from karapace.core.key_format import KeyFormatter, KeyMode
 from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.schema_reader import KafkaSchemaReader
 from karapace.core.typing import PrimaryInfo
 from karapace.core.utils import json_encode
-from karapace.core.schema_reader import KafkaSchemaReader
 from tests.base_testcase import BaseTestCase
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.schemas.json_schemas import FALSE_SCHEMA, TRUE_SCHEMA
 from tests.utils import create_group_name_factory, create_subject_name_factory, new_random_name, new_topic
-
-import asyncio
-import pytest
 
 
 async def _wait_until_reader_is_ready_and_master(

@@ -6,11 +6,12 @@ See LICENSE for details
 """
 
 from dataclasses import dataclass
-from karapace.core.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
-from karapace.core.typing import JsonData
-from tests.base_testcase import BaseTestCase
 
 import pytest
+
+from karapace.core.key_format import KeyFormatter, KeyMode, is_key_in_canonical_format
+from karapace.core.typing import JsonData
+from tests.base_testcase import BaseTestCase
 
 
 @dataclass

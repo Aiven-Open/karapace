@@ -5,11 +5,11 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Query
-from karapace.core.auth import AuthenticatorAndAuthorizer, User
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
 from karapace.api.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
 from karapace.api.user import get_current_user
+from karapace.core.auth import AuthenticatorAndAuthorizer, User
 from typing import Annotated
 
 schemas_router = APIRouter(

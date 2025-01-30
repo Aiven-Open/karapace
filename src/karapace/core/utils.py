@@ -14,7 +14,6 @@ from aiohttp.web_response import StreamResponse
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from http import HTTPStatus
 from pathlib import Path
 from types import MappingProxyType
 from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
@@ -189,21 +188,6 @@ class Expiration:
         """
         if self.is_expired():
             raise Timeout(msg_format.format(*args, **kwargs))
-
-
-def convert_to_int(object_: dict, key: str, content_type: str) -> None:
-    if object_.get(key) is None:
-        return
-    try:
-        object_[key] = int(object_[key])
-    except ValueError:
-        from karapace.core.rapu import http_error
-
-        http_error(
-            message=f"{key} is not a valid int: {object_[key]}",
-            content_type=content_type,
-            code=HTTPStatus.INTERNAL_SERVER_ERROR,
-        )
 
 
 class DebugAccessLogger(AccessLogger):

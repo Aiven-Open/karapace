@@ -11,10 +11,10 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.metrics.export import (
     ConsoleMetricExporter,
     MetricExporter,
-    MetricReader,
-    PeriodicExportingMetricReader,
-    MetricsData,
     MetricExportResult,
+    MetricReader,
+    MetricsData,
+    PeriodicExportingMetricReader,
 )
 from typing import Any
 

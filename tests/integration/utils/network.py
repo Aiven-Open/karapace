@@ -3,10 +3,9 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import socket
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
-
-import socket
 
 
 @contextmanager

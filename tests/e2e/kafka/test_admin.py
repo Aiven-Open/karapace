@@ -5,13 +5,13 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import pytest
 from aiokafka.errors import InvalidReplicationFactorError, TopicAlreadyExistsError, UnknownTopicOrPartitionError
 from confluent_kafka.admin import ConfigSource, NewTopic
+
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.producer import KafkaProducer
 from tests.utils import new_topic as create_new_topic
-
-import pytest
 
 
 class TestNewTopic:

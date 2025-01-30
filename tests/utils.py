@@ -3,17 +3,6 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
-from aiokafka.errors import TopicAlreadyExistsError
-from collections.abc import Callable
-from karapace.core.client import Client
-from karapace.core.kafka.admin import KafkaAdminClient
-from karapace.core.protobuf.kotlin_wrapper import trim_margin
-from karapace.core.utils import Expiration
-from pathlib import Path
-from subprocess import Popen
-from typing import Any, IO
-
 import asyncio
 import copy
 import json
@@ -21,6 +10,18 @@ import os
 import ssl
 import sys
 import uuid
+from collections.abc import Callable
+from pathlib import Path
+from subprocess import Popen
+from typing import IO, Any
+
+from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
+from aiokafka.errors import TopicAlreadyExistsError
+
+from karapace.core.client import Client
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.utils import Expiration
 
 consumer_valid_payload = {
     "format": "avro",

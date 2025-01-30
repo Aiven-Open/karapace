@@ -1,11 +1,13 @@
+from concurrent.futures import Future
+from typing import Callable
+
+from confluent_kafka import IsolationLevel, TopicCollection, TopicPartition
+
 from ..cimpl import NewTopic
 from ._config import ConfigEntry, ConfigResource, ConfigSource
 from ._listoffsets import ListOffsetsResultInfo, OffsetSpec
 from ._metadata import BrokerMetadata, ClusterMetadata, PartitionMetadata, TopicMetadata
 from ._resource import ResourceType
-from concurrent.futures import Future
-from confluent_kafka import IsolationLevel, TopicCollection, TopicPartition
-from typing import Callable
 
 __all__ = (
     "AdminClient",

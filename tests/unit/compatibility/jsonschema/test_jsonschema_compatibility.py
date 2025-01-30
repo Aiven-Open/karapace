@@ -5,6 +5,7 @@ See LICENSE for details
 
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from jsonschema import Draft7Validator
+
 from karapace.core.compatibility.jsonschema.checks import compatibility
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,

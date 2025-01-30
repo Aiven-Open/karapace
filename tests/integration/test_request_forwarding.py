@@ -5,8 +5,14 @@ Copyright (c) 2025 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+import json
+from typing import AsyncGenerator
+from urllib.parse import quote_plus
+
+import pytest
 from _pytest.fixtures import SubRequest
-from collections.abc import AsyncGenerator
+
 from karapace.core.client import Client
 from tests.integration.utils.rest_client import RetryRestClient
 from tests.utils import (
@@ -14,11 +20,6 @@ from tests.utils import (
     repeat_until_master_is_available,
     repeat_until_successful_request,
 )
-from urllib.parse import quote_plus
-
-import asyncio
-import json
-import pytest
 
 
 @pytest.fixture(scope="function", name="request_forwarding_retry_client")

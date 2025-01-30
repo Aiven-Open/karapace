@@ -5,8 +5,16 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from aiokafka.errors import KafkaError, TopicAlreadyExistsError
 from collections.abc import Callable
+from pathlib import Path
+from types import FunctionType
+from typing import ContextManager, cast
+from unittest import mock
+from unittest.mock import MagicMock
+
+import pytest
+from aiokafka.errors import KafkaError, TopicAlreadyExistsError
+
 from karapace.backup.api import (
     _admin,
     _consumer,
@@ -26,13 +34,6 @@ from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.core.container import KarapaceContainer
 from karapace.core.kafka.consumer import KafkaConsumer, PartitionMetadata
 from karapace.core.kafka.producer import KafkaProducer
-from pathlib import Path
-from types import FunctionType
-from typing import cast, ContextManager
-from unittest import mock
-from unittest.mock import MagicMock
-
-import pytest
 
 patch_admin_new = mock.patch(
     "karapace.backup.api.KafkaAdminClient.__new__",

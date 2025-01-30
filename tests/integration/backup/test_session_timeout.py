@@ -3,18 +3,19 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+from pathlib import Path
+
+import pytest
 from aiokafka.errors import NoBrokersAvailable
 from confluent_kafka.admin import NewTopic
+
 from karapace.backup.api import BackupVersion, create_backup
 from karapace.core.config import Config
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka_utils import kafka_producer_from_config
-from pathlib import Path
 from tests.integration.conftest import create_kafka_server
 from tests.integration.utils.config import KafkaDescription
 from tests.integration.utils.kafka_server import KafkaServers
-
-import pytest
 
 SESSION_TIMEOUT_MS = 65000
 GROUP_MIN_SESSION_TIMEOUT_MS = 60000

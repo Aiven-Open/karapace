@@ -5,18 +5,18 @@ Copyright (c) 2025 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import Request
-from fastapi.exceptions import HTTPException
-from karapace.api.forward_client import ForwardClient
-from karapace.core.typing import PrimaryInfo
-from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.core.schema_registry import KarapaceSchemaRegistry
-from karapace.api.routers.config import config_put
 from unittest.mock import AsyncMock, Mock
 
-from karapace.api.routers.requests import CompatibilityRequest
-
 import pytest
+from fastapi import Request
+from fastapi.exceptions import HTTPException
+
+from karapace.api.controller import KarapaceSchemaRegistryController
+from karapace.api.forward_client import ForwardClient
+from karapace.api.routers.config import config_put
+from karapace.api.routers.requests import CompatibilityRequest
+from karapace.core.schema_registry import KarapaceSchemaRegistry
+from karapace.core.typing import PrimaryInfo
 
 
 async def test_forwarding_not_a_primary_and_own_primary_url() -> None:

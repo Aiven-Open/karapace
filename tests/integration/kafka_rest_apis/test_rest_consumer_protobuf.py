@@ -3,22 +3,22 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import pytest
+
 from karapace.core.client import Client
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.protobuf.kotlin_wrapper import trim_margin
-from tests.integration.test_rest import NEW_TOPIC_TIMEOUT
+from tests.integration.kafka_rest_apis.test_rest import NEW_TOPIC_TIMEOUT
 from tests.utils import (
+    REST_HEADERS,
     new_consumer,
     new_random_name,
     new_topic,
     repeat_until_successful_request,
-    REST_HEADERS,
     schema_data,
     schema_data_second,
     wait_for_topics,
 )
-
-import pytest
 
 
 @pytest.mark.parametrize("schema_type", ["protobuf"])

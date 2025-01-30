@@ -5,38 +5,39 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from _pytest.logging import LogCaptureFixture
+import json
+import logging
+import random
+import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from confluent_kafka import Message
 from dataclasses import dataclass
+from unittest.mock import Mock
+
+import confluent_kafka
+import pytest
+from _pytest.logging import LogCaptureFixture
+from confluent_kafka import Message
+from pytest import MonkeyPatch
+
 from karapace.core.container import KarapaceContainer
 from karapace.core.errors import CorruptKafkaRecordException, ShutdownException
 from karapace.core.in_memory_database import InMemoryDatabase
 from karapace.core.kafka.consumer import KafkaConsumer
 from karapace.core.key_format import KeyFormatter
 from karapace.core.offset_watcher import OffsetWatcher
-from karapace.core.schema_type import SchemaType
-from karapace.core.typing import SchemaId, Version
-from pytest import MonkeyPatch
 from karapace.core.schema_reader import (
-    KafkaSchemaReader,
     MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP,
     MAX_MESSAGES_TO_CONSUME_ON_STARTUP,
-    MessageType,
     OFFSET_EMPTY,
     OFFSET_UNINITIALIZED,
+    KafkaSchemaReader,
+    MessageType,
 )
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import SchemaId, Version
 from tests.base_testcase import BaseTestCase
 from tests.utils import schema_protobuf_invalid_because_corrupted, schema_protobuf_with_invalid_ref
-from unittest.mock import Mock
-
-import confluent_kafka
-import json
-import logging
-import pytest
-import random
-import time
 
 
 def test_offset_watcher() -> None:

@@ -1,6 +1,7 @@
-from ._resource import ResourceType
 from enum import Enum
 from typing import cast
+
+from ._resource import ResourceType
 
 class ConfigResource:
     Type = ResourceType

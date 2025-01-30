@@ -5,22 +5,23 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import base64
+import datetime
 from collections.abc import Mapping
 from http import HTTPStatus
+from typing import Any
+
+import jwt
+import pytest
+
 from karapace.core.container import KarapaceContainer
-from karapace.core.kafka_rest_apis.authentication import (
+from karapace.kafka_rest_apis.authentication import (
+    SimpleOauthTokenProvider,
     get_auth_config_from_header,
     get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
-    SimpleOauthTokenProvider,
 )
-from karapace.core.rapu import HTTPResponse, JSON_CONTENT_TYPE
-from typing import Any
-
-import base64
-import datetime
-import jwt
-import pytest
+from karapace.rapu import JSON_CONTENT_TYPE, HTTPResponse
 
 
 def _assert_unauthorized_http_response(http_response: HTTPResponse) -> None:

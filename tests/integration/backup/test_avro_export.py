@@ -5,19 +5,19 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import base64
+import json
+import os
+from pathlib import Path
+from typing import Any
+
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.utils import json_encode
-from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from typing import Any
-
-import base64
-import json
-import os
 
 baseurl = "http://localhost:8081"
 

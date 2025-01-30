@@ -7,7 +7,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
+from pathlib import Path
+from typing import Final
+
+import pytest
 from confluent_kafka.cimpl import KafkaError
+
 from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
 from karapace.core.container import KarapaceContainer
 from karapace.core.in_memory_database import InMemoryDatabase, KarapaceDatabase, Subject, SubjectData
@@ -16,14 +21,10 @@ from karapace.core.key_format import KeyFormatter
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_models import SchemaVersion, TypedSchema
+from karapace.core.schema_reader import KafkaSchemaReader
 from karapace.core.schema_references import Reference, Referents
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import SchemaId, Version
-from pathlib import Path
-from karapace.core.schema_reader import KafkaSchemaReader
-from typing import Final
-
-import pytest
 
 TEST_DATA_FOLDER: Final = Path("tests/unit/test_data/")
 

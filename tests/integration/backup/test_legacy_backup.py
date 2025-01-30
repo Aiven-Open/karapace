@@ -5,7 +5,16 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+import json
+import os
+import time
+from pathlib import Path
+from unittest import mock
+
+import pytest
 from aiokafka.errors import InvalidTopicError
+
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
 from karapace.backup.errors import StaleConsumerError
@@ -17,17 +26,9 @@ from karapace.core.kafka.common import KafkaError
 from karapace.core.kafka.consumer import KafkaConsumer
 from karapace.core.key_format import is_key_in_canonical_format
 from karapace.core.utils import Expiration
-from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from tests.utils import new_random_name, StubMessage
-from unittest import mock
-
-import asyncio
-import json
-import os
-import pytest
-import time
+from tests.utils import StubMessage, new_random_name
 
 baseurl = "http://localhost:8081"
 

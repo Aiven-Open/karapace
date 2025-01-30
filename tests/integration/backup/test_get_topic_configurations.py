@@ -5,16 +5,16 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import pytest
 from confluent_kafka.admin import NewTopic
+
 from karapace.backup.topic_configurations import (
     ALL_CONFIG_SOURCES,
-    ConfigSource,
     DEFAULT_CONFIGS,
+    ConfigSource,
     get_topic_configurations,
 )
 from karapace.core.kafka.admin import KafkaAdminClient
-
-import pytest
 
 
 class TestTopicConfiguration:

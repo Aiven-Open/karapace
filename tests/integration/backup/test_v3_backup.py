@@ -5,13 +5,28 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from aiokafka.errors import InvalidReplicationFactorError, UnknownTopicOrPartitionError
+import datetime
+import json
+import logging
+import os
+import shutil
+import subprocess
+import textwrap
+import time
 from collections.abc import Iterator
+from dataclasses import fields
+from pathlib import Path
+from tempfile import mkdtemp
+from typing import NoReturn
+from unittest.mock import patch
+
+import pytest
+from aiokafka.errors import InvalidReplicationFactorError, UnknownTopicOrPartitionError
 from confluent_kafka import Message, TopicPartition
 from confluent_kafka.admin import NewTopic
-from dataclasses import fields
+
 from karapace.backup import api
-from karapace.backup.api import _consume_records, BackupVersion, TopicName
+from karapace.backup.api import BackupVersion, TopicName, _consume_records
 from karapace.backup.backends.v3.errors import InconsistentOffset
 from karapace.backup.backends.v3.readers import read_metadata
 from karapace.backup.backends.v3.schema import Metadata
@@ -25,22 +40,8 @@ from karapace.core.kafka.producer import KafkaProducer
 from karapace.core.kafka.types import Timestamp
 from karapace.core.kafka_utils import kafka_consumer_from_config, kafka_producer_from_config
 from karapace.version import __version__
-from pathlib import Path
-from tempfile import mkdtemp
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
-from typing import NoReturn
-from unittest.mock import patch
-
-import datetime
-import json
-import logging
-import os
-import pytest
-import shutil
-import subprocess
-import textwrap
-import time
 
 logger = logging.getLogger(__name__)
 

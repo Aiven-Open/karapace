@@ -6,8 +6,8 @@ See LICENSE for details
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from karapace.core.auth import AuthenticationError, AuthenticatorAndAuthorizer, User
 from karapace.api.container import SchemaRegistryContainer
+from karapace.core.auth import AuthenticationError, AuthenticatorAndAuthorizer, User
 from typing import Annotated
 
 

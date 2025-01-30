@@ -3,10 +3,11 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-# Ported from square/wire:
-# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
 from karapace.core.protobuf.exception import IllegalStateException
 from karapace.core.protobuf.location import Location
+
+# Ported from square/wire:
+# wire-library/wire-schema/src/commonMain/kotlin/com/squareup/wire/schema/internal/parser/SyntaxReader.kt
 from typing import NoReturn
 
 

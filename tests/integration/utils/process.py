@@ -3,13 +3,13 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.utils import Expiration
-from subprocess import Popen
-from tests.integration.utils.network import port_is_listening
-
 import os
 import signal
 import time
+from subprocess import Popen
+
+from karapace.core.utils import Expiration
+from tests.integration.utils.network import port_is_listening
 
 
 def wait_for_port_subprocess(

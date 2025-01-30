@@ -1,5 +1,5 @@
 """
-karapace - main
+karapace - karapace base
 
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
@@ -13,9 +13,9 @@ from functools import partial
 from http import HTTPStatus
 from karapace.core.config import Config
 from karapace.core.dataclasses import default_dataclass
-from karapace.core.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.core.typing import JsonObject
 from karapace.core.utils import json_encode
+from karapace.rapu import HTTPRequest, HTTPResponse, RestApp
 from karapace.version import __version__
 from typing import NoReturn, TypeAlias
 
