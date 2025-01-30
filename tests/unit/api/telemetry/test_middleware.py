@@ -5,17 +5,18 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+import logging
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
+import pytest
 from _pytest.logging import LogCaptureFixture
 from fastapi import FastAPI, Request, Response
 from opentelemetry.trace import SpanKind, Status, StatusCode
-from karapace.api.telemetry.metrics import HTTPRequestMetrics
+
 from karapace.api.telemetry.meter import Meter
+from karapace.api.telemetry.metrics import HTTPRequestMetrics
 from karapace.api.telemetry.middleware import setup_telemetry_middleware, telemetry_middleware
 from karapace.api.telemetry.tracer import Tracer
-from unittest.mock import AsyncMock, call, MagicMock, patch
-
-import logging
-import pytest
 
 
 @pytest.fixture

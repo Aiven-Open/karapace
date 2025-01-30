@@ -5,16 +5,17 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from avro.schema import Schema as AvroSchema
+import operator
 from collections.abc import Callable
-from karapace.core.errors import InvalidVersion, VersionNotFoundException
-from karapace.core.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Versioner
-from karapace.core.schema_type import SchemaType
-from karapace.core.typing import Version, VersionTag
 from typing import Any
 
-import operator
 import pytest
+from avro.schema import Schema as AvroSchema
+
+from karapace.core.errors import InvalidVersion, VersionNotFoundException
+from karapace.core.schema_models import SchemaVersion, TypedSchema, Versioner, parse_avro_schema_definition
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import Version, VersionTag
 
 # Schema versions factory fixture type
 SVFCallable = Callable[[None], Callable[[int, dict[str, Any]], dict[int, SchemaVersion]]]

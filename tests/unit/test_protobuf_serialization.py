@@ -3,27 +3,28 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+import logging
+import struct
+from unittest.mock import Mock, call
+
+import pytest
+
 from karapace.core.container import KarapaceContainer
 from karapace.core.dependency import Dependency
 from karapace.core.protobuf.kotlin_wrapper import trim_margin
 from karapace.core.schema_models import ParsedTypedSchema, SchemaType, Versioner
 from karapace.core.schema_references import Reference
 from karapace.core.serialization import (
+    START_BYTE,
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
-    START_BYTE,
 )
 from karapace.core.typing import Subject
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
-from unittest.mock import call, Mock
-
-import asyncio
-import logging
-import pytest
-import struct
 
 log = logging.getLogger(__name__)
 

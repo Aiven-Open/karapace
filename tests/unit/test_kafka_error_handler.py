@@ -3,14 +3,15 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+import logging
+
+import aiokafka.errors as Errors
+import pytest
 from _pytest.logging import LogCaptureFixture
+
 from karapace.core.container import KarapaceContainer
 from karapace.core.errors import CorruptKafkaRecordException
 from karapace.core.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
-
-import aiokafka.errors as Errors
-import logging
-import pytest
 
 
 @pytest.fixture(name="kafka_error_handler")

@@ -5,13 +5,15 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+from unittest.mock import MagicMock, call, patch
+
 from fastapi import Request, Response
-from karapace.core.config import KarapaceTelemetry
-from karapace.core.container import KarapaceContainer
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SpanExporter, SpanProcessor
 from opentelemetry.trace.span import Span
+
 from karapace.api.telemetry.tracer import NOOPSpanExporter, Tracer
-from unittest.mock import call, MagicMock, patch
+from karapace.core.config import KarapaceTelemetry
+from karapace.core.container import KarapaceContainer
 
 
 def test_tracer(karapace_container: KarapaceContainer):

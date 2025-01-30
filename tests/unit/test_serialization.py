@@ -3,32 +3,33 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+import copy
+import io
+import json
+import logging
+import struct
+from unittest.mock import Mock, call
+
+import avro
+import pytest
+
 from karapace.core.container import KarapaceContainer
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema, Versioner
 from karapace.core.serialization import (
-    flatten_unions,
-    get_subject_name,
     HEADER_FORMAT,
+    START_BYTE,
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
-    START_BYTE,
+    flatten_unions,
+    get_subject_name,
     write_value,
 )
 from karapace.core.typing import NameStrategy, Subject, SubjectType
 from tests.utils import schema_avro_json, test_objects_avro
-from unittest.mock import call, Mock
-
-import asyncio
-import avro
-import copy
-import io
-import json
-import logging
-import pytest
-import struct
 
 log = logging.getLogger(__name__)
 

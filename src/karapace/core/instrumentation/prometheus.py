@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from aiohttp.web import middleware, Request, Response
 from collections.abc import Awaitable, Callable
-from karapace.core.rapu import RestApp
+from karapace.rapu import RestApp
 from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, Histogram
 from typing import Final
 

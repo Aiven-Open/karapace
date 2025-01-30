@@ -6,9 +6,11 @@ See LICENSE for details
 """
 
 from http import HTTPStatus
+
+from prometheus_client.parser import text_string_to_metric_families
+
 from karapace.core.client import Client, Result
 from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
-from prometheus_client.parser import text_string_to_metric_families
 
 
 async def test_metrics_endpoint(registry_async_client: Client) -> None:

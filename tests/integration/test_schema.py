@@ -5,15 +5,23 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from attr import dataclass
+import asyncio
+import json
+import os
+import time
 from http import HTTPStatus
+
+import pytest
+import requests
+from attr import dataclass
+
+from karapace.api.controller import SchemaErrorMessages
 from karapace.core.client import Client
 from karapace.core.kafka.producer import KafkaProducer
-from karapace.core.rapu import is_success
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import JsonData
 from karapace.core.utils import json_encode
-from karapace.api.controller import SchemaErrorMessages
+from karapace.rapu import is_success
 from tests.base_testcase import BaseTestCase
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers
@@ -23,13 +31,6 @@ from tests.utils import (
     create_subject_name_factory,
     repeat_until_successful_request,
 )
-
-import asyncio
-import json
-import os
-import pytest
-import requests
-import time
 
 baseurl = "http://localhost:8081"
 

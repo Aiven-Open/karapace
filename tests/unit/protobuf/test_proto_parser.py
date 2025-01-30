@@ -5,6 +5,8 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ProtoParserTest.kt
 
+import pytest
+
 from karapace.core.protobuf.enum_constant_element import EnumConstantElement
 from karapace.core.protobuf.enum_element import EnumElement
 from karapace.core.protobuf.exception import IllegalStateException
@@ -25,8 +27,6 @@ from karapace.core.protobuf.rpc_element import RpcElement
 from karapace.core.protobuf.service_element import ServiceElement
 from karapace.core.protobuf.syntax import Syntax
 from karapace.core.protobuf.utils import MAX_TAG_VALUE
-
-import pytest
 
 location: Location = Location("", "file.proto")
 
@@ -519,7 +519,7 @@ def test_syntax_not_first_declaration_throws():
     proto = trim_margin(proto)
     with pytest.raises(
         IllegalStateException,
-        match="Syntax error in file.proto:2:1: 'syntax' element must be the first declaration " "in a file",
+        match="Syntax error in file.proto:2:1: 'syntax' element must be the first declaration in a file",
     ):
         ProtoParser.parse(location, proto)
         pytest.fail("")
@@ -632,7 +632,7 @@ def test_proto3_message_fields_forbid_required():
     proto = trim_margin(proto)
     with pytest.raises(
         IllegalStateException,
-        match="Syntax error in file.proto:3:3: 'required' label forbidden in proto3 field " "declarations",
+        match="Syntax error in file.proto:3:3: 'required' label forbidden in proto3 field declarations",
     ):
         ProtoParser.parse(location, proto)
         pytest.fail("")
@@ -679,7 +679,7 @@ def test_proto3_extension_fields_forbids_required():
     proto = trim_margin(proto)
     with pytest.raises(
         IllegalStateException,
-        match="Syntax error in file.proto:5:3: 'required' label forbidden in proto3 field " "declarations",
+        match="Syntax error in file.proto:5:3: 'required' label forbidden in proto3 field declarations",
     ):
         ProtoParser.parse(location, proto)
         pytest.fail("")
@@ -1031,8 +1031,7 @@ def test_package_declaration():
             MessageElement(
                 location=location.at(6, 1),
                 name="FileDescriptorSet",
-                documentation="The protocol compiler can output a FileDescriptorSet containing the .proto\nfiles "
-                "it parses.",
+                documentation="The protocol compiler can output a FileDescriptorSet containing the .proto\nfiles it parses.",
             )
         ],
         options=[OptionElement("java_package", OptionElement.Kind.STRING, "com.google.protobuf")],

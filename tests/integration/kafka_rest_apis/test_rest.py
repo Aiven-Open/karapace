@@ -5,19 +5,27 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import json
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
+
+import pytest
+
 from karapace.core.client import Client
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.producer import KafkaProducer
-from karapace.core.kafka_rest_apis import KafkaRest, SUBJECT_VALID_POSTFIX
+from karapace.kafka_rest_apis import SUBJECT_VALID_POSTFIX, KafkaRest
 from karapace.core.schema_type import SchemaType
 from karapace.version import __version__
 from tests.integration.conftest import REST_PRODUCER_MAX_REQUEST_BYTES
 from tests.utils import (
+    REST_HEADERS,
     new_random_name,
     new_topic,
-    REST_HEADERS,
     schema_avro_json,
     schema_avro_json_evolution,
     second_obj,
@@ -25,13 +33,6 @@ from tests.utils import (
     test_objects_avro_evolution,
     wait_for_topics,
 )
-from typing import Any
-
-import asyncio
-import base64
-import json
-import pytest
-import time
 
 NEW_TOPIC_TIMEOUT = 10
 

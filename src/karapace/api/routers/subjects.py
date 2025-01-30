@@ -5,16 +5,16 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Request
-from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
-from karapace.api.forward_client import ForwardClient
-from karapace.core.typing import Subject
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.core.schema_registry import KarapaceSchemaRegistry
+from karapace.api.forward_client import ForwardClient
 from karapace.api.routers.errors import no_primary_url_error, unauthorized
 from karapace.api.routers.raw_path_router import RawPathRoute
 from karapace.api.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from karapace.api.user import get_current_user
+from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.schema_registry import KarapaceSchemaRegistry
+from karapace.core.typing import Subject
 from typing import Annotated
 from urllib.parse import unquote_plus
 

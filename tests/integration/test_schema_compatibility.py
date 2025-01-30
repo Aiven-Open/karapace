@@ -5,16 +5,17 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import json
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+from typing import Any, Final
+
+import pytest
+
 from karapace.core.client import Client
 from karapace.core.typing import JsonObject, Subject
 from tests.base_testcase import BaseTestCase
-from typing import Any, Final
-
-import json
-import logging
-import pytest
 
 SchemaRegitrationFunc = Callable[[Client, Subject], Coroutine[Any, Any, None]]
 

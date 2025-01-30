@@ -3,8 +3,17 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import datetime
+import io
+import time
+import uuid
+from typing import IO
+
+import pytest
 from hypothesis import given
 from hypothesis.strategies import integers
+from xxhash import xxh64
+
 from karapace.backup.backends.v3.errors import (
     IntegerAboveBound,
     IntegerBelowBound,
@@ -24,14 +33,6 @@ from karapace.backup.backends.v3.writers import (
     write_uint64,
 )
 from tests.unit.backup.backends.v3.conftest import setup_buffer
-from typing import IO
-from xxhash import xxh64
-
-import datetime
-import io
-import pytest
-import time
-import uuid
 
 
 @pytest.mark.parametrize(

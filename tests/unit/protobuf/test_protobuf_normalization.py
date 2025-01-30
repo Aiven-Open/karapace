@@ -3,16 +3,17 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+from typing import Final
+
+import pytest
+
 from karapace.core.dependency import Dependency
 from karapace.core.protobuf.compare_result import CompareResult
 from karapace.core.protobuf.location import Location
 from karapace.core.protobuf.proto_normalizations import normalize
-from karapace.core.schema_models import parse_protobuf_schema_definition, ValidatedTypedSchema
+from karapace.core.schema_models import ValidatedTypedSchema, parse_protobuf_schema_definition
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import Subject, Version
-from typing import Final
-
-import pytest
 
 LOCATION: Final[Location] = Location("somefolder", "file.proto")
 

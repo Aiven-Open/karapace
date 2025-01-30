@@ -5,6 +5,7 @@ See LICENSE for details
 
 from pathlib import Path
 from subprocess import Popen
+
 from tests.integration.utils.config import KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
