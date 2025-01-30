@@ -7,7 +7,7 @@ See LICENSE for details
 
 from _pytest.fixtures import SubRequest
 from typing import AsyncGenerator
-from karapace.client import Client
+from karapace.core.client import Client
 from tests.integration.utils.rest_client import RetryRestClient
 from tests.utils import (
     create_subject_name_factory,

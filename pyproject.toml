@@ -64,9 +64,9 @@ classifiers=[
 ]
 
 [project.scripts]
-karapace = "karapace.karapace_all:main"
+karapace = "karapace.core.karapace_all:main"
 karapace_schema_backup = "karapace.backup.cli:main"
-karapace_mkpasswd = "karapace.auth:main"
+karapace_mkpasswd = "karapace.core.auth:main"
 
 [project.urls]
 Homepage = "https://karapace.io"

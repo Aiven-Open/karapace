@@ -5,8 +5,8 @@ Copyright (c) 2019 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.client import Client
-from karapace.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.client import Client
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
 from tests.utils import create_subject_name_factory
 
 

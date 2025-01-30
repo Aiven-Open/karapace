@@ -6,8 +6,8 @@ See LICENSE for details
 """
 
 from _pytest.logging import LogCaptureFixture
-from karapace.instrumentation.prometheus import PrometheusInstrumentation
-from karapace.rapu import RestApp
+from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
+from karapace.core.rapu import RestApp
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 from unittest.mock import AsyncMock, call, MagicMock, patch
 
@@ -45,7 +45,7 @@ class TestPrometheusInstrumentation:
     def test_setup_metrics(self, caplog: LogCaptureFixture, prometheus: PrometheusInstrumentation) -> None:
         app = AsyncMock(spec=RestApp, app=AsyncMock(spec=aiohttp.web.Application))
 
-        with caplog.at_level(logging.INFO, logger="karapace.instrumentation.prometheus"):
+        with caplog.at_level(logging.INFO, logger="karapace.core.instrumentation.prometheus"):
             prometheus.setup_metrics(app=app)
 
             app.route.assert_called_once_with(
@@ -69,16 +69,16 @@ class TestPrometheusInstrumentation:
                 ]
             )
             for log in caplog.records:
-                assert log.name == "karapace.instrumentation.prometheus"
+                assert log.name == "karapace.core.instrumentation.prometheus"
                 assert log.levelname == "INFO"
                 assert log.message == "Setting up prometheus metrics"
 
-    @patch("karapace.instrumentation.prometheus.generate_latest")
+    @patch("karapace.core.instrumentation.prometheus.generate_latest")
     async def test_serve_metrics(self, generate_latest: MagicMock, prometheus: PrometheusInstrumentation) -> None:
         await prometheus.serve_metrics()
         generate_latest.assert_called_once_with(prometheus.registry)
 
-    @patch("karapace.instrumentation.prometheus.time")
+    @patch("karapace.core.instrumentation.prometheus.time")
     async def test_http_request_metrics_middleware(
         self,
         mock_time: MagicMock,

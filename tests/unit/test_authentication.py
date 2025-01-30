@@ -7,14 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from http import HTTPStatus
-from karapace.container import KarapaceContainer
-from karapace.kafka_rest_apis.authentication import (
+from karapace.core.container import KarapaceContainer
+from karapace.core.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
     SimpleOauthTokenProvider,
 )
-from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
+from karapace.core.rapu import HTTPResponse, JSON_CONTENT_TYPE
 from typing import Any
 
 import base64

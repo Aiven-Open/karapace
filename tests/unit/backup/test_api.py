@@ -21,11 +21,11 @@ from karapace.backup.api import (
 from karapace.backup.backends.reader import RestoreTopic, RestoreTopicLegacy
 from karapace.backup.backends.writer import StdOut
 from karapace.backup.errors import BackupError, PartitionCountError
-from karapace.config import Config
-from karapace.constants import DEFAULT_SCHEMA_TOPIC
-from karapace.container import KarapaceContainer
-from karapace.kafka.consumer import KafkaConsumer, PartitionMetadata
-from karapace.kafka.producer import KafkaProducer
+from karapace.core.config import Config
+from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.core.container import KarapaceContainer
+from karapace.core.kafka.consumer import KafkaConsumer, PartitionMetadata
+from karapace.core.kafka.producer import KafkaProducer
 from pathlib import Path
 from types import FunctionType
 from typing import cast, ContextManager

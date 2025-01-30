@@ -3,8 +3,8 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.client import Client
-from karapace.typing import Mode
+from karapace.core.client import Client
+from karapace.core.typing import Mode
 from tests.utils import create_schema_name_factory, create_subject_name_factory
 
 import json

@@ -7,9 +7,9 @@ See LICENSE for details
 
 from karapace.backup import api
 from karapace.backup.api import BackupVersion
-from karapace.client import Client
-from karapace.config import Config
-from karapace.utils import json_encode
+from karapace.core.client import Client
+from karapace.core.config import Config
+from karapace.core.utils import json_encode
 from pathlib import Path
 from tests.integration.utils.cluster import RegistryDescription
 from tests.integration.utils.kafka_server import KafkaServers

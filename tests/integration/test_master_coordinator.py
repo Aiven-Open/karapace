@@ -5,9 +5,9 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.config import Config
-from karapace.coordinator.master_coordinator import MasterCoordinator
-from karapace.typing import SchemaReaderStoppper
+from karapace.core.config import Config
+from karapace.core.coordinator.master_coordinator import MasterCoordinator
+from karapace.core.typing import SchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.integration.utils.network import allocate_port
 from tests.utils import new_random_name

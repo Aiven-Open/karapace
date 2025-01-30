@@ -5,9 +5,9 @@ See LICENSE for details
 
 from __future__ import annotations
 
-from karapace.key_format import KeyFormatter
-from karapace.typing import JsonData, JsonObject
-from karapace.utils import json_decode, json_encode
+from karapace.core.key_format import KeyFormatter
+from karapace.core.typing import JsonData, JsonObject
+from karapace.core.utils import json_decode, json_encode
 
 
 def encode_key(

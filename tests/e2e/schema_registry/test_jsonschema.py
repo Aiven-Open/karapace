@@ -4,10 +4,10 @@ See LICENSE for details
 """
 
 from jsonschema import Draft7Validator
-from karapace.client import Client
-from karapace.compatibility import CompatibilityModes
-from karapace.typing import SchemaMetadata, SchemaRuleSet
-from schema_registry.reader import SchemaType
+from karapace.core.client import Client
+from karapace.core.compatibility import CompatibilityModes
+from karapace.core.typing import SchemaMetadata, SchemaRuleSet
+from karapace.core.schema_reader import SchemaType
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
     A_DINT_B_INT_OBJECT_SCHEMA,

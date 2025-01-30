@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Container
 from confluent_kafka.admin import ConfigSource
-from karapace.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.admin import KafkaAdminClient
 from typing import Final
 
 ALL_CONFIG_SOURCES: Final = ConfigSource

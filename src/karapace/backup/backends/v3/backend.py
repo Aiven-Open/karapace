@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from karapace.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
 from karapace.backup.backends.writer import BytesBackupWriter, StdOut
 from karapace.backup.safe_writer import bytes_writer, staging_directory
-from karapace.dataclasses import default_dataclass
-from karapace.utils import assert_never
+from karapace.core.dataclasses import default_dataclass
+from karapace.core.utils import assert_never
 from karapace.version import __version__
 from pathlib import Path
 from typing import ContextManager, Final, IO, TypeAlias, TypeVar

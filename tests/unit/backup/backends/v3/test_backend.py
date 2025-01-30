@@ -16,7 +16,7 @@ from karapace.backup.backends.v3.errors import (
 )
 from karapace.backup.backends.v3.readers import read_records
 from karapace.backup.backends.v3.schema import ChecksumAlgorithm, DataFile
-from karapace.kafka.types import Timestamp
+from karapace.core.kafka.types import Timestamp
 from pathlib import Path
 from tests.utils import StubMessage
 from unittest import mock

@@ -8,9 +8,9 @@ See LICENSE for details
 from . import schema
 from avro.compatibility import ReaderWriterCompatibilityChecker, SchemaCompatibilityType
 from collections.abc import Generator
-from karapace.avro_dataclasses.introspect import record_schema
-from karapace.avro_dataclasses.models import AvroModel
-from karapace.schema_models import parse_avro_schema_definition
+from karapace.core.avro_dataclasses.introspect import record_schema
+from karapace.core.avro_dataclasses.models import AvroModel
+from karapace.core.schema_models import parse_avro_schema_definition
 from typing import Final
 
 import argparse
