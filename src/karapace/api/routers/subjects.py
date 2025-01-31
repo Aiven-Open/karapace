@@ -13,6 +13,7 @@ from karapace.api.routers.raw_path_router import RawPathRoute
 from karapace.api.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.auth_container import AuthContainer
 from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.core.typing import Subject
 from typing import Annotated
@@ -36,7 +37,7 @@ subjects_router = APIRouter(
 async def subjects_get(
     user: Annotated[User, Depends(get_current_user)],
     deleted: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[str]:
     return await controller.subjects_list(
@@ -54,7 +55,7 @@ async def subjects_subject_post(
     schema_request: SchemaRequest,
     deleted: bool = False,
     normalize: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemaResponse:
     subject = Subject(unquote_plus(subject))
@@ -77,7 +78,7 @@ async def subjects_subject_delete(
     user: Annotated[User, Depends(get_current_user)],
     permanent: bool = False,
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[int]:
@@ -103,7 +104,7 @@ async def subjects_subject_versions_post(
     schema_request: SchemaRequest,
     user: Annotated[User, Depends(get_current_user)],
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     normalize: bool = False,
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemaIdResponse:
@@ -128,7 +129,7 @@ async def subjects_subject_versions_list(
     subject: Subject,
     user: Annotated[User, Depends(get_current_user)],
     deleted: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[int]:
     subject = Subject(unquote_plus(subject))
@@ -145,7 +146,7 @@ async def subjects_subject_version_get(
     version: str,
     user: Annotated[User, Depends(get_current_user)],
     deleted: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SubjectSchemaVersionResponse:
     subject = Subject(unquote_plus(subject))
@@ -164,7 +165,7 @@ async def subjects_subject_version_delete(
     user: Annotated[User, Depends(get_current_user)],
     permanent: bool = False,
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> int:
@@ -188,7 +189,7 @@ async def subjects_subject_version_schema_get(
     subject: Subject,
     version: str,
     user: Annotated[User, Depends(get_current_user)],
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> dict:
     subject = Subject(unquote_plus(subject))
@@ -204,7 +205,7 @@ async def subjects_subject_version_referenced_by(
     subject: Subject,
     version: str,
     user: Annotated[User, Depends(get_current_user)],
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[int]:
     subject = Subject(unquote_plus(subject))

@@ -12,6 +12,7 @@ from karapace.api.routers.raw_path_router import RawPathRoute
 from karapace.api.routers.requests import ModeResponse
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.auth_container import AuthContainer
 from karapace.core.typing import Subject
 from typing import Annotated
 from urllib.parse import unquote_plus
@@ -28,7 +29,7 @@ mode_router = APIRouter(
 @inject
 async def mode_get(
     user: Annotated[User, Depends(get_current_user)],
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> ModeResponse:
     if authorizer and not authorizer.check_authorization(user, Operation.Read, "Config:"):
@@ -42,7 +43,7 @@ async def mode_get(
 async def mode_get_subject(
     subject: Subject,
     user: Annotated[User, Depends(get_current_user)],
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> ModeResponse:
     subject = Subject(unquote_plus(subject))

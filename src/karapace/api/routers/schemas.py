@@ -12,6 +12,8 @@ from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, User
 from typing import Annotated
 
+from karapace.core.auth_container import AuthContainer
+
 schemas_router = APIRouter(
     prefix="/schemas",
     tags=["schemas"],
@@ -26,7 +28,7 @@ async def schemas_get_list(
     user: Annotated[User, Depends(get_current_user)],
     deleted: bool = False,
     latestOnly: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[SchemaListingItem]:
     return await controller.schemas_list(
@@ -45,7 +47,7 @@ async def schemas_get(
     includeSubjects: bool = False,  # TODO: include subjects?
     fetchMaxId: bool = False,  # TODO: fetch max id?
     format_serialized: str = Query("", alias="format"),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemasResponse:
     return await controller.schemas_get(
@@ -72,7 +74,7 @@ async def schemas_get_versions(
     user: Annotated[User, Depends(get_current_user)],
     schema_id: str,
     deleted: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> list[SubjectVersion]:
     return await controller.schemas_get_versions(
