@@ -40,6 +40,7 @@ from karapace.core.schema_models import (
 )
 from karapace.core.schema_reader import KafkaSchemaReader
 from karapace.core.schema_references import LatestVersionReference, Reference
+from karapace.core.stats import StatsClient
 from karapace.core.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
 
 import asyncio
@@ -49,7 +50,7 @@ LOG = logging.getLogger(__name__)
 
 
 class KarapaceSchemaRegistry:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, stats: StatsClient) -> None:
         # TODO: compatibility was previously in mutable dict, fix the runtime config to be distinct from static config.
         self.config = config
         self._tracer = Tracer()
@@ -68,6 +69,7 @@ class KarapaceSchemaRegistry:
             key_formatter=self._key_formatter,
             master_coordinator=self.mc,
             database=self.database,
+            stats=stats,
         )
         self.mc.set_stoppper(self.schema_reader)
 

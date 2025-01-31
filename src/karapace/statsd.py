@@ -26,7 +26,7 @@ LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, *, config: Config) -> None:
         self._dest_addr: Final = (config.statsd_host, config.statsd_port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._tags: Final[KarapaceTags] = config.tags

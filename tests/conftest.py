@@ -13,7 +13,7 @@ import pytest
 from avro.compatibility import SchemaCompatibilityResult
 
 import karapace.api.controller
-import karapace.api.telemetry.meter
+import karapace.core.instrumentation.meter
 import karapace.api.telemetry.middleware
 import karapace.api.telemetry.setup
 import karapace.api.telemetry.tracer
@@ -196,7 +196,7 @@ def fixture_karapace_container() -> KarapaceContainer:
         modules=[
             karapace.api.controller,
             karapace.api.telemetry.tracer,
-            karapace.api.telemetry.meter,
+            karapace.core.instrumentation.meter,
         ]
     )
     return karapace_container

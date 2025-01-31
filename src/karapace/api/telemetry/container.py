@@ -4,11 +4,11 @@ See LICENSE for details
 """
 
 from dependency_injector import containers, providers
-from karapace.api.telemetry.meter import Meter
 from karapace.api.telemetry.metrics import HTTPRequestMetrics
 from karapace.api.telemetry.tracer import Tracer
 from karapace.core.config import Config
 from karapace.core.container import KarapaceContainer
+from karapace.core.metrics_container import MetricsContainer
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.semconv.attributes import telemetry_attributes as T
@@ -28,10 +28,8 @@ def create_telemetry_resource(config: Config) -> Resource:
 
 class TelemetryContainer(containers.DeclarativeContainer):
     karapace_container = providers.Container(KarapaceContainer)
-
     telemetry_resource = providers.Factory(create_telemetry_resource, config=karapace_container.config)
-
-    meter = providers.Singleton(Meter)
-    http_request_metrics = providers.Singleton(HTTPRequestMetrics, meter=meter)
+    metrics_container = providers.Container(MetricsContainer)
+    http_request_metrics = providers.Singleton(HTTPRequestMetrics, meter=metrics_container.meter)
     tracer = providers.Singleton(Tracer)
     tracer_provider = providers.Singleton(TracerProvider, resource=telemetry_resource)

@@ -13,6 +13,7 @@ from karapace.api.routers.raw_path_router import RawPathRoute
 from karapace.api.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.auth_container import AuthContainer
 from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.core.typing import Subject
 from typing import Annotated
@@ -30,7 +31,7 @@ config_router = APIRouter(
 @inject
 async def config_get(
     user: Annotated[User, Depends(get_current_user)],
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityLevelResponse:
     if authorizer and not authorizer.check_authorization(user, Operation.Read, "Config:"):
@@ -47,7 +48,7 @@ async def config_put(
     user: Annotated[User, Depends(get_current_user)],
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityResponse:
     if authorizer and not authorizer.check_authorization(user, Operation.Write, "Config:"):
@@ -69,7 +70,7 @@ async def config_get_subject(
     subject: Subject,
     user: Annotated[User, Depends(get_current_user)],
     defaultToGlobal: bool = False,
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityLevelResponse:
     subject = Subject(unquote_plus(subject))
@@ -88,7 +89,7 @@ async def config_set_subject(
     user: Annotated[User, Depends(get_current_user)],
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityResponse:
     subject = Subject(unquote_plus(subject))
@@ -113,7 +114,7 @@ async def config_delete_subject(
     user: Annotated[User, Depends(get_current_user)],
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityResponse:
     subject = Subject(unquote_plus(subject))

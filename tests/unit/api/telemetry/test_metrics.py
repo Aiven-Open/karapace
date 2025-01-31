@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 from fastapi import HTTPException, Request, Response
 
-from karapace.api.telemetry.meter import Meter
+from karapace.core.instrumentation.meter import Meter
 from karapace.api.telemetry.metrics import HTTPRequestMetrics
 
 

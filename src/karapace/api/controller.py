@@ -25,11 +25,11 @@ from karapace.api.routers.requests import (
     SubjectVersion,
 )
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.auth_container import AuthContainer
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import is_incompatible
 from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
 from karapace.core.config import Config
-from karapace.core.container import KarapaceContainer
 from karapace.core.errors import (
     IncompatibleSchema,
     InvalidReferences,
@@ -57,7 +57,7 @@ from karapace.core.schema_models import (
 )
 from karapace.core.schema_references import LatestVersionReference, Reference
 from karapace.core.schema_registry import KarapaceSchemaRegistry
-from karapace.core.statsd import StatsClient
+from karapace.core.stats import StatsClient
 from karapace.core.typing import JsonData, JsonObject, SchemaId, Subject, Version
 from karapace.core.utils import JSONDecodeError
 from typing import Any, cast
@@ -71,8 +71,6 @@ LOG = logging.getLogger(__name__)
 
 class KarapaceSchemaRegistryController:
     def __init__(self, config: Config, schema_registry: KarapaceSchemaRegistry, stats: StatsClient) -> None:
-        # super().__init__(config=config, not_ready_handler=self._forward_if_not_ready_to_serve)
-
         self.config = config
         self._process_start_time = time.monotonic()
         self.stats = stats
@@ -157,7 +155,7 @@ class KarapaceSchemaRegistryController:
         deleted: bool,
         latest_only: bool,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     ) -> list[SchemaListingItem]:
         schemas = await self.schema_registry.schemas_list(include_deleted=deleted, latest_only=latest_only)
         response_schemas: list[SchemaListingItem] = []
@@ -190,7 +188,7 @@ class KarapaceSchemaRegistryController:
         include_subjects: bool,
         format_serialized: str,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     ) -> SchemasResponse:
         try:
             parsed_schema_id = SchemaId(int(schema_id))
@@ -267,7 +265,7 @@ class KarapaceSchemaRegistryController:
         schema_id: str,
         deleted: bool,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     ) -> list[SubjectVersion]:
         try:
             schema_id_int = SchemaId(int(schema_id))
@@ -387,7 +385,7 @@ class KarapaceSchemaRegistryController:
         self,
         deleted: bool,
         user: User | None,
-        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[KarapaceContainer.authorizer]),
+        authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     ) -> list[str]:
         subjects = [str(subject) for subject in self.schema_registry.database.find_subjects(include_deleted=deleted)]
         if authorizer:

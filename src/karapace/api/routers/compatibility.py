@@ -12,6 +12,7 @@ from karapace.api.routers.raw_path_router import RawPathRoute
 from karapace.api.routers.requests import CompatibilityCheckResponse, SchemaRequest
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
+from karapace.core.auth_container import AuthContainer
 from karapace.core.typing import Subject
 from typing import Annotated
 from urllib.parse import unquote_plus
@@ -31,7 +32,7 @@ async def compatibility_post(
     version: str,  # TODO support actual Version object
     schema_request: SchemaRequest,
     user: Annotated[User, Depends(get_current_user)],
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> CompatibilityCheckResponse:
     subject = Subject(unquote_plus(subject))
