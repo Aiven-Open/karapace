@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from __future__ import annotations
+from __future__ import annotations, with_statement
 
 from aiokafka.errors import (
     GroupAuthorizationFailedError,
@@ -44,7 +44,8 @@ from karapace.core.protobuf.exception import ProtobufException
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_models import parse_protobuf_schema_definition, SchemaType, TypedSchema, ValidatedTypedSchema
 from karapace.core.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
-from karapace.core.statsd import StatsClient
+
+from karapace.core.stats import StatsClient
 from karapace.core.typing import JsonObject, SchemaReaderStoppper, Subject, Version
 from karapace.core.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Lock, Thread
@@ -79,13 +80,6 @@ UNHEALTHY_CONSECUTIVE_ERRORS: Final = 3
 MAX_MESSAGES_TO_CONSUME_ON_STARTUP: Final = 1000
 MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP: Final = 1
 MESSAGE_CONSUME_TIMEOUT_SECONDS: Final = 0.2
-
-# Metric names
-METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT: Final = "karapace_schema_reader_records_processed"
-METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE: Final = "karapace_schema_reader_records_per_keymode"
-METRIC_SCHEMAS_GAUGE: Final = "karapace_schema_reader_schemas"
-METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects"
-METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions"
 
 
 class MessageType(Enum):
@@ -138,6 +132,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         offset_watcher: OffsetWatcher,
         key_formatter: KeyFormatter,
         database: KarapaceDatabase,
+        stats: StatsClient,
         master_coordinator: MasterCoordinator | None = None,
     ) -> None:
         Thread.__init__(self, name="schema-reader")
@@ -151,7 +146,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.topic_replication_factor = self.config.replication_factor
         self.consumer: KafkaConsumer | None = None
         self._offset_watcher = offset_watcher
-        self.stats = StatsClient(config=config)
+        self.stats = stats
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
         self._tracer = Tracer()
 
@@ -510,15 +505,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         schema_records_processed_keymode_deprecated_karapace: int,
     ) -> None:
         # Update processing counter always.
-        self.stats.increase(
-            metric=METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT,
-            inc_value=schema_records_processed_keymode_canonical,
-            tags={"keymode": KeyMode.CANONICAL},
-        )
-        self.stats.increase(
-            metric=METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT,
-            inc_value=schema_records_processed_keymode_deprecated_karapace,
-            tags={"keymode": KeyMode.DEPRECATED_KARAPACE},
+        self.stats.schema_records_processed(
+            with_canonical_key=schema_records_processed_keymode_canonical,
+            with_deprecated_key=schema_records_processed_keymode_deprecated_karapace,
         )
 
         # Update following gauges only if there is a possibility of a change.
@@ -526,32 +515,14 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             schema_records_processed_keymode_canonical or schema_records_processed_keymode_deprecated_karapace
         )
         if records_processed:
-            self.processed_canonical_keys_total += schema_records_processed_keymode_canonical
-            self.stats.gauge(
-                metric=METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE,
-                value=self.processed_canonical_keys_total,
-                tags={"keymode": KeyMode.CANONICAL},
-            )
-            self.processed_deprecated_karapace_keys_total += schema_records_processed_keymode_deprecated_karapace
-            self.stats.gauge(
-                metric=METRIC_SCHEMA_TOPIC_RECORDS_PER_KEYMODE_GAUGE,
-                value=self.processed_deprecated_karapace_keys_total,
-                tags={"keymode": KeyMode.DEPRECATED_KARAPACE},
-            )
             num_schemas = self.database.num_schemas()
             num_subjects = self.database.num_subjects()
-            self.stats.gauge(metric=METRIC_SCHEMAS_GAUGE, value=num_schemas)
-            self.stats.gauge(metric=METRIC_SUBJECTS_GAUGE, value=num_subjects)
+            self.stats.set_schemas_num_total(value=num_schemas)
+            self.stats.set_subjects_num_total(value=num_subjects)
+
             live_versions, soft_deleted_versions = self.database.num_schema_versions()
-            self.stats.gauge(
-                metric=METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE,
-                value=live_versions,
-                tags={"state": "live"},
-            )
-            self.stats.gauge(
-                metric=METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE,
-                value=soft_deleted_versions,
-                tags={"state": "soft_deleted"},
+            self.stats.set_schema_versions_num_total(
+                live_versions=live_versions, soft_deleted_versions=soft_deleted_versions
             )
 
     def _handle_msg_config(self, key: dict, value: dict | None) -> None:

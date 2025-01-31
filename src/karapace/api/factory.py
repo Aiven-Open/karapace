@@ -15,10 +15,12 @@ from karapace.api.middlewares import setup_middlewares
 from karapace.api.routers.setup import setup_routers
 from karapace.api.telemetry.setup import setup_metering, setup_tracing
 from karapace.core.auth import AuthenticatorAndAuthorizer
+from karapace.core.auth_container import AuthContainer
 from karapace.core.config import Config
 from karapace.core.logging_setup import configure_logging, log_config_without_secrets
+from karapace.core.metrics_container import MetricsContainer
 from karapace.core.schema_registry import KarapaceSchemaRegistry
-from karapace.core.statsd import StatsClient
+from karapace.core.stats import StatsClient
 from typing import AsyncContextManager
 
 import logging
@@ -29,20 +31,20 @@ import logging
 async def karapace_schema_registry_lifespan(
     _: FastAPI,
     forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
-    stastd: StatsClient = Depends(Provide[SchemaRegistryContainer.karapace_container.statsd]),
+    stats: StatsClient = Depends(Provide[MetricsContainer.stats]),
     schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
-    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[SchemaRegistryContainer.karapace_container.authorizer]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
 ) -> AsyncGenerator[None, None]:
     try:
         await schema_registry.start()
-        await authorizer.start(stats=stastd)
+        await authorizer.start(stats=stats)
 
         yield
     finally:
         await schema_registry.close()
         await authorizer.close()
         await forward_client.close()
-        stastd.close()
+        stats.close()
 
 
 def create_karapace_application(

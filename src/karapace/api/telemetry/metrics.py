@@ -5,7 +5,7 @@ See LICENSE for details
 
 from collections.abc import Mapping
 from fastapi import HTTPException, Request, Response
-from karapace.api.telemetry.meter import Meter
+from karapace.core.instrumentation.meter import Meter
 from opentelemetry.metrics import Counter, Histogram, UpDownCounter
 from typing import Final
 

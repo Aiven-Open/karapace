@@ -9,6 +9,8 @@ from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
+from unittest.mock import Mock
+from karapace.core.stats import StatsClient
 
 import pytest
 from confluent_kafka.cimpl import KafkaError
@@ -223,6 +225,7 @@ def test_can_ingest_schemas_from_log(karapace_container: KarapaceContainer) -> N
 
     on a node running kafka that hosts the `_schemas` topic.
     """
+    stats_mock = Mock(spec=StatsClient)
     restore_location = TEST_DATA_FOLDER / "schemas.log"
     schema_log = restore_location.read_text(encoding="utf-8").strip()
 
@@ -233,6 +236,7 @@ def test_can_ingest_schemas_from_log(karapace_container: KarapaceContainer) -> N
         key_formatter=KeyFormatter(),
         master_coordinator=None,
         database=database,
+        stats=stats_mock,
     )
 
     kafka_messages: list[AlwaysFineKafkaMessage] = []
