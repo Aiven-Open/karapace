@@ -5,10 +5,10 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiohttp import BasicAuth
+from async_lru import alru_cache
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from cachetools import TTLCache
 from collections.abc import MutableMapping
-from functools import lru_cache
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.client import Client
@@ -180,7 +180,7 @@ class SchemaRegistryClient:
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
-    @lru_cache(maxsize=100)
+    @alru_cache(maxsize=100)
     async def get_schema(
         self,
         subject: Subject,
