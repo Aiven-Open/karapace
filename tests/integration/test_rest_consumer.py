@@ -463,6 +463,44 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
         assert expected == actual, f"Expecting {actual} to be {expected}"
 
 
+@pytest.mark.parametrize("fmt", ["avro"])
+async def test_consume_avro_key_deserialization_error_fallback(rest_async_client, admin_client, fmt):
+    topic_name = new_topic(admin_client, prefix=f"{fmt}_")
+
+    # Produce record with binary key and empty value
+    header = REST_HEADERS["binary"]
+    string_key = b"testkey"
+    publish_key = base64.b64encode(string_key)
+    publish_key_binary = publish_key.decode("utf-8")
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        f"topics/{topic_name}",
+        json_data={"records": [{"key": f"{publish_key_binary}"}]},
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=10,
+        sleep=1,
+    )
+
+    # Test consuming record using avro format
+    headers = REST_HEADERS[fmt]
+    group_name = f"e2e_group_{fmt}"
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=headers)
+    assert res.ok
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    resp = await rest_async_client.get(consume_path, headers=headers)
+
+    # Key-deserialization error should automatically fallback to binary
+    assert resp.status_code == 200, f"Expected 200 response: {resp}"
+    data = resp.json()
+    data_keys = [x["key"] for x in data]
+    for expected, actual in zip(publish_key, data_keys):
+        assert expected == actual, f"Expecting {actual} to be {expected}"
+
+
 @pytest.mark.parametrize("fmt", sorted(KNOWN_FORMATS))
 async def test_consume_grafecul_deserialization_error_handling(rest_async_client, admin_client, fmt):
     topic_name = new_topic(admin_client, prefix=f"{fmt}_")
