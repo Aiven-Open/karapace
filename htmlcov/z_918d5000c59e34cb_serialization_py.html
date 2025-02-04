@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_918d5000c59e34cb_statsd_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-01-23 10:58 +0000
+            created at 2025-02-04 09:18 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -89,10 +89,10 @@
     <p class="run"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="key">from</span> <span class="nam">__future__</span> <span class="key">import</span> <span class="nam">annotations</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">aiohttp</span> <span class="key">import</span> <span class="nam">BasicAuth</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">from</span> <span class="nam">avro</span><span class="op">.</span><span class="nam">io</span> <span class="key">import</span> <span class="nam">BinaryDecoder</span><span class="op">,</span> <span class="nam">BinaryEncoder</span><span class="op">,</span> <span class="nam">DatumReader</span><span class="op">,</span> <span class="nam">DatumWriter</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">cachetools</span> <span class="key">import</span> <span class="nam">TTLCache</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">collections</span><span class="op">.</span><span class="nam">abc</span> <span class="key">import</span> <span class="nam">MutableMapping</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">functools</span> <span class="key">import</span> <span class="nam">lru_cache</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">from</span> <span class="nam">async_lru</span> <span class="key">import</span> <span class="nam">alru_cache</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">avro</span><span class="op">.</span><span class="nam">io</span> <span class="key">import</span> <span class="nam">BinaryDecoder</span><span class="op">,</span> <span class="nam">BinaryEncoder</span><span class="op">,</span> <span class="nam">DatumReader</span><span class="op">,</span> <span class="nam">DatumWriter</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">cachetools</span> <span class="key">import</span> <span class="nam">TTLCache</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">collections</span><span class="op">.</span><span class="nam">abc</span> <span class="key">import</span> <span class="nam">MutableMapping</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">google</span><span class="op">.</span><span class="nam">protobuf</span><span class="op">.</span><span class="nam">message</span> <span class="key">import</span> <span class="nam">DecodeError</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="nam">jsonschema</span> <span class="key">import</span> <span class="nam">ValidationError</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">client</span> <span class="key">import</span> <span class="nam">Client</span>&nbsp;</span><span class="r"></span></p>
@@ -264,7 +264,7 @@
     <p class="mis show_mis"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">        <span class="key">except</span> <span class="nam">InvalidSchema</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">            <span class="key">raise</span> <span class="nam">SchemaRetrievalError</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Failed to parse schema string from response: </span><span class="op">{</span><span class="nam">json_result</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">    <span class="op">@</span><span class="nam">lru_cache</span><span class="op">(</span><span class="nam">maxsize</span><span class="op">=</span><span class="num">100</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">    <span class="op">@</span><span class="nam">alru_cache</span><span class="op">(</span><span class="nam">maxsize</span><span class="op">=</span><span class="num">100</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t">    <span class="key">async</span> <span class="key">def</span> <span class="nam">get_schema</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t185" href="#t185">185</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t186" href="#t186">186</a></span><span class="t">        <span class="nam">subject</span><span class="op">:</span> <span class="nam">Subject</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -582,7 +582,7 @@
             <a class="nav" href="z_918d5000c59e34cb_statsd_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-01-23 10:58 +0000
+            created at 2025-02-04 09:18 +0000
         </p>
     </div>
 </footer>
