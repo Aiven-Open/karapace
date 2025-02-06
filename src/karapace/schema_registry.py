@@ -31,7 +31,7 @@ from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_models import ParsedTypedSchema, SchemaType, SchemaVersion, TypedSchema, ValidatedTypedSchema, Versioner
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_references import LatestVersionReference, Reference
-from karapace.typing import JsonObject, Mode, SchemaId, Subject, Version
+from karapace.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
 
 import asyncio
 import logging
@@ -85,23 +85,23 @@ class KarapaceSchemaRegistry:
             stack.enter_context(closing(self.schema_reader))
             stack.enter_context(closing(self.producer))
 
-    async def get_master(self, ignore_readiness: bool = False) -> tuple[bool, str | None]:
+    async def get_master(self) -> PrimaryInfo:
         """Resolve if current node is the primary and the primary node address.
 
-        :param bool ignore_readiness: Ignore waiting to become ready and return
-                                      follower/primary state and primary url.
-        :return (bool, Optional[str]): returns the primary/follower state and primary url
+        :return PrimaryInfo: returns the PrimaryInfo object with primary state and primary url.
         """
         async with self._master_lock:
-            while True:
-                are_we_master, master_url = self.mc.get_master_info()
-                if are_we_master is None:
-                    LOG.info("No master set: %r, url: %r", are_we_master, master_url)
-                elif not ignore_readiness and self.schema_reader.ready() is False:
-                    LOG.info("Schema reader isn't ready yet: %r", self.schema_reader.ready)
-                else:
-                    return are_we_master, master_url
-                await asyncio.sleep(1.0)
+            primary_info = self.mc.get_master_info()
+            if (
+                # If node is not primary and no known primary url
+                not primary_info.primary
+                and primary_info.primary_url is None
+            ):
+                LOG.warning("No master set: %r", primary_info)
+            if self.schema_reader.ready() is False:
+                LOG.info("Schema reader isn't ready yet: %r", self.schema_reader.ready)
+                return PrimaryInfo(False, primary_url=primary_info.primary_url)
+            return primary_info
 
     def get_compatibility_mode(self, subject: Subject) -> CompatibilityModes:
         compatibility = self.database.get_subject_compatibility(subject=subject)
