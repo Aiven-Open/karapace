@@ -145,20 +145,12 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             pass
         else:
             # Not ready, still loading the state.
-            # Needs only the master_url
-            _, master_url = await self.schema_registry.get_master(ignore_readiness=True)
+            primary_info = await self.schema_registry.get_master()
             returned_content_type = request.get_header("Content-Type") if content_type is None else content_type
-            if not master_url:
+            if not primary_info.primary_url:
                 self.no_master_error(request.content_type)
-            elif f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in master_url:
-                # If master url is the same as the url of this Karapace respond 503.
-                self.r(
-                    body="",
-                    content_type=returned_content_type,
-                    status=HTTPStatus.SERVICE_UNAVAILABLE,
-                )
             else:
-                url = f"{master_url}{request.url.path}"
+                url = f"{primary_info.primary_url}{request.url.path}"
                 await self._forward_request_remote(
                     request=request,
                     body=request.json,
@@ -574,13 +566,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-        are_we_master, master_url = await self.schema_registry.get_master()
-        if are_we_master:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             self.schema_registry.send_config_message(compatibility_level=compatibility_level, subject=None)
-        elif not master_url:
+        elif not primary_info.primary_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/config"
+            url = f"{primary_info.primary_url}/config"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="PUT")
 
         self.r({"compatibility": self.schema_registry.schema_reader.config["compatibility"]}, content_type)
@@ -645,13 +637,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
 
-        are_we_master, master_url = await self.schema_registry.get_master()
-        if are_we_master:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             self.schema_registry.send_config_message(compatibility_level=compatibility_level, subject=subject)
-        elif not master_url:
+        elif not primary_info.primary_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/config/{subject}"
+            url = f"{primary_info.primary_url}/config/{subject}"
             await self._forward_request_remote(
                 request=request, body=request.json, url=url, content_type=content_type, method="PUT"
             )
@@ -670,13 +662,13 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             if not self._auth.check_authorization(user, Operation.Write, f"Subject:{subject}"):
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
 
-        are_we_master, master_url = await self.schema_registry.get_master()
-        if are_we_master:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             self.schema_registry.send_config_subject_delete_message(subject=subject)
-        elif not master_url:
+        elif not primary_info.primary_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/config/{subject}"
+            url = f"{primary_info.primary_url}/config/{subject}"
             await self._forward_request_remote(
                 request=request, body=request.json, url=url, content_type=content_type, method="PUT"
             )
@@ -685,21 +677,24 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
     async def master_available(self, *, request: HTTPRequest) -> None:
         no_cache_header = {"Cache-Control": "no-store, no-cache, must-revalidate"}
-        are_we_master, master_url = await self.schema_registry.get_master()
-        self.log.info("are master %s, master url %s", are_we_master, master_url)
+        primary_info = await self.schema_registry.get_master()
+        self.log.info("are master %s, master url %s", primary_info.primary, primary_info.primary_url)
 
         if (
             self.schema_registry.schema_reader.master_coordinator._sc is not None  # pylint: disable=protected-access
             and self.schema_registry.schema_reader.master_coordinator._sc.is_master_assigned_to_myself()  # pylint: disable=protected-access
         ):
             raise HTTPResponse(
-                body={"master_available": are_we_master},
+                body={"master_available": primary_info.primary},
                 status=HTTPStatus.OK,
                 content_type=JSON_CONTENT_TYPE,
                 headers=no_cache_header,
             )
 
-        if master_url is None or f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in master_url:
+        if (
+            primary_info.primary_url is None
+            or f"{self.config['advertised_hostname']}:{self.config['advertised_port']}" in primary_info.primary_url
+        ):
             raise HTTPResponse(
                 body={"master_available": False},
                 status=HTTPStatus.OK,
@@ -708,7 +703,11 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             )
 
         await self._forward_request_remote(
-            request=request, body={}, url=f"{master_url}/master_available", content_type=JSON_CONTENT_TYPE, method="GET"
+            request=request,
+            body={},
+            url=f"{primary_info.primary_url}/master_available",
+            content_type=JSON_CONTENT_TYPE,
+            method="GET",
         )
 
     async def subjects_list(self, content_type: str, *, request: HTTPRequest, user: User | None = None) -> None:
@@ -730,8 +729,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
 
         permanent = request.query.get("permanent", "false").lower() == "true"
 
-        are_we_master, master_url = await self.schema_registry.get_master()
-        if are_we_master:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             try:
                 version_list = await self.schema_registry.subject_delete_local(subject=subject, permanent=permanent)
                 self.r([version.value for version in version_list], content_type, status=HTTPStatus.OK)
@@ -775,10 +774,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                     content_type=content_type,
                     status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 )
-        elif not master_url:
+        elif not primary_info.primary_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}?permanent={permanent}"
+            url = f"{primary_info.primary_url}/subjects/{subject}?permanent={permanent}"
             await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_get(
@@ -819,8 +818,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         self._check_authorization(user, Operation.Write, f"Subject:{subject}")
         permanent = request.query.get("permanent", "false").lower() == "true"
 
-        are_we_master, master_url = await self.schema_registry.get_master()
-        if are_we_master:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             try:
                 resolved_version = await self.schema_registry.subject_version_delete_local(
                     subject, Versioner.V(version), permanent
@@ -882,10 +881,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 )
             except InvalidVersion:
                 self._invalid_version(content_type, version)
-        elif not master_url:
+        elif not primary_info.primary_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
+            url = f"{primary_info.primary_url}/subjects/{subject}/versions/{version}?permanent={permanent}"
             await self._forward_request_remote(request=request, body={}, url=url, content_type=content_type, method="DELETE")
 
     async def subject_version_schema_get(
@@ -1241,8 +1240,8 @@ class KarapaceSchemaRegistryController(KarapaceBase):
         if schema_id is not None:
             self.r({"id": schema_id}, content_type)
 
-        are_we_master, master_url = await self.schema_registry.get_master()
-        if are_we_master:
+        primary_info = await self.schema_registry.get_master()
+        if primary_info.primary:
             try:
                 schema_id = await self.schema_registry.write_new_schema_local(subject, new_schema, references)
                 self.r(
@@ -1279,10 +1278,10 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             except Exception as xx:
                 raise xx
 
-        elif not master_url:
+        elif not primary_info.primary_url:
             self.no_master_error(content_type)
         else:
-            url = f"{master_url}/subjects/{subject}/versions"
+            url = f"{primary_info.primary_url}/subjects/{subject}/versions"
             await self._forward_request_remote(request=request, body=body, url=url, content_type=content_type, method="POST")
 
     async def get_global_mode(
