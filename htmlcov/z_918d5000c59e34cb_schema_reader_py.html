@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_918d5000c59e34cb_schema_references_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-02-04 09:18 +0000
+            created at 2025-02-10 15:10 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -477,12 +477,12 @@
     <p class="pln"><span class="n"><a id="t393" href="#t393">393</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t394" href="#t394">394</a></span><span class="t">        <span class="nam">watch_offsets</span> <span class="op">=</span> <span class="key">False</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t395" href="#t395">395</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">master_coordinator</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t396" href="#t396">396</a></span><span class="t">            <span class="nam">are_we_master</span><span class="op">,</span> <span class="nam">_</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">master_coordinator</span><span class="op">.</span><span class="nam">get_master_info</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t396" href="#t396">396</a></span><span class="t">            <span class="nam">primary_info</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">master_coordinator</span><span class="op">.</span><span class="nam">get_master_info</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t397" href="#t397">397</a></span><span class="t">            <span class="com"># keep old behavior for True. When are_we_master is False, then we are a follower, so we should not accept direct</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t398" href="#t398">398</a></span><span class="t">            <span class="com"># writes anyway. When are_we_master is None, then this particular node is waiting for a stable value, so any</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t399" href="#t399">399</a></span><span class="t">            <span class="com"># messages off the topic are writes performed by another node</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t400" href="#t400">400</a></span><span class="t">            <span class="com"># Also if master_eligibility is disabled by configuration, disable writes too</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t401" href="#t401">401</a></span><span class="t">            <span class="key">if</span> <span class="nam">are_we_master</span> <span class="key">is</span> <span class="key">True</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t401" href="#t401">401</a></span><span class="t">            <span class="key">if</span> <span class="nam">primary_info</span><span class="op">.</span><span class="nam">primary</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t402" href="#t402">402</a></span><span class="t">                <span class="nam">watch_offsets</span> <span class="op">=</span> <span class="key">True</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t403" href="#t403">403</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t404" href="#t404">404</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">consume_messages</span><span class="op">(</span><span class="nam">msgs</span><span class="op">,</span> <span class="nam">watch_offsets</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -833,7 +833,7 @@
             <a class="nav" href="z_918d5000c59e34cb_schema_references_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-02-04 09:18 +0000
+            created at 2025-02-10 15:10 +0000
         </p>
     </div>
 </footer>
