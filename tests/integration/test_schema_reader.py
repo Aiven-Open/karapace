@@ -13,6 +13,7 @@ from karapace.kafka.producer import KafkaProducer
 from karapace.key_format import KeyFormatter, KeyMode
 from karapace.offset_watcher import OffsetWatcher
 from karapace.schema_reader import KafkaSchemaReader
+from karapace.typing import PrimaryInfo
 from karapace.utils import json_encode
 from tests.base_testcase import BaseTestCase
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
@@ -38,9 +39,9 @@ async def _wait_until_reader_is_ready_and_master(
         await asyncio.sleep(0.1)
 
     # Won master election
-    are_we_master = False
-    while not are_we_master:
-        are_we_master, _ = master_coordinator.get_master_info()
+    primary_info = PrimaryInfo(primary=False, primary_url=None)
+    while not primary_info.primary:
+        primary_info = master_coordinator.get_master_info()
         await asyncio.sleep(0.1)
 
 

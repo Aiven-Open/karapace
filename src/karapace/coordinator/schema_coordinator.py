@@ -197,7 +197,7 @@ class SchemaCoordinator:
     def is_master_assigned_to_myself(self) -> bool:
         return self._are_we_master or False
 
-    def are_we_master(self) -> bool | None:
+    def are_we_master(self) -> bool:
         """
         After a new election its made we should wait for a while since the previous master could have produced
         a new message shortly before being disconnected from the cluster.
@@ -211,7 +211,7 @@ class SchemaCoordinator:
             # `self._are_we_master` is `None` only during the perform of the assignment
             # where we don't know if we are master yet
             LOG.warning("No new elections performed yet.")
-            return None
+            return False
 
         if not self._ready or not self._schema_reader_stopper.ready():
             return False
@@ -522,6 +522,7 @@ class SchemaCoordinator:
             self._are_we_master = False
             self.coordinator_id = None
             self._coordinator_dead_fut.set_result(None)
+            self.request_rejoin()
 
     def reset_generation(self) -> None:
         """Coordinator did not recognize either generation or member_id. Will

@@ -8,6 +8,7 @@ from karapace.rapu import HTTPResponse
 from karapace.schema_reader import KafkaSchemaReader
 from karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.schema_registry_apis import KarapaceSchemaRegistryController
+from karapace.typing import PrimaryInfo
 from unittest.mock import ANY, AsyncMock, Mock, patch, PropertyMock
 
 import asyncio
@@ -39,7 +40,7 @@ async def test_forward_when_not_ready() -> None:
         schema_registry.schema_reader = schema_reader_mock
         schema_registry_class.return_value = schema_registry
 
-        schema_registry.get_master.return_value = (False, "http://primary-url")
+        schema_registry.get_master.return_value = PrimaryInfo(primary=False, primary_url="http://primary-url")
 
         close_future_result = asyncio.Future()
         close_future_result.set_result(True)
