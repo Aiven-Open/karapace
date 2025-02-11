@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum, unique
 from hmac import compare_digest
 from karapace.core.config import Config, InvalidConfiguration
-from karapace.core.statsd import StatsClient
+from karapace.core.stats import StatsClient
 from karapace.core.utils import json_decode, json_encode
 from typing import Protocol
 from typing_extensions import override, TypedDict

@@ -13,7 +13,7 @@ from aiohttp.web import Request
 
 from karapace.core.container import KarapaceContainer
 from karapace.kafka_rest_apis.karapace import KarapaceBase
-from karapace.core.statsd import StatsClient
+from karapace.statsd import StatsClient
 from karapace.rapu import REST_ACCEPT_RE, REST_CONTENT_TYPE_RE, HTTPRequest
 
 

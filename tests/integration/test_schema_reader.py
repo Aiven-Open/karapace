@@ -6,6 +6,8 @@ See LICENSE for details
 import asyncio
 from contextlib import closing
 from dataclasses import dataclass
+from unittest.mock import Mock
+from karapace.core.stats import StatsClient
 
 import pytest
 
@@ -18,7 +20,7 @@ from karapace.core.kafka.producer import KafkaProducer
 from karapace.core.key_format import KeyFormatter, KeyMode
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.schema_reader import KafkaSchemaReader
-from karapace.core.typing import PrimaryInfo
+from karapace.core.typing import PrimaryInfo, Subject
 from karapace.core.utils import json_encode
 from tests.base_testcase import BaseTestCase
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
@@ -64,6 +66,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
     topic_name = new_random_name("topic")
     subject = create_subject_name_factory(test_name)()
     group_id = create_group_name_factory(test_name)()
+    stats_mock = Mock(spec=StatsClient)
 
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
@@ -83,6 +86,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
             key_formatter=KeyFormatter(),
             master_coordinator=master_coordinator,
             database=database,
+            stats=stats_mock,
         )
         schema_reader.start()
 
@@ -113,7 +117,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
 
             schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
 
-            schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
+            schemas = database.find_subject_schemas(subject=Subject(subject), include_deleted=True)
             assert len(schemas) == 1, "Deleted schemas must have been registered"
 
             # Produce a soft deleted schema, this is the regression test
@@ -143,7 +147,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
             assert seen is True
             assert database.global_schema_id == test_global_schema_id
 
-            schemas = database.find_subject_schemas(subject=subject, include_deleted=True)
+            schemas = database.find_subject_schemas(subject=Subject(subject), include_deleted=True)
             assert len(schemas) == 2, "Deleted schemas must have been registered"
     finally:
         await master_coordinator.close()
@@ -156,6 +160,7 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
     test_name = "test_regression_config_for_inexisting_object_should_not_throw"
     subject = create_subject_name_factory(test_name)()
     group_id = create_group_name_factory(test_name)()
+    stats_mock = Mock(spec=StatsClient)
 
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
@@ -174,6 +179,7 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
             key_formatter=KeyFormatter(),
             master_coordinator=master_coordinator,
             database=database,
+            stats=stats_mock,
         )
         schema_reader.start()
 
@@ -198,7 +204,9 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
 
             seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
             assert seen is True
-            assert database.find_subject(subject=subject) is not None, "The above message should be handled gracefully"
+            assert (
+                database.find_subject(subject=Subject(subject)) is not None
+            ), "The above message should be handled gracefully"
     finally:
         await master_coordinator.close()
 
@@ -248,6 +256,7 @@ async def test_key_format_detection(
     producer: KafkaProducer,
     admin_client: KafkaAdminClient,
 ) -> None:
+    stats_mock = Mock(spec=StatsClient)
     group_id = create_group_name_factory(testcase.test_name)()
     test_topic = new_topic(admin_client)
 
@@ -278,6 +287,7 @@ async def test_key_format_detection(
             key_formatter=key_formatter,
             master_coordinator=master_coordinator,
             database=database,
+            stats=stats_mock,
         )
         schema_reader.start()
 
