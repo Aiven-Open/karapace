@@ -19,8 +19,8 @@ from karapace.config import Config, set_config_defaults, write_config
 from karapace.kafka.admin import KafkaAdminClient
 from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
-from karapace.kafka_rest_apis import KafkaRest
 from pathlib import Path
+from rest_proxy import KafkaRest
 from tests.conftest import KAFKA_VERSION
 from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint, start_schema_registry_cluster
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig

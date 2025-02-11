@@ -6,13 +6,13 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from karapace.config import ConfigDefaults, set_config_defaults
-from karapace.kafka_rest_apis.authentication import (
+from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
+from rest_proxy.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
     SimpleOauthTokenProvider,
 )
-from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 
 import base64
 import datetime
