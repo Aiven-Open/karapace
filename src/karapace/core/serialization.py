@@ -10,7 +10,6 @@ from async_lru import alru_cache
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 from cachetools import TTLCache
 from collections.abc import Callable, MutableMapping
-from functools import lru_cache
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
 from karapace.core.client import Client

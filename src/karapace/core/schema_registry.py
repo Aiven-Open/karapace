@@ -107,8 +107,7 @@ class KarapaceSchemaRegistry:
             primary_info = self.mc.get_master_info()
             if (
                 # If node is not primary and no known primary url
-                not primary_info.primary
-                and primary_info.primary_url is None
+                not primary_info.primary and primary_info.primary_url is None
             ):
                 LOG.warning("No master set: %r", primary_info)
             if self.schema_reader.ready() is False:
