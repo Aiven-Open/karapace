@@ -1050,7 +1050,7 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.BAD_REQUEST,
             )
-        if references and schema_type != SchemaType.PROTOBUF:
+        if references and schema_type != SchemaType.PROTOBUF and schema_type != SchemaType.JSONSCHEMA:
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.REFERENCES_SUPPORT_NOT_IMPLEMENTED.value,
