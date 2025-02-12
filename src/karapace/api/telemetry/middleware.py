@@ -8,7 +8,7 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import FastAPI, Request, Response
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.api.telemetry.metrics import HTTPRequestMetrics
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
 import logging
