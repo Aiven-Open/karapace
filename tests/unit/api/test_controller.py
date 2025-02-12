@@ -3,18 +3,20 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-import asyncio
-import json
-from unittest.mock import Mock, PropertyMock, patch
-
-import pytest
 from fastapi.exceptions import HTTPException
 
 from karapace.api.container import SchemaRegistryContainer
-from karapace.rapu import HTTPResponse
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.core.schema_reader import KafkaSchemaReader
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.core.typing import PrimaryInfo
+from karapace.rapu import HTTPResponse
+from unittest.mock import Mock, PropertyMock, patch
+
+import asyncio
+import json
+import pytest
+
 
 TYPED_AVRO_SCHEMA = ValidatedTypedSchema.parse(
     SchemaType.AVRO,
@@ -50,12 +52,13 @@ async def test_validate_schema_request_body(schema_registry_container: SchemaReg
 async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryContainer) -> None:
     with patch("karapace.api.container.KarapaceSchemaRegistry") as schema_registry_class:
         schema_reader_mock = Mock(spec=KafkaSchemaReader)
+        schema_registry_mock = Mock(spec=KarapaceSchemaRegistry)
         ready_property_mock = PropertyMock(return_value=False)
         type(schema_reader_mock).ready = ready_property_mock
         schema_registry_class.schema_reader = schema_reader_mock
 
         schema_registry_class.schemas_get.return_value = TYPED_AVRO_SCHEMA
-        schema_registry_container.get_master.return_value = PrimaryInfo(primary=False, primary_url="http://primary-url")
+        schema_registry_mock.get_master.return_value = PrimaryInfo(primary=False, primary_url="http://primary-url")
 
         close_future_result = asyncio.Future()
         close_future_result.set_result(True)

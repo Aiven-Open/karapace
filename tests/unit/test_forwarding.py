@@ -6,17 +6,15 @@ See LICENSE for details
 
 from fastapi import Request
 from fastapi.exceptions import HTTPException
-from karapace.forward_client import ForwardClient
-from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.typing import PrimaryInfo
-from schema_registry.routers.config import config_put
+from karapace.api.controller import KarapaceSchemaRegistryController
+from karapace.api.forward_client import ForwardClient
+from karapace.api.routers.config import config_put
+from karapace.api.routers.requests import CompatibilityRequest
+from karapace.core.schema_registry import KarapaceSchemaRegistry
+from karapace.core.typing import PrimaryInfo
 from unittest.mock import AsyncMock, Mock
 
-from schema_registry.routers.requests import CompatibilityRequest
-
 import pytest
-
-from schema_registry.schema_registry_apis import KarapaceSchemaRegistryController
 
 
 async def test_forwarding_not_a_primary_and_own_primary_url() -> None:
