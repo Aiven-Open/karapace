@@ -866,7 +866,7 @@ class KarapaceSchemaRegistryController:
             raise no_primary_url_error()
         else:
             return await forward_client.forward_request_remote(
-                request=request, primary_url=primary_url, response_type=SchemaIdResponse
+                request=request, primary_url=primary_info.primary_url, response_type=SchemaIdResponse
             )
 
     async def get_global_mode(self) -> ModeResponse:

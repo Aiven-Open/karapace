@@ -58,5 +58,5 @@ async def master_availability(
         return NO_MASTER
 
     return await forward_client.forward_request_remote(
-        request=request, primary_url=master_url, response_type=MasterAvailabilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=MasterAvailabilityResponse
     )

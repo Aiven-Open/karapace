@@ -56,7 +56,7 @@ async def config_put(
     elif not primary_info.primary_url:
         raise no_primary_url_error()
     return await forward_client.forward_request_remote(
-        request=request, primary_url=primary_url, response_type=CompatibilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=CompatibilityResponse
     )
 
 
@@ -96,7 +96,7 @@ async def config_set_subject(
     elif not primary_info.primary_url:
         raise no_primary_url_error()
     return await forward_client.forward_request_remote(
-        request=request, primary_url=primary_url, response_type=CompatibilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=CompatibilityResponse
     )
 
 
@@ -120,5 +120,5 @@ async def config_delete_subject(
     elif not primary_info.primary_url:
         raise no_primary_url_error()
     return await forward_client.forward_request_remote(
-        request=request, primary_url=primary_url, response_type=CompatibilityResponse
+        request=request, primary_url=primary_info.primary_url, response_type=CompatibilityResponse
     )
