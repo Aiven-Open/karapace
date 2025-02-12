@@ -11,13 +11,13 @@ from fastapi import Request, Response
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SpanExporter, SpanProcessor
 from opentelemetry.trace.span import Span
 
-from karapace.api.telemetry.tracer import NOOPSpanExporter, Tracer
+from karapace.core.instrumentation.tracer import NOOPSpanExporter, Tracer
 from karapace.core.config import KarapaceTelemetry
 from karapace.core.container import KarapaceContainer
 
 
 def test_tracer(karapace_container: KarapaceContainer):
-    with patch("karapace.api.telemetry.tracer.trace") as mock_trace:
+    with patch("karapace.core.instrumentation.tracer.trace") as mock_trace:
         Tracer.get_tracer(config=karapace_container.config())
         mock_trace.get_tracer.assert_called_once_with("Karapace.tracer")
 
@@ -42,7 +42,7 @@ def test_get_span_exporter_noop(karapace_container: KarapaceContainer) -> None:
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="NOOP",
+                otel_traces_exporter="NOOP",
             )
         }
     )
@@ -55,7 +55,7 @@ def test_get_span_exporter_console(karapace_container: KarapaceContainer) -> Non
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="CONSOLE",
+                otel_traces_exporter="CONSOLE",
             )
         }
     )
@@ -68,11 +68,11 @@ def test_get_span_exporter_otlp(karapace_container: KarapaceContainer) -> None:
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="OTLP",
+                otel_traces_exporter="OTLP",
             )
         }
     )
-    with patch("karapace.api.telemetry.tracer.OTLPSpanExporter") as mock_otlp_exporter:
+    with patch("karapace.core.instrumentation.tracer.OTLPSpanExporter") as mock_otlp_exporter:
         exporter: SpanExporter = Tracer.get_span_exporter(config=config)
         mock_otlp_exporter.assert_called_once_with(endpoint="http://otel:4317")
         assert exporter is mock_otlp_exporter.return_value
@@ -83,13 +83,13 @@ def test_get_span_processor_with_otel_endpoint(karapace_container: KarapaceConta
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="OTLP",
+                otel_traces_exporter="OTLP",
             )
         }
     )
     with (
-        patch("karapace.api.telemetry.tracer.OTLPSpanExporter") as mock_otlp_exporter,
-        patch("karapace.api.telemetry.tracer.BatchSpanProcessor") as mock_batch_span_processor,
+        patch("karapace.core.instrumentation.tracer.OTLPSpanExporter") as mock_otlp_exporter,
+        patch("karapace.core.instrumentation.tracer.BatchSpanProcessor") as mock_batch_span_processor,
     ):
         processor: SpanProcessor = Tracer.get_span_processor(config=config)
         mock_otlp_exporter.assert_called_once_with(endpoint="http://otel:4317")
@@ -102,8 +102,8 @@ def test_get_span_processor_without_otel_endpoint(karapace_container: KarapaceCo
         new_config={"telemetry": KarapaceTelemetry(otel_endpoint_url=None)}
     )
     with (
-        patch("karapace.api.telemetry.tracer.SimpleSpanProcessor") as mock_simple_span_processor,
-        patch("karapace.api.telemetry.tracer.NOOPSpanExporter") as mock_noop_exporter,
+        patch("karapace.core.instrumentation.tracer.SimpleSpanProcessor") as mock_simple_span_processor,
+        patch("karapace.core.instrumentation.tracer.NOOPSpanExporter") as mock_noop_exporter,
     ):
         processor: SpanProcessor = Tracer.get_span_processor(config=config)
         mock_simple_span_processor.assert_called_once_with(mock_noop_exporter.return_value)

@@ -25,7 +25,7 @@ def test_get_metric_exporter_noop(karapace_container: KarapaceContainer) -> None
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="NOOP",
+                otel_metrics_exporter="NOOP",
             )
         }
     )
@@ -38,7 +38,7 @@ def test_get_metric_exporter_console(karapace_container: KarapaceContainer) -> N
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="CONSOLE",
+                otel_metrics_exporter="CONSOLE",
             )
         }
     )
@@ -51,7 +51,7 @@ def test_get_metric_exporter_otlp(karapace_container: KarapaceContainer) -> None
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="OTLP",
+                otel_metrics_exporter="OTLP",
             )
         }
     )
@@ -83,7 +83,7 @@ def test_get_metric_reader_with_otel_endpoint(karapace_container: KarapaceContai
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="OTLP",
+                otel_metrics_exporter="OTLP",
             )
         }
     )

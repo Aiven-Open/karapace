@@ -5,7 +5,7 @@ See LICENSE for details
 
 from dependency_injector import containers, providers
 from karapace.api.telemetry.metrics import HTTPRequestMetrics
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.config import Config
 from karapace.core.container import KarapaceContainer
 from karapace.core.metrics_container import MetricsContainer

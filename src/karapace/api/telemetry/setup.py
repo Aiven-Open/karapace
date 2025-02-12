@@ -6,7 +6,7 @@ See LICENSE for details
 from dependency_injector.wiring import inject, Provide
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.instrumentation.meter import Meter
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.metrics_container import MetricsContainer
 from opentelemetry import metrics, trace
 from opentelemetry.sdk.metrics import MeterProvider
@@ -34,5 +34,4 @@ def setup_metering(
     telemetry_resource: Resource = Provide[TelemetryContainer.telemetry_resource],
 ) -> None:
     LOG.info("Setting OTel meter provider")
-    # metrics.set_meter_provider(MeterProvider(resource=telemetry_resource, metric_readers=[meter.get_metric_reader()]))
-    metrics.set_meter_provider(MeterProvider(resource=telemetry_resource, metric_readers=[Meter.get_metric_reader()]))
+    metrics.set_meter_provider(MeterProvider(resource=telemetry_resource, metric_readers=[meter.get_metric_reader()]))

@@ -12,7 +12,7 @@ from _pytest.logging import LogCaptureFixture
 from opentelemetry.sdk.trace import TracerProvider
 
 from karapace.api.telemetry.setup import setup_tracing
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 
 
 def test_setup_telemetry(caplog: LogCaptureFixture):

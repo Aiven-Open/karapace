@@ -16,7 +16,7 @@ from opentelemetry.trace import SpanKind, Status, StatusCode
 from karapace.core.instrumentation.meter import Meter
 from karapace.api.telemetry.metrics import HTTPRequestMetrics
 from karapace.api.telemetry.middleware import setup_telemetry_middleware, telemetry_middleware
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 
 
 @pytest.fixture

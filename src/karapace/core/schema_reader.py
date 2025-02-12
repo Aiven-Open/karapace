@@ -27,7 +27,7 @@ from confluent_kafka import Message, TopicCollection, TopicPartition
 from contextlib import closing, ExitStack
 from enum import Enum
 from jsonschema.validators import Draft7Validator
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from karapace.core import constants
 from karapace.core.config import Config
 from karapace.core.coordinator.master_coordinator import MasterCoordinator

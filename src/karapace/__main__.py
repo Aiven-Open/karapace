@@ -22,7 +22,7 @@ import karapace.api.routers.subjects
 import karapace.core.instrumentation.meter
 import karapace.api.telemetry.middleware
 import karapace.api.telemetry.setup
-import karapace.api.telemetry.tracer
+import karapace.core.instrumentation.tracer
 import karapace.api.user
 import uvicorn
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     karapace_container.wire(
         modules=[
             __name__,
-            karapace.api.telemetry.tracer,
+            karapace.core.instrumentation.tracer,
             karapace.core.instrumentation.meter,
         ]
     )
