@@ -3,13 +3,12 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 from fastapi.exceptions import HTTPException
+
+from build.lib.karapace.schema_registry import KarapaceSchemaRegistry
 from karapace.rapu import HTTPResponse
 from karapace.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.schema_reader import KafkaSchemaReader
-from karapace.schema_registry import KarapaceSchemaRegistry
-from karapace.schema_registry_apis import KarapaceSchemaRegistryController
 from karapace.typing import PrimaryInfo
-from unittest.mock import ANY, AsyncMock, Mock, patch, PropertyMock
 from schema_registry.container import SchemaRegistryContainer
 from unittest.mock import Mock, patch, PropertyMock
 
@@ -56,7 +55,6 @@ async def test_forward_when_not_ready(schema_registry_container: SchemaRegistryC
         schema_registry_class.schema_reader = schema_reader_mock
 
         schema_registry_class.schemas_get.return_value = TYPED_AVRO_SCHEMA
-        schema_registry.get_master.return_value = PrimaryInfo(primary=False, primary_url="http://primary-url")
 
         close_future_result = asyncio.Future()
         close_future_result.set_result(True)
