@@ -4,14 +4,17 @@ karapace - Test rest client with retries
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
-from aiohttp import BasicAuth
 from collections.abc import Mapping
-from karapace.client import Client, Headers, Path, Result
-from karapace.typing import JsonData
-from tenacity import retry, stop_after_attempt, wait_fixed
 from typing import Final
+
+from aiohttp import BasicAuth
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+from karapace.core.client import Client, Headers, Path, Result
+from karapace.core.typing import JsonData
 
 RETRY_WAIT_SECONDS: Final = 0.5
 

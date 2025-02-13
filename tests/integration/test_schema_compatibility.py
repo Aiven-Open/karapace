@@ -2,18 +2,20 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
-from __future__ import annotations
 
-from collections.abc import Coroutine
-from dataclasses import dataclass
-from karapace.client import Client
-from karapace.typing import JsonObject, Subject
-from tests.base_testcase import BaseTestCase
-from typing import Any, Callable, Final
+from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
+from typing import Any, Final
+
 import pytest
+
+from karapace.core.client import Client
+from karapace.core.typing import JsonObject, Subject
+from tests.base_testcase import BaseTestCase
 
 SchemaRegitrationFunc = Callable[[Client, Subject], Coroutine[Any, Any, None]]
 
@@ -100,7 +102,8 @@ async def _register_baseline_schemas_with_incompatibilities_and_a_deleted_schema
 
 
 async def _register_no_baseline_schemas(
-    registry_async_client: Client, subject: Subject  # pylint: disable=unused-argument
+    registry_async_client: Client,
+    subject: Subject,
 ) -> None:
     pass
 

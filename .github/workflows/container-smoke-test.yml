@@ -8,6 +8,9 @@ on:
 jobs:
   smoke-test-container:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.10', '3.11', '3.12' ]
     env:
       BUILDKIT_PROGRESS: plain
     steps:
@@ -17,23 +20,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install requirements
-        run: make install
-
       - name: Resolve Karapace version
-        run: |
-          source ./venv/bin/activate
-          KARAPACE_VERSION=$(python -c "from karapace import version; print(version.__version__)")
-          echo KARAPACE_VERSION=$KARAPACE_VERSION >> $GITHUB_ENV
+        run: echo KARAPACE_VERSION="$(git describe --tags | cut -d '-' -f -2 | sed 's/-/.dev/g')" >> $GITHUB_ENV
 
-      - name: Build container
-        run: docker build --build-arg KARAPACE_VERSION=${{ env.KARAPACE_VERSION }} --file=container/Dockerfile .
+      - run: echo "RUNNER_UID=$(id -u)" >> $GITHUB_ENV
+      - run: echo "RUNNER_GID=$(id -g)" >> $GITHUB_ENV
 
       - name: Run container
-        run: docker compose --file=container/compose.yml up --build --wait --detach
+        run: make start-karapace-docker-resources
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+          RUNNER_UID: ${{ env.RUNNER_UID }}
+          RUNNER_GID: ${{ env.RUNNER_GID }}
 
-      - name: Smoke test registry
-        run: bin/smoke-test-registry.sh
+      - name: Smoke test schema registry
+        run: bin/smoke-test-schema-registry.sh
+        env:
+          KARAPACE_PORT: 8081
 
       - name: Smoke test REST proxy
-        run: bin/smoke-test-rest.sh
+        run: bin/smoke-test-rest-proxy.sh
+        env:
+          KARAPACE_PORT: 8082

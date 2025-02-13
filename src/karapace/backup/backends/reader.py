@@ -2,14 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
-from collections.abc import Generator, Iterator, Mapping, Sequence
-from karapace.dataclasses import default_dataclass
-from karapace.typing import JsonData, JsonObject
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
+from karapace.core.dataclasses import default_dataclass
+from karapace.core.typing import JsonData, JsonObject
 from pathlib import Path
-from typing import Callable, ClassVar, Final, IO, Optional, TypeVar, Union
-from typing_extensions import TypeAlias
+from typing import ClassVar, Final, IO, Optional, TypeAlias, TypeVar, Union
 
 import abc
 
@@ -79,8 +79,7 @@ class BaseItemsBackupReader(BaseBackupReader, abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def items_from_file(fp: IO[str]) -> Iterator[Sequence[str]]:
-        ...
+    def items_from_file(fp: IO[str]) -> Iterator[Sequence[str]]: ...
 
     def read(
         self,

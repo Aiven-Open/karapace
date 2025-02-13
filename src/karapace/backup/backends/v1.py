@@ -2,11 +2,12 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator
 from karapace.backup.backends.reader import BaseItemsBackupReader
-from karapace.utils import json_decode
+from karapace.core.utils import json_decode
 from typing import IO
 
 

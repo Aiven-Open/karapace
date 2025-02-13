@@ -2,16 +2,6 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
-from aiokafka.errors import TopicAlreadyExistsError
-from karapace.client import Client
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.utils import Expiration
-from pathlib import Path
-from subprocess import Popen
-from typing import Any, Callable, IO, Union
-from urllib.parse import quote
 
 import asyncio
 import copy
@@ -20,6 +10,18 @@ import os
 import ssl
 import sys
 import uuid
+from collections.abc import Callable
+from pathlib import Path
+from subprocess import Popen
+from typing import IO, Any
+
+from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
+from aiokafka.errors import TopicAlreadyExistsError
+
+from karapace.core.client import Client
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.utils import Expiration
 
 consumer_valid_payload = {
     "format": "avro",
@@ -226,7 +228,12 @@ def new_random_name(prefix: str) -> str:
 
 
 def create_subject_name_factory(prefix: str) -> Callable[[], str]:
-    return create_id_factory(f"subject_{prefix}")
+    """Creates subject from the prefix.
+
+    A slash is added to subject for validating the API behavior for url encoded subject name.
+    For example subject in the data: `test/subject` is `test%2Fsubject` in the API.
+    """
+    return create_id_factory(f"subj/ect_{prefix}")
 
 
 def create_field_name_factory(prefix: str) -> Callable[[], str]:
@@ -244,13 +251,13 @@ def create_group_name_factory(prefix: str) -> Callable[[], str]:
 def create_id_factory(prefix: str) -> Callable[[], str]:
     """
     Creates unique ids prefixed with prefix..
-    The resulting ids are safe to embed in URLs.
+    The resulting ids are NOT safe to embed in URLs.
     """
     index = 1
 
     def create_name() -> str:
         nonlocal index
-        return new_random_name(f"{quote(prefix).replace('/', '_')}_{index}_")
+        return new_random_name(f"{prefix}_{index}_")
 
     return create_name
 
@@ -321,7 +328,7 @@ async def repeat_until_successful_request(
 
 async def repeat_until_master_is_available(client: Client) -> None:
     while True:
-        res = await client.get("/master_available", json={})
+        res = await client.get("/master_available")
         reply = res.json()
         if reply is not None and "master_available" in reply and reply["master_available"] is True:
             break
@@ -343,10 +350,14 @@ def python_exe() -> str:
     return python
 
 
-def popen_karapace_all(config_path: Union[Path, str], stdout: IO, stderr: IO, **kwargs) -> Popen:
+def popen_karapace_all(*, module: str, env: dict[str], stdout: IO, stderr: IO, **kwargs) -> Popen:
     kwargs["stdout"] = stdout
     kwargs["stderr"] = stderr
-    return Popen([python_exe(), "-m", "karapace.karapace_all", str(config_path)], **kwargs)
+    return Popen(
+        [python_exe(), "-m", module],
+        env=env,
+        **kwargs,
+    )
 
 
 class StubMessage:

@@ -5,11 +5,11 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ExtendElementTest.kt
 
-from karapace.protobuf.extend_element import ExtendElement
-from karapace.protobuf.field import Field
-from karapace.protobuf.field_element import FieldElement
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.protobuf.location import Location
+from karapace.core.protobuf.extend_element import ExtendElement
+from karapace.core.protobuf.field import Field
+from karapace.core.protobuf.field_element import FieldElement
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.protobuf.location import Location
 
 location = Location("", "file.proto")
 

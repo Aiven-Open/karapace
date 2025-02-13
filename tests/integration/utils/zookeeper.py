@@ -2,8 +2,10 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from pathlib import Path
 from subprocess import Popen
+
 from tests.integration.utils.config import KafkaDescription, ZKConfig
 from tests.integration.utils.process import get_java_process_configuration
 from tests.utils import write_ini
@@ -25,7 +27,7 @@ def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription
     zk_dir = Path(config.path)
     cfg_path = zk_dir / "zoo.cfg"
     logs_dir = zk_dir / "logs"
-    logs_dir.mkdir(parents=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
 
     zoo_cfg = {
         # Number of milliseconds of each tick
@@ -58,5 +60,5 @@ def configure_and_start_zk(config: ZKConfig, kafka_description: KafkaDescription
             kafka_description,
         )
     )
-    proc = Popen(java_args, env=env)  # pylint: disable=consider-using-with
+    proc = Popen(java_args, env=env)
     return proc

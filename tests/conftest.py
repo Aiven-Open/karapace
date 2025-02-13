@@ -2,15 +2,24 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from avro.compatibility import SchemaCompatibilityResult
-from pathlib import Path
-from tempfile import mkstemp
-from typing import Optional
 
 import json
 import os
-import pytest
 import re
+from pathlib import Path
+from tempfile import mkstemp
+
+import pytest
+from avro.compatibility import SchemaCompatibilityResult
+
+import karapace.api.controller
+import karapace.core.instrumentation.meter
+import karapace.api.telemetry.middleware
+import karapace.api.telemetry.setup
+import karapace.api.telemetry.tracer
+from karapace.api.container import SchemaRegistryContainer
+from karapace.api.telemetry.container import TelemetryContainer
+from karapace.core.container import KarapaceContainer
 
 pytest_plugins = "aiohttp.pytest_plugin"
 KAFKA_BOOTSTRAP_SERVERS_OPT = "--kafka-bootstrap-servers"
@@ -20,7 +29,7 @@ LOG_DIR_OPT = "--log-dir"
 VERSION_REGEX = "([0-9]+[.])*[0-9]+"
 
 
-def pytest_assertrepr_compare(op, left, right) -> Optional[list[str]]:
+def pytest_assertrepr_compare(op, left, right) -> list[str] | None:
     if isinstance(left, SchemaCompatibilityResult) and isinstance(right, SchemaCompatibilityResult) and op in ("==", "!="):
         lines = ["Comparing SchemaCompatibilityResult instances:"]
 
@@ -60,7 +69,7 @@ def split_by_comma(arg: str) -> list[str]:
     return arg.split(",")
 
 
-def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-argument
+def pytest_addoption(parser, pluginmanager) -> None:
     # Configuration options for the services started by the test suite
     parser.addoption(
         KAFKA_VERION_OPT,
@@ -84,8 +93,7 @@ def pytest_addoption(parser, pluginmanager) -> None:  # pylint: disable=unused-a
     parser.addoption(
         "--registry-url",
         help=(
-            "URL of a running Schema Registry instance. If provided the test "
-            "suite will not start a Schema Registry instance"
+            "URL of a running Schema Registry instance. If provided the test suite will not start a Schema Registry instance"
         ),
     )
     parser.addoption(
@@ -179,3 +187,35 @@ def fixture_tmp_file():
     path = Path(str_path)
     yield path
     path.unlink()
+
+
+@pytest.fixture(name="karapace_container", scope="session", autouse=True)
+def fixture_karapace_container() -> KarapaceContainer:
+    karapace_container = KarapaceContainer()
+    karapace_container.wire(
+        modules=[
+            karapace.api.controller,
+            karapace.api.telemetry.tracer,
+            karapace.core.instrumentation.meter,
+        ]
+    )
+    return karapace_container
+
+
+@pytest.fixture(name="telemetry_container", scope="session", autouse=True)
+def fixture_telemetry_container() -> TelemetryContainer:
+    telemetry_container = TelemetryContainer()
+    telemetry_container.wire(
+        modules=[
+            karapace.api.telemetry.setup,
+            karapace.api.telemetry.middleware,
+        ]
+    )
+    return telemetry_container
+
+
+@pytest.fixture(name="schema_registry_container", scope="session", autouse=True)
+def fixture_schema_registry_container(
+    karapace_container: KarapaceContainer, telemetry_container: TelemetryContainer
+) -> SchemaRegistryContainer:
+    return SchemaRegistryContainer(karapace_container=karapace_container, telemetry_container=telemetry_container)

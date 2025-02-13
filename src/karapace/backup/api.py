@@ -4,6 +4,7 @@ karapace - schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic, RestoreTopicLegacy
@@ -22,27 +23,27 @@ from .errors import (
 from .poll_timeout import PollTimeout
 from .topic_configurations import ConfigSource, get_topic_configurations
 from aiokafka.errors import KafkaError, TopicAlreadyExistsError
-from collections.abc import Iterator, Mapping, Sized
+from collections.abc import Callable, Iterator, Mapping, Sized
 from concurrent.futures import Future
 from confluent_kafka import Message, TopicPartition
 from enum import Enum
 from functools import partial
-from karapace import constants
 from karapace.backup.backends.v1 import SchemaBackupV1Reader
 from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer, V2_MARKER
 from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, VerifyFailure, VerifySuccess
-from karapace.config import Config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.common import translate_from_kafkaerror
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.kafka.producer import KafkaProducer
-from karapace.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
-from karapace.key_format import KeyFormatter
-from karapace.utils import assert_never
+from karapace.core import constants
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.common import translate_from_kafkaerror
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.kafka_utils import kafka_admin_from_config, kafka_consumer_from_config, kafka_producer_from_config
+from karapace.core.key_format import KeyFormatter
+from karapace.core.utils import assert_never
 from pathlib import Path
 from rich.console import Console
 from tenacity import retry, retry_if_exception_type, RetryCallState, stop_after_delay, wait_fixed
-from typing import Callable, Literal, NewType, TypeVar
+from typing import Literal, NewType, TypeVar
 
 import contextlib
 import datetime
@@ -112,7 +113,7 @@ def normalize_topic_name(
     topic_option: str | None,
     config: Config,
 ) -> TopicName:
-    return TopicName(topic_option or config["topic_name"])
+    return TopicName(topic_option or config.topic_name)
 
 
 class BackupVersion(Enum):
@@ -170,7 +171,7 @@ def __before_sleep(description: str) -> Callable[[RetryCallState], None]:
             result = f"failed ({outcome.exception()})"
         else:
             result = f"returned {outcome.result()!r}"
-        LOG.info(f"{description} {result}, retrying... (Ctrl+C to abort)")  # pylint: disable=logging-fstring-interpolation
+        LOG.info(f"{description} {result}, retrying... (Ctrl+C to abort)")
 
     return before_sleep
 
@@ -354,17 +355,17 @@ def _handle_restore_topic_legacy(
 ) -> None:
     if skip_topic_creation:
         return
-    if config["topic_name"] != instruction.topic_name:
+    if config.topic_name != instruction.topic_name:
         LOG.warning(
             "Not creating topic, because the name %r from the config and the name %r from the CLI differ.",
-            config["topic_name"],
+            config.topic_name,
             instruction.topic_name,
         )
         return
     _maybe_create_topic(
         config=config,
         name=instruction.topic_name,
-        replication_factor=config["replication_factor"],
+        replication_factor=config.replication_factor,
         topic_configs={"cleanup.policy": "compact"},
     )
 
@@ -441,9 +442,7 @@ def restore_backup(
         see Kafka implementation.
     :raises BackupTopicAlreadyExists: if backup version is V3 and topic already exists
     """
-    key_formatter = (
-        KeyFormatter() if topic_name == constants.DEFAULT_SCHEMA_TOPIC or config.get("force_key_correction", False) else None
-    )
+    key_formatter = KeyFormatter() if topic_name == constants.DEFAULT_SCHEMA_TOPIC or config.force_key_correction else None
 
     backup_version = BackupVersion.identify(backup_location)
     backend_type = backup_version.reader
@@ -591,7 +590,7 @@ def create_backup(
             started_at=start_time,
             finished_at=end_time,
             partition_count=1,
-            replication_factor=replication_factor if replication_factor is not None else config["replication_factor"],
+            replication_factor=replication_factor if replication_factor is not None else config.replication_factor,
             topic_configurations=topic_configurations,
             data_files=[data_file] if data_file else [],
         )

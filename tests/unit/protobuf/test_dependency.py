@@ -2,8 +2,9 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.protobuf.schema import ProtobufSchema
+
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.protobuf.schema import ProtobufSchema
 
 
 def test_nested_field_one_of_dependency():

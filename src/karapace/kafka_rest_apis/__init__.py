@@ -4,6 +4,7 @@ karapace - Rest Proxy API
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from aiokafka.errors import (
@@ -16,35 +17,37 @@ from aiokafka.errors import (
 )
 from binascii import Error as B64DecodeError
 from collections import namedtuple
+from collections.abc import Callable
 from confluent_kafka.error import KafkaException
 from contextlib import AsyncExitStack
 from http import HTTPStatus
-from karapace.config import Config
-from karapace.errors import InvalidSchema
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.producer import AsyncKafkaProducer
-from karapace.kafka_rest_apis.authentication import (
-    get_auth_config_from_header,
-    get_expiration_time_from_header,
-    get_kafka_client_auth_parameters_from_config,
-)
-from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
-from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
-from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
-from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
-from karapace.schema_models import TypedSchema, ValidatedTypedSchema
-from karapace.schema_type import SchemaType
-from karapace.serialization import (
+from karapace.core.config import Config
+from karapace.core.errors import InvalidSchema
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.producer import AsyncKafkaProducer
+from karapace.core.schema_models import TypedSchema, ValidatedTypedSchema
+from karapace.core.schema_type import SchemaType
+from karapace.core.serialization import (
     get_subject_name,
     InvalidMessageSchema,
     InvalidPayload,
     SchemaRegistrySerializer,
     SchemaRetrievalError,
 )
-from karapace.typing import NameStrategy, SchemaId, Subject, SubjectType
-from karapace.utils import convert_to_int, json_encode
-from typing import Callable, TypedDict
+from karapace.core.typing import NameStrategy, SchemaId, Subject, SubjectType
+from karapace.core.utils import json_encode
+from karapace.kafka_rest_apis.authentication import (
+    get_auth_config_from_header,
+    get_expiration_time_from_header,
+    get_kafka_client_auth_parameters_from_config,
+)
+from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
+from karapace.kafka_rest_apis.convert_to_int import convert_to_int
+from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
+from karapace.kafka_rest_apis.karapace import KarapaceBase
+from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
+from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
+from typing import TypedDict
 
 import asyncio
 import base64
@@ -76,7 +79,7 @@ class KafkaRest(KarapaceBase):
         self.serializer = SchemaRegistrySerializer(config=config)
         self.proxies: dict[str, UserRestProxy] = {}
         self._proxy_lock = asyncio.Lock()
-        log.info("REST proxy starting with (delegated authorization=%s)", self.config.get("rest_authorization", False))
+        log.info("REST proxy starting with (delegated authorization=%s)", self.config.rest_authorization)
         self._idle_proxy_janitor_task: asyncio.Task | None = None
 
     async def close(self) -> None:
@@ -97,11 +100,11 @@ class KafkaRest(KarapaceBase):
 
             try:
                 await self._disconnect_idle_proxy_if_any()
-            except:  # pylint: disable=bare-except
+            except Exception:
                 log.exception("Disconnecting idle proxy failure")
 
     async def _disconnect_idle_proxy_if_any(self) -> None:
-        idle_consumer_timeout = self.config.get("consumer_idle_disconnect_timeout", 0)
+        idle_consumer_timeout = self.config.consumer_idle_disconnect_timeout
 
         key, proxy = None, None
         async with self._proxy_lock:
@@ -297,7 +300,7 @@ class KafkaRest(KarapaceBase):
                 self._idle_proxy_janitor_task = asyncio.create_task(self._idle_proxy_janitor())
 
             try:
-                if self.config.get("rest_authorization", False):
+                if self.config.rest_authorization:
                     auth_header = request.headers.get("Authorization")
                     auth_config = get_auth_config_from_header(auth_header, self.config)
                     auth_expiry = get_expiration_time_from_header(auth_header)
@@ -305,11 +308,18 @@ class KafkaRest(KarapaceBase):
                     key = auth_header
                     if self.proxies.get(key) is None:
                         config = self.config.copy()
-                        config["bootstrap_uri"] = config["sasl_bootstrap_uri"]
-                        config["security_protocol"] = (
-                            "SASL_SSL" if config["security_protocol"] in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
+                        config.bootstrap_uri = config.sasl_bootstrap_uri
+                        config.security_protocol = (
+                            "SASL_SSL" if config.security_protocol in ("SSL", "SASL_SSL") else "SASL_PLAINTEXT"
                         )
-                        config.update(auth_config)
+
+                        config.sasl_mechanism = auth_config["sasl_mechanism"]
+                        if "sasl_oauth_token" in auth_config:
+                            config.sasl_oauth_token = auth_config["sasl_oauth_token"]
+                        else:
+                            config.sasl_plain_username = auth_config["sasl_plain_username"]
+                            config.sasl_plain_password = auth_config["sasl_plain_password"]
+
                         self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer, auth_expiry)
                 else:
                     if self.proxies.get(key) is None:
@@ -462,7 +472,7 @@ class UserRestProxy:
         # birth of all the metadata (when the request was requiring all the metadata available in the cluster)
         self._global_metadata_birth: float = 0.0  # set to this value will always require a refresh at the first call.
         self._cluster_metadata_topic_birth: dict[str, float] = {}
-        self.metadata_max_age = self.config["admin_metadata_max_age"]
+        self.metadata_max_age = self.config.admin_metadata_max_age
         self.admin_client = None
         self.admin_lock = asyncio.Lock()
         self.metadata_cache = None
@@ -474,10 +484,10 @@ class UserRestProxy:
 
         self._async_producer_lock = asyncio.Lock()
         self._async_producer: AsyncKafkaProducer | None = None
-        self.naming_strategy = NameStrategy(self.config["name_strategy"])
+        self.naming_strategy = NameStrategy(self.config.name_strategy)
 
     def __str__(self) -> str:
-        return f"UserRestProxy(username={self.config['sasl_plain_username']})"
+        return f"UserRestProxy(username={self.config.sasl_plain_username})"
 
     @property
     def last_used(self) -> int:
@@ -501,10 +511,10 @@ class UserRestProxy:
         if self._async_producer is not None:
             return self._async_producer
 
-        if self.config["producer_acks"] == "all":
+        if self.config.producer_acks == "all":
             acks = -1
         else:
-            acks = int(self.config["producer_acks"])
+            acks = int(self.config.producer_acks)
 
         async with self._async_producer_lock:
             for retry in [True, True, False]:
@@ -515,17 +525,17 @@ class UserRestProxy:
 
                 producer = AsyncKafkaProducer(
                     acks=acks,
-                    bootstrap_servers=self.config["bootstrap_uri"],
-                    compression_type=self.config["producer_compression_type"],
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
-                    linger_ms=self.config["producer_linger_ms"],
-                    message_max_bytes=self.config["producer_max_request_size"],
-                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    security_protocol=self.config["security_protocol"],
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
-                    ssl_crlfile=self.config["ssl_crlfile"],
+                    bootstrap_servers=self.config.bootstrap_uri,
+                    compression_type=self.config.producer_compression_type,
+                    connections_max_idle_ms=self.config.connections_max_idle_ms,
+                    linger_ms=self.config.producer_linger_ms,
+                    message_max_bytes=self.config.producer_max_request_size,
+                    metadata_max_age_ms=self.config.metadata_max_age_ms,
+                    security_protocol=self.config.security_protocol,
+                    ssl_cafile=self.config.ssl_cafile,
+                    ssl_certfile=self.config.ssl_certfile,
+                    ssl_keyfile=self.config.ssl_keyfile,
+                    ssl_crlfile=self.config.ssl_crlfile,
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 try:
@@ -737,22 +747,22 @@ class UserRestProxy:
                 )
             return metadata
 
-    def init_admin_client(self, verify_connection: bool = True) -> KafkaAdminClient:
+    def init_admin_client(self, verify_connection: bool = True) -> None:
         for retry in [True, True, False]:
             try:
                 self.admin_client = KafkaAdminClient(
-                    bootstrap_servers=self.config["bootstrap_uri"],
-                    security_protocol=self.config["security_protocol"],
-                    ssl_cafile=self.config["ssl_cafile"],
-                    ssl_certfile=self.config["ssl_certfile"],
-                    ssl_keyfile=self.config["ssl_keyfile"],
-                    metadata_max_age_ms=self.config["metadata_max_age_ms"],
-                    connections_max_idle_ms=self.config["connections_max_idle_ms"],
+                    bootstrap_servers=self.config.bootstrap_uri,
+                    security_protocol=self.config.security_protocol,
+                    ssl_cafile=self.config.ssl_cafile,
+                    ssl_certfile=self.config.ssl_certfile,
+                    ssl_keyfile=self.config.ssl_keyfile,
+                    metadata_max_age_ms=self.config.metadata_max_age_ms,
+                    connections_max_idle_ms=self.config.connections_max_idle_ms,
                     verify_connection=verify_connection,
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 break
-            except:  # pylint: disable=bare-except
+            except Exception:
                 if retry:
                     log.warning("Unable to start admin client, retrying")
                 else:
@@ -923,7 +933,7 @@ class UserRestProxy:
                 need_new_call=subject_not_included,
             )
 
-            if self.config["name_strategy_validation"] and subject_not_included(parsed_schema, valid_subjects):
+            if self.config.name_strategy_validation and subject_not_included(parsed_schema, valid_subjects):
                 raise InvalidSchema()
 
         return schema_id
@@ -1004,9 +1014,9 @@ class UserRestProxy:
             )
         except InvalidSchema:
             if f"{subject_type}_schema" in data:
-                err = f'schema = {data[f"{subject_type}_schema"]}'
+                err = f"schema = {data[f'{subject_type}_schema']}"
             else:
-                err = f'schema_id = {data[f"{subject_type}_schema_id"]}'
+                err = f"schema_id = {data[f'{subject_type}_schema_id']}"
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.INVALID_DATA.value,
@@ -1087,7 +1097,7 @@ class UserRestProxy:
         if ser_format == "binary":
             try:
                 return base64.b64decode(obj)
-            except:  # pylint: disable=bare-except
+            except Exception:
                 KafkaRest.r(
                     body={
                         "error_code": RESTErrorCodes.HTTP_BAD_REQUEST.value,

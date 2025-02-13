@@ -2,17 +2,19 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
+import logging
+from unittest.mock import Mock
+
+import pytest
 from _pytest.logging import LogCaptureFixture
 from aiohttp.client_exceptions import ClientConnectionError
 from aiohttp.web import Request
-from karapace.config import DEFAULTS
-from karapace.karapace import KarapaceBase
-from karapace.rapu import HTTPRequest, REST_ACCEPT_RE, REST_CONTENT_TYPE_RE
-from karapace.statsd import StatsClient
-from unittest.mock import Mock
 
-import logging
-import pytest
+from karapace.core.container import KarapaceContainer
+from karapace.kafka_rest_apis.karapace import KarapaceBase
+from karapace.statsd import StatsClient
+from karapace.rapu import REST_ACCEPT_RE, REST_CONTENT_TYPE_RE, HTTPRequest
 
 
 async def test_header_get():
@@ -167,14 +169,16 @@ def test_content_type_re():
 
 
 @pytest.mark.parametrize("connection_error", (ConnectionError(), ClientConnectionError()))
-async def test_raise_connection_error_handling(connection_error: BaseException) -> None:
+async def test_raise_connection_error_handling(
+    karapace_container: KarapaceContainer, connection_error: BaseException
+) -> None:
     request_mock = Mock(spec=Request)
     request_mock.read.side_effect = connection_error
     callback_mock = Mock()
 
-    app = KarapaceBase(config=DEFAULTS)
+    app = KarapaceBase(config=karapace_container.config())
 
-    response = await app._handle_request(  # pylint: disable=protected-access
+    response = await app._handle_request(
         request=request_mock,
         path_for_stats="/",
         callback=callback_mock,
@@ -185,8 +189,8 @@ async def test_raise_connection_error_handling(connection_error: BaseException) 
     callback_mock.assert_not_called()
 
 
-async def test_close_by_app(caplog: LogCaptureFixture) -> None:
-    app = KarapaceBase(config=DEFAULTS)
+async def test_close_by_app(caplog: LogCaptureFixture, karapace_container: KarapaceContainer) -> None:
+    app = KarapaceBase(config=karapace_container.config())
     app.stats = Mock(spec=StatsClient)
 
     with caplog.at_level(logging.WARNING, logger="karapace.rapu"):

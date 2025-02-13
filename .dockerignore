@@ -4,13 +4,12 @@
 
 # Include source directories and files required for building.
 !go
-!src
+!src/karapace
 !requirements/*.txt
 !README.rst
 !LICENSE
 !pyproject.toml
 !setup.py
-!container/start.sh
 !container/healthcheck.py
 
 # Ignore some files in source directories.

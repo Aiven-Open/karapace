@@ -10,13 +10,15 @@
 __pycache__/
 /build/
 /dist/
-/karapace.egg-info/
+src/karapace.egg-info/
 /karapace-rpm-src.tar
 /kafka_*.tgz
 /kafka_*/
 venv
-/karapace/version.py
+*.so
+src/karapace/version.py
 .run
 .python-version
 .hypothesis/
 .DS_Store
+*.coverage.*

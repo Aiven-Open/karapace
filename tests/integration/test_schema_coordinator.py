@@ -6,35 +6,43 @@ See LICENSE for details
 
 Tests are adapted from aiokafka.tests.test_coordinator
 """
+
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
+import time
+from collections.abc import AsyncGenerator, Iterator
+from typing import Final
+from unittest import mock
+
+import aiokafka.errors as Errors
+import pytest
 from aiokafka.client import AIOKafkaClient, ConnectionGroup, CoordinationType
 from aiokafka.cluster import ClusterMetadata
 from aiokafka.protocol.api import Response
 from aiokafka.protocol.group import (
     HeartbeatRequest_v0 as HeartbeatRequest,
+)
+from aiokafka.protocol.group import (
     JoinGroupRequest_v0 as JoinGroupRequest,
+)
+from aiokafka.protocol.group import (
     LeaveGroupRequest_v0 as LeaveGroupRequest,
+)
+from aiokafka.protocol.group import (
     SyncGroupResponse_v0 as SyncGroupResponse,
 )
 from aiokafka.util import create_future, create_task
-from collections.abc import AsyncGenerator, Iterator
-from karapace.coordinator.schema_coordinator import Assignment, SchemaCoordinator, SchemaCoordinatorGroupRebalance
-from karapace.utils import json_encode
+from tenacity import TryAgain, retry, stop_after_delay, wait_fixed
+
+from karapace.core.coordinator.schema_coordinator import Assignment, SchemaCoordinator, SchemaCoordinatorGroupRebalance
+from karapace.core.utils import json_encode
 from karapace.version import __version__
-from tenacity import retry, stop_after_delay, TryAgain, wait_fixed
 from tests.integration.test_master_coordinator import AlwaysAvailableSchemaReaderStoppper
 from tests.integration.utils.kafka_server import KafkaServers
 from tests.utils import new_random_name
-from typing import Final
-from unittest import mock
-
-import aiokafka.errors as Errors
-import asyncio
-import contextlib
-import logging
-import pytest
-import time
 
 UNKNOWN_MEMBER_ID = JoinGroupRequest.UNKNOWN_MEMBER_ID
 
@@ -53,7 +61,8 @@ def fixture_mocked_aiokafka_client() -> Iterator[AIOKafkaClient]:
 
 @pytest.fixture(scope="function", name="coordinator")
 async def fixture_admin(
-    loop: asyncio.AbstractEventLoop, mocked_client: AIOKafkaClient  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
+    mocked_client: AIOKafkaClient,
 ) -> AsyncGenerator:
     coordinator = SchemaCoordinator(
         mocked_client,
@@ -76,7 +85,7 @@ async def _get_client(kafka_servers: KafkaServers) -> AIOKafkaClient:
             client = AIOKafkaClient(bootstrap_servers=",".join(kafka_servers.bootstrap_servers))
             await client.bootstrap()
             break
-        except:  # pylint: disable=bare-except
+        except Exception:
             LOG.exception("Kafka client bootstrap failed.")
             await asyncio.sleep(0.5)
     return client
@@ -84,7 +93,8 @@ async def _get_client(kafka_servers: KafkaServers) -> AIOKafkaClient:
 
 @pytest.fixture(scope="function", name="client")
 async def get_client(
-    loop: asyncio.AbstractEventLoop, kafka_servers: KafkaServers  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
+    kafka_servers: KafkaServers,
 ) -> AsyncGenerator:
     client = await _get_client(kafka_servers)
     yield client
@@ -215,14 +225,14 @@ async def test_coordinator_workflow(
 
 async def test_failed_group_join(mocked_client: AIOKafkaClient, coordinator: SchemaCoordinator) -> None:
     coordinator.start()
-    assert coordinator._coordination_task is not None  # pylint: disable=protected-access
-    assert coordinator._client is not None  # pylint: disable=protected-access
+    assert coordinator._coordination_task is not None
+    assert coordinator._client is not None
 
     # disable for test
-    coordinator._coordination_task.cancel()  # pylint: disable=protected-access
+    coordinator._coordination_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
-        await coordinator._coordination_task  # pylint: disable=protected-access
-    coordinator._coordination_task = create_task(asyncio.sleep(0.1))  # pylint: disable=protected-access
+        await coordinator._coordination_task
+    coordinator._coordination_task = create_task(asyncio.sleep(0.1))
     coordinator.coordinator_id = 15
 
     async def _on_join_leader_test(_: Response) -> bytes | None:
@@ -236,13 +246,13 @@ async def test_failed_group_join(mocked_client: AIOKafkaClient, coordinator: Sch
             coordinator,
             coordinator.group_id,
             coordinator.coordinator_id,
-            coordinator._session_timeout_ms,  # pylint: disable=protected-access
-            coordinator._retry_backoff_ms,  # pylint: disable=protected-access
+            coordinator._session_timeout_ms,
+            coordinator._retry_backoff_ms,
         )
-        rebalance._on_join_leader = _on_join_leader_mock  # pylint: disable=protected-access
+        rebalance._on_join_leader = _on_join_leader_mock
         return await rebalance.perform_group_join()
 
-    coordinator._client.api_version = (0, 10, 1)  # pylint: disable=protected-access
+    coordinator._client.api_version = (0, 10, 1)
     error_type = Errors.NoError
 
     async def send(*_, **__) -> JoinGroupRequest:
@@ -293,7 +303,7 @@ async def test_failed_group_join(mocked_client: AIOKafkaClient, coordinator: Sch
     assert coordinator.need_rejoin()
     assert coordinator.coordinator_id is None
     coordinator.coordinator_id = 15
-    coordinator._coordinator_dead_fut = create_future()  # pylint: disable=protected-access
+    coordinator._coordinator_dead_fut = create_future()
 
     async def _on_join_leader(_) -> bytes | None:
         return None
@@ -316,14 +326,14 @@ async def test_failed_group_join(mocked_client: AIOKafkaClient, coordinator: Sch
 
 async def test_failed_sync_group(mocked_client: AIOKafkaClient, coordinator: SchemaCoordinator) -> None:
     coordinator.start()
-    assert coordinator._coordination_task is not None  # pylint: disable=protected-access
-    assert coordinator._client is not None  # pylint: disable=protected-access
+    assert coordinator._coordination_task is not None
+    assert coordinator._client is not None
 
     # disable for test
-    coordinator._coordination_task.cancel()  # pylint: disable=protected-access
+    coordinator._coordination_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
-        await coordinator._coordination_task  # pylint: disable=protected-access
-    coordinator._coordination_task = create_task(asyncio.sleep(0.1))  # pylint: disable=protected-access
+        await coordinator._coordination_task
+    coordinator._coordination_task = create_task(asyncio.sleep(0.1))
     coordinator.coordinator_id = 15
 
     async def do_sync_group() -> bytes | None:
@@ -331,12 +341,12 @@ async def test_failed_sync_group(mocked_client: AIOKafkaClient, coordinator: Sch
             coordinator,
             coordinator.group_id,
             coordinator.coordinator_id,
-            coordinator._session_timeout_ms,  # pylint: disable=protected-access
-            coordinator._retry_backoff_ms,  # pylint: disable=protected-access
+            coordinator._session_timeout_ms,
+            coordinator._retry_backoff_ms,
         )
-        await rebalance._on_join_follower()  # pylint: disable=protected-access
+        await rebalance._on_join_follower()
 
-    coordinator._client.api_version = (0, 10, 1)  # pylint: disable=protected-access
+    coordinator._client.api_version = (0, 10, 1)
     error_type = None
 
     async def send(*_, **__) -> SyncGroupResponse:
@@ -363,7 +373,7 @@ async def test_failed_sync_group(mocked_client: AIOKafkaClient, coordinator: Sch
     assert coordinator.need_rejoin()
 
     coordinator.coordinator_id = 15
-    coordinator._coordinator_dead_fut = create_future()  # pylint: disable=protected-access
+    coordinator._coordinator_dead_fut = create_future()
 
     error_type = Errors.UnknownError()
     with pytest.raises(Errors.KafkaError):  # Masked as some KafkaError
@@ -388,9 +398,9 @@ async def test_generation_change_during_rejoin_sync() -> None:
     coordinator = mock.MagicMock(spec=SchemaCoordinator)
     member_assignment = mock.Mock(spec=Assignment)
 
-    coordinator._client = client  # pylint: disable=protected-access
-    coordinator._rebalance_timeout_ms = 1000  # pylint: disable=protected-access
-    coordinator._send_req = mock.MagicMock()  # pylint: disable=protected-access
+    coordinator._client = client
+    coordinator._rebalance_timeout_ms = 1000
+    coordinator._send_req = mock.MagicMock()
 
     rebalance = SchemaCoordinatorGroupRebalance(
         coordinator,
@@ -412,7 +422,7 @@ async def test_generation_change_during_rejoin_sync() -> None:
     request = mock.MagicMock()
     coordinator.generation = 1
     coordinator.member_id = "member_id"
-    sync_req = asyncio.ensure_future(rebalance._send_sync_group_request(request))  # pylint: disable=protected-access
+    sync_req = asyncio.ensure_future(rebalance._send_sync_group_request(request))
     await asyncio.sleep(0.05)
 
     coordinator.generation = -1
@@ -442,7 +452,7 @@ async def test_coordinator_metadata_update(client: AIOKafkaClient) -> None:
         )
         coordinator.start()
 
-        _metadata_update = client._metadata_update  # pylint: disable=protected-access
+        _metadata_update = client._metadata_update
         with mock.patch.object(client, "_metadata_update") as mocked:
 
             async def _new(*args, **kw) -> bool:
@@ -523,13 +533,13 @@ async def test_coordinator_ensure_coordinator_known(client: AIOKafkaClient) -> N
             heartbeat_interval_ms=20000,
         )
         coordinator.start()
-        assert coordinator._coordination_task is not None  # pylint: disable=protected-access
+        assert coordinator._coordination_task is not None
         # disable for test
-        coordinator._coordination_task.cancel()  # pylint: disable=protected-access
+        coordinator._coordination_task.cancel()
 
         with contextlib.suppress(asyncio.CancelledError):
-            await coordinator._coordination_task  # pylint: disable=protected-access
-            coordinator._coordination_task = create_task(asyncio.sleep(0.1))  # pylint: disable=protected-access
+            await coordinator._coordination_task
+            coordinator._coordination_task = create_task(asyncio.sleep(0.1))
 
         def force_metadata_update() -> asyncio.Future:
             fut = create_future()
@@ -540,7 +550,7 @@ async def test_coordinator_ensure_coordinator_known(client: AIOKafkaClient) -> N
         client.force_metadata_update = mock.Mock()
         client.force_metadata_update.side_effect = force_metadata_update
 
-        async def ready(node_id: int, group: ConnectionGroup) -> bool:  # pylint: disable=unused-argument
+        async def ready(node_id: int, group: ConnectionGroup) -> bool:
             if node_id == 0:
                 return True
             return False
@@ -605,12 +615,12 @@ async def test_coordinator__do_heartbeat(client: AIOKafkaClient) -> None:
             heartbeat_interval_ms=20000,
         )
         coordinator.start()
-        assert coordinator._coordination_task is not None  # pylint: disable=protected-access
+        assert coordinator._coordination_task is not None
         # disable for test
-        coordinator._coordination_task.cancel()  # pylint: disable=protected-access
+        coordinator._coordination_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await coordinator._coordination_task  # pylint: disable=protected-access
-        coordinator._coordination_task = create_task(asyncio.sleep(0.1))  # pylint: disable=protected-access
+            await coordinator._coordination_task
+        coordinator._coordination_task = create_task(asyncio.sleep(0.1))
 
         _orig_send_req = coordinator.send_req
         coordinator.send_req = mocked = mock.Mock()
@@ -632,20 +642,20 @@ async def test_coordinator__do_heartbeat(client: AIOKafkaClient) -> None:
 
         coordinator.coordinator_id = 15
         heartbeat_error = Errors.GroupCoordinatorNotAvailableError()
-        success = await coordinator._do_heartbeat()  # pylint: disable=protected-access
+        success = await coordinator._do_heartbeat()
         assert not success
         assert coordinator.coordinator_id is None
 
         coordinator.rejoin_needed_fut = create_future()
         heartbeat_error = Errors.RebalanceInProgressError()
-        success = await coordinator._do_heartbeat()  # pylint: disable=protected-access
+        success = await coordinator._do_heartbeat()
         assert success
         assert coordinator.rejoin_needed_fut.done()
 
         coordinator.member_id = "some_member"
         coordinator.rejoin_needed_fut = create_future()
         heartbeat_error = Errors.IllegalGenerationError()
-        success = await coordinator._do_heartbeat()  # pylint: disable=protected-access
+        success = await coordinator._do_heartbeat()
         assert not success
         assert coordinator.rejoin_needed_fut.done()
         assert coordinator.member_id == UNKNOWN_MEMBER_ID
@@ -653,28 +663,28 @@ async def test_coordinator__do_heartbeat(client: AIOKafkaClient) -> None:
         coordinator.member_id = "some_member"
         coordinator.rejoin_needed_fut = create_future()
         heartbeat_error = Errors.UnknownMemberIdError()
-        success = await coordinator._do_heartbeat()  # pylint: disable=protected-access
+        success = await coordinator._do_heartbeat()
         assert not success
         assert coordinator.rejoin_needed_fut.done()
         assert coordinator.member_id == UNKNOWN_MEMBER_ID
 
         heartbeat_error = Errors.GroupAuthorizationFailedError()
         with pytest.raises(Errors.GroupAuthorizationFailedError) as exception_info:
-            await coordinator._do_heartbeat()  # pylint: disable=protected-access
+            await coordinator._do_heartbeat()
         assert exception_info.value.args[0] == coordinator.group_id
 
         heartbeat_error = Errors.UnknownError()
         with pytest.raises(Errors.KafkaError):
-            await coordinator._do_heartbeat()  # pylint: disable=protected-access
+            await coordinator._do_heartbeat()
 
         heartbeat_error = None
         send_req_error = Errors.RequestTimedOutError()
-        success = await coordinator._do_heartbeat()  # pylint: disable=protected-access
+        success = await coordinator._do_heartbeat()
         assert not success
 
         heartbeat_error = Errors.NoError()
         send_req_error = None
-        success = await coordinator._do_heartbeat()  # pylint: disable=protected-access
+        success = await coordinator._do_heartbeat()
         assert success
     finally:
         await coordinator.close()
@@ -696,15 +706,15 @@ async def test_coordinator__heartbeat_routine(client: AIOKafkaClient) -> None:
             retry_backoff_ms=50,
         )
         coordinator.start()
-        assert coordinator._coordination_task is not None  # pylint: disable=protected-access
+        assert coordinator._coordination_task is not None
         # disable for test
-        coordinator._coordination_task.cancel()  # pylint: disable=protected-access
+        coordinator._coordination_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await coordinator._coordination_task  # pylint: disable=protected-access
-        coordinator._coordination_task = create_task(asyncio.sleep(0.1))  # pylint: disable=protected-access
+            await coordinator._coordination_task
+        coordinator._coordination_task = create_task(asyncio.sleep(0.1))
 
         mocked = mock.Mock()
-        coordinator._do_heartbeat = mocked  # pylint: disable=protected-access
+        coordinator._do_heartbeat = mocked
         coordinator.coordinator_id = 15
         coordinator.member_id = 17
         coordinator.generation = 0
@@ -723,7 +733,7 @@ async def test_coordinator__heartbeat_routine(client: AIOKafkaClient) -> None:
         coordinator.ensure_coordinator_known = mock.Mock()
         coordinator.ensure_coordinator_known.side_effect = ensure_coordinator_known
 
-        routine = create_task(coordinator._heartbeat_routine())  # pylint: disable=protected-access
+        routine = create_task(coordinator._heartbeat_routine())
 
         # CASE: simple heartbeat
         success = True
@@ -768,20 +778,18 @@ async def test_coordinator__coordination_routine(client: AIOKafkaClient) -> None
         )
 
         def start_coordination():
-            if coordinator._coordination_task:  # pylint: disable=protected-access
-                coordinator._coordination_task.cancel()  # pylint: disable=protected-access
-            coordinator._coordination_task = task = create_task(  # pylint: disable=protected-access
-                coordinator._coordination_routine()  # pylint: disable=protected-access
-            )
+            if coordinator._coordination_task:
+                coordinator._coordination_task.cancel()
+            coordinator._coordination_task = task = create_task(coordinator._coordination_routine())
             return task
 
         async def stop_coordination():
-            if coordinator._coordination_task is not None:  # pylint: disable=protected-access
+            if coordinator._coordination_task is not None:
                 # disable for test
-                coordinator._coordination_task.cancel()  # pylint: disable=protected-access
+                coordinator._coordination_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
-                    await coordinator._coordination_task  # pylint: disable=protected-access
-            coordinator._coordination_task = create_task(asyncio.sleep(0.1))  # pylint: disable=protected-access
+                    await coordinator._coordination_task
+            coordinator._coordination_task = create_task(asyncio.sleep(0.1))
 
         await stop_coordination()
 
@@ -791,7 +799,7 @@ async def test_coordinator__coordination_routine(client: AIOKafkaClient) -> None
         coordinator.ensure_coordinator_known = coord_mock = mock.Mock()
         coord_mock.side_effect = ensure_coordinator_known
 
-        coordinator._do_rejoin_group = rejoin_mock = mock.Mock()  # pylint: disable=protected-access
+        coordinator._do_rejoin_group = rejoin_mock = mock.Mock()
         rejoin_ok = True
 
         async def do_rejoin():
@@ -803,15 +811,15 @@ async def test_coordinator__coordination_routine(client: AIOKafkaClient) -> None
 
         rejoin_mock.side_effect = do_rejoin
 
-        coordinator._start_heartbeat_task = mock.Mock()  # pylint: disable=protected-access
+        coordinator._start_heartbeat_task = mock.Mock()
         client.force_metadata_update = metadata_mock = mock.Mock()
         done_fut = create_future()
         done_fut.set_result(None)
         metadata_mock.side_effect = lambda: done_fut
 
         coordinator.rejoin_needed_fut = create_future()
-        coordinator._closing = create_future()  # pylint: disable=protected-access
-        coordinator._coordinator_dead_fut = create_future()  # pylint: disable=protected-access
+        coordinator._closing = create_future()
+        coordinator._coordinator_dead_fut = create_future()
 
         # CASE: coordination should coordinate and task get done
         # present

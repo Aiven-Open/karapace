@@ -13,7 +13,7 @@ Create if necessary the `_schemas` topic to Kafka::
 
 Run Karapace from repository root::
   cd ..
-  python -m karapace.karapace_all karapace.config.json
+  python -m karapace.karapace_rest_apis karapace.config.json
 
 Performance test is run from the shell script::
   ./run-locust-test.sh

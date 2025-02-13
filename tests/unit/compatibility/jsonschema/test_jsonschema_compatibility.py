@@ -2,9 +2,11 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from jsonschema import Draft7Validator
-from karapace.compatibility.jsonschema.checks import compatibility
+
+from karapace.core.compatibility.jsonschema.checks import compatibility
 from tests.schemas.json_schemas import (
     A_DINT_B_DINT_OBJECT_SCHEMA,
     A_DINT_B_INT_OBJECT_SCHEMA,

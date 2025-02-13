@@ -8,12 +8,13 @@ Supports telegraf's statsd protocol extension for 'key=value' tags:
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from karapace.config import Config
-from karapace.sentry import get_sentry_client
+from karapace.core.config import Config, KarapaceTags
+from karapace.core.sentry import get_sentry_client
 from typing import Any, Final
 
 import datetime
@@ -25,11 +26,11 @@ LOG = logging.getLogger(__name__)
 
 
 class StatsClient:
-    def __init__(self, config: Config) -> None:
-        self._dest_addr: Final = (config["statsd_host"], config["statsd_port"])
+    def __init__(self, *, config: Config) -> None:
+        self._dest_addr: Final = (config.statsd_host, config.statsd_port)
         self._socket: Final = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._tags: Final = config.get("tags", {})
-        self.sentry_client: Final = get_sentry_client(sentry_config=config.get("sentry", None))
+        self._tags: Final[KarapaceTags] = config.tags
+        self.sentry_client: Final = get_sentry_client(sentry_config=(config.sentry or None))
 
     @contextmanager
     def timing_manager(self, metric: str, tags: dict | None = None) -> Iterator[None]:
@@ -82,7 +83,7 @@ class StatsClient:
                 parts.insert(1, f",{tag}={tag_value}".encode())
 
             self._socket.sendto(b"".join(parts), self._dest_addr)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             LOG.exception("Unexpected exception in statsd send")
 
     def close(self) -> None:

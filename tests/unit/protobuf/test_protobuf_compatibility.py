@@ -2,11 +2,12 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.protobuf.compare_result import CompareResult, Modification
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.proto_file_element import ProtoFileElement
-from karapace.protobuf.proto_parser import ProtoParser
+
+from karapace.core.protobuf.compare_result import CompareResult, Modification
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.proto_file_element import ProtoFileElement
+from karapace.core.protobuf.proto_parser import ProtoParser
 
 location: Location = Location("some/folder", "file.proto")
 

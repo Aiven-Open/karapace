@@ -2,26 +2,24 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
-from karapace.client import Client
-from karapace.typing import Mode
-from tests.utils import create_schema_name_factory, create_subject_name_factory
 
 import json
-import pytest
+
+from karapace.core.client import Client
+from karapace.core.typing import Mode
+from tests.utils import create_schema_name_factory, create_subject_name_factory
 
 
-@pytest.mark.parametrize("trail", ["", "/"])
-async def test_global_mode(registry_async_client: Client, trail: str) -> None:
-    res = await registry_async_client.get(f"/mode{trail}")
+async def test_global_mode(registry_async_client: Client) -> None:
+    res = await registry_async_client.get_mode()
     assert res.status_code == 200
     json_res = res.json()
     assert json_res == {"mode": str(Mode.readwrite)}
 
 
-@pytest.mark.parametrize("trail", ["", "/"])
-async def test_subject_mode(registry_async_client: Client, trail: str) -> None:
-    subject_name_factory = create_subject_name_factory(f"test_schema_same_subject_{trail}")
-    schema_name = create_schema_name_factory(f"test_schema_same_subject_{trail}")()
+async def test_subject_mode(registry_async_client: Client) -> None:
+    subject_name_factory = create_subject_name_factory("test_schema_same_subject")
+    schema_name = create_schema_name_factory("test_schema_same_subject")()
 
     schema_str = json.dumps(
         {
@@ -36,18 +34,15 @@ async def test_subject_mode(registry_async_client: Client, trail: str) -> None:
         }
     )
     subject = subject_name_factory()
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions",
-        json={"schema": schema_str},
-    )
+    res = await registry_async_client.post_subjects_versions(subject=subject, json={"schema": schema_str})
     assert res.status_code == 200
 
-    res = await registry_async_client.get(f"/mode/{subject}{trail}")
+    res = await registry_async_client.get_mode_subject(subject=subject)
     assert res.status_code == 200
     json_res = res.json()
     assert json_res == {"mode": str(Mode.readwrite)}
 
-    res = await registry_async_client.get(f"/mode/unknown_subject{trail}")
+    res = await registry_async_client.get_mode_subject(subject="unknown_subject")
     assert res.status_code == 404
     json_res = res.json()
     assert json_res == {"error_code": 40401, "message": "Subject 'unknown_subject' not found."}

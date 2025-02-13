@@ -3,6 +3,10 @@ global:
   scrape_timeout: 5s # How long until a scrape request times out.
   evaluation_interval: 10s # How frequently to evaluate rules.
 
+storage:
+  tsdb:
+    out_of_order_time_window: 30m
+
 rule_files:
  - /etc/prometheus/rules.yml
 
@@ -27,3 +31,8 @@ scrape_configs:
     static_configs:
       - targets:
         - statsd-exporter:9102
+
+  - job_name: opentelemetry-collector
+    static_configs:
+      - targets:
+        - opentelemetry-collector:8888

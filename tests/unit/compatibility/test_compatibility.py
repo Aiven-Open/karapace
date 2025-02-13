@@ -2,12 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from avro.compatibility import SchemaCompatibilityType
-from karapace.compatibility import CompatibilityModes
-from karapace.compatibility.schema_compatibility import SchemaCompatibility
-from karapace.schema_models import SchemaType, ValidatedTypedSchema
 
 import json
+
+from avro.compatibility import SchemaCompatibilityType
+
+from karapace.core.compatibility import CompatibilityModes
+from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 
 
 def test_schema_type_can_change_when_mode_none() -> None:
