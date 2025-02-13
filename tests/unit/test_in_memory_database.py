@@ -2,27 +2,31 @@
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
-from confluent_kafka.cimpl import KafkaError
-from karapace.config import DEFAULTS
-from karapace.constants import DEFAULT_SCHEMA_TOPIC
-from karapace.in_memory_database import InMemoryDatabase, KarapaceDatabase, Subject, SubjectData
-from karapace.kafka.types import Timestamp
-from karapace.key_format import KeyFormatter
-from karapace.offset_watcher import OffsetWatcher
-from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import SchemaVersion, TypedSchema
-from karapace.schema_reader import KafkaSchemaReader
-from karapace.schema_references import Reference, Referents
-from karapace.schema_type import SchemaType
-from karapace.typing import SchemaId, Version
 from pathlib import Path
 from typing import Final
+from unittest.mock import Mock
+from karapace.core.stats import StatsClient
 
 import pytest
+from confluent_kafka.cimpl import KafkaError
+
+from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
+from karapace.core.container import KarapaceContainer
+from karapace.core.in_memory_database import InMemoryDatabase, KarapaceDatabase, Subject, SubjectData
+from karapace.core.kafka.types import Timestamp
+from karapace.core.key_format import KeyFormatter
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.protobuf.schema import ProtobufSchema
+from karapace.core.schema_models import SchemaVersion, TypedSchema
+from karapace.core.schema_reader import KafkaSchemaReader
+from karapace.core.schema_references import Reference, Referents
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import SchemaId, Version
 
 TEST_DATA_FOLDER: Final = Path("tests/unit/test_data/")
 
@@ -212,7 +216,7 @@ def compute_schema_id_to_subjects(
     return schema_id_to_duplicated_subjects
 
 
-def test_can_ingest_schemas_from_log() -> None:
+def test_can_ingest_schemas_from_log(karapace_container: KarapaceContainer) -> None:
     """
     Test for the consistency of a backup, this checks that each SchemaID its unique in the backup.
     The format of the log its the one obtained by running:
@@ -221,16 +225,18 @@ def test_can_ingest_schemas_from_log() -> None:
 
     on a node running kafka that hosts the `_schemas` topic.
     """
+    stats_mock = Mock(spec=StatsClient)
     restore_location = TEST_DATA_FOLDER / "schemas.log"
     schema_log = restore_location.read_text(encoding="utf-8").strip()
 
     database = WrappedInMemoryDatabase()
     schema_reader = KafkaSchemaReader(
-        config=DEFAULTS,
+        config=karapace_container.config(),
         offset_watcher=OffsetWatcher(),
         key_formatter=KeyFormatter(),
         master_coordinator=None,
         database=database,
+        stats=stats_mock,
     )
 
     kafka_messages: list[AlwaysFineKafkaMessage] = []

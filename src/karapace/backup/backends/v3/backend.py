@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .checksum import RunningChecksum
@@ -9,18 +10,17 @@ from .errors import DecodeError, InconsistentOffset, InvalidChecksum, OffsetMism
 from .readers import read_metadata, read_records
 from .schema import ChecksumAlgorithm, DataFile, Header, Metadata, Record
 from .writers import write_metadata, write_record
-from collections.abc import Generator, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from confluent_kafka import Message
 from dataclasses import dataclass
 from karapace.backup.backends.reader import BaseBackupReader, Instruction, ProducerSend, RestoreTopic
 from karapace.backup.backends.writer import BytesBackupWriter, StdOut
 from karapace.backup.safe_writer import bytes_writer, staging_directory
-from karapace.dataclasses import default_dataclass
-from karapace.utils import assert_never
+from karapace.core.dataclasses import default_dataclass
+from karapace.core.utils import assert_never
 from karapace.version import __version__
 from pathlib import Path
-from typing import Callable, ContextManager, Final, IO, TypeVar
-from typing_extensions import TypeAlias
+from typing import ContextManager, Final, IO, TypeAlias, TypeVar
 
 import datetime
 import io

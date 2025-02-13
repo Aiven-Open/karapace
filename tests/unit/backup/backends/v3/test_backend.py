@@ -2,9 +2,18 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
+import datetime
+import time
 from dataclasses import replace
+from pathlib import Path
+from unittest import mock
+
+import pytest
+import xxhash
+
 from karapace.backup.backends.reader import ProducerSend, RestoreTopic
-from karapace.backup.backends.v3.backend import _PartitionStats, SchemaBackupV3Reader, SchemaBackupV3Writer
+from karapace.backup.backends.v3.backend import SchemaBackupV3Reader, SchemaBackupV3Writer, _PartitionStats
 from karapace.backup.backends.v3.errors import (
     InconsistentOffset,
     InvalidChecksum,
@@ -15,15 +24,8 @@ from karapace.backup.backends.v3.errors import (
 )
 from karapace.backup.backends.v3.readers import read_records
 from karapace.backup.backends.v3.schema import ChecksumAlgorithm, DataFile
-from karapace.kafka.types import Timestamp
-from pathlib import Path
+from karapace.core.kafka.types import Timestamp
 from tests.utils import StubMessage
-from unittest import mock
-
-import datetime
-import pytest
-import time
-import xxhash
 
 
 def test_writer_reader_roundtrip(tmp_path: Path) -> None:
@@ -190,7 +192,7 @@ def test_reader_raises_invalid_checksum(tmp_path: Path) -> None:
         backup_writer.store_record(buffer, make_record(topic_name, partition_index, 0))
         backup_writer.store_record(buffer, make_record(topic_name, partition_index, 1))
         with mock.patch.object(
-            backup_writer._partition_stats[partition_index],  # pylint: disable=protected-access
+            backup_writer._partition_stats[partition_index],
             "get_checkpoint",
             return_value=b"not what you expected!",
             autospec=True,

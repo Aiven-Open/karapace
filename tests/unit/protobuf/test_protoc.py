@@ -2,19 +2,20 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace import config
-from karapace.protobuf.io import calculate_class_name
-from karapace.protobuf.kotlin_wrapper import trim_margin
 
 import importlib
 import importlib.util
 import logging
 import subprocess
 
+from karapace.core.container import KarapaceContainer
+from karapace.core.protobuf.io import calculate_class_name
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+
 log = logging.getLogger(__name__)
 
 
-def test_protoc() -> None:
+def test_protoc(karapace_container: KarapaceContainer) -> None:
     proto: str = """
                  |syntax = "proto3";
                  |package com.instaclustr.protobuf;
@@ -28,7 +29,7 @@ def test_protoc() -> None:
                  """
     proto = trim_margin(proto)
 
-    directory = config.DEFAULTS["protobuf_runtime_directory"]
+    directory = karapace_container.config().protobuf_runtime_directory
     proto_name = calculate_class_name(str(proto))
     proto_path = f"{directory}/{proto_name}.proto"
     class_path = f"{directory}/{proto_name}_pb2.py"

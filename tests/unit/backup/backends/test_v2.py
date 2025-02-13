@@ -2,20 +2,21 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from __future__ import annotations
 
-from functools import partial
-from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
-from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer
-from karapace.backup.encoders import encode_key, encode_value
-from karapace.kafka.types import Timestamp
-from karapace.key_format import KeyFormatter
-from pathlib import Path
-from tests.utils import StubMessage
+from __future__ import annotations
 
 import datetime
 import json
 import time
+from functools import partial
+from pathlib import Path
+
+from karapace.backup.backends.reader import ProducerSend, RestoreTopicLegacy
+from karapace.backup.backends.v2 import AnonymizeAvroWriter, SchemaBackupV2Reader, SchemaBackupV2Writer
+from karapace.backup.encoders import encode_key, encode_value
+from karapace.core.kafka.types import Timestamp
+from karapace.core.key_format import KeyFormatter
+from tests.utils import StubMessage
 
 
 def get_reader() -> SchemaBackupV2Reader:
@@ -90,7 +91,7 @@ def test_schema_backup_v2_roundtrip(tmp_path: Path) -> None:
     with backup_writer.safe_writer(file_path, False) as buffer:
         for record in records:
             backup_writer.store_record(buffer, record)
-    data_file = backup_writer.finalize_partition(  # pylint: disable=assignment-from-no-return
+    data_file = backup_writer.finalize_partition(
         index=partition_index,
         filename=file_path.name,
     )
@@ -231,7 +232,7 @@ def test_anonymize_avro_roundtrip(tmp_path: Path) -> None:
     with backup_writer.safe_writer(file_path, False) as buffer:
         for record in records:
             backup_writer.store_record(buffer, record)
-    data_file = backup_writer.finalize_partition(  # pylint: disable=assignment-from-no-return
+    data_file = backup_writer.finalize_partition(
         index=partition_index,
         filename=file_path.name,
     )

@@ -1,6 +1,5 @@
-from decimal import Decimal
-
 import datetime
+from decimal import Decimal
 
 class Duration:
     months: Decimal

@@ -1,17 +1,17 @@
-# pylint: disable=protected-access
 """
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from __future__ import annotations
 
-from karapace.config import set_config_defaults
-from karapace.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
-from unittest.mock import call, Mock
+from __future__ import annotations
 
 import asyncio
 import datetime
 import time
+from unittest.mock import Mock, call
+
+from karapace.core.container import KarapaceContainer
+from karapace.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
 
 
 def _create_mock_proxy(
@@ -34,8 +34,8 @@ def _create_mock_proxy(
     return proxy
 
 
-async def test_rest_proxy_janitor_expiring_credentials() -> None:
-    config = set_config_defaults(
+async def test_rest_proxy_janitor_expiring_credentials(karapace_container: KarapaceContainer) -> None:
+    config = karapace_container.config().set_config_defaults(
         {
             "rest_authorization": True,
             "sasl_bootstrap_uri": "localhost:9094",
@@ -92,8 +92,8 @@ async def test_rest_proxy_janitor_expiring_credentials() -> None:
     assert unused_proxy_expiring_later_than_tolerance.method_calls == [call.num_consumers(), call.aclose()]
 
 
-async def test_rest_proxy_janitor_default() -> None:
-    config = set_config_defaults(
+async def test_rest_proxy_janitor_default(karapace_container: KarapaceContainer) -> None:
+    config = karapace_container.config().set_config_defaults(
         {
             "rest_authorization": True,
             "sasl_bootstrap_uri": "localhost:9094",
@@ -148,8 +148,8 @@ async def test_rest_proxy_janitor_default() -> None:
     assert active_proxy_with_consumers.method_calls == [call.num_consumers()]
 
 
-async def test_rest_proxy_janitor_destructive() -> None:
-    config = set_config_defaults(
+async def test_rest_proxy_janitor_destructive(karapace_container: KarapaceContainer) -> None:
+    config = karapace_container.config().set_config_defaults(
         {
             "rest_authorization": True,
             "sasl_bootstrap_uri": "localhost:9094",

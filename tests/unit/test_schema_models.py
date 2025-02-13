@@ -5,15 +5,17 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from avro.schema import Schema as AvroSchema
-from karapace.errors import InvalidVersion, VersionNotFoundException
-from karapace.schema_models import parse_avro_schema_definition, SchemaVersion, TypedSchema, Versioner
-from karapace.schema_type import SchemaType
-from karapace.typing import Version, VersionTag
-from typing import Any, Callable, Optional
-
 import operator
+from collections.abc import Callable
+from typing import Any
+
 import pytest
+from avro.schema import Schema as AvroSchema
+
+from karapace.core.errors import InvalidVersion, VersionNotFoundException
+from karapace.core.schema_models import SchemaVersion, TypedSchema, Versioner, parse_avro_schema_definition
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import Version, VersionTag
 
 # Schema versions factory fixture type
 SVFCallable = Callable[[None], Callable[[int, dict[str, Any]], dict[int, SchemaVersion]]]
@@ -91,7 +93,7 @@ class TestVersioner:
         avro_schema: str,
         avro_schema_parsed: AvroSchema,
     ) -> Callable[[Version, dict[str, Any]], dict[Version, SchemaVersion]]:
-        def schema_versions(version: Version, schema_version_data: Optional[dict[str, Any]] = None):
+        def schema_versions(version: Version, schema_version_data: dict[str, Any] | None = None):
             schema_version_data = schema_version_data or dict()
             base_schema_version_data = dict(
                 subject="test-topic",

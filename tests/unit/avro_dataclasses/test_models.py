@@ -2,15 +2,16 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from dataclasses import dataclass, field
-from karapace.avro_dataclasses.models import AvroModel
-from typing import Optional
 
 import datetime
 import enum
 import io
-import pytest
 import uuid
+from dataclasses import dataclass, field
+
+import pytest
+
+from karapace.core.avro_dataclasses.models import AvroModel
 
 
 class Symbol(enum.Enum):
@@ -41,7 +42,7 @@ class HasList(AvroModel):
 
 @dataclass(frozen=True)
 class HasOptionalBytes(AvroModel):
-    value: Optional[bytes]
+    value: bytes | None
 
 
 class TestAvroModel:

@@ -4,6 +4,7 @@ karapace - schema backup cli
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from . import api
@@ -12,7 +13,9 @@ from .poll_timeout import PollTimeout
 from aiokafka.errors import BrokerResponseError
 from collections.abc import Iterator
 from karapace.backup.api import VerifyLevel
-from karapace.config import Config, read_config
+from karapace.core.config import Config
+from pydantic_settings import BaseSettings, JsonConfigSettingsSource, PydanticBaseSettingsSource
+from typing import Type
 
 import argparse
 import contextlib
@@ -89,8 +92,37 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_config(args: argparse.Namespace) -> Config:
-    with open(args.config) as buffer:
-        return read_config(buffer)
+    """Returns config for Backup tool
+
+    Karapace uses environment variables, but Backup Tool still relies on the JSON
+    configuration file.
+    """
+
+    class BackupCLIConfig(Config):
+        @classmethod
+        def settings_customise_sources(
+            cls,
+            settings_cls: Type[BaseSettings],
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
+        ) -> tuple[
+            JsonConfigSettingsSource,
+            PydanticBaseSettingsSource,
+            PydanticBaseSettingsSource,
+            PydanticBaseSettingsSource,
+            PydanticBaseSettingsSource,
+        ]:
+            return (
+                JsonConfigSettingsSource(settings_cls=settings_cls, json_file=args.config),
+                init_settings,
+                env_settings,
+                dotenv_settings,
+                file_secret_settings,
+            )
+
+    return BackupCLIConfig()
 
 
 def dispatch(args: argparse.Namespace) -> None:
@@ -165,7 +197,7 @@ def main() -> None:
     # TODO: This specific treatment of StaleConsumerError looks quite misplaced
     #  here, and should probably be pushed down into the (internal) API layer.
     except StaleConsumerError as e:
-        logger.error(  # pylint: disable=logging-fstring-interpolation
+        logger.error(
             f"The Kafka consumer did not receive any records for partition {e.topic_partition.partition} of topic "
             f"{e.topic_partition.topic!r} "
             f"within the poll timeout ({e.poll_timeout} seconds) while trying to reach offset {e.end_offset:,} "

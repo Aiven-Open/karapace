@@ -4,11 +4,11 @@ karapace
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from collections.abc import Mapping
 from dataclasses import field
-from karapace.avro_dataclasses.models import AvroModel
-from karapace.dataclasses import default_dataclass
-from typing import Optional
+from karapace.core.avro_dataclasses.models import AvroModel
+from karapace.core.dataclasses import default_dataclass
 
 import datetime
 import enum
@@ -53,7 +53,7 @@ class Metadata(AvroModel):
     finished_at: datetime.datetime
     record_count: int = field(metadata={"type": "int"})
     topic_name: str
-    topic_id: Optional[uuid.UUID]
+    topic_id: uuid.UUID | None
     partition_count: int = field(metadata={"type": "int"})
     replication_factor: int = field(metadata={"type": "int"})
     topic_configurations: Mapping[str, str]
@@ -77,8 +77,8 @@ class Header(AvroModel):
 
 @default_dataclass
 class Record(AvroModel):
-    key: Optional[bytes]
-    value: Optional[bytes]
+    key: bytes | None
+    value: bytes | None
     headers: tuple[Header, ...]
     offset: int = field(metadata={"type": "long"})
     timestamp: int = field(metadata={"type": "long"})
@@ -87,7 +87,7 @@ class Record(AvroModel):
     # of records. When restoring, we accumulate parsed records until
     # encountering a checkpoint, verify the running checksum against it, and
     # only then produce the verified records to Kafka.
-    checksum_checkpoint: Optional[bytes]
+    checksum_checkpoint: bytes | None
 
     def __post_init__(self) -> None:
         assert self.offset >= 0

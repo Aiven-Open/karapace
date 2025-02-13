@@ -2,13 +2,13 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Generator
 from pathlib import Path
 from tempfile import mkstemp, TemporaryDirectory
-from typing import Final, IO, Literal
-from typing_extensions import TypeAlias
+from typing import Final, IO, Literal, TypeAlias
 
 import contextlib
 import os
@@ -20,8 +20,7 @@ StdOut: TypeAlias = Literal["", "-"]
 std_out_alias: Final = ("", "-")
 
 
-class OverwriteRefused(Exception):
-    ...
+class OverwriteRefused(Exception): ...
 
 
 def _check_destination_file(destination: Path, allow_overwrite: bool) -> None:

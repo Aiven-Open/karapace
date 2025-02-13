@@ -30,36 +30,6 @@ repos:
   hooks:
   - id: shfmt
 
-- repo: https://github.com/asottile/pyupgrade
-  rev: v3.4.0
-  hooks:
-  - id: pyupgrade
-    args: [ --py39-plus ]
-
-- repo: https://github.com/pycqa/autoflake
-  rev: v2.1.1
-  hooks:
-    - id: autoflake
-      args:
-        - --in-place
-        - --remove-all-unused-imports
-        - --ignore-init-module-imports
-
-- repo: https://github.com/PyCQA/isort
-  rev: 5.12.0
-  hooks:
-  - id: isort
-
-- repo: https://github.com/psf/black
-  rev: 23.3.0
-  hooks:
-  - id: black
-
-- repo: https://github.com/PyCQA/flake8
-  rev: 7.1.0
-  hooks:
-  - id: flake8
-
 - repo: https://github.com/hadolint/hadolint
   rev: v2.12.0
   hooks:
@@ -70,9 +40,12 @@ repos:
     # https://github.com/hadolint/hadolint/issues/497
     - --ignore=DL3042
 
-- repo: https://github.com/PyCQA/pylint
-  # Note: pre-commit autoupdate changes to an alpha version. Instead, manually find the
-  # latest stable version here: https://github.com/pylint-dev/pylint/releases
-  rev: v3.2.6
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.8.6
   hooks:
-  - id: pylint
+    # Run the linter.
+    - id: ruff
+      args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format

@@ -2,23 +2,25 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from __future__ import annotations
 
-from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
-from dataclasses import dataclass
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.utils import Expiration
-from pathlib import Path
-from subprocess import Popen
-from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
-from tests.integration.utils.process import get_java_process_configuration
-from tests.utils import write_ini
+from __future__ import annotations
 
 import logging
 import os
-import requests
 import tarfile
 import time
+from dataclasses import dataclass
+from pathlib import Path
+from subprocess import Popen
+
+import requests
+from aiokafka.errors import AuthenticationFailedError, NoBrokersAvailable
+
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.utils import Expiration
+from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
+from tests.integration.utils.process import get_java_process_configuration
+from tests.utils import write_ini
 
 log = logging.getLogger(__name__)
 
@@ -183,5 +185,5 @@ def configure_and_start_kafka(
         ),
     )
     env: dict[bytes, bytes] = {}
-    proc = Popen(kafka_cmd, env=env)  # pylint: disable=consider-using-with
+    proc = Popen(kafka_cmd, env=env)
     return proc

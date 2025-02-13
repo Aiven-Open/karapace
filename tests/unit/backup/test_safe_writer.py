@@ -2,19 +2,21 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.backup.safe_writer import (
-    _check_destination_file,
-    bytes_writer,
-    OverwriteRefused,
-    staging_directory,
-    StdOut,
-    str_writer,
-)
+
+import secrets
+import sys
 from pathlib import Path
 
 import pytest
-import secrets
-import sys
+
+from karapace.backup.safe_writer import (
+    OverwriteRefused,
+    StdOut,
+    _check_destination_file,
+    bytes_writer,
+    staging_directory,
+    str_writer,
+)
 
 
 class TestCheckDestinationFile:

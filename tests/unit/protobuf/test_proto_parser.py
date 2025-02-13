@@ -5,28 +5,28 @@ See LICENSE for details
 # Ported from square/wire:
 # wire-library/wire-schema/src/jvmTest/kotlin/com/squareup/wire/schema/internal/parser/ProtoParserTest.kt
 
-from karapace.protobuf.enum_constant_element import EnumConstantElement
-from karapace.protobuf.enum_element import EnumElement
-from karapace.protobuf.exception import IllegalStateException
-from karapace.protobuf.extend_element import ExtendElement
-from karapace.protobuf.extensions_element import ExtensionsElement
-from karapace.protobuf.field import Field
-from karapace.protobuf.field_element import FieldElement
-from karapace.protobuf.group_element import GroupElement
-from karapace.protobuf.kotlin_wrapper import KotlinRange, trim_margin
-from karapace.protobuf.location import Location
-from karapace.protobuf.message_element import MessageElement
-from karapace.protobuf.one_of_element import OneOfElement
-from karapace.protobuf.option_element import OptionElement
-from karapace.protobuf.proto_file_element import ProtoFileElement, TypeName
-from karapace.protobuf.proto_parser import ProtoParser
-from karapace.protobuf.reserved_element import ReservedElement
-from karapace.protobuf.rpc_element import RpcElement
-from karapace.protobuf.service_element import ServiceElement
-from karapace.protobuf.syntax import Syntax
-from karapace.protobuf.utils import MAX_TAG_VALUE
-
 import pytest
+
+from karapace.core.protobuf.enum_constant_element import EnumConstantElement
+from karapace.core.protobuf.enum_element import EnumElement
+from karapace.core.protobuf.exception import IllegalStateException
+from karapace.core.protobuf.extend_element import ExtendElement
+from karapace.core.protobuf.extensions_element import ExtensionsElement
+from karapace.core.protobuf.field import Field
+from karapace.core.protobuf.field_element import FieldElement
+from karapace.core.protobuf.group_element import GroupElement
+from karapace.core.protobuf.kotlin_wrapper import KotlinRange, trim_margin
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.message_element import MessageElement
+from karapace.core.protobuf.one_of_element import OneOfElement
+from karapace.core.protobuf.option_element import OptionElement
+from karapace.core.protobuf.proto_file_element import ProtoFileElement, TypeName
+from karapace.core.protobuf.proto_parser import ProtoParser
+from karapace.core.protobuf.reserved_element import ReservedElement
+from karapace.core.protobuf.rpc_element import RpcElement
+from karapace.core.protobuf.service_element import ServiceElement
+from karapace.core.protobuf.syntax import Syntax
+from karapace.core.protobuf.utils import MAX_TAG_VALUE
 
 location: Location = Location("", "file.proto")
 
@@ -519,7 +519,7 @@ def test_syntax_not_first_declaration_throws():
     proto = trim_margin(proto)
     with pytest.raises(
         IllegalStateException,
-        match="Syntax error in file.proto:2:1: 'syntax' element must be the first declaration " "in a file",
+        match="Syntax error in file.proto:2:1: 'syntax' element must be the first declaration in a file",
     ):
         ProtoParser.parse(location, proto)
         pytest.fail("")
@@ -632,7 +632,7 @@ def test_proto3_message_fields_forbid_required():
     proto = trim_margin(proto)
     with pytest.raises(
         IllegalStateException,
-        match="Syntax error in file.proto:3:3: 'required' label forbidden in proto3 field " "declarations",
+        match="Syntax error in file.proto:3:3: 'required' label forbidden in proto3 field declarations",
     ):
         ProtoParser.parse(location, proto)
         pytest.fail("")
@@ -679,7 +679,7 @@ def test_proto3_extension_fields_forbids_required():
     proto = trim_margin(proto)
     with pytest.raises(
         IllegalStateException,
-        match="Syntax error in file.proto:5:3: 'required' label forbidden in proto3 field " "declarations",
+        match="Syntax error in file.proto:5:3: 'required' label forbidden in proto3 field declarations",
     ):
         ProtoParser.parse(location, proto)
         pytest.fail("")
@@ -1031,8 +1031,7 @@ def test_package_declaration():
             MessageElement(
                 location=location.at(6, 1),
                 name="FileDescriptorSet",
-                documentation="The protocol compiler can output a FileDescriptorSet containing the .proto\nfiles "
-                "it parses.",
+                documentation="The protocol compiler can output a FileDescriptorSet containing the .proto\nfiles it parses.",
             )
         ],
         options=[OptionElement("java_package", OptionElement.Kind.STRING, "com.google.protobuf")],
@@ -1381,7 +1380,7 @@ def test_default_field_with_string_escapes():
             OptionElement(
                 "x",
                 OptionElement.Kind.STRING,
-                "\u0007\b\u000C\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
+                "\u0007\b\u000c\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
             )
         ],
     )
@@ -1390,7 +1389,7 @@ def test_default_field_with_string_escapes():
         OptionElement(
             "x",
             OptionElement.Kind.STRING,
-            "\u0007\b\u000C\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
+            "\u0007\b\u000c\n\r\t\u000b\u0001f\u0001\u0001\u0009\u0009I\u000e\u000e\u000e\u000eAA",
         )
         in field.options
     )
@@ -1834,7 +1833,7 @@ def test_option_numerical_bounds():
                             OptionElement(
                                 "x",
                                 OptionElement.Kind.STRING,
-                                "çok\u0007\b\u000C\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
+                                "çok\u0007\b\u000c\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
                                 "\u0001\u0001\u0011güzel",
                             )
                         ],
@@ -1849,7 +1848,7 @@ def test_option_numerical_bounds():
                             OptionElement(
                                 "x",
                                 OptionElement.Kind.STRING,
-                                "çok\u0007\b\u000C\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
+                                "çok\u0007\b\u000c\n\r\t\u000b\u0001\u0001\u0001\u000f\u000f~\u0001\u0001\u0011"
                                 "\u0001\u0001\u0011güzel",
                             )
                         ],

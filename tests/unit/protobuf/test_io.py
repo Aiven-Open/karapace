@@ -2,14 +2,15 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.dependency import Dependency
-from karapace.protobuf.io import crawl_dependencies
-from karapace.protobuf.schema import ProtobufSchema
-from karapace.schema_models import ValidatedTypedSchema
-from karapace.schema_type import SchemaType
-from karapace.typing import Subject
 
 import textwrap
+
+from karapace.core.dependency import Dependency
+from karapace.core.protobuf.io import crawl_dependencies
+from karapace.core.protobuf.schema import ProtobufSchema
+from karapace.core.schema_models import ValidatedTypedSchema
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import Subject
 
 
 def test_crawl_dependencies() -> None:

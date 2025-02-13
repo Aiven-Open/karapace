@@ -2,14 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
 from confluent_kafka import Message
 from karapace.backup.safe_writer import bytes_writer, str_writer
 from pathlib import Path
-from typing import ContextManager, Generic, IO, Literal, TypeVar
-from typing_extensions import TypeAlias
+from typing import ContextManager, Generic, IO, Literal, TypeAlias, TypeVar
 
 import abc
 import contextlib
@@ -31,8 +31,6 @@ def _noop_context(path: T) -> Iterator[T]:
 
 class BackupWriter(Generic[B, F], abc.ABC):
     """Common interface and base class for all backup writer backends."""
-
-    # pylint: disable=unused-argument
 
     P = TypeVar("P", bound="StdOut | Path")
 
@@ -171,5 +169,4 @@ class BaseKVBackupWriter(StrBackupWriter, abc.ABC):
     def serialize_record(
         key_bytes: bytes | None,
         value_bytes: bytes | None,
-    ) -> str:
-        ...
+    ) -> str: ...

@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
 from .checksum import RunningChecksum
@@ -9,7 +10,7 @@ from .constants import V3_MARKER
 from .errors import InvalidChecksum, InvalidHeader, TooFewRecords, TooManyRecords, UnexpectedEndOfData
 from .schema import Metadata, Record
 from collections.abc import Generator
-from karapace.avro_dataclasses.models import AvroModel
+from karapace.core.avro_dataclasses.models import AvroModel
 from typing import IO, TypeVar
 
 import io

@@ -2,13 +2,14 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.protobuf.compare_result import CompareResult, Modification
-from karapace.protobuf.compare_type_storage import CompareTypes
-from karapace.protobuf.field import Field
-from karapace.protobuf.field_element import FieldElement
-from karapace.protobuf.location import Location
-from karapace.protobuf.one_of_element import OneOfElement
-from karapace.protobuf.option_element import OptionElement
+
+from karapace.core.protobuf.compare_result import CompareResult, Modification
+from karapace.core.protobuf.compare_type_storage import CompareTypes
+from karapace.core.protobuf.field import Field
+from karapace.core.protobuf.field_element import FieldElement
+from karapace.core.protobuf.location import Location
+from karapace.core.protobuf.one_of_element import OneOfElement
+from karapace.core.protobuf.option_element import OptionElement
 
 location: Location = Location("some/folder", "file.proto")
 

@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ '3.9', '3.10', '3.11', '3.12' ]
+        python-version: [ '3.10', '3.11', '3.12' ]
     env:
       PYTEST_ADDOPTS: >-
         --log-dir=/tmp/ci-logs
@@ -28,11 +28,13 @@ jobs:
         --showlocals
     steps:
     - uses: actions/checkout@v4
+      # Need fetch-depth 0 to fetch tags, see https://github.com/actions/checkout/issues/701
+      with:
+        fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
-        cache: pip
         python-version: ${{ matrix.python-version }}
 
     - name: Set up Go
@@ -40,14 +42,58 @@ jobs:
       with:
         go-version: '1.21.0'
 
-    - run: make install-dev
-    - run: make unit-tests
+    - name: Resolve Karapace version
+      run: echo KARAPACE_VERSION="$(git describe --tags | cut -d '-' -f -2 | sed 's/-/.dev/g')" >> $GITHUB_ENV
+
+    - run: echo "RUNNER_UID=$(id -u)" >> $GITHUB_ENV
+    - run: echo "RUNNER_GID=$(id -g)" >> $GITHUB_ENV
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Cache docker layers
+      uses: docker/build-push-action@v4
       env:
-        COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
+        PYTHON_VERSION: ${{ matrix.python-version }}
+        KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+        PR_TAG: aiven-open/karapace-pr:${{ env.KARAPACE_VERSION }}
+      with:
+        context: .
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        tags: ${{ env.PR_TAG }}
+        push: false
+        build-args: |
+          KARAPACE_VERSION=${{ env.KARAPACE_VERSION }}
+          PYTHON_VERSION=${{ matrix.python-version }}
+        file: container/Dockerfile
+        platforms: linux/amd64
+
+    - run: make unit-tests-in-docker
+      env:
+        PYTHON_VERSION: ${{ matrix.python-version }}
+        KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+        RUNNER_UID: ${{ env.RUNNER_UID }}
+        RUNNER_GID: ${{ env.RUNNER_GID }}
+        COVERAGE_FILE: "/opt/karapace/coverage/.coverage.${{ matrix.python-version }}"
         PYTEST_ARGS: "--cov=karapace --cov-append --numprocesses 4"
-    - run: make integration-tests
+
+    - run: make e2e-tests-in-docker
       env:
-        COVERAGE_FILE: ".coverage.${{ matrix.python-version }}"
+        PYTHON_VERSION: ${{ matrix.python-version }}
+        KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+        RUNNER_UID: ${{ env.RUNNER_UID }}
+        RUNNER_GID: ${{ env.RUNNER_GID }}
+        COVERAGE_FILE: "/opt/karapace/coverage/.coverage.${{ matrix.python-version }}"
+        PYTEST_ARGS: "--cov=karapace --cov-append --numprocesses 4"
+
+    - run: make integration-tests-in-docker
+      env:
+        PYTHON_VERSION: ${{ matrix.python-version }}
+        KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+        RUNNER_UID: ${{ env.RUNNER_UID }}
+        RUNNER_GID: ${{ env.RUNNER_GID }}
+        COVERAGE_FILE: "/opt/karapace/coverage/.coverage.${{ matrix.python-version }}"
         PYTEST_ARGS: "--cov=karapace --cov-append --random-order --numprocesses 4"
 
     - name: Archive logs
@@ -56,6 +102,7 @@ jobs:
       with:
         name: karapace-integration-test-logs-${{ matrix.python-version }}
         path: /tmp/ci-logs
+
     - name: Archive coverage file
       uses: actions/upload-artifact@v4
       with:

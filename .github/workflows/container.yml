@@ -78,5 +78,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             KARAPACE_VERSION=${{ steps.ctx.outputs.version }}
+            PYTHON_VERSION=3.10.11
           file: container/Dockerfile
           platforms: "linux/amd64,linux/arm64"

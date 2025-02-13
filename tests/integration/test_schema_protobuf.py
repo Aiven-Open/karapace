@@ -4,18 +4,26 @@ karapace - schema tests
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from dataclasses import dataclass
-from karapace.client import Client
-from karapace.errors import InvalidTest
-from karapace.protobuf.kotlin_wrapper import trim_margin
-from karapace.schema_type import SchemaType
-from karapace.typing import JsonData, SchemaMetadata, SchemaRuleSet
-from tests.base_testcase import BaseTestCase
-from tests.utils import create_subject_name_factory
-from typing import Optional, Union
 
+from __future__ import annotations
+
+import asyncio
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+
 import pytest
+
+from karapace.core.client import Client
+from karapace.core.config import Config
+from karapace.core.errors import InvalidTest
+from karapace.core.protobuf.kotlin_wrapper import trim_margin
+from karapace.core.schema_type import SchemaType
+from karapace.core.typing import JsonData, SchemaMetadata, SchemaRuleSet
+from tests.base_testcase import BaseTestCase
+from tests.integration.utils.cluster import after_master_is_available, start_schema_registry_cluster
+from tests.integration.utils.kafka_server import KafkaServers
+from tests.utils import create_subject_name_factory
 
 baseurl = "http://localhost:8081"
 
@@ -42,12 +50,11 @@ log = logging.getLogger(__name__)
 
 # This test ProtoBuf schemas in subject registeration, compatibility of evolved version and querying the schema
 # w.r.t. normalization of whitespace and other minor differences to verify equality and inequality comparison of such schemas
-@pytest.mark.parametrize("trail", ["", "/"])
 @pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
-async def test_protobuf_schema_normalization(registry_async_client: Client, trail: str) -> None:
-    subject = create_subject_name_factory(f"test_protobuf_schema_compatibility-{trail}")()
+async def test_protobuf_schema_normalization(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
 
-    res = await registry_async_client.put(f"config/{subject}{trail}", json={"compatibility": "BACKWARD"})
+    res = await registry_async_client.put_config_subject(subject=subject, json={"compatibility": "BACKWARD"})
     assert res.status_code == 200
 
     original_schema = """
@@ -84,37 +91,37 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
             |"""
     )
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+    res = await registry_async_client.post_subjects_versions(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     original_id = res.json()["id"]
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+    res = await registry_async_client.post_subjects_versions(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id == res.json()["id"], "No duplication"
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
+    res = await registry_async_client.post_subjects_versions(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id == res.json()["id"], "No duplication with whitespace differences"
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+    res = await registry_async_client.post_subjects(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert "schema" in res.json()
     assert original_id == res.json()["id"], "Check returns original id"
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
+    res = await registry_async_client.post_subjects(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": original_schema_with_whitespace}
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -139,36 +146,38 @@ async def test_protobuf_schema_normalization(registry_async_client: Client, trai
             |"""
     evolved_schema = trim_margin(evolved_schema)
 
-    res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+    res = await registry_async_client.post_compatibility_subject_version(
+        subject=subject,
+        version="latest",
         json={"schemaType": "PROTOBUF", "schema": evolved_schema},
     )
     assert res.status_code == 200
     assert res.json() == {"is_compatible": True}
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
+    res = await registry_async_client.post_subjects_versions(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": evolved_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id != res.json()["id"], "Evolved is not equal"
     evolved_id = res.json()["id"]
 
-    res = await registry_async_client.post(
-        f"compatibility/subjects/{subject}/versions/latest{trail}",
+    res = await registry_async_client.post_compatibility_subject_version(
+        subject=subject,
+        version="latest",
         json={"schemaType": "PROTOBUF", "schema": original_schema},
     )
     assert res.json() == {"is_compatible": True}
     assert res.status_code == 200
-    res = await registry_async_client.post(
-        f"subjects/{subject}/versions{trail}", json={"schemaType": "PROTOBUF", "schema": original_schema}
+    res = await registry_async_client.post_subjects_versions(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": original_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_id == res.json()["id"], "Original id again"
 
-    res = await registry_async_client.post(
-        f"subjects/{subject}{trail}", json={"schemaType": "PROTOBUF", "schema": evolved_schema}
+    res = await registry_async_client.post_subjects(
+        subject=subject, json={"schemaType": "PROTOBUF", "schema": evolved_schema}
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -205,16 +214,16 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
             |"""
 
     place_schema = trim_margin(place_schema)
-    res = await registry_async_client.post(
-        "subjects/place/versions", json={"schemaType": "PROTOBUF", "schema": place_schema}
+    res = await registry_async_client.post_subjects_versions(
+        subject="place", json={"schemaType": "PROTOBUF", "schema": place_schema}
     )
     assert res.status_code == 200
 
     assert "id" in res.json()
 
     customer_references = [{"name": "Place.proto", "subject": "place", "version": 1}]
-    res = await registry_async_client.post(
-        "subjects/customer/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject="customer",
         json={"schemaType": "PROTOBUF", "schema": customer_schema, "references": customer_references},
     )
     assert res.status_code == 200
@@ -223,8 +232,8 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     customer_id = res.json()["id"]
 
     # Check if the schema has now been registered under the subject
-    res = await registry_async_client.post(
-        "subjects/customer",
+    res = await registry_async_client.post_subjects(
+        subject="customer",
         json={"schemaType": "PROTOBUF", "schema": customer_schema, "references": customer_references},
     )
     assert res.status_code == 200
@@ -264,22 +273,22 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
 
     original_schema = trim_margin(original_schema)
     references = [{"name": "Customer.proto", "subject": "customer", "version": 1}]
-    res = await registry_async_client.post(
-        "subjects/test_schema/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject="test_schema",
         json={"schemaType": "PROTOBUF", "schema": original_schema, "references": references},
     )
     assert res.status_code == 200
 
     assert "id" in res.json()
 
-    res = await registry_async_client.get("subjects/customer/versions/latest/referencedby", json={})
+    res = await registry_async_client.get_subjects_subject_version_referenced_by(subject="customer", version="latest")
     assert res.status_code == 200
 
     myjson = res.json()
     referents = [3]
     assert not any(x != y for x, y in zip(myjson, referents))
 
-    res = await registry_async_client.get("subjects/place/versions/latest/referencedby", json={})
+    res = await registry_async_client.get_subjects_subject_version_referenced_by(subject="place", version="latest")
     assert res.status_code == 200
 
     res = await registry_async_client.delete("subjects/customer/versions/1")
@@ -289,26 +298,26 @@ async def test_protobuf_schema_references(registry_async_client: Client) -> None
     myjson = res.json()
     assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
 
-    res = await registry_async_client.delete("subjects/test_schema/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="test_schema", version=1)
     assert res.status_code == 200
-    res = await registry_async_client.delete("subjects/test_schema/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="test_schema", version=1)
     myjson = res.json()
     match_msg = "Subject 'test_schema' Version 1 was soft deleted. Set permanent=true to delete permanently"
 
     assert res.status_code == 404
 
     assert myjson["error_code"] == 40406 and myjson["message"] == match_msg
-    res = await registry_async_client.delete("subjects/customer/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="customer", version=1)
     myjson = res.json()
     match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}."
 
     assert res.status_code == 422
     assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
 
-    res = await registry_async_client.delete("subjects/test_schema/versions/1?permanent=true")
+    res = await registry_async_client.delete_subjects_version(subject="test_schema", version=1, permanent=True)
     assert res.status_code == 200
 
-    res = await registry_async_client.delete("subjects/customer/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="customer", version=1)
     assert res.status_code == 200
 
 
@@ -323,7 +332,9 @@ async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> No
              |"""
 
     no_ref = trim_margin(no_ref)
-    res = await registry_async_client.post("subjects/sub1/versions", json={"schemaType": "PROTOBUF", "schema": no_ref})
+    res = await registry_async_client.post_subjects_versions(
+        subject="sub1", json={"schemaType": "PROTOBUF", "schema": no_ref}
+    )
     assert res.status_code == 200
     assert "id" in res.json()
 
@@ -339,8 +350,8 @@ async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> No
 
     with_first_ref = trim_margin(with_first_ref)
     references = [{"name": "NoReference.proto", "subject": "sub1", "version": 1}]
-    res = await registry_async_client.post(
-        "subjects/sub2/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject="sub2",
         json={"schemaType": "PROTOBUF", "schema": with_first_ref, "references": references},
     )
     assert res.status_code == 200
@@ -355,8 +366,8 @@ async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> No
                     |"""
 
     no_ref_second = trim_margin(no_ref_second)
-    res = await registry_async_client.post(
-        "subjects/sub3/versions", json={"schemaType": "PROTOBUF", "schema": no_ref_second}
+    res = await registry_async_client.post_subjects_versions(
+        subject="sub3", json={"schemaType": "PROTOBUF", "schema": no_ref_second}
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -379,8 +390,8 @@ async def test_protobuf_schema_jjaakola_one(registry_async_client: Client) -> No
         {"name": "NoReferenceTwo.proto", "subject": "sub3", "version": 1},
     ]
 
-    res = await registry_async_client.post(
-        "subjects/sub2/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject="sub2",
         json={"schemaType": "PROTOBUF", "schema": add_new_ref_in_sub2, "references": references},
     )
     assert res.status_code == 200
@@ -399,8 +410,9 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
             |"""
 
     customer_schema = trim_margin(customer_schema)
-    res = await registry_async_client.post(
-        "subjects/customer/versions", json={"schemaType": "PROTOBUF", "schema": customer_schema}
+    res = await registry_async_client.post_subjects_versions(
+        subject="customer",
+        json={"schemaType": "PROTOBUF", "schema": customer_schema},
     )
     assert res.status_code == 200
     assert "id" in res.json()
@@ -436,34 +448,34 @@ async def test_protobuf_schema_verifier(registry_async_client: Client) -> None:
 
     original_schema = trim_margin(original_schema)
     references = [{"name": "Customer.proto", "subject": "customer", "version": 1}]
-    res = await registry_async_client.post(
-        "subjects/test_schema/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject="test_schema",
         json={"schemaType": "PROTOBUF", "schema": original_schema, "references": references},
     )
     assert res.status_code == 200
     assert "id" in res.json()
-    res = await registry_async_client.get("subjects/customer/versions/latest/referencedby", json={})
+    res = await registry_async_client.get_subjects_subject_version_referenced_by(subject="customer", version="latest")
     assert res.status_code == 200
     myjson = res.json()
     referents = [2]
     assert not any(x != y for x, y in zip(myjson, referents))
 
-    res = await registry_async_client.delete("subjects/customer/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="customer", version=1)
     assert res.status_code == 422
     match_msg = "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=customer,version=1}."
     myjson = res.json()
     assert myjson["error_code"] == 42206 and myjson["message"] == match_msg
 
-    res = await registry_async_client.delete("subjects/test_schema/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="test_schema", version=1)
     assert res.status_code == 200
 
-    res = await registry_async_client.delete("subjects/customer/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="customer", version=1)
     assert res.status_code == 422
 
-    res = await registry_async_client.delete("subjects/test_schema/versions/1?permanent=true")
+    res = await registry_async_client.delete_subjects_version(subject="test_schema", version=1, permanent=True)
     assert res.status_code == 200
 
-    res = await registry_async_client.delete("subjects/customer/versions/1")
+    res = await registry_async_client.delete_subjects_version(subject="customer", version=1)
     assert res.status_code == 200
 
 
@@ -472,10 +484,10 @@ class TestCaseSchema:
     schema_type: SchemaType
     schema_str: str
     subject: str
-    references: Optional[list[JsonData]] = None
+    references: list[JsonData] | None = None
     expected: int = 200
     expected_msg: str = ""
-    expected_error_code: Optional[int] = None
+    expected_error_code: int | None = None
 
 
 TestCaseSchema.__test__ = False
@@ -488,7 +500,7 @@ class TestCaseDeleteSchema:
     schema_id: int
     expected: int = 200
     expected_msg: str = ""
-    expected_error_code: Optional[int] = None
+    expected_error_code: int | None = None
 
 
 TestCaseDeleteSchema.__test__ = False
@@ -501,7 +513,7 @@ class TestCaseHardDeleteSchema(TestCaseDeleteSchema):
 
 @dataclass
 class ReferenceTestCase(BaseTestCase):
-    schemas: list[Union[TestCaseSchema, TestCaseDeleteSchema]]
+    schemas: list[TestCaseSchema | TestCaseDeleteSchema]
 
 
 # Base case
@@ -984,20 +996,25 @@ async def test_references(
             }
             if testdata.references:
                 body["references"] = testdata.references
-            res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+            res = await registry_async_client.post_subjects_versions(subject=testdata.subject, json=body)
         elif isinstance(testdata, TestCaseHardDeleteSchema):
             print(
                 f"Permanently deleting schema, subject: '{testdata.subject}, "
                 f"schema: {testdata.schema_id}, version: {testdata.version}' "
             )
-            res = await registry_async_client.delete(
-                f"subjects/{testdata.subject}/versions/{testdata.version}?permanent=true"
+            res = await registry_async_client.delete_subjects_version(
+                subject=testdata.subject,
+                version=testdata.version,
+                permanent=True,
             )
         elif isinstance(testdata, TestCaseDeleteSchema):
             print(
                 f"Deleting schema, subject: '{testdata.subject}, schema: {testdata.schema_id}, version: {testdata.version}' "
             )
-            res = await registry_async_client.delete(f"subjects/{testdata.subject}/versions/{testdata.version}")
+            res = await registry_async_client.delete_subjects_version(
+                subject=testdata.subject,
+                version=testdata.version,
+            )
         else:
             raise InvalidTest("Unknown test case.")
 
@@ -1009,7 +1026,7 @@ async def test_references(
         if isinstance(testdata, TestCaseSchema):
             if testdata.expected == 200:
                 schema_id = res.json().get("id")
-                fetch_schema_res = await registry_async_client.get(f"/schemas/ids/{schema_id}")
+                fetch_schema_res = await registry_async_client.get_schema_by_id(schema_id=schema_id)
                 assert fetch_schema_res.status_code == 200
                 if testdata.references:
                     assert "references" in fetch_schema_res.json()
@@ -1017,10 +1034,13 @@ async def test_references(
                     assert "references" not in fetch_schema_res.json()
         if isinstance(testdata, TestCaseDeleteSchema):
             if testdata.expected == 200:
-                fetch_res = await registry_async_client.get(f"/subjects/{testdata.subject}/versions/{testdata.version}")
+                fetch_res = await registry_async_client.get_subjects_subject_version(
+                    subject=testdata.subject,
+                    version=testdata.version,
+                )
                 assert fetch_res.status_code == 404
             else:
-                fetch_schema_res = await registry_async_client.get(f"/schemas/ids/{testdata.schema_id}")
+                fetch_schema_res = await registry_async_client.get_schema_by_id(schema_id=testdata.schema_id)
                 assert fetch_schema_res.status_code == 200
 
 
@@ -1061,12 +1081,12 @@ async def test_reference_update_creates_new_schema_version(registry_async_client
         body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
         if testdata.references:
             body["references"] = testdata.references
-        res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+        res = await registry_async_client.post_subjects_versions(subject=testdata.subject, json=body)
         assert res.status_code == testdata.expected
         schema_ids.append(res.json_result.get("id"))
-    res = await registry_async_client.get("subjects/wr_s2/versions")
+    res = await registry_async_client.get_subjects_versions(subject="wr_s2")
     assert len(res.json_result) == 2, "Expected two versions of schemas as reference was updated."
-    res = await registry_async_client.get("subjects/wr_s2/versions/2")
+    res = await registry_async_client.get_subjects_subject_version(subject="wr_s2", version=2)
     references = res.json_result.get("references")
     assert len(references) == 1
     assert references[0].get("name") == "NoReference.proto"
@@ -1081,7 +1101,7 @@ async def test_reference_update_creates_new_schema_version(registry_async_client
         }
         if testdata.references:
             body["references"] = testdata.references
-        res = await registry_async_client.post(f"subjects/{testdata.subject}", json=body)
+        res = await registry_async_client.post_subjects(subject=testdata.subject, json=body)
         assert res.json_result.get("id") == expected_schema_id
 
 
@@ -1098,7 +1118,7 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
     body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
     if testdata.references:
         body["references"] = testdata.references
-    res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=testdata.subject, json=body)
 
     assert res.status_code == 200
 
@@ -1113,7 +1133,7 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
     body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
     if testdata.references:
         body["references"] = testdata.references
-    res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=testdata.subject, json=body)
     assert res.status_code == 200
     testdata = TestCaseSchema(
         schema_type=SchemaType.PROTOBUF,
@@ -1131,7 +1151,7 @@ async def test_protobuf_error(registry_async_client: Client) -> None:
     body = {"schemaType": testdata.schema_type, "schema": testdata.schema_str}
     if testdata.references:
         body["references"] = testdata.references
-    res = await registry_async_client.post(f"subjects/{testdata.subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=testdata.subject, json=body)
 
     assert res.status_code == 200
 
@@ -1149,7 +1169,7 @@ message UsingGoogleTypesWithoutImport {
 }
 """
     body = {"schemaType": "PROTOBUF", "schema": unknown_proto}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 422
 
@@ -1173,7 +1193,7 @@ message Customer {
 """
 
     body = {"schemaType": "PROTOBUF", "schema": customer_proto}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 200
 
@@ -1189,7 +1209,7 @@ message Customer {
 """
 
     body = {"schemaType": "PROTOBUF", "schema": customer_proto}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 200
 
@@ -1216,31 +1236,31 @@ message Dog {
     )
 
     body = {"schemaType": "PROTOBUF", "schema": schema_serialized}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
     schema_id = res.json()["id"]
 
     body = {"schemaType": "PROTOBUF", "schema": schema_plain}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
 
-    res = await registry_async_client.get(f"/schemas/ids/{schema_id}")
+    res = await registry_async_client.get_schema_by_id(schema_id=schema_id)
     assert res.status_code == 200
     assert "schema" in res.json()
     assert res.json()["schema"] == schema_plain
 
-    res = await registry_async_client.get(f"/schemas/ids/{schema_id}?format=serialized")
+    res = await registry_async_client.get_schema_by_id(schema_id=schema_id, params={"format": "serialized"})
     assert res.status_code == 200
     assert "schema" in res.json()
     assert res.json()["schema"]
 
     body = {"schemaType": "PROTOBUF", "schema": res.json()["schema"]}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
     assert res.status_code == 200
     assert "id" in res.json()
     assert schema_id == res.json()["id"]
@@ -1264,7 +1284,7 @@ enum HodoCode {
 """
 
     body = {"schemaType": "PROTOBUF", "schema": schema_v1}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
@@ -1285,7 +1305,7 @@ message Fred {
 """
 
     body = {"schemaType": "PROTOBUF", "schema": schema_v2}
-    res = await registry_async_client.post(f"subjects/{subject}/versions", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body)
 
     assert res.status_code == 200
     assert "id" in res.json()
@@ -1326,30 +1346,45 @@ message Foo {
 """
 
 
-@pytest.mark.parametrize(
-    "registry_cluster, status",
-    [({"config": {}}, 404), ({"config": {"use_protobuf_formatter": True}}, 200)],
-    indirect=["registry_cluster"],
-)
-async def test_registering_normalized_schema(registry_async_client: Client, status: int) -> None:
+async def test_registering_normalized_schema(session_logdir: Path, kafka_servers: KafkaServers) -> None:
     subject = create_subject_name_factory("test_protobuf_normalization")()
 
-    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
-    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
 
-    assert res.status_code == 200
-    assert "id" in res.json()
-    original_schema_id = res.json()["id"]
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.use_protobuf_formatter = True
+    config2.waiting_time_before_acting_as_master_ms = 500
 
-    body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
-    res = await registry_async_client.post(f"subjects/{subject}", json=body)
-    assert res.status_code == status
+    async with start_schema_registry_cluster(
+        config_templates=[config1, config2],
+        data_dir=session_logdir / subject,
+    ) as endpoints:
+        async with after_master_is_available(endpoints, None):
+            servers = [server.endpoint.to_url() for server in endpoints]
+            client1 = Client(server_uri=servers[0], server_ca=None)
+            client2 = Client(server_uri=servers[1], server_ca=None)
 
-    res = await registry_async_client.post(f"subjects/{subject}?normalize=true", json=body)
+            await asyncio.sleep(2)
 
-    assert res.status_code == 200
-    assert "id" in res.json()
-    assert original_schema_id == res.json()["id"]
+            body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
+            res = await client1.post_subjects_versions(subject=subject, json=body, params={"normalize": "true"})
+
+            assert res.status_code == 200
+            assert "id" in res.json()
+            original_schema_id = res.json()["id"]
+
+            body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
+            res = await client1.post_subjects(subject=subject, json=body)
+            assert res.status_code == 404
+
+            res = await client2.post_subjects(subject=subject, json=body, params={"normalize": "true"})
+
+            assert res.status_code == 200
+            assert "id" in res.json()
+            assert original_schema_id == res.json()["id"]
 
 
 @pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
@@ -1357,20 +1392,20 @@ async def test_normalized_schema_idempotence_produce_and_fetch(registry_async_cl
     subject = create_subject_name_factory("test_protobuf_normalization")()
 
     body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_UNORDERDERED}
-    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body, params={"normalize": "true"})
 
     assert res.status_code == 200
     assert "id" in res.json()
     original_schema_id = res.json()["id"]
 
     body = {"schemaType": "PROTOBUF", "schema": SCHEMA_WITH_OPTION_ORDERED}
-    res = await registry_async_client.post(f"subjects/{subject}/versions?normalize=true", json=body)
+    res = await registry_async_client.post_subjects_versions(subject=subject, json=body, params={"normalize": "true"})
 
     assert res.status_code == 200
     assert "id" in res.json()
     assert original_schema_id == res.json()["id"]
 
-    res = await registry_async_client.get(f"/schemas/ids/{original_schema_id}")
+    res = await registry_async_client.get_schema_by_id(schema_id=original_schema_id)
     assert res.status_code == 200
     assert "schema" in res.json()
     assert res.json()["schema"] == SCHEMA_WITH_OPTION_ORDERED

@@ -4,29 +4,31 @@ karapace - test schema backup
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from aiokafka.errors import InvalidTopicError
-from karapace.backup import api
-from karapace.backup.api import BackupVersion
-from karapace.backup.errors import StaleConsumerError
-from karapace.backup.poll_timeout import PollTimeout
-from karapace.client import Client
-from karapace.config import set_config_defaults
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.common import KafkaError
-from karapace.kafka.consumer import KafkaConsumer
-from karapace.key_format import is_key_in_canonical_format
-from karapace.utils import Expiration
-from pathlib import Path
-from tests.integration.utils.cluster import RegistryDescription
-from tests.integration.utils.kafka_server import KafkaServers
-from tests.utils import new_random_name, StubMessage
-from unittest import mock
 
 import asyncio
 import json
 import os
-import pytest
 import time
+from pathlib import Path
+from unittest import mock
+
+import pytest
+from aiokafka.errors import InvalidTopicError
+
+from karapace.backup import api
+from karapace.backup.api import BackupVersion
+from karapace.backup.errors import StaleConsumerError
+from karapace.backup.poll_timeout import PollTimeout
+from karapace.core.client import Client
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.common import KafkaError
+from karapace.core.kafka.consumer import KafkaConsumer
+from karapace.core.key_format import is_key_in_canonical_format
+from karapace.core.utils import Expiration
+from tests.integration.utils.cluster import RegistryDescription
+from tests.integration.utils.kafka_server import KafkaServers
+from tests.utils import StubMessage, new_random_name
 
 baseurl = "http://localhost:8081"
 
@@ -52,12 +54,10 @@ async def test_backup_get(
 
     # Get the backup
     backup_location = tmp_path / "schemas.log"
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": registry_cluster.schemas_topic,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = registry_cluster.schemas_topic
+
     api.create_backup(
         config=config,
         backup_location=backup_location,
@@ -85,11 +85,9 @@ async def test_backup_restore_and_get_non_schema_topic(
 ) -> None:
     test_topic_name = new_random_name("non-schemas")
 
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+
     admin_client.new_topic(name=test_topic_name)
 
     # Restore from backup
@@ -154,13 +152,10 @@ async def test_backup_restore(
 ) -> None:
     subject = "subject-1"
     test_data_path = Path("tests/integration/test_data/")
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "topic_name": registry_cluster.schemas_topic,
-            "force_key_correction": True,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = registry_cluster.schemas_topic
+    config.force_key_correction = True
 
     # Test basic restore functionality
     restore_location = test_data_path / f"test_restore_{backup_file_version}.log"
@@ -252,9 +247,10 @@ async def test_stale_consumer(
     tmp_path: Path,
 ) -> None:
     await insert_data(registry_async_client)
-    config = set_config_defaults(
-        {"bootstrap_uri": kafka_servers.bootstrap_servers, "topic_name": registry_cluster.schemas_topic}
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = registry_cluster.schemas_topic
+
     with pytest.raises(StaleConsumerError) as e:
         # The proper way to test this would be with quotas by throttling our client to death while using a very short
         # poll timeout. However, we have no way to set up quotas because all Kafka clients available to us do not
@@ -278,9 +274,10 @@ async def test_message_error(
     tmp_path: Path,
 ) -> None:
     await insert_data(registry_async_client)
-    config = set_config_defaults(
-        {"bootstrap_uri": kafka_servers.bootstrap_servers, "topic_name": registry_cluster.schemas_topic}
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.topic_name = registry_cluster.schemas_topic
+
     with pytest.raises(InvalidTopicError):
         with mock.patch(f"{KafkaConsumer.__module__}.{KafkaConsumer.__qualname__}.poll") as poll_mock:
             poll_mock.return_value = StubMessage(error=KafkaError(KafkaError.TOPIC_EXCEPTION))

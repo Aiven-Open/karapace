@@ -4,29 +4,46 @@ karapace - conftest
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 from __future__ import annotations
 
+import asyncio
+import json
+import os
+import pathlib
+import re
+import secrets
+import time
+from collections.abc import AsyncGenerator, AsyncIterator, Iterator
+from contextlib import ExitStack
+from dataclasses import asdict
+from pathlib import Path
+from urllib.parse import urlparse
+
+import pytest
 from _pytest.fixtures import SubRequest
 from aiohttp.pytest_plugin import AiohttpClient
 from aiohttp.test_utils import TestClient
-from collections.abc import AsyncGenerator, AsyncIterator, Iterator
 from confluent_kafka.admin import NewTopic
-from contextlib import ExitStack
-from dataclasses import asdict
 from filelock import FileLock
-from karapace.client import Client
-from karapace.config import Config, set_config_defaults, write_config
-from karapace.kafka.admin import KafkaAdminClient
-from karapace.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
-from karapace.kafka.producer import AsyncKafkaProducer, KafkaProducer
+
+from karapace.core.client import Client
+from karapace.core.config import Config
+from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
+from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
-from pathlib import Path
 from tests.conftest import KAFKA_VERSION
-from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint, start_schema_registry_cluster
+from tests.integration.utils.cluster import (
+    RegistryDescription,
+    RegistryEndpoint,
+    after_master_is_available,
+    start_schema_registry_cluster,
+)
 from tests.integration.utils.config import KafkaConfig, KafkaDescription, ZKConfig
 from tests.integration.utils.kafka_server import (
-    configure_and_start_kafka,
     KafkaServers,
+    configure_and_start_kafka,
     maybe_download_kafka,
     wait_for_kafka,
 )
@@ -36,17 +53,6 @@ from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_master_is_available, repeat_until_successful_request
-from urllib.parse import urlparse
-
-import asyncio
-import contextlib
-import json
-import os
-import pathlib
-import pytest
-import re
-import secrets
-import time
 
 REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
 RUNTIME_DIR = REPOSITORY_DIR / "runtime"
@@ -149,12 +155,12 @@ def create_kafka_server(
                 stack.callback(stop_process, zk_proc)
 
                 # Make sure zookeeper is running before trying to start Kafka
-                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=20)
+                wait_for_port_subprocess(zk_config.client_port, zk_proc, wait_time=KAFKA_WAIT_TIMEOUT)
 
                 data_dir = session_datadir / "kafka"
                 log_dir = session_logdir / "kafka"
-                data_dir.mkdir(parents=True)
-                log_dir.mkdir(parents=True)
+                data_dir.mkdir(parents=True, exist_ok=True)
+                log_dir.mkdir(parents=True, exist_ok=True)
                 kafka_config = KafkaConfig(
                     datadir=str(data_dir),
                     logdir=str(log_dir),
@@ -261,8 +267,7 @@ async def fixture_asyncconsumer(
 @pytest.fixture(scope="function", name="rest_async")
 async def fixture_rest_async(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -275,18 +280,12 @@ async def fixture_rest_async(
         yield None
         return
 
-    config_path = tmp_path / "karapace_config.json"
-
-    config = set_config_defaults(
-        {
-            "admin_metadata_max_age": 2,
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            # Use non-default max request size for REST producer.
-            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
-            "waiting_time_before_acting_as_master_ms": 300,
-        }
-    )
-    write_config(config_path, config)
+    config = Config()
+    config.admin_metadata_max_age = 2
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    # Use non-default max request size for REST producer.
+    config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
+    config.waiting_time_before_acting_as_master_ms = 500
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -300,7 +299,7 @@ async def fixture_rest_async(
 @pytest.fixture(scope="function", name="rest_async_client")
 async def fixture_rest_async_client(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     rest_async: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
@@ -311,7 +310,7 @@ async def fixture_rest_async_client(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+        async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async.app)
 
         client = Client(client_factory=get_client)
@@ -335,8 +334,7 @@ async def fixture_rest_async_client(
 @pytest.fixture(scope="function", name="rest_async_novalidation")
 async def fixture_rest_async_novalidation(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
-    tmp_path: Path,
+    loop: asyncio.AbstractEventLoop,
     kafka_servers: KafkaServers,
     registry_async_client: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -349,19 +347,13 @@ async def fixture_rest_async_novalidation(
         yield None
         return
 
-    config_path = tmp_path / "karapace_config.json"
-
-    config = set_config_defaults(
-        {
-            "admin_metadata_max_age": 2,
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            # Use non-default max request size for REST producer.
-            "producer_max_request_size": REST_PRODUCER_MAX_REQUEST_BYTES,
-            "name_strategy_validation": False,  # This should be only difference from rest_async
-            "waiting_time_before_acting_as_master_ms": 300,
-        }
-    )
-    write_config(config_path, config)
+    config = Config()
+    config.admin_metadata_max_age = 2
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    # Use non-default max request size for REST producer.
+    config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
+    config.name_strategy_validation = False  # This should be only difference from rest_async
+    config.waiting_time_before_acting_as_master_ms = 500
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -375,7 +367,7 @@ async def fixture_rest_async_novalidation(
 @pytest.fixture(scope="function", name="rest_async_novalidation_client")
 async def fixture_rest_async_novalidationclient(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     rest_async_novalidation: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
@@ -386,7 +378,7 @@ async def fixture_rest_async_novalidationclient(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+        async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async_novalidation.app)
 
         client = Client(client_factory=get_client)
@@ -410,7 +402,7 @@ async def fixture_rest_async_novalidationclient(
 @pytest.fixture(scope="function", name="rest_async_registry_auth")
 async def fixture_rest_async_registry_auth(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     kafka_servers: KafkaServers,
     registry_async_client_auth: Client,
 ) -> AsyncIterator[KafkaRest | None]:
@@ -424,17 +416,14 @@ async def fixture_rest_async_registry_auth(
         return
 
     registry = urlparse(registry_async_client_auth.server_uri)
-    config = set_config_defaults(
-        {
-            "bootstrap_uri": kafka_servers.bootstrap_servers,
-            "admin_metadata_max_age": 2,
-            "registry_host": registry.hostname,
-            "registry_port": registry.port,
-            "registry_user": "admin",
-            "registry_password": "admin",
-            "waiting_time_before_acting_as_master_ms": 300,
-        }
-    )
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age = 2
+    config.registry_host = registry.hostname
+    config.registry_port = registry.port
+    config.registry_user = "admin"
+    config.registry_password = "admin"
+    config.waiting_time_before_acting_as_master_ms = 500
     rest = KafkaRest(config=config)
 
     try:
@@ -446,7 +435,7 @@ async def fixture_rest_async_registry_auth(
 @pytest.fixture(scope="function", name="rest_async_client_registry_auth")
 async def fixture_rest_async_client_registry_auth(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     rest_async_registry_auth: KafkaRest,
     aiohttp_client: AiohttpClient,
 ) -> AsyncIterator[Client]:
@@ -457,7 +446,7 @@ async def fixture_rest_async_client_registry_auth(
         client = Client(server_uri=rest_url)
     else:
 
-        async def get_client(**kwargs) -> TestClient:  # pylint: disable=unused-argument
+        async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async_registry_auth.app)
 
         client = Client(client_factory=get_client)
@@ -481,14 +470,18 @@ async def fixture_rest_async_client_registry_auth(
 @pytest.fixture(scope="function", name="registry_async_pair")
 async def fixture_registry_async_pair(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
-    config1: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
-    config2: Config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.waiting_time_before_acting_as_master_ms = 500
 
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],
@@ -501,7 +494,7 @@ async def fixture_registry_async_pair(
 @pytest.fixture(scope="function", name="registry_cluster")
 async def fixture_registry_cluster(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[RegistryDescription]:
@@ -515,9 +508,13 @@ async def fixture_registry_cluster(
         endpoint = RegistryEndpoint(registry.scheme, registry.hostname, registry.port)
         yield RegistryDescription(endpoint, "_schemas")
         return
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
+
     user_config = request.param.get("config", {}) if hasattr(request, "param") else {}
-    config = {"bootstrap_uri": kafka_servers.bootstrap_servers}
-    config.update(user_config)
+    config.__dict__.update(user_config)
+
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
@@ -529,7 +526,7 @@ async def fixture_registry_cluster(
 async def fixture_registry_async_client(
     request: SubRequest,
     registry_cluster: RegistryDescription,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
 ) -> AsyncGenerator[Client, None]:
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),
@@ -583,7 +580,7 @@ def fixture_server_key(credentials_folder: str) -> str:
 @pytest.fixture(scope="function", name="registry_https_endpoint")
 async def fixture_registry_https_endpoint(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
     server_cert: str,
@@ -598,11 +595,12 @@ async def fixture_registry_https_endpoint(
         yield registry_url
         return
 
-    config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "server_tls_certfile": server_cert,
-        "server_tls_keyfile": server_key,
-    }
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
+    config.server_tls_certfile = server_cert
+    config.server_tls_keyfile = server_key
+
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
@@ -612,7 +610,7 @@ async def fixture_registry_https_endpoint(
 
 @pytest.fixture(scope="function", name="registry_async_client_tls")
 async def fixture_registry_async_client_tls(
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     registry_https_endpoint: str,
     server_ca: str,
 ) -> AsyncIterator[Client]:
@@ -642,7 +640,7 @@ async def fixture_registry_async_client_tls(
 @pytest.fixture(scope="function", name="registry_http_auth_endpoint")
 async def fixture_registry_http_auth_endpoint(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[str]:
@@ -655,10 +653,11 @@ async def fixture_registry_http_auth_endpoint(
         yield registry_url
         return
 
-    config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "registry_authfile": "tests/integration/config/karapace.auth.json",
-    }
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
+    config.registry_authfile = "tests/integration/config/karapace.auth.json"
+
     async with start_schema_registry_cluster(
         config_templates=[config],
         data_dir=session_logdir / _clear_test_name(request.node.name),
@@ -669,7 +668,7 @@ async def fixture_registry_http_auth_endpoint(
 @pytest.fixture(scope="function", name="registry_async_client_auth")
 async def fixture_registry_async_client_auth(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     registry_http_auth_endpoint: str,
 ) -> AsyncIterator[Client]:
     client = Client(
@@ -694,21 +693,6 @@ async def fixture_registry_async_client_auth(
         await client.close()
 
 
-@contextlib.asynccontextmanager
-async def after_master_is_available(
-    registry_instances: list[RegistryDescription], server_ca: str | None
-) -> AsyncIterator[None]:
-    client = Client(
-        server_uri=registry_instances[0].endpoint.to_url(),
-        server_ca=server_ca,
-    )
-    try:
-        await repeat_until_master_is_available(client)
-        yield
-    finally:
-        await client.close()
-
-
 @pytest.fixture(scope="function", name="registry_async_retry_client_auth")
 async def fixture_registry_async_retry_client_auth(registry_async_client_auth: Client) -> RetryRestClient:
     return RetryRestClient(registry_async_client_auth)
@@ -717,20 +701,21 @@ async def fixture_registry_async_retry_client_auth(registry_async_client_auth: C
 @pytest.fixture(scope="function", name="registry_async_auth_pair")
 async def fixture_registry_async_auth_pair(
     request: SubRequest,
-    loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+    loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers with authentication enabled and returns their URL endpoints."""
 
-    config1: Config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "registry_authfile": "tests/integration/config/karapace.auth.json",
-    }
-    config2: Config = {
-        "bootstrap_uri": kafka_servers.bootstrap_servers,
-        "registry_authfile": "tests/integration/config/karapace.auth.json",
-    }
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
+    config1.registry_authfile = "tests/integration/config/karapace.auth.json"
+
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.waiting_time_before_acting_as_master_ms = 500
+    config2.registry_authfile = "tests/integration/config/karapace.auth.json"
 
     async with start_schema_registry_cluster(
         config_templates=[config1, config2],

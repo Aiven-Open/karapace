@@ -4,17 +4,16 @@ karapace - test anonymize avro
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
-from karapace.anonymize_schemas.anonymize_avro import anonymize
-from typing import Union
 
 import json
+
 import pytest
+
+from karapace.core.anonymize_schemas.anonymize_avro import anonymize
 
 PRIMITIVE_TYPE_SCHEMA = json.loads('"int"')
 EXPECTED_PRIMITIVE_TYPE_SCHEMA = "int"
 
-# Pylint issue: https://github.com/PyCQA/pylint/issues/3368
-# pylint: disable=line-too-long
 SCHEMA_WITH_NAME = json.loads('"io.aiven.myrecord"')
 EXPECTED_SCHEMA_WITH_NAME = "aa258230180d9c643f761089d7e33b8b52288ed3.ae02f26b082c5f3bc7027f72335dd1186a2cd382.afe8733e983101f1f4ff50d24152890d0da71418"
 
@@ -565,6 +564,6 @@ EMPTY_STR = ""
         [EMPTY_STR, EMPTY_STR],
     ],
 )
-def test_anonymize(test_schema: str, expected_schema: Union[str, dict[str, str]]):
+def test_anonymize(test_schema: str, expected_schema: str | dict[str, str]):
     res = anonymize(test_schema)
     assert res == expected_schema
