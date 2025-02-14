@@ -8,6 +8,7 @@ from karapace.api.factory import create_karapace_application, karapace_schema_re
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.auth_container import AuthContainer
 from karapace.core.container import KarapaceContainer
+from karapace.core.metrics_container import MetricsContainer
 
 import karapace.api.controller
 import karapace.api.factory
@@ -24,11 +25,12 @@ import karapace.api.telemetry.middleware
 import karapace.api.telemetry.setup
 import karapace.api.telemetry.tracer
 import karapace.api.user
+
+import sys
 import uvicorn
 
-from karapace.core.metrics_container import MetricsContainer
 
-if __name__ == "__main__":
+def main() -> int:
     karapace_container = KarapaceContainer()
     karapace_container.wire(
         modules=[
@@ -98,3 +100,8 @@ if __name__ == "__main__":
     config = karapace_container.config()
     app = create_karapace_application(config=config, lifespan=karapace_schema_registry_lifespan)
     uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level.lower(), log_config=None)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
