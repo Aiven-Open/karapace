@@ -42,7 +42,7 @@ def test_get_span_exporter_noop(karapace_container: KarapaceContainer) -> None:
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="NOOP",
+                otel_traces_exporter="NOOP",
             )
         }
     )
@@ -55,7 +55,7 @@ def test_get_span_exporter_console(karapace_container: KarapaceContainer) -> Non
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="CONSOLE",
+                otel_traces_exporter="CONSOLE",
             )
         }
     )
@@ -68,7 +68,7 @@ def test_get_span_exporter_otlp(karapace_container: KarapaceContainer) -> None:
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="OTLP",
+                otel_traces_exporter="OTLP",
             )
         }
     )
@@ -83,7 +83,7 @@ def test_get_span_processor_with_otel_endpoint(karapace_container: KarapaceConta
         new_config={
             "telemetry": KarapaceTelemetry(
                 otel_endpoint_url="http://otel:4317",
-                otel_exporter="OTLP",
+                otel_traces_exporter="OTLP",
             )
         }
     )
