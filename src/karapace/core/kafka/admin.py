@@ -20,7 +20,7 @@ from confluent_kafka.admin import (
     TopicMetadata,
 )
 from confluent_kafka.error import KafkaException
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.constants import TOPIC_CREATION_TIMEOUT_S
 from karapace.core.kafka.common import (
     _KafkaConfigMixin,

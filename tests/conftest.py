@@ -16,7 +16,7 @@ import karapace.api.controller
 import karapace.core.instrumentation.meter
 import karapace.api.telemetry.middleware
 import karapace.api.telemetry.setup
-import karapace.api.telemetry.tracer
+import karapace.core.instrumentation.tracer
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.container import KarapaceContainer
@@ -195,7 +195,7 @@ def fixture_karapace_container() -> KarapaceContainer:
     karapace_container.wire(
         modules=[
             karapace.api.controller,
-            karapace.api.telemetry.tracer,
+            karapace.core.instrumentation.tracer,
             karapace.core.instrumentation.meter,
         ]
     )
