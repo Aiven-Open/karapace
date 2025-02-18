@@ -8,7 +8,7 @@ from __future__ import annotations
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, closing
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import is_incompatible
 from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
