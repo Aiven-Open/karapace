@@ -146,3 +146,18 @@ type-check-mypy-in-docker: start-karapace-docker-resources
 .PHONY: cli
 cli: start-karapace-docker-resources
 	$(KARAPACE-CLI) bash
+
+.PHONY: generate-https-certs
+generate-https-certs: CERTS_FOLDER ?= /opt/karapace/certs
+generate-https-certs: start-karapace-docker-resources
+	# Generate a self-signed certificate
+	# Questions answered for the certificate details
+	# Country Name (2 letter code) [AU]:FI
+	# State or Province Name (full name) [Some-State]:Helsinki
+	# Locality Name (eg, city) []:Helsinki
+	# Organization Name (eg, company) [Internet Widgits Pty Ltd]:Aiven
+	# Organizational Unit Name (eg, section) []:Streaming
+	# Common Name (e.g. server FQDN or YOUR name) []:karapace.io
+	# Email Address []:opensource@aiven.io
+
+	$(KARAPACE-CLI) openssl req -x509 -newkey rsa:4096 -nodes -out $(CERTS_FOLDER)/cert.pem -keyout $(CERTS_FOLDER)/key.pem -days 365
