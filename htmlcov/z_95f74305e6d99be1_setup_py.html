@@ -64,10 +64,10 @@
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_95f74305e6d99be1_middleware_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
-            <a id="nextFileLink" class="nav" href="z_95f74305e6d99be1_tracer_py.html">&#xbb; next</a>
+            <a id="nextFileLink" class="nav" href="z_d81219127a098a15_user_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-02-13 14:23 +0000
+            created at 2025-02-18 12:20 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -90,7 +90,7 @@
     <p class="run"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="key">from</span> <span class="nam">dependency_injector</span><span class="op">.</span><span class="nam">wiring</span> <span class="key">import</span> <span class="nam">inject</span><span class="op">,</span> <span class="nam">Provide</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">telemetry</span><span class="op">.</span><span class="nam">container</span> <span class="key">import</span> <span class="nam">TelemetryContainer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">core</span><span class="op">.</span><span class="nam">instrumentation</span><span class="op">.</span><span class="nam">meter</span> <span class="key">import</span> <span class="nam">Meter</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">telemetry</span><span class="op">.</span><span class="nam">tracer</span> <span class="key">import</span> <span class="nam">Tracer</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">core</span><span class="op">.</span><span class="nam">instrumentation</span><span class="op">.</span><span class="nam">tracer</span> <span class="key">import</span> <span class="nam">Tracer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">core</span><span class="op">.</span><span class="nam">metrics_container</span> <span class="key">import</span> <span class="nam">MetricsContainer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">opentelemetry</span> <span class="key">import</span> <span class="nam">metrics</span><span class="op">,</span> <span class="nam">trace</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">opentelemetry</span><span class="op">.</span><span class="nam">sdk</span><span class="op">.</span><span class="nam">metrics</span> <span class="key">import</span> <span class="nam">MeterProvider</span>&nbsp;</span><span class="r"></span></p>
@@ -118,18 +118,17 @@
     <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">    <span class="nam">telemetry_resource</span><span class="op">:</span> <span class="nam">Resource</span> <span class="op">=</span> <span class="nam">Provide</span><span class="op">[</span><span class="nam">TelemetryContainer</span><span class="op">.</span><span class="nam">telemetry_resource</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">    <span class="nam">LOG</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="str">"Setting OTel meter provider"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">    <span class="com"># metrics.set_meter_provider(MeterProvider(resource=telemetry_resource, metric_readers=[meter.get_metric_reader()]))</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">    <span class="nam">metrics</span><span class="op">.</span><span class="nam">set_meter_provider</span><span class="op">(</span><span class="nam">MeterProvider</span><span class="op">(</span><span class="nam">resource</span><span class="op">=</span><span class="nam">telemetry_resource</span><span class="op">,</span> <span class="nam">metric_readers</span><span class="op">=</span><span class="op">[</span><span class="nam">Meter</span><span class="op">.</span><span class="nam">get_metric_reader</span><span class="op">(</span><span class="op">)</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">    <span class="nam">metrics</span><span class="op">.</span><span class="nam">set_meter_provider</span><span class="op">(</span><span class="nam">MeterProvider</span><span class="op">(</span><span class="nam">resource</span><span class="op">=</span><span class="nam">telemetry_resource</span><span class="op">,</span> <span class="nam">metric_readers</span><span class="op">=</span><span class="op">[</span><span class="nam">meter</span><span class="op">.</span><span class="nam">get_metric_reader</span><span class="op">(</span><span class="op">)</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
         <p>
             <a class="nav" href="z_95f74305e6d99be1_middleware_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
-            <a class="nav" href="z_95f74305e6d99be1_tracer_py.html">&#xbb; next</a>
+            <a class="nav" href="z_d81219127a098a15_user_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-02-13 14:23 +0000
+            created at 2025-02-18 12:20 +0000
         </p>
     </div>
 </footer>
