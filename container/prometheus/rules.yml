@@ -2,7 +2,7 @@ groups:
   - name: karapace
     rules:
     - record: karapace_exceptions_sum_by_exception
-      expr: sum by (exception) (exception)
+      expr: sum by (exception) (karapace_exceptions_total)
     - alert: user_alert_karapace_high_non_success_http_requests
       expr: sum by (instance) (count_over_time(karapace_http_requests_total{status!~'^2.*'}[1m])) > 5
       for: 2m

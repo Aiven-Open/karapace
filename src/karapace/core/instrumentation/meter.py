@@ -49,7 +49,7 @@ class Meter:
 
     @staticmethod
     def get_metric_exporter(config: Config) -> MetricExporter:
-        match config.telemetry.otel_exporter:
+        match config.telemetry.otel_metrics_exporter:
             case KarapaceTelemetryOTelExporter.NOOP:
                 return NOOPMetricExporter()
             case KarapaceTelemetryOTelExporter.CONSOLE:

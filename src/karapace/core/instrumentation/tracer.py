@@ -52,7 +52,7 @@ class Tracer:
 
     @staticmethod
     def get_span_exporter(config: Config) -> SpanExporter:
-        match config.telemetry.otel_exporter:
+        match config.telemetry.otel_traces_exporter:
             case KarapaceTelemetryOTelExporter.NOOP:
                 return NOOPSpanExporter()
             case KarapaceTelemetryOTelExporter.CONSOLE:

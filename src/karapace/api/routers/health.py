@@ -6,7 +6,7 @@ See LICENSE for details
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, HTTPException, status
 from karapace.api.container import SchemaRegistryContainer
-from karapace.api.telemetry.tracer import Tracer
+from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.schema_registry import KarapaceSchemaRegistry
 from opentelemetry.trace import Span
 from opentelemetry.trace.status import StatusCode
