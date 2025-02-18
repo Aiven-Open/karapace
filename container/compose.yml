@@ -69,6 +69,8 @@ services:
       - opentelemetry-collector
     ports:
       - 8081:8081
+    volumes:
+      - ./certs:/opt/karapace/certs
     environment:
       KARAPACE_KARAPACE_REGISTRY: true
       KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry
@@ -144,6 +146,7 @@ services:
       - karapace-schema-registry
       - karapace-rest-proxy
     volumes:
+      - ./certs:/opt/karapace/certs
       - ../tests:/opt/karapace/tests
       - ../pytest.ini:/opt/karapace/pytest.ini
       - ../mypy.ini:/opt/karapace/mypy.ini
