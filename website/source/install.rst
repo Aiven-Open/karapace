@@ -38,3 +38,28 @@ Source install
 Alternatively you can do a source install using::
 
   pip install .
+
+Troubleshooting notes :
+- An updated version of wheel (https://pypi.org/project/wheel/) is required.
+- Create and activate virtual environment (venv) to manage dependencies
+
+Run
+^^^
+- Make sure kafka is running.
+
+Start Karapace. This shout start karapace on http://localhost:8081 ::
+
+  $ karapace karapace.config.json
+
+Verify in browser http://localhost:8081/subjects should return an array of subjects if exist or an empty array.
+or with curl ::
+
+  $ curl -X GET http://localhost:8081/subjects
+
+Start Karapace rest proxy. This shout start karapace on http://localhost:8082 ::
+
+    karapace rest-proxy-karapace.config.json
+
+Verify with list topics::
+
+  $ curl "http://localhost:8082/topics"
