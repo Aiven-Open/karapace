@@ -39,7 +39,7 @@ Alternatively you can do a source install using::
 
   pip install .
 
-Trouble shooting notes :
+Troubleshooting notes :
 - An updated version of wheel (https://pypi.org/project/wheel/) is required.
 - Create and activate virtual environment (venv) to manage dependencies
 
