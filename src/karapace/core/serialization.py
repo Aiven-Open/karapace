@@ -292,16 +292,15 @@ class SchemaRegistrySerializer:
     ) -> None:
         self.config = config
         self.state_lock = asyncio.Lock()
+        registry_url = f"{self.config.registry_scheme}://{self.config.registry_host}:{self.config.registry_port}"
         session_auth: BasicAuth | None = None
         if self.config.registry_user and self.config.registry_password:
             session_auth = BasicAuth(self.config.registry_user, self.config.registry_password, encoding="utf8")
         if self.config.registry_ca:
-            registry_url = f"https://{self.config.registry_host}:{self.config.registry_port}"
             registry_client = SchemaRegistryClient(
                 registry_url, server_ca=self.config.registry_ca, session_auth=session_auth
             )
         else:
-            registry_url = f"http://{self.config.registry_host}:{self.config.registry_port}"
             registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth)
         self.registry_client: SchemaRegistryClient | None = registry_client
         self.ids_to_schemas: dict[int, TypedSchema] = {}
