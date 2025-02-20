@@ -473,6 +473,7 @@ async def fixture_registry_async_pair(
     loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
+    server_ca: str,
 ) -> AsyncIterator[list[str]]:
     """Starts a cluster of two Schema Registry servers and returns their URL endpoints."""
 
@@ -487,7 +488,47 @@ async def fixture_registry_async_pair(
         config_templates=[config1, config2],
         data_dir=session_logdir / _clear_test_name(request.node.name),
     ) as endpoints:
-        async with after_master_is_available(endpoints, request.config.getoption("server_ca")):
+        async with after_master_is_available(endpoints, server_ca):
+            yield [server.endpoint.to_url() for server in endpoints]
+
+
+@pytest.fixture(scope="function", name="registry_async_pair_tls")
+async def fixture_registry_async_pair_tls(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+    server_ca: str,
+    server_cert: str,
+    server_key: str,
+) -> AsyncIterator[list[str]]:
+    """Starts a cluster of two Schema Registry TLS servers and returns their URL endpoints."""
+
+    config1 = Config()
+    config1.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config1.waiting_time_before_acting_as_master_ms = 500
+    config1.advertised_protocol = "https"
+    config1.client_id = "sr-1"
+    config1.master_election_strategy = "highest"
+    config1.server_tls_cafile = server_ca
+    config1.server_tls_certfile = server_cert
+    config1.server_tls_keyfile = server_key
+
+    config2 = Config()
+    config2.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config2.waiting_time_before_acting_as_master_ms = 500
+    config2.advertised_protocol = "https"
+    config2.client_id = "sr-2"
+    config2.master_election_strategy = "highest"
+    config2.server_tls_cafile = server_ca
+    config2.server_tls_certfile = server_cert
+    config2.server_tls_keyfile = server_key
+
+    async with start_schema_registry_cluster(
+        config_templates=[config1, config2],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+    ) as endpoints:
+        async with after_master_is_available(endpoints, server_ca):
             yield [server.endpoint.to_url() for server in endpoints]
 
 
@@ -556,25 +597,23 @@ async def fixture_registry_async_retry_client(registry_async_client: Client) -> 
 
 
 @pytest.fixture(scope="function", name="credentials_folder")
-def fixture_credentials_folder() -> str:
-    integration_test_folder = os.path.dirname(__file__)
-    credentials_folder = os.path.join(integration_test_folder, "credentials")
-    return credentials_folder
+def fixture_credentials_folder() -> pathlib.Path:
+    return REPOSITORY_DIR / "certs"
 
 
 @pytest.fixture(scope="function", name="server_ca")
-def fixture_server_ca(credentials_folder: str) -> str:
-    return os.path.join(credentials_folder, "cacert.pem")
+def fixture_server_ca(credentials_folder: pathlib.Path) -> str:
+    return str(credentials_folder / "ca" / "rootCA.pem")
 
 
 @pytest.fixture(scope="function", name="server_cert")
-def fixture_server_cert(credentials_folder: str) -> str:
-    return os.path.join(credentials_folder, "servercert.pem")
+def fixture_server_cert(credentials_folder: pathlib.Path) -> str:
+    return str(credentials_folder / "cert.pem")
 
 
 @pytest.fixture(scope="function", name="server_key")
-def fixture_server_key(credentials_folder: str) -> str:
-    return os.path.join(credentials_folder, "serverkey.pem")
+def fixture_server_key(credentials_folder: pathlib.Path) -> str:
+    return str(credentials_folder / "key.pem")
 
 
 @pytest.fixture(scope="function", name="registry_https_endpoint")
@@ -583,6 +622,7 @@ async def fixture_registry_https_endpoint(
     loop: asyncio.AbstractEventLoop,
     session_logdir: Path,
     kafka_servers: KafkaServers,
+    server_ca: str,
     server_cert: str,
     server_key: str,
 ) -> AsyncIterator[str]:
@@ -598,6 +638,8 @@ async def fixture_registry_https_endpoint(
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config.waiting_time_before_acting_as_master_ms = 500
+    config.advertised_protocol = "https"
+    config.server_tls_cafile = server_ca
     config.server_tls_certfile = server_cert
     config.server_tls_keyfile = server_key
 
@@ -614,7 +656,7 @@ async def fixture_registry_async_client_tls(
     registry_https_endpoint: str,
     server_ca: str,
 ) -> AsyncIterator[Client]:
-    pytest.skip("Test certification is not properly set")
+    # pytest.skip("Test certification is not properly set")
 
     client = Client(
         server_uri=registry_https_endpoint,
@@ -635,6 +677,11 @@ async def fixture_registry_async_client_tls(
         yield client
     finally:
         await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_retry_client_tls")
+async def fixture_registry_async_retry_client_tls(registry_async_client_tls: Client) -> RetryRestClient:
+    return RetryRestClient(registry_async_client_tls)
 
 
 @pytest.fixture(scope="function", name="registry_http_auth_endpoint")
@@ -667,13 +714,13 @@ async def fixture_registry_http_auth_endpoint(
 
 @pytest.fixture(scope="function", name="registry_async_client_auth")
 async def fixture_registry_async_client_auth(
-    request: SubRequest,
     loop: asyncio.AbstractEventLoop,
     registry_http_auth_endpoint: str,
+    server_ca: str,
 ) -> AsyncIterator[Client]:
     client = Client(
         server_uri=registry_http_auth_endpoint,
-        server_ca=request.config.getoption("server_ca"),
+        server_ca=server_ca,
     )
 
     try:
