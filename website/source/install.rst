@@ -18,8 +18,18 @@ An example setup including configuration and Kafka connection is available as co
 
 Then you should be able to reach two sets of endpoints:
 
-* Karapace schema registry on http://localhost:8081
+* Karapace schema registry master on http://localhost:8081
+* Karapace schema registry follower on http://localhost:8181
 * Karapace REST on http://localhost:8082
+
+With mTLS enabled, i.e. by providing the certificates and related environment variables, you can reach the endpoints:
+
+* Karapace schema registry master on https://karapace-schema-registry:8081
+* Karapace schema registry follower on https://karapace-schema-registry-follower:8181
+* Karapace REST on https://karapace-rest-proxy:8082
+
+We recommend using the `curl-sr-https` make target provided against the endpoints above.
+
 
 Configuration
 ^^^^^^^^^^^^^

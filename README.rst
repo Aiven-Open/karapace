@@ -467,6 +467,12 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``server_tls_keyfile``
      - ``/path/to/keyfile``
      - Filename to a private key for the Karapace server in HTTPS mode.
+   * - ``server_tls_cafile``
+     - ``/path/to/cafile``
+     - Filename to the SSL CA certificate.
+   * - ``registry_scheme``
+     - ``http``
+     - Schema Registry scheme to use for rest-proxy, http | https (if certificates are provided).
    * - ``registry_host``
      - ``127.0.0.1``
      - Schema Registry host, used by Kafka Rest for schema related requests.
