@@ -19,6 +19,7 @@ import karapace.api.telemetry.setup
 import karapace.core.instrumentation.tracer
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.telemetry.container import TelemetryContainer
+from karapace.core.auth_container import AuthContainer
 from karapace.core.container import KarapaceContainer
 
 pytest_plugins = "aiohttp.pytest_plugin"
@@ -194,7 +195,6 @@ def fixture_karapace_container() -> KarapaceContainer:
     karapace_container = KarapaceContainer()
     karapace_container.wire(
         modules=[
-            karapace.api.controller,
             karapace.core.instrumentation.tracer,
             karapace.core.instrumentation.meter,
         ]
@@ -212,6 +212,13 @@ def fixture_telemetry_container() -> TelemetryContainer:
         ]
     )
     return telemetry_container
+
+
+@pytest.fixture(name="auth_container", scope="session", autouse=True)
+def fixture_auth_container(karapace_container: KarapaceContainer) -> AuthContainer:
+    auth_container = AuthContainer(karapace_container=karapace_container)
+    auth_container.wire(modules=[karapace.api.controller])
+    return auth_container
 
 
 @pytest.fixture(name="schema_registry_container", scope="session", autouse=True)
