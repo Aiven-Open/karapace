@@ -80,6 +80,8 @@ class Config(BaseSettings):
     port: int = 8081
     server_tls_certfile: str | None = None
     server_tls_keyfile: str | None = None
+    server_tls_cafile: str | None = None
+    registry_scheme: str = "http"
     registry_host: str = "karapace-schema-registry"
     registry_port: int = 8081
     registry_user: str | None = None
