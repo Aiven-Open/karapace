@@ -155,7 +155,7 @@ cli: start-karapace-docker-resources
 
 .PHONY: generate-sr-https-certs
  generate-sr-https-certs:
-	$(info ====> Generating a self-signed certificate valid for 1 year <====)
+	$(info ====> Generating self-signed certificates <====)
 	$(KARAPACE-CLI) mkcert -key-file $(CERTS_FOLDER)/key.pem -cert-file $(CERTS_FOLDER)/cert.pem \
 		localhost \
 		127.0.0.1 \

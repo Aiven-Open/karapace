@@ -656,8 +656,6 @@ async def fixture_registry_async_client_tls(
     registry_https_endpoint: str,
     server_ca: str,
 ) -> AsyncIterator[Client]:
-    # pytest.skip("Test certification is not properly set")
-
     client = Client(
         server_uri=registry_https_endpoint,
         server_ca=server_ca,
@@ -674,6 +672,7 @@ async def fixture_registry_async_client_tls(
             timeout=10,
             sleep=0.3,
         )
+        await repeat_until_master_is_available(client)
         yield client
     finally:
         await client.close()
