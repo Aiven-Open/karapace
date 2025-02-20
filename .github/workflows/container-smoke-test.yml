@@ -35,11 +35,17 @@ jobs:
           RUNNER_GID: ${{ env.RUNNER_GID }}
 
       - name: Smoke test schema registry
-        run: bin/smoke-test-schema-registry.sh
+        run: make smoke-test-schema-registry
         env:
-          KARAPACE_PORT: 8081
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+          RUNNER_UID: ${{ env.RUNNER_UID }}
+          RUNNER_GID: ${{ env.RUNNER_GID }}
 
       - name: Smoke test REST proxy
-        run: bin/smoke-test-rest-proxy.sh
+        run: make smoke-test-rest-proxy
         env:
-          KARAPACE_PORT: 8082
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          KARAPACE_VERSION: ${{ env.KARAPACE_VERSION }}
+          RUNNER_UID: ${{ env.RUNNER_UID }}
+          RUNNER_GID: ${{ env.RUNNER_GID }}
