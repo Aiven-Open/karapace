@@ -54,9 +54,10 @@ ENV PATH="/venv/bin:$PATH"
 FROM karapace AS cli
 ARG RUNNER_UID
 ARG RUNNER_GID
+ENV CAROOT=/opt/karapace/certs/ca
 
 # Setup files and directories.
-RUN mkdir /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace/coverage \
+RUN mkdir -p /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace/coverage $CAROOT \
 && touch /opt/karapace/coverage/.coverage.3.10 /opt/karapace/coverage/.coverage.3.11 /opt/karapace/coverage/.coverage.3.12 \
 && chown --recursive "$RUNNER_UID:$RUNNER_GID" /opt/karapace /opt/karapace/coverage /var/log/karapace
 
@@ -65,8 +66,15 @@ COPY --from=openjdk:11 /usr/local/openjdk-11 /usr/local/openjdk-11
 ENV JAVA_HOME /usr/local/openjdk-11
 RUN update-alternatives --install /usr/bin/java java /usr/local/openjdk-11/bin/java 1
 
-WORKDIR /opt/karapace
+# Install mkcert
+WORKDIR /mkcert
+RUN git clone https://github.com/FiloSottile/mkcert . \
+&& go build -ldflags "-X main.Version=$(git describe --tags)" \
+&& mv mkcert /usr/local/bin/mkcert \
+&& mkcert -install \
+&& rm -rf /mkcert
 
+WORKDIR /opt/karapace
 COPY ./requirements /opt/karapace/requirements
 RUN python3 -m pip install -r /opt/karapace/requirements/requirements-dev.txt -r /opt/karapace/requirements/requirements-typing.txt
 
@@ -90,4 +98,4 @@ WORKDIR /opt/karapace
 USER karapace
 
 HEALTHCHECK --interval=10s --timeout=30s --retries=3 --start-period=60s \
-    CMD python3 healthcheck.py http://localhost:$KARAPACE_PORT/_health || exit 1
+    CMD python3 healthcheck.py $KARAPACE_ADVERTISED_PROTOCOL://$KARAPACE_HOST:$KARAPACE_PORT/_health || exit 1
