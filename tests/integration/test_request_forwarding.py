@@ -79,7 +79,7 @@ async def test_schema_request_forwarding(
     request_forwarding_retry_client: RetryRestClient,
     subject: str,
 ) -> None:
-    master_url, slave_url = registry_async_pair
+    master_url, follower_url = registry_async_pair
 
     max_tries, counter = 5, 0
     wait_time = 0.5
@@ -93,7 +93,7 @@ async def test_schema_request_forwarding(
         else:
             path = "config"
         for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
-            resp = await request_forwarding_retry_client.put(f"{slave_url}/{path}", json={"compatibility": compat})
+            resp = await request_forwarding_retry_client.put(f"{follower_url}/{path}", json={"compatibility": compat})
             assert resp.ok
             while True:
                 assert counter < max_tries, "Compat update not propagated"
@@ -117,7 +117,7 @@ async def test_schema_request_forwarding(
     # New schema updates, last compatibility is None
     for s in [schema, other_schema]:
         resp = await request_forwarding_retry_client.post(
-            f"{slave_url}/subjects/{quote_plus(subject)}/versions", json={"schema": json.dumps(s)}
+            f"{follower_url}/subjects/{quote_plus(subject)}/versions", json={"schema": json.dumps(s)}
         )
     assert resp.ok
     data = resp.json()
@@ -141,7 +141,7 @@ async def test_schema_request_forwarding(
         break
 
     # Schema deletions
-    resp = await request_forwarding_retry_client.delete(f"{slave_url}/subjects/{quote_plus(subject)}/versions/1")
+    resp = await request_forwarding_retry_client.delete(f"{follower_url}/subjects/{quote_plus(subject)}/versions/1")
     assert resp.ok
     counter = 0
     while True:
@@ -162,7 +162,7 @@ async def test_schema_request_forwarding(
     assert resp.ok
     data = resp.json()
     assert subject in data
-    resp = await request_forwarding_retry_client.delete(f"{slave_url}/subjects/{quote_plus(subject)}")
+    resp = await request_forwarding_retry_client.delete(f"{follower_url}/subjects/{quote_plus(subject)}")
     assert resp.ok
     counter = 0
     while True:
@@ -183,7 +183,7 @@ async def test_schema_request_forwarding_tls(
     request_forwarding_retry_client_tls: RetryRestClient,
     subject: str,
 ) -> None:
-    master_url, slave_url = registry_async_pair_tls
+    master_url, follower_url = registry_async_pair_tls
 
     max_tries, counter = 5, 0
     wait_time = 0.5
@@ -197,7 +197,7 @@ async def test_schema_request_forwarding_tls(
         else:
             path = "config"
         for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
-            resp = await request_forwarding_retry_client_tls.put(f"{slave_url}/{path}", json={"compatibility": compat})
+            resp = await request_forwarding_retry_client_tls.put(f"{follower_url}/{path}", json={"compatibility": compat})
             assert resp.ok
             while True:
                 assert counter < max_tries, "Compat update not propagated"
@@ -221,7 +221,7 @@ async def test_schema_request_forwarding_tls(
     # New schema updates, last compatibility is None
     for s in [schema, other_schema]:
         resp = await request_forwarding_retry_client_tls.post(
-            f"{slave_url}/subjects/{quote_plus(subject)}/versions", json={"schema": json.dumps(s)}
+            f"{follower_url}/subjects/{quote_plus(subject)}/versions", json={"schema": json.dumps(s)}
         )
     assert resp.ok
     data = resp.json()
@@ -245,7 +245,7 @@ async def test_schema_request_forwarding_tls(
         break
 
     # Schema deletions
-    resp = await request_forwarding_retry_client_tls.delete(f"{slave_url}/subjects/{quote_plus(subject)}/versions/1")
+    resp = await request_forwarding_retry_client_tls.delete(f"{follower_url}/subjects/{quote_plus(subject)}/versions/1")
     assert resp.ok
     counter = 0
     while True:
@@ -266,7 +266,7 @@ async def test_schema_request_forwarding_tls(
     assert resp.ok
     data = resp.json()
     assert subject in data
-    resp = await request_forwarding_retry_client_tls.delete(f"{slave_url}/subjects/{quote_plus(subject)}")
+    resp = await request_forwarding_retry_client_tls.delete(f"{follower_url}/subjects/{quote_plus(subject)}")
     assert resp.ok
     counter = 0
     while True:
