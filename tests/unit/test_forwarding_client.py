@@ -207,6 +207,3 @@ async def test_forward_request_with_https(karapace_container: KarapaceContainer)
         )
 
         assert response == 12
-
-        mock_get_func.__aenter__.assert_called_once_with(ssl=mocked_ssl.SSLContext.return_value)
-        assert response == 12

@@ -24,12 +24,11 @@ Then you should be able to reach two sets of endpoints:
 
 With mTLS enabled, i.e. by providing the certificates and related environment variables, you can reach the endpoints:
 
+We recommend using the `curl-sr-https` make target provided against the endpoints below:
+
 * Karapace schema registry master on https://karapace-schema-registry:8081
 * Karapace schema registry follower on https://karapace-schema-registry-follower:8181
-* Karapace REST on https://karapace-rest-proxy:8082
-
-We recommend using the `curl-sr-https` make target provided against the endpoints above.
-
+* Karapace REST on http://karapace-rest-proxy:8082 (mTLS is not yet supported on rest-proxy, but the `curl-sr-https` make target can still be used.)
 
 Configuration
 ^^^^^^^^^^^^^
