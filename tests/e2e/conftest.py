@@ -99,7 +99,7 @@ async def fixture_registry_cluster(
     karapace_container: KarapaceContainer,
     loop: asyncio.AbstractEventLoop,
 ) -> RegistryDescription:
-    protocol = "http"
+    protocol = "https"
     endpoint = RegistryEndpoint(
         protocol, karapace_container.config().registry_host, karapace_container.config().registry_port
     )
