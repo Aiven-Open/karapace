@@ -6,6 +6,8 @@ PYTHON   ?= python3
 PYTHON_VERSION ?= 3.10
 DOCKER_COMPOSE ?= docker compose
 KARAPACE-CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run --rm karapace-cli
+CERTS_FOLDER ?= /opt/karapace/certs
+PYTEST_ARGS ?=
 
 define PIN_VERSIONS_COMMAND
 pip install pip-tools && \
@@ -13,7 +15,6 @@ pip install pip-tools && \
 	python -m piptools compile --upgrade --extra dev -o /karapace/requirements/requirements-dev.txt /karapace/pyproject.toml && \
 	python -m piptools compile --upgrade --extra typing -o /karapace/requirements/requirements-typing.txt /karapace/pyproject.toml
 endef
-
 
 export PATH   := $(VENV_DIR)/bin:$(PATH)
 export PS4    := \e[0m\e[32m==> \e[0m
@@ -116,15 +117,21 @@ start-karapace-docker-resources:
 	sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.3.10 .coverage.3.11 .coverage.3.12
 	$(DOCKER_COMPOSE) -f container/compose.yml up -d --build --wait --detach
 
+.PHONY: smoke-test-schema-registry
+smoke-test-schema-registry: start-karapace-docker-resources
+	$(KARAPACE-CLI) /opt/karapace/bin/smoke-test-schema-registry.sh
+
+.PHONY: smoke-test-rest-proxy
+smoke-test-rest-proxy: start-karapace-docker-resources
+	$(KARAPACE-CLI) /opt/karapace/bin/smoke-test-rest-proxy.sh
+
 .PHONY: unit-tests-in-docker
-unit-tests-in-docker: export PYTEST_ARGS ?=
 unit-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/unit/
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker
-e2e-tests-in-docker: export PYTEST_ARGS ?=
 e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
@@ -132,7 +139,6 @@ e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resour
 	rm -fr runtime/*
 
 .PHONY: integration-tests-in-docker
-integration-tests-in-docker: export PYTEST_ARGS ?=
 integration-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
@@ -147,17 +153,22 @@ type-check-mypy-in-docker: start-karapace-docker-resources
 cli: start-karapace-docker-resources
 	$(KARAPACE-CLI) bash
 
-.PHONY: generate-https-certs
-generate-https-certs: CERTS_FOLDER ?= /opt/karapace/certs
-generate-https-certs: start-karapace-docker-resources
-	# Generate a self-signed certificate
-	# Questions answered for the certificate details
-	# Country Name (2 letter code) [AU]:FI
-	# State or Province Name (full name) [Some-State]:Helsinki
-	# Locality Name (eg, city) []:Helsinki
-	# Organization Name (eg, company) [Internet Widgits Pty Ltd]:Aiven
-	# Organizational Unit Name (eg, section) []:Streaming
-	# Common Name (e.g. server FQDN or YOUR name) []:karapace.io
-	# Email Address []:opensource@aiven.io
+.PHONY: generate-sr-https-certs
+ generate-sr-https-certs:
+	$(info ====> Generating a self-signed certificate valid for 1 year <====)
+	$(KARAPACE-CLI) mkcert -key-file $(CERTS_FOLDER)/key.pem -cert-file $(CERTS_FOLDER)/cert.pem \
+		localhost \
+		127.0.0.1 \
+		0.0.0.0 \
+		::1 \
+		karapace-schema-registry \
+		karapace-schema-registry-follower
+	$(KARAPACE-CLI) mkcert -install
 
-	$(KARAPACE-CLI) openssl req -x509 -newkey rsa:4096 -nodes -out $(CERTS_FOLDER)/cert.pem -keyout $(CERTS_FOLDER)/key.pem -days 365
+.PHONY:  curl-sr-https
+curl-sr-https: header ?= 'Content-Type: application/vnd.schemaregistry.v1+json'
+curl-sr-https:
+	$(info ====> Sending HTTPS $(method) request with data to $(url) <====)
+	$(KARAPACE-CLI) curl -i -X $(method) --location $(url) --cacert /opt/karapace/certs/ca/rootCA.pem \
+		--header $(header) \
+		--data '$(data)'
