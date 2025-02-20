@@ -678,11 +678,6 @@ async def fixture_registry_async_client_tls(
         await client.close()
 
 
-@pytest.fixture(scope="function", name="registry_async_retry_client_tls")
-async def fixture_registry_async_retry_client_tls(registry_async_client_tls: Client) -> RetryRestClient:
-    return RetryRestClient(registry_async_client_tls)
-
-
 @pytest.fixture(scope="function", name="registry_http_auth_endpoint")
 async def fixture_registry_http_auth_endpoint(
     request: SubRequest,
