@@ -21,6 +21,13 @@ Before running performance test, make sure
 Performance test is run from the shell script::
   ./run-locust-test.sh
 
+A web interface must be running on http://0.0.0.0:8089/ to run tests
+
+Here is a screenshot of performance tests locally.
+
+.. image:: perf-test-locust.png
+   :alt: Performance Test Screenshot
+
 Script supports some environment variables:
  * `BASE_URL` for setting Karapace address and port.
  * `TOPIC` for setting the topic name where data is produced.
@@ -28,8 +35,3 @@ Script supports some environment variables:
  * `CONCURRENCY` for setting how many concurrent users are emulated.
  * `LOCUST_GUI` for enabling the Locust web user interface.
  * `LOCUST_FILE` for selecting the Locust test script.
-
-Here is a screenshot of performance tests locally.
-
-.. image:: perf-test-locust.png
-   :alt: Performance Test Screenshot
