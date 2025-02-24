@@ -10,7 +10,7 @@ CONCURRENCY=${CONCURRENCY:-50}
 LOCUST_FILE=${LOCUST_FILE:-"rest-proxy-produce-consume-test.py"}
 
 GUI_PARAMS=""
-if [[ -n "${LOCUST_GUI:-}" ]]; then
+if [[ -n ${LOCUST_GUI-} ]]; then
     GUI_PARAMS="--autostart"
 fi
 
