@@ -15,6 +15,9 @@ Run Karapace from repository root::
   cd ..
   python -m karapace.karapace_rest_apis karapace.config.json
 
+Before running performance test, make sure
+- locust is installed. (pip install locust)
+- kafka module is installed (pip install kafka-python)
 Performance test is run from the shell script::
   ./run-locust-test.sh
 
@@ -25,3 +28,8 @@ Script supports some environment variables:
  * `CONCURRENCY` for setting how many concurrent users are emulated.
  * `LOCUST_GUI` for enabling the Locust web user interface.
  * `LOCUST_FILE` for selecting the Locust test script.
+
+Here is a screenshot of performance tests locally.
+
+.. image:: perf-test-locust.png
+   :alt: Performance Test Screenshot
