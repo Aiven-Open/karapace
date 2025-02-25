@@ -7,14 +7,14 @@ TOPIC=${TOPIC:-test-topic}
 
 DURATION=${DURATION:-1m}
 CONCURRENCY=${CONCURRENCY:-50}
-LOCUST_FILE=${LOCUST_FILE:-"rest-proxy-post-topic-test.py"}
+LOCUST_FILE=${LOCUST_FILE:-"rest-proxy-produce-consume-test.py"}
 
-GUI_PARAMS="--headless"
-if [[ -n $LOCUST_GUI ]]; then
+GUI_PARAMS=""
+if [[ -n ${LOCUST_GUI-} ]]; then
     GUI_PARAMS="--autostart"
 fi
 
-TOPIC="${TOPIC}" locust "${GUI_PARAMS}" \
+locust ${GUI_PARAMS:+${GUI_PARAMS}} \
     --run-time "${DURATION}" \
     --users "${CONCURRENCY}" \
     -H "${BASE_URL}" \
