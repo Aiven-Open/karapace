@@ -4,7 +4,7 @@ on:
   push:
     # Publish main branch as `develop` image
     branches:
-      - main
+      - '*'
 
     # Publish tags as versioned release and `latest` image
     tags:
@@ -73,7 +73,7 @@ jobs:
       - uses: docker/build-push-action@v4
         with:
           context: .
-          push: true
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
