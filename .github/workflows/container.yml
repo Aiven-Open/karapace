@@ -37,7 +37,7 @@ jobs:
 
       # QEMU is used to set up VMs for building non-x86_64 images.
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: "arm,arm64"
 
