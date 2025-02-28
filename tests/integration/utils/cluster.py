@@ -71,12 +71,18 @@ async def start_schema_registry_cluster(
                 "KARAPACE_PORT": str(port),
                 "KARAPACE_GROUP_ID": group_id,
                 "KARAPACE_ADVERTISED_HOSTNAME": config.host,
+                "KARAPACE_ADVERTISED_PROTOCOL": config.advertised_protocol if config.advertised_protocol else "http",
                 "KARAPACE_BOOTSTRAP_URI": config.bootstrap_uri,
                 "KARAPACE_TOPIC_NAME": schemas_topic,
                 "KARAPACE_LOG_LEVEL": "DEBUG",
                 "KARAPACE_LOG_FORMAT": "%(asctime)s [%(threadName)s] %(filename)s:%(funcName)s:%(lineno)d %(message)s",
                 "KARAPACE_KARAPACE_REGISTRY": "true",
+                "KARAPACE_CLIENT_ID": config.client_id if config.client_id else "",
+                "KARAPACE_MASTER_ELECTION_STRATEGY": (
+                    config.master_election_strategy if config.master_election_strategy else "lowest"
+                ),
                 "KARAPACE_REGISTRY_AUTHFILE": config.registry_authfile if config.registry_authfile else "",
+                "KARAPACE_SERVER_TLS_CAFILE": config.server_tls_cafile if config.server_tls_cafile else "",
                 "KARAPACE_SERVER_TLS_CERTFILE": config.server_tls_certfile if config.server_tls_certfile else "",
                 "KARAPACE_SERVER_TLS_KEYFILE": config.server_tls_keyfile if config.server_tls_keyfile else "",
                 "KARAPACE_USE_PROTOBUF_FORMATTER": "true" if config.use_protobuf_formatter else "false",
@@ -87,8 +93,7 @@ async def start_schema_registry_cluster(
             stack.callback(stop_process, process)
             all_processes.append((process, port, config.host))
 
-            protocol = "http" if config.server_tls_keyfile is None else "https"
-            endpoint = RegistryEndpoint(protocol, config.host, port)
+            endpoint = RegistryEndpoint(config.advertised_protocol, config.host, port)
             description = RegistryDescription(endpoint, schemas_topic)
             all_registries.append(description)
 
