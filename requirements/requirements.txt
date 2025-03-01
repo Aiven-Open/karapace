@@ -239,7 +239,7 @@ uvicorn[standard]==0.34.0
     #   fastapi-cli
 uvloop==0.21.0
     # via uvicorn
-watchfiles==0.24.0
+watchfiles==1.0.4
     # via
     #   karapace (/karapace/pyproject.toml)
     #   uvicorn
