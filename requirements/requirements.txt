@@ -166,7 +166,7 @@ pydantic==2.10.2
     #   pydantic-settings
 pydantic-core==2.27.1
     # via pydantic
-pydantic-settings==2.6.1
+pydantic-settings==2.8.1
     # via karapace (/karapace/pyproject.toml)
 pygments==2.19.1
     # via rich
