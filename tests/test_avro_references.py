@@ -104,7 +104,7 @@ def test_avro_reference() -> None:
             {
                 "type": "record",
                 "name": "Country",
-                "namespace": "com.netapp",
+                "namespace": "com.foo",
                 "fields": [{"name": "name", "type": "string"}, {"name": "code", "type": "string"}]
             }
             """
@@ -117,7 +117,7 @@ def test_avro_reference() -> None:
             {
                 "type": "record",
                 "name": "Address",
-                "namespace": "com.netapp",
+                "namespace": "com.foo",
                 "fields": [
                     {"name": "street", "type": "string"},
                     {"name": "city", "type": "string"},
@@ -144,7 +144,7 @@ def test_avro_reference() -> None:
         {
             "type": "record",
             "name": "Address",
-            "namespace": "com.netapp",
+            "namespace": "com.foo",
             "fields": [
                 {
                     "type": "string",
@@ -162,7 +162,7 @@ def test_avro_reference() -> None:
                     "type": {
                         "type": "record",
                         "name": "Country",
-                        "namespace": "com.netapp",
+                        "namespace": "com.foo",
                         "fields": [
                             {
                                 "type": "string",
@@ -191,7 +191,7 @@ def test_avro_reference2() -> None:
             {
                 "type": "record",
                 "name": "Country",
-                "namespace": "com.netapp",
+                "namespace": "com.foo",
                 "fields": [{"name": "name", "type": "string"}, {"name": "code", "type": "string"}]
             }
             """
@@ -206,7 +206,7 @@ def test_avro_reference2() -> None:
             {
                 "type": "record",
                 "name": "Address",
-                "namespace": "com.netapp",
+                "namespace": "com.foo",
                 "fields": [
                     {"name": "street", "type": "string"},
                     {"name": "city", "type": "string"},
@@ -235,7 +235,7 @@ def test_avro_reference2() -> None:
             {
                 "type": "record",
                 "name": "Job",
-                "namespace": "com.netapp",
+                "namespace": "com.foo",
                 "fields": [
                     {"name": "title", "type": "string"},
                     {"name": "salary", "type": "double"}
@@ -253,7 +253,7 @@ def test_avro_reference2() -> None:
             {
                 "type": "record",
                 "name": "Person",
-                "namespace": "com.netapp",
+                "namespace": "com.foo",
                 "fields": [
                     {"name": "name", "type": "string"},
                     {"name": "age", "type": "int"},
@@ -289,7 +289,7 @@ def test_avro_reference2() -> None:
         {
             "type": "record",
             "name": "Person",
-            "namespace": "com.netapp",
+            "namespace": "com.foo",
             "fields": [
                 {"name": "name", "type": "string"},
                 {"name": "age", "type": "int"},
@@ -298,7 +298,7 @@ def test_avro_reference2() -> None:
                     "type": {
                         "type": "record",
                         "name": "Address",
-                        "namespace": "com.netapp",
+                        "namespace": "com.foo",
                         "fields": [
                             {"name": "street", "type": "string"},
                             {"name": "city", "type": "string"},
@@ -308,7 +308,7 @@ def test_avro_reference2() -> None:
                                 "type": {
                                     "type": "record",
                                     "name": "Country",
-                                    "namespace": "com.netapp",
+                                    "namespace": "com.foo",
                                     "fields": [
                                         {"name": "name", "type": "string"},
                                         {"name": "code", "type": "string"}
@@ -323,7 +323,7 @@ def test_avro_reference2() -> None:
                     "type": {
                         "type": "record",
                         "name": "Job",
-                        "namespace": "com.netapp",
+                        "namespace": "com.foo",
                         "fields": [
                             {"name": "title", "type": "string"},
                             {"name": "salary", "type": "double"}

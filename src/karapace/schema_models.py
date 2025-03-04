@@ -242,7 +242,12 @@ def parse(
                 merged_schema = None
                 for schema in schemas_list:
                     # Merge dep with all previously merged ones
-                    merged_schema = make_avsc_object(json.loads(schema), names)
+                    merged_schema = make_avsc_object(
+                        json.loads(schema),
+                        names,
+                        validate_enum_symbols=validate_avro_enum_symbols,
+                        validate_names=validate_avro_names
+                    )
                 merged_schema_str = str(merged_schema)
             else:
                 merged_schema_str = schema_str
