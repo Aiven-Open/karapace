@@ -246,7 +246,7 @@ def parse(
                         json.loads(schema),
                         names,
                         validate_enum_symbols=validate_avro_enum_symbols,
-                        validate_names=validate_avro_names
+                        validate_names=validate_avro_names,
                     )
                 merged_schema_str = str(merged_schema)
             else:
