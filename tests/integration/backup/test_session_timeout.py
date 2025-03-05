@@ -6,13 +6,12 @@ See LICENSE for details
 from pathlib import Path
 
 import pytest
-from aiokafka.errors import NoBrokersAvailable
+from aiokafka.errors import KafkaConfigurationError
 from confluent_kafka.admin import NewTopic
 
-from karapace.backup.api import BackupVersion, create_backup
 from karapace.core.config import Config
 from karapace.core.kafka.admin import KafkaAdminClient
-from karapace.core.kafka_utils import kafka_producer_from_config
+from karapace.core.kafka_utils import kafka_consumer_from_config
 from tests.integration.conftest import create_kafka_server
 from tests.integration.utils.config import KafkaDescription
 from tests.integration.utils.kafka_server import KafkaServers
@@ -44,13 +43,13 @@ def fixture_kafka_server(
     )
 
 
-def test_producer_with_custom_kafka_properties_does_not_fail(
+def test_consumer_with_custom_kafka_properties_does_not_fail(
     kafka_server_session_timeout: KafkaServers,
     new_topic: NewTopic,
     tmp_path: Path,
 ) -> None:
     """
-    This test checks wether the custom properties are accepted by kafka.
+    This test checks weather the custom properties are accepted by kafka.
     We know by the implementation of the consumer startup code that if
     `group.session.min.timeout.ms` > `session.timeout.ms` the consumer
     will raise an exception during the startup.
@@ -59,46 +58,26 @@ def test_producer_with_custom_kafka_properties_does_not_fail(
     """
     config = Config()
     config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
-    config.session_timeout_ms = SESSION_TIMEOUT_MS
+    config.session_timeout_ms = 65000
 
     admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
     admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
 
-    with kafka_producer_from_config(config) as producer:
-        producer.send(
-            new_topic.topic,
-            key=b"foo",
-            value=b"bar",
-            partition=0,
-            headers=[
-                ("some-header", b"some header value"),
-                ("other-header", b"some other header value"),
-            ],
-            timestamp=1683474657,
-        )
-        producer.flush()
-
-    # without performing the backup the exception isn't raised.
-    create_backup(
-        config=config,
-        backup_location=tmp_path / "backup",
-        topic_name=new_topic.topic,
-        version=BackupVersion.V3,
-        replication_factor=1,
-    )
+    with kafka_consumer_from_config(config, new_topic.topic) as consumer:
+        _ = consumer
 
 
-def test_producer_with_custom_kafka_properties_fail(
+def test_consumer_with_custom_kafka_properties_fail(
     kafka_server_session_timeout: KafkaServers,
     new_topic: NewTopic,
 ) -> None:
     """
-    This test checks wether the custom properties are accepted by kafka.
+    This test checks weather the custom properties are accepted by kafka.
     We know by the implementation of the consumer startup code that if
     `group.session.min.timeout.ms` > `session.timeout.ms` the consumer
     will raise an exception during the startup.
     This test ensures that the `session.timeout.ms` can be injected in
-    the kafka config so that the exception isn't raised
+    the kafka config so that the exception is raised
     """
     admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
     admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
@@ -106,9 +85,9 @@ def test_producer_with_custom_kafka_properties_fail(
     config = Config()
     # TODO: This test is broken. Test has used localhost:9092 when this should use
     # the configured broker from kafka_server_session.
-    # config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
-    config.bootstrap_uri = "localhost:9092"
+    config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
+    config.session_timeout_ms = 55000
 
-    with pytest.raises(NoBrokersAvailable):
-        with kafka_producer_from_config(config) as producer:
-            _ = producer
+    with pytest.raises(KafkaConfigurationError):
+        with kafka_consumer_from_config(config, new_topic.topic) as consumer:
+            _ = consumer
