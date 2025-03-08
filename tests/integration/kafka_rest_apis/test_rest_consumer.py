@@ -293,6 +293,14 @@ async def test_offsets_no_payload(rest_async_client, admin_client, producer, tra
     producer.send(topic_name, value=b"message-value")
     producer.flush()
 
+    # Commit should not throw any error, even before consuming events
+    res = await rest_async_client.post(
+        offsets_path,
+        headers=header,
+        json={}
+    )
+    assert res.ok, f"Expected a successful response: {res}"
+
     resp = await rest_async_client.get(consume_path, headers=header)
     assert resp.ok, f"Expected a successful response: {resp}"
 
