@@ -2,6 +2,7 @@
 Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
+
 import traceback
 
 from aiokafka.errors import (
@@ -10,7 +11,8 @@ from aiokafka.errors import (
     KafkaConfigurationError,
     KafkaError,
     TopicAuthorizationFailedError,
-    UnknownTopicOrPartitionError, UnknownError,
+    UnknownTopicOrPartitionError,
+    UnknownError,
 )
 from asyncio import Lock
 from collections import defaultdict, namedtuple
