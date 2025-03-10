@@ -54,7 +54,7 @@ def test_consumer_with_custom_kafka_properties_does_not_fail(
     tmp_path: Path,
 ) -> None:
     """
-    This test checks weather the custom properties are accepted by kafka.
+    This test checks whether the custom properties are accepted by kafka.
     We know by the implementation of the consumer startup code that if
     `group.session.min.timeout.ms` > `session.timeout.ms` the consumer
     will raise an exception during the startup.
@@ -65,9 +65,7 @@ def test_consumer_with_custom_kafka_properties_does_not_fail(
     config.bootstrap_uri = kafka_server_session_timeout.bootstrap_servers[0]
     config.session_timeout_ms = SESSION_TIMEOUT_MS
 
-    admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
-    admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
-
+    create_topic(kafka_server_session_timeout, new_topic)
     produce_consume_messages(config, new_topic.topic, False)
 
 
@@ -77,15 +75,14 @@ def test_consumer_with_custom_kafka_properties_fail(
     tmp_path: Path,
 ) -> None:
     """
-    This test checks weather the custom properties are accepted by kafka.
+    This test checks whether the custom properties are accepted by kafka.
     We know by the implementation of the consumer startup code that if
     `group.session.min.timeout.ms` > `session.timeout.ms` the consumer
     will raise an exception during the startup.
     This test ensures that the `session.timeout.ms` can be injected in
     the kafka config so that the exception is raised
     """
-    admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
-    admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
+    create_topic(kafka_server_session_timeout, new_topic)
 
     config = Config()
     # the configured broker from kafka_server_session.
@@ -118,10 +115,14 @@ def produce_consume_messages(config: Config, new_topic: str, invalid_config: boo
 
 def consume_messages(config, new_topic):
     with kafka_consumer_from_config(config, new_topic) as consumer:
-        (partition,) = consumer.partitions_for_topic(new_topic)
         for _ in _consume_records(
             consumer=consumer,
-            topic_partition=TopicPartition(new_topic, partition),
+            topic_partition=TopicPartition(new_topic, 0),
             poll_timeout=PollTimeout.default(),
         ):
             pass
+
+
+def create_topic(kafka_server_session_timeout, new_topic):
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka_server_session_timeout.bootstrap_servers)
+    admin_client.new_topic(new_topic.topic, num_partitions=1, replication_factor=1)
