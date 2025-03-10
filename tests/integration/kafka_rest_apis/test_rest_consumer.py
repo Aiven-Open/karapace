@@ -6,10 +6,12 @@ See LICENSE for details
 import base64
 import copy
 import json
+import logging
 import random
 import time
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 
 from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.utils import (
@@ -266,7 +268,7 @@ async def test_offsets(rest_async_client, admin_client, trail):
 
 
 @pytest.mark.parametrize("trail", ["", "/"])
-async def test_offsets_no_payload(rest_async_client, admin_client, producer, trail):
+async def test_offsets_no_payload(rest_async_client, admin_client, producer, trail, caplog: LogCaptureFixture):
     group_name = "offset_group_no_payload"
     fmt = "binary"
     header = REST_HEADERS[fmt]
@@ -296,6 +298,8 @@ async def test_offsets_no_payload(rest_async_client, admin_client, producer, tra
     # Commit should not throw any error, even before consuming events
     res = await rest_async_client.post(offsets_path, headers=header, json={})
     assert res.ok, f"Expected a successful response: {res}"
+    with caplog.at_level(logging.WARNING, logger="karapace.kafka_rest_apis.consumer_manager"):
+        assert any("Ignoring KafkaError: No offset stored" in log.message for log in caplog.records)
 
     resp = await rest_async_client.get(consume_path, headers=header)
     assert resp.ok, f"Expected a successful response: {resp}"
