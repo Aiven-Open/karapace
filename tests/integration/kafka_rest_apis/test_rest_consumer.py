@@ -11,7 +11,7 @@ import random
 import time
 
 import pytest
-from _pytest.logging import LogCaptureFixture
+from pytest import LogCaptureFixture
 
 from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.utils import (
