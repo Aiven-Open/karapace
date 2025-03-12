@@ -97,4 +97,13 @@ if __name__ == "__main__":
 
     config = karapace_container.config()
     app = create_karapace_application(config=config, lifespan=karapace_schema_registry_lifespan)
-    uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level.lower(), log_config=None)
+    uvicorn.run(
+        app,
+        host=config.host,
+        port=config.port,
+        log_level=config.log_level.lower(),
+        log_config=None,
+        ssl_keyfile=config.server_tls_keyfile,
+        ssl_certfile=config.server_tls_certfile,
+        ssl_ca_certs=config.server_tls_cafile,
+    )
