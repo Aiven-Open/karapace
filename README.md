@@ -6,25 +6,25 @@
 |--------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/karapace/\_\_main\_\_.py                             |       36 |       36 |        2 |        0 |      0% |     6-100 |
 | src/karapace/api/container.py                            |       12 |        0 |        0 |        0 |    100% |           |
-| src/karapace/api/content\_type.py                        |       28 |       28 |        8 |        0 |      0% |      6-66 |
+| src/karapace/api/content\_type.py                        |       28 |       19 |        8 |        0 |     25% |     30-66 |
 | src/karapace/api/controller.py                           |      350 |      261 |       74 |        8 |     23% |80, 83-101, 105, 124-149, 160-180, 195-196, 206-211, 214-216, 226, 236-237, 245, 247, 249, 251, 270-293, 296, 301, 308-320, 329-347, 361-373, 380-381, 390-398, 406-435, 452-482, 491-544, 552-566, 580-604, 612-617, 629, 653-688, 698-786, 803-873, 878, 885-893, 896-899, 902-913, 922-945 |
-| src/karapace/api/factory.py                              |       42 |       42 |        0 |        0 |      0% |      6-69 |
+| src/karapace/api/factory.py                              |       42 |       18 |        0 |        0 |     57% |38-47, 57-69 |
 | src/karapace/api/forward\_client.py                      |       47 |        3 |       14 |        5 |     87% |48->50, 57-58, 67->exit, 76->exit, 98 |
-| src/karapace/api/http\_handlers/\_\_init\_\_.py          |       19 |       19 |        2 |        0 |      0% |      6-28 |
-| src/karapace/api/middlewares/\_\_init\_\_.py             |       21 |       21 |        2 |        0 |      0% |      6-37 |
-| src/karapace/api/routers/compatibility.py                |       21 |       21 |        2 |        0 |      0% |      6-42 |
+| src/karapace/api/http\_handlers/\_\_init\_\_.py          |       19 |       11 |        2 |        0 |     38% |     16-28 |
+| src/karapace/api/middlewares/\_\_init\_\_.py             |       21 |       15 |        2 |        0 |     26% |     14-37 |
+| src/karapace/api/routers/compatibility.py                |       21 |        4 |        2 |        0 |     74% |     38-42 |
 | src/karapace/api/routers/config.py                       |       64 |       26 |       22 |        1 |     50% |37-40, 55, 76-80, 95-104, 120-129 |
 | src/karapace/api/routers/errors.py                       |       40 |        3 |        0 |        0 |     92% | 52-53, 67 |
-| src/karapace/api/routers/health.py                       |       43 |       43 |        4 |        0 |      0% |      6-86 |
-| src/karapace/api/routers/master\_availability.py         |       26 |       26 |        4 |        0 |      0% |      6-60 |
-| src/karapace/api/routers/metrics.py                      |        9 |        9 |        0 |        0 |      0% |      6-23 |
-| src/karapace/api/routers/mode.py                         |       27 |       27 |        4 |        0 |      0% |      6-53 |
+| src/karapace/api/routers/health.py                       |       43 |       17 |        4 |        0 |     55% |41-49, 58-86 |
+| src/karapace/api/routers/master\_availability.py         |       26 |        8 |        4 |        0 |     60% |     43-60 |
+| src/karapace/api/routers/metrics.py                      |        9 |        1 |        0 |        0 |     89% |        23 |
+| src/karapace/api/routers/mode.py                         |       27 |        7 |        4 |        0 |     65% |35-38, 49-53 |
 | src/karapace/api/routers/raw\_path\_router.py            |       18 |       10 |        6 |        0 |     33% |     30-44 |
 | src/karapace/api/routers/requests.py                     |       65 |        3 |        2 |        0 |     93% |     30-35 |
-| src/karapace/api/routers/root.py                         |        5 |        5 |        0 |        0 |      0% |      6-16 |
-| src/karapace/api/routers/schemas.py                      |       26 |       26 |        0 |        0 |      0% |      6-93 |
-| src/karapace/api/routers/setup.py                        |       20 |       20 |        0 |        0 |      0% |      6-27 |
-| src/karapace/api/routers/subjects.py                     |       88 |       88 |       24 |        0 |      0% |     6-215 |
+| src/karapace/api/routers/root.py                         |        5 |        1 |        0 |        0 |     80% |        16 |
+| src/karapace/api/routers/schemas.py                      |       26 |        4 |        0 |        0 |     85% |34, 53, 80, 93 |
+| src/karapace/api/routers/setup.py                        |       20 |        9 |        0 |        0 |     55% |     19-27 |
+| src/karapace/api/routers/subjects.py                     |       88 |       43 |       24 |        0 |     40% |43, 61-65, 85-94, 111-117, 135-139, 152-156, 172-181, 195-199, 211-215 |
 | src/karapace/api/telemetry/container.py                  |       18 |        1 |        0 |        0 |     94% |        18 |
 | src/karapace/api/telemetry/metrics.py                    |       30 |        0 |        0 |        0 |    100% |           |
 | src/karapace/api/telemetry/middleware.py                 |       30 |        0 |        0 |        0 |    100% |           |
@@ -66,7 +66,7 @@
 | src/karapace/core/constants.py                           |        8 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/container.py                           |        8 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/coordinator/master\_coordinator.py     |       99 |       15 |       18 |        6 |     80% |83-85, 88-92, 102->104, 107, 109-110, 153-158, 183, 193 |
-| src/karapace/core/coordinator/schema\_coordinator.py     |      514 |       40 |      140 |       10 |     91% |199, 277-286, 299-302, 322-323, 335-336, 500, 586-591, 611-615, 633, 643-647, 680->exit, 685->688, 699->726, 834, 851, 932, 976-977, 984-985 |
+| src/karapace/core/coordinator/schema\_coordinator.py     |      514 |       42 |      140 |       11 |     91% |199, 214-215, 277-286, 299-302, 322-323, 335-336, 500, 586-591, 611-615, 633, 643-647, 680->exit, 685->688, 699->726, 834, 851, 932, 976-977, 984-985 |
 | src/karapace/core/dataclasses.py                         |        8 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/dependency.py                          |       42 |       11 |       10 |        3 |     65% |18, 45, 49, 53-54, 58, 65, 68, 71-73 |
 | src/karapace/core/errors.py                              |       40 |        5 |        2 |        1 |     86% |11-12, 65-67 |
@@ -146,7 +146,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       80 |       20 |     70% |85->exit, 88->exit, 103, 107, 140, 143, 229-252, 277-281, 286, 292-297, 301, 308, 311->314, 314->324, 316->319, 319->322, 325-326, 329, 333, 335-336, 341-348, 353-358, 365, 368-369, 377, 399-402, 438, 445, 461, 475-477, 480-482 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       13 |        3 |        2 |        1 |     73% |      8-11 |
-|                                                **TOTAL** | **11755** | **2551** | **3210** |  **407** | **76%** |           |
+|                                                **TOTAL** | **11755** | **2335** | **3210** |  **408** | **77%** |           |
 
 16 empty files skipped.
 
