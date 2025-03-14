@@ -298,7 +298,7 @@ class ConsumerManager:
                 error_trace = traceback.format_exc()  # Capture the full stack trace
                 offset_stored_err_message = "Commit failed: Local: No offset stored"
                 if offset_stored_err_message in error_trace:
-                    LOG.warning("Ignoring KafkaError: No offset stored.")
+                    LOG.warning("Ignoring KafkaError: No offset stored. %s", internal_name)
                 else:
                     KarapaceBase.internal_error(message=f"error sending commit request: {ue}", content_type=content_type)
             except KafkaError as e:
