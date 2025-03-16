@@ -49,3 +49,9 @@ repos:
       args: [ --fix ]
     # Run the formatter.
     - id: ruff-format
+
+- repo: https://github.com/seddonym/import-linter
+  rev: "v2.3"
+  hooks:
+    - id: import-linter
+      entry: env PYTHONPATH=src lint-imports --verbose
