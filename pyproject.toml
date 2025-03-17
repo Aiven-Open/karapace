@@ -116,3 +116,12 @@ version_file = "src/karapace/version.py"
 
 [tool.ruff]
 line-length = 125
+
+[tool.importlinter]
+root_packages = ["karapace", "tests"]
+
+[[tool.importlinter.contracts]]
+name = "Do not violate src layout, import from installed package"
+type = "forbidden"
+source_modules = "**"
+forbidden_modules = "src.**"
