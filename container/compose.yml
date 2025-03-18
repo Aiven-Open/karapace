@@ -69,14 +69,18 @@ services:
       - opentelemetry-collector
     ports:
       - 8081:8081
+    volumes:
+      - ./certs:/opt/karapace/certs
     environment:
       KARAPACE_KARAPACE_REGISTRY: true
       KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry
+      KARAPACE_ADVERTISED_PROTOCOL: https
       KARAPACE_BOOTSTRAP_URI: kafka:29092
       KARAPACE_PORT: 8081
       KARAPACE_HOST: 0.0.0.0
-      KARAPACE_CLIENT_ID: karapace-schema-registry
+      KARAPACE_CLIENT_ID: karapace-schema-registry-0
       KARAPACE_GROUP_ID: karapace-schema-registry
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
       KARAPACE_MASTER_ELIGIBILITY: true
       KARAPACE_TOPIC_NAME: _schemas
       KARAPACE_LOG_LEVEL: INFO
@@ -94,6 +98,59 @@ services:
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+
+  karapace-schema-registry-follower:
+    image: ghcr.io/aiven-open/karapace:develop
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+      args:
+        KARAPACE_VERSION: $KARAPACE_VERSION
+        PYTHON_VERSION: $PYTHON_VERSION
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+      - opentelemetry-collector
+    ports:
+      - 8181:8181
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-follower
+      KARAPACE_ADVERTISED_PROTOCOL: https
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8181
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-1
+      KARAPACE_GROUP_ID: karapace-schema-registry
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_STATSD_HOST: statsd-exporter
+      KARAPACE_STATSD_PORT: 8125
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_TAGS__APP: karapace-schema-registry-follower
+      KARAPACE_TELEMETRY__OTEL_ENDPOINT_URL: http://opentelemetry-collector:4317
+      KARAPACE_TELEMETRY__OTEL_METRICS_EXPORTER: OTLP
+      KARAPACE_TELEMETRY__OTEL_TRACES_EXPORTER: OTLP
+      KARAPACE_TELEMETRY__RESOURCE_SERVICE_NAME: karapace-schema-registry-follower
+      KARAPACE_TELEMETRY__RESOURCE_SERVICE_INSTANCE_ID: sr1
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
+      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
 
   karapace-rest-proxy:
     image: ghcr.io/aiven-open/karapace:develop
@@ -117,7 +174,9 @@ services:
       KARAPACE_PORT: 8082
       KARAPACE_HOST: 0.0.0.0
       KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy
+      KARAPACE_ADVERTISED_PROTOCOL: http
       KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: https
       KARAPACE_REGISTRY_HOST: karapace-schema-registry
       KARAPACE_REGISTRY_PORT: 8081
       KARAPACE_ADMIN_METADATA_MAX_AGE: 0
@@ -144,6 +203,8 @@ services:
       - karapace-schema-registry
       - karapace-rest-proxy
     volumes:
+      - ./certs:/opt/karapace/certs
+      - ../bin:/opt/karapace/bin
       - ../tests:/opt/karapace/tests
       - ../pytest.ini:/opt/karapace/pytest.ini
       - ../mypy.ini:/opt/karapace/mypy.ini

@@ -5,6 +5,7 @@ See LICENSE for details
 
 from fastapi import HTTPException, Request, status
 from karapace.core.utils import json_decode
+from karapace.core.config import Config
 from karapace.version import __version__
 from pydantic import BaseModel
 from typing import overload, TypeVar, Union
@@ -12,6 +13,7 @@ from typing import overload, TypeVar, Union
 import aiohttp
 import async_timeout
 import logging
+import ssl
 
 LOG = logging.getLogger(__name__)
 
@@ -23,8 +25,13 @@ SimpleTypeResponse = TypeVar("SimpleTypeResponse", bound=Union[int, list[int]])
 class ForwardClient:
     USER_AGENT = f"Karapace/{__version__}"
 
-    def __init__(self) -> None:
+    def __init__(self, config: Config) -> None:
+        self.advertised_protocol = config.advertised_protocol
         self._forward_client: aiohttp.ClientSession = aiohttp.ClientSession(headers={"User-Agent": self.USER_AGENT})
+        self._ssl_context: ssl.SSLContext | None = None
+        if self.advertised_protocol == "https":
+            self._ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+            self._ssl_context.load_verify_locations(cafile=config.server_tls_cafile)
 
     async def close(self) -> None:
         await self._forward_client.close()
@@ -47,11 +54,12 @@ class ForwardClient:
         forward_url = f"{primary_url}{request.url.path}"
         if request.url.query:
             forward_url = f"{forward_url}?{request.url.query}"
-        logging.error(forward_url)
 
         async with async_timeout.timeout(timeout):
             body_data = await request.body()
-            async with func(forward_url, headers=request.headers.mutablecopy(), data=body_data) as response:
+            async with func(
+                forward_url, headers=request.headers.mutablecopy(), data=body_data, ssl=self._ssl_context
+            ) as response:
                 if self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
                     return await response.text()
                 LOG.error("Unknown response for forwarded request: %s", response)

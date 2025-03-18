@@ -101,4 +101,13 @@ def test_uvicorn_run() -> None:
             runpy.run_path("src/karapace/__main__.py", run_name="__main__")
 
         # Verify uvicorn is started with the expected arguments
-        mock_uvicorn_run.assert_called_once_with(mock_app, host="127.0.0.1", port=8081, log_level="debug", log_config=None)
+        mock_uvicorn_run.assert_called_once_with(
+            mock_app,
+            host="127.0.0.1",
+            port=8081,
+            log_level="debug",
+            log_config=None,
+            ssl_keyfile=None,
+            ssl_certfile=None,
+            ssl_ca_certs=None,
+        )
