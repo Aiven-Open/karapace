@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_7e40b40cc0f12825_master_coordinator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-03-18 14:37 +0000
+            created at 2025-03-18 16:29 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -95,7 +95,7 @@
     <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">class</span> <span class="nam">KarapaceContainer</span><span class="op">(</span><span class="nam">containers</span><span class="op">.</span><span class="nam">DeclarativeContainer</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">    <span class="nam">config</span> <span class="op">=</span> <span class="nam">providers</span><span class="op">.</span><span class="nam">Singleton</span><span class="op">(</span><span class="nam">Config</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">    <span class="nam">forward_client</span> <span class="op">=</span> <span class="nam">providers</span><span class="op">.</span><span class="nam">Singleton</span><span class="op">(</span><span class="nam">ForwardClient</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">    <span class="nam">forward_client</span> <span class="op">=</span> <span class="nam">providers</span><span class="op">.</span><span class="nam">Singleton</span><span class="op">(</span><span class="nam">ForwardClient</span><span class="op">,</span> <span class="nam">config</span><span class="op">=</span><span class="nam">config</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">    <span class="nam">prometheus</span> <span class="op">=</span> <span class="nam">providers</span><span class="op">.</span><span class="nam">Singleton</span><span class="op">(</span><span class="nam">PrometheusInstrumentation</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
@@ -106,7 +106,7 @@
             <a class="nav" href="z_7e40b40cc0f12825_master_coordinator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-03-18 14:37 +0000
+            created at 2025-03-18 16:29 +0000
         </p>
     </div>
 </footer>

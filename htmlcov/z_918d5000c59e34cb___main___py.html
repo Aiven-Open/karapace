@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_d81219127a098a15_container_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-03-18 14:37 +0000
+            created at 2025-03-18 16:29 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -181,7 +181,16 @@
     <p class="pln"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t98" href="#t98">98</a></span><span class="t">    <span class="nam">config</span> <span class="op">=</span> <span class="nam">karapace_container</span><span class="op">.</span><span class="nam">config</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t99" href="#t99">99</a></span><span class="t">    <span class="nam">app</span> <span class="op">=</span> <span class="nam">create_karapace_application</span><span class="op">(</span><span class="nam">config</span><span class="op">=</span><span class="nam">config</span><span class="op">,</span> <span class="nam">lifespan</span><span class="op">=</span><span class="nam">karapace_schema_registry_lifespan</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t100" href="#t100">100</a></span><span class="t">    <span class="nam">uvicorn</span><span class="op">.</span><span class="nam">run</span><span class="op">(</span><span class="nam">app</span><span class="op">,</span> <span class="nam">host</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">host</span><span class="op">,</span> <span class="nam">port</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">port</span><span class="op">,</span> <span class="nam">log_level</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">log_level</span><span class="op">.</span><span class="nam">lower</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="nam">log_config</span><span class="op">=</span><span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t100" href="#t100">100</a></span><span class="t">    <span class="nam">uvicorn</span><span class="op">.</span><span class="nam">run</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">        <span class="nam">app</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">        <span class="nam">host</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">host</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">        <span class="nam">port</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">port</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">        <span class="nam">log_level</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">log_level</span><span class="op">.</span><span class="nam">lower</span><span class="op">(</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">        <span class="nam">log_config</span><span class="op">=</span><span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t106" href="#t106">106</a></span><span class="t">        <span class="nam">ssl_keyfile</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">server_tls_keyfile</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t">        <span class="nam">ssl_certfile</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">server_tls_certfile</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t">        <span class="nam">ssl_ca_certs</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">server_tls_cafile</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t109" href="#t109">109</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -191,7 +200,7 @@
             <a class="nav" href="z_d81219127a098a15_container_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.4">coverage.py v7.6.4</a>,
-            created at 2025-03-18 14:37 +0000
+            created at 2025-03-18 16:29 +0000
         </p>
     </div>
 </footer>

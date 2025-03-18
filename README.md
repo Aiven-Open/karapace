@@ -9,7 +9,7 @@
 | src/karapace/api/content\_type.py                        |       28 |       19 |        8 |        0 |     25% |     30-66 |
 | src/karapace/api/controller.py                           |      350 |      261 |       74 |        8 |     23% |80, 83-101, 105, 124-149, 160-180, 195-196, 206-211, 214-216, 226, 236-237, 245, 247, 249, 251, 270-293, 296, 301, 308-320, 329-347, 361-373, 380-381, 390-398, 406-435, 452-482, 491-544, 552-566, 580-604, 612-617, 629, 653-688, 698-786, 803-873, 878, 885-893, 896-899, 902-913, 922-945 |
 | src/karapace/api/factory.py                              |       42 |       18 |        0 |        0 |     57% |38-47, 57-69 |
-| src/karapace/api/forward\_client.py                      |       47 |        3 |       14 |        5 |     87% |48->50, 57-58, 67->exit, 76->exit, 98 |
+| src/karapace/api/forward\_client.py                      |       53 |        3 |       16 |        5 |     88% |55->58, 65-66, 75->exit, 84->exit, 106 |
 | src/karapace/api/http\_handlers/\_\_init\_\_.py          |       19 |       11 |        2 |        0 |     38% |     16-28 |
 | src/karapace/api/middlewares/\_\_init\_\_.py             |       21 |       15 |        2 |        0 |     26% |     14-37 |
 | src/karapace/api/routers/compatibility.py                |       21 |        4 |        2 |        0 |     74% |     38-42 |
@@ -55,14 +55,14 @@
 | src/karapace/core/avro\_dataclasses/introspect.py        |       86 |        7 |       50 |        7 |     90% |20, 41, 69, 115, 117, 123, 126 |
 | src/karapace/core/avro\_dataclasses/models.py            |       99 |        6 |       34 |        4 |     92% |23, 105-106, 108, 111, 131 |
 | src/karapace/core/avro\_dataclasses/schema.py            |       33 |        0 |        0 |        0 |    100% |           |
-| src/karapace/core/client.py                              |      133 |        4 |       18 |        1 |     97% |69-70, 80-81 |
+| src/karapace/core/client.py                              |      133 |        2 |       18 |        0 |     99% |     80-81 |
 | src/karapace/core/compatibility/\_\_init\_\_.py          |       15 |        2 |        0 |        0 |     87% |     37-42 |
 | src/karapace/core/compatibility/jsonschema/checks.py     |      370 |       46 |      162 |       21 |     84% |203, 253, 266, 335, 426, 436-447, 522-534, 547-551, 576, 600, 662, 675, 685, 765-777, 788-798, 823-826, 880->878, 882, 886, 896-901, 921 |
 | src/karapace/core/compatibility/jsonschema/types.py      |      111 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/compatibility/jsonschema/utils.py      |      132 |       22 |       62 |       11 |     80% |33, 47, 52, 106, 128-138, 151, 200-204, 210, 312->311, 331, 340, 356, 368 |
 | src/karapace/core/compatibility/protobuf/checks.py       |       17 |       13 |        6 |        0 |     17% |     12-26 |
 | src/karapace/core/compatibility/schema\_compatibility.py |       61 |       25 |       28 |        6 |     49% |42, 49-66, 77, 82, 86->127, 98-125, 131, 139 |
-| src/karapace/core/config.py                              |      234 |       81 |       56 |        5 |     57% |32-33, 141, 144, 147, 150, 179-183, 193->197, 197->203, 213, 214->218, 238-246, 274-279, 286-288, 295-297, 302, 308, 312, 316, 321-347, 351-376 |
+| src/karapace/core/config.py                              |      236 |       81 |       56 |        5 |     58% |32-33, 143, 146, 149, 152, 181-185, 195->199, 199->205, 215, 216->220, 240-248, 276-281, 288-290, 297-299, 304, 310, 314, 318, 323-349, 353-378 |
 | src/karapace/core/constants.py                           |        8 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/container.py                           |        8 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/coordinator/master\_coordinator.py     |       99 |       15 |       18 |        6 |     80% |83-85, 88-92, 102->104, 107, 109-110, 153-158, 183, 193 |
@@ -131,7 +131,7 @@
 | src/karapace/core/sentry/\_\_init\_\_.py                 |       16 |        3 |        0 |        0 |     81% | 11, 25-26 |
 | src/karapace/core/sentry/sentry\_client.py               |       23 |        2 |        2 |        1 |     88% |56-57, 61->exit |
 | src/karapace/core/sentry/sentry\_client\_api.py          |       13 |        2 |        0 |        0 |     85% |    24, 27 |
-| src/karapace/core/serialization.py                       |      277 |       29 |       88 |       13 |     88% |93, 131, 148, 159, 163, 189-190, 220, 234-235, 242, 256-257, 299-300, 349->352, 383, 388-389, 459-464, 470-473, 491, 500 |
+| src/karapace/core/serialization.py                       |      276 |       28 |       88 |       13 |     89% |93, 131, 148, 159, 163, 189-190, 220, 234-235, 242, 256-257, 300, 348->351, 382, 387-388, 458-463, 469-472, 490, 499 |
 | src/karapace/core/stats.py                               |       42 |       12 |        0 |        0 |     71% |62-65, 70, 73, 76-77, 80-88, 91 |
 | src/karapace/core/typing.py                              |       91 |        7 |       10 |        2 |     89% |48-50, 93, 105, 127, 131 |
 | src/karapace/core/utils.py                               |      110 |       34 |       42 |       12 |     61% |31-33, 45-47, 51->exit, 55->exit, 59->exit, 63->exit, 69-78, 82->exit, 92->exit, 112, 125->exit, 129->exit, 140, 144, 148, 190, 205-223 |
@@ -146,7 +146,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       80 |       20 |     70% |85->exit, 88->exit, 103, 107, 140, 143, 229-252, 277-281, 286, 292-297, 301, 308, 311->314, 314->324, 316->319, 319->322, 325-326, 329, 333, 335-336, 341-348, 353-358, 365, 368-369, 377, 399-402, 438, 445, 461, 475-477, 480-482 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       13 |        3 |        2 |        1 |     73% |      8-11 |
-|                                                **TOTAL** | **11762** | **2337** | **3212** |  **408** | **77%** |           |
+|                                                **TOTAL** | **11769** | **2334** | **3214** |  **407** | **77%** |           |
 
 16 empty files skipped.
 
