@@ -4,6 +4,9 @@ Api References
 Schema Registry
 ---------------
 
+With mTLS enabled, i.e. by providing the certificates and related environment variables,
+we recommend using the `curl-sr-https` make target provided against the examples below.
+
 To register the first version of a schema under the subject "test" using Avro schema::
 
   $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \

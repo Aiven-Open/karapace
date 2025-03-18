@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from starlette.datastructures import MutableHeaders
 
 from karapace.api.forward_client import ForwardClient
+from karapace.core.container import KarapaceContainer
 from tests.base_testcase import BaseTestCase
 
 
@@ -32,12 +33,12 @@ class ContentTypeTestCase(BaseTestCase):
 
 
 @pytest.fixture(name="forward_client")
-def fixture_forward_client() -> ForwardClient:
+def fixture_forward_client(karapace_container: KarapaceContainer) -> ForwardClient:
     with patch("karapace.api.forward_client.aiohttp") as mocked_aiohttp:
         mocked_aiohttp.ClientSession.return_value = Mock(
             spec=aiohttp.ClientSession, headers={"User-Agent": ForwardClient.USER_AGENT}
         )
-        return ForwardClient()
+        return ForwardClient(config=karapace_container.config())
 
 
 async def test_forward_client_close(forward_client: ForwardClient) -> None:
@@ -139,7 +140,7 @@ async def test_forward_request_with_integer_response(forward_client: ForwardClie
     headers["Content-Type"] = "application/json"
     mock_response.headers = headers
 
-    async def mock_aenter(_) -> Mock:
+    async def mock_aenter(_) -> AsyncMock:
         return mock_response
 
     async def mock_aexit(_, __, ___, ____) -> None:
@@ -156,3 +157,53 @@ async def test_forward_request_with_integer_response(forward_client: ForwardClie
     )
 
     assert response == 12
+
+
+async def test_forward_request_with_https(karapace_container: KarapaceContainer) -> None:
+    https_config = karapace_container.config()
+    https_config.advertised_protocol = "https"
+    https_config.server_tls_cafile = "test-cafile"
+
+    with (
+        patch("karapace.api.forward_client.aiohttp") as mocked_aiohttp,
+        patch("karapace.api.forward_client.ssl") as mocked_ssl,
+    ):
+        mocked_aiohttp.ClientSession.return_value = Mock(
+            spec=aiohttp.ClientSession, headers={"User-Agent": ForwardClient.USER_AGENT}
+        )
+        forward_client = ForwardClient(config=https_config)
+
+        mocked_ssl.return_value.SSLContext = Mock()
+        mocked_ssl.SSLContext.assert_called_once_with(protocol=mocked_ssl.PROTOCOL_TLS_CLIENT)
+        mocked_ssl.SSLContext.return_value.load_verify_locations.assert_called_once_with(cafile="test-cafile")
+
+        mock_request = Mock(spec=Request)
+        mock_request.method = "GET"
+        mock_request.headers = Headers()
+
+        mock_get_func = AsyncMock()
+        mock_response_context = AsyncMock
+        mock_response = AsyncMock()
+        mock_response_context.call_function = lambda _: mock_response
+        mock_response.text.return_value = "12"
+        headers = MutableHeaders()
+        headers["Content-Type"] = "application/json"
+        mock_response.headers = headers
+
+        async def mock_aenter(_) -> AsyncMock:
+            return mock_response
+
+        async def mock_aexit(_, __, ___, ____) -> None:
+            return
+
+        mock_get_func.__aenter__ = mock_aenter
+        mock_get_func.__aexit__ = mock_aexit
+        forward_client._forward_client.get.return_value = mock_get_func
+
+        response = await forward_client.forward_request_remote(
+            request=mock_request,
+            primary_url="test-url",
+            response_type=int,
+        )
+
+        assert response == 12
