@@ -3,6 +3,8 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import traceback
+
 from aiokafka.errors import (
     GroupAuthorizationFailedError,
     IllegalStateError,
@@ -10,6 +12,7 @@ from aiokafka.errors import (
     KafkaError,
     TopicAuthorizationFailedError,
     UnknownTopicOrPartitionError,
+    UnknownError,
 )
 from asyncio import Lock
 from collections import defaultdict, namedtuple
@@ -291,6 +294,13 @@ class ConsumerManager:
             payload = payload or None
             try:
                 await consumer.commit(offsets=payload)
+            except UnknownError as ue:
+                error_trace = traceback.format_exc()  # Capture the full stack trace
+                offset_stored_err_message = "Commit failed: Local: No offset stored"
+                if offset_stored_err_message in error_trace:
+                    LOG.warning("Ignoring KafkaError: No offset stored. %s", internal_name)
+                else:
+                    KarapaceBase.internal_error(message=f"error sending commit request: {ue}", content_type=content_type)
             except KafkaError as e:
                 KarapaceBase.internal_error(message=f"error sending commit request: {e}", content_type=content_type)
         empty_response()
