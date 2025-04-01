@@ -223,7 +223,7 @@ tenacity==9.0.0
     # via karapace (/karapace/pyproject.toml)
 tomli==2.2.1
     # via mypy
-typer==0.15.1
+typer==0.15.2
     # via fastapi-cli
 types-cachetools==5.5.0.20240820
     # via karapace (/karapace/pyproject.toml)
