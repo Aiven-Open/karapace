@@ -257,7 +257,7 @@ pytest-xdist[psutil]==3.6.1
     # via karapace (/karapace/pyproject.toml)
 python-dateutil==2.9.0.post0
     # via karapace (/karapace/pyproject.toml)
-python-dotenv==1.0.1
+python-dotenv==1.1.0
     # via
     #   pydantic-settings
     #   uvicorn
