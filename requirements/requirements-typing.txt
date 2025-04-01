@@ -21,7 +21,7 @@ anyio==4.8.0
     #   httpx
     #   starlette
     #   watchfiles
-async-lru==2.0.4
+async-lru==2.0.5
     # via karapace (/karapace/pyproject.toml)
 async-timeout==5.0.1
     # via
