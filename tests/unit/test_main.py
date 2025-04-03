@@ -8,7 +8,7 @@ See LICENSE for details
 import runpy
 from unittest.mock import patch, MagicMock
 
-from src.karapace import __main__
+from karapace import __main__
 
 
 def test_main_container_initialization():
@@ -24,8 +24,8 @@ def test_main_container_initialization():
         mock_app = MagicMock()
         mock_create_app.return_value = mock_app
 
-        with patch("sys.argv", ["src.karapace.__main__.py"]):
-            runpy.run_path("src/karapace/__main__.py", run_name="__main__")
+        with patch("sys.argv", ["karapace"]):
+            runpy.run_module("karapace")
 
         # Mock return values for container initialization
         mock_karapace_container_instance = mock_karapace_container.return_value
@@ -97,8 +97,8 @@ def test_uvicorn_run() -> None:
         mock_app = MagicMock()
         mock_create_app.return_value = mock_app
 
-        with patch("sys.argv", ["src.karapace.__main__.py"]):
-            runpy.run_path("src/karapace/__main__.py", run_name="__main__")
+        with patch("sys.argv", ["karapace"]):
+            runpy.run_module("karapace")
 
         # Verify uvicorn is started with the expected arguments
         mock_uvicorn_run.assert_called_once_with(
