@@ -80,7 +80,7 @@ googleapis-common-protos==1.68.0
     #   opentelemetry-exporter-otlp-proto-http
 grpcio==1.70.0
     # via opentelemetry-exporter-otlp-proto-grpc
-h11==0.14.0
+h11==0.16.0
     # via
     #   httpcore
     #   uvicorn

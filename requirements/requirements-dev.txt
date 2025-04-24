@@ -119,7 +119,7 @@ greenlet==3.1.1
     # via gevent
 grpcio==1.70.0
     # via opentelemetry-exporter-otlp-proto-grpc
-h11==0.14.0
+h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
