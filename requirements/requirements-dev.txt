@@ -310,7 +310,7 @@ tomli==2.2.1
     #   coverage
     #   locust
     #   pytest
-typer==0.15.1
+typer==0.15.2
     # via fastapi-cli
 typing-extensions==4.12.2
     # via
