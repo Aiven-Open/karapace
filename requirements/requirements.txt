@@ -213,7 +213,7 @@ starlette==0.41.3
     # via fastapi
 tenacity==9.0.0
     # via karapace (/karapace/pyproject.toml)
-typer==0.15.1
+typer==0.15.2
     # via fastapi-cli
 typing-extensions==4.12.2
     # via
