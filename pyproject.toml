@@ -14,7 +14,7 @@ dependencies = [
   "aiokafka == 0.10.0",
   "async_lru",
   "cachetools == 5.3.3",
-  "confluent-kafka == 2.4.0",
+  "confluent-kafka == 2.10.0",
   "fastapi[standard] == 0.115.5",
   "isodate < 1",
   "jsonschema < 5",
