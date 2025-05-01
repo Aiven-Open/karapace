@@ -75,7 +75,7 @@
 | src/karapace/core/instrumentation/prometheus.py          |       40 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/instrumentation/tracer.py              |       65 |        2 |       12 |        3 |     94% |41, 44, 60->exit, 88->exit, 102->exit |
 | src/karapace/core/kafka/admin.py                         |       82 |        2 |       12 |        0 |     98% |   191-194 |
-| src/karapace/core/kafka/common.py                        |       87 |        5 |       20 |        6 |     90% |59, 61, 63, 83->exit, 175, 211 |
+| src/karapace/core/kafka/common.py                        |       87 |        6 |       20 |        7 |     88% |59, 61, 63, 83->exit, 175, 211, 216 |
 | src/karapace/core/kafka/consumer.py                      |      142 |       15 |       20 |        3 |     89% |49-50, 63, 68, 100, 103-104, 135-136, 162-163, 182-183, 188-189 |
 | src/karapace/core/kafka/producer.py                      |       67 |        2 |        6 |        0 |     97% |     68-69 |
 | src/karapace/core/kafka/types.py                         |        8 |        0 |        0 |        0 |    100% |           |
@@ -146,7 +146,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       80 |       20 |     70% |85->exit, 88->exit, 103, 107, 140, 143, 229-252, 277-281, 286, 292-297, 301, 308, 311->314, 314->324, 316->319, 319->322, 325-326, 329, 333, 335-336, 341-348, 353-358, 365, 368-369, 377, 399-402, 438, 445, 461, 475-477, 480-482 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       13 |        3 |        2 |        1 |     73% |      8-11 |
-|                                                **TOTAL** | **11769** | **2334** | **3214** |  **407** | **77%** |           |
+|                                                **TOTAL** | **11769** | **2335** | **3214** |  **408** | **77%** |           |
 
 16 empty files skipped.
 
