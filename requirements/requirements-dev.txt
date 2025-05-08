@@ -174,34 +174,34 @@ multidict==6.1.0
     #   yarl
 networkx==3.4.2
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-api==1.27.0
+opentelemetry-api==1.32.0
     # via
     #   karapace (/karapace/pyproject.toml)
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-exporter-otlp==1.27.0
+opentelemetry-exporter-otlp==1.32.0
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-exporter-otlp-proto-common==1.27.0
+opentelemetry-exporter-otlp-proto-common==1.32.0
     # via
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-grpc==1.27.0
+opentelemetry-exporter-otlp-proto-grpc==1.32.0
     # via opentelemetry-exporter-otlp
-opentelemetry-exporter-otlp-proto-http==1.27.0
+opentelemetry-exporter-otlp-proto-http==1.32.0
     # via opentelemetry-exporter-otlp
-opentelemetry-proto==1.27.0
+opentelemetry-proto==1.32.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.27.0
+opentelemetry-sdk==1.32.0
     # via
     #   karapace (/karapace/pyproject.toml)
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-semantic-conventions==0.48b0
+opentelemetry-semantic-conventions==0.53b1
     # via opentelemetry-sdk
 packaging==24.2
     # via
