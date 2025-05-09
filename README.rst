@@ -35,6 +35,9 @@ Features
 * Asynchronous architecture based on aiohttp
 * Supports Avro, JSON Schema, and Protobuf
 * Leader/Replica architecture for HA and load balancing
+* Observability with Metrics and OpenTelemetry
+* Based on aiokafka (rdkafka) kafka library mostly
+* Schema registry based on FastApi
 
 Compatibility details
 ---------------------
