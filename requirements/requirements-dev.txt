@@ -92,7 +92,7 @@ fastapi-cli[standard]==0.0.7
     # via fastapi
 filelock==3.17.0
     # via karapace (/karapace/pyproject.toml)
-flask==3.1.0
+flask==3.1.1
     # via
     #   flask-cors
     #   flask-login
