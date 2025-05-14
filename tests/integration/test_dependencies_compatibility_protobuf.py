@@ -10,6 +10,8 @@ from karapace.core.protobuf.kotlin_wrapper import trim_margin
 from karapace.typing import Subject
 from tests.utils import create_subject_name_factory
 
+import pytest
+
 
 async def test_protobuf_schema_compatibility(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_protobuf_schema_compatibility")()
