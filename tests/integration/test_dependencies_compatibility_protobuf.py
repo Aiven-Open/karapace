@@ -7,7 +7,8 @@ See LICENSE for details
 
 from karapace.core.client import Client
 from karapace.core.protobuf.kotlin_wrapper import trim_margin
-from karapace.typing import Subject
+from karapace.core.typing import Subject
+
 from tests.utils import create_subject_name_factory
 
 import pytest
