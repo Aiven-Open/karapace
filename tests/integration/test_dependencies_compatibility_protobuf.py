@@ -921,9 +921,9 @@ async def test_protobuf_schema_compatibility_partial_path_renaming(registry_asyn
     }
     res = await registry_async_client.post(f"subjects/{subject_entity}/versions", json=body)
     assert res.status_code == 200
-    assert (
-        res.json()["id"] == previous_id
-    ), "The registered schema should be recognized as the same, no evolutions are being applied"
+    assert res.json()["id"] == previous_id, (
+        "The registered schema should be recognized as the same, no evolutions are being applied"
+    )
 
 
 async def test_protobuf_schema_compatibility_import_renaming_should_fail(registry_async_client: Client) -> None:
@@ -1111,7 +1111,7 @@ message Bar {
         assert res.status_code == 409
         assert res.json() == {
             "message": f"Incompatible schema, compatibility_mode={compatibility} Incompatible modification "
-                       f"Modification.MESSAGE_DROP found",
+            f"Modification.MESSAGE_DROP found",
             "error_code": 409,
         }
     else:
