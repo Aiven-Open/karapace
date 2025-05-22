@@ -562,11 +562,15 @@ class ConsumerManager:
                 try:
                     key = await self.deserialize(msg.key(), request_format) if msg.key() else None
                 except DeserializationError as e:
-                    KarapaceBase.unprocessable_entity(
-                        message=f"key deserialization error for format {request_format}: {e}",
-                        sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                        content_type=content_type,
-                    )
+                    if request_format == "avro":
+                        LOG.warning("Cannot process non-empty key using avro deserializer, falling back to binary.")
+                        key = await self.deserialize(msg.key(), "binary")
+                    else:
+                        KarapaceBase.unprocessable_entity(
+                            message=f"key deserialization error for format {request_format}: {e}",
+                            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                            content_type=content_type,
+                        )
                 try:
                     value = await self.deserialize(msg.value(), request_format) if msg.value() else None
                 except DeserializationError as e:
