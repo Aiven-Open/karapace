@@ -473,6 +473,54 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
         assert expected == actual, f"Expecting {actual} to be {expected}"
 
 
+@pytest.mark.parametrize("fmt", ["avro"])
+async def test_consume_avro_key_deserialization_error_fallback(
+    rest_async_client,
+    admin_client,
+    caplog: LogCaptureFixture,
+    fmt,
+):
+    topic_name = new_topic(admin_client, prefix=f"{fmt}_")
+
+    # Produce a record with binary key and empty value
+    header = REST_HEADERS["binary"]
+    binary_key = b"testkey"
+    publish_key = base64.b64encode(binary_key)
+    publish_payload = publish_key.decode("utf-8")
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        f"topics/{topic_name}",
+        json_data={"records": [{"key": f"{publish_payload}"}]},
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=10,
+        sleep=1,
+    )
+
+    # Test consuming the record using avro format
+    headers = REST_HEADERS[fmt]
+    group_name = f"e2e_group_{fmt}"
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=headers)
+    assert res.ok, f"Expected a successful response: {res}"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    res2 = await rest_async_client.get(consume_path, headers=headers)
+    assert res2.ok, f"Expected a successful response: {res2}"
+
+    # Key-deserialization error should automatically fallback to binary
+    with caplog.at_level(logging.WARNING, logger="karapace.kafka_rest_apis.consumer_manager"):
+        assert any(
+            "Cannot process non-empty key using avro deserializer, falling back to binary." in log.message
+            for log in caplog.records
+        )
+    data = res2.json()
+    data_keys = [x["key"] for x in data]
+    for data_key in data_keys:
+        assert publish_payload == data_key, f"Expecting {data_key} to be {publish_payload}"
+
+
 @pytest.mark.parametrize("fmt", sorted(KNOWN_FORMATS))
 async def test_consume_grafecul_deserialization_error_handling(rest_async_client, admin_client, fmt):
     topic_name = new_topic(admin_client, prefix=f"{fmt}_")
