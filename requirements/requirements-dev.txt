@@ -312,7 +312,7 @@ tomli==2.2.1
     #   pytest
 typer==0.15.2
     # via fastapi-cli
-typing-extensions==4.12.2
+typing-extensions==4.13.2
     # via
     #   anyio
     #   async-lru
