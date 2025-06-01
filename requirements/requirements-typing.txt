@@ -203,7 +203,7 @@ rich==13.7.1
     #   typer
 rich-toolkit==0.13.2
     # via fastapi-cli
-rpds-py==0.22.3
+rpds-py==0.25.1
     # via
     #   jsonschema
     #   referencing
