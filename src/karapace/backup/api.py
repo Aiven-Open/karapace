@@ -7,6 +7,8 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import time
+
 from .backends.reader import BaseBackupReader, BaseItemsBackupReader, ProducerSend, RestoreTopic, RestoreTopicLegacy
 from .backends.v3.constants import V3_MARKER
 from .backends.v3.schema import ChecksumAlgorithm
@@ -271,8 +273,28 @@ def _producer(config: Config, topic: str) -> Iterator[KafkaProducer]:
     :raises PartitionCountError: if the topic does not have exactly one partition.
     :raises Exception: if client creation fails, concrete exception types are unknown, see Kafka implementation.
     """
+    exception: PartitionCountError | None
+
     with kafka_producer_from_config(config) as producer:
-        __check_partition_count(topic, producer.partitions_for)
+        for attempt in range(5):
+            try:
+                __check_partition_count(topic, producer.partitions_for)
+            except PartitionCountError as exc:
+                exception = exc
+                LOG.info(
+                    "Partition count for topic %r is not yet as expected, will wait and retry: %r",
+                    topic,
+                    exception,
+                )
+                time.sleep(10)
+            else:
+                exception = None
+                break
+
+        if exception:
+            LOG.warning("Partition count still incorrect after exhausting all retry attempts.")
+            raise exception
+
         yield producer
 
 
