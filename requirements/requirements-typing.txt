@@ -159,7 +159,7 @@ packaging==24.2
     # via aiokafka
 prometheus-client==0.20.0
     # via karapace (/karapace/pyproject.toml)
-protobuf==3.20.3
+protobuf==4.25.8
     # via
     #   googleapis-common-protos
     #   karapace (/karapace/pyproject.toml)
