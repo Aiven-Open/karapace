@@ -9,8 +9,14 @@ from fastapi.responses import JSONResponse
 from karapace.api.content_type import check_schema_headers
 from karapace.api.telemetry.middleware import setup_telemetry_middleware
 
+from src.karapace.api.oidc.validator import OIDCValidator
+from src.karapace.core.auth import AuthenticationError
+from src.karapace.core.config import Config
 
-def setup_middlewares(app: FastAPI) -> None:
+
+def setup_middlewares(app: FastAPI, config: Config) -> None:
+    oidc_validator = OIDCValidator(config)
+
     @app.middleware("http")
     async def set_content_types(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         try:
@@ -29,6 +35,18 @@ def setup_middlewares(app: FastAPI) -> None:
             new_headers["Content-Type"] = "application/json"
             request._headers = new_headers
             request.scope.update(headers=request.headers.raw)
+
+        # Check for bearer token in header
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            try:
+                payload = oidc_validator.validate_jwt(auth_header.split(" ", 1)[1])
+                request.state.user = payload  # You can store this payload for use in route handlers
+            except AuthenticationError as e:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "Unauthorized", "reason": str(e)},
+                )
 
         response = await call_next(request)
         response.headers["Content-Type"] = response_content_type

@@ -104,6 +104,9 @@ class Config(BaseSettings):
     ssl_crlfile: str | None = None
     ssl_password: str | None = None
     sasl_mechanism: str | None = None
+    oauthbearer_jwks_endpoint_url: str | None = None
+    oauthbearer_expected_issuer: str | None = None
+    oauthbearer_expected_audience: str | None = None
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None
     sasl_oauth_token: str | None = None
