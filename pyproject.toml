@@ -20,7 +20,7 @@ dependencies = [
   "jsonschema < 5",
   "lz4",
   "networkx < 4",
-  "protobuf < 4",
+  "protobuf < 5",
   "pydantic == 2.10.2",
   "pydantic-settings == 2.6.1",
   "pyjwt >= 2.4.0 , < 3",
