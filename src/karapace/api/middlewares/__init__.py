@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 def setup_middlewares(app: FastAPI, config: Config) -> None:
-    oidc_middleware = OIDCMiddleware(config)
+    oidc_middleware = OIDCMiddleware(app=app, config=config)
 
     @app.middleware("http")
     async def set_content_types(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
