@@ -174,7 +174,7 @@ multidict==6.1.0
     #   yarl
 networkx==3.4.2
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-api==1.27.0
+opentelemetry-api==1.34.1
     # via
     #   karapace (/karapace/pyproject.toml)
     #   opentelemetry-exporter-otlp-proto-grpc
