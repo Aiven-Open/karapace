@@ -329,7 +329,7 @@ typing-extensions==4.13.2
     #   uvicorn
 ujson==5.10.0
     # via karapace (/karapace/pyproject.toml)
-urllib3==2.3.0
+urllib3==2.5.0
     # via
     #   geventhttpclient
     #   requests
