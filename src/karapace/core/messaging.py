@@ -5,7 +5,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from aiokafka.errors import MessageSizeTooLargeError
+from aiokafka.errors import MessageSizeTooLargeError, KafkaUnavailableError
 from karapace.core.config import Config
 from karapace.core.errors import SchemaTooLargeException
 from karapace.core.kafka.producer import KafkaProducer
@@ -31,6 +31,8 @@ class KarapaceProducer:
         self._kafka_timeout = 10
         self._schemas_topic = self._config.topic_name
         self._x_origin_host_header: Final = ("X-Origin-Host", self._config.host.encode())
+
+        self.consecutive_unexpected_errors = 0
 
     def initialize_karapace_producer(
         self,
@@ -80,6 +82,16 @@ class KarapaceProducer:
             msg = future.result(self._kafka_timeout)
         except MessageSizeTooLargeError as ex:
             raise SchemaTooLargeException from ex
+        except KafkaUnavailableError as ex:
+            LOG.warning("Kafka cluster is unavailable or broker can't be resolved.")
+            if self._config.bootstrap_uri not in str(ex):
+                self.consecutive_unexpected_errors += 1
+                if self.consecutive_unexpected_errors < 2:
+                    self._producer = None
+                    self.initialize_karapace_producer()
+                    self._send_kafka_message(key=key, value=value)
+                    return
+            raise ex
 
         sent_offset = msg.offset()
 

@@ -33,6 +33,7 @@ from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from karapace.kafka_rest_apis import KafkaRest
+from karapace.core.messaging import KarapaceProducer
 from tests.conftest import KAFKA_VERSION
 from tests.integration.utils.cluster import (
     RegistryDescription,
@@ -53,6 +54,8 @@ from tests.integration.utils.rest_client import RetryRestClient
 from tests.integration.utils.synchronization import lock_path_for
 from tests.integration.utils.zookeeper import configure_and_start_zk
 from tests.utils import repeat_until_master_is_available, repeat_until_successful_request
+from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.key_format import KeyFormatter
 
 REPOSITORY_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
 RUNTIME_DIR = REPOSITORY_DIR / "runtime"
@@ -206,6 +209,17 @@ def create_kafka_server(
                     workers = config_data[WORKER_IDS_KEY]
                 time.sleep(2)
         return
+
+
+@pytest.fixture(scope="function", name="karapace_producer")
+def fixture_karapace_producer(kafka_servers: KafkaServers) -> Iterator[KarapaceProducer]:
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    yield KarapaceProducer(
+        config=config,
+        offset_watcher=OffsetWatcher(),
+        key_formatter=KeyFormatter(),
+    )
 
 
 @pytest.fixture(scope="function", name="producer")
