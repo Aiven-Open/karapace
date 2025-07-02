@@ -5,19 +5,22 @@ See LICENSE for details
 
 import jwt
 import logging
+from fastapi import FastAPI
 from jwt import PyJWKClient, InvalidTokenError
 from starlette.responses import JSONResponse
-
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
+from starlette.types import Scope, Receive, Send
 
 log = logging.getLogger(__name__)
 
 
 class OIDCMiddleware:
-    def __init__(self, app, config: Config):
+    def __init__(self, app: FastAPI, config: Config) -> None:
         self.app = app
         self.config = config
+
+        self._jwks_client: PyJWKClient | None
         self.jwks_url = config.sasl_oauthbearer_jwks_endpoint_url
         self.issuer = config.sasl_oauthbearer_expected_issuer
         self.audience = config.sasl_oauthbearer_expected_audience
@@ -61,7 +64,7 @@ class OIDCMiddleware:
             log.error(f"JWT validation failed: {e}")
             raise AuthenticationError("Invalid OIDC token")
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization", b"").decode()
         if auth_header.startswith("Bearer "):
