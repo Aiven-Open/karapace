@@ -42,6 +42,8 @@ certifi==2025.6.15
     #   httpx
     #   requests
     #   sentry-sdk
+cffi==1.17.1
+    # via cryptography
 charset-normalizer==3.4.2
     # via requests
 click==8.2.1
@@ -53,6 +55,8 @@ confluent-kafka==2.10.0
     # via karapace (/karapace/pyproject.toml)
 cramjam==2.10.0
     # via python-snappy
+cryptography==45.0.5
+    # via karapace (/karapace/pyproject.toml)
 dependency-injector==4.43.0
     # via karapace (/karapace/pyproject.toml)
 deprecated==1.2.18
@@ -170,6 +174,8 @@ protobuf==3.20.3
     #   googleapis-common-protos
     #   karapace (/karapace/pyproject.toml)
     #   opentelemetry-proto
+pycparser==2.22
+    # via cffi
 pydantic==2.10.2
     # via
     #   fastapi

@@ -15,6 +15,7 @@ dependencies = [
   "async_lru == 2.0.5",
   "cachetools == 5.3.3",
   "confluent-kafka == 2.10.0",
+  "cryptography == 45.0.5",
   "fastapi[standard] == 0.115.5",
   "isodate == 0.7.2",
   "jsonschema == 4.23.0",
