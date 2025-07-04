@@ -61,7 +61,7 @@ class OIDCMiddleware:
             )
             return payload
         except InvalidTokenError as e:
-            log.error(f"JWT validation failed: {e}")
+            log.error(f"JWT validation failed")
             raise AuthenticationError("Invalid OIDC token")
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
