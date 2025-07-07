@@ -525,6 +525,7 @@ class UserRestProxy:
 
                 producer = AsyncKafkaProducer(
                     acks=acks,
+                    client_id=self.config.client_id,
                     bootstrap_servers=self.config.bootstrap_uri,
                     compression_type=self.config.producer_compression_type,
                     connections_max_idle_ms=self.config.connections_max_idle_ms,
@@ -752,6 +753,7 @@ class UserRestProxy:
             try:
                 self.admin_client = KafkaAdminClient(
                     bootstrap_servers=self.config.bootstrap_uri,
+                    client_id=self.config.client_id,
                     security_protocol=self.config.security_protocol,
                     ssl_cafile=self.config.ssl_cafile,
                     ssl_certfile=self.config.ssl_certfile,
