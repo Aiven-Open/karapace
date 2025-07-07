@@ -45,10 +45,10 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
             try:
                 payload = oidc_middleware.validate_jwt(auth_header.split(" ", 1)[1])
                 request.state.user = payload
-            except AuthenticationError as e:
+            except AuthenticationError:
                 return JSONResponse(
                     status_code=401,
-                    content={"error": "Unauthorized", "reason": str(e)},
+                    content={"error": "Unauthorized", "reason": "Invalid token/payload"},
                 )
 
         response = await call_next(request)
