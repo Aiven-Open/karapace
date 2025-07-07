@@ -506,11 +506,11 @@ async def test_consume_avro_key_deserialization_error_fallback(
     res = await rest_async_client.post(assign_path, json=assign_payload, headers=headers)
     assert res.ok, f"Expected a successful response: {res}"
     consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
-    res2 = await rest_async_client.get(consume_path, headers=headers)
-    assert res2.ok, f"Expected a successful response: {res2}"
 
     # Key-deserialization error should automatically fallback to binary
     with caplog.at_level(logging.WARNING, logger="karapace.kafka_rest_apis.consumer_manager"):
+        res2 = await rest_async_client.get(consume_path, headers=headers)
+        assert res2.ok, f"Expected a successful response: {res2}"
         assert any(
             "Cannot process non-empty key using avro deserializer, falling back to binary." in log.message
             for log in caplog.records
