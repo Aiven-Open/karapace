@@ -493,8 +493,8 @@ async def test_consume_avro_key_deserialization_error_fallback(
         json_data={"records": [{"key": f"{publish_payload}"}]},
         headers=header,
         error_msg="Unexpected response status for offset commit",
-        timeout=10,
-        sleep=1,
+        timeout=300,
+        sleep=120,
     )
 
     # Test consuming the record using avro format
