@@ -54,6 +54,7 @@ def kafka_consumer_from_config(config: Config, topic: str) -> Iterator[KafkaCons
 def kafka_producer_from_config(config: Config) -> Iterator[KafkaProducer]:
     producer = KafkaProducer(
         bootstrap_servers=config.bootstrap_uri,
+        client_id=config.client_id,
         security_protocol=config.security_protocol,
         ssl_cafile=config.ssl_cafile,
         ssl_certfile=config.ssl_certfile,
