@@ -101,6 +101,10 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
 
   karapace-schema-registry-follower:
     image: ghcr.io/aiven-open/karapace:develop
@@ -269,3 +273,18 @@ services:
       - 6831:6831/udp
       - 16686:16686
       - 14268:14268
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    hostname: keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8383:8080"
+

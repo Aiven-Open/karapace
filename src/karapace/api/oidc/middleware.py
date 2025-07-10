@@ -35,6 +35,8 @@ class OIDCMiddleware:
                 raise ValueError(
                     "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
                 )
+            log.info("OIDC middleware initialized — JWKS URL configured, bearer token validation enabled.")
+            log.debug("OIDC Params jwks_url=%s issuer=%s audience=%s", self.jwks_url, self.issuer, self.audience)
             self._jwks_client = PyJWKClient(self.jwks_url)
         else:
             self._jwks_client = None
@@ -61,7 +63,7 @@ class OIDCMiddleware:
             )
             return payload
         except InvalidTokenError:
-            log.error("JWT validation failed")
+            log.error("JWT validation failed error ", exc_info=True)  # Logs full traceback
             raise AuthenticationError("Invalid OIDC token")
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
