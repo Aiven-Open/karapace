@@ -35,6 +35,13 @@ class OIDCMiddleware:
                 raise ValueError(
                     "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
                 )
+            log.info(
+                "OIDC middleware initialized — Bearer token validation enabled. " "jwks_url=%s issuer=%s audience=%s",
+                self.jwks_url,
+                self.issuer,
+                self.audience,
+            )
+
             self._jwks_client = PyJWKClient(self.jwks_url)
         else:
             self._jwks_client = None
