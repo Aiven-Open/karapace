@@ -8,11 +8,12 @@ See LICENSE for details
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 from jwt import InvalidTokenError
 from karapace.api.oidc.middleware import OIDCMiddleware
 from karapace.core.auth import AuthenticationError
@@ -33,6 +34,12 @@ class DummyConfig:
     sasl_oauthbearer_expected_issuer: str | None
     sasl_oauthbearer_expected_audience: str | None
     sasl_oauthbearer_sub_claim_name: str | None
+    sasl_oauthbearer_authorization_enabled: bool
+    sasl_oauthbearer_client_id: str | None = None
+    sasl_oauthbearer_roles_claim_path: str | None = None
+    sasl_oauthbearer_method_roles: dict[str, list[str]] = field(
+        default_factory=lambda: {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+    )
 
 
 valid_configs = [
@@ -41,12 +48,20 @@ valid_configs = [
         sasl_oauthbearer_expected_issuer="https://oidcprovider.com",
         sasl_oauthbearer_expected_audience="accounts-audience",
         sasl_oauthbearer_sub_claim_name="sub",
+        sasl_oauthbearer_authorization_enabled=False,
+        sasl_oauthbearer_client_id=None,
+        sasl_oauthbearer_roles_claim_path=None,
+        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
     DummyConfig(
         sasl_oauthbearer_jwks_endpoint_url=None,
         sasl_oauthbearer_expected_issuer=None,
         sasl_oauthbearer_expected_audience=None,
         sasl_oauthbearer_sub_claim_name=None,
+        sasl_oauthbearer_authorization_enabled=False,
+        sasl_oauthbearer_client_id=None,
+        sasl_oauthbearer_roles_claim_path=None,
+        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
 ]
 
@@ -56,12 +71,20 @@ invalid_configs = [
         sasl_oauthbearer_expected_issuer=None,
         sasl_oauthbearer_expected_audience="accounts-audience",
         sasl_oauthbearer_sub_claim_name="sub",
+        sasl_oauthbearer_authorization_enabled=False,
+        sasl_oauthbearer_client_id=None,
+        sasl_oauthbearer_roles_claim_path=None,
+        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
     DummyConfig(
         sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
         sasl_oauthbearer_expected_issuer=None,
         sasl_oauthbearer_expected_audience=None,
         sasl_oauthbearer_sub_claim_name="sub",
+        sasl_oauthbearer_authorization_enabled=False,
+        sasl_oauthbearer_client_id=None,
+        sasl_oauthbearer_roles_claim_path=None,
+        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
 ]
 
@@ -132,6 +155,7 @@ def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
         sasl_oauthbearer_expected_issuer=dummy_config.sasl_oauthbearer_expected_issuer,
         sasl_oauthbearer_expected_audience=dummy_config.sasl_oauthbearer_expected_audience,
         sasl_oauthbearer_sub_claim_name=dummy_config.sasl_oauthbearer_sub_claim_name,
+        sasl_oauthbearer_authorization_enabled=dummy_config.sasl_oauthbearer_authorization_enabled,
     )
     with pytest.raises(
         ValueError, match="OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
@@ -168,3 +192,53 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
         # When JWKS URL is missing, validate_jwt returns empty dict instead of raising
         payload = oidc_middleware.validate_jwt(invalid_token)
         assert payload == {}
+
+
+@pytest.mark.parametrize(
+    "payload,path,expected_roles",
+    [
+        ({"realm_access": {"roles": ["admin", "user"]}}, "realm_access.roles", ["admin", "user"]),
+        ({"realm_access": {"roles": []}}, "realm_access.roles", []),
+        ({"realm_access": {}}, "realm_access.roles", []),
+        ({}, "realm_access.roles", []),
+        ({"custom": {"nested": {"roles": ["reader"]}}}, "custom.nested.roles", ["reader"]),
+        ({"custom": {"nested": {"roles": "notalist"}}}, "custom.nested.roles", []),
+    ],
+)
+def test_get_roles_from_claim_path(payload, path, expected_roles):
+    roles = OIDCMiddleware.get_roles_from_claim_path(payload, path)
+    assert roles == expected_roles
+
+
+@pytest.mark.parametrize(
+    "roles,method,method_roles,expect_error",
+    [
+        (["admin"], "GET", {"GET": ["admin"]}, False),
+        (["user"], "POST", {"POST": ["admin", "user"]}, False),
+        (["guest"], "DELETE", {"DELETE": ["admin"]}, True),
+        ([], "GET", {"GET": ["admin"]}, True),
+        (["reader"], "GET", {"GET": []}, True),  # roles required but none configured
+        (["admin"], "PATCH", {}, True),  # unsupported method, no roles allowed
+    ],
+)
+def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expect_error):
+    config = DummyConfig(
+        sasl_oauthbearer_jwks_endpoint_url="http://fake",
+        sasl_oauthbearer_expected_issuer="issuer",
+        sasl_oauthbearer_expected_audience="aud",
+        sasl_oauthbearer_sub_claim_name="sub",
+        sasl_oauthbearer_authorization_enabled=True,
+        sasl_oauthbearer_roles_claim_path="realm_access.roles",
+        sasl_oauthbearer_method_roles=method_roles,
+        sasl_oauthbearer_client_id="client-id",
+    )
+    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+
+    payload = {"realm_access": {"roles": roles}}
+
+    if expect_error:
+        with pytest.raises(HTTPException) as exc_info:
+            middleware.authorize_request(payload, method)
+        assert exc_info.value.status_code == 403
+    else:
+        middleware.authorize_request(payload, method)  # should not raise
