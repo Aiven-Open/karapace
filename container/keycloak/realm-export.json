@@ -11,6 +11,8 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
+      "defaultClientScopes": ["email", "profile", "roles"],
+      "optionalClientScopes": ["address", "phone"],
       "attributes": {
         "client_credentials.use_refresh_token": "false",
         "saml.assertion.signature": "false",
@@ -26,8 +28,22 @@
         "saml.client.signature": "false",
         "tls.client.certificate.bound.access.tokens": "false"
       },
-      "defaultClientScopes": ["email", "profile", "roles"],
-      "optionalClientScopes": ["address", "phone"]
+      "protocolMappers": [
+        {
+          "name": "aud-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "aud",
+            "claim.value": "karapace-audience",
+            "claim.type": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -43,6 +59,19 @@
         }
       ],
       "realmRoles": ["karapace-role"]
+    },
+    {
+      "username": "service-account-karapace-client",
+      "enabled": true,
+      "serviceAccountClientId": "karapace-client",
+      "clientRoles": {
+        "karapace-client": [
+          "schema:read",
+          "schema:write",
+          "subject:read",
+          "subject:write"
+        ]
+      }
     }
   ],
   "roles": {
@@ -54,6 +83,42 @@
         "clientRole": false,
         "containerId": "karapace"
       }
-    ]
+    ],
+    "client": {
+      "karapace-client": [
+        {
+          "name": "schema:read",
+          "description": "Read access to schemas",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },
+        {
+          "name": "schema:write",
+          "description": "Write access to schemas",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },
+        {
+          "name": "subject:read",
+          "description": "Read access to subjects",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },
+        {
+          "name": "subject:write",
+          "description": "Write access to subjects",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        }
+      ]
+    }
   }
 }

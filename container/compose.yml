@@ -53,7 +53,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
 
   karapace-schema-registry:
-    image: ghcr.io/aiven-open/karapace:develop
+    image: karapacelocal:latest
     build:
       context: ..
       dockerfile: container/Dockerfile
@@ -103,164 +103,172 @@ services:
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
+      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
+      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": ["schema:delete", "subject:delete"]}'
 
-  karapace-schema-registry-follower:
-    image: ghcr.io/aiven-open/karapace:develop
-    build:
-      context: ..
-      dockerfile: container/Dockerfile
-      args:
-        KARAPACE_VERSION: $KARAPACE_VERSION
-        PYTHON_VERSION: $PYTHON_VERSION
-    entrypoint:
-      - python3
-      - -m
-      - karapace
-    depends_on:
-      - kafka
-      - opentelemetry-collector
-    ports:
-      - 8181:8181
-    volumes:
-      - ./certs:/opt/karapace/certs
-    environment:
-      KARAPACE_KARAPACE_REGISTRY: true
-      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-follower
-      KARAPACE_ADVERTISED_PROTOCOL: https
-      KARAPACE_BOOTSTRAP_URI: kafka:29092
-      KARAPACE_PORT: 8181
-      KARAPACE_HOST: 0.0.0.0
-      KARAPACE_CLIENT_ID: karapace-schema-registry-1
-      KARAPACE_GROUP_ID: karapace-schema-registry
-      KARAPACE_MASTER_ELECTION_STRATEGY: highest
-      KARAPACE_MASTER_ELIGIBILITY: true
-      KARAPACE_TOPIC_NAME: _schemas
-      KARAPACE_LOG_LEVEL: INFO
-      KARAPACE_COMPATIBILITY: FULL
-      KARAPACE_STATSD_HOST: statsd-exporter
-      KARAPACE_STATSD_PORT: 8125
-      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
-      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
-      KARAPACE_TAGS__APP: karapace-schema-registry-follower
-      KARAPACE_TELEMETRY__OTEL_ENDPOINT_URL: http://opentelemetry-collector:4317
-      KARAPACE_TELEMETRY__OTEL_METRICS_EXPORTER: OTLP
-      KARAPACE_TELEMETRY__OTEL_TRACES_EXPORTER: OTLP
-      KARAPACE_TELEMETRY__RESOURCE_SERVICE_NAME: karapace-schema-registry-follower
-      KARAPACE_TELEMETRY__RESOURCE_SERVICE_INSTANCE_ID: sr1
-      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
-      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
-      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
-      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
-      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
-      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
-      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
-      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+#  karapace-schema-registry-follower:
+#    image: ghcr.io/aiven-open/karapace:develop
+#    build:
+#      context: ..
+#      dockerfile: container/Dockerfile
+#      args:
+#        KARAPACE_VERSION: $KARAPACE_VERSION
+#        PYTHON_VERSION: $PYTHON_VERSION
+#    entrypoint:
+#      - python3
+#      - -m
+#      - karapace
+#    depends_on:
+#      - kafka
+#      - opentelemetry-collector
+#    ports:
+#      - 8181:8181
+#    volumes:
+#      - ./certs:/opt/karapace/certs
+#    environment:
+#      KARAPACE_KARAPACE_REGISTRY: true
+#      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-follower
+#      KARAPACE_ADVERTISED_PROTOCOL: https
+#      KARAPACE_BOOTSTRAP_URI: kafka:29092
+#      KARAPACE_PORT: 8181
+#      KARAPACE_HOST: 0.0.0.0
+#      KARAPACE_CLIENT_ID: karapace-schema-registry-1
+#      KARAPACE_GROUP_ID: karapace-schema-registry
+#      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+#      KARAPACE_MASTER_ELIGIBILITY: true
+#      KARAPACE_TOPIC_NAME: _schemas
+#      KARAPACE_LOG_LEVEL: INFO
+#      KARAPACE_COMPATIBILITY: FULL
+#      KARAPACE_STATSD_HOST: statsd-exporter
+#      KARAPACE_STATSD_PORT: 8125
+#      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+#      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+#      KARAPACE_TAGS__APP: karapace-schema-registry-follower
+#      KARAPACE_TELEMETRY__OTEL_ENDPOINT_URL: http://opentelemetry-collector:4317
+#      KARAPACE_TELEMETRY__OTEL_METRICS_EXPORTER: OTLP
+#      KARAPACE_TELEMETRY__OTEL_TRACES_EXPORTER: OTLP
+#      KARAPACE_TELEMETRY__RESOURCE_SERVICE_NAME: karapace-schema-registry-follower
+#      KARAPACE_TELEMETRY__RESOURCE_SERVICE_INSTANCE_ID: sr1
+#      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
+#      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
+#      KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
+#      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
+#      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
+#      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+#      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+#      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+#      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
+#      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+#      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: "false"
+#      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
+#      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
+#      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": ["schema:delete", "subject:delete"]}'
 
-  karapace-rest-proxy:
-    image: ghcr.io/aiven-open/karapace:develop
-    build:
-      context: ..
-      dockerfile: container/Dockerfile
-      args:
-        KARAPACE_VERSION: $KARAPACE_VERSION
-        PYTHON_VERSION: $PYTHON_VERSION
-    entrypoint:
-      - python3
-      - -m
-      - karapace.kafka_rest_apis
-    depends_on:
-      - kafka
-      - karapace-schema-registry
-    ports:
-      - 8082:8082
-    environment:
-      KARAPACE_KARAPACE_REST: true
-      KARAPACE_PORT: 8082
-      KARAPACE_HOST: 0.0.0.0
-      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy
-      KARAPACE_ADVERTISED_PROTOCOL: http
-      KARAPACE_BOOTSTRAP_URI: kafka:29092
-      KARAPACE_REGISTRY_SCHEME: https
-      KARAPACE_REGISTRY_HOST: karapace-schema-registry
-      KARAPACE_REGISTRY_PORT: 8081
-      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
-      KARAPACE_LOG_LEVEL: INFO
-      KARAPACE_STATSD_HOST: statsd-exporter
-      KARAPACE_STATSD_PORT: 8125
-      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
-      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
-
-  karapace-cli:
-    image: ghcr.io/aiven-open/karapace:cli
-    build:
-      context: ..
-      target: cli
-      dockerfile: container/Dockerfile
-      args:
-        KARAPACE_VERSION: $KARAPACE_VERSION
-        PYTHON_VERSION: $PYTHON_VERSION
-        RUNNER_UID: $RUNNER_UID
-        RUNNER_GID: $RUNNER_GID
-    tty: true
-    depends_on:
-      - kafka
-      - karapace-schema-registry
-      - karapace-rest-proxy
-    volumes:
-      - ./certs:/opt/karapace/certs
-      - ../bin:/opt/karapace/bin
-      - ../tests:/opt/karapace/tests
-      - ../pytest.ini:/opt/karapace/pytest.ini
-      - ../mypy.ini:/opt/karapace/mypy.ini
-      - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
-      - ../.coveragerc:/opt/karapace/.coveragerc
-      - ../.coverage.3.10:/opt/karapace/coverage/.coverage.3.10
-      - ../.coverage.3.11:/opt/karapace/coverage/.coverage.3.11
-      - ../.coverage.3.12:/opt/karapace/coverage/.coverage.3.12
-    environment:
-      - COVERAGE_FILE
-      - COVERAGE_RCFILE=/opt/karapace/.coveragerc
-
-  prometheus:
-    image: prom/prometheus
-    command:
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=1d
-      - --enable-feature=otlp-write-receiver
-      - --config.file=/etc/prometheus/prometheus.yml
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/rules.yml:/etc/prometheus/rules.yml
-    depends_on:
-      - karapace-schema-registry
-      - karapace-rest-proxy
-      - opentelemetry-collector
-    ports:
-      - 9090:9090
-
-  grafana:
-    image: grafana/grafana
-    environment:
-      GF_SECURITY_ADMIN_USER: karapace
-      GF_SECURITY_ADMIN_PASSWORD: karapace
-      GF_PATHS_PROVISIONING: /grafana/provisioning
-    ports:
-      - 9091:3000
-    volumes:
-      - ./grafana/dashboards:/grafana/dashboards
-      - ./grafana/provisioning:/grafana/provisioning
-
-  statsd-exporter:
-    image: prom/statsd-exporter
-    command: --statsd.listen-udp=:8125 --web.listen-address=:9102
-    ports:
-      - 9102:9102
-      - 8125:8125/udp
-
+#  karapace-rest-proxy:
+#    image: ghcr.io/aiven-open/karapace:develop
+#    build:
+#      context: ..
+#      dockerfile: container/Dockerfile
+#      args:
+#        KARAPACE_VERSION: $KARAPACE_VERSION
+#        PYTHON_VERSION: $PYTHON_VERSION
+#    entrypoint:
+#      - python3
+#      - -m
+#      - karapace.kafka_rest_apis
+#    depends_on:
+#      - kafka
+#      - karapace-schema-registry
+#    ports:
+#      - 8082:8082
+#    environment:
+#      KARAPACE_KARAPACE_REST: true
+#      KARAPACE_PORT: 8082
+#      KARAPACE_HOST: 0.0.0.0
+#      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy
+#      KARAPACE_ADVERTISED_PROTOCOL: http
+#      KARAPACE_BOOTSTRAP_URI: kafka:29092
+#      KARAPACE_REGISTRY_SCHEME: https
+#      KARAPACE_REGISTRY_HOST: karapace-schema-registry
+#      KARAPACE_REGISTRY_PORT: 8081
+#      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+#      KARAPACE_LOG_LEVEL: INFO
+#      KARAPACE_STATSD_HOST: statsd-exporter
+#      KARAPACE_STATSD_PORT: 8125
+#      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+#      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+#
+#  karapace-cli:
+#    image: ghcr.io/aiven-open/karapace:cli
+#    build:
+#      context: ..
+#      target: cli
+#      dockerfile: container/Dockerfile
+#      args:
+#        KARAPACE_VERSION: $KARAPACE_VERSION
+#        PYTHON_VERSION: $PYTHON_VERSION
+#        RUNNER_UID: $RUNNER_UID
+#        RUNNER_GID: $RUNNER_GID
+#    tty: true
+#    depends_on:
+#      - kafka
+#      - karapace-schema-registry
+#      - karapace-rest-proxy
+#    volumes:
+#      - ./certs:/opt/karapace/certs
+#      - ../bin:/opt/karapace/bin
+#      - ../tests:/opt/karapace/tests
+#      - ../pytest.ini:/opt/karapace/pytest.ini
+#      - ../mypy.ini:/opt/karapace/mypy.ini
+#      - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
+#      - ../.coveragerc:/opt/karapace/.coveragerc
+#      - ../.coverage.3.10:/opt/karapace/coverage/.coverage.3.10
+#      - ../.coverage.3.11:/opt/karapace/coverage/.coverage.3.11
+#      - ../.coverage.3.12:/opt/karapace/coverage/.coverage.3.12
+#    environment:
+#      - COVERAGE_FILE
+#      - COVERAGE_RCFILE=/opt/karapace/.coveragerc
+#
+#  prometheus:
+#    image: prom/prometheus
+#    command:
+#      - --storage.tsdb.path=/prometheus
+#      - --storage.tsdb.retention.time=1d
+#      - --enable-feature=otlp-write-receiver
+#      - --config.file=/etc/prometheus/prometheus.yml
+#    volumes:
+#      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+#      - ./prometheus/rules.yml:/etc/prometheus/rules.yml
+#    depends_on:
+#      - karapace-schema-registry
+#      - karapace-rest-proxy
+#      - opentelemetry-collector
+#    ports:
+#      - 9090:9090
+#
+#  grafana:
+#    image: grafana/grafana
+#    environment:
+#      GF_SECURITY_ADMIN_USER: karapace
+#      GF_SECURITY_ADMIN_PASSWORD: karapace
+#      GF_PATHS_PROVISIONING: /grafana/provisioning
+#    ports:
+#      - 9091:3000
+#    volumes:
+#      - ./grafana/dashboards:/grafana/dashboards
+#      - ./grafana/provisioning:/grafana/provisioning
+#
+#  statsd-exporter:
+#    image: prom/statsd-exporter
+#    command: --statsd.listen-udp=:8125 --web.listen-address=:9102
+#    ports:
+#      - 9102:9102
+#      - 8125:8125/udp
+#
   opentelemetry-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: --config=/etc/collector-config.yaml
@@ -270,13 +278,13 @@ services:
       - 4317:4317
       - 8888:8888
       - 8889:8889
-
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    ports:  # 6831=agent | 16686=UI | 14268=spans | 4317=metrics (not exposing, clashes with opentelemetry-collector)
-      - 6831:6831/udp
-      - 16686:16686
-      - 14268:14268
+#
+#  jaeger:
+#    image: jaegertracing/all-in-one:latest
+#    ports:  # 6831=agent | 16686=UI | 14268=spans | 4317=metrics (not exposing, clashes with opentelemetry-collector)
+#      - 6831:6831/udp
+#      - 16686:16686
+#      - 14268:14268
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0

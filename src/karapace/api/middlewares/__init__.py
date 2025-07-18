@@ -46,6 +46,7 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
                 # authentication
                 payload = oidc_middleware.validate_jwt(auth_header.split(" ", 1)[1])
                 request.state.user = payload
+                log.debug('Authenticated')
             except AuthenticationError:
                 return JSONResponse(
                     status_code=401,

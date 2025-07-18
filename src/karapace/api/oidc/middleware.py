@@ -101,6 +101,9 @@ class OIDCMiddleware:
             raise AuthenticationError("Invalid OIDC token")
 
     def authorize_request(self, payload: dict, request_method: str) -> bool:
+        if not self.authorization_enabled:
+            return True
+
         request_method = request_method.upper()
         allowed_roles = self.sasl_oauthbearer_method_roles.get(request_method, [])
 
@@ -120,6 +123,7 @@ class OIDCMiddleware:
                 allowed_roles,
             )
             raise HTTPException(status_code=403, detail="Insufficient roles")
+        log.debug('Authorized')
         return True
 
     @staticmethod
