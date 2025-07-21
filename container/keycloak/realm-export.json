@@ -68,8 +68,12 @@
         "karapace-client": [
           "schema:read",
           "schema:write",
+          "schema:delete",
           "subject:read",
-          "subject:write"
+          "subject:write",
+          "subject:delete",
+          "config_subject:update",
+          "config_global:update"
         ]
       }
     }
@@ -113,6 +117,37 @@
         {
           "name": "subject:write",
           "description": "Write access to subjects",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },{
+          "name": "subject:delete",
+          "description": "Delete access to subjects",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },
+        {
+          "name": "schema:delete",
+          "description": "Delete access to schemas",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },
+        {
+          "name": "config_subject:update",
+          "description": "Update configs to subjects, like compatibility",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "karapace-client",
+          "attributes": {}
+        },
+        {
+          "name": "config_global:update",
+          "description": "Update configs to global, like compatibility",
           "composite": false,
           "clientRole": true,
           "containerId": "karapace-client",
