@@ -8,7 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from http import HTTPStatus
 from unittest.mock import MagicMock, patch
 
@@ -17,7 +17,7 @@ from fastapi import HTTPException
 from jwt import InvalidTokenError
 from karapace.api.oidc.middleware import OIDCMiddleware
 from karapace.core.auth import AuthenticationError
-from karapace.core.config import Config
+from karapace.core.config import Config, OidcKarapace
 from karapace.rapu import JSON_CONTENT_TYPE, HTTPResponse
 
 
@@ -30,61 +30,60 @@ def _assert_unauthorized_http_response(http_response: HTTPResponse) -> None:
 
 @dataclass
 class DummyConfig:
-    sasl_oauthbearer_jwks_endpoint_url: str | None
-    sasl_oauthbearer_expected_issuer: str | None
-    sasl_oauthbearer_expected_audience: str | None
-    sasl_oauthbearer_sub_claim_name: str | None
-    sasl_oauthbearer_authorization_enabled: bool
-    sasl_oauthbearer_client_id: str | None = None
-    sasl_oauthbearer_roles_claim_path: str | None = None
-    sasl_oauthbearer_method_roles: dict[str, list[str]] = field(
-        default_factory=lambda: {"GET": [], "POST": [], "PUT": [], "DELETE": []}
-    )
+    oidc_karapace: OidcKarapace
 
 
 valid_configs = [
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
-        sasl_oauthbearer_expected_issuer="https://oidcprovider.com",
-        sasl_oauthbearer_expected_audience="accounts-audience",
-        sasl_oauthbearer_sub_claim_name="sub",
-        sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
-        sasl_oauthbearer_roles_claim_path=None,
-        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        oidc_karapace=OidcKarapace(
+            sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+            sasl_oauthbearer_expected_issuer="https://oidcprovider.com",
+            sasl_oauthbearer_expected_audience="accounts-audience",
+            sasl_oauthbearer_sub_claim_name="sub",
+            sasl_oauthbearer_authorization_enabled=False,
+            sasl_oauthbearer_client_id=None,
+            sasl_oauthbearer_roles_claim_path=None,
+            sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        )
     ),
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url=None,
-        sasl_oauthbearer_expected_issuer=None,
-        sasl_oauthbearer_expected_audience=None,
-        sasl_oauthbearer_sub_claim_name=None,
-        sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
-        sasl_oauthbearer_roles_claim_path=None,
-        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        oidc_karapace=OidcKarapace(
+            sasl_oauthbearer_jwks_endpoint_url=None,
+            sasl_oauthbearer_expected_issuer=None,
+            sasl_oauthbearer_expected_audience=None,
+            sasl_oauthbearer_sub_claim_name=None,
+            sasl_oauthbearer_authorization_enabled=False,
+            sasl_oauthbearer_client_id=None,
+            sasl_oauthbearer_roles_claim_path=None,
+            sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        )
     ),
 ]
 
 invalid_configs = [
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
-        sasl_oauthbearer_expected_issuer=None,
-        sasl_oauthbearer_expected_audience="accounts-audience",
-        sasl_oauthbearer_sub_claim_name="sub",
-        sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
-        sasl_oauthbearer_roles_claim_path=None,
-        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        oidc_karapace=OidcKarapace(
+            sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+            sasl_oauthbearer_expected_issuer=None,
+            sasl_oauthbearer_expected_audience="accounts-audience",
+            sasl_oauthbearer_sub_claim_name="sub",
+            sasl_oauthbearer_authorization_enabled=False,
+            sasl_oauthbearer_client_id=None,
+            sasl_oauthbearer_roles_claim_path=None,
+            sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        )
     ),
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
-        sasl_oauthbearer_expected_issuer=None,
-        sasl_oauthbearer_expected_audience=None,
-        sasl_oauthbearer_sub_claim_name="sub",
-        sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
-        sasl_oauthbearer_roles_claim_path=None,
-        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        oidc_karapace=OidcKarapace(
+            sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+            sasl_oauthbearer_expected_issuer=None,
+            sasl_oauthbearer_expected_audience=None,
+            sasl_oauthbearer_sub_claim_name="sub",
+            sasl_oauthbearer_authorization_enabled=False,
+            sasl_oauthbearer_client_id=None,
+            sasl_oauthbearer_roles_claim_path=None,
+            sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+        )
     ),
 ]
 
@@ -137,7 +136,7 @@ def test_validate_token_valid_configs(
     token = auth_header.split(" ", 1)[1]
     payload = oidc_middleware.validate_jwt(token)
 
-    if dummy_config.sasl_oauthbearer_jwks_endpoint_url:
+    if dummy_config.oidc_karapace.sasl_oauthbearer_jwks_endpoint_url:
         # JWKS URL is present, validate normally
         if expected_expiration is not None:
             assert payload.get("exp") == int(expected_expiration.timestamp())
@@ -151,11 +150,13 @@ def test_validate_token_valid_configs(
 @pytest.mark.parametrize("dummy_config", invalid_configs)
 def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
     config = Config(
-        sasl_oauthbearer_jwks_endpoint_url=dummy_config.sasl_oauthbearer_jwks_endpoint_url,
-        sasl_oauthbearer_expected_issuer=dummy_config.sasl_oauthbearer_expected_issuer,
-        sasl_oauthbearer_expected_audience=dummy_config.sasl_oauthbearer_expected_audience,
-        sasl_oauthbearer_sub_claim_name=dummy_config.sasl_oauthbearer_sub_claim_name,
-        sasl_oauthbearer_authorization_enabled=dummy_config.sasl_oauthbearer_authorization_enabled,
+        oidc_karapace=OidcKarapace(
+            sasl_oauthbearer_jwks_endpoint_url=dummy_config.oidc_karapace.sasl_oauthbearer_jwks_endpoint_url,
+            sasl_oauthbearer_expected_issuer=dummy_config.oidc_karapace.sasl_oauthbearer_expected_issuer,
+            sasl_oauthbearer_expected_audience=dummy_config.oidc_karapace.sasl_oauthbearer_expected_audience,
+            sasl_oauthbearer_sub_claim_name=dummy_config.oidc_karapace.sasl_oauthbearer_sub_claim_name,
+            sasl_oauthbearer_authorization_enabled=dummy_config.oidc_karapace.sasl_oauthbearer_authorization_enabled,
+        )
     )
     with pytest.raises(
         ValueError, match="OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
@@ -168,7 +169,7 @@ def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
 @patch("karapace.api.oidc.middleware.jwt.decode")
 def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy_config):
     # Setup mock PyJWKClient instance if JWKS URL is present, else None
-    if dummy_config.sasl_oauthbearer_jwks_endpoint_url:
+    if dummy_config.oidc_karapace.sasl_oauthbearer_jwks_endpoint_url:
         mock_client_instance = MagicMock()
         mock_pyjwks_client.return_value = mock_client_instance
         mock_client_instance.get_signing_key_from_jwt.return_value.key = "fake-public-key"
@@ -183,7 +184,7 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
 
     invalid_token = "invalid.jwt.token"
 
-    if dummy_config.sasl_oauthbearer_jwks_endpoint_url:
+    if dummy_config.oidc_karapace.sasl_oauthbearer_jwks_endpoint_url:
         # Expect AuthenticationError to be raised on invalid token when validation is enabled
         with pytest.raises(AuthenticationError) as exc_info:
             oidc_middleware.validate_jwt(invalid_token)
@@ -223,14 +224,16 @@ def test_get_roles_from_claim_path(payload, path, expected_roles):
 )
 def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expect_error):
     config = DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://fake",
-        sasl_oauthbearer_expected_issuer="issuer",
-        sasl_oauthbearer_expected_audience="aud",
-        sasl_oauthbearer_sub_claim_name="sub",
-        sasl_oauthbearer_authorization_enabled=True,
-        sasl_oauthbearer_roles_claim_path="realm_access.roles",
-        sasl_oauthbearer_method_roles=method_roles,
-        sasl_oauthbearer_client_id="client-id",
+        oidc_karapace=OidcKarapace(
+            sasl_oauthbearer_jwks_endpoint_url="http://fake",
+            sasl_oauthbearer_expected_issuer="issuer",
+            sasl_oauthbearer_expected_audience="aud",
+            sasl_oauthbearer_sub_claim_name="sub",
+            sasl_oauthbearer_authorization_enabled=True,
+            sasl_oauthbearer_roles_claim_path="realm_access.roles",
+            sasl_oauthbearer_method_roles=method_roles,
+            sasl_oauthbearer_client_id="client-id",
+        )
     )
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
 

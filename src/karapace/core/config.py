@@ -55,6 +55,17 @@ class KarapaceTelemetry(BaseModel):
     resource_telemetry_sdk_version: str = OTEL_VERSION
 
 
+class OidcKarapace(BaseModel):
+    sasl_oauthbearer_jwks_endpoint_url: str | None = None
+    sasl_oauthbearer_expected_issuer: str | None = None
+    sasl_oauthbearer_expected_audience: str | None = None
+    sasl_oauthbearer_sub_claim_name: str | None = "sub"
+    sasl_oauthbearer_authorization_enabled: bool = False
+    sasl_oauthbearer_client_id: str | None = None
+    sasl_oauthbearer_roles_claim_path: str | None = None
+    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+
+
 class Config(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="karapace_", env_ignore_empty=True, env_nested_delimiter="__")
 
@@ -104,14 +115,6 @@ class Config(BaseSettings):
     ssl_crlfile: str | None = None
     ssl_password: str | None = None
     sasl_mechanism: str | None = None
-    sasl_oauthbearer_jwks_endpoint_url: str | None = None
-    sasl_oauthbearer_expected_issuer: str | None = None
-    sasl_oauthbearer_expected_audience: str | None = None
-    sasl_oauthbearer_sub_claim_name: str | None = "sub"
-    sasl_oauthbearer_authorization_enabled: bool = False
-    sasl_oauthbearer_client_id: str | None = None
-    sasl_oauthbearer_roles_claim_path: str | None = None
-    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None
     sasl_oauth_token: str | None = None
@@ -140,6 +143,7 @@ class Config(BaseSettings):
     sentry: Mapping[str, object] | None = None
     tags: KarapaceTags = KarapaceTags()
     telemetry: KarapaceTelemetry = KarapaceTelemetry()
+    oidc_karapace: OidcKarapace = OidcKarapace()
 
     # add rest uri if not set
     # f"{new_config['advertised_protocol']}://{new_config['advertised_hostname']}:{new_config['advertised_port']}"

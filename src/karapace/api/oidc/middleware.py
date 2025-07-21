@@ -23,14 +23,14 @@ class OIDCMiddleware:
         self.config = config
 
         self._jwks_client: PyJWKClient | None
-        self.jwks_url = config.sasl_oauthbearer_jwks_endpoint_url
-        self.issuer = config.sasl_oauthbearer_expected_issuer
-        self.audience = config.sasl_oauthbearer_expected_audience
-        self.claim_name = config.sasl_oauthbearer_sub_claim_name
-        self.authorization_enabled = config.sasl_oauthbearer_authorization_enabled
-        self.client_id = config.sasl_oauthbearer_client_id
-        self.sasl_oauthbearer_method_roles: dict[str, list[str]] = config.sasl_oauthbearer_method_roles
-        self.sasl_oauthbearer_roles_claim_path = config.sasl_oauthbearer_roles_claim_path
+        self.jwks_url = config.oidc_karapace.sasl_oauthbearer_jwks_endpoint_url
+        self.issuer = config.oidc_karapace.sasl_oauthbearer_expected_issuer
+        self.audience = config.oidc_karapace.sasl_oauthbearer_expected_audience
+        self.claim_name = config.oidc_karapace.sasl_oauthbearer_sub_claim_name
+        self.authorization_enabled = config.oidc_karapace.sasl_oauthbearer_authorization_enabled
+        self.client_id = config.oidc_karapace.sasl_oauthbearer_client_id
+        self.sasl_oauthbearer_method_roles: dict[str, list[str]] = config.oidc_karapace.sasl_oauthbearer_method_roles
+        self.sasl_oauthbearer_roles_claim_path = config.oidc_karapace.sasl_oauthbearer_roles_claim_path
 
         # Hardcoded default algorithms
         self.algorithms = ["RS256", "RS384", "RS512"]
