@@ -53,7 +53,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
 
   karapace-schema-registry:
-    image: ghcr.io/aiven-open/karapacelocal:latest
+    image: ghcr.io/aiven-open/karapace:develop
     build:
       context: ..
       dockerfile: container/Dockerfile
