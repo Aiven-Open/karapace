@@ -123,7 +123,7 @@ class OIDCMiddleware:
                 allowed_roles,
             )
             raise HTTPException(status_code=403, detail="Insufficient roles")
-        log.debug('Authorized')
+        log.debug("Authorized")
         return True
 
     @staticmethod
