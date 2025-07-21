@@ -706,7 +706,7 @@ If you are running with docker, login to karapace container with ::
 
 and get a token like below. ::
 
-  curl -s -X POST "http://localhost:8383/realms/karapace/protocol/openid-connect/token" \
+  curl -s -X POST "http://keycloak:8080/realms/karapace/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials" \
   -d "client_id=karapace-client" \
