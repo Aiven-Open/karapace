@@ -713,10 +713,10 @@ Below here is an example of karapace OpenId connect docker config ::
 
   For authorization, example config::
 
-  SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
-  SASL_OAUTHBEARER_CLIENT_ID: "karapace"
-  SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.[client_id].roles"
-  SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
+  KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
+  KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace"
+  KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.[client_id].roles"
+  KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
                                                            "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": []}
 
 
