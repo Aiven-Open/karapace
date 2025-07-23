@@ -123,6 +123,15 @@ To enable oidc authentication on the karapace, configure oidc jwks url config de
 
 There is a detailed section about OAuth2 authentication for karapace below.
 
+To enable oidc authorization on karapace, configure the below params together with the above ::
+
+   sasl_oauthbearer_authorization_enabled: bool = False
+   sasl_oauthbearer_client_id: str | None = None
+   sasl_oauthbearer_roles_claim_path: str | None = None
+   sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+
+There is a detailed section about OAuth2 authorization for karapace below.
+
 Start Karapace rest proxy. This shout start karapace on http://localhost:8082 ::
 
     karapace rest-proxy-karapace.config.json
@@ -674,10 +683,10 @@ These unique (per instance of the schema registry) consumer group names are pref
 .. _`documentation`: https://docs.confluent.io/platform/current/schema-registry/security/index.html#authorizing-access-to-the-schemas-topic
 .. _`permissions`: https://docs.confluent.io/platform/current/kafka/authorization.html#group-resource-type-operations
 
-OAuth2 authentication of Karapace
-=================================
+OAuth2 authentication and authorization of Karapace
+===================================================
 
-Karapace supports OAuth2 authentication. The JSON Web Token (JWT) is extracted from the ``Authorization`` HTTP header if the authorization scheme is ``Bearer``,
+Karapace supports OAuth2 authentication and authorization. The JSON Web Token (JWT) is extracted from the ``Authorization`` HTTP header if the authorization scheme is ``Bearer``,
 eg. ``Authorization: Bearer $JWT``. If a ``Bearer`` token is present in schema registry requests, karapace will validate the token against OpenId connect provider and continue.
 
 Below here is an example of karapace OpenId connect config ::
@@ -687,15 +696,32 @@ Below here is an example of karapace OpenId connect config ::
    sasl_oauthbearer_expected_audience = "account",
    sasl_oauthbearer_sub_claim_name = "sub",
 
+  For authorization::
+
+   sasl_oauthbearer_authorization_enabled: bool = False
+   sasl_oauthbearer_client_id: str | None = None
+   sasl_oauthbearer_roles_claim_path: str | None = None
+   sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+
+
 Below here is an example of karapace OpenId connect docker config ::
 
-      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
-      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+    KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+    KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+    KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
+    KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
 
-Testing the authentication with docker
----------------------------------------
+  For authorization, example config::
+
+  KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
+  KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace"
+  KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.[client_id].roles"
+  KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
+                                                           "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": []}
+
+
+Testing the authentication and authorization with docker
+--------------------------------------------------------
 
 Get token
 ---------
@@ -723,9 +749,9 @@ Access schema registry
 ----------------------
 Send the token to get subjects url::
 
-  curl --insecure -H "Authorization: Bearer $ACCESS_TOKEN" https://localhost:8081/subjects
+  curl --insecure -H "Authorization: Bearer $ACCESS_TOKEN" https://localhost:8081/subjects/testtopic-value/versions
 
-Response should be list of available subjects
+Response should be list of available subjects, as it is a valid token, and GET (schema read, subject read) is allowed as per the defined method roles.
 
 Send an invalid token to get subjects url::
 
