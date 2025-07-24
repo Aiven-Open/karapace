@@ -64,6 +64,6 @@ def create_karapace_application(
     setup_metering()
     setup_routers(app=app)
     setup_exception_handlers(app=app)
-    setup_middlewares(app=app)
+    setup_middlewares(app=app, config=config)
 
     return app

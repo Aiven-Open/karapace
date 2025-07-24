@@ -114,6 +114,24 @@ or with curl ::
 
   $ curl -X GET http://localhost:8081/subjects
 
+To enable oidc authentication on the karapace, configure oidc jwks url config details ::
+
+   sasl_oauthbearer_jwks_endpoint_url = "",
+   sasl_oauthbearer_expected_issuer = "",
+   sasl_oauthbearer_expected_audience = "",
+   sasl_oauthbearer_sub_claim_name = "sub",
+
+There is a detailed section about OAuth2 authentication for karapace below.
+
+To enable oidc authorization on karapace, configure the below params together with the above ::
+
+   sasl_oauthbearer_authorization_enabled: bool = False
+   sasl_oauthbearer_client_id: str | None = None
+   sasl_oauthbearer_roles_claim_path: str | None = None
+   sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+
+There is a detailed section about OAuth2 authorization for karapace below.
+
 Start Karapace rest proxy. This shout start karapace on http://localhost:8082 ::
 
     karapace rest-proxy-karapace.config.json
@@ -132,7 +150,7 @@ If 'sasl_mechanism' is configured to PLAIN::
     sasl_plain_username = "your_username",
     sasl_plain_password = "your_password"
 
-There is a detailed section about OAuth2 authentication below.
+There is a detailed section about OAuth2 authentication for rest proxy below.
 
 Verify with list topics::
 
@@ -664,6 +682,83 @@ These unique (per instance of the schema registry) consumer group names are pref
 
 .. _`documentation`: https://docs.confluent.io/platform/current/schema-registry/security/index.html#authorizing-access-to-the-schemas-topic
 .. _`permissions`: https://docs.confluent.io/platform/current/kafka/authorization.html#group-resource-type-operations
+
+OAuth2 authentication and authorization of Karapace
+===================================================
+
+Karapace supports OAuth2 authentication and authorization. The JSON Web Token (JWT) is extracted from the ``Authorization`` HTTP header if the authorization scheme is ``Bearer``,
+eg. ``Authorization: Bearer $JWT``. If a ``Bearer`` token is present in schema registry requests, karapace will validate the token against OpenId connect provider and continue.
+
+Below here is an example of karapace OpenId connect config ::
+
+   sasl_oauthbearer_jwks_endpoint_url = "http://localhost:8383/realms/karapace/protocol/openid-connect/certs",
+   sasl_oauthbearer_expected_issuer = "http://localhost:8383/realms/karapace",
+   sasl_oauthbearer_expected_audience = "account",
+   sasl_oauthbearer_sub_claim_name = "sub",
+
+  For authorization::
+
+   sasl_oauthbearer_authorization_enabled: bool = False
+   sasl_oauthbearer_client_id: str | None = None
+   sasl_oauthbearer_roles_claim_path: str | None = None
+   sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+
+
+Below here is an example of karapace OpenId connect docker config ::
+
+    KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+    KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+    KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
+    KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+
+  For authorization, example config::
+
+  KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
+  KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace"
+  KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.[client_id].roles"
+  KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
+                                                           "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": []}
+
+
+Testing the authentication and authorization with docker
+--------------------------------------------------------
+
+Get token
+---------
+
+If you are running with docker, login to karapace container with ::
+
+  docker exec -it containerid /bin/sh
+
+and get a token like below. ::
+
+  curl -s -X POST "http://keycloak:8080/realms/karapace/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=karapace-client" \
+  -d "client_secret=client-secret" \
+
+Note : client id and client secret can be retrieved from Oidc provider
+
+Response of the above curl should be a access token, and other scope and expiry details.
+Export the token into ACCESS_TOKEN variable::
+
+  export ACCESS_TOKEN='token..'
+
+Access schema registry
+----------------------
+Send the token to get subjects url::
+
+  curl --insecure -H "Authorization: Bearer $ACCESS_TOKEN" https://localhost:8081/subjects/testtopic-value/versions
+
+Response should be list of available subjects, as it is a valid token, and GET (schema read, subject read) is allowed as per the defined method roles.
+
+Send an invalid token to get subjects url::
+
+  curl --insecure -H "Authorization: Bearer aninvalidtoken" https://localhost:8081/subjects
+
+Response should be {"error":"Unauthorized","reason":"Invalid token/payload"}
+
 
 OAuth2 authentication and authorization of Karapace REST proxy
 ===================================================================
