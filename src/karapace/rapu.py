@@ -9,6 +9,7 @@ See LICENSE for details
 
 from accept_types import get_best_match
 from collections.abc import Callable
+from email.message import Message
 from http import HTTPStatus
 from karapace.core.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
@@ -20,7 +21,6 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi
 import hashlib
 import logging
 import re
@@ -202,10 +202,17 @@ class RestApp:
         default_content = "application/vnd.kafka.json.v2+json"
         default_accept = "*/*"
         result = {"content_type": default_content}
-        content_matcher = REST_CONTENT_TYPE_RE.search(
-            cgi.parse_header(request.get_header("Content-Type", default_content))[0]
-        )
-        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(request.get_header("Accept", default_accept))[0])
+        # Handle Content-Type
+        msg = Message()
+        msg["Content-Type"] = request.get_header("Content-Type", default_content)
+        content_type = msg.get_content_type()
+        content_matcher = REST_CONTENT_TYPE_RE.search(content_type)
+
+        # Handle Accept - just extract the first media type
+        accept_header = request.get_header("Accept", default_accept)
+        first_accept = accept_header.split(",")[0].strip()
+        accept_matcher = REST_ACCEPT_RE.search(first_accept)
+
         if method in {"POST", "PUT"}:
             if not content_matcher:
                 http_error(
@@ -229,8 +236,11 @@ class RestApp:
         method = request.method
         response_default_content_type = "application/vnd.schemaregistry.v1+json"
         content_type = request.get_header("Content-Type", JSON_CONTENT_TYPE)
+        content_msg = Message()
+        content_msg["Content-Type"] = content_type
+        parsed_content_type = content_msg.get_content_type()
 
-        if method in {"POST", "PUT"} and cgi.parse_header(content_type)[0] not in SCHEMA_CONTENT_TYPES:
+        if method in {"POST", "PUT"} and parsed_content_type not in SCHEMA_CONTENT_TYPES:
             http_error(
                 message="HTTP 415 Unsupported Media Type",
                 content_type=response_default_content_type,
@@ -285,8 +295,9 @@ class RestApp:
                 if not body:
                     raise HTTPResponse(body="Missing request JSON body", status=HTTPStatus.BAD_REQUEST)
                 try:
-                    _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
-                    charset = options.get("charset", "utf-8")
+                    content_msg = Message()
+                    content_msg["Content-Type"] = rapu_request.get_header("Content-Type", "")
+                    charset = content_msg.get_param("charset", "utf-8")
                     body_string = body.decode(charset)
                     rapu_request.json = json_decode(body_string)
                 except UnicodeDecodeError:
