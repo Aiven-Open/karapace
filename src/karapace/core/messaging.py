@@ -39,6 +39,7 @@ class KarapaceProducer:
             try:
                 self._producer = KafkaProducer(
                     bootstrap_servers=self._config.bootstrap_uri,
+                    client_id=self._config.client_id,
                     verify_connection=False,
                     security_protocol=self._config.security_protocol,
                     ssl_cafile=self._config.ssl_cafile,
