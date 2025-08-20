@@ -53,8 +53,8 @@
 | src/karapace/core/anonymize\_schemas/anonymize\_avro.py  |       61 |        0 |       22 |        0 |    100% |           |
 | src/karapace/core/auth.py                                |      197 |       79 |       34 |        4 |     58% |55-62, 73, 126, 130, 134, 138, 142, 146, 155-158, 175, 194, 208-212, 216, 221-244, 248-251, 254-284, 288-292, 300, 304-321, 325 |
 | src/karapace/core/auth\_container.py                     |        8 |        0 |        0 |        0 |    100% |           |
-| src/karapace/core/avro\_dataclasses/introspect.py        |       86 |        7 |       50 |        6 |     90% |20, 41, 69, 115, 117, 123, 126 |
-| src/karapace/core/avro\_dataclasses/models.py            |       99 |        6 |       34 |        3 |     93% |23, 105-106, 108, 111, 131 |
+| src/karapace/core/avro\_dataclasses/introspect.py        |       84 |        6 |       48 |        6 |     91% |41, 69, 115, 117, 123, 126 |
+| src/karapace/core/avro\_dataclasses/models.py            |       97 |        5 |       32 |        3 |     94% |105-106, 108, 111, 131 |
 | src/karapace/core/avro\_dataclasses/schema.py            |       33 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/client.py                              |      133 |        2 |       18 |        0 |     99% |     80-81 |
 | src/karapace/core/compatibility/\_\_init\_\_.py          |       15 |        2 |        0 |        0 |     87% |     37-42 |
@@ -69,14 +69,14 @@
 | src/karapace/core/coordinator/master\_coordinator.py     |       99 |       15 |       18 |        6 |     80% |83-85, 88-92, 102->104, 107, 109-110, 153-158, 183, 193 |
 | src/karapace/core/coordinator/schema\_coordinator.py     |      514 |       42 |      140 |       11 |     91% |199, 214-215, 277-286, 299-302, 322-323, 335-336, 500, 586-591, 611-615, 633, 643-647, 680->exit, 685->688, 699->726, 834, 851, 932, 976-977, 984-985 |
 | src/karapace/core/dataclasses.py                         |        8 |        0 |        0 |        0 |    100% |           |
-| src/karapace/core/dependency.py                          |       42 |       11 |       10 |        2 |     67% |18, 45, 49, 53-54, 58, 65, 68, 71-73 |
-| src/karapace/core/errors.py                              |       40 |        5 |        2 |        0 |     88% |11-12, 65-67 |
+| src/karapace/core/dependency.py                          |       40 |       10 |        8 |        2 |     67% |45, 49, 53-54, 58, 65, 68, 71-73 |
+| src/karapace/core/errors.py                              |       37 |        3 |        0 |        0 |     92% |     65-67 |
 | src/karapace/core/in\_memory\_database.py                |      264 |       69 |       84 |       11 |     70% |32, 42, 46, 59, 63, 67, 71, 75, 79, 83, 87, 91, 95, 99, 103, 107, 111, 115, 119, 123, 127, 131, 152-165, 170, 177, 188-191, 211, 234, 266-268, 271->exit, 275-276, 289, 292->294, 298-306, 323-326, 343-347, 352->351, 360->exit, 361->363, 387, 400 |
 | src/karapace/core/instrumentation/meter.py               |       33 |        3 |        6 |        1 |     90% |35, 38, 41, 57->exit |
 | src/karapace/core/instrumentation/prometheus.py          |       40 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/instrumentation/tracer.py              |       65 |        2 |       12 |        3 |     94% |41, 44, 60->exit, 88->exit, 102->exit |
 | src/karapace/core/kafka/admin.py                         |       82 |        2 |       12 |        0 |     98% |   191-194 |
-| src/karapace/core/kafka/common.py                        |       86 |        5 |       18 |        5 |     90% |59, 61, 63, 175, 211 |
+| src/karapace/core/kafka/common.py                        |       86 |        6 |       18 |        6 |     88% |59, 61, 63, 175, 211, 216 |
 | src/karapace/core/kafka/consumer.py                      |      142 |       15 |       20 |        3 |     89% |49-50, 63, 68, 100, 103-104, 135-136, 162-163, 182-183, 188-189 |
 | src/karapace/core/kafka/producer.py                      |       67 |        2 |        6 |        0 |     97% |     68-69 |
 | src/karapace/core/kafka/types.py                         |        8 |        0 |        0 |        0 |    100% |           |
@@ -89,11 +89,11 @@
 | src/karapace/core/offset\_watcher.py                     |       17 |        2 |        0 |        0 |     88% |     27-30 |
 | src/karapace/core/protobuf/compare\_result.py            |       60 |        1 |        6 |        0 |     98% |        66 |
 | src/karapace/core/protobuf/compare\_type\_lists.py       |       42 |        8 |       22 |        4 |     75% |45, 49, 51-56, 64 |
-| src/karapace/core/protobuf/compare\_type\_storage.py     |      111 |       19 |       42 |       11 |     80% |14-15, 25, 36, 62-64, 96, 100, 103, 108, 112, 115, 119, 127, 140-142, 145 |
+| src/karapace/core/protobuf/compare\_type\_storage.py     |      108 |       17 |       40 |       11 |     81% |25, 36, 62-64, 96, 100, 103, 108, 112, 115, 119, 127, 140-142, 145 |
 | src/karapace/core/protobuf/encoding\_variants.py         |       43 |       30 |       18 |        2 |     28% |16-32, 36-44, 49, 55-66 |
 | src/karapace/core/protobuf/enum\_constant\_element.py    |       21 |        0 |        2 |        0 |    100% |           |
 | src/karapace/core/protobuf/enum\_element.py              |       51 |        5 |       26 |        5 |     87% |56->59, 60-61, 74, 76, 79 |
-| src/karapace/core/protobuf/exception.py                  |       25 |        9 |        6 |        0 |     58% |13, 45, 50-56 |
+| src/karapace/core/protobuf/exception.py                  |       23 |        8 |        4 |        0 |     56% | 45, 50-56 |
 | src/karapace/core/protobuf/extend\_element.py            |       22 |        0 |        4 |        0 |    100% |           |
 | src/karapace/core/protobuf/extensions\_element.py        |       26 |        1 |        8 |        2 |     91% |28->38, 36 |
 | src/karapace/core/protobuf/field.py                      |        7 |        0 |        0 |        0 |    100% |           |
@@ -121,9 +121,9 @@
 | src/karapace/core/protobuf/service\_element.py           |       28 |        0 |        8 |        0 |    100% |           |
 | src/karapace/core/protobuf/syntax.py                     |       12 |        1 |        0 |        0 |     92% |        24 |
 | src/karapace/core/protobuf/syntax\_reader.py             |      262 |       13 |      124 |       15 |     92% |55-56, 68, 107, 170->181, 193-194, 216, 220->223, 227->247, 248, 249->260, 253->259, 261, 266->275, 301->324, 314-315, 346, 369 |
-| src/karapace/core/protobuf/type\_element.py              |       26 |        9 |        2 |        0 |     68% |16-18, 34, 37-38, 41-42, 45 |
+| src/karapace/core/protobuf/type\_element.py              |       22 |        6 |        0 |        0 |     73% |34, 37-38, 41-42, 45 |
 | src/karapace/core/protobuf/type\_tree.py                 |       64 |        2 |       16 |        3 |     94% |66, 70->68, 73 |
-| src/karapace/core/protobuf/utils.py                      |       46 |        3 |       20 |        2 |     92% |11, 21, 53 |
+| src/karapace/core/protobuf/utils.py                      |       44 |        2 |       18 |        2 |     94% |    21, 53 |
 | src/karapace/core/schema\_models.py                      |      178 |       32 |       40 |        9 |     80% |87-88, 95->100, 98, 130, 154-156, 161-168, 175, 187-196, 210, 220-221, 227-228, 240-252, 338, 344-345, 348, 351-353, 378, 432->exit |
 | src/karapace/core/schema\_reader.py                      |      435 |      119 |       92 |       15 |     72% |198-208, 216-226, 245-253, 263-274, 316-325, 336-348, 373-376, 384-385, 394, 421, 429, 436-445, 458->467, 531->534, 538-539, 540->exit, 546-547, 550-555, 561, 565-569, 573-574, 587-589, 603-605, 606->626, 618, 634-635, 657-658, 674, 677-680, 699-711, 721, 723-725 |
 | src/karapace/core/schema\_references.py                  |       37 |        3 |        2 |        1 |     90% |27, 41, 61 |
@@ -146,8 +146,8 @@
 | src/karapace/kafka\_rest\_apis/schema\_cache.py          |       73 |       20 |        2 |        1 |     72% |19, 23, 27, 31, 35, 47, 54-55, 58-59, 73-74, 79, 87, 90-91, 99, 102, 105, 108 |
 | src/karapace/rapu.py                                     |      263 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317->320, 320->330, 322->325, 325->328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
-| src/karapace/version.py                                  |       13 |        3 |        2 |        0 |     80% |      8-11 |
-|                                                **TOTAL** | **11855** | **2345** | **3198** |  **380** | **78%** |           |
+| src/karapace/version.py                                  |       13 |        0 |        0 |        0 |    100% |           |
+|                                                **TOTAL** | **11835** | **2331** | **3180** |  **381** | **78%** |           |
 
 16 empty files skipped.
 
