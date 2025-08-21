@@ -16,7 +16,7 @@
 | src/karapace/api/routers/compatibility.py                |       21 |        4 |        2 |        0 |     74% |     38-42 |
 | src/karapace/api/routers/config.py                       |       64 |       26 |       22 |        1 |     50% |37-40, 55, 76-80, 95-104, 120-129 |
 | src/karapace/api/routers/errors.py                       |       40 |        3 |        0 |        0 |     92% | 52-53, 67 |
-| src/karapace/api/routers/health.py                       |       43 |       17 |        4 |        0 |     55% |41-49, 58-86 |
+| src/karapace/api/routers/health.py                       |       45 |       17 |        4 |        0 |     57% |43-51, 60-88 |
 | src/karapace/api/routers/master\_availability.py         |       26 |        8 |        4 |        0 |     60% |     43-60 |
 | src/karapace/api/routers/metrics.py                      |        9 |        1 |        0 |        0 |     89% |        23 |
 | src/karapace/api/routers/mode.py                         |       27 |        7 |        4 |        0 |     65% |35-38, 49-53 |
@@ -147,7 +147,7 @@
 | src/karapace/rapu.py                                     |      263 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317->320, 320->330, 322->325, 325->328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       13 |        0 |        0 |        0 |    100% |           |
-|                                                **TOTAL** | **11835** | **2331** | **3180** |  **381** | **78%** |           |
+|                                                **TOTAL** | **11837** | **2331** | **3180** |  **381** | **78%** |           |
 
 16 empty files skipped.
 
