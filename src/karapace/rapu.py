@@ -18,7 +18,7 @@ import aiohttp
 import aiohttp.web
 import aiohttp.web_exceptions
 import asyncio
-import cgi  # pylint: disable=deprecated-module
+import email
 import hashlib
 import logging
 import re
@@ -55,6 +55,14 @@ REST_ACCEPT_RE = re.compile(
 def is_success(http_status: HTTPStatus) -> bool:
     """True if response has a 2xx status_code"""
     return http_status.value >= 200 and http_status.value < 300
+
+
+def parse_header(header_value: str) -> tuple[str, dict[str, str]]:
+    msg = email.message.Message()
+    msg["Content-Type"] = header_value
+    main_value = msg.get_content_type()
+    params = dict(msg.get_params()[1:])
+    return main_value, params
 
 
 class HTTPRequest:
@@ -202,10 +210,8 @@ class RestApp:
         default_content = "application/vnd.kafka.json.v2+json"
         default_accept = "*/*"
         result = {"content_type": default_content}
-        content_matcher = REST_CONTENT_TYPE_RE.search(
-            cgi.parse_header(request.get_header("Content-Type", default_content))[0]
-        )
-        accept_matcher = REST_ACCEPT_RE.search(cgi.parse_header(request.get_header("Accept", default_accept))[0])
+        content_matcher = REST_CONTENT_TYPE_RE.search(parse_header(request.get_header("Content-Type", default_content))[0])
+        accept_matcher = REST_ACCEPT_RE.search(request.get_header("Accept", default_accept))
         if method in {"POST", "PUT"}:
             if not content_matcher:
                 http_error(
@@ -230,7 +236,7 @@ class RestApp:
         response_default_content_type = "application/vnd.schemaregistry.v1+json"
         content_type = request.get_header("Content-Type", JSON_CONTENT_TYPE)
 
-        if method in {"POST", "PUT"} and cgi.parse_header(content_type)[0] not in SCHEMA_CONTENT_TYPES:
+        if method in {"POST", "PUT"} and parse_header(content_type)[0] not in SCHEMA_CONTENT_TYPES:
             http_error(
                 message="HTTP 415 Unsupported Media Type",
                 content_type=response_default_content_type,
@@ -285,8 +291,8 @@ class RestApp:
                 if not body:
                     raise HTTPResponse(body="Missing request JSON body", status=HTTPStatus.BAD_REQUEST)
                 try:
-                    _, options = cgi.parse_header(rapu_request.get_header("Content-Type"))
-                    charset = options.get("charset", "utf-8")
+                    _, options = parse_header(rapu_request.get_header("Content-Type"))
+                    charset = email.utils.collapse_rfc2231_value(options.get("charset", "utf-8"))
                     body_string = body.decode(charset)
                     rapu_request.json = json_decode(body_string)
                 except UnicodeDecodeError:
