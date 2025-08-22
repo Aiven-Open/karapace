@@ -32,8 +32,14 @@ jobs:
       - name: Run container
         run: docker compose --file=container/compose.yml up --build --wait --detach
 
+      - name: Check container status
+        run: docker ps -a
+
+      - name: Show container logs (Kafka + others)
+        run: docker compose --file=container/compose.yml logs --no-color
+
       - name: Smoke test registry
-        run: bin/smoke-test-registry.sh
+        run: bin/smoke-test-registry.sh || (docker compose -f container/compose.yml logs && exit 1)
 
       - name: Smoke test REST proxy
-        run: bin/smoke-test-rest.sh
+        run: bin/smoke-test-rest.sh || (docker compose -f container/compose.yml logs && exit 1)
