@@ -282,7 +282,7 @@ wrapt==1.17.2
     # via deprecated
 xxhash==3.5.0
     # via karapace (/karapace/pyproject.toml)
-yarl==1.20.0
+yarl==1.20.1
     # via
     #   aiohttp
     #   karapace (/karapace/pyproject.toml)
