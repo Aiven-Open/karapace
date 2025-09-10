@@ -549,3 +549,71 @@ async def test_consume_grafecul_deserialization_error_handling(rest_async_client
         # Consuming records should fail gracefully if record can not be deserialized to the selected format
         assert resp.status_code == 422, f"Expected 422 response: {resp}"
         assert f"value deserialization error for format {fmt}" in resp.json()["message"]
+
+
+@pytest.mark.parametrize("trail", ["", "/"])
+async def test_resume_from_committed_offsets(rest_async_client, admin_client, producer, trail):
+    group_name = new_random_name("offset_resume_group")
+    fmt = "binary"
+    header = REST_HEADERS[fmt]
+
+    # Step 1: Create first consumer instance in group
+    instance_id_1 = await new_consumer(
+        rest_async_client,
+        group_name,
+        fmt=fmt,
+        trail=trail,
+        payload_override={"auto.commit.enable": "false"},
+    )
+    topic_name = new_topic(admin_client)
+
+    assign_path_1 = f"/consumers/{group_name}/instances/{instance_id_1}/assignments{trail}"
+    offsets_path_1 = f"/consumers/{group_name}/instances/{instance_id_1}/offsets{trail}"
+    consume_path_1 = f"/consumers/{group_name}/instances/{instance_id_1}/records{trail}?timeout=5000"
+
+    # Assign partition
+    res = await rest_async_client.post(
+        assign_path_1, json={"partitions": [{"topic": topic_name, "partition": 0}]}, headers=header
+    )
+    assert res.ok
+
+    # Produce 5 messages
+    for i in range(5):
+        producer.send(topic_name, value=f"msg-{i}".encode())
+    producer.flush()
+
+    # Consume them with the first consumer
+    resp = await rest_async_client.get(consume_path_1, headers=header)
+    assert resp.ok
+    data = resp.json()
+    assert len(data) == 5, f"Expected 5 messages, got {data}"
+
+    # Commit the last consumed offsets
+    res = await rest_async_client.post(
+        offsets_path_1,
+        json={"offsets": [{"topic": topic_name, "partition": 0, "offset": data[-1]["offset"] + 1}]},
+        headers=header,
+    )
+    assert res.ok, f"Offset commit failed: {res}"
+
+    # Step 2: Create a new consumer in the same group (simulating rebalance or restart)
+    instance_id_2 = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
+    assign_path_2 = f"/consumers/{group_name}/instances/{instance_id_2}/assignments{trail}"
+    consume_path_2 = f"/consumers/{group_name}/instances/{instance_id_2}/records{trail}?timeout=5000"
+
+    res = await rest_async_client.post(
+        assign_path_2, json={"partitions": [{"topic": topic_name, "partition": 0}]}, headers=header
+    )
+    assert res.ok
+
+    # Produce 3 more messages after rebalance
+    for i in range(5, 8):
+        producer.send(topic_name, value=f"msg-{i}".encode())
+    producer.flush()
+
+    # Consume with new consumer - should ONLY get the new 3, not replay old 5
+    resp = await rest_async_client.get(consume_path_2, headers=header)
+    assert resp.ok
+    data = resp.json()
+    values = [base64.b64decode(r["value"]).decode() for r in data]
+    assert values == ["msg-5", "msg-6", "msg-7"], f"Expected only new messages, got {values}"
