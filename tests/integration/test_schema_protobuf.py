@@ -542,6 +542,17 @@ message WithReference {
 }
 """
 
+SCHEMA_WITH_SAME_REF = """\
+syntax = "proto3";
+
+import "NoReference.proto";
+
+message IAlsoDependOnNoReference {
+  string name = 1;
+  NoReference ref = 2;
+}
+"""
+
 SCHEMA_WITH_2ND_LEVEL_REF = """\
 syntax = "proto3";
 
@@ -961,6 +972,64 @@ message WithReference {
                     subject="wr_s2_referencing_nested_message",
                     references=[{"name": "NoReference.proto", "subject": "wr_s1_with_nested_message", "version": 1}],
                     expected=200,
+                ),
+            ],
+        ),
+        ReferenceTestCase(
+            test_name="Delete reference which is referenced by more than one schema",
+            schemas=[
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_NO_REF,
+                    subject="wr_s1",
+                    references=None,
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_REF,
+                    subject="wr_s2",
+                    references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseSchema(
+                    schema_type=SchemaType.PROTOBUF,
+                    schema_str=SCHEMA_WITH_SAME_REF,
+                    subject="wr_s3",
+                    references=[{"name": "NoReference.proto", "subject": "wr_s1", "version": 1}],
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=422,
+                    expected_msg=(
+                        "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=wr_s1,version=1}."
+                    ),
+                    expected_error_code=42206,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=200,
+                ),
+                TestCaseHardDeleteSchema(
+                    subject="wr_s2",
+                    schema_id=2,
+                    version=1,
+                    expected=200,
+                ),
+                TestCaseDeleteSchema(
+                    subject="wr_s1",
+                    schema_id=1,
+                    version=1,
+                    expected=422,
+                    expected_msg=(
+                        "One or more references exist to the schema {magic=1,keytype=SCHEMA,subject=wr_s1,version=1}."
+                    ),
+                    expected_error_code=42206,
                 ),
             ],
         ),
