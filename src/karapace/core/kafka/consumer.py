@@ -142,6 +142,26 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
     def _on_assign(self, _consumer: Consumer, partitions: list[TopicPartition]) -> None:
         topics = frozenset(partition.topic for partition in partitions)
         self._subscription = self._subscription.union(topics)
+        # FIX: Position partitions at committed offsets
+        try:
+            committed = _consumer.committed(partitions, timeout=10.0)
+        except KafkaException as e:
+            self.log.warning("Failed to fetch committed offsets: %s", e)
+            committed = [
+                TopicPartition(topic_partition.topic, topic_partition.partition, offset=-1001)
+                for topic_partition in partitions
+            ]
+
+        for tp in committed:
+            # OFFSET_INVALID -1001
+            if tp.offset != -1001:
+                _consumer.seek(tp)
+            else:
+                self.log.debug(
+                    "No committed offset for %s-%s; falling back to auto.offset.reset",
+                    tp.topic,
+                    tp.partition,
+                )
 
     def _on_revoke(self, _consumer: Consumer, partitions: list[TopicPartition]) -> None:
         topics = frozenset(partition.topic for partition in partitions)
