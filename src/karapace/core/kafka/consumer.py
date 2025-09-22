@@ -143,6 +143,59 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         topics = frozenset(partition.topic for partition in partitions)
         self._subscription = self._subscription.union(topics)
 
+        # Position partitions at committed offsets to avoid message replay
+        try:
+            # Fetch committed offsets for all assigned partitions
+            # Use the underlying confluent-kafka consumer directly to avoid wrapper exceptions
+            try:
+                committed = _consumer.committed(partitions, timeout=10.0)
+                self.log.debug("Fetched committed offsets: %s", committed)
+            except Exception as comm_exc:
+                self.log.warning("Failed to fetch committed offsets: %s", comm_exc)
+                # If we can't fetch committed offsets, let auto.offset.reset handle positioning
+                return
+
+            # Process each partition's committed offset
+            for tp in committed:
+                if tp.offset == -1001:  # OFFSET_INVALID
+                    # No committed offset exists, let auto.offset.reset handle it
+                    self.log.debug(
+                        "No committed offset for %s-%s; using auto.offset.reset",
+                        tp.topic,
+                        tp.partition,
+                    )
+                elif tp.offset >= 0:
+                    # Valid committed offset exists, seek to it
+                    try:
+                        _consumer.seek(tp)
+                        self.log.debug(
+                            "Seeked to committed offset %d for %s-%s",
+                            tp.offset,
+                            tp.topic,
+                            tp.partition,
+                        )
+                    except KafkaException as seek_error:
+                        self.log.warning(
+                            "Failed to seek to committed offset %d for %s-%s: %s",
+                            tp.offset,
+                            tp.topic,
+                            tp.partition,
+                            seek_error,
+                        )
+                else:
+                    # Negative offset (like -1 for latest), handle appropriately
+                    self.log.debug(
+                        "Special offset %d for %s-%s; using auto.offset.reset",
+                        tp.offset,
+                        tp.topic,
+                        tp.partition,
+                    )
+
+        except KafkaException as e:
+            self.log.warning("Failed to fetch committed offsets during assignment: %s", e)
+            # If we can't fetch committed offsets, let auto.offset.reset handle positioning
+            # This ensures the consumer doesn't get stuck or start from an unexpected position
+
     def _on_revoke(self, _consumer: Consumer, partitions: list[TopicPartition]) -> None:
         topics = frozenset(partition.topic for partition in partitions)
         self._subscription = self._subscription.difference(topics)
