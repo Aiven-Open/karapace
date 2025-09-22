@@ -1383,6 +1383,15 @@ class KarapaceSchemaRegistryController(KarapaceBase):
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
+        except InvalidReferences:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
+                    "message": f"New {schema_type} schema has invalid references",
+                },
+                content_type=content_type,
+                status=HTTPStatus.BAD_REQUEST,
+            )
 
     def get_old_schema(self, subject: Subject, version: Version, content_type: str) -> ParsedTypedSchema:
         try:
@@ -1410,7 +1419,16 @@ class KarapaceSchemaRegistryController(KarapaceBase):
             self.r(
                 body={
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
-                    "message": f"Found an invalid {old_schema_type} schema registered",
+                    "message": f"Found an invalid {old_schema_type} schema registered.",
+                },
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        except InvalidReferences:
+            self.r(
+                body={
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
+                    "message": f"Existing {old_schema_type} schema has invalid references.",
                 },
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
