@@ -39,12 +39,25 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
             request._headers = new_headers
             request.scope.update(headers=request.headers.raw)
 
+        # Check for skip paths like /_health and /metrics and bypass
+        if request.url.path in config.sasl_oauthbearer_skip_auth_paths:
+            return await call_next(request)
+
         # Check for bearer token in header
         auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
+
+        if config.sasl_oauthbearer_authorization_enabled:
+            if not auth_header or not auth_header.startswith("Bearer "):
+                # Fail fast if header is missing or invalid
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
+                )
+
+            # Header exists and starts with Bearer → validate JWT
+            token = auth_header.split(" ", 1)[1]
             try:
-                # authentication
-                payload = oidc_middleware.validate_jwt(auth_header.split(" ", 1)[1])
+                payload = oidc_middleware.validate_jwt(token)
                 request.state.user = payload
                 log.debug("Authenticated")
             except AuthenticationError:
@@ -54,10 +67,12 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
                 )
 
             try:
-                # authorization
                 oidc_middleware.authorize_request(payload, request.method)
             except HTTPException as e:
-                return JSONResponse({"error": "Authorization error", "reason": e.detail}, status_code=e.status_code)
+                return JSONResponse(
+                    {"error": "Authorization error", "reason": e.detail},
+                    status_code=e.status_code,
+                )
 
         response = await call_next(request)
         response.headers["Content-Type"] = response_content_type
