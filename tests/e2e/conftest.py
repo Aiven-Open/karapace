@@ -157,7 +157,6 @@ def oidc_token():
 @pytest.fixture(scope="function", name="registry_async_client_oidc")
 async def fixture_registry_async_client_oidc(
     request: SubRequest,
-    basic_auth: BasicAuth,
     registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
     oidc_token,
@@ -180,13 +179,32 @@ async def fixture_registry_async_client_oidc(
 @pytest.fixture(scope="function", name="registry_async_client_oidc_invalid")
 async def fixture_registry_async_client_oidc_invalid(
     request: SubRequest,
-    basic_auth: BasicAuth,
     registry_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
     oidc_token,
 ) -> AsyncGenerator[Client, None]:
     async def factory(auth):
         return ClientSession(headers={"Authorization": "Bearer invalid_token"})
+
+    client = Client(
+        server_uri=registry_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_no_auth_header")
+async def registry_async_client_oidc_no_auth_header(
+    request: SubRequest,
+    registry_cluster: RegistryDescription,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={})
 
     client = Client(
         server_uri=registry_cluster.endpoint.to_url(),

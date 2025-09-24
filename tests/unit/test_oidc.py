@@ -13,15 +13,12 @@ from http import HTTPStatus
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException, FastAPI
+from fastapi import HTTPException
 from jwt import InvalidTokenError
 from karapace.api.oidc.middleware import OIDCMiddleware
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
 from karapace.rapu import JSON_CONTENT_TYPE, HTTPResponse
-
-from karapace.api.middlewares import setup_middlewares
-from fastapi.testclient import TestClient
 
 
 def _assert_unauthorized_http_response(http_response: HTTPResponse) -> None:
@@ -195,89 +192,6 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
         # When JWKS URL is missing, validate_jwt returns empty dict instead of raising
         payload = oidc_middleware.validate_jwt(invalid_token)
         assert payload == {}
-
-
-@pytest.mark.asyncio
-async def test_oidc_enabled_but_no_header_skips_validation_async():
-    config = Config(
-        sasl_oauthbearer_authorization_enabled=False,
-    )
-
-    app = FastAPI()
-
-    @app.get("/ping")
-    async def ping():
-        return {"pong": True}
-
-    setup_middlewares(app, config)
-
-    client = TestClient(app)
-
-    resp = client.get("/ping")
-    assert resp.status_code == 200
-    assert resp.json() == {"pong": True}
-
-
-def test_oidc_enabled_no_auth_header_fails():
-    """
-    OIDC is enabled but no Authorization header is sent.
-    Middleware should return 401 Unauthorized.
-    """
-    config = Config(
-        sasl_oauthbearer_jwks_endpoint_url=None,
-        sasl_oauthbearer_expected_issuer=None,
-        sasl_oauthbearer_expected_audience=None,
-        sasl_oauthbearer_sub_claim_name=None,
-        sasl_oauthbearer_authorization_enabled=True,  # OIDC enabled
-    )
-
-    app = FastAPI()
-
-    @app.get("/ping")
-    async def ping():
-        return {"pong": True}
-
-    setup_middlewares(app, config)
-    client = TestClient(app)
-
-    resp = client.get("/ping")  # No Authorization header
-    assert resp.status_code == 401
-    assert resp.json() == {"error": "Unauthorized", "reason": "Missing or invalid Authorization header"}
-
-
-@patch("karapace.api.oidc.middleware.OIDCMiddleware.validate_jwt", return_value={"sub": "user1"})
-@patch("karapace.api.oidc.middleware.OIDCMiddleware.authorize_request", return_value=None)
-def test_oidc_enabled_with_auth_header(mock_authz, mock_validate):
-    """
-    OIDC is enabled and Authorization header is present.
-    Middleware should validate token and authorize request.
-    """
-    config = Config(
-        sasl_oauthbearer_jwks_endpoint_url="http://fake",
-        sasl_oauthbearer_expected_issuer="issuer",
-        sasl_oauthbearer_expected_audience="aud",
-        sasl_oauthbearer_sub_claim_name="sub",
-        sasl_oauthbearer_authorization_enabled=True,
-        sasl_oauthbearer_roles_claim_path="realm_access.roles",
-        sasl_oauthbearer_client_id="client-id",
-    )
-
-    app = FastAPI()
-
-    @app.get("/ping")
-    async def ping():
-        return {"pong": True}
-
-    setup_middlewares(app, config)
-    client = TestClient(app)
-
-    resp = client.get("/ping", headers={"Authorization": "Bearer faketoken"})
-    assert resp.status_code == 200
-    assert resp.json() == {"pong": True}
-
-    # Ensure middleware called validation and authorization
-    mock_validate.assert_called_once_with("faketoken")
-    mock_authz.assert_called_once()
 
 
 @pytest.mark.parametrize(

@@ -22,7 +22,7 @@ async def test_schema_registry_oidc(
     subject_res = await registry_async_client_oidc.post(
         f"subjects/{subject}/versions",
         json={
-            "schema": json.dumps({"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}),
+            "schema": json.dumps({"type": "string"}),
             "schemaType": SchemaType.JSONSCHEMA.value,
         },
     )
@@ -39,3 +39,27 @@ async def test_schema_registry_oidc_invalid_token(
     assert subject_res.status_code == 401
     assert subject_res.json_result["error"] == "Unauthorized"
     assert subject_res.json_result["reason"] == "Invalid token/payload"
+
+
+async def test_integration_oidc_enabled_no_auth_header_fails(
+    registry_async_client_oidc_no_auth_header: Client,
+) -> None:
+    subject = new_random_name("subject")
+
+    subject_res = await registry_async_client_oidc_no_auth_header.get(f"subjects/{subject}/versions")
+
+    assert subject_res.status_code == 401
+    assert subject_res.json_result["error"] == "Unauthorized"
+    assert subject_res.json_result["reason"] == "Missing or invalid Authorization header"
+
+
+async def test_integration_oidc_enabled_no_auth_header_skipped_endpoints_success(
+    registry_async_client_oidc_no_auth_header: Client,
+) -> None:
+    # _health should not require auth
+    res = await registry_async_client_oidc_no_auth_header.get("_health")
+    assert res.status_code == 200
+
+    # metrics should not require auth
+    res = await registry_async_client_oidc_no_auth_header.get("metrics", json_response=False)
+    assert res.status_code == 200
