@@ -155,14 +155,15 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
-      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
       KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
       KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   karapace-rest-proxy:
     networks:
