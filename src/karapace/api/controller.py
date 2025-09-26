@@ -917,6 +917,14 @@ class KarapaceSchemaRegistryController:
                     "message": f"Invalid {schema_request.schema_type} schema",
                 },
             ) from exc
+        except InvalidReferences as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
+                    "message": f"New {schema_request.schema_type} schema has invalid references",
+                },
+            ) from exc
 
     def get_old_schema(self, subject: Subject, version: Version) -> ParsedTypedSchema:
         old: JsonObject | None = None
@@ -947,5 +955,13 @@ class KarapaceSchemaRegistryController:
                 detail={
                     "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
                     "message": f"Found an invalid {old_schema_type} schema registered",
+                },
+            ) from exc
+        except InvalidReferences as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": SchemaErrorCodes.INVALID_SCHEMA.value,
+                    "message": f"Existing {old_schema_type} schema has invalid references",
                 },
             ) from exc
