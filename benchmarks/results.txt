@@ -1,0 +1,74 @@
+Date : Oct 6th, 2025
+Executed from main.
+
+------------------------------------------------
+% sh run_benchmarks.sh
+
+🔹 Benchmarking karapace5 at http://localhost:8082/topics
+  Avg: 0.65 ms, P95: 0.67 ms, first response: ["test-topic-11","test-topic-8","test-topic-96","test-topic-59","test-topic-16","test-topic-44","test-topic-32","test-topic-54","test-topic-91","test-topic-1","test-topic-66","test-topic-27","test-top
+
+✅ Results saved to  karapace5_benchmarks.csv
+
+🔹 Benchmarking produce to karapace5 at http://localhost:8082/topics/test-topic-1
+🔹 Benchmarking consume from karapace5 at http://localhost:8082/consumers/json_consumer_group/instances/json_consumer_instance/records
+
+[Batch 1/50] Sent 1000 messages in 1044.48 ms
+[Batch 2/50] Sent 1000 messages in 118.51 ms
+[Batch 3/50] Sent 1000 messages in 117.14 ms
+[Batch 4/50] Sent 1000 messages in 117.03 ms
+[Batch 5/50] Sent 1000 messages in 129.70 ms
+[Batch 6/50] Sent 1000 messages in 118.04 ms
+[Batch 7/50] Sent 1000 messages in 117.14 ms
+[Batch 8/50] Sent 1000 messages in 118.44 ms
+[Batch 9/50] Sent 1000 messages in 116.67 ms
+[Batch 10/50] Sent 1000 messages in 116.36 ms
+[Batch 11/50] Sent 1000 messages in 117.71 ms
+[Batch 12/50] Sent 1000 messages in 129.44 ms
+[Batch 13/50] Sent 1000 messages in 115.92 ms
+[Batch 14/50] Sent 1000 messages in 116.20 ms
+[Batch 15/50] Sent 1000 messages in 115.62 ms
+[Batch 16/50] Sent 1000 messages in 116.70 ms
+[Batch 17/50] Sent 1000 messages in 116.71 ms
+[Batch 18/50] Sent 1000 messages in 117.70 ms
+[Batch 19/50] Sent 1000 messages in 117.88 ms
+[Batch 20/50] Sent 1000 messages in 116.60 ms
+[Batch 21/50] Sent 1000 messages in 116.74 ms
+[Batch 22/50] Sent 1000 messages in 117.66 ms
+[Batch 23/50] Sent 1000 messages in 116.18 ms
+[Batch 24/50] Sent 1000 messages in 116.59 ms
+[Batch 25/50] Sent 1000 messages in 117.31 ms
+[Batch 26/50] Sent 1000 messages in 117.04 ms
+[Batch 27/50] Sent 1000 messages in 118.71 ms
+[Batch 28/50] Sent 1000 messages in 116.62 ms
+[Batch 29/50] Sent 1000 messages in 116.22 ms
+[Batch 30/50] Sent 1000 messages in 117.16 ms
+[Batch 31/50] Sent 1000 messages in 115.21 ms
+[Batch 32/50] Sent 1000 messages in 116.95 ms
+[Batch 33/50] Sent 1000 messages in 118.44 ms
+[Batch 34/50] Sent 1000 messages in 116.12 ms
+[Batch 35/50] Sent 1000 messages in 118.09 ms
+[Batch 36/50] Sent 1000 messages in 118.23 ms
+[Batch 37/50] Sent 1000 messages in 131.16 ms
+[Batch 38/50] Sent 1000 messages in 117.05 ms
+[Batch 39/50] Sent 1000 messages in 115.85 ms
+[Batch 40/50] Sent 1000 messages in 117.91 ms
+[Batch 41/50] Sent 1000 messages in 117.05 ms
+[Batch 42/50] Sent 1000 messages in 115.26 ms
+[Batch 43/50] Sent 1000 messages in 117.78 ms
+[Batch 44/50] Sent 1000 messages in 114.95 ms
+[Batch 45/50] Sent 1000 messages in 117.16 ms
+[Batch 46/50] Sent 1000 messages in 116.77 ms
+[Batch 47/50] Sent 1000 messages in 115.19 ms
+[Batch 48/50] Sent 1000 messages in 117.80 ms
+[Batch 49/50] Sent 1000 messages in 117.54 ms
+[Batch 50/50] Sent 1000 messages in 115.78 ms
+  ✅ Avg latency per batch: 136.29 ms, P95: 129.44 ms, total messages produced: 50000
+
+✅ Results saved to karapace5_benchmarks.csv
+Fetched 50000 messages, total 50000
+  Avg: 11157.99 ms, P95: 11157.99 ms, total messages consumed: 50000
+
+✅ Results saved to karapace5_benchmarks.csv
+✅ List topics, Produce and consume benchmarks completed!
+
+

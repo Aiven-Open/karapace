@@ -1,0 +1,22 @@
+Karapace 5.0.2
+
+Version,Endpoint,Avg (ms),P95 (ms),Number of reqs
+karapace5,/topics,4.810012829984771,1.3246249982330482,100
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages
+karapace5,/topics/test-topic-2,125.30966586011345,140.68529200085322,50000
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages consumed
+karapace5,/consumers/json_consumer_group/instances/json_consumer_instance/records,11170.901249999588,11170.901249999588,50000
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Karapace 4.1.3
+
+Version,Endpoint,Avg (ms),P95 (ms),Number of reqs
+karapace4,/topics,0.6537770600698423,0.6733749978593551,100
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages produced
+karapace4,/topics/test-topic-1,136.29020584005048,129.4374159988365,50000
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages consumed
+karapace4,/consumers/json_consumer_group/instances/json_consumer_instance/records,11157.985915997415,11157.985915997415,50000
