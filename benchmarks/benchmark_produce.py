@@ -1,3 +1,8 @@
+"""
+Copyright (c) 2025 Aiven Ltd
+See LICENSE for details
+"""
+
 import asyncio
 import httpx
 import time
