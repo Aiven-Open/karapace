@@ -12,16 +12,14 @@ SUBJECT = f"{TOPIC}-value"
 ENDPOINT = f"/topics/{TOPIC}"
 BASE_URL = "http://localhost:8082"
 SCHEMA_REGISTRY_URL = "http://localhost:8081"
-N_MESSAGES = 50000        # Total messages to produce
-BATCH_SIZE = 1000         # Number of messages per request
-TIMEOUT = 10.0           # HTTP timeout (seconds)
+N_MESSAGES = 50000  # Total messages to produce
+BATCH_SIZE = 1000  # Number of messages per request
+TIMEOUT = 10.0  # HTTP timeout (seconds)
 
 
 # Generate a payload batch
 def make_payload(start_index: int, batch_size: int = BATCH_SIZE):
-    return {
-        "records": [{"value": {"age": start_index + i}} for i in range(batch_size)]
-    }
+    return {"records": [{"value": {"age": start_index + i}} for i in range(batch_size)]}
 
 
 async def measure_produce_latency(base_url: str, path: str, n_messages: int = N_MESSAGES, batch_size: int = BATCH_SIZE):
@@ -63,7 +61,9 @@ async def run_benchmark():
     # Write CSV results
     with open(FILE_NAME, "a", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["Version", "Endpoint", "Avg latency per batch (ms)", "P95 latency per batch (ms)", "Total messages produced"])
+        writer.writerow(
+            ["Version", "Endpoint", "Avg latency per batch (ms)", "P95 latency per batch (ms)", "Total messages produced"]
+        )
         writer.writerows(results)
         writer.writerow([])
 
@@ -91,6 +91,7 @@ async def register_schema():
         except Exception as e:
             print(f"❌ Error during schema registration: {e}")
             raise
+
 
 if __name__ == "__main__":
     asyncio.run(register_schema())

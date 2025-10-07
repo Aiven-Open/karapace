@@ -25,6 +25,7 @@ NUMBER_OF_TOPICS = 102
 N_REQUESTS = 100  # use smaller number for testing responses
 TIMEOUT = 10.0
 
+
 async def measure_latency(base_url: str, path: str, n: int = N_REQUESTS):
     latencies = []
     responses = []
@@ -49,6 +50,7 @@ async def measure_latency(base_url: str, path: str, n: int = N_REQUESTS):
 
     return latencies, responses
 
+
 async def run_benchmark():
     results = []
     for name, base_url in VERSIONS.items():
@@ -72,6 +74,7 @@ async def run_benchmark():
         writer.writerow([])
 
     print("\n✅ Results saved to ", FILE_NAME)
+
 
 if __name__ == "__main__":
     asyncio.run(run_benchmark())

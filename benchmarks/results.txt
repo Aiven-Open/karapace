@@ -70,5 +70,3 @@ Fetched 50000 messages, total 50000
 
 ✅ Results saved to karapace5_benchmarks.csv
 ✅ List topics, Produce and consume benchmarks completed!
-
-

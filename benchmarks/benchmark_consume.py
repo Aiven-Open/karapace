@@ -28,10 +28,14 @@ async def create_consumer_instance(base_url: str):
     }
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        r = await client.post(url, json=payload, headers={
-            "Content-Type": "application/vnd.kafka.v2+json",
-            "Accept": "application/vnd.kafka.v2+json",
-        })
+        r = await client.post(
+            url,
+            json=payload,
+            headers={
+                "Content-Type": "application/vnd.kafka.v2+json",
+                "Accept": "application/vnd.kafka.v2+json",
+            },
+        )
 
         if r.status_code in (200, 409):
             print(f"✅ Consumer instance '{CONSUMER_INSTANCE}' ready in group '{CONSUMER_GROUP}'")
@@ -45,9 +49,13 @@ async def subscribe_to_topic(base_url: str):
     payload = {"topics": [TOPIC]}
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        r = await client.post(url, json=payload, headers={
-            "Content-Type": "application/vnd.kafka.v2+json",
-        })
+        r = await client.post(
+            url,
+            json=payload,
+            headers={
+                "Content-Type": "application/vnd.kafka.v2+json",
+            },
+        )
 
         if r.status_code == 204:
             print(f"✅ Subscribed to topic '{TOPIC}'")
@@ -93,9 +101,12 @@ async def delete_consumer_instance(base_url: str):
     url = f"{base_url}{BASE_CONSUMER_URL}"
 
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        r = await client.delete(url, headers={
-            "Accept": "application/vnd.kafka.v2+json",
-        })
+        r = await client.delete(
+            url,
+            headers={
+                "Accept": "application/vnd.kafka.v2+json",
+            },
+        )
 
         if r.status_code == 204:
             print(f"🧹 Deleted consumer instance '{CONSUMER_INSTANCE}'")
