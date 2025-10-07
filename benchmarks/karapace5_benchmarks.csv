@@ -1,0 +1,9 @@
+Version,Endpoint,Avg (ms),P95 (ms),Number of reqs
+karapace5,/topics,27.85076250009297,1.196707999042701,100
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages produced
+karapace5,/topics/test-topic-2,121.25092418013082,120.24324999947567,50000
+
+Version,Topic,Endpoint,Avg latency (ms),P95 latency (ms),Total messages consumed
+karapace5,test-topic-2,/consumers/json_consumer_group/instances/json_consumer_instance,11162.879458999669,11162.879458999669,50000
+

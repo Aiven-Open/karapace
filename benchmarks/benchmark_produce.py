@@ -1,40 +1,28 @@
 import asyncio
-
 import httpx
 import time
 import csv
 from statistics import mean
 
-# Create a schema on the topic before running this script
-#
-# curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-#                 --data '{
-# "schemaType": "JSON",
-# "schema": "{\"type\": \"object\", \"properties\": {\"age\": {\"type\": \"integer\"}}, \"required\": [\"age\"]}"
-# }' \
-#   http://localhost:8081/subjects/test-topic-2-value/versions
-
-
-# Karapace instances
-VERSIONS = {
-    "karapace5": "http://localhost:8082",
-}
-
+VERSION = "karapace5"
 FILE_NAME = "karapace5_benchmarks.csv"
-
 # Topic to produce to
 TOPIC = "test-topic-2"
+SUBJECT = f"{TOPIC}-value"
 ENDPOINT = f"/topics/{TOPIC}"
-
+BASE_URL = "http://localhost:8082"
+SCHEMA_REGISTRY_URL = "http://localhost:8081"
 N_MESSAGES = 50000        # Total messages to produce
 BATCH_SIZE = 1000         # Number of messages per request
 TIMEOUT = 10.0           # HTTP timeout (seconds)
+
 
 # Generate a payload batch
 def make_payload(start_index: int, batch_size: int = BATCH_SIZE):
     return {
         "records": [{"value": {"age": start_index + i}} for i in range(batch_size)]
     }
+
 
 async def measure_produce_latency(base_url: str, path: str, n_messages: int = N_MESSAGES, batch_size: int = BATCH_SIZE):
     latencies = []
@@ -63,15 +51,14 @@ async def measure_produce_latency(base_url: str, path: str, n_messages: int = N_
 
 async def run_benchmark():
     results = []
-    for name, base_url in VERSIONS.items():
-        print(f"\n🔹 Benchmarking produce to {name} at {base_url}{ENDPOINT}")
-        latencies, responses = await measure_produce_latency(base_url, ENDPOINT)
-        avg = mean(latencies)
-        p95 = sorted(latencies)[int(0.95 * len(latencies)) - 1]
-        total_messages = N_MESSAGES
+    print(f"\n🔹 Benchmarking produce to {VERSION} at {BASE_URL}{ENDPOINT}")
+    latencies, responses = await measure_produce_latency(BASE_URL, ENDPOINT)
+    avg = mean(latencies)
+    p95 = sorted(latencies)[int(0.95 * len(latencies)) - 1]
+    total_messages = N_MESSAGES
 
-        results.append((name, ENDPOINT, avg, p95, total_messages))
-        print(f"  ✅ Avg latency per batch: {avg:.2f} ms, P95: {p95:.2f} ms, total messages produced: {total_messages}")
+    results.append((VERSION, ENDPOINT, avg, p95, total_messages))
+    print(f"  ✅ Avg latency per batch: {avg:.2f} ms, P95: {p95:.2f} ms, total messages produced: {total_messages}")
 
     # Write CSV results
     with open(FILE_NAME, "a", newline="") as f:
@@ -83,5 +70,28 @@ async def run_benchmark():
     print("\n✅ Results saved to", FILE_NAME)
 
 
+async def register_schema():
+    """Try registering the schema; ignore if it already exists."""
+    schema_def = {
+        "schemaType": "JSON",
+        "schema": '{"type": "object", "properties": {"age": {"type": "integer"}}, "required": ["age"]}',
+    }
+
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        post_url = f"{SCHEMA_REGISTRY_URL}/subjects/{SUBJECT}/versions"
+
+        try:
+            r = await client.post(post_url, json=schema_def)
+            if r.status_code == 200:
+                print(f"✅ Schema registered successfully for {SUBJECT}")
+            elif r.status_code == 409:
+                print(f"ℹ️ Schema already exists for {SUBJECT}, continuing...")
+            else:
+                print(f"⚠️ Unexpected response ({r.status_code}): {r.text}")
+        except Exception as e:
+            print(f"❌ Error during schema registration: {e}")
+            raise
+
 if __name__ == "__main__":
+    asyncio.run(register_schema())
     asyncio.run(run_benchmark())
