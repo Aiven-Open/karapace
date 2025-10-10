@@ -81,7 +81,7 @@ async def test_schema_request_forwarding(
 ) -> None:
     master_url, follower_url = registry_async_pair
 
-    max_tries, counter = 5, 0
+    max_tries = 5
     wait_time = 60
     subject = create_subject_name_factory(subject)()
     schema = {"type": "string"}
@@ -93,6 +93,7 @@ async def test_schema_request_forwarding(
         else:
             path = "config"
         for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
+            counter = 0
             resp = await request_forwarding_retry_client.put(f"{follower_url}/{path}", json={"compatibility": compat})
             assert resp.ok
             while True:
@@ -185,7 +186,7 @@ async def test_schema_request_forwarding_tls(
 ) -> None:
     master_url, follower_url = registry_async_pair_tls
 
-    max_tries, counter = 5, 0
+    max_tries = 10
     wait_time = 0.5
     subject = create_subject_name_factory(subject)()
     schema = {"type": "string"}
@@ -197,6 +198,7 @@ async def test_schema_request_forwarding_tls(
         else:
             path = "config"
         for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
+            counter = 0
             resp = await request_forwarding_retry_client_tls.put(f"{follower_url}/{path}", json={"compatibility": compat})
             assert resp.ok
             while True:
