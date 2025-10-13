@@ -212,9 +212,10 @@ async def test_sr_auth_forwarding(
 
     # Test primary/replica forwarding with global config setting
     primary_url, replica_url = registry_async_auth_pair
-    max_tries, counter = 5, 0
+    max_tries = 5
     wait_time = 0.5
     for compat in ["FULL", "BACKWARD", "FORWARD", "NONE"]:
+        counter = 0
         resp = await registry_async_retry_client_auth.put(f"{replica_url}/config", json={"compatibility": compat}, auth=auth)
         assert resp.ok
         while True:
