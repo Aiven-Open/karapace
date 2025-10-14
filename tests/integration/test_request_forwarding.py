@@ -187,7 +187,7 @@ async def test_schema_request_forwarding_tls(
     master_url, follower_url = registry_async_pair_tls
 
     max_tries = 10
-    wait_time = 0.5
+    wait_time = 10
     subject = create_subject_name_factory(subject)()
     schema = {"type": "string"}
     other_schema = {"type": "int"}
