@@ -281,35 +281,6 @@ Delete consumer::
   $ curl -X DELETE -H "Accept: application/vnd.kafka.v2+json" \
     http://localhost:8082/consumers/avro_consumers/instances/my_consumer
 
-Backing up your Karapace
-========================
-
-Karapace natively stores its data in a Kafka topic the name of which you can
-configure freely but which by default is called _schemas.
-
-Karapace includes a tool to backing up and restoring data. To back up, run::
-
-  karapace_schema_backup get --config karapace.config.json --location schemas.log
-
-You can also back up the data by using Kafka's Java console
-consumer::
-
-  ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
-
-Restoring Karapace from backup
-==============================
-
-Your backup can be restored with Karapace by running::
-
-  karapace_schema_backup restore --config karapace.config.json --location schemas.log
-
-Or Kafka's Java console producer can be used to restore the data
-to a new Kafka cluster.
-
-You can restore the data from the previous step by running::
-
-  ./kafka-console-producer.sh --broker-list brokerhostname:9092 --topic _schemas --property parse.key=true < schemas.log
-
 Performance comparison to Confluent stack
 ==========================================
 Latency
