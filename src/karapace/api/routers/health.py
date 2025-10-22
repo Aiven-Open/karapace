@@ -5,6 +5,7 @@ See LICENSE for details
 
 from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, HTTPException, status
+from karapace import version as karapace_version
 from karapace.api.container import SchemaRegistryContainer
 from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.schema_registry import KarapaceSchemaRegistry
@@ -26,6 +27,7 @@ class HealthStatus(BaseModel):
 
 
 class HealthCheck(BaseModel):
+    karapace_version: str
     status: HealthStatus
     healthy: bool
 
@@ -83,4 +85,4 @@ async def health(
             health_check_span.set_status(status=StatusCode.ERROR, description="Schema reader is not healthy")
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        return HealthCheck(status=health_status, healthy=True)
+        return HealthCheck(karapace_version=karapace_version.__version__, status=health_status, healthy=True)

@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+from typing import Literal
+
 from karapace.core.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
 from karapace.core.typing import ElectionStrategy, NameStrategy
 from karapace.core.utils import json_encode
 from pathlib import Path
-from pydantic import BaseModel, ImportString
+from pydantic import BaseModel, ImportString, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import enum
@@ -104,13 +106,22 @@ class Config(BaseSettings):
     ssl_crlfile: str | None = None
     ssl_password: str | None = None
     sasl_mechanism: str | None = None
+    sasl_oauthbearer_authorization_enabled: bool = False
+    sasl_oauthbearer_jwks_endpoint_url: str | None = None
+    sasl_oauthbearer_expected_issuer: str | None = None
+    sasl_oauthbearer_expected_audience: str | None = None
+    sasl_oauthbearer_sub_claim_name: str | None = "sub"
+    sasl_oauthbearer_client_id: str | None = None
+    sasl_oauthbearer_roles_claim_path: str | None = None
+    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+    sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None
     sasl_oauth_token: str | None = None
     topic_name: str = DEFAULT_SCHEMA_TOPIC
     metadata_max_age_ms: int = 60000
     admin_metadata_max_age: int = 5
-    producer_acks: int = 1
+    producer_acks: int | Literal["all"] = 1
     producer_compression_type: str | None = None
     producer_count: int = 5
     producer_linger_ms: int = 100
@@ -147,6 +158,12 @@ class Config(BaseSettings):
 
     def get_address(self) -> str:
         return f"{self.host}:{self.port}"
+
+    @field_validator("producer_acks", mode="before")
+    def normalize_producer_acks(cls, v):
+        if isinstance(v, str) and v.lower() == "all":
+            return -1
+        return v
 
     def get_rest_base_uri(self) -> str:
         return (

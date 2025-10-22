@@ -1,59 +1,50 @@
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.2.2
-    ports:
-      - 2181:2181
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-kafka:7.2.2
-    depends_on:
-      - zookeeper
+    networks:
+      - karapace
+    image: apache/kafka:3.9.0
+    hostname: kafka
+    container_name: kafka
     ports:
-      - 9101:9101  # JMX
-      - 9092:9092  # Kafka
+      - "9092:9092"
+      - "9101:9101"  # JMX
     environment:
-      # Listeners:
-      # PLAINTEXT_HOST -> Expose kafka to the host network
-      # PLAINTEXT -> Used by kafka for inter broker communication / containers
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-schema-registry:8081
-      # Metrics:
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_MAX_MESSAGE_BYTES: 104857600
+      KAFKA_MESSAGE_MAX_BYTES: 104857600
+      KAFKA_BUFFER_MEMORY: 104857600
+      KAFKA_MAX_REQUEST_SIZE: 104857600
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 104857600
+      # JMX Configuration
       KAFKA_JMX_PORT: 9101
       KAFKA_JMX_HOSTNAME: localhost
-      # Keep in sync with tests/integration/conftest.py::configure_and_start_kafka
-      KAFKA_BROKER_ID: 1
-      KAFKA_BROKER_RACK: "local"
+      # Additional configurations for compatibility
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_DELETE_TOPIC_ENABLE: "true"
-      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      KAFKA_INTER_BROKER_PROTOCOL_VERSION: 2.4
-      KAFKA_LOG_CLEANER_ENABLE: "true"
-      KAFKA_LOG_MESSAGE_FORMAT_VERSION: 2.4
-      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
-      KAFKA_LOG_SEGMENT_BYTES: 209715200
-      KAFKA_NUM_IO_THREADS: 8
-      KAFKA_NUM_NETWORK_THREADS: 112
       KAFKA_NUM_PARTITIONS: 1
-      KAFKA_NUM_REPLICA_FETCHERS: 4
-      KAFKA_NUM_RECOVERY_THREADS_PER_DATA_DIR: 1
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
-      KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
-      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_NUM_PARTITIONS: 16
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 6000
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-schema-registry:8081
 
   karapace-schema-registry:
+    networks:
+      - karapace
     image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry
+    container_name: karapace-schema-registry
     build:
       context: ..
       dockerfile: container/Dockerfile
@@ -101,9 +92,22 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
+      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
+      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   karapace-schema-registry-follower:
+    networks:
+      - karapace
     image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-follower
+    container_name: karapace-schema-registry-follower
     build:
       context: ..
       dockerfile: container/Dockerfile
@@ -151,9 +155,22 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
+      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
+      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   karapace-rest-proxy:
+    networks:
+      - karapace
     image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy
+    container_name: karapace-rest-proxy
     build:
       context: ..
       dockerfile: container/Dockerfile
@@ -187,7 +204,11 @@ services:
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
 
   karapace-cli:
+    networks:
+      - karapace
     image: ghcr.io/aiven-open/karapace:cli
+    hostname: karapace-cli
+    container_name: karapace-cli
     build:
       context: ..
       target: cli
@@ -218,7 +239,11 @@ services:
       - COVERAGE_RCFILE=/opt/karapace/.coveragerc
 
   prometheus:
+    networks:
+      - karapace
     image: prom/prometheus
+    hostname: prometheus
+    container_name: prometheus
     command:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=1d
@@ -235,7 +260,11 @@ services:
       - 9090:9090
 
   grafana:
+    networks:
+      - karapace
     image: grafana/grafana
+    hostname: grafana
+    container_name: grafana
     environment:
       GF_SECURITY_ADMIN_USER: karapace
       GF_SECURITY_ADMIN_PASSWORD: karapace
@@ -247,14 +276,22 @@ services:
       - ./grafana/provisioning:/grafana/provisioning
 
   statsd-exporter:
+    networks:
+      - karapace
     image: prom/statsd-exporter
+    hostname: statsd-exporter
+    container_name: statsd-exporter
     command: --statsd.listen-udp=:8125 --web.listen-address=:9102
     ports:
       - 9102:9102
       - 8125:8125/udp
 
   opentelemetry-collector:
+    networks:
+      - karapace
     image: otel/opentelemetry-collector-contrib:latest
+    hostname: opentelemetry-collector
+    container_name: opentelemetry-collector
     command: --config=/etc/collector-config.yaml
     volumes:
       - ./opentelemetry/collector-config.yaml:/etc/collector-config.yaml
@@ -264,8 +301,34 @@ services:
       - 8889:8889
 
   jaeger:
+    networks:
+      - karapace
     image: jaegertracing/all-in-one:latest
+    hostname: jaeger
+    container_name: jaeger
     ports:  # 6831=agent | 16686=UI | 14268=spans | 4317=metrics (not exposing, clashes with opentelemetry-collector)
       - 6831:6831/udp
       - 16686:16686
       - 14268:14268
+
+  keycloak:
+    networks:
+      - karapace
+    image: quay.io/keycloak/keycloak:24.0
+    hostname: keycloak
+    container_name: keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    ports:
+      - "8383:8080"
+
+networks:
+  karapace:
+    name: karapace_network
+    driver: bridge

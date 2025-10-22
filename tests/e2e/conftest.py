@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import time
 from collections.abc import AsyncGenerator, Iterator
 
 import pytest
 from _pytest.fixtures import SubRequest
-from aiohttp import BasicAuth
+from aiohttp import BasicAuth, ClientSession
 from confluent_kafka.admin import NewTopic
+import requests
+import os
 
 from karapace.core.client import Client
 from karapace.core.container import KarapaceContainer
@@ -128,3 +131,131 @@ async def fixture_registry_async_client(
 def fixture_new_topic(admin_client: KafkaAdminClient) -> NewTopic:
     topic_name = secrets.token_hex(4)
     return admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
+
+
+@pytest.fixture(scope="session")
+def oidc_token():
+    # --- Step 1: Get admin token ---
+    admin_token = get_admin_token()
+
+    # --- Step 2: Get client UUID ---
+    realm = "karapace"
+    client_id = "karapace-client"
+    client_uuid = get_client_uuid(realm, client_id, admin_token)
+
+    # --- Step 3: Get client secret ---
+    client_secret = get_client_secret(realm, client_uuid, admin_token)
+
+    # --- Step 4: Get OIDC token for the client ---
+    token_url = f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": "openid"}
+    response = requests.post(token_url, data=data)
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc")
+async def fixture_registry_async_client_oidc(
+    request: SubRequest,
+    registry_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
+
+    client = Client(
+        server_uri=registry_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_invalid")
+async def fixture_registry_async_client_oidc_invalid(
+    request: SubRequest,
+    registry_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": "Bearer invalid_token"})
+
+    client = Client(
+        server_uri=registry_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_no_auth_header")
+async def registry_async_client_oidc_no_auth_header(
+    request: SubRequest,
+    registry_cluster: RegistryDescription,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={})
+
+    client = Client(
+        server_uri=registry_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+class TokenProvider:
+    def __init__(self, token: str, expiry_seconds: int = 3600):
+        self._token = token
+        self._expiry = int(time.time()) + expiry_seconds
+
+    def token_with_expiry(self):
+        return {
+            "token": self._token,
+            "expiry": self._expiry,
+        }
+
+
+# --- Helper functions for Keycloak admin API ---
+def get_admin_token():
+    url = "http://keycloak:8080/realms/master/protocol/openid-connect/token"
+    data = {
+        "grant_type": "password",
+        "client_id": "admin-cli",
+        "username": os.environ.get("KEYCLOAK_ADMIN", "admin"),
+        "password": os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin"),
+    }
+    resp = requests.post(url, data=data)
+    resp.raise_for_status()
+    return resp.json()["access_token"]
+
+
+def get_client_uuid(realm, client_id, admin_token):
+    url = f"http://keycloak:8080/admin/realms/{realm}/clients?clientId={client_id}"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    clients = resp.json()
+    return clients[0]["id"]
+
+
+def get_client_secret(realm, client_uuid, admin_token):
+    url = f"http://keycloak:8080/admin/realms/{realm}/clients/{client_uuid}/client-secret"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    return resp.json()["value"]
