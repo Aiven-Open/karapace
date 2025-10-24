@@ -9,7 +9,7 @@ from karapace.core.config import Config
 from karapace.version import __version__
 from pydantic import BaseModel
 from typing import overload, TypeVar, Union
-
+from karapace.api.routers.requests import ErrorResponse
 import aiohttp
 import async_timeout
 import logging
@@ -46,7 +46,7 @@ class ForwardClient:
         *,
         request: Request,
         primary_url: str,
-    ) -> bytes:
+    ) -> tuple[bytes, int]:  # Return both body and status code
         LOG.info("Forwarding %s request to remote url: %r since we're not the master", request.method, request.url)
         timeout = 60.0
         func = getattr(self._forward_client, request.method.lower())
@@ -60,16 +60,11 @@ class ForwardClient:
             async with func(
                 forward_url, headers=request.headers.mutablecopy(), data=body_data, ssl=self._ssl_context
             ) as response:
-                if self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
-                    return await response.text()
-                LOG.error("Unknown response for forwarded request: %s", response)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail={
-                        "error_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        "message": "Unknown response for forwarded request.",
-                    },
-                )
+                body = await response.text()
+                # Return body and status regardless of content type for error cases
+                if not self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
+                    LOG.error("Unknown response content type for forwarded request: %s", response.headers.get("Content-Type"))
+                return body, response.status
 
     @overload
     async def forward_request_remote(
@@ -90,13 +85,27 @@ class ForwardClient:
     ) -> SimpleTypeResponse: ...
 
     async def forward_request_remote(
-        self,
-        *,
-        request: Request,
-        primary_url: str,
-        response_type: type[BaseModelResponse] | type[SimpleTypeResponse],
-    ) -> BaseModelResponse | SimpleTypeResponse:
-        body = await self._forward_request_remote(request=request, primary_url=primary_url)
+    self,
+    *,
+    request: Request,
+    primary_url: str,
+    response_type: type[BaseModelResponse] | type[SimpleTypeResponse],
+) -> BaseModelResponse | SimpleTypeResponse:
+        body, http_status = await self._forward_request_remote(request=request, primary_url=primary_url)
+        
+        # If the leader returned an error status, parse and re-raise it
+        if http_status >= 400:
+            try:
+                error_data = json_decode(body)
+            except Exception:
+                error_data = {"error_code": http_status, "message": body}
+            
+            raise HTTPException(
+                status_code=http_status,  # Use HTTP status, not error_code from body
+                detail=error_data,
+            )
+        
+        # Success case - parse according to expected response type
         if response_type is int:
             return int(body)  # type: ignore[return-value]
         if response_type == list[int]:
