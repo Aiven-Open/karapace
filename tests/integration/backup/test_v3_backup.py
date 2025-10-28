@@ -406,6 +406,7 @@ def test_roundtrip_from_file(
             "--replication-factor=1",
             "--location",
             str(backup_location),
+            "--poll-timeout=PT5M",
         ],
         capture_output=True,
         check=True,
