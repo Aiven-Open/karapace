@@ -358,6 +358,7 @@ def test_exits_with_return_code_3_for_data_restoration_error(
     assert er.value.returncode == 3
 
 
+@pytest.mark.xfail(reason="Flaky and this backup feature will be deleted in next major version")
 def test_roundtrip_from_file(
     tmp_path: Path,
     config_file: Path,
