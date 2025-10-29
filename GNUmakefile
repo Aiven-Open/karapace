@@ -113,8 +113,10 @@ stop-karapace-docker-resources:
 .PHONY: start-karapace-docker-resources
 start-karapace-docker-resources: export KARAPACE_VERSION ?= 4.1.1.dev44+gac20eeed.d20241205
 start-karapace-docker-resources:
-	sudo touch .coverage.3.10 .coverage.3.11 .coverage.3.12
-	sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.3.10 .coverage.3.11 .coverage.3.12
+	sudo touch .coverage.${PYTHON_VERSION}
+	sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION}
+	sudo mkdir -p test-tmp.${PYTHON_VERSION}
+	sudo chown -R ${RUNNER_UID}:${RUNNER_GID} test-tmp.${PYTHON_VERSION}
 	$(DOCKER_COMPOSE) -f container/compose.yml up -d --build --wait --detach
 
 .PHONY: smoke-test-schema-registry
