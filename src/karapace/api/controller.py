@@ -461,6 +461,7 @@ class KarapaceSchemaRegistryController:
                 references=subject_data.get("references", None),
                 schemaType=subject_data.get("schemaType", None),
                 compatibility=None,  # Do not return compatibility from this endpoint.
+                deleted=subject_data.get("deleted") if deleted else None,
             )
         except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
