@@ -28,7 +28,8 @@ from karapace.core.serialization import (
     get_subject_name,
     write_value,
 )
-from karapace.core.typing import NameStrategy, Subject, SubjectType
+from karapace.core.typing import NameStrategy, SchemaId, Subject, SubjectType, Version
+from karapace.core.utils import json_encode
 from tests.utils import schema_avro_json, test_objects_avro
 
 log = logging.getLogger(__name__)
@@ -442,3 +443,114 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
         get_subject_name(topic_name="foo", schema=TYPED_PROTOBUF_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
         == expected_subject
     )
+
+
+async def test_get_schema_for_id_with_duplicate_references(karapace_container: KarapaceContainer):
+    """Test that get_schema_for_id handles multiple references to the same subject/version correctly.
+
+    This test verifies the fix for RuntimeError: cannot reuse already awaited coroutine
+    when multiple references point to the same schema.
+    """
+    from karapace.core.client import Client, Result
+
+    mock_client = Mock(spec=Client)
+
+    # Create a mock response for get_schema_for_id that returns a schema with duplicate references
+    schema_id = SchemaId(1)
+    ref_subject = Subject("ref_subject")
+    ref_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+
+    # Simulate a response with multiple references to the same subject/version
+    # Client.get() returns a Result object, not aiohttp.ClientResponse
+    mock_result = Result(
+        status=200,
+        json_result={
+            "schema": json_encode(ref_schema.to_dict()),
+            "schemaType": "AVRO",
+            "subjects": ["main_subject"],
+            "references": [
+                {"name": "ref1.proto", "subject": str(ref_subject), "version": 1},
+                {"name": "ref2.proto", "subject": str(ref_subject), "version": 1},  # Duplicate reference
+                {"name": "ref3.proto", "subject": str(ref_subject), "version": 1},  # Another duplicate
+            ],
+        },
+    )
+
+    # Client.get() is async, so we need to wrap the result in a coroutine
+    async def mock_get(*args, **kwargs):
+        return mock_result
+
+    mock_client.get = mock_get
+
+    # Mock get_schema to track calls and ensure it's only called once per unique subject/version
+    get_schema_call_count = {}
+
+    async def mock_get_schema(subject: Subject, version: Version | None = None):
+        key = (subject, version)
+        get_schema_call_count[key] = get_schema_call_count.get(key, 0) + 1
+        # Return the result directly as a tuple (not wrapped in a Future)
+        return (SchemaId(2), ref_schema, Versioner.V(1))
+
+    reg_client = SchemaRegistryClient()
+    reg_client.client = mock_client
+    reg_client.get_schema = mock_get_schema
+
+    # Call get_schema_for_id - this should not raise RuntimeError
+    schema, subjects = await reg_client.get_schema_for_id(schema_id)
+
+    # Verify the schema was returned
+    assert schema is not None
+    assert "main_subject" in subjects
+
+    # Verify that get_schema was only called once for the duplicated reference
+    # All three references point to the same (ref_subject, version 1), so it should be called only once
+    assert get_schema_call_count.get((ref_subject, Version(1)), 0) == 1, f"Expected 1 call, got {get_schema_call_count}"
+
+
+async def test_get_schema_for_id_with_mixed_references(karapace_container: KarapaceContainer):
+    """Test that get_schema_for_id handles a mix of unique and duplicate references correctly."""
+    from karapace.core.client import Client, Result
+
+    mock_client = Mock(spec=Client)
+
+    schema_id = SchemaId(1)
+    ref_subject_1 = Subject("ref_subject_1")
+    ref_subject_2 = Subject("ref_subject_2")
+    ref_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+
+    mock_result = Result(
+        status=200,
+        json_result={
+            "schema": json_encode(ref_schema.to_dict()),
+            "schemaType": "AVRO",
+            "subjects": ["main_subject"],
+            "references": [
+                {"name": "ref1.proto", "subject": str(ref_subject_1), "version": 1},
+                {"name": "ref2.proto", "subject": str(ref_subject_1), "version": 1},  # Duplicate
+                {"name": "ref3.proto", "subject": str(ref_subject_2), "version": 1},  # Unique
+            ],
+        },
+    )
+
+    async def mock_get(*args, **kwargs):
+        return mock_result
+
+    mock_client.get = mock_get
+
+    get_schema_call_count = {}
+
+    async def mock_get_schema(subject: Subject, version: Version | None = None):
+        key = (subject, version)
+        get_schema_call_count[key] = get_schema_call_count.get(key, 0) + 1
+        return (SchemaId(2), ref_schema, Versioner.V(1))
+
+    reg_client = SchemaRegistryClient()
+    reg_client.client = mock_client
+    reg_client.get_schema = mock_get_schema
+
+    schema, subjects = await reg_client.get_schema_for_id(schema_id)
+
+    assert schema is not None
+    # Verify correct call counts: ref_subject_1 should be called once (duplicated), ref_subject_2 once (unique)
+    assert get_schema_call_count.get((ref_subject_1, Version(1)), 0) == 1
+    assert get_schema_call_count.get((ref_subject_2, Version(1)), 0) == 1

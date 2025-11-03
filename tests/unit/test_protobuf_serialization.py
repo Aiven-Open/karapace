@@ -23,7 +23,7 @@ from karapace.core.serialization import (
     SchemaRegistryClient,
     SchemaRegistrySerializer,
 )
-from karapace.core.typing import Subject
+from karapace.core.typing import Subject, Version
 from tests.utils import schema_protobuf, test_fail_objects_protobuf, test_objects_protobuf
 
 log = logging.getLogger(__name__)
@@ -105,10 +105,10 @@ async def test_happy_flow_references(karapace_container: KarapaceContainer):
         {"query": 10, "speed": {"speed": "MIDDLE"}},
     ]
 
-    references = [Reference(name="Speed.proto", subject="speed", version=1)]
+    references = [Reference(name="Speed.proto", subject="speed", version=Version(1))]
 
     no_ref_schema = ParsedTypedSchema.parse(SchemaType.PROTOBUF, no_ref_schema_str)
-    dep = Dependency("Speed.proto", "speed", 1, no_ref_schema)
+    dep = Dependency("Speed.proto", "speed", Version(1), no_ref_schema)
     ref_schema = ParsedTypedSchema.parse(SchemaType.PROTOBUF, ref_schema_str, references, {"Speed.proto": dep})
 
     mock_protobuf_registry_client = Mock()
@@ -187,13 +187,13 @@ async def test_happy_flow_references_two(karapace_container: KarapaceContainer):
         {"index": 2, "qry": {"query": 10, "speed": {"speed": "HIGH"}}},
     ]
 
-    references = [Reference(name="Speed.proto", subject="speed", version=1)]
-    references_two = [Reference(name="Query.proto", subject="msg", version=1)]
+    references = [Reference(name="Speed.proto", subject="speed", version=Version(1))]
+    references_two = [Reference(name="Query.proto", subject="msg", version=Version(1))]
 
     no_ref_schema = ParsedTypedSchema.parse(SchemaType.PROTOBUF, no_ref_schema_str)
-    dep = Dependency("Speed.proto", "speed", 1, no_ref_schema)
+    dep = Dependency("Speed.proto", "speed", Version(1), no_ref_schema)
     ref_schema = ParsedTypedSchema.parse(SchemaType.PROTOBUF, ref_schema_str, references, {"Speed.proto": dep})
-    dep_two = Dependency("Query.proto", "qry", 1, ref_schema)
+    dep_two = Dependency("Query.proto", "qry", Version(1), ref_schema)
     ref_schema_two = ParsedTypedSchema.parse(
         SchemaType.PROTOBUF, ref_schema_str_two, references_two, {"Query.proto": dep_two}
     )
