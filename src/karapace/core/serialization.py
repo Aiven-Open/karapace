@@ -239,67 +239,31 @@ class SchemaRegistryClient:
             if parsed_references:
                 dependencies = {}
 
-                # Deduplicate references by (subject, version) to avoid fetching the same schema multiple times
-                # This prevents issues with @alru_cache when the same schema is referenced multiple times
-                unique_schemas: dict[tuple[Subject, Version | None], list[Reference]] = {}
+                # Deduplicate references by (subject, version)
+                unique_keys: dict[tuple[Subject, Version | None], list[Reference]] = {}
                 for reference in parsed_references:
-                    if isinstance(reference, LatestVersionReference):
-                        key = (reference.subject, None)
-                    else:
-                        key = (reference.subject, reference.version)
-                    if key not in unique_schemas:
-                        unique_schemas[key] = []
-                    unique_schemas[key].append(reference)
+                    key = (
+                        (reference.subject, None)
+                        if isinstance(reference, LatestVersionReference)
+                        else (reference.subject, reference.version)
+                    )
+                    unique_keys.setdefault(key, []).append(reference)
 
                 # Fetch all unique schemas in parallel
-                # Since we've deduplicated, each unique (subject, version) is only fetched once
-                # This avoids the coroutine reuse issue with @alru_cache
-                ordered_keys = list(unique_schemas.keys())  # Preserve order
-
-                # Create coroutines for each unique schema fetch
-                # asyncio.gather handles coroutines correctly, including those from @alru_cache
-                coros = []
-                for key in ordered_keys:
-                    subject, version = key  # Unpack the tuple key (subject, version)
-                    if version is not None:
-                        coro = self.get_schema(subject, version)
-                    else:
-                        coro = self.get_schema(subject)
-                    coros.append(coro)
-
-                # Await all coroutines in parallel - gather handles @alru_cache correctly
+                coros = [
+                    self.get_schema(subject, version) if version else self.get_schema(subject)
+                    for subject, version in unique_keys.keys()
+                ]
                 schema_results = await asyncio.gather(*coros, return_exceptions=False)
 
-                # Create a mapping from (subject, version) to (schema_id, schema, version)
-                schema_map = {}
-                for key, result in zip(ordered_keys, schema_results):
-                    # Validate result is a tuple of 3 elements
-                    if not isinstance(result, tuple) or len(result) != 3:
-                        raise SchemaRetrievalError(
-                            f"Invalid schema result for key {key}: expected tuple of 3, got {type(result).__name__}: {result}"
-                        )
-                    schema_map[key] = result
+                # Map fetched results to keys
+                schema_map = dict(zip(unique_keys.keys(), schema_results))
 
-                # Build dependencies dictionary for all references
-                for reference in parsed_references:
-                    if isinstance(reference, LatestVersionReference):
-                        key = (reference.subject, None)
-                    else:
-                        key = (reference.subject, reference.version)
-
-                    # Ensure the key exists in schema_map
-                    if key not in schema_map:
-                        raise SchemaRetrievalError(f"Schema not found for key {key}")
-
-                    result = schema_map[key]
-                    # Validate result before unpacking
-                    if not isinstance(result, tuple) or len(result) != 3:
-                        raise SchemaRetrievalError(
-                            f"Invalid schema result for key {key}: expected tuple of 3, got {type(result).__name__}: {result}"
-                        )
-
-                    _, schema, version = result
-                    dependencies[reference.name] = Dependency(reference.name, reference.subject, version, schema)
+                # Build dependencies for all references in a single pass
+                for key, references_for_key in unique_keys.items():
+                    _, schema, version = schema_map[key]
+                    for reference in references_for_key:
+                        dependencies[reference.name] = Dependency(reference.name, reference.subject, version, schema)
             else:
                 dependencies = None
 
