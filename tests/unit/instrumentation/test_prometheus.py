@@ -17,6 +17,60 @@ from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.rapu import RestApp
 
 
+# Simple request object implementing mapping semantics for START_TIME used by tests
+class DummyRequest:
+    def __init__(self, path: str, method: str, app: dict):
+        self.path = path
+        self.method = method
+        self.app = app
+        self._store: dict = {}
+
+    def __setitem__(self, key, value):
+        self._store[key] = value
+
+    def __getitem__(self, key):
+        return self._store[key]
+
+
+def _make_metric_mocks(prometheus: PrometheusInstrumentation):
+    """Create isolated metric mocks to avoid cross-test leakage.
+
+    Returns a tuple: (app_metrics, in_progress_metric, in_progress_instance,
+    duration_metric, duration_instance, total_metric, total_instance)
+    """
+    in_progress_instance = MagicMock()
+    in_progress_instance.inc = MagicMock()
+    in_progress_instance.dec = MagicMock()
+    in_progress_metric = MagicMock()
+    in_progress_metric.labels = MagicMock(return_value=in_progress_instance)
+
+    duration_instance = MagicMock()
+    duration_instance.observe = MagicMock()
+    duration_metric = MagicMock()
+    duration_metric.labels = MagicMock(return_value=duration_instance)
+
+    total_instance = MagicMock()
+    total_instance.inc = MagicMock()
+    total_metric = MagicMock()
+    total_metric.labels = MagicMock(return_value=total_instance)
+
+    app_metrics = {
+        prometheus.karapace_http_requests_in_progress: in_progress_metric,
+        prometheus.karapace_http_requests_duration_seconds: duration_metric,
+        prometheus.karapace_http_requests_total: total_metric,
+    }
+
+    return (
+        app_metrics,
+        in_progress_metric,
+        in_progress_instance,
+        duration_metric,
+        duration_instance,
+        total_metric,
+        total_instance,
+    )
+
+
 class TestPrometheusInstrumentation:
     @pytest.fixture
     def prometheus(self) -> PrometheusInstrumentation:
@@ -86,36 +140,85 @@ class TestPrometheusInstrumentation:
         prometheus: PrometheusInstrumentation,
     ) -> None:
         mock_time.time.return_value = 10
-        request = AsyncMock(
-            spec=aiohttp.web.Request, app=AsyncMock(spec=aiohttp.web.Application), path="/path", method="GET"
-        )
-        handler = AsyncMock(spec=aiohttp.web.RequestHandler, return_value=MagicMock(status=200))
+
+        (
+            app_metrics,
+            in_progress_metric,
+            in_progress_instance,
+            duration_metric,
+            duration_instance,
+            total_metric,
+            total_instance,
+        ) = _make_metric_mocks(prometheus)
+
+        request = DummyRequest(path="/path", method="GET", app=app_metrics)
+
+        response = MagicMock(status=200)
+
+        called: list = []
+
+        async def handler(req):
+            called.append(req)
+            return response
 
         await prometheus.http_request_metrics_middleware(request=request, handler=handler)
 
-        assert handler.assert_awaited_once
-        request.__setitem__.assert_called_once_with(prometheus.START_TIME_REQUEST_KEY, 10)
-        request.app[prometheus.karapace_http_requests_in_progress].labels.assert_has_calls(
-            [
-                call("GET", "/path"),
-                call().inc(),
-            ]
-        )
-        request.app[prometheus.karapace_http_requests_duration_seconds].labels.assert_has_calls(
-            [
-                call("GET", "/path"),
-                call().observe(request.__getitem__.return_value.__rsub__.return_value),
-            ]
-        )
-        request.app[prometheus.karapace_http_requests_total].labels.assert_has_calls(
-            [
-                call("GET", "/path", 200),
-                call().inc(),
-            ]
-        )
-        request.app[prometheus.karapace_http_requests_in_progress].labels.assert_has_calls(
-            [
-                call("GET", "/path"),
-                call().dec(),
-            ]
-        )
+        # Handler was invoked with the request
+        assert called == [request]
+
+        # START_TIME should have been set from patched time.time()
+        assert request._store[prometheus.START_TIME_REQUEST_KEY] == 10
+
+        # In-progress gauge incremented and then decremented
+        in_progress_metric.labels.assert_called_with("GET", "/path")
+        in_progress_instance.inc.assert_called_once()
+        in_progress_instance.dec.assert_called_once()
+
+        # Total should be incremented for successful response
+        total_metric.labels.assert_called_with("GET", "/path", response.status)
+        total_instance.inc.assert_called_once()
+
+        # Duration observed
+        duration_metric.labels.assert_called_with("GET", "/path")
+        duration_instance.observe.assert_called_once()
+
+    @patch("karapace.core.instrumentation.prometheus.time")
+    async def test_http_request_metrics_middleware_exception(
+        self,
+        mock_time: MagicMock,
+        prometheus: PrometheusInstrumentation,
+    ) -> None:
+        mock_time.time.return_value = 10
+
+        (
+            app_metrics,
+            in_progress_metric,
+            in_progress_instance,
+            duration_metric,
+            duration_instance,
+            total_metric,
+            total_instance,
+        ) = _make_metric_mocks(prometheus)
+
+        request = DummyRequest(path="/error", method="POST", app=app_metrics)
+
+        async def handler(req):
+            raise Exception("boom")
+
+        with pytest.raises(Exception):
+            await prometheus.http_request_metrics_middleware(request=request, handler=handler)
+
+        # START_TIME should have been set from patched time.time()
+        assert request._store[prometheus.START_TIME_REQUEST_KEY] == 10
+
+        # In-progress gauge should have been incremented and eventually decremented
+        in_progress_metric.labels.assert_called_with("POST", "/error")
+        in_progress_instance.inc.assert_called_once()
+        in_progress_instance.dec.assert_called_once()
+
+        # Duration should be observed
+        duration_metric.labels.assert_called_with("POST", "/error")
+        duration_instance.observe.assert_called_once()
+
+        # Total should NOT be incremented when handler raises a non-HTTP exception
+        total_metric.labels.assert_not_called()
