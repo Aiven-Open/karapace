@@ -273,6 +273,9 @@ class KarapaceSchemaRegistry:
         compatibility = self.database.get_subject_compatibility(subject=subject)
         if compatibility:
             ret["compatibility"] = compatibility
+        # Include soft-delete status when deleted versions are requested
+        if include_deleted:
+            ret["deleted"] = schema_data.deleted
 
         return ret
 
