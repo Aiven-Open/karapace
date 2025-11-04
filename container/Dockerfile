@@ -66,6 +66,7 @@ RUN mkdir -p /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace
 COPY --from=jdk /opt/java/openjdk /usr/local/openjdk-11
 ENV JAVA_HOME=/usr/local/openjdk-11
 ENV PATH="$JAVA_HOME/bin:$PATH"
+RUN update-alternatives --install /usr/bin/java java /usr/local/openjdk-11/bin/java 1
 
 # Install mkcert
 WORKDIR /mkcert
