@@ -92,7 +92,15 @@ jobs:
         PYTEST_ARGS: "--cov=karapace --cov-append --random-order --numprocesses 4 --basetemp /opt/test-tmp/integration-test-logs --log-file=/opt/test-tmp/test-logs/integration-tests-pytest.${{ matrix.python-version }}.log --showlocals"
 
     - name: Allow reading of test temporary directory
-      run: sudo chmod -R a+rX test-tmp.${{ matrix.python-version }}
+      if: ${{ always() }}
+      run: |
+        TEST_TMP="test-tmp.${{ matrix.python-version }}"
+        if [ -d "$TEST_TMP" ]; then
+          echo "Fixing permissions for $TEST_TMP..."
+          sudo chmod -R a+rX "$TEST_TMP" || true
+        else
+          echo "Directory $TEST_TMP does not exist, skipping permission fix."
+        fi
 
     - name: Archive logs
       uses: actions/upload-artifact@v4
