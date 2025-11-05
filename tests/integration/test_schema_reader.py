@@ -204,7 +204,8 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
             producer.flush()
             msg = future.result(timeout=2)
 
-            schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
+            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
+            assert seen is True
 
             assert (
                 database.find_subject(subject=Subject(subject)) is not None
