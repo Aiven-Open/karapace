@@ -240,27 +240,27 @@ class SchemaRegistryClient:
                 dependencies = {}
 
                 # Deduplicate references by (subject, version)
-                unique_keys: dict[tuple[Subject, Version | None], list[Reference]] = {}
+                unique_keys_schema_references: dict[tuple[Subject, Version | None], list[Reference]] = {}
                 for reference in parsed_references:
                     key = (
                         (reference.subject, None)
                         if isinstance(reference, LatestVersionReference)
                         else (reference.subject, reference.version)
                     )
-                    unique_keys.setdefault(key, []).append(reference)
+                    unique_keys_schema_references.setdefault(key, []).append(reference)
 
                 # Fetch all unique schemas in parallel
                 coros = [
                     self.get_schema(subject, version) if version else self.get_schema(subject)
-                    for subject, version in unique_keys.keys()
+                    for subject, version in unique_keys_schema_references.keys()
                 ]
                 schema_results = await asyncio.gather(*coros, return_exceptions=False)
 
                 # Map fetched results to keys
-                schema_map = dict(zip(unique_keys.keys(), schema_results))
+                schema_map = dict(zip(unique_keys_schema_references.keys(), schema_results))
 
                 # Build dependencies for all references in a single pass
-                for key, references_for_key in unique_keys.items():
+                for key, references_for_key in unique_keys_schema_references.items():
                     _, schema, version = schema_map[key]
                     for reference in references_for_key:
                         dependencies[reference.name] = Dependency(reference.name, reference.subject, version, schema)
