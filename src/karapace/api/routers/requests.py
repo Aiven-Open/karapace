@@ -99,6 +99,7 @@ class SubjectSchemaVersionResponse(BaseModel):
     schema_type: SchemaType | None = Field(alias="schemaType", default=None)
     compatibility: str | None = None
 
+
 class ErrorResponse(BaseModel):
     error_code: int
     message: str
