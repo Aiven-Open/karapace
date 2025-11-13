@@ -56,8 +56,8 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     schema = json_decode(schema_definition)
     # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
     #  use bool values and fail if we assert isinstance(_, dict).
-    Draft7Validator.check_schema(schema)  # type: ignore[arg-type]
-    return Draft7Validator(schema)  # type: ignore[arg-type]
+    Draft7Validator.check_schema(schema)
+    return Draft7Validator(schema)
 
 
 def _format_protobuf(schema: str, dependencies: Collection[Dependency], name: str = "schema.proto") -> str:
