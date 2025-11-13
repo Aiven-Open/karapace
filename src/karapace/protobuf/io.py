@@ -133,7 +133,7 @@ def get_protobuf_class_instance(
                 cwd=work_dir,
             )
 
-    runtime_proto_path = f"./runtime/{proto_name}"
+    runtime_proto_path = str(work_dir.resolve())
     if runtime_proto_path not in sys.path:
         # todo: This will leave residues on sys.path in case of exceptions. If really must
         # mutate sys.path, we should at least wrap in try-finally.
