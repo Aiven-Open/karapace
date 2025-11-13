@@ -27,7 +27,7 @@ from karapace.schema_references import Reference
 from karapace.schema_type import SchemaType
 from karapace.typing import JsonObject, SchemaId, Subject, Version, VersionTag
 from karapace.utils import assert_never, json_decode, json_encode, JSONDecodeError
-from typing import Any, cast, Final, final
+from typing import Any, cast, Final, final, Union
 
 import hashlib
 import logging
@@ -53,11 +53,12 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
     """
-    schema = json_decode(schema_definition)
+    raw_schema = json_decode(schema_definition)
+    schema = cast(Union[Mapping[str, Any], bool], raw_schema)
     # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
     #  use bool values and fail if we assert isinstance(_, dict).
-    Draft7Validator.check_schema(schema)  # type: ignore[arg-type]
-    return Draft7Validator(schema)  # type: ignore[arg-type]
+    Draft7Validator.check_schema(schema)
+    return Draft7Validator(schema)
 
 
 def _format_protobuf(schema: str, dependencies: Collection[Dependency], name: str = "schema.proto") -> str:
