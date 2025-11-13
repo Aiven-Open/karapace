@@ -53,8 +53,8 @@ def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
     Raises:
         SchemaError: If `schema_definition` is not a valid Draft7 schema.
     """
-    schema = json_decode(schema_definition)
-    schema = cast(Union[Mapping[str, Any], bool], schema)
+    raw_schema = json_decode(schema_definition)
+    schema = cast(Union[Mapping[str, Any], bool], raw_schema)
     # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
     #  use bool values and fail if we assert isinstance(_, dict).
     Draft7Validator.check_schema(schema)
