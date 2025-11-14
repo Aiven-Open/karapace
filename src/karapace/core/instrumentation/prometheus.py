@@ -86,21 +86,17 @@ class PrometheusInstrumentation:
         path = request.path
         method = request.method
 
-        # Increment requests in progress before handler
-        request.app[cls.karapace_http_requests_in_progress].labels(method, path).inc()
+        in_progress = request.app[cls.karapace_http_requests_in_progress].labels(method, path)
+        in_progress.inc()
 
-        # Call request handler
-        response: Response = await handler(request)
-
-        # Instrument request duration
-        request.app[cls.karapace_http_requests_duration_seconds].labels(method, path).observe(
-            time.time() - request[cls.START_TIME_REQUEST_KEY]
-        )
-
-        # Instrument total requests
-        request.app[cls.karapace_http_requests_total].labels(method, path, response.status).inc()
-
-        # Decrement requests in progress after handler
-        request.app[cls.karapace_http_requests_in_progress].labels(method, path).dec()
-
-        return response
+        try:
+            response: Response = await handler(request)
+            request.app[cls.karapace_http_requests_total].labels(method, path, response.status).inc()
+            return response
+        finally:
+            try:
+                request.app[cls.karapace_http_requests_duration_seconds].labels(method, path).observe(
+                    time.time() - request[cls.START_TIME_REQUEST_KEY]
+                )
+            finally:
+                in_progress.dec()
