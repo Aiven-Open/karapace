@@ -223,3 +223,5 @@ def test_acl_authorizer() -> None:
             "Subject:readwrite_subject",
         ],
     )
+
+    assert None is authorizer.get_user("unknown_user")
