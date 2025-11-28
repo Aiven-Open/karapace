@@ -14,10 +14,8 @@ exporters:
     endpoint: jaeger:4317
     tls:
       insecure: true
-  otlphttp/prometheus:
-    endpoint: http://prometheus:9090/api/v1/otlp
-    tls:
-      insecure: true
+  prometheus:
+    endpoint: "0.0.0.0:8889"
 
 service:
   pipelines:
@@ -26,4 +24,4 @@ service:
       exporters: [otlp]
     metrics:
       receivers: [otlp]
-      exporters: [otlphttp/prometheus]
+      exporters: [prometheus]
