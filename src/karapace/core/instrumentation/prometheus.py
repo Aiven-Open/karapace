@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from aiohttp.web import middleware, Request, Response
 from collections.abc import Awaitable, Callable
-from karapace.rapu import RestApp
+from http import HTTPStatus
+from karapace.rapu import HTTPResponse, RestApp
 from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, Histogram
-from typing import Final
+from typing import Final, NoReturn
 
 import logging
 import time
@@ -70,8 +71,14 @@ class PrometheusInstrumentation:
         app.app[cls.karapace_http_requests_in_progress] = cls.karapace_http_requests_in_progress
 
     @classmethod
-    async def serve_metrics(cls) -> bytes:
-        return generate_latest(cls.registry)
+    async def serve_metrics(cls) -> NoReturn:
+        metrics_data = generate_latest(cls.registry)
+        # Raise HTTPResponse for RestApp compatibility
+        raise HTTPResponse(
+            body=metrics_data,
+            status=HTTPStatus.OK,
+            content_type=cls.CONTENT_TYPE_LATEST,
+        )
 
     @classmethod
     @middleware
