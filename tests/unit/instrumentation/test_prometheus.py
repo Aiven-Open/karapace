@@ -6,6 +6,7 @@ See LICENSE for details
 """
 
 import logging
+from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import aiohttp.web
@@ -14,7 +15,7 @@ from _pytest.logging import LogCaptureFixture
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 
 from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
-from karapace.rapu import RestApp
+from karapace.rapu import HTTPResponse, RestApp
 
 
 # Simple request object implementing mapping semantics for START_TIME used by tests
@@ -130,8 +131,18 @@ class TestPrometheusInstrumentation:
 
     @patch("karapace.core.instrumentation.prometheus.generate_latest")
     async def test_serve_metrics(self, generate_latest: MagicMock, prometheus: PrometheusInstrumentation) -> None:
-        await prometheus.serve_metrics()
+        mock_metrics_data = b"# HELP test_metric Test metric\n# TYPE test_metric counter\ntest_metric 1\n"
+        generate_latest.return_value = mock_metrics_data
+
+        with pytest.raises(HTTPResponse) as exc_info:
+            await prometheus.serve_metrics()
+
         generate_latest.assert_called_once_with(prometheus.registry)
+
+        # Verify HTTPResponse has correct attributes
+        assert exc_info.value.status == HTTPStatus.OK
+        assert exc_info.value.headers.get("Content-Type") == prometheus.CONTENT_TYPE_LATEST
+        assert exc_info.value.body == mock_metrics_data
 
     @patch("karapace.core.instrumentation.prometheus.time")
     async def test_http_request_metrics_middleware(
