@@ -37,6 +37,8 @@ class StatsClient:
         self.sentry_client: Final = get_sentry_client(sentry_config=(config.sentry or None))
         self._meter = meter
 
+        LOG.info("Initializing StatsClient with tags: %s", self._tags)
+
         # Supports labels for keymode
         self._schema_records_processed_counter: Final[Counter] = self._meter.get_meter().create_counter(
             name=METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT,
@@ -67,12 +69,20 @@ class StatsClient:
         )
 
     def set_schemas_num_total(self, *, value: int) -> None:
+        LOG.debug("Setting schemas gauge to %s with attributes %s", value, self._tags)
         self._total_schemas_gauge.set(amount=value, attributes=self._tags)
 
     def set_subjects_num_total(self, *, value: int) -> None:
+        LOG.debug("Setting subjects gauge to %s with attributes %s", value, self._tags)
         self._total_subjects_gauge.set(amount=value, attributes=self._tags)
 
     def set_schema_versions_num_total(self, *, live_versions: int, soft_deleted_versions: int) -> None:
+        LOG.debug(
+            "Setting schema versions gauge: live=%s, soft_deleted=%s with attributes %s",
+            live_versions,
+            soft_deleted_versions,
+            self._tags,
+        )
         self._schema_versions_gauge.set(amount=live_versions, attributes={"state": "live", **self._tags})
         self._schema_versions_gauge.set(amount=soft_deleted_versions, attributes={"state": "soft_deleted", **self._tags})
 
