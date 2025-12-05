@@ -45,7 +45,7 @@ class ForwardClient:
         *,
         request: Request,
         primary_url: str,
-    ) -> tuple[bytes, int]:  # Return both body and status code
+    ) -> tuple[str, int]:  # Return both body and status code
         LOG.info("Forwarding %s request to remote url: %r since we're not the master", request.method, request.url)
         timeout = 60.0
         func = getattr(self._forward_client, request.method.lower())
@@ -99,7 +99,10 @@ class ForwardClient:
             try:
                 error_data = json_decode(body)
             except Exception:
-                error_data = {"error_code": http_status, "message": body}
+                error_data = {
+                    "error_code": http_status,
+                    "message": body if isinstance(body, str) else body.decode("utf-8", errors="replace"),
+                }
 
             raise HTTPException(
                 status_code=http_status,  # Use HTTP status, not error_code from body
