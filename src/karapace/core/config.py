@@ -369,6 +369,8 @@ def create_client_ssl_context(config: Config) -> ssl.SSLContext | None:
 def create_server_ssl_context(config: Config) -> ssl.SSLContext | None:
     tls_certfile = config.server_tls_certfile
     tls_keyfile = config.server_tls_keyfile
+    tls_cafile = config.server_tls_cafile
+
     if tls_certfile is None:
         if tls_keyfile is None:
             # Neither config value set, do not use TLS
@@ -385,6 +387,13 @@ def create_server_ssl_context(config: Config) -> ssl.SSLContext | None:
     if not os.path.exists(tls_keyfile):
         raise InvalidConfiguration("`server_tls_keyfile` file does not exist")
 
+    # Validate CA file if provided (for MTLS)
+    if tls_cafile is not None:
+        if not isinstance(tls_cafile, str):
+            raise InvalidConfiguration("`server_tls_cafile` is not a string")
+        if not os.path.exists(tls_cafile):
+            raise InvalidConfiguration("`server_tls_cafile` file does not exist")
+
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.options |= ssl.OP_NO_SSLv2
     ssl_context.options |= ssl.OP_NO_SSLv3
@@ -392,4 +401,14 @@ def create_server_ssl_context(config: Config) -> ssl.SSLContext | None:
     ssl_context.options |= ssl.OP_NO_TLSv1_1
 
     ssl_context.load_cert_chain(certfile=tls_certfile, keyfile=tls_keyfile)
+
+    # Enable MTLS (client certificate verification) if CA file is provided
+    if tls_cafile is not None:
+        ssl_context.load_verify_locations(cafile=tls_cafile)
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+        LOG.info("MTLS enabled: Client certificate verification is required")
+    else:
+        ssl_context.verify_mode = ssl.CERT_NONE
+        LOG.info("TLS enabled without client certificate verification")
+
     return ssl_context
