@@ -74,7 +74,11 @@ async def fixture_asyncproducer(
     kafka_servers: KafkaServers,
     loop: asyncio.AbstractEventLoop,
 ) -> AsyncGenerator[AsyncKafkaProducer, None]:
-    asyncproducer = AsyncKafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers, loop=loop)
+    asyncproducer = AsyncKafkaProducer(
+        bootstrap_servers=kafka_servers.bootstrap_servers,
+        client_id="asyncconsumer-1",
+        loop=loop,
+    )
     await asyncproducer.start()
     yield asyncproducer
     await asyncproducer.stop()

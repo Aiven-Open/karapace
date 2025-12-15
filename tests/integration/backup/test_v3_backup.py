@@ -54,6 +54,7 @@ def config_fixture(
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config.topic_name = registry_cluster.schemas_topic
+    config.client_id = "karapace-client"
     return config
 
 

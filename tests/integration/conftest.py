@@ -240,7 +240,11 @@ async def fixture_asyncproducer(
     kafka_servers: KafkaServers,
     loop: asyncio.AbstractEventLoop,
 ) -> AsyncGenerator[AsyncKafkaProducer, None]:
-    asyncproducer = AsyncKafkaProducer(bootstrap_servers=kafka_servers.bootstrap_servers, loop=loop)
+    asyncproducer = AsyncKafkaProducer(
+        bootstrap_servers=kafka_servers.bootstrap_servers,
+        client_id="asyncconsumer-1",
+        loop=loop,
+    )
     await asyncproducer.start()
     yield asyncproducer
     await asyncproducer.stop()
@@ -773,3 +777,106 @@ def topic_fixture(admin_client: KafkaAdminClient) -> NewTopic:
         yield admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
     finally:
         admin_client.delete_topic(topic_name)
+
+
+@pytest.fixture(scope="function", name="registry_async_client_custom_client_id")
+async def fixture_registry_async_client_custom_client_id(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,
+    session_logdir: Path,
+    kafka_servers: KafkaServers,
+) -> AsyncGenerator[Client, None]:
+    """Starts a Schema Registry with a custom client_id and returns a client."""
+    custom_client_id = "test-custom-client-id"
+
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.waiting_time_before_acting_as_master_ms = 500
+    config.client_id = custom_client_id
+
+    async with start_schema_registry_cluster(
+        config_templates=[config],
+        data_dir=session_logdir / _clear_test_name(request.node.name),
+    ) as servers:
+        client = Client(server_uri=servers[0].endpoint.to_url())
+
+        try:
+            await repeat_until_successful_request(
+                client.get,
+                "subjects",
+                json_data=None,
+                headers=None,
+                error_msg=f"Registry API {client.server_uri} is unreachable",
+                timeout=10,
+                sleep=0.3,
+            )
+            await repeat_until_master_is_available(client)
+            yield client
+        finally:
+            await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_custom_client_id")
+async def fixture_rest_async_custom_client_id(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,
+    kafka_servers: KafkaServers,
+    registry_async_client: Client,
+) -> AsyncIterator[KafkaRest | None]:
+    """Starts a REST API with a custom client_id."""
+    rest_url = request.config.getoption("rest_url")
+    if rest_url:
+        yield None
+        return
+
+    custom_client_id = "test-rest-custom-client-id"
+
+    config = Config()
+    config.admin_metadata_max_age = 2
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
+    config.waiting_time_before_acting_as_master_ms = 500
+    config.client_id = custom_client_id
+
+    rest = KafkaRest(config=config)
+
+    assert rest.serializer.registry_client
+    rest.serializer.registry_client.client = registry_async_client
+    try:
+        yield rest
+    finally:
+        await rest.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_custom_client_id")
+async def fixture_rest_async_client_custom_client_id(
+    request: SubRequest,
+    loop: asyncio.AbstractEventLoop,
+    rest_async_custom_client_id: KafkaRest,
+    aiohttp_client: AiohttpClient,
+) -> AsyncIterator[Client]:
+    """Returns a client for the REST API with custom client_id."""
+    rest_url = request.config.getoption("rest_url")
+
+    if rest_url:
+        client = Client(server_uri=rest_url)
+    else:
+
+        async def get_client(**kwargs) -> TestClient:
+            return await aiohttp_client(rest_async_custom_client_id.app)
+
+        client = Client(client_factory=get_client)
+
+    try:
+        await repeat_until_successful_request(
+            client.get,
+            "brokers",
+            json_data=None,
+            headers=None,
+            error_msg="REST API is unreachable",
+            timeout=10,
+            sleep=0.3,
+        )
+        yield client
+    finally:
+        await client.close()
