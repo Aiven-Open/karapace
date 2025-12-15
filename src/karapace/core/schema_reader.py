@@ -367,6 +367,8 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         if ready:
             self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
             LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
+            # Initialize metrics with current database state when becoming ready
+            self._initialize_metrics()
         return ready
 
     def highest_offset(self) -> int:
@@ -499,6 +501,33 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             with self._ready_lock:
                 self._ready = new_ready_flag
 
+    def _update_schema_gauges(self) -> tuple[int, int, int, int]:
+        """Update all schema-related gauge metrics with current database state.
+
+        Returns:
+            Tuple of (num_subjects, num_schemas, live_versions, soft_deleted_versions)
+        """
+        num_schemas = self.database.num_schemas()
+        num_subjects = self.database.num_subjects()
+        live_versions, soft_deleted_versions = self.database.num_schema_versions()
+
+        self.stats.set_schemas_num_total(value=num_schemas)
+        self.stats.set_subjects_num_total(value=num_subjects)
+        self.stats.set_schema_versions_num_total(live_versions=live_versions, soft_deleted_versions=soft_deleted_versions)
+
+        return num_subjects, num_schemas, live_versions, soft_deleted_versions
+
+    def _initialize_metrics(self) -> None:
+        """Initialize metrics with current database state."""
+        num_subjects, num_schemas, live_versions, soft_deleted_versions = self._update_schema_gauges()
+        LOG.info(
+            "Metrics initialized: subjects=%s, schemas=%s, live_versions=%s, soft_deleted_versions=%s",
+            num_subjects,
+            num_schemas,
+            live_versions,
+            soft_deleted_versions,
+        )
+
     def _report_schema_metrics(
         self,
         schema_records_processed_keymode_canonical: int,
@@ -510,20 +539,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             with_deprecated_key=schema_records_processed_keymode_deprecated_karapace,
         )
 
-        # Update following gauges only if there is a possibility of a change.
-        records_processed = bool(
-            schema_records_processed_keymode_canonical or schema_records_processed_keymode_deprecated_karapace
-        )
-        if records_processed:
-            num_schemas = self.database.num_schemas()
-            num_subjects = self.database.num_subjects()
-            self.stats.set_schemas_num_total(value=num_schemas)
-            self.stats.set_subjects_num_total(value=num_subjects)
-
-            live_versions, soft_deleted_versions = self.database.num_schema_versions()
-            self.stats.set_schema_versions_num_total(
-                live_versions=live_versions, soft_deleted_versions=soft_deleted_versions
-            )
+        # Always update gauges to reflect current database state
+        # This ensures metrics stay accurate even if no new records are processed
+        self._update_schema_gauges()
 
     def _handle_msg_config(self, key: dict, value: dict | None) -> None:
         subject = key.get("subject")

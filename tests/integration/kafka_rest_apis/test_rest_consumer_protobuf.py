@@ -3,7 +3,10 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import base64
+
 import pytest
+from pytest import LogCaptureFixture
 
 from karapace.core.client import Client
 from karapace.core.kafka.admin import KafkaAdminClient
@@ -262,3 +265,45 @@ async def test_publish_and_consume_protobuf_with_recursive_references(
     assert msg["offset"] == 0 and msg["partition"] == 0, "first message of the only partition available"
     assert msg["topic"] == topic_name
     assert msg["value"] == produced_message
+
+
+@pytest.mark.parametrize("fmt", ["protobuf"])
+async def test_consume_protobuf_key_deserialization_error_fallback(
+    rest_async_client,
+    admin_client,
+    caplog: LogCaptureFixture,
+    fmt,
+):
+    topic_name = new_topic(admin_client, prefix=f"{fmt}_")
+
+    # Produce a record with binary key and empty value
+    header = REST_HEADERS["binary"]
+    binary_key = b"testkey"
+    publish_key = base64.b64encode(binary_key)
+    publish_payload = publish_key.decode("utf-8")
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        f"topics/{topic_name}",
+        json_data={"records": [{"key": f"{publish_payload}"}]},
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=10,
+        sleep=1,
+    )
+
+    # Test consuming the record using protobuf format
+    headers = REST_HEADERS[fmt]
+    group_name = f"e2e_group_{fmt}"
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=headers)
+    assert res.ok, f"Expected a successful response: {res}"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
+    res2 = await rest_async_client.get(consume_path, headers=headers)
+    assert res2.ok, f"Expected a successful response: {res2}"
+
+    data = res2.json()
+    data_keys = [x["key"] for x in data]
+    for data_key in data_keys:
+        assert publish_payload == data_key, f"Expecting {data_key} to be {publish_payload}"

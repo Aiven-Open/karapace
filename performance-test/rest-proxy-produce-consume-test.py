@@ -10,6 +10,7 @@ from locust.contrib.fasthttp import ResponseContextManager
 from locust.env import Environment
 
 import json
+import logging
 import os
 import uuid
 
@@ -41,52 +42,103 @@ BODY = {
 HEADER_CONTENT_TYPE = {"Content-Type": "application/vnd.kafka.json.v2+json"}
 HEADER_ACCEPT = {"Accept": "application/vnd.kafka.json.v2+json"}
 
+LOG = logging.getLogger(__name__)
+
 
 class RESTProxyPublishAndConsume(FastHttpUser):
     def __init__(self, environment: Environment):
         super().__init__(environment)
+        self.consumer_group = "consumer-group"
         self.consumer_instance_id = f"consumer_instance_{uuid.uuid4()}"
 
     def on_start(self):
-        admin_client = KafkaAdminClient(bootstrap_servers=BOOTSTRAP_SERVER, client_id="locust-performance-test")
-
-        topic_list = [NewTopic(name=TOPIC, num_partitions=3, replication_factor=1)]
+        # Create topic if needed
+        admin_client = KafkaAdminClient(bootstrap_servers=BOOTSTRAP_SERVER, client_id="locust-test")
         try:
-            admin_client.create_topics(topic_list)
+            admin_client.create_topics([NewTopic(name=TOPIC, num_partitions=3, replication_factor=1)])
         except TopicAlreadyExistsError:
             pass
         admin_client.close()
 
-        # Register consumer instance and subscribe
+        # Register consumer instance
         self.client.post(
-            "/consumers/consumer-group",
+            f"/consumers/{self.consumer_group}",
             headers=HEADER_CONTENT_TYPE,
             json={"name": self.consumer_instance_id, "format": "json"},
-            name="/consumers/consumer-group",
+            name="/consumers/[GROUP]",
         )
+
+        # Subscribe consumer
         self.client.post(
-            f"/consumers/consumer-group/instances/{self.consumer_instance_id}/subscription",
+            f"/consumers/{self.consumer_group}/instances/{self.consumer_instance_id}/subscription",
             headers=HEADER_CONTENT_TYPE,
             json={"topics": [TOPIC]},
-            name="/consumers/consumer-group/instances/[INSTANCE]/subscription",
+            name="/consumers/[GROUP]/instances/[ID]/subscription",
         )
+
+    #
+    # CLEANUP LOGIC
+    #
+    def on_stop(self):
+        # 1. DELETE subscription
+        try:
+            with self.client.delete(
+                f"/consumers/{self.consumer_group}/instances/{self.consumer_instance_id}/subscription",
+                headers=HEADER_ACCEPT,
+                name="/consumers/[GROUP]/instances/[ID]/subscription DELETE",
+                catch_response=True,
+            ) as resp:
+                if resp.status_code >= 400:
+                    msg = (
+                        f"Failed to delete subscription for {self.consumer_group}/{self.consumer_instance_id}: "
+                        f"{resp.status_code} {resp.text}"
+                    )
+                    LOG.warning(msg)
+                    resp.failure(msg)
+        except Exception:
+            LOG.exception(
+                "Exception while deleting subscription for %s/%s",
+                self.consumer_group,
+                self.consumer_instance_id,
+            )
+
+        # 2. DELETE consumer instance
+        try:
+            with self.client.delete(
+                f"/consumers/{self.consumer_group}/instances/{self.consumer_instance_id}",
+                headers=HEADER_ACCEPT,
+                name="/consumers/[GROUP]/instances/[ID] DELETE",
+                catch_response=True,
+            ) as resp:
+                if resp.status_code >= 400:
+                    msg = (
+                        f"Failed to delete consumer {self.consumer_group}/{self.consumer_instance_id}: "
+                        f"{resp.status_code} {resp.text}"
+                    )
+                    LOG.warning(msg)
+                    resp.failure(msg)
+        except Exception:
+            LOG.exception("Exception while deleting consumer %s/%s", self.consumer_group, self.consumer_instance_id)
+
+        # No explicit consumer-group delete endpoint exists in your routes.
+        # Karapace removes empty groups automatically.
 
     @task(20)
     def post_rest_proxy(self) -> None:
         with self.client.post(f"/topics/{TOPIC}", json=BODY, catch_response=True) as response:
             response: ResponseContextManager
-            error_count = sum(record_response.get("error") is not None for record_response in response.json()["offsets"])
+            error_count = sum(record.get("error") is not None for record in response.json()["offsets"])
             if error_count > 0:
                 response.failure(f"Response contains {error_count} errors for {INPUT_RECORDS_COUNT} input records.")
 
     @task(1)
     def get_consume(self):
         self.client.get(
-            f"/consumers/consumer-group/instances/{self.consumer_instance_id}/records",
+            f"/consumers/{self.consumer_group}/instances/{self.consumer_instance_id}/records",
             headers=HEADER_ACCEPT,
             params={
                 "timeout": CONSUME_TIMEOUT,
                 "max_bytes": CONSUME_MAX_BYTES,
-            },  # Will poll for consumer max bytes, in this case for three seconds.
-            name="/consumers/consumer-group/instances/[INSTANCE]/records",
+            },
+            name="/consumers/[GROUP]/instances/[ID]/records",
         )

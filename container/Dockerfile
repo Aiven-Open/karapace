@@ -50,6 +50,7 @@ RUN apt-get update \
 COPY --from=builder /venv /venv
 ENV PATH="/venv/bin:$PATH"
 
+FROM eclipse-temurin:11 AS jdk
 
 FROM karapace AS cli
 ARG RUNNER_UID
@@ -62,8 +63,9 @@ RUN mkdir -p /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace
 && chown --recursive "$RUNNER_UID:$RUNNER_GID" /opt/karapace /opt/karapace/coverage /var/log/karapace
 
 # Install Java via openjdk-11
-COPY --from=openjdk:11 /usr/local/openjdk-11 /usr/local/openjdk-11
-ENV JAVA_HOME /usr/local/openjdk-11
+COPY --from=jdk /opt/java/openjdk /usr/local/openjdk-11
+ENV JAVA_HOME=/usr/local/openjdk-11
+ENV PATH="$JAVA_HOME/bin:$PATH"
 RUN update-alternatives --install /usr/bin/java java /usr/local/openjdk-11/bin/java 1
 
 # Install mkcert

@@ -565,6 +565,9 @@ class ConsumerManager:
                     if request_format == "avro":
                         LOG.warning("Cannot process non-empty key using avro deserializer, falling back to binary.")
                         key = await self.deserialize(msg.key(), "binary")
+                    if request_format == "protobuf":
+                        LOG.warning("Cannot process non-empty key using protobuf deserializer, falling back to binary.")
+                        key = await self.deserialize(msg.key(), "binary")
                     else:
                         KarapaceBase.unprocessable_entity(
                             message=f"key deserialization error for format {request_format}: {e}",
