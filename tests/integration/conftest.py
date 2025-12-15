@@ -243,7 +243,7 @@ async def fixture_asyncproducer(
     asyncproducer = AsyncKafkaProducer(
         bootstrap_servers=kafka_servers.bootstrap_servers,
         client_id="asyncconsumer-1",
-        loop=loop
+        loop=loop,
     )
     await asyncproducer.start()
     yield asyncproducer
@@ -788,7 +788,7 @@ async def fixture_registry_async_client_custom_client_id(
 ) -> AsyncGenerator[Client, None]:
     """Starts a Schema Registry with a custom client_id and returns a client."""
     custom_client_id = "test-custom-client-id"
-    
+
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config.waiting_time_before_acting_as_master_ms = 500
@@ -799,7 +799,7 @@ async def fixture_registry_async_client_custom_client_id(
         data_dir=session_logdir / _clear_test_name(request.node.name),
     ) as servers:
         client = Client(server_uri=servers[0].endpoint.to_url())
-        
+
         try:
             await repeat_until_successful_request(
                 client.get,
@@ -830,14 +830,14 @@ async def fixture_rest_async_custom_client_id(
         return
 
     custom_client_id = "test-rest-custom-client-id"
-    
+
     config = Config()
     config.admin_metadata_max_age = 2
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config.producer_max_request_size = REST_PRODUCER_MAX_REQUEST_BYTES
     config.waiting_time_before_acting_as_master_ms = 500
     config.client_id = custom_client_id
-    
+
     rest = KafkaRest(config=config)
 
     assert rest.serializer.registry_client
@@ -861,6 +861,7 @@ async def fixture_rest_async_client_custom_client_id(
     if rest_url:
         client = Client(server_uri=rest_url)
     else:
+
         async def get_client(**kwargs) -> TestClient:
             return await aiohttp_client(rest_async_custom_client_id.app)
 

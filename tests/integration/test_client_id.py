@@ -30,23 +30,25 @@ async def test_rest_api_uses_custom_client_id_for_producing(
     """Test that REST API properly uses the configured client_id when producing messages."""
     topic_name = new_random_name("test-client-id-topic")
     admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
-    
+
     try:
-        await wait_for_topics(rest_async_client_custom_client_id, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
-        
+        await wait_for_topics(
+            rest_async_client_custom_client_id, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1
+        )
+
         # Produce a message via REST API
         produce_payload = {
             "records": [
                 {"value": {"foo": "bar"}},
             ]
         }
-        
+
         res = await rest_async_client_custom_client_id.post(
             f"topics/{topic_name}",
             json=produce_payload,
             headers={"Content-Type": "application/vnd.kafka.json.v2+json"},
         )
-        
+
         assert res.status_code == 200
         data = res.json()
         assert "offsets" in data
