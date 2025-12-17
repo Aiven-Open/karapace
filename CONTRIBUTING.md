@@ -14,6 +14,8 @@ There is very little you need to get started coding for Karapace:
 
 - Use [one of the supported python versions](https://github.com/Aiven-Open/karapace/blob/master/pyproject.toml)
   documented in the `project:requires-python`.
+- Install Go (needed for the `protopace` helpers built during `pip install .`). The Go module declares
+  `go 1.21` (toolchain 1.24 is supported); any 1.21+ toolchain should work.
 - Create [a virtual environment](https://docs.python.org/3/tutorial/venv.html) and install the dev dependencies in it:
 
 ```python
@@ -78,12 +80,12 @@ hooks.
 
 ## Manual testing
 
-To use your development code, you need to set up a Kafka server and run Karapace from you
+To use your development code, you need to set up a Kafka server and run Karapace from your
 virtual environment:
 
 ```
 docker compose -f ./container/compose.yml up -d kafka
-karapace karapace.config.json
+karapace karapace.config.json  # entrypoint is provided by the installed package
 ```
 
 ### Configuration
