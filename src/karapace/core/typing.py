@@ -10,7 +10,9 @@ from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, unique
 from karapace.core.errors import InvalidVersion
-from pydantic import ValidationInfo
+from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, ValidationInfo
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import core_schema
 from typing import Any, ClassVar, NewType, TypeAlias, Union
 
 import functools
@@ -37,13 +39,25 @@ TopicName = NewType("TopicName", str)
 
 class Subject(str):
     @classmethod
-    # TODO[pydantic]: We couldn't refactor `__get_validators__`, please create the `__get_pydantic_core_schema__` manually.
-    # Check https://docs.pydantic.dev/latest/migration/#defining-custom-types for more information.
+    def __get_pydantic_core_schema__(cls, source: type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+        # Validate as a string and then apply our custom validator; serialize back to string.
+        return core_schema.no_info_after_validator_function(
+            cls.validate,
+            core_schema.str_schema(),
+            serialization=core_schema.to_string_ser_schema(),
+        )
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
+        return handler(core_schema)
+
+    @classmethod
     def __get_validators__(cls) -> Generator[Callable[[str, ValidationInfo], str], None, None]:
+        # Kept for backward compatibility with pydantic v1 style validation.
         yield cls.validate
 
     @classmethod
-    def validate(cls, subject_str: str, _: ValidationInfo) -> str:
+    def validate(cls, subject_str: str, _: ValidationInfo | None = None) -> str:
         """Subject may not contain control characters."""
         if bool([c for c in subject_str if (ord(c) <= 31 or (ord(c) >= 127 and ord(c) <= 159))]):
             raise ValueError(f"The specified subject '{subject_str}' is not a valid.")
