@@ -48,12 +48,13 @@ class Subject(str):
         )
 
     @classmethod
-    def __get_pydantic_json_schema__(cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
+    def __get_pydantic_json_schema__(
+        cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
         return handler(core_schema)
 
     @classmethod
     def __get_validators__(cls) -> Generator[Callable[[str, ValidationInfo], str], None, None]:
-        # Kept for backward compatibility with pydantic v1 style validation.
         yield cls.validate
 
     @classmethod
