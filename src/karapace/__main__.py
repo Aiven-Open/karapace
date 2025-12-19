@@ -7,6 +7,7 @@ from karapace.api.container import SchemaRegistryContainer
 from karapace.api.factory import create_karapace_application, karapace_schema_registry_lifespan
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.auth_container import AuthContainer
+from karapace.core.config import ServerTLSClientAuth, get_client_auth_verify_mode
 from karapace.core.container import KarapaceContainer
 
 import karapace.api.controller
@@ -97,6 +98,12 @@ if __name__ == "__main__":
 
     config = karapace_container.config()
     app = create_karapace_application(config=config, lifespan=karapace_schema_registry_lifespan)
+    client_auth_mode = ServerTLSClientAuth(config.server_tls_client_auth)
+    ssl_cert_reqs = get_client_auth_verify_mode(
+        client_auth_mode,
+        has_cafile=bool(config.server_tls_cafile),
+    )
+
     uvicorn.run(
         app,
         host=config.host,
@@ -106,4 +113,5 @@ if __name__ == "__main__":
         ssl_keyfile=config.server_tls_keyfile,
         ssl_certfile=config.server_tls_certfile,
         ssl_ca_certs=config.server_tls_cafile,
+        ssl_cert_reqs=ssl_cert_reqs,
     )
