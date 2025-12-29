@@ -73,6 +73,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
     config.admin_metadata_max_age = 2
     config.group_id = group_id
     config.topic_name = topic_name
+    config.producer_acks = 1
 
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
@@ -113,10 +114,10 @@ async def test_regression_soft_delete_schemas_should_be_registered(
                 value=json_encode(value, binary=True),
             )
             producer.flush()
-            msg = future.result()
+            msg = future.result(timeout=2)
 
-            schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
-
+            seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
+            assert seen is True
             schemas = database.find_subject_schemas(subject=Subject(subject), include_deleted=True)
             assert len(schemas) == 1, "Deleted schemas must have been registered"
 
@@ -141,7 +142,7 @@ async def test_regression_soft_delete_schemas_should_be_registered(
                 value=json_encode(value, binary=True),
             )
             producer.flush()
-            msg = future.result()
+            msg = future.result(timeout=2)
 
             seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
             assert seen is True
@@ -166,6 +167,7 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
     config.admin_metadata_max_age = 2
     config.group_id = group_id
+    config.producer_acks = 1
 
     master_coordinator = MasterCoordinator(config=config)
     master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
@@ -200,10 +202,11 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
                 value=json_encode(value, binary=True),
             )
             producer.flush()
-            msg = future.result()
+            msg = future.result(timeout=2)
 
             seen = schema_reader._offset_watcher.wait_for_offset(msg.offset(), timeout=5)
             assert seen is True
+
             assert (
                 database.find_subject(subject=Subject(subject)) is not None
             ), "The above message should be handled gracefully"
