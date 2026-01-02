@@ -18,7 +18,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import AnyStr, cast, IO, Literal, NoReturn, overload, TypeVar
 
-import importlib
+import importlib.util
 import logging
 import signal
 import time
