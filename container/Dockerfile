@@ -59,7 +59,7 @@ ENV CAROOT=/opt/karapace/certs/ca
 
 # Setup files and directories.
 RUN mkdir -p /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace/coverage $CAROOT \
-&& touch /opt/karapace/coverage/.coverage.3.10 /opt/karapace/coverage/.coverage.3.11 /opt/karapace/coverage/.coverage.3.12 \
+&& touch /opt/karapace/coverage/.coverage.3.10 /opt/karapace/coverage/.coverage.3.11 /opt/karapace/coverage/.coverage.3.12 /opt/karapace/coverage/.coverage.3.13 \
 && chown --recursive "$RUNNER_UID:$RUNNER_GID" /opt/karapace /opt/karapace/coverage /var/log/karapace
 
 # Install Java via openjdk-11
