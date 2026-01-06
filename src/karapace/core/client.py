@@ -99,14 +99,15 @@ class Client:
         if not headers:
             headers = {}
         client = await self.get_client()
-        async with client.get(
-            path,
-            json=json,
-            headers=headers,
-            auth=auth,
-            ssl=self.ssl_mode,
-            params=params,
-        ) as res:
+        get_kwargs: dict[str, object] = {
+            "json": json,
+            "headers": headers,
+            "auth": auth,
+            "params": params,
+        }
+        if self.ssl_mode is not None:
+            get_kwargs["ssl"] = self.ssl_mode
+        async with client.get(path, **get_kwargs) as res:  # type: ignore[arg-type]
             # required for forcing the response body conversion to json despite missing valid Accept headers
             result = await res.json(content_type=None) if json_response else await res.text()
             return Result(res.status, result, headers=res.headers)
@@ -122,13 +123,14 @@ class Client:
         if not headers:
             headers = {}
         client = await self.get_client()
-        async with client.delete(
-            path,
-            headers=headers,
-            auth=auth,
-            ssl=self.ssl_mode,
-            params=params,
-        ) as res:
+        delete_kwargs: dict[str, object] = {
+            "headers": headers,
+            "auth": auth,
+            "params": params,
+        }
+        if self.ssl_mode is not None:
+            delete_kwargs["ssl"] = self.ssl_mode
+        async with client.delete(path, **delete_kwargs) as res:  # type: ignore[arg-type]
             json_result = {} if res.status == 204 else await res.json()
             return Result(res.status, json_result, headers=res.headers)
 
@@ -145,14 +147,15 @@ class Client:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
         client = await self.get_client()
-        async with client.post(
-            path,
-            headers=headers,
-            auth=auth,
-            json=json,
-            ssl=self.ssl_mode,
-            params=params,
-        ) as res:
+        post_kwargs: dict[str, object] = {
+            "headers": headers,
+            "auth": auth,
+            "json": json,
+            "params": params,
+        }
+        if self.ssl_mode is not None:
+            post_kwargs["ssl"] = self.ssl_mode
+        async with client.post(path, **post_kwargs) as res:  # type: ignore[arg-type]
             json_result = {} if res.status == 204 else await res.json()
             return Result(res.status, json_result, headers=res.headers)
 
@@ -168,13 +171,14 @@ class Client:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
         client = await self.get_client()
-        async with client.put(
-            path,
-            headers=headers,
-            auth=auth,
-            json=json,
-            ssl=self.ssl_mode,
-        ) as res:
+        put_kwargs: dict[str, object] = {
+            "headers": headers,
+            "auth": auth,
+            "json": json,
+        }
+        if self.ssl_mode is not None:
+            put_kwargs["ssl"] = self.ssl_mode
+        async with client.put(path, **put_kwargs) as res:  # type: ignore[arg-type]
             json_result = await res.json()
             return Result(res.status, json_result, headers=res.headers)
 
@@ -187,13 +191,14 @@ class Client:
     ) -> Result:
         path = self.path_for(path)
         client = await self.get_client()
-        async with client.put(
-            path,
-            headers=headers,
-            auth=auth,
-            data=data,
-            ssl=self.ssl_mode,
-        ) as res:
+        put_data_kwargs: dict[str, object] = {
+            "headers": headers,
+            "auth": auth,
+            "data": data,
+        }
+        if self.ssl_mode is not None:
+            put_data_kwargs["ssl"] = self.ssl_mode
+        async with client.put(path, **put_data_kwargs) as res:  # type: ignore[arg-type]
             json_result = await res.json()
             return Result(res.status, json_result, headers=res.headers)
 

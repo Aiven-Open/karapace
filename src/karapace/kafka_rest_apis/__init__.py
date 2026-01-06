@@ -800,13 +800,17 @@ class UserRestProxy:
         await self.validate_publish_request_format(data, formats, content_type, topic)
         status = HTTPStatus.OK
         ser_format = formats["embedded_format"]
+        # After validate_publish_request_format, schema_ids should be set in data dict
+        # Get them after validation (they may have been resolved from schema strings)
+        key_schema_id = data.get("key_schema_id")
+        value_schema_id = data.get("value_schema_id")
         try:
             prepared_records = await self._prepare_records(
                 content_type=content_type,
                 data=data,
                 ser_format=ser_format,
-                key_schema_id=data.get("key_schema_id"),
-                value_schema_id=data.get("value_schema_id"),
+                key_schema_id=key_schema_id,
+                value_schema_id=value_schema_id,
                 default_partition=partition_id,
             )
         except (FormatError, B64DecodeError):
@@ -833,6 +837,12 @@ class UserRestProxy:
                 body={"error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value, "message": str(e)},
                 content_type=content_type,
                 status=HTTPStatus.REQUEST_TIMEOUT,
+            )
+        except InvalidSchema as e:
+            KafkaRest.r(
+                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": str(e)},
+                content_type=content_type,
+                status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         response = {
             "key_schema_id": data.get("key_schema_id"),
@@ -1017,8 +1027,10 @@ class UserRestProxy:
         except InvalidSchema:
             if f"{subject_type}_schema" in data:
                 err = f"schema = {data[f'{subject_type}_schema']}"
-            else:
+            elif f"{subject_type}_schema_id" in data:
                 err = f"schema_id = {data[f'{subject_type}_schema_id']}"
+            else:
+                err = f"missing {subject_type}_schema or {subject_type}_schema_id"
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.INVALID_DATA.value,
@@ -1044,7 +1056,9 @@ class UserRestProxy:
             if key is not None:
                 key = await self.serialize(content_type, key, ser_format, key_schema_id)
             value = await self.serialize(content_type, value, ser_format, value_schema_id)
-            prepared_records.append((key, value, record.get("partition", default_partition)))
+            # Use default_partition if record partition is None or missing
+            partition = record.get("partition") if record.get("partition") is not None else default_partition
+            prepared_records.append((key, value, partition))
         return prepared_records
 
     async def get_partition_info(self, topic: str, partition: str, content_type: str) -> dict:
@@ -1109,10 +1123,16 @@ class UserRestProxy:
                     status=HTTPStatus.BAD_REQUEST,
                 )
         if ser_format in {"avro", "jsonschema", "protobuf"}:
+            # Require schema_id for schema-based formats when obj is truthy (not None/empty)
+            # If validate_schema_info was called successfully, schema_id should be set
+            if schema_id is None:
+                raise InvalidSchema(
+                    "Schema ID is required for schema-based serialization formats (avro, jsonschema, protobuf). Please provide value_schema or value_schema_id in the request."
+                )
             return await self.schema_serialize(obj, schema_id)
         raise FormatError(f"Unknown format: {ser_format}")
 
-    async def schema_serialize(self, obj: dict, schema_id: int | None) -> bytes:
+    async def schema_serialize(self, obj: dict, schema_id: int) -> bytes:
         schema, _ = await self.serializer.get_schema_for_id(schema_id)
         bytes_ = await self.serializer.serialize(schema, obj)
         return bytes_
@@ -1186,7 +1206,11 @@ class UserRestProxy:
         for key, value, partition in prepared_records:
             # Cancelling the returned future **will not** stop event from being sent, but cancelling
             # the ``send`` coroutine itself **will**.
-            coroutine = producer.send(topic, key=key, value=value, partition=partition)
+            # Only pass partition if it's not None
+            send_kwargs = {"key": key, "value": value}
+            if partition is not None:
+                send_kwargs["partition"] = partition
+            coroutine = producer.send(topic, **send_kwargs)
 
             # Schedule the co-routine, it will be cancelled if is not complete in
             # `kafka_timeout` seconds.
@@ -1213,7 +1237,7 @@ class UserRestProxy:
                         # `None`. To preserve backwards compatibility, we replace this with -1.
                         # -1 was the default `aiokafka` behaviour.
                         "offset": result.offset() if result and result.offset() is not None else -1,
-                        "partition": result.partition() if result else 0,
+                        "partition": result.partition() if result and result.partition() is not None else 0,
                     }
                 )
 

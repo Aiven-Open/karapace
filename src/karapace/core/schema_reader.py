@@ -425,14 +425,19 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 assert message_key is not None
                 key = json_decode(message_key)
             except AssertionError as exc:
-                LOG.warning("Empty msg.key() at offset %s", msg.offset())
-                self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                offset = msg.offset()
+                LOG.warning("Empty msg.key() at offset %s", offset)
+                if offset is not None:
+                    self.offset = offset  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except JSONDecodeError as exc:
-                non_bytes_key = msg.key().decode()
-                LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, msg.offset())
-                self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                message_key = msg.key()
+                non_bytes_key = message_key.decode() if message_key is not None else "<None>"
+                offset = msg.offset()
+                LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, offset)
+                if offset is not None:
+                    self.offset = offset  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
@@ -461,8 +466,10 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 try:
                     value = self._parse_message_value(message_value)
                 except (JSONDecodeError, TypeError) as exc:
-                    LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
-                    self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                    offset = msg.offset()
+                    LOG.warning("Invalid JSON in msg.value() at offset %s", offset)
+                    if offset is not None:
+                        self.offset = offset  # Invalid entry shall also move the offset so Karapace makes progress.
                     self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                     continue  # [non-strict mode]
 
@@ -472,7 +479,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue
             finally:
-                self.offset = msg.offset()
+                offset = msg.offset()
+                if offset is not None:
+                    self.offset = offset
 
             if msg_keymode == KeyMode.CANONICAL:
                 schema_records_processed_keymode_canonical += 1

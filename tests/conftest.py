@@ -3,6 +3,16 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+# Use C++ implementation for better performance (default when not set)
+# This MUST be set before any protobuf imports
+# For protobuf 6.x, we need protoc >= 3.19.0 to use the fast C++ implementation
+# The C++ implementation is significantly faster than the pure Python implementation
+# If protoc version is too old (< 3.19.0), set PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+# See: https://developers.google.com/protocol-buffers/docs/news/2022-05-06#python-updates
+# Note: We don't set the environment variable here, allowing the C++ implementation to be used by default
+# If you need to force Python implementation for compatibility, uncomment the line below:
+# os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import json
 import os
 import re

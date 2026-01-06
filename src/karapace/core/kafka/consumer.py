@@ -71,7 +71,7 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
-    def commit(
+    def commit(  # type: ignore[override]
         self,
         message: Message | None = None,
         offsets: list[TopicPartition] | None = None,
@@ -103,7 +103,7 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
-    def subscribe(
+    def subscribe(  # type: ignore[override]
         self,
         topics: list[str] | None = None,
         patterns: list[str] | None = None,

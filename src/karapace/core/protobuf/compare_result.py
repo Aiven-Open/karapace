@@ -47,7 +47,7 @@ class Modification(Enum):
             self.FIELD_TAG_ALTER,
             self.ONE_OF_FIELD_DROP,
             self.FEW_FIELDS_CONVERTED_TO_ONE_OF,
-        ]  # type: ignore[comparison-overlap]
+        ]
 
 
 @dataclass

@@ -337,7 +337,10 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         buffer: IO[bytes],
         record: Message,
     ) -> None:
-        stats: Final = self._partition_stats[record.partition()]
+        record_partition = record.partition()
+        if record_partition is None:
+            raise ValueError("Record partition cannot be None")
+        stats: Final = self._partition_stats[record_partition]
         checksum_checkpoint: Final = stats.get_checkpoint(
             records_threshold=self._max_records_per_checkpoint,
             bytes_threshold=self._max_bytes_per_checkpoint,
@@ -346,14 +349,31 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
 
         record_key = record.key()
         record_value = record.value()
+        record_offset = record.offset()
+        if record_offset is None:
+            raise ValueError("Record offset cannot be None")
+
+        # Process headers - headers() returns list of tuples or None
+        headers_list = record.headers() or []
+        processed_headers = []
+        for header_tuple in headers_list:
+            if isinstance(header_tuple, tuple) and len(header_tuple) == 2:
+                key, value = header_tuple
+                if key is not None and value is not None:
+                    processed_headers.append(
+                        Header(
+                            key=key.encode() if isinstance(key, str) else key,
+                            value=value.encode() if isinstance(value, str) else value,
+                        )
+                    )
 
         write_record(
             buffer,
             record=Record(
                 key=record_key.encode() if isinstance(record_key, str) else record_key,
                 value=record_value.encode() if isinstance(record_value, str) else record_value,
-                headers=tuple(Header(key=key.encode(), value=value) for key, value in record.headers() or []),
-                offset=record.offset(),
+                headers=tuple(processed_headers),
+                offset=record_offset,
                 timestamp=record.timestamp()[1],
                 checksum_checkpoint=checksum_checkpoint,
             ),
@@ -361,5 +381,5 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         )
         stats.update(
             bytes_offset=buffer.tell() - offset_start,
-            record_offset=record.offset(),
+            record_offset=record_offset,
         )

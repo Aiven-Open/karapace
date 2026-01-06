@@ -514,9 +514,12 @@ class ConsumerManager:
             poll_data = []
             message_count = 0
             read_buffered = True
-            while read_bytes < max_bytes and (start_time + timeout / 1000 > time.monotonic() or read_buffered):
+            # Continue polling until we've read enough bytes or the timeout expires
+            # read_buffered allows us to continue after timeout if we've read some messages
+            end_time = start_time + timeout / 1000
+            while read_bytes < max_bytes and (time.monotonic() < end_time or read_buffered):
                 read_buffered = False
-                time_left = start_time + timeout / 1000 - time.monotonic()
+                time_left = end_time - time.monotonic()
                 bytes_left = max_bytes - read_bytes
                 LOG.debug(
                     "Polling with %r time left and %d bytes left, gathered %d messages so far",
@@ -524,10 +527,30 @@ class ConsumerManager:
                     bytes_left,
                     message_count,
                 )
-                timeout_left = max(0, (start_time - time.monotonic()) * 1000 + timeout)
+                elapsed_ms = (time.monotonic() - start_time) * 1000
+                timeout_left = timeout - elapsed_ms
+                # Calculate poll timeout: use remaining timeout, but ensure it's reasonable
+                # Cap at 1 second per poll to avoid blocking too long in a single poll
+                if timeout_left > 100:  # More than 100ms remaining
+                    # Use the remaining timeout, but cap at 1 second per poll
+                    poll_timeout = min(timeout_left / 1000, 1.0)
+                elif timeout_left > 0:  # Between 0 and 100ms remaining
+                    # Use the remaining timeout as-is for small values
+                    poll_timeout = timeout_left / 1000
+                elif len(poll_data) > 0:
+                    # Timeout expired but we've read messages, allow one more quick poll
+                    # to check for any remaining buffered messages
+                    poll_timeout = 0.01
+                else:
+                    # Timeout expired and no messages read - let the loop condition handle exit
+                    # Use a very small timeout to avoid blocking, but don't break here
+                    # The loop condition will exit naturally
+                    poll_timeout = 0.01
                 try:
-                    message = await consumer.poll(timeout=timeout_left / 1000)
+                    message = await consumer.poll(timeout=poll_timeout)
                     if message is None:
+                        # Continue polling if we still have time left or have read messages
+                        # The loop condition will handle timeout expiration
                         continue
                     if message.error() is not None:
                         raise translate_from_kafkaerror(message.error())
@@ -565,7 +588,7 @@ class ConsumerManager:
                     if request_format == "avro":
                         LOG.warning("Cannot process non-empty key using avro deserializer, falling back to binary.")
                         key = await self.deserialize(msg.key(), "binary")
-                    if request_format == "protobuf":
+                    elif request_format == "protobuf":
                         LOG.warning("Cannot process non-empty key using protobuf deserializer, falling back to binary.")
                         key = await self.deserialize(msg.key(), "binary")
                     else:

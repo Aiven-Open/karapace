@@ -318,9 +318,11 @@ def _consume_records(
             raise translate_from_kafkaerror(error)
 
         yield record
-        last_offset = record.offset()
-        if last_offset >= end_offset:
-            break
+        record_offset = record.offset()
+        if record_offset is not None:
+            last_offset = record_offset
+            if last_offset >= end_offset:
+                break
 
 
 def _write_partition(

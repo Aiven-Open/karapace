@@ -1,6 +1,5 @@
-ARG PYTHON_VERSION=3.10.11
+ARG PYTHON_VERSION=3.12
 
-# Current versions of avro and zstandard don't yet have wheels for 3.11.
 FROM python:${PYTHON_VERSION}-bullseye AS builder
 ARG KARAPACE_VERSION
 
@@ -24,7 +23,7 @@ RUN wget --progress=dot:giga "https://go.dev/dl/go${GO_VERSION}.linux-$(dpkg --p
 # intended behavior.
 COPY ./requirements/requirements.txt /build/
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python3 -m pip install -r /build/requirements.txt
+    python3 -m pip install --no-dependencies -r /build/requirements.txt
 
 COPY . /build/karapace-repo
 WORKDIR /build/karapace-repo
@@ -40,11 +39,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Karapace image, i.e. production.
 FROM builder AS karapace
 # Install protobuf compiler.
-ARG PROTOBUF_COMPILER_VERSION="3.12.4-1+deb11u1"
+ARG PROTOBUF_COMPILER_VERSION="27.0"
 RUN apt-get update \
  && apt-get install --assume-yes --no-install-recommends \
-    protobuf-compiler=$PROTOBUF_COMPILER_VERSION \
- && rm -rf /var/lib/apt/lists/*
+    unzip="*" \
+    wget="*" \
+ && rm -rf /var/lib/apt/lists/* \
+ && wget -q "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOBUF_COMPILER_VERSION}/protoc-${PROTOBUF_COMPILER_VERSION}-linux-x86_64.zip" \
+ && unzip -q "protoc-${PROTOBUF_COMPILER_VERSION}-linux-x86_64.zip" -d /tmp/protoc \
+ && mv /tmp/protoc/bin/protoc /usr/local/bin/protoc \
+ && mv /tmp/protoc/include/* /usr/local/include/ \
+ && rm -rf /tmp/protoc "protoc-${PROTOBUF_COMPILER_VERSION}-linux-x86_64.zip" \
+ && apt-get purge -y --auto-remove unzip wget \
+ && rm -rf /var/lib/apt/lists/* \
+ && protoc --version
 
 # Copy virtualenv from builder and activate it.
 COPY --from=builder /venv /venv
@@ -59,7 +67,7 @@ ENV CAROOT=/opt/karapace/certs/ca
 
 # Setup files and directories.
 RUN mkdir -p /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace/coverage $CAROOT \
-&& touch /opt/karapace/coverage/.coverage.3.10 /opt/karapace/coverage/.coverage.3.11 /opt/karapace/coverage/.coverage.3.12 /opt/karapace/coverage/.coverage.3.13 \
+&& touch /opt/karapace/coverage/.coverage.3.12 /opt/karapace/coverage/.coverage.3.13 \
 && chown --recursive "$RUNNER_UID:$RUNNER_GID" /opt/karapace /opt/karapace/coverage /var/log/karapace
 
 # Install Java via openjdk-11
@@ -78,11 +86,15 @@ RUN git clone https://github.com/FiloSottile/mkcert . \
 
 WORKDIR /opt/karapace
 COPY ./requirements /opt/karapace/requirements
-RUN python3 -m pip install -r /opt/karapace/requirements/requirements-dev.txt -r /opt/karapace/requirements/requirements-typing.txt
+RUN python3 -m pip install --no-dependencies -r /opt/karapace/requirements/requirements-dev.txt -r /opt/karapace/requirements/requirements-typing.txt
 
 COPY . .
-RUN SETUPTOOLS_SCM_PRETEND_VERSION=$KARAPACE_VERSION python3 -m pip install .
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=$KARAPACE_VERSION python3 -m pip install --no-deps .
 ENV PYTHONPATH="/opt/karapace/src:$PYTHONPATH"
+# Use C++ implementation for better performance (default when not set)
+# The pure Python implementation is much slower, so we use C++ when protoc >= 3.19.0
+# If protoc version is too old, set PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python as fallback
+# Note: Not setting this env var allows protobuf to use the fast C++ implementation by default
 
 
 FROM karapace AS production

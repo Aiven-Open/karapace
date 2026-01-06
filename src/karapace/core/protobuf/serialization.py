@@ -134,13 +134,13 @@ def _deserialize_options(options: Any) -> list[OptionElement]:
         result.append(OptionElement("java_multiple_files", OptionElement.Kind.BOOLEAN, options.java_multiple_files))
     if options.HasField("go_package"):
         result.append(OptionElement("go_package", OptionElement.Kind.STRING, options.go_package))
-    if options.HasField("cc_generic_services"):
-        result.append(OptionElement("cc_generic_services", OptionElement.Kind.BOOLEAN, options.cc_generic_services))
-    if options.HasField("java_generic_services"):
-        result.append(OptionElement("java_generic_services", OptionElement.Kind.BOOLEAN, options.java_generic_services))
-    if options.HasField("py_generic_services"):
-        result.append(OptionElement("py_generic_services", OptionElement.Kind.BOOLEAN, options.py_generic_services))
-    if options.HasField("java_generate_equals_and_hash"):
+    # Generic services fields were removed in protobuf 6.x, check if fields exist before accessing
+    # Use descriptor to check field existence to avoid ValueError from HasField
+    descriptor_fields = {f.name for f in options.DESCRIPTOR.fields}
+    for field_name in ["cc_generic_services", "java_generic_services", "py_generic_services"]:
+        if field_name in descriptor_fields and options.HasField(field_name):
+            result.append(OptionElement(field_name, OptionElement.Kind.BOOLEAN, getattr(options, field_name)))
+    if "java_generate_equals_and_hash" in descriptor_fields and options.HasField("java_generate_equals_and_hash"):
         result.append(
             OptionElement("java_generate_equals_and_hash", OptionElement.Kind.BOOLEAN, options.java_generate_equals_and_hash)
         )
@@ -160,8 +160,13 @@ def _deserialize_options(options: Any) -> list[OptionElement]:
         result.append(OptionElement("php_class_prefix", OptionElement.Kind.STRING, options.php_class_prefix))
     if options.HasField("php_namespace"):
         result.append(OptionElement("php_namespace", OptionElement.Kind.STRING, options.php_namespace))
-    if options.HasField("php_generic_services"):
-        result.append(OptionElement("php_generic_services", OptionElement.Kind.BOOLEAN, options.php_generic_services))
+    # php_generic_services was removed in protobuf 6.x, check if field exists before accessing
+    try:
+        if options.HasField("php_generic_services"):
+            result.append(OptionElement("php_generic_services", OptionElement.Kind.BOOLEAN, options.php_generic_services))
+    except (ValueError, AttributeError):
+        # Field doesn't exist in this protobuf version, skip it
+        pass
     if options.HasField("php_metadata_namespace"):
         result.append(OptionElement("php_metadata_namespace", OptionElement.Kind.STRING, options.php_metadata_namespace))
     if options.HasField("ruby_package"):
@@ -297,14 +302,20 @@ def _serialize_options(options: Sequence[OptionElement], result: google.protobuf
             result.java_multiple_files = opt.value
         if opt.name == ("go_package"):
             result.go_package = opt.value
-        if opt.name == ("cc_generic_services"):
-            result.cc_generic_services = opt.value
-        if opt.name == ("java_generic_services"):
-            result.java_generic_services = opt.value
-        if opt.name == ("py_generic_services"):
-            result.py_generic_services = opt.value
+        # Generic services fields were removed in protobuf 6.x, check if fields exist before setting
+        for field_name in ["cc_generic_services", "java_generic_services", "py_generic_services"]:
+            if opt.name == (field_name):
+                try:
+                    setattr(result, field_name, opt.value)
+                except (ValueError, AttributeError):
+                    # Field doesn't exist in this protobuf version, skip it
+                    pass
         if opt.name == ("java_generate_equals_and_hash"):
-            result.java_generate_equals_and_hash = opt.value
+            try:
+                result.java_generate_equals_and_hash = opt.value
+            except (ValueError, AttributeError):
+                # Field doesn't exist in this protobuf version, skip it
+                pass
         if opt.name == ("deprecated"):
             result.deprecated = opt.value
         if opt.name == ("java_string_check_utf8"):
@@ -321,8 +332,13 @@ def _serialize_options(options: Sequence[OptionElement], result: google.protobuf
             result.php_class_prefix = opt.value
         if opt.name == ("php_namespace"):
             result.php_namespace = opt.value
+        # php_generic_services was removed in protobuf 6.x, check if field exists before setting
         if opt.name == ("php_generic_services"):
-            result.php_generic_services = opt.value
+            try:
+                result.php_generic_services = opt.value
+            except (ValueError, AttributeError):
+                # Field doesn't exist in this protobuf version, skip it
+                pass
         if opt.name == ("php_metadata_namespace"):
             result.php_metadata_namespace = opt.value
         if opt.name == ("ruby_package"):

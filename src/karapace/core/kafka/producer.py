@@ -18,7 +18,7 @@ from karapace.core.kafka.common import (
     translate_from_kafkaerror,
 )
 from threading import Event, Thread
-from typing import cast, TypedDict
+from typing import TypedDict
 from typing_extensions import Unpack
 
 import asyncio
@@ -48,13 +48,26 @@ class KafkaProducer(_KafkaConfigMixin, Producer):
         """A convenience wrapper around `Producer.produce`, to be able to access the message via a Future."""
         result: Future[Message] = Future()
 
-        params = cast(ProducerSendParams, {key: value for key, value in params.items() if value is not None})
+        # Convert params to the format expected by Producer.produce
+        # Producer.produce expects: value: bytes | None, key: bytes | None, timestamp: int
+        produce_kwargs: dict[str, bytes | int] = {}
+
+        if "value" in params and params["value"] is not None:
+            produce_kwargs["value"] = params["value"].encode() if isinstance(params["value"], str) else params["value"]
+        if "key" in params and params["key"] is not None:
+            produce_kwargs["key"] = params["key"].encode() if isinstance(params["key"], str) else params["key"]
+        if "partition" in params:
+            produce_kwargs["partition"] = params["partition"]
+        if "timestamp" in params and params["timestamp"] is not None:
+            produce_kwargs["timestamp"] = params["timestamp"]
+        if "headers" in params:
+            produce_kwargs["headers"] = params["headers"]  # type: ignore[assignment]
 
         try:
             self.produce(
                 topic,
                 on_delivery=partial(_on_delivery_callback, result),
-                **params,
+                **produce_kwargs,  # type: ignore[arg-type]
             )
         except KafkaException as exc:
             raise_from_kafkaexception(exc)

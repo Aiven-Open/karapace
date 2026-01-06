@@ -73,6 +73,12 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
                     {"error": "Authorization error", "reason": e.detail},
                     status_code=e.status_code,
                 )
+            except Exception as e:
+                log.exception("Unexpected error during authorization: %s", e)
+                return JSONResponse(
+                    {"error": "Internal server error", "reason": "Authorization failed"},
+                    status_code=500,
+                )
 
         response = await call_next(request)
         response.headers["Content-Type"] = response_content_type

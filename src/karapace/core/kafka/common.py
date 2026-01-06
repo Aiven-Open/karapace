@@ -50,16 +50,16 @@ def translate_from_kafkaerror(error: KafkaError) -> Exception:
     """
     code = error.code()
     if code in (
-        KafkaError._NOENT,
-        KafkaError._UNKNOWN_PARTITION,
-        KafkaError._UNKNOWN_TOPIC,
+        KafkaError._NOENT,  # type: ignore[attr-defined]
+        KafkaError._UNKNOWN_PARTITION,  # type: ignore[attr-defined]
+        KafkaError._UNKNOWN_TOPIC,  # type: ignore[attr-defined]
     ):
         return UnknownTopicOrPartitionError()
-    if code == KafkaError._TIMED_OUT:
+    if code == KafkaError._TIMED_OUT:  # type: ignore[attr-defined]
         return KafkaTimeoutError()
-    if code == KafkaError._STATE:
+    if code == KafkaError._STATE:  # type: ignore[attr-defined]
         return IllegalStateError()
-    if code == KafkaError._RESOLVE:
+    if code == KafkaError._RESOLVE:  # type: ignore[attr-defined]
         return KafkaUnavailableError()
 
     return for_code(code)
@@ -207,7 +207,7 @@ class _KafkaConfigMixin:
                 # to the callback function defined in the `error_cb` config
                 self._activate_callbacks()
                 self.log.info("Could not establish connection due to errors: %s", self._errors)
-                if any(error.code() == KafkaError._AUTHENTICATION for error in self._errors):
+                if any(error.code() == KafkaError._AUTHENTICATION for error in self._errors):  # type: ignore[attr-defined]
                     raise AuthenticationFailedError() from exc
                 continue
             else:
