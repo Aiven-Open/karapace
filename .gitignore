@@ -22,4 +22,3 @@ src/karapace/version.py
 .hypothesis/
 .DS_Store
 *.coverage.*
-tests/integration/test_data/backup_v3_single_partition/
