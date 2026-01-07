@@ -62,7 +62,7 @@ class Client:
         # Instead we wait for the first query in async context and lazy-initialize aiohttp client.
         self.client_factory = client_factory
 
-        self.ssl_mode: None | bool | ssl.SSLContext
+        self.ssl_mode: bool | ssl.SSLContext
         if server_ca is None:
             self.ssl_mode = False
         else:

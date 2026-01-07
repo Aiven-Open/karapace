@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 VENV_DIR ?= $(CURDIR)/venv
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
-PYTHON_VERSION ?= 3.10
+PYTHON_VERSION ?= 3.12
 DOCKER_COMPOSE ?= docker compose
 KARAPACE-CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run --rm karapace-cli
 CERTS_FOLDER ?= /opt/karapace/certs
@@ -104,7 +104,7 @@ schema:
 
 .PHONY: pin-requirements
 pin-requirements:
-	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -it -v .:/karapace --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
+	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -t -v "$(CURDIR):/karapace" --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
 
 .PHONY: stop-karapace-docker-resources
 stop-karapace-docker-resources:

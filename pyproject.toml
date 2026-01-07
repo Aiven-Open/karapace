@@ -4,42 +4,43 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "karapace"
-requires-python = ">= 3.10"
+requires-python = ">=3.12,<3.14"
 dynamic = ["version"]
 readme = "README.rst"
 license = {file = "LICENSE"}
 dependencies = [
-  "accept-types == 0.4.1",
-  "aiohttp == 3.12.14",
-  "aiokafka == 0.10.0",
-  "async_lru == 2.0.5",
-  "cachetools == 5.3.3",
-  "confluent-kafka == 2.10.0",
-  "cryptography == 45.0.5",
-  "fastapi[standard] == 0.115.5",
-  "isodate == 0.7.2",
-  "jsonschema == 4.23.0",
-  "lz4 == 4.4.3",
-  "networkx == 3.4.2",
-  "protobuf == 3.20.3",
-  "pydantic == 2.10.2",
-  "pydantic-settings == 2.8.1",
-  "pyjwt == 2.10.1",
-  "python-dateutil == 2.9.0.post0",
-  "python-snappy == 0.7.3",
-  "rich == 13.7.1",
-  "tenacity == 9.0.0",
-  "typing-extensions == 4.13.2",
-  "ujson == 5.10.0",
-  "watchfiles == 1.0.4",
-  "xxhash == 3.5.0",
-  "zstandard == 0.23.0",
-  "prometheus-client == 0.20.0",
-  "yarl == 1.20.0",
-  "opentelemetry-api == 1.27.0",
-  "opentelemetry-sdk == 1.27.0",
-  "opentelemetry-exporter-otlp == 1.27.0",
-  "dependency-injector == 4.43.0",
+  "accept-types",
+  "aiohttp",
+  "aiokafka==0.10.0",
+  "async_lru",
+  "cachetools",
+  "confluent-kafka==2.10.0",
+  "cryptography",
+  "fastapi[standard]",
+  "isodate",
+  "jsonschema",
+  "lz4",
+  "networkx",
+  "protobuf==3.20.3",
+  "pydantic",
+  "pydantic-settings",
+  "pyjwt",
+  "python-dateutil",
+  "python-snappy",
+  "rich",
+  "tenacity",
+  "typing-extensions",
+  "ujson",
+  "watchfiles",
+  "xxhash",
+  "zstandard",
+  "prometheus-client",
+  "yarl",
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp",
+  "opentelemetry-proto<1.28.0",
+  "dependency-injector",
 
   # Patched dependencies
   #
@@ -58,8 +59,6 @@ classifiers=[
   "Intended Audience :: Information Technology",
   "Intended Audience :: System Administrators",
   "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Topic :: Database :: Database Engines/Servers",
@@ -79,7 +78,7 @@ Issues = "https://github.com/Aiven-Open/karapace/issues"
 
 [project.optional-dependencies]
 sentry-sdk = ["sentry-sdk>=1.6.0"]
-systemd-logging = ["systemd-python==235"]
+systemd-logging = ["systemd-python"]
 ujson = ["ujson"]
 dev = [
   # Developer QoL
