@@ -102,5 +102,5 @@ class ForwardClient:
         if response_type == list[int]:
             return json_decode(body, assume_type=list[int])  # type: ignore[return-value]
         if issubclass(response_type, BaseModel):
-            return response_type.parse_raw(body)  # type: ignore[return-value]
+            return response_type.parse_raw(body)
         raise ValueError("Did not match any expected type")
