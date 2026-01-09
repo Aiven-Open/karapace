@@ -154,7 +154,8 @@ class ACLAuthorizer(AuthorizeProtocol):
     def get_user(self, username: str) -> User | None:
         user = self.user_db.get(username)
         if not user:
-            raise ValueError("No user found")
+            # return None instead of raising ValueError as this error is being handled as AuthenticationError
+            return None
         return user
 
     def _check_resources(self, resources: list[str], aclentry: ACLEntry) -> bool:

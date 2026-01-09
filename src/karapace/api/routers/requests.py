@@ -98,3 +98,8 @@ class SubjectSchemaVersionResponse(BaseModel):
     references: list[Any] | None = None
     schema_type: SchemaType | None = Field(alias="schemaType", default=None)
     compatibility: str | None = None
+
+
+class ErrorResponse(BaseModel):
+    error_code: int
+    message: str
