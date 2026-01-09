@@ -386,7 +386,7 @@ websocket-client==1.9.0
     # via python-socketio
 websockets==15.0.1
     # via uvicorn
-werkzeug==3.1.4
+werkzeug==3.1.5
     # via
     #   flask
     #   flask-cors
