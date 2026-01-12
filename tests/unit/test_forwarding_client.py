@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 import pytest
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.datastructures import Headers
 from pydantic import BaseModel
 from starlette.datastructures import MutableHeaders
@@ -69,6 +69,7 @@ async def test_forward_request_with_basemodel_response(forward_client: ForwardCl
     mock_response_context = AsyncMock
     mock_response = AsyncMock()
     mock_response_context.call_function = lambda _: mock_response
+    mock_response.status = 200
     mock_response.text.return_value = '{"number":10,"string":"important"}'
     headers = MutableHeaders()
     headers["Content-Type"] = testcase.content_type
@@ -102,6 +103,7 @@ async def test_forward_request_with_integer_list_response(forward_client: Forwar
     mock_response_context = AsyncMock
     mock_response = AsyncMock()
     mock_response_context.call_function = lambda _: mock_response
+    mock_response.status = 200
     mock_response.text.return_value = "[1, 2, 3, 10]"
     headers = MutableHeaders()
     headers["Content-Type"] = "application/json"
@@ -135,6 +137,7 @@ async def test_forward_request_with_integer_response(forward_client: ForwardClie
     mock_response_context = AsyncMock
     mock_response = AsyncMock()
     mock_response_context.call_function = lambda _: mock_response
+    mock_response.status = 200
     mock_response.text.return_value = "12"
     headers = MutableHeaders()
     headers["Content-Type"] = "application/json"
@@ -185,6 +188,7 @@ async def test_forward_request_with_https(karapace_container: KarapaceContainer)
         mock_response_context = AsyncMock
         mock_response = AsyncMock()
         mock_response_context.call_function = lambda _: mock_response
+        mock_response.status = 200
         mock_response.text.return_value = "12"
         headers = MutableHeaders()
         headers["Content-Type"] = "application/json"
@@ -207,3 +211,24 @@ async def test_forward_request_with_https(karapace_container: KarapaceContainer)
         )
 
         assert response == 12
+
+
+async def test_forward_request_with_error_response(forward_client: ForwardClient) -> None:
+    """Test that error responses (4xx/5xx) are properly handled and not parsed as success responses."""
+    mock_request = Mock(spec=Request)
+
+    # Mock _forward_request_remote to return error status and body directly
+    # This bypasses the aiohttp complexity and tests the error handling logic
+    error_body = '{"error_code": 409, "message": "Incompatible schema, compatibility_mode=BACKWARD. Incompatibilities: n_current_date"}'
+    forward_client._forward_request_remote = AsyncMock(return_value=(409, error_body))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await forward_client.forward_request_remote(
+            request=mock_request,
+            primary_url="test-url",
+            response_type=TestResponse,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["error_code"] == 409
+    assert "Incompatible schema" in exc_info.value.detail["message"]
