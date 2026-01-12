@@ -170,13 +170,14 @@ async def test_forward_request_with_https(karapace_container: KarapaceContainer)
     with (
         patch("karapace.api.forward_client.aiohttp") as mocked_aiohttp,
         patch("karapace.api.forward_client.ssl") as mocked_ssl,
+        patch("karapace.api.forward_client.os.path.exists") as mock_exists,
     ):
+        mock_exists.return_value = True  # Make the CA file appear to exist
         mocked_aiohttp.ClientSession.return_value = Mock(
             spec=aiohttp.ClientSession, headers={"User-Agent": ForwardClient.USER_AGENT}
         )
         forward_client = ForwardClient(config=https_config)
 
-        mocked_ssl.return_value.SSLContext = Mock()
         mocked_ssl.SSLContext.assert_called_once_with(protocol=mocked_ssl.PROTOCOL_TLS_CLIENT)
         mocked_ssl.SSLContext.return_value.load_verify_locations.assert_called_once_with(cafile="test-cafile")
 
