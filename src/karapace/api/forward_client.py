@@ -13,6 +13,7 @@ from typing import overload, TypeVar, Union
 import aiohttp
 import async_timeout
 import logging
+import os
 import ssl
 
 LOG = logging.getLogger(__name__)
@@ -30,8 +31,6 @@ class ForwardClient:
         self._forward_client: aiohttp.ClientSession = aiohttp.ClientSession(headers={"User-Agent": self.USER_AGENT})
         self._ssl_context: ssl.SSLContext | None = None
         if self.advertised_protocol == "https" and config.server_tls_cafile:
-            import os
-
             if os.path.exists(config.server_tls_cafile):
                 self._ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
                 self._ssl_context.load_verify_locations(cafile=config.server_tls_cafile)
