@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Container, Iterable
 from concurrent.futures import Future
-from confluent_kafka import TopicCollection, TopicPartition
+from confluent_kafka import IsolationLevel, TopicCollection, TopicPartition
 from confluent_kafka.admin import (
     AdminClient,
     BrokerMetadata,
@@ -134,6 +134,9 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
         so if a config entry matches either of them, it'll be returned.
         If a filter is not provided (ie. is `None`), it'll act as if matching all
         config entries.
+
+        When multiple entries exist for the same config name (e.g., default and dynamic),
+        dynamic configs are prioritized over static/default ones.
         """
         self.log.info(
             "Fetching config for topic '%s' with name filter %s and source filter %s",
@@ -147,15 +150,37 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
-        config: dict[str, str] = {}
+        # Use a dict to track config entries, prioritizing dynamic over static/default
+        # ConfigSource priority: DYNAMIC_TOPIC_CONFIG > DYNAMIC_BROKER_CONFIG > STATIC_BROKER_CONFIG > DEFAULT_CONFIG
+        config_entries: dict[str, tuple[ConfigSource, str]] = {}
         for config_name, config_entry in topic_configs.items():
             matches_name_filter: bool = config_name_filter is None or config_name in config_name_filter
-            matches_source_filter: bool = (
-                config_source_filter is None or ConfigSource(config_entry.source) in config_source_filter
-            )
+            config_source = ConfigSource(config_entry.source)
+            matches_source_filter: bool = config_source_filter is None or config_source in config_source_filter
 
             if matches_name_filter or matches_source_filter:
-                config[config_name] = config_entry.value
+                # If we already have an entry for this config name, check if we should replace it
+                if config_name in config_entries:
+                    existing_source, _ = config_entries[config_name]
+                    # Prioritize dynamic configs over static/default
+                    # DYNAMIC_TOPIC_CONFIG (4) > DYNAMIC_BROKER_CONFIG (2) > STATIC_BROKER_CONFIG (5) > DEFAULT_CONFIG (1)
+                    if config_source == ConfigSource.DYNAMIC_TOPIC_CONFIG:
+                        # Always use dynamic topic config
+                        config_entries[config_name] = (config_source, config_entry.value)
+                    elif config_source == ConfigSource.DYNAMIC_BROKER_CONFIG and existing_source not in (
+                        ConfigSource.DYNAMIC_TOPIC_CONFIG,
+                    ):
+                        # Use dynamic broker config if we don't have dynamic topic config
+                        config_entries[config_name] = (config_source, config_entry.value)
+                    elif existing_source in (ConfigSource.DEFAULT_CONFIG, ConfigSource.STATIC_BROKER_CONFIG):
+                        # Use the new entry if existing is default/static
+                        if config_source not in (ConfigSource.DEFAULT_CONFIG, ConfigSource.STATIC_BROKER_CONFIG):
+                            config_entries[config_name] = (config_source, config_entry.value)
+                else:
+                    config_entries[config_name] = (config_source, config_entry.value)
+
+        # Extract just the values
+        config: dict[str, str] = {name: value for name, (_, value) in config_entries.items()}
 
         return config
 
@@ -172,7 +197,8 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
             latest_offset_futmap: dict[TopicPartition, Future] = self.list_offsets(
                 {
                     TopicPartition(topic, partition_id): OffsetSpec.latest(),
-                }
+                },
+                isolation_level=IsolationLevel.READ_UNCOMMITTED,
             )
             endoffset = single_futmap_result(latest_offset_futmap)
 
@@ -180,15 +206,16 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
             earliest_offset_futmap: dict[TopicPartition, Future] = self.list_offsets(
                 {
                     TopicPartition(topic, partition_id): OffsetSpec.earliest(),
-                }
+                },
+                isolation_level=IsolationLevel.READ_UNCOMMITTED,
             )
             startoffset = single_futmap_result(earliest_offset_futmap)
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
         return {"beginning_offset": startoffset.offset, "end_offset": endoffset.offset}
 
-    def describe_topics(self, topics: TopicCollection) -> dict[str, Future]:
+    def describe_topics(self, topics: TopicCollection, **kwargs: object) -> dict[str, Future[TopicMetadata]]:  # type: ignore[override]
         with self._tracer.get_tracer().start_as_current_span(
             self._tracer.get_name_from_caller_with_class(self, self.describe_topics)
         ):
-            return super().describe_topics(topics)
+            return super().describe_topics(topics, **kwargs)

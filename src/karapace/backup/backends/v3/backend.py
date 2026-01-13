@@ -337,7 +337,8 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         buffer: IO[bytes],
         record: Message,
     ) -> None:
-        stats: Final = self._partition_stats[record.partition()]
+        partition: int = record.partition()  # type: ignore[assignment]
+        stats: Final = self._partition_stats[partition]
         checksum_checkpoint: Final = stats.get_checkpoint(
             records_threshold=self._max_records_per_checkpoint,
             bytes_threshold=self._max_bytes_per_checkpoint,
@@ -346,14 +347,38 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
 
         record_key = record.key()
         record_value = record.value()
+        record_offset = record.offset()
+        if record_offset is None:
+            return  # Skip records with no offset
+
+        record_headers = record.headers()
+        headers_list: list[tuple[bytes, bytes]] = []
+        if record_headers:
+            for header_tuple in record_headers:
+                # Headers from confluent_kafka are tuple[str, bytes]
+                # Header class expects tuple[bytes, bytes], so encode the key string
+                # Use indexing to avoid mypy "unpacking a string" error
+                header_key = header_tuple[0]
+                header_value = header_tuple[1]
+                key_bytes = (
+                    header_key.encode()
+                    if isinstance(header_key, str)
+                    else (header_key if isinstance(header_key, bytes) else b"")
+                )
+                value_bytes = (
+                    header_value
+                    if isinstance(header_value, bytes)
+                    else (header_value.encode() if isinstance(header_value, str) else b"")
+                )
+                headers_list.append((key_bytes, value_bytes))
 
         write_record(
             buffer,
             record=Record(
-                key=record_key.encode() if isinstance(record_key, str) else record_key,
-                value=record_value.encode() if isinstance(record_value, str) else record_value,
-                headers=tuple(Header(key=key.encode(), value=value) for key, value in record.headers() or []),
-                offset=record.offset(),
+                key=record_key.encode() if isinstance(record_key, str) else (record_key or b""),
+                value=record_value.encode() if isinstance(record_value, str) else (record_value or b""),
+                headers=tuple(Header(key=key, value=value) for key, value in headers_list),
+                offset=record_offset,
                 timestamp=record.timestamp()[1],
                 checksum_checkpoint=checksum_checkpoint,
             ),
@@ -361,5 +386,5 @@ class SchemaBackupV3Writer(BytesBackupWriter[DataFile]):
         )
         stats.update(
             bytes_offset=buffer.tell() - offset_start,
-            record_offset=record.offset(),
+            record_offset=record_offset,
         )

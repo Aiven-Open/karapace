@@ -54,7 +54,7 @@ class KafkaProducer(_KafkaConfigMixin, Producer):
             self.produce(
                 topic,
                 on_delivery=partial(_on_delivery_callback, result),
-                **params,
+                **params,  # type: ignore[arg-type]
             )
         except KafkaException as exc:
             raise_from_kafkaexception(exc)

@@ -91,7 +91,7 @@ class KarapaceProducer:
             sent_offset,
         )
 
-        if self._offset_watcher.wait_for_offset(sent_offset, timeout=60) is True:
+        if sent_offset is not None and self._offset_watcher.wait_for_offset(sent_offset, timeout=60) is True:
             LOG.info(
                 "Schema reader has found key. key: %r, value: %r, offset: %r",
                 key,

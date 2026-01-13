@@ -504,38 +504,67 @@ class ConsumerManager:
                 if val <= 0:
                     KarapaceBase.internal_error(message=f"Invalid request parameter {val}", content_type=content_type)
             LOG.info(
-                "Will poll multiple times for a single message with a total timeout of %dms, "
-                "until at least %d bytes have been fetched",
+                "Will consume messages with a total timeout of %dms, " "until at least %d bytes have been fetched",
                 timeout,
                 max_bytes,
             )
             read_bytes = 0
             start_time = time.monotonic()
-            poll_data = []
-            message_count = 0
-            read_buffered = True
-            while read_bytes < max_bytes and (start_time + timeout / 1000 > time.monotonic() or read_buffered):
-                read_buffered = False
-                time_left = start_time + timeout / 1000 - time.monotonic()
+            end_time = start_time + timeout / 1000
+            consumed_messages = []
+            # Use consume() to fetch multiple messages at once, which is more efficient than multiple poll() calls
+            # After a seek, we need to allow time for fetch.max.wait.ms (~500ms) to complete
+            while read_bytes < max_bytes and time.monotonic() < end_time:
+                time_left = end_time - time.monotonic()
                 bytes_left = max_bytes - read_bytes
                 LOG.debug(
-                    "Polling with %r time left and %d bytes left, gathered %d messages so far",
+                    "Fetching messages with %r time left and %d bytes left, gathered %d messages so far",
                     time_left,
                     bytes_left,
-                    message_count,
+                    len(consumed_messages),
                 )
-                timeout_left = max(0, (start_time - time.monotonic()) * 1000 + timeout)
+                # Calculate how many messages we can still fetch based on max_bytes
+                # Estimate average message size (use a conservative estimate if we have no messages yet)
+                # Note: consume() has a limit of 1M messages, so we cap at that
+                if consumed_messages:
+                    avg_message_size = read_bytes / len(consumed_messages)
+                    estimated_messages_needed = max(1, min(1000000, int(bytes_left / avg_message_size) + 1))
+                else:
+                    # For first fetch, request a reasonable number of messages
+                    # After seek, we want to get all available messages, but cap at 1M (the limit)
+                    estimated_messages_needed = 1000  # Request up to 1000 messages initially
+
+                # Use most of the remaining time for the consume call
+                # For first fetch after seek, allow enough time for fetch.max.wait.ms (~500ms)
+                # Subsequent fetches use remaining time
+                is_first_fetch = len(consumed_messages) == 0
+                consume_timeout = min(0.8, max(0.1, time_left * 0.9)) if is_first_fetch else max(0.05, time_left * 0.9)
+
+                messages = []
                 try:
-                    message = await consumer.poll(timeout=timeout_left / 1000)
-                    if message is None:
+                    # Use consume() to get multiple messages at once
+                    messages = await consumer.consume(num_messages=estimated_messages_needed, timeout=consume_timeout)
+                    if not messages:
+                        # No messages available, continue if we have time
                         continue
-                    if message.error() is not None:
-                        raise translate_from_kafkaerror(message.error())
+
+                    # Process all messages from this consume call
+                    for message in messages:
+                        if message.error() is not None:
+                            raise translate_from_kafkaerror(message.error())
+                        key_bytes = len(message.key()) if message.key() else 0
+                        value_bytes = len(message.value()) if message.value() else 0
+                        read_bytes += key_bytes + value_bytes
+                        consumed_messages.append(message)
+                        # Stop if we've reached max_bytes
+                        if read_bytes >= max_bytes:
+                            break
+
                 except (GroupAuthorizationFailedError, TopicAuthorizationFailedError):
                     KarapaceBase.r(body={"message": "Forbidden"}, content_type=content_type, status=HTTPStatus.FORBIDDEN)
                 except UnknownTopicOrPartitionError:
                     KarapaceBase.not_found(
-                        message=f"Unknown topic or partition: {message.error()}",
+                        message="Unknown topic or partition",
                         content_type=content_type,
                         sub_code=RESTErrorCodes.UNKNOWN_TOPIC_OR_PARTITION.value,
                     )
@@ -544,28 +573,22 @@ class ConsumerManager:
                         message=f"Failed to fetch: {ex}",
                         content_type=content_type,
                     )
-                LOG.debug("Successfully polled for messages")
-                message_count += 1
-                key_bytes = 0 if message.key() is None else len(message.key())
-                value_bytes = 0 if message.value() is None else len(message.value())
-                read_bytes += key_bytes + value_bytes
-                poll_data.append(message)
-                read_buffered = True
+                LOG.debug("Successfully consumed %d messages", len(messages))
             LOG.info(
                 "Gathered %d total messages (%d bytes read) in %r",
-                message_count,
+                len(consumed_messages),
                 read_bytes,
                 time.monotonic() - start_time,
             )
             response = []
-            for msg in poll_data:
+            for msg in consumed_messages:
                 try:
                     key = await self.deserialize(msg.key(), request_format) if msg.key() else None
                 except DeserializationError as e:
                     if request_format == "avro":
                         LOG.warning("Cannot process non-empty key using avro deserializer, falling back to binary.")
                         key = await self.deserialize(msg.key(), "binary")
-                    if request_format == "protobuf":
+                    elif request_format == "protobuf":
                         LOG.warning("Cannot process non-empty key using protobuf deserializer, falling back to binary.")
                         key = await self.deserialize(msg.key(), "binary")
                     else:
