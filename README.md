@@ -9,7 +9,7 @@
 | src/karapace/api/content\_type.py                        |       28 |       19 |        8 |        0 |     25% |     30-66 |
 | src/karapace/api/controller.py                           |      354 |      265 |       74 |        8 |     23% |80, 83-101, 105, 124-149, 160-180, 195-196, 206-211, 214-216, 226, 236-237, 245, 247, 249, 251, 270-293, 296, 301, 308-320, 329-347, 361-373, 380-381, 390-398, 406-435, 452-482, 491-544, 552-566, 580-604, 612-617, 629, 653-688, 698-786, 803-873, 878, 885-893, 896-899, 902-921, 930-961 |
 | src/karapace/api/factory.py                              |       42 |       18 |        0 |        0 |     57% |38-47, 57-69 |
-| src/karapace/api/forward\_client.py                      |       49 |        3 |       12 |        3 |     90% |55->58, 65-66, 106 |
+| src/karapace/api/forward\_client.py                      |       60 |        4 |       16 |        3 |     91% |57->60, 68-69, 120, 135 |
 | src/karapace/api/http\_handlers/\_\_init\_\_.py          |       19 |       11 |        2 |        0 |     38% |     16-28 |
 | src/karapace/api/middlewares/\_\_init\_\_.py             |       44 |       33 |        8 |        0 |     21% |     21-81 |
 | src/karapace/api/oidc/middleware.py                      |       95 |       18 |       30 |        6 |     79% |56, 65, 90, 105, 114, 141->145, 143-144, 148-159 |
@@ -31,11 +31,11 @@
 | src/karapace/api/telemetry/middleware.py                 |       30 |        0 |        0 |        0 |    100% |           |
 | src/karapace/api/telemetry/setup.py                      |       20 |        2 |        0 |        0 |     90% |     36-37 |
 | src/karapace/api/user.py                                 |       16 |        8 |        2 |        0 |     44% |     20-31 |
-| src/karapace/backup/api.py                               |      303 |       18 |      100 |       13 |     91% |143, 153-155, 169, 173, 280-282, 393, 408->exit, 489, 496, 536, 538, 574-578, 678, 694 |
+| src/karapace/backup/api.py                               |      303 |       61 |      100 |       10 |     76% |143, 153-155, 169, 173, 280-282, 393, 408->exit, 489, 496, 536, 538, 573-583, 608-650, 659-700 |
 | src/karapace/backup/backends/reader.py                   |       45 |        0 |        2 |        0 |    100% |           |
 | src/karapace/backup/backends/v1.py                       |       13 |        0 |        2 |        0 |    100% |           |
 | src/karapace/backup/backends/v2.py                       |       56 |        2 |       14 |        4 |     91% |60, 62, 72->74, 77->79 |
-| src/karapace/backup/backends/v3/backend.py               |      154 |       12 |       44 |        8 |     89% |49-53, 62-63, 125, 253, 272, 274, 281, 310, 313 |
+| src/karapace/backup/backends/v3/backend.py               |      154 |       30 |       44 |        8 |     76% |49-53, 62-63, 125, 147-157, 169-181, 253, 272, 274, 281, 310, 313 |
 | src/karapace/backup/backends/v3/checksum.py              |        3 |        0 |        0 |        0 |    100% |           |
 | src/karapace/backup/backends/v3/constants.py             |        2 |        0 |        0 |        0 |    100% |           |
 | src/karapace/backup/backends/v3/errors.py                |       27 |        0 |        0 |        0 |    100% |           |
@@ -44,9 +44,9 @@
 | src/karapace/backup/backends/v3/schema\_tool.py          |       79 |       79 |       22 |        0 |      0% |     8-146 |
 | src/karapace/backup/backends/v3/writers.py               |       46 |        1 |        4 |        1 |     96% |        25 |
 | src/karapace/backup/backends/writer.py                   |       43 |        0 |        0 |        0 |    100% |           |
-| src/karapace/backup/cli.py                               |       85 |        8 |       18 |        2 |     88% |164-179, 188, 210-216, 220 |
+| src/karapace/backup/cli.py                               |       85 |       85 |       18 |        0 |      0% |     8-220 |
 | src/karapace/backup/encoders.py                          |       20 |        0 |       12 |        0 |    100% |           |
-| src/karapace/backup/errors.py                            |       41 |        2 |        2 |        0 |     95% |    62, 67 |
+| src/karapace/backup/errors.py                            |       41 |        7 |        2 |        0 |     84% |57, 62, 67, 72, 80, 85, 90 |
 | src/karapace/backup/poll\_timeout.py                     |       30 |        0 |        4 |        0 |    100% |           |
 | src/karapace/backup/safe\_writer.py                      |       68 |        0 |       14 |        0 |    100% |           |
 | src/karapace/backup/topic\_configurations.py             |        9 |        0 |        0 |        0 |    100% |           |
@@ -147,7 +147,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317->320, 320->330, 322->325, 325->328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       13 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                | **11817** | **2314** | **3186** |  **388** | **78%** |           |
+| **TOTAL**                                                | **11828** | **2458** | **3190** |  **383** | **77%** |           |
 
 16 empty files skipped.
 

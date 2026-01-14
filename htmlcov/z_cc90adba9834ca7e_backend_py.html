@@ -2,22 +2,22 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/karapace/backup/backends/v3/backend.py: 89%</title>
-    <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
-    <link rel="stylesheet" href="style_cb_a5a05ca4.css" type="text/css">
-    <script src="coverage_html_cb_bcae5fc4.js" defer></script>
+    <title>Coverage for src/karapace/backup/backends/v3/backend.py: 76%</title>
+    <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
+    <link rel="stylesheet" href="style_cb_9ff733b0.css" type="text/css">
+    <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
 </head>
 <body class="pyfile">
 <header>
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src&#8201;/&#8201;karapace&#8201;/&#8201;backup&#8201;/&#8201;backends&#8201;/&#8201;v3&#8201;/&#8201;backend.py</b>:
-            <span class="pc_cov">89%</span>
+            <span class="pc_cov">76%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
             <label for="help_panel_state">
-                <img id="keyboard_icon" src="keybd_closed_cb_ce680311.png" alt="Show/hide keyboard shortcuts">
+                <img id="keyboard_icon" src="keybd_closed_cb_900cfef5.png" alt="Show/hide keyboard shortcuts">
             </label>
             <div id="help_panel">
                 <p class="legend">Shortcuts on this page</p>
@@ -56,8 +56,8 @@
         </aside>
         <h2>
             <span class="text">154 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">142<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">12<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">124<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">30<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
             <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">8<span class="text"> partial</span></button>
         </h2>
@@ -66,8 +66,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_cc90adba9834ca7e_checksum_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.13.0">coverage.py v7.13.0</a>,
-            created at 2026-01-05 08:50 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.13.1">coverage.py v7.13.1</a>,
+            created at 2026-01-14 08:39 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -228,41 +228,41 @@
     <p class="pln"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t">    <span class="com"># Not part of common interface, because it exposes DataFile which is</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">    <span class="com"># specific to V3.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">    <span class="key">def</span> <span class="nam">verify_files</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">path</span><span class="op">:</span> <span class="nam">Path</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Generator</span><span class="op">[</span><span class="nam">VerifyResult</span><span class="op">,</span> <span class="key">None</span><span class="op">,</span> <span class="key">None</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t147" href="#t147">147</a></span><span class="t">        <span class="nam">metadata</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">read_metadata</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t147" href="#t147">147</a></span><span class="t">        <span class="nam">metadata</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">read_metadata</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t148" href="#t148">148</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">        <span class="key">for</span> <span class="nam">data_file</span> <span class="key">in</span> <span class="nam">metadata</span><span class="op">.</span><span class="nam">data_files</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t150" href="#t150">150</a></span><span class="t">            <span class="nam">checksum</span> <span class="op">=</span> <span class="nam">_get_checksum_implementation</span><span class="op">(</span><span class="nam">metadata</span><span class="op">.</span><span class="nam">checksum_algorithm</span><span class="op">)</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t151" href="#t151">151</a></span><span class="t">            <span class="key">with</span> <span class="op">(</span><span class="nam">path</span><span class="op">.</span><span class="nam">parent</span> <span class="op">/</span> <span class="nam">data_file</span><span class="op">.</span><span class="nam">filename</span><span class="op">)</span><span class="op">.</span><span class="nam">open</span><span class="op">(</span><span class="str">"rb"</span><span class="op">)</span> <span class="key">as</span> <span class="nam">buffer</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t">                <span class="key">while</span> <span class="key">True</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t153" href="#t153">153</a></span><span class="t">                    <span class="nam">chunk</span> <span class="op">=</span> <span class="nam">buffer</span><span class="op">.</span><span class="nam">read</span><span class="op">(</span><span class="nam">io</span><span class="op">.</span><span class="nam">DEFAULT_BUFFER_SIZE</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t154" href="#t154">154</a></span><span class="t">                    <span class="key">if</span> <span class="key">not</span> <span class="nam">chunk</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">                        <span class="key">break</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t156" href="#t156">156</a></span><span class="t">                    <span class="nam">checksum</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span><span class="nam">chunk</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">            <span class="key">yield</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">                <span class="nam">VerifySuccess</span><span class="op">(</span><span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">                <span class="key">if</span> <span class="nam">checksum</span><span class="op">.</span><span class="nam">digest</span><span class="op">(</span><span class="op">)</span> <span class="op">==</span> <span class="nam">data_file</span><span class="op">.</span><span class="nam">checksum</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">                <span class="key">else</span> <span class="nam">VerifyFailure</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">                    <span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">                    <span class="nam">exception</span><span class="op">=</span><span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t163" href="#t163">163</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t164" href="#t164">164</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">        <span class="key">for</span> <span class="nam">data_file</span> <span class="key">in</span> <span class="nam">metadata</span><span class="op">.</span><span class="nam">data_files</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t150" href="#t150">150</a></span><span class="t">            <span class="nam">checksum</span> <span class="op">=</span> <span class="nam">_get_checksum_implementation</span><span class="op">(</span><span class="nam">metadata</span><span class="op">.</span><span class="nam">checksum_algorithm</span><span class="op">)</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t151" href="#t151">151</a></span><span class="t">            <span class="key">with</span> <span class="op">(</span><span class="nam">path</span><span class="op">.</span><span class="nam">parent</span> <span class="op">/</span> <span class="nam">data_file</span><span class="op">.</span><span class="nam">filename</span><span class="op">)</span><span class="op">.</span><span class="nam">open</span><span class="op">(</span><span class="str">"rb"</span><span class="op">)</span> <span class="key">as</span> <span class="nam">buffer</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t">                <span class="key">while</span> <span class="key">True</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t153" href="#t153">153</a></span><span class="t">                    <span class="nam">chunk</span> <span class="op">=</span> <span class="nam">buffer</span><span class="op">.</span><span class="nam">read</span><span class="op">(</span><span class="nam">io</span><span class="op">.</span><span class="nam">DEFAULT_BUFFER_SIZE</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t154" href="#t154">154</a></span><span class="t">                    <span class="key">if</span> <span class="key">not</span> <span class="nam">chunk</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">                        <span class="key">break</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t156" href="#t156">156</a></span><span class="t">                    <span class="nam">checksum</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span><span class="nam">chunk</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">            <span class="key">yield</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">                <span class="nam">VerifySuccess</span><span class="op">(</span><span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">                <span class="key">if</span> <span class="nam">checksum</span><span class="op">.</span><span class="nam">digest</span><span class="op">(</span><span class="op">)</span> <span class="op">==</span> <span class="nam">data_file</span><span class="op">.</span><span class="nam">checksum</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">                <span class="key">else</span> <span class="nam">VerifyFailure</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">                    <span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">                    <span class="nam">exception</span><span class="op">=</span><span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t163" href="#t163">163</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t164" href="#t164">164</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t165" href="#t165">165</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t166" href="#t166">166</a></span><span class="t">    <span class="com"># Not part of common interface, because it exposes DataFile which is</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">    <span class="com"># specific to V3.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">    <span class="key">def</span> <span class="nam">verify_records</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">path</span><span class="op">:</span> <span class="nam">Path</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Generator</span><span class="op">[</span><span class="nam">VerifyResult</span><span class="op">,</span> <span class="key">None</span><span class="op">,</span> <span class="key">None</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">        <span class="nam">metadata</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">read_metadata</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">        <span class="nam">metadata</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">read_metadata</span><span class="op">(</span><span class="nam">path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">        <span class="key">for</span> <span class="nam">data_file</span> <span class="key">in</span> <span class="nam">metadata</span><span class="op">.</span><span class="nam">data_files</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">                <span class="key">for</span> <span class="nam">_</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">read</span><span class="op">(</span><span class="nam">path</span><span class="op">,</span> <span class="nam">metadata</span><span class="op">.</span><span class="nam">topic_name</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">                    <span class="key">pass</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">            <span class="key">except</span> <span class="nam">DecodeError</span> <span class="key">as</span> <span class="nam">exception</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">                <span class="key">yield</span> <span class="nam">VerifyFailure</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">                    <span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">                    <span class="nam">exception</span><span class="op">=</span><span class="nam">exception</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">        <span class="key">for</span> <span class="nam">data_file</span> <span class="key">in</span> <span class="nam">metadata</span><span class="op">.</span><span class="nam">data_files</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">                <span class="key">for</span> <span class="nam">_</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">read</span><span class="op">(</span><span class="nam">path</span><span class="op">,</span> <span class="nam">metadata</span><span class="op">.</span><span class="nam">topic_name</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">                    <span class="key">pass</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">            <span class="key">except</span> <span class="nam">DecodeError</span> <span class="key">as</span> <span class="nam">exception</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">                <span class="key">yield</span> <span class="nam">VerifyFailure</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">                    <span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">                    <span class="nam">exception</span><span class="op">=</span><span class="nam">exception</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">                <span class="key">yield</span> <span class="nam">VerifySuccess</span><span class="op">(</span><span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">                <span class="key">yield</span> <span class="nam">VerifySuccess</span><span class="op">(</span><span class="nam">data_file</span><span class="op">=</span><span class="nam">data_file</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t"><span class="com"># Note: Because the underlying checksum API is mutable, it doesn't make sense to attempt</span>&nbsp;</span><span class="r"></span></p>
@@ -455,8 +455,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_cc90adba9834ca7e_checksum_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.13.0">coverage.py v7.13.0</a>,
-            created at 2026-01-05 08:50 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.13.1">coverage.py v7.13.1</a>,
+            created at 2026-01-14 08:39 +0000
         </p>
     </div>
 </footer>
