@@ -13,6 +13,7 @@ from typing import overload, TypeVar, Union
 import aiohttp
 import async_timeout
 import logging
+import os
 import ssl
 
 LOG = logging.getLogger(__name__)
@@ -29,9 +30,10 @@ class ForwardClient:
         self.advertised_protocol = config.advertised_protocol
         self._forward_client: aiohttp.ClientSession = aiohttp.ClientSession(headers={"User-Agent": self.USER_AGENT})
         self._ssl_context: ssl.SSLContext | None = None
-        if self.advertised_protocol == "https":
-            self._ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
-            self._ssl_context.load_verify_locations(cafile=config.server_tls_cafile)
+        if self.advertised_protocol == "https" and config.server_tls_cafile:
+            if os.path.exists(config.server_tls_cafile):
+                self._ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+                self._ssl_context.load_verify_locations(cafile=config.server_tls_cafile)
 
     async def close(self) -> None:
         await self._forward_client.close()
@@ -46,7 +48,7 @@ class ForwardClient:
         *,
         request: Request,
         primary_url: str,
-    ) -> bytes:
+    ) -> tuple[int, str]:
         LOG.info("Forwarding %s request to remote url: %r since we're not the master", request.method, request.url)
         timeout = 60.0
         func = getattr(self._forward_client, request.method.lower())
@@ -60,8 +62,9 @@ class ForwardClient:
             async with func(
                 forward_url, headers=request.headers.mutablecopy(), data=body_data, ssl=self._ssl_context
             ) as response:
+                response_status = response.status
                 if self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
-                    return await response.text()
+                    return (response_status, await response.text())
                 LOG.error("Unknown response for forwarded request: %s", response)
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -96,7 +99,33 @@ class ForwardClient:
         primary_url: str,
         response_type: type[BaseModelResponse] | type[SimpleTypeResponse],
     ) -> BaseModelResponse | SimpleTypeResponse:
-        body = await self._forward_request_remote(request=request, primary_url=primary_url)
+        response_status, body = await self._forward_request_remote(request=request, primary_url=primary_url)
+
+        # Check if the response is an error (4xx or 5xx status codes)
+        if response_status >= 400:
+            # Try to parse the error response
+            try:
+                error_data = json_decode(body, assume_type=dict)
+                error_code = error_data.get("error_code", response_status)
+                error_message = error_data.get("message", "Unknown error")
+                raise HTTPException(
+                    status_code=response_status,
+                    detail={
+                        "error_code": error_code,
+                        "message": error_message,
+                    },
+                )
+            except (ValueError, TypeError):
+                # If we can't parse the error response, raise a generic error
+                raise HTTPException(
+                    status_code=response_status,
+                    detail={
+                        "error_code": response_status,
+                        "message": body if body else "Unknown error",
+                    },
+                )
+
+        # Parse successful response
         if response_type is int:
             return int(body)  # type: ignore[return-value]
         if response_type == list[int]:
