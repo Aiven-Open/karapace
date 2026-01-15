@@ -10,7 +10,7 @@ aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.3
     # via karapace (/karapace/pyproject.toml)
-aiokafka==0.10.0
+aiokafka==0.12.0
     # via karapace (/karapace/pyproject.toml)
 aiosignal==1.4.0
     # via aiohttp
@@ -65,7 +65,7 @@ click==8.3.1
     #   uvicorn
 configargparse==1.7.1
     # via locust
-confluent-kafka==2.10.0
+confluent-kafka==2.13.0
     # via karapace (/karapace/pyproject.toml)
 coverage[toml]==7.13.1
     # via pytest-cov
@@ -89,11 +89,11 @@ fastapi[standard]==0.128.0
     # via karapace (/karapace/pyproject.toml)
 fastapi-cli[standard]==0.0.20
     # via fastapi
-fastapi-cloud-cli==0.8.0
+fastapi-cloud-cli==0.9.0
     # via fastapi-cli
 fastar==0.8.0
     # via fastapi-cloud-cli
-filelock==3.20.2
+filelock==3.20.3
     # via karapace (/karapace/pyproject.toml)
 flask==3.1.2
     # via
@@ -135,7 +135,7 @@ httpx==0.28.1
     # via
     #   fastapi
     #   fastapi-cloud-cli
-hypothesis==6.150.0
+hypothesis==6.150.1
     # via karapace (/karapace/pyproject.toml)
 idna==3.11
     # via
@@ -160,7 +160,7 @@ jsonschema==4.26.0
     # via karapace (/karapace/pyproject.toml)
 jsonschema-specifications==2025.9.1
     # via jsonschema
-locust==2.43.0
+locust==2.43.1
     # via karapace (/karapace/pyproject.toml)
 lz4==4.4.5
     # via karapace (/karapace/pyproject.toml)
@@ -216,7 +216,7 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
-prometheus-client==0.23.1
+prometheus-client==0.24.0
     # via karapace (/karapace/pyproject.toml)
 propcache==0.4.1
     # via
@@ -319,9 +319,9 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.14.10
+ruff==0.14.11
     # via karapace (/karapace/pyproject.toml)
-sentry-sdk==2.48.0
+sentry-sdk==2.49.0
     # via
     #   fastapi-cloud-cli
     #   karapace (/karapace/pyproject.toml)
@@ -343,6 +343,7 @@ typer==0.21.1
     #   fastapi-cloud-cli
 typing-extensions==4.15.0
     # via
+    #   aiokafka
     #   aiosignal
     #   anyio
     #   dependency-injector
@@ -366,7 +367,7 @@ typing-inspection==0.4.2
     #   pydantic-settings
 ujson==5.11.0
     # via karapace (/karapace/pyproject.toml)
-urllib3==2.6.2
+urllib3==2.6.3
     # via
     #   geventhttpclient
     #   requests
@@ -384,9 +385,9 @@ watchfiles==1.1.1
     #   uvicorn
 websocket-client==1.9.0
     # via python-socketio
-websockets==15.0.1
+websockets==16.0
     # via uvicorn
-werkzeug==3.1.4
+werkzeug==3.1.5
     # via
     #   flask
     #   flask-cors
@@ -404,7 +405,7 @@ zipp==3.23.0
     # via importlib-metadata
 zope-event==6.1
     # via gevent
-zope-interface==8.1.1
+zope-interface==8.2
     # via gevent
 zstandard==0.25.0
     # via karapace (/karapace/pyproject.toml)

@@ -318,7 +318,10 @@ def _consume_records(
             raise translate_from_kafkaerror(error)
 
         yield record
-        last_offset = record.offset()
+        record_offset = record.offset()
+        if record_offset is None:
+            raise StaleConsumerError(topic_partition, start_offset, end_offset, last_offset, poll_timeout)
+        last_offset = record_offset
         if last_offset >= end_offset:
             break
 

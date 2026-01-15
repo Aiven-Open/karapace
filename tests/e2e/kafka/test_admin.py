@@ -5,6 +5,8 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from aiokafka.errors import InvalidReplicationFactorError, TopicAlreadyExistsError, UnknownTopicOrPartitionError
 from confluent_kafka.admin import ConfigSource, NewTopic
@@ -146,7 +148,20 @@ class TestDeleteTopic:
 
         admin_client.delete_topic(topic_name)
 
-        topics_metadata_after_delete = admin_client.cluster_metadata()["topics"]
+        # Topic deletion is asynchronous, so we need to wait for it to propagate
+        # Poll cluster metadata until the topic is removed or timeout
+        start_time = time.monotonic()
+        timeout = 60  # seconds
+        while True:
+            topics_metadata_after_delete = admin_client.cluster_metadata()["topics"]
+            if topic_name not in topics_metadata_after_delete:
+                break
+            if time.monotonic() - start_time > timeout:
+                raise TimeoutError(
+                    f"Topic {topic_name} still in cluster metadata after {timeout}s. "
+                    f"Topics: {list(topics_metadata_after_delete.keys())}"
+                )
+            time.sleep(0.1)  # Small delay before retry
 
         assert topic_name in topics_metadata_before_delete
         assert topic_name not in topics_metadata_after_delete

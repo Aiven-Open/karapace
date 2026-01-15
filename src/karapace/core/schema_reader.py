@@ -91,10 +91,11 @@ class MessageType(Enum):
 
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
+    # NOTE: Don't pass topic= here to avoid subscribing before the topic exists
+    # (causes issues with confluent-kafka 2.13+). Subscribe after topic creation instead.
     session_timeout_ms = config.session_timeout_ms
     return KafkaConsumer(
         bootstrap_servers=config.bootstrap_uri,
-        topic=config.topic_name,
         enable_auto_commit=False,
         client_id=config.client_id,
         fetch_max_wait_ms=50,
@@ -251,6 +252,26 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 except Exception:
                     LOG.exception("[Schema Topic] Failed to create %r, retrying", self.config.topic_name)
                     self._stop_schema_reader.wait(timeout=SCHEMA_TOPIC_CREATION_TIMEOUT_SECONDS)
+
+            # Subscribe to topic AFTER it has been created
+            # This is critical with confluent-kafka 2.13+ where subscribing to a non-existent topic
+            # causes the consumer to not pick up messages even after the topic is created
+            if schema_topic_exists:
+                LOG.info("[Consumer] Subscribing to topic %r after creation", self.config.topic_name)
+                self.consumer.subscribe([self.config.topic_name])
+
+                # Wait for partition assignment to complete by doing an initial poll
+                # The subscribe() call is asynchronous and partitions are assigned during poll/consume
+                LOG.info("[Consumer] Waiting for partition assignment")
+                for _ in range(10):  # Try up to 10 times with 100ms timeout each = 1 second total
+                    assignment = self.consumer.assignment()
+                    if assignment:
+                        LOG.info("[Consumer] Partitions assigned: %s", assignment)
+                        break
+                    # Trigger partition assignment by polling
+                    self.consumer.poll(0.1)
+                else:
+                    LOG.warning("[Consumer] No partitions assigned after waiting, will retry during consumption")
 
             while not self._stop_schema_reader.is_set():
                 if self.offset == OFFSET_UNINITIALIZED:
@@ -426,13 +447,13 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 key = json_decode(message_key)
             except AssertionError as exc:
                 LOG.warning("Empty msg.key() at offset %s", msg.offset())
-                self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                self.offset = msg.offset()  # type: ignore[assignment]  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except JSONDecodeError as exc:
-                non_bytes_key = msg.key().decode()
+                non_bytes_key = msg.key().decode()  # type: ignore[union-attr]
                 LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, msg.offset())
-                self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                self.offset = msg.offset()  # type: ignore[assignment]  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
@@ -462,7 +483,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     value = self._parse_message_value(message_value)
                 except (JSONDecodeError, TypeError) as exc:
                     LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
-                    self.offset = msg.offset()  # Invalid entry shall also move the offset so Karapace makes progress.
+                    self.offset = msg.offset()  # type: ignore[assignment]  # Invalid entry shall also move the offset so Karapace makes progress.
                     self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                     continue  # [non-strict mode]
 
@@ -472,7 +493,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue
             finally:
-                self.offset = msg.offset()
+                self.offset = msg.offset()  # type: ignore[assignment]
 
             if msg_keymode == KeyMode.CANONICAL:
                 schema_records_processed_keymode_canonical += 1

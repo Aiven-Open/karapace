@@ -11,10 +11,10 @@ license = {file = "LICENSE"}
 dependencies = [
   "accept-types",
   "aiohttp",
-  "aiokafka==0.10.0",
+  "aiokafka<0.13.0",
   "async_lru",
   "cachetools",
-  "confluent-kafka==2.10.0",
+  "confluent-kafka",
   "cryptography",
   "fastapi[standard]",
   "isodate",

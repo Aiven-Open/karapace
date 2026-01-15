@@ -71,7 +71,7 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
-    def commit(
+    def commit(  # type: ignore[override]
         self,
         message: Message | None = None,
         offsets: list[TopicPartition] | None = None,
@@ -103,7 +103,7 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
-    def subscribe(
+    def subscribe(  # type: ignore[override]
         self,
         topics: list[str] | None = None,
         patterns: list[str] | None = None,
@@ -237,6 +237,10 @@ class AsyncKafkaConsumer:
     async def poll(self, timeout: float) -> Message | None:
         assert self.consumer is not None, self._START_ERROR
         return await self._run_in_executor(self.consumer.poll, timeout)
+
+    async def consume(self, num_messages: int = 1, timeout: float = -1) -> list[Message]:
+        assert self.consumer is not None, self._START_ERROR
+        return await self._run_in_executor(self.consumer.consume, num_messages, timeout)
 
     async def commit(
         self,
