@@ -27,6 +27,21 @@ from tests.utils import (
 )
 
 
+def produce_messages_from_list(producer, topic_name: str, values: list[bytes]) -> None:
+    """Produce messages from a pre-encoded list of byte values.
+
+    This is the base helper that all other produce helpers use internally.
+
+    Args:
+        producer: Kafka producer instance
+        topic_name: Target topic name
+        values: List of pre-encoded byte values to produce
+    """
+    for value in values:
+        producer.send(topic_name, value=value)
+    producer.flush()
+
+
 def produce_simple_messages(producer, topic_name: str, num_messages: int, prefix: str = "message") -> None:
     """Produce simple numbered messages to a topic.
 
@@ -36,9 +51,8 @@ def produce_simple_messages(producer, topic_name: str, num_messages: int, prefix
         num_messages: Number of messages to produce
         prefix: Message prefix (default: "message")
     """
-    for i in range(num_messages):
-        producer.send(topic_name, value=f"{prefix}_{i}".encode())
-    producer.flush()
+    values = [f"{prefix}_{i}".encode() for i in range(num_messages)]
+    produce_messages_from_list(producer, topic_name, values)
 
 
 def produce_sized_messages(producer, topic_name: str, num_messages: int, message_size: int) -> None:
@@ -50,13 +64,13 @@ def produce_sized_messages(producer, topic_name: str, num_messages: int, message
         num_messages: Number of messages to produce
         message_size: Target size of each message in bytes
     """
+    values = []
     for i in range(num_messages):
         # Create a message of approximately message_size bytes
         prefix = f"msg_{i}_".encode()
         padding = b"x" * (message_size - len(prefix))
-        value = prefix + padding
-        producer.send(topic_name, value=value)
-    producer.flush()
+        values.append(prefix + padding)
+    produce_messages_from_list(producer, topic_name, values)
 
 
 def produce_json_messages(producer, topic_name: str, num_messages: int) -> None:
@@ -67,9 +81,8 @@ def produce_json_messages(producer, topic_name: str, num_messages: int) -> None:
         topic_name: Target topic name
         num_messages: Number of messages to produce
     """
-    for i in range(num_messages):
-        producer.send(topic_name, value=json.dumps({"id": i, "data": f"item{i}"}).encode())
-    producer.flush()
+    values = [json.dumps({"id": i, "data": f"item{i}"}).encode() for i in range(num_messages)]
+    produce_messages_from_list(producer, topic_name, values)
 
 
 async def assign_and_seek_to_beginning(
@@ -450,9 +463,7 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
         topic_name = new_topic(admin_client)
 
         # Produce messages first
-        for i in range(len(values[fmt])):
-            producer.send(topic_name, value=values[fmt][i])
-        producer.flush()
+        produce_messages_from_list(producer, topic_name, values[fmt])
 
         # Assign and seek to beginning
         await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header, trail=trail)
@@ -485,9 +496,7 @@ async def test_consume_timeout(rest_async_client, admin_client, producer):
         topic_name = new_topic(admin_client)
 
         # Produce messages first
-        for i in range(len(values[fmt])):
-            producer.send(topic_name, value=values[fmt][i])
-        producer.flush()
+        produce_messages_from_list(producer, topic_name, values[fmt])
 
         # Assign and seek to beginning
         await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
