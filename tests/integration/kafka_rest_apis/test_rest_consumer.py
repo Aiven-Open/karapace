@@ -27,6 +27,92 @@ from tests.utils import (
 )
 
 
+def produce_simple_messages(producer, topic_name: str, num_messages: int, prefix: str = "message") -> None:
+    """Produce simple numbered messages to a topic.
+
+    Args:
+        producer: Kafka producer instance
+        topic_name: Target topic name
+        num_messages: Number of messages to produce
+        prefix: Message prefix (default: "message")
+    """
+    for i in range(num_messages):
+        producer.send(topic_name, value=f"{prefix}_{i}".encode())
+    producer.flush()
+
+
+def produce_sized_messages(producer, topic_name: str, num_messages: int, message_size: int) -> None:
+    """Produce messages with a specific byte size.
+
+    Args:
+        producer: Kafka producer instance
+        topic_name: Target topic name
+        num_messages: Number of messages to produce
+        message_size: Target size of each message in bytes
+    """
+    for i in range(num_messages):
+        # Create a message of approximately message_size bytes
+        prefix = f"msg_{i}_".encode()
+        padding = b"x" * (message_size - len(prefix))
+        value = prefix + padding
+        producer.send(topic_name, value=value)
+    producer.flush()
+
+
+def produce_json_messages(producer, topic_name: str, num_messages: int) -> None:
+    """Produce JSON-formatted messages to a topic.
+
+    Args:
+        producer: Kafka producer instance
+        topic_name: Target topic name
+        num_messages: Number of messages to produce
+    """
+    for i in range(num_messages):
+        producer.send(topic_name, value=json.dumps({"id": i, "data": f"item{i}"}).encode())
+    producer.flush()
+
+
+async def assign_and_seek_to_beginning(
+    rest_async_client,
+    group_name: str,
+    instance_id: str,
+    topic_name: str,
+    header: dict,
+    partition: int = 0,
+    trail: str = "",
+) -> None:
+    """Assign a consumer to a topic partition and seek to the beginning.
+
+    This helper performs the common pattern of:
+    1. Assigning consumer to topic partition(s)
+    2. Waiting for assignment to complete (0.5s sleep)
+    3. Seeking to the beginning of the partition
+
+    Args:
+        rest_async_client: REST client for making requests
+        group_name: Consumer group name
+        instance_id: Consumer instance ID
+        topic_name: Topic name to assign
+        header: HTTP headers for requests
+        partition: Partition number (default: 0)
+        trail: Optional trailing slash for endpoints (default: "")
+    """
+    # Assign partitions
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": partition}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
+    assert res.ok, f"Failed to assign partition: {res}"
+
+    # Wait for assignment to complete (give consumer time to process assignment)
+    await asyncio.sleep(0.5)
+
+    # Seek to beginning
+    seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning{trail}"
+    seek_payload = {"partitions": [{"topic": topic_name, "partition": partition}]}
+    resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
+    assert resp.ok, f"Failed to seek to beginning: {resp}"
+
+
 @pytest.mark.parametrize("trail", ["", "/"])
 async def test_create_and_delete(rest_async_client, trail):
     header = REST_HEADERS["json"]
@@ -360,23 +446,16 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
     for fmt in ["binary", "json"]:
         header = copy.deepcopy(REST_HEADERS[fmt])
         instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
-        assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
-        seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning{trail}"
         consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=5000"
         topic_name = new_topic(admin_client)
-        assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-        res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
-        assert res.ok
 
-        # Wait for assignment to complete (give consumer time to process assignment)
-        await asyncio.sleep(0.5)
-
+        # Produce messages first
         for i in range(len(values[fmt])):
             producer.send(topic_name, value=values[fmt][i])
         producer.flush()
-        seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-        resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
-        assert resp.ok
+
+        # Assign and seek to beginning
+        await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header, trail=trail)
         header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
         resp = await rest_async_client.get(consume_path, headers=header)
         assert resp.ok, f"Expected a successful response: {resp}"
@@ -402,23 +481,16 @@ async def test_consume_timeout(rest_async_client, admin_client, producer):
     for fmt in ["binary", "json"]:
         header = copy.deepcopy(REST_HEADERS[fmt])
         instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
-        assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-        seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
         consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
         topic_name = new_topic(admin_client)
-        assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-        res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
-        assert res.ok
 
-        # Wait for assignment to complete (give consumer time to process assignment)
-        await asyncio.sleep(0.5)
-
+        # Produce messages first
         for i in range(len(values[fmt])):
             producer.send(topic_name, value=values[fmt][i])
         producer.flush()
-        seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-        resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
-        assert resp.ok
+
+        # Assign and seek to beginning
+        await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
         header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
         resp = await rest_async_client.get(consume_path, headers=header)
         assert resp.ok, f"Expected a successful response: {resp}"
@@ -570,24 +642,10 @@ async def test_consume_bulk_messages(rest_async_client, admin_client, producer):
 
     # Produce 100 messages to test bulk fetching
     num_messages = 100
-    for i in range(num_messages):
-        producer.send(topic_name, value=f"message_{i}".encode())
-    producer.flush()
+    produce_simple_messages(producer, topic_name, num_messages)
 
-    # Assign partitions
-    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
-    assert res.ok
-
-    # Wait for assignment to complete (give consumer time to process assignment)
-    await asyncio.sleep(0.5)
-
-    # Now seek to beginning
-    seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
-    seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
-    assert resp.ok
+    # Assign and seek to beginning
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
 
     # Consume all messages in one request (with generous timeout)
     header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
@@ -618,26 +676,10 @@ async def test_consume_with_max_bytes(rest_async_client, admin_client, producer)
     # Produce messages with known sizes (each ~1000 bytes)
     message_size = 1000
     num_messages = 50
-    for i in range(num_messages):
-        # Create a message of approximately message_size bytes
-        value = f"msg_{i}_".encode() + b"x" * (message_size - len(f"msg_{i}_"))
-        producer.send(topic_name, value=value)
-    producer.flush()
+    produce_sized_messages(producer, topic_name, num_messages, message_size)
 
-    # Assign partitions
-    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
-    assert res.ok
-
-    # Wait for assignment to complete (give consumer time to process assignment)
-    await asyncio.sleep(0.5)
-
-    # Now seek to beginning
-    seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
-    seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
-    assert resp.ok
+    # Assign and seek to beginning
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
 
     # Consume with max_bytes limit of ~10KB (should get about 10 messages)
     max_bytes = 10000
@@ -670,24 +712,10 @@ async def test_consume_with_small_max_bytes(rest_async_client, admin_client, pro
     topic_name = new_topic(admin_client)
 
     # Produce a few messages
-    for i in range(5):
-        producer.send(topic_name, value=f"message_{i}".encode())
-    producer.flush()
+    produce_simple_messages(producer, topic_name, num_messages=5)
 
-    # Assign partitions
-    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
-    assert res.ok
-
-    # Wait for assignment to complete (give consumer time to process assignment)
-    await asyncio.sleep(0.5)
-
-    # Now seek to beginning
-    seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
-    seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
-    assert resp.ok
+    # Assign and seek to beginning
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
 
     # Consume with very small max_bytes (should still get at least 1 message)
     header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
@@ -711,24 +739,10 @@ async def test_consume_estimated_messages_calculation(rest_async_client, admin_c
 
     # Produce 200 small messages
     num_messages = 200
-    for i in range(num_messages):
-        producer.send(topic_name, value=json.dumps({"id": i, "data": f"item{i}"}).encode())
-    producer.flush()
+    produce_json_messages(producer, topic_name, num_messages)
 
-    # Assign partitions
-    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
-    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
-    assert res.ok
-
-    # Wait for assignment to complete (give consumer time to process assignment)
-    await asyncio.sleep(0.5)
-
-    # Now seek to beginning
-    seek_path = f"/consumers/{group_name}/instances/{instance_id}/positions/beginning"
-    seek_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
-    resp = await rest_async_client.post(seek_path, headers=header, json=seek_payload)
-    assert resp.ok
+    # Assign and seek to beginning
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
 
     # Consume with large max_bytes to test bulk fetching efficiency
     header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
