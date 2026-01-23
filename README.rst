@@ -491,6 +491,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``server_tls_cafile``
      - ``/path/to/cafile``
      - Filename to the SSL CA certificate.
+  * - ``server_tls_client_auth``
+    - ``none``
+    - Client certificate requirement: ``none``, ``optional``, or ``required``.
    * - ``registry_scheme``
      - ``http``
      - Schema Registry scheme to use for rest-proxy, http | https (if certificates are provided).
