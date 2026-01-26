@@ -13,6 +13,8 @@
     "port": 8081,
     "server_tls_certfile": null,
     "server_tls_keyfile": null,
+    "server_tls_cafile": null,
+    "server_tls_client_auth": "none",
     "registry_ca": null,
     "master_eligibility": true,
     "replication_factor": 1,

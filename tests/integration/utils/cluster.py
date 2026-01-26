@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, asynccontextmanager
 from dataclasses import dataclass
+import enum
 from pathlib import Path
 
 from karapace.core.client import Client
@@ -66,6 +67,12 @@ async def start_schema_registry_cluster(
             logfile = stack.enter_context(open(log_path, "w"))
             errfile = stack.enter_context(open(error_path, "w"))
 
+            client_auth = (
+                config.server_tls_client_auth.value
+                if isinstance(config.server_tls_client_auth, enum.Enum)
+                else config.server_tls_client_auth
+            )
+
             env = {
                 "KARAPACE_HOST": config.host,
                 "KARAPACE_PORT": str(port),
@@ -85,6 +92,7 @@ async def start_schema_registry_cluster(
                 "KARAPACE_SERVER_TLS_CAFILE": config.server_tls_cafile if config.server_tls_cafile else "",
                 "KARAPACE_SERVER_TLS_CERTFILE": config.server_tls_certfile if config.server_tls_certfile else "",
                 "KARAPACE_SERVER_TLS_KEYFILE": config.server_tls_keyfile if config.server_tls_keyfile else "",
+                "KARAPACE_SERVER_TLS_CLIENT_AUTH": client_auth if client_auth else "none",
                 "KARAPACE_USE_PROTOBUF_FORMATTER": "true" if config.use_protobuf_formatter else "false",
                 "KARAPACE_WAITING_TIME_BEFORE_ACTING_AS_MASTER_MS": str(config.waiting_time_before_acting_as_master_ms),
                 "KARAPACE_MASTER_ELIGIBILITY": str(config.master_eligibility),

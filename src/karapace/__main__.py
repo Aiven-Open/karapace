@@ -7,6 +7,7 @@ from karapace.api.container import SchemaRegistryContainer
 from karapace.api.factory import create_karapace_application, karapace_schema_registry_lifespan
 from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.auth_container import AuthContainer
+from karapace.core.config import ServerTLSClientAuth, get_client_auth_verify_mode
 from karapace.core.container import KarapaceContainer
 
 import karapace.api.controller
@@ -24,6 +25,7 @@ import karapace.api.telemetry.middleware
 import karapace.api.telemetry.setup
 import karapace.core.instrumentation.tracer
 import karapace.api.user
+import ssl
 import uvicorn
 
 from karapace.core.metrics_container import MetricsContainer
@@ -97,6 +99,17 @@ if __name__ == "__main__":
 
     config = karapace_container.config()
     app = create_karapace_application(config=config, lifespan=karapace_schema_registry_lifespan)
+
+    # Calculate SSL certificate requirements for uvicorn
+    ssl_cert_reqs: int = ssl.CERT_NONE
+    if config.server_tls_certfile and config.server_tls_keyfile:
+        client_auth_mode = ServerTLSClientAuth(config.server_tls_client_auth)
+        verify_mode = get_client_auth_verify_mode(
+            client_auth_mode,
+            has_cafile=bool(config.server_tls_cafile),
+        )
+        ssl_cert_reqs = int(verify_mode)
+
     uvicorn.run(
         app,
         host=config.host,
@@ -106,4 +119,5 @@ if __name__ == "__main__":
         ssl_keyfile=config.server_tls_keyfile,
         ssl_certfile=config.server_tls_certfile,
         ssl_ca_certs=config.server_tls_cafile,
+        ssl_cert_reqs=ssl_cert_reqs,
     )

@@ -6,9 +6,11 @@ See LICENSE for details
 """
 
 import runpy
-from unittest.mock import patch, MagicMock
+import ssl
+from unittest.mock import MagicMock, patch
 
 from karapace import __main__
+from karapace.core.config import ServerTLSClientAuth
 
 
 def test_main_container_initialization():
@@ -24,11 +26,21 @@ def test_main_container_initialization():
         mock_app = MagicMock()
         mock_create_app.return_value = mock_app
 
+        mock_config = MagicMock()
+        mock_config.host = "127.0.0.1"
+        mock_config.port = 8081
+        mock_config.log_level = "debug"
+        mock_config.server_tls_keyfile = None
+        mock_config.server_tls_certfile = None
+        mock_config.server_tls_cafile = None
+        mock_config.server_tls_client_auth = ServerTLSClientAuth.NONE
+
+        mock_karapace_container_instance = mock_karapace_container.return_value
+        mock_karapace_container_instance.config.return_value = mock_config
+
         with patch("sys.argv", ["-m", "karapace.__main__"]):
             runpy.run_module("karapace.__main__", run_name="__main__")
 
-        # Mock return values for container initialization
-        mock_karapace_container_instance = mock_karapace_container.return_value
         mock_auth_container_instance = mock_auth_container.return_value
         mock_metrics_container_instance = mock_metrics_container.return_value
         mock_telemetry_container_instance = mock_telemetry_container.return_value
@@ -110,4 +122,5 @@ def test_uvicorn_run() -> None:
             ssl_keyfile=None,
             ssl_certfile=None,
             ssl_ca_certs=None,
+            ssl_cert_reqs=ssl.CERT_NONE,
         )

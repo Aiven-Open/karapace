@@ -45,6 +45,29 @@ class KarapaceTelemetryOTelExporter(str, enum.Enum):
     NOOP = "NOOP"
 
 
+class ServerTLSClientAuth(str, enum.Enum):
+    NONE = "none"
+    OPTIONAL = "optional"
+    REQUIRED = "required"
+
+
+def get_client_auth_verify_mode(
+    client_auth_mode: ServerTLSClientAuth,
+    *,
+    has_cafile: bool,
+) -> ssl.VerifyMode:
+    match client_auth_mode:
+        case ServerTLSClientAuth.REQUIRED:
+            if not has_cafile:
+                raise InvalidConfiguration("`server_tls_client_auth` set to required but `server_tls_cafile` not provided")
+            return ssl.CERT_REQUIRED
+        case ServerTLSClientAuth.OPTIONAL:
+            return ssl.CERT_OPTIONAL
+        case ServerTLSClientAuth.NONE:
+            return ssl.CERT_NONE
+    raise InvalidConfiguration("`server_tls_client_auth` must be one of: none, optional, required")
+
+
 class KarapaceTelemetry(BaseModel):
     otel_endpoint_url: str | None = None
     otel_traces_exporter: KarapaceTelemetryOTelExporter = KarapaceTelemetryOTelExporter.NOOP
@@ -83,6 +106,7 @@ class Config(BaseSettings):
     server_tls_certfile: str | None = None
     server_tls_keyfile: str | None = None
     server_tls_cafile: str | None = None
+    server_tls_client_auth: ServerTLSClientAuth = ServerTLSClientAuth.NONE
     registry_scheme: str = "http"
     registry_host: str = "karapace-schema-registry"
     registry_port: int = 8081
@@ -196,7 +220,7 @@ class Config(BaseSettings):
 
     def to_env_str(self) -> str:
         env_lines: list[str] = []
-        for key, value in self.model_dump().items():
+        for key, value in self.model_dump(mode="json").items():
             if value is not None:
                 env_lines.append(f"{key.upper()}={value}")
         return "\n".join(env_lines)
@@ -392,4 +416,18 @@ def create_server_ssl_context(config: Config) -> ssl.SSLContext | None:
     ssl_context.options |= ssl.OP_NO_TLSv1_1
 
     ssl_context.load_cert_chain(certfile=tls_certfile, keyfile=tls_keyfile)
+
+    try:
+        client_auth_mode = ServerTLSClientAuth(config.server_tls_client_auth)
+    except ValueError as exc:
+        raise InvalidConfiguration("`server_tls_client_auth` must be one of: none, optional, required") from exc
+
+    if config.server_tls_cafile:
+        ssl_context.load_verify_locations(config.server_tls_cafile)
+
+    ssl_context.verify_mode = get_client_auth_verify_mode(
+        client_auth_mode,
+        has_cafile=bool(config.server_tls_cafile),
+    )
+
     return ssl_context
