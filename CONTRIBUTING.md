@@ -1,4 +1,4 @@
-# Welcome!
+# Welcome
 
 Contributions are very welcome on Karapace. When contributing please keep this in mind:
 
@@ -14,6 +14,7 @@ There is very little you need to get started coding for Karapace:
 
 - Use [one of the supported python versions](https://github.com/Aiven-Open/karapace/blob/master/pyproject.toml)
   documented in the `project:requires-python`.
+- [Install](https://go.dev/doc/install) Go (needed for the `protopace` helpers built during `pip install .`). The Go module declares `go 1.21` (toolchain 1.24 is supported).
 - Create [a virtual environment](https://docs.python.org/3/tutorial/venv.html) and install the dev dependencies in it:
 
 ```python
@@ -22,6 +23,43 @@ source <path_to_venv>/bin/activate
 pip install .
 pip install -e .[dev,typing]
 ```
+
+## Local Environment with Docker & Compose
+
+For isolated testing and development using Docker, we provide convenient make commands that handle all setup automatically.
+This ensures consistency across development environments.
+
+### Quick Setup
+
+**Set `.env`:**
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to customize:
+
+- `PYTHON_VERSION` - Python version for Docker builds (default: 3.12)
+- `KARAPACE_VERSION` - Karapace version (default: 5.0.3)
+- `DOCKER_COMPOSE` - Docker compose command (default: docker-compose)
+- `RUNNER_UID` / `RUNNER_GID` - Container user IDs (check .env.example on how to get)
+- `PYTEST_ARGS` - Pytest arguments for test runs
+
+### Available Commands
+
+**Run any make command** - `make` populates the environment with `.env`:
+
+Some commands run `start-karapace-docker-resources`, so resources are available.
+
+- `make cli` - Open interactive shell inside Karapace container
+- `make start-karapace-docker-resources` - Start all Docker containers (Kafka, Schema Registry, etc.)
+- `make stop-karapace-docker-resources` - Stop all Docker containers
+- `make type-check-mypy-in-docker` - Run type checking in Docker
+- `make unit-tests-in-docker` - Run unit tests in Docker
+- `make integration-tests-in-docker` - Run integration tests in Docker
+- `make e2e-tests-in-docker` - Run end-to-end tests in Docker
+- `make smoke-test-schema-registry` - Run schema registry smoke tests
+- `make smoke-test-rest-proxy` - Run REST proxy smoke tests
 
 ## Website
 
@@ -51,8 +89,20 @@ In Fedora® distributions you can install it using:
 dnf install protobuf-compiler
 ```
 
-To run the tests use the binary `pytest` available in the virtualenv. It will download Kafka to be
-used in the tests for you:
+### Running Tests with Docker (Recommended)
+
+Use the make commands for consistent, isolated test environments:
+
+```sh
+make unit-tests-in-docker
+make integration-tests-in-docker
+make e2e-tests-in-docker
+```
+
+### Running Tests Locally
+
+To run the tests locally in your virtual environment use the binary `pytest` available in the virtualenv.
+It will download Kafka to be used in the tests for you:
 
 ```sh
 pytest tests/unit

@@ -21,4 +21,6 @@ src/karapace/version.py
 .python-version
 .hypothesis/
 .DS_Store
-*.coverage.*
+*.coverage
+*.env
+test-tmp.*

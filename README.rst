@@ -75,6 +75,8 @@ Then you should be able to reach two sets of endpoints:
 * Karapace schema registry on http://localhost:8081
 * Karapace REST on http://localhost:8082
 
+For local development with Docker, use the convenient make commands (see `Development`_ section below).
+
 Configuration
 ^^^^^^^^^^^^^
 
@@ -831,6 +833,43 @@ Karapace is installed ``pip install .``, it can be uninstalled with the followin
 
 Development
 ===========
+
+For local development and testing with Docker, use the convenience make commands.
+These handle all the setup automatically and ensure consistency across development environments.
+
+Quick Start
+^^^^^^^^^^^
+
+**Set `.env`:** ``cp .env.example .env``
+
+Edit ``.env`` to customize:
+
+- ``PYTHON_VERSION`` - Python version for Docker builds (default: 3.12)
+- ``KARAPACE_VERSION`` - Karapace version (default: 5.0.3)
+- ``DOCKER_COMPOSE`` - Docker compose command (default: docker-compose)
+- ``RUNNER_UID`` / ``RUNNER_GID`` - Container user IDs (check .env.example on how to get)
+- ``PYTEST_ARGS`` - Pytest arguments for test runs
+
+Available Commands
+^^^^^^^^^^^^^^^^^^^^^^^
+
+**Container Management:**
+
+- ``make cli`` - Open interactive shell inside Karapace container
+- ``make start-karapace-docker-resources`` - Start all Docker containers (Kafka, Schema Registry, REST Proxy)
+- ``make stop-karapace-docker-resources`` - Stop all Docker containers
+
+**Testing:**
+
+- ``make unit-tests-in-docker`` - Run unit tests in Docker
+- ``make integration-tests-in-docker`` - Run integration tests in Docker
+- ``make e2e-tests-in-docker`` - Run end-to-end tests in Docker
+- ``make smoke-test-schema-registry`` - Run schema registry smoke tests
+- ``make smoke-test-rest-proxy`` - Run REST proxy smoke tests
+- ``make type-check-mypy-in-docker`` - Run type checking in Docker
+
+
+For local development and testing without Docker, see the instructions below.
 
 Execute ``make`` (GNU, usually ``gmake`` on BSD and Mac) to set up a ``venv``
 and install the required software for development. Use ``make unit-tests`` and

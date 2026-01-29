@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Copyright (c) 2025 Aiven Ltd
 See LICENSE for details
