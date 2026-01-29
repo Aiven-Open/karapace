@@ -30,7 +30,8 @@ dependencies = [
   "rich",
   "tenacity",
   "typing-extensions",
-  "ujson",
+  "orjson",
+  "ujson",  # Keep as fallback
   "watchfiles",
   "xxhash",
   "zstandard",

@@ -1,0 +1,14 @@
+Version,Endpoint,Avg (ms),P95 (ms),Number of reqs,Topic count
+karapace5,/topics,0.8845441800076514,0.9523750013613608,100,202
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages produced
+karapace5,test-topic-json (100 topics),121.78892589996394,140.94658300018637,50000
+
+Version,Topic,Endpoint,Avg latency (ms),P95 latency (ms),Total messages consumed
+karapace5,test-topic-json (100 topics),/consumers/json_consumer_group/instances/json_consumer_instance,631.4467704996787,499.27158299942676,50000
+
+Version,Endpoint,Avg latency per batch (ms),P95 latency per batch (ms),Total messages produced
+karapace5,test-topic-avro (100 Avro topics),138.40831175995845,156.9187500008411,50000
+
+Version,Topic,Endpoint,Avg latency (ms),P95 latency (ms),Total messages consumed
+karapace5,test-topic-avro (100 Avro topics),/consumers/avro_consumer_group/instances/avro_consumer_instance,800.5801670005894,767.7196670010744,50000

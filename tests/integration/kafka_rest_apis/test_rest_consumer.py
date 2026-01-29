@@ -15,6 +15,7 @@ import pytest
 from pytest import LogCaptureFixture
 
 from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
+from tests.integration.kafka_rest_apis.test_rest import NEW_TOPIC_TIMEOUT
 from tests.utils import (
     REST_HEADERS,
     consumer_valid_payload,
@@ -169,6 +170,8 @@ async def test_assignment(rest_async_client, admin_client, trail):
     assert "partitions" in res.json() and len(res.json()["partitions"]) == 0, "Assignment list should be empty"
     # assign one topic
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=header, json=assign_payload)
     assert res.ok
@@ -190,6 +193,8 @@ async def test_subscription(rest_async_client, admin_client, producer, trail):
 
     header = REST_HEADERS["binary"]
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
     instance_id = await new_consumer(rest_async_client, group_name, fmt="binary", trail=trail)
     sub_path = f"/consumers/{group_name}/instances/{instance_id}/subscription{trail}"
     consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=5000"
@@ -289,11 +294,12 @@ async def test_seek(rest_async_client, admin_client, trail):
     seek_path = f"/consumers/{group}/instances/{instance_id}/positions{trail}"
     # one partition assigned, we can
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
     assign_path = f"/consumers/{group}/instances/{instance_id}/assignments{trail}"
     assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.ok
-    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=20, sleep=1)
     seek_payload = {"offsets": [{"topic": topic_name, "partition": 0, "offset": 10}]}
     res = await rest_async_client.post(seek_path, json=seek_payload, headers=REST_HEADERS["json"])
     assert res.ok, f"Unexpected status for {res}"
@@ -315,6 +321,8 @@ async def test_offsets(rest_async_client, admin_client, trail):
     header = REST_HEADERS[fmt]
     instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
     offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets{trail}"
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     res = await rest_async_client.post(
@@ -381,6 +389,8 @@ async def test_offsets_no_payload(rest_async_client, admin_client, producer, tra
         payload_override={"auto.commit.enable": "false"},
     )
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
     offsets_path = f"/consumers/{group_name}/instances/{instance_id}/offsets{trail}"
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=5000"
@@ -461,6 +471,7 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
         instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt, trail=trail)
         consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=5000"
         topic_name = new_topic(admin_client)
+        await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
         # Produce messages first
         produce_messages_from_list(producer, topic_name, values[fmt])
@@ -494,6 +505,7 @@ async def test_consume_timeout(rest_async_client, admin_client, producer):
         instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
         consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=1000"
         topic_name = new_topic(admin_client)
+        await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
         # Produce messages first
         produce_messages_from_list(producer, topic_name, values[fmt])
@@ -541,6 +553,8 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
     assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments{trail}"
     consume_path = f"/consumers/{group_name}/instances/{instance_id}/records{trail}?timeout=5000"
     tn = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[tn], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
     assign_payload = {"partitions": [{"topic": tn, "partition": 0}]}
     res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
     assert res.ok
@@ -648,6 +662,7 @@ async def test_consume_bulk_messages(rest_async_client, admin_client, producer):
     header = copy.deepcopy(REST_HEADERS[fmt])
     instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
     # Produce 100 messages to test bulk fetching
     num_messages = 100
@@ -681,6 +696,7 @@ async def test_consume_with_max_bytes(rest_async_client, admin_client, producer)
     header = copy.deepcopy(REST_HEADERS[fmt])
     instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
     # Produce messages with known sizes (each ~1000 bytes)
     message_size = 1000
@@ -719,6 +735,7 @@ async def test_consume_with_small_max_bytes(rest_async_client, admin_client, pro
     header = copy.deepcopy(REST_HEADERS[fmt])
     instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
     # Produce a few messages
     produce_simple_messages(producer, topic_name, num_messages=5)
@@ -745,6 +762,7 @@ async def test_consume_estimated_messages_calculation(rest_async_client, admin_c
     header = copy.deepcopy(REST_HEADERS[fmt])
     instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
     topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
 
     # Produce 200 small messages
     num_messages = 200

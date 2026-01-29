@@ -1,0 +1,142 @@
+Date : Jan 28th, 2026
+
+Executed from main:
+
+sh run_benchmarks.sh
+==================================================
+  Karapace REST Proxy Benchmarks
+==================================================
+
+🔹 Benchmarking karapace5 at http://localhost:8082/topics
+✅ Found 202 topics (including 200+ benchmark topics)
+  Avg: 0.90 ms, P95: 1.05 ms, Topics: 202
+
+✅ Results saved to  karapace5_benchmarks.csv
+
+📊 JSON Format Benchmarks
+--------------------------------------------------
+📝 Registering JSON schemas for 100 topics...
+✅ Registered/verified schemas for 100/100 topics
+
+🔹 Benchmarking JSON produce to karapace5 at http://localhost:8082
+   Using 100 topics: test-topic-json-0 to test-topic-json-99
+[Batch 1/50] Sent 1000 messages to test-topic-json-0 in 119.36 ms
+[Batch 11/50] Sent 1000 messages to test-topic-json-10 in 120.40 ms
+[Batch 21/50] Sent 1000 messages to test-topic-json-20 in 119.31 ms
+[Batch 31/50] Sent 1000 messages to test-topic-json-30 in 120.54 ms
+[Batch 41/50] Sent 1000 messages to test-topic-json-40 in 122.21 ms
+  ✅ Avg latency per batch: 122.28 ms, P95: 140.47 ms, total messages produced: 50000
+
+✅ Results saved to karapace5_benchmarks.csv
+
+🔹 Setting up JSON consumer for karapace5 at http://localhost:8082
+✅ JSON consumer instance 'json_consumer_instance' ready in group 'json_consumer_group'
+✅ Subscribed to 100 JSON topics: test-topic-json-0 to test-topic-json-99
+
+🔹 Benchmarking JSON consume from karapace5 at http://localhost:8082/consumers/json_consumer_group/instances/json_consumer_instance/records
+Fetched 50000 JSON messages, total 50000
+✅ Avg: 1200.78 ms, P95: 1200.78 ms, total consumed: 50000
+🧹 Deleted consumer instance 'json_consumer_instance'
+
+✅ Results saved to karapace5_benchmarks.csv
+
+📊 Avro Format Benchmarks
+--------------------------------------------------
+📝 Registering Avro schemas for 100 topics...
+✅ Registered/verified Avro schemas for 100/100 topics, schema_id: 2
+
+🔹 Benchmarking Avro produce to karapace5 at http://localhost:8082
+   Using 100 topics: test-topic-avro-0 to test-topic-avro-99
+[Batch 1/50] Sent 1000 Avro messages to test-topic-avro-0 in 134.94 ms
+[Batch 11/50] Sent 1000 Avro messages to test-topic-avro-10 in 137.15 ms
+[Batch 21/50] Sent 1000 Avro messages to test-topic-avro-20 in 135.90 ms
+[Batch 31/50] Sent 1000 Avro messages to test-topic-avro-30 in 136.18 ms
+[Batch 41/50] Sent 1000 Avro messages to test-topic-avro-40 in 135.81 ms
+  ✅ Avg latency per batch: 138.78 ms, P95: 156.33 ms, total messages produced: 50000
+
+✅ Results saved to karapace5_benchmarks.csv
+
+🔹 Setting up Avro consumer for karapace5 at http://localhost:8082
+✅ Avro consumer instance 'avro_consumer_instance' ready in group 'avro_consumer_group'
+✅ Subscribed to 100 Avro topics: test-topic-avro-0 to test-topic-avro-99
+
+🔹 Benchmarking Avro consume from karapace5 at http://localhost:8082/consumers/avro_consumer_group/instances/avro_consumer_instance/records
+Fetched 50000 Avro messages, total 50000
+✅ Avg: 1466.51 ms, P95: 1466.51 ms, total consumed: 50000
+🧹 Deleted consumer instance 'avro_consumer_instance'
+
+✅ Results saved to karapace5_benchmarks.csv
+
+✅ All benchmarks completed (JSON + Avro)!
+==================================================
+
+Executed from branch after applying changes
+
+==================================================
+  Karapace REST Proxy Benchmarks
+==================================================
+
+🔹 Benchmarking karapace5 at http://localhost:8082/topics
+✅ Found 202 topics (including 200+ benchmark topics)
+  Avg: 0.88 ms, P95: 0.95 ms, Topics: 202
+
+✅ Results saved to  karapace5_benchmarks.csv
+
+📊 JSON Format Benchmarks
+--------------------------------------------------
+📝 Registering JSON schemas for 100 topics...
+✅ Registered/verified schemas for 100/100 topics
+
+🔹 Benchmarking JSON produce to karapace5 at http://localhost:8082
+   Using 100 topics: test-topic-json-0 to test-topic-json-99
+[Batch 1/50] Sent 1000 messages to test-topic-json-0 in 118.48 ms
+[Batch 11/50] Sent 1000 messages to test-topic-json-10 in 118.29 ms
+[Batch 21/50] Sent 1000 messages to test-topic-json-20 in 119.79 ms
+[Batch 31/50] Sent 1000 messages to test-topic-json-30 in 115.13 ms
+[Batch 41/50] Sent 1000 messages to test-topic-json-40 in 120.18 ms
+  ✅ Avg latency per batch: 121.79 ms, P95: 140.95 ms, total messages produced: 50000
+
+✅ Results saved to karapace5_benchmarks.csv
+
+🔹 Setting up JSON consumer for karapace5 at http://localhost:8082
+✅ JSON consumer instance 'json_consumer_instance' ready in group 'json_consumer_group'
+✅ Subscribed to 100 JSON topics: test-topic-json-0 to test-topic-json-99
+
+🔹 Benchmarking JSON consume from karapace5 at http://localhost:8082/consumers/json_consumer_group/instances/json_consumer_instance/records
+Fetched 27000 JSON messages, total 27000
+Fetched 23000 JSON messages, total 50000
+✅ Avg: 631.45 ms, P95: 499.27 ms, total consumed: 50000
+🧹 Deleted consumer instance 'json_consumer_instance'
+
+✅ Results saved to karapace5_benchmarks.csv
+
+📊 Avro Format Benchmarks
+--------------------------------------------------
+📝 Registering Avro schemas for 100 topics...
+✅ Registered/verified Avro schemas for 100/100 topics, schema_id: 2
+
+🔹 Benchmarking Avro produce to karapace5 at http://localhost:8082
+   Using 100 topics: test-topic-avro-0 to test-topic-avro-99
+[Batch 1/50] Sent 1000 Avro messages to test-topic-avro-0 in 133.27 ms
+[Batch 11/50] Sent 1000 Avro messages to test-topic-avro-10 in 135.82 ms
+[Batch 21/50] Sent 1000 Avro messages to test-topic-avro-20 in 135.26 ms
+[Batch 31/50] Sent 1000 Avro messages to test-topic-avro-30 in 137.31 ms
+[Batch 41/50] Sent 1000 Avro messages to test-topic-avro-40 in 137.13 ms
+  ✅ Avg latency per batch: 138.41 ms, P95: 156.92 ms, total messages produced: 50000
+
+✅ Results saved to karapace5_benchmarks.csv
+
+🔹 Setting up Avro consumer for karapace5 at http://localhost:8082
+✅ Avro consumer instance 'avro_consumer_instance' ready in group 'avro_consumer_group'
+✅ Subscribed to 100 Avro topics: test-topic-avro-0 to test-topic-avro-99
+
+🔹 Benchmarking Avro consume from karapace5 at http://localhost:8082/consumers/avro_consumer_group/instances/avro_consumer_instance/records
+Fetched 28000 Avro messages, total 28000
+Fetched 22000 Avro messages, total 50000
+✅ Avg: 800.58 ms, P95: 767.72 ms, total consumed: 50000
+🧹 Deleted consumer instance 'avro_consumer_instance'
+
+✅ Results saved to karapace5_benchmarks.csv
+
+✅ All benchmarks completed (JSON + Avro)!
+==================================================
