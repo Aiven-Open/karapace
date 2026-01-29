@@ -1,13 +1,24 @@
 SHELL := /usr/bin/env bash
 
+ifneq ($(wildcard .env),)
+	include .env
+endif
+
 VENV_DIR ?= $(CURDIR)/venv
+PYTEST_ARGS ?=
+DOCKER_COMPOSE ?= docker compose
 PIP      ?= pip3 --disable-pip-version-check --no-input --require-virtualenv
 PYTHON   ?= python3
 PYTHON_VERSION ?= 3.12
-DOCKER_COMPOSE ?= docker compose
-KARAPACE-CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run --rm karapace-cli
+KARAPACE_VERSION ?= 5.0.3
+RUNNER_UID ?=
+RUNNER_GID ?=
+COVERAGE_FILE ?= .coverage.${PYTHON_VERSION}
+KARAPACE_CLI   ?= $(DOCKER_COMPOSE) -f container/compose.yml run --rm karapace-cli
 CERTS_FOLDER ?= /opt/karapace/certs
-PYTEST_ARGS ?=
+
+# Export variables needed by docker compose
+export PYTHON_VERSION KARAPACE_VERSION RUNNER_UID RUNNER_GID COVERAGE_FILE PYTEST_ARGS
 
 define PIN_VERSIONS_COMMAND
 pip install pip-tools && \
@@ -111,66 +122,66 @@ stop-karapace-docker-resources:
 	$(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
 
 .PHONY: start-karapace-docker-resources
-start-karapace-docker-resources: export KARAPACE_VERSION ?= 4.1.1.dev44+gac20eeed.d20241205
 start-karapace-docker-resources:
-	sudo touch .coverage.${PYTHON_VERSION}
-	sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION}
-	sudo mkdir -p test-tmp.${PYTHON_VERSION}
-	sudo chown -R ${RUNNER_UID}:${RUNNER_GID} test-tmp.${PYTHON_VERSION}
+start-karapace-docker-resources:
+	touch .coverage.${PYTHON_VERSION} || sudo touch .coverage.${PYTHON_VERSION}
+	chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION} 2>/dev/null || sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION}
+	mkdir -p test-tmp.${PYTHON_VERSION} || sudo mkdir -p test-tmp.${PYTHON_VERSION}
+	chown -R ${RUNNER_UID}:${RUNNER_GID} test-tmp.${PYTHON_VERSION} 2>/dev/null || sudo chown -R ${RUNNER_UID}:${RUNNER_GID} test-tmp.${PYTHON_VERSION}
 	$(DOCKER_COMPOSE) -f container/compose.yml up -d --build --wait --detach
 
 .PHONY: smoke-test-schema-registry
 smoke-test-schema-registry: start-karapace-docker-resources
-	$(KARAPACE-CLI) /opt/karapace/bin/smoke-test-schema-registry.sh
+	$(KARAPACE_CLI) /opt/karapace/bin/smoke-test-schema-registry.sh
 
 .PHONY: smoke-test-rest-proxy
 smoke-test-rest-proxy: start-karapace-docker-resources
-	$(KARAPACE-CLI) /opt/karapace/bin/smoke-test-rest-proxy.sh
+	$(KARAPACE_CLI) /opt/karapace/bin/smoke-test-rest-proxy.sh
 
 .PHONY: unit-tests-in-docker
 unit-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
-	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/unit/
+	$(KARAPACE_CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/unit/
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker
 e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
-	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
+	$(KARAPACE_CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
 	rm -fr runtime/*
 
 .PHONY: integration-tests-in-docker
 integration-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
-	$(KARAPACE-CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
+	$(KARAPACE_CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
 	rm -fr runtime/*
 
 .PHONY: type-check-mypy-in-docker
 type-check-mypy-in-docker: start-karapace-docker-resources
-	$(KARAPACE-CLI) $(PYTHON) -m mypy src/karapace
+	$(KARAPACE_CLI) $(PYTHON) -m mypy src/karapace
 
 .PHONY: cli
 cli: start-karapace-docker-resources
-	$(KARAPACE-CLI) bash
+	$(KARAPACE_CLI) bash
 
 .PHONY: generate-sr-https-certs
  generate-sr-https-certs:
 	$(info ====> Generating self-signed certificates <====)
-	$(KARAPACE-CLI) mkcert -key-file $(CERTS_FOLDER)/key.pem -cert-file $(CERTS_FOLDER)/cert.pem \
+	$(KARAPACE_CLI) mkcert -key-file $(CERTS_FOLDER)/key.pem -cert-file $(CERTS_FOLDER)/cert.pem \
 		localhost \
 		127.0.0.1 \
 		0.0.0.0 \
 		::1 \
 		karapace-schema-registry \
 		karapace-schema-registry-follower
-	$(KARAPACE-CLI) mkcert -install
+	$(KARAPACE_CLI) mkcert -install
 
 .PHONY:  curl-sr-https
 curl-sr-https: header ?= 'Content-Type: application/vnd.schemaregistry.v1+json'
 curl-sr-https:
 	$(info ====> Sending HTTPS $(method) request with data to $(url) <====)
-	$(KARAPACE-CLI) curl -i -X $(method) --location $(url) --cacert /opt/karapace/certs/ca/rootCA.pem \
+	$(KARAPACE_CLI) curl -i -X $(method) --location $(url) --cacert /opt/karapace/certs/ca/rootCA.pem \
 		--header $(header) \
 		--data '$(data)'

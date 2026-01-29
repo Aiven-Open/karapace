@@ -1,43 +1,37 @@
 services:
-
-  kafka:
+  karapace-cli:
     networks:
       - karapace
-    image: apache/kafka:3.9.0
-    hostname: kafka
-    container_name: kafka
-    ports:
-      - "9092:9092"
-      - "9101:9101"  # JMX
+    image: ghcr.io/aiven-open/karapace:cli
+    hostname: karapace-cli
+    container_name: karapace-cli
+    build:
+      context: ..
+      target: cli
+      dockerfile: container/Dockerfile
+      args:
+        KARAPACE_VERSION: $KARAPACE_VERSION
+        PYTHON_VERSION: $PYTHON_VERSION
+        RUNNER_UID: $RUNNER_UID
+        RUNNER_GID: $RUNNER_GID
+    tty: true
+    depends_on:
+      - kafka
+      - karapace-schema-registry
+      - karapace-rest-proxy
+    volumes:
+      - ./certs:/opt/karapace/certs
+      - ../bin:/opt/karapace/bin
+      - ../tests:/opt/karapace/tests
+      - ../pytest.ini:/opt/karapace/pytest.ini
+      - ../mypy.ini:/opt/karapace/mypy.ini
+      - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
+      - ../.coveragerc:/opt/karapace/.coveragerc
+      - "../.coverage.$PYTHON_VERSION:/opt/karapace/coverage/.coverage.$PYTHON_VERSION"
+      - "../test-tmp.$PYTHON_VERSION:/opt/test-tmp"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
-      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      KAFKA_MAX_MESSAGE_BYTES: 104857600
-      KAFKA_MESSAGE_MAX_BYTES: 104857600
-      KAFKA_BUFFER_MEMORY: 104857600
-      KAFKA_MAX_REQUEST_SIZE: 104857600
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 104857600
-      # JMX Configuration
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
-      # Additional configurations for compatibility
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      KAFKA_DELETE_TOPIC_ENABLE: "true"
-      KAFKA_NUM_PARTITIONS: 1
-      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-schema-registry:8081
+      - COVERAGE_FILE
+      - COVERAGE_RCFILE=/opt/karapace/.coveragerc
 
   karapace-schema-registry:
     networks:
@@ -203,39 +197,44 @@ services:
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
 
-  karapace-cli:
+  kafka:
     networks:
       - karapace
-    image: ghcr.io/aiven-open/karapace:cli
-    hostname: karapace-cli
-    container_name: karapace-cli
-    build:
-      context: ..
-      target: cli
-      dockerfile: container/Dockerfile
-      args:
-        KARAPACE_VERSION: $KARAPACE_VERSION
-        PYTHON_VERSION: $PYTHON_VERSION
-        RUNNER_UID: $RUNNER_UID
-        RUNNER_GID: $RUNNER_GID
-    tty: true
-    depends_on:
-      - kafka
-      - karapace-schema-registry
-      - karapace-rest-proxy
-    volumes:
-      - ./certs:/opt/karapace/certs
-      - ../bin:/opt/karapace/bin
-      - ../tests:/opt/karapace/tests
-      - ../pytest.ini:/opt/karapace/pytest.ini
-      - ../mypy.ini:/opt/karapace/mypy.ini
-      - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
-      - ../.coveragerc:/opt/karapace/.coveragerc
-      - "../.coverage.$PYTHON_VERSION:/opt/karapace/coverage/.coverage.$PYTHON_VERSION"
-      - "../test-tmp.$PYTHON_VERSION:/opt/test-tmp"
+    image: apache/kafka:3.9.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9101:9101"  # JMX
     environment:
-      - COVERAGE_FILE
-      - COVERAGE_RCFILE=/opt/karapace/.coveragerc
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      KAFKA_MAX_MESSAGE_BYTES: 104857600
+      KAFKA_MESSAGE_MAX_BYTES: 104857600
+      KAFKA_BUFFER_MEMORY: 104857600
+      KAFKA_MAX_REQUEST_SIZE: 104857600
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 104857600
+      # JMX Configuration
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      # Additional configurations for compatibility
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://karapace-schema-registry:8081
 
   prometheus:
     networks:

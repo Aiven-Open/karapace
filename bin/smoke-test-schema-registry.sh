@@ -2,7 +2,7 @@
 
 retries=5
 chmod +x /opt/karapace/bin/get_oidc_token.py
-token=$(python3 /opt/karapace/bin/get_oidc_token.py)
+token=$(/opt/karapace/bin/get_oidc_token.py)
 
 for ((i = 0; i <= retries; i++)); do
     response=$(
