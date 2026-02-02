@@ -197,7 +197,7 @@ python-dotenv==1.2.1
     # via
     #   pydantic-settings
     #   uvicorn
-python-multipart==0.0.21
+python-multipart==0.0.22
     # via fastapi
 python-snappy==0.7.3
     # via karapace (pyproject.toml)
