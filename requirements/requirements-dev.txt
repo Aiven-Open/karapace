@@ -224,7 +224,7 @@ propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
-protobuf==3.20.3
+protobuf==6.33.5
     # via
     #   googleapis-common-protos
     #   karapace (pyproject.toml)
