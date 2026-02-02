@@ -23,7 +23,57 @@ import logging
 import signal
 import time
 
-if importlib.util.find_spec("ujson"):
+# Try orjson first (fastest), then ujson (fast), then json (fallback)
+if importlib.util.find_spec("orjson"):
+    from json import JSONDecodeError  # noqa: F401
+
+    import orjson
+
+    class _JsonModule:
+        """Wrapper to make orjson API compatible with json/ujson."""
+
+        @staticmethod
+        def loads(s: bytes | str):
+            """Load JSON from string or bytes."""
+            if isinstance(s, str):
+                s = s.encode("utf-8")
+            return orjson.loads(s)
+
+        @staticmethod
+        def dumps(obj, *, default=None, indent=None, sort_keys=False, separators=None, **kwargs):
+            """Dump object to JSON string (returns str for compatibility)."""
+            options = 0
+            if sort_keys:
+                options |= orjson.OPT_SORT_KEYS
+            if indent is not None:
+                # orjson only supports indent=2
+                options |= orjson.OPT_INDENT_2
+            # orjson doesn't support custom separators, they're always compact or indented
+            result = orjson.dumps(obj, default=default, option=options)
+            return result.decode("utf-8")
+
+        @staticmethod
+        def load(fp):
+            """Load JSON from file object."""
+            content = fp.read()
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+            return orjson.loads(content)
+
+        @staticmethod
+        def dump(obj, fp, *, default=None, indent=None, sort_keys=False, separators=None, **kwargs):
+            """Dump object to JSON file."""
+            options = 0
+            if sort_keys:
+                options |= orjson.OPT_SORT_KEYS
+            if indent is not None:
+                options |= orjson.OPT_INDENT_2
+            result = orjson.dumps(obj, default=default, option=options)
+            fp.write(result)
+
+    json = _JsonModule()
+
+elif importlib.util.find_spec("ujson"):
     from ujson import JSONDecodeError  # noqa: F401
 
     import ujson as json

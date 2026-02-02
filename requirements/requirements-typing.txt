@@ -278,8 +278,10 @@ typing-inspection==0.4.2
     # via
     #   pydantic
     #   pydantic-settings
+orjson==3.11.5
+    # via karapace (pyproject.toml)
 ujson==5.11.0
-    # via karapace (/karapace/pyproject.toml)
+    # via karapace (pyproject.toml)
 urllib3==2.6.3
     # via
     #   requests

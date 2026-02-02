@@ -512,6 +512,7 @@ class ConsumerManager:
             start_time = time.monotonic()
             end_time = start_time + timeout / 1000
             consumed_messages = []
+            is_first_fetch = True
             # Use consume() to fetch multiple messages at once, which is more efficient than multiple poll() calls
             # After a seek, we need to allow time for fetch.max.wait.ms (~500ms) to complete
             while read_bytes < max_bytes and time.monotonic() < end_time:
@@ -526,27 +527,40 @@ class ConsumerManager:
                 # Calculate how many messages we can still fetch based on max_bytes
                 # Estimate average message size (use a conservative estimate if we have no messages yet)
                 # Note: consume() has a limit of 1M messages, so we cap at that
-                if consumed_messages:
+                if len(consumed_messages) > 0:
                     avg_message_size = read_bytes / len(consumed_messages)
                     estimated_messages_needed = max(1, min(1000000, int(bytes_left / avg_message_size) + 1))
                 else:
-                    # For first fetch, request a reasonable number of messages
-                    # After seek, we want to get all available messages, but cap at 1M (the limit)
-                    estimated_messages_needed = 1000  # Request up to 1000 messages initially
+                    # For first fetch, estimate based on max_bytes and typical message size (1KB average)
+                    # Cap at 1M (Kafka consumer limit) but respect max_bytes to avoid over-fetching
+                    # Use max_bytes/1024 as estimate, with a minimum of 1 to ensure we fetch something
+                    estimated_messages_needed = max(1, min(1000000, int(max_bytes / 1024)))
 
                 # Use most of the remaining time for the consume call
-                # For first fetch after seek, allow enough time for fetch.max.wait.ms (~500ms)
-                # Subsequent fetches use remaining time
-                is_first_fetch = len(consumed_messages) == 0
-                consume_timeout = min(0.8, max(0.1, time_left * 0.9)) if is_first_fetch else max(0.05, time_left * 0.9)
+                # For first fetch, use longer timeout to allow Kafka to gather messages
+                # For subsequent fetches, use shorter timeout to quickly check for remaining messages
+                if is_first_fetch:
+                    # First fetch: use most of remaining time
+                    consume_timeout = max(0.1, time_left * 0.95)
+                else:
+                    # Subsequent fetches: use short timeout (50-200ms) to quickly grab any remaining messages
+                    # This avoids waiting the full timeout when there are no more messages
+                    consume_timeout = min(0.2, max(0.05, time_left * 0.2))
 
                 messages = []
                 try:
                     # Use consume() to get multiple messages at once
                     messages = await consumer.consume(num_messages=estimated_messages_needed, timeout=consume_timeout)
                     if not messages:
-                        # No messages available, continue if we have time
+                        # No messages available
+                        # If we already have some messages, return them immediately instead of waiting
+                        if len(consumed_messages) > 0:
+                            break
+                        # Otherwise continue trying if we have time
                         continue
+
+                    # Mark that we've completed at least one successful fetch
+                    is_first_fetch = False
 
                     # Process all messages from this consume call
                     for message in messages:
@@ -580,59 +594,166 @@ class ConsumerManager:
                 read_bytes,
                 time.monotonic() - start_time,
             )
-            response = []
-            for msg in consumed_messages:
-                try:
-                    key = await self.deserialize(msg.key(), request_format) if msg.key() else None
-                except DeserializationError as e:
-                    if request_format == "avro":
-                        LOG.warning("Cannot process non-empty key using avro deserializer, falling back to binary.")
-                        key = await self.deserialize(msg.key(), "binary")
-                    elif request_format == "protobuf":
-                        LOG.warning("Cannot process non-empty key using protobuf deserializer, falling back to binary.")
-                        key = await self.deserialize(msg.key(), "binary")
-                    else:
-                        KarapaceBase.unprocessable_entity(
-                            message=f"key deserialization error for format {request_format}: {e}",
-                            sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                            content_type=content_type,
-                        )
-                try:
-                    value = await self.deserialize(msg.value(), request_format) if msg.value() else None
-                except DeserializationError as e:
-                    KarapaceBase.unprocessable_entity(
-                        message=f"value deserialization error for format {request_format}: {e}",
-                        sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
-                        content_type=content_type,
-                    )
-                element = {
+
+            # Get appropriate deserialization functions for this format
+            deserialize_key_func, deserialize_value_func, use_parallel = self._get_deserialize_functions(request_format)
+
+            # Deserialize messages using sync or parallel path based on format
+            if use_parallel:
+                response = await self._deserialize_messages_parallel(
+                    consumed_messages, content_type, request_format, deserialize_key_func, deserialize_value_func
+                )
+            else:
+                response = self._deserialize_messages_sync(
+                    consumed_messages, content_type, request_format, deserialize_key_func, deserialize_value_func
+                )
+
+            KarapaceBase.r(content_type=content_type, body=response)
+
+    def _get_deserialize_functions(self, request_format: str):
+        """
+        Returns appropriate deserialization functions based on format.
+
+        Returns:
+            tuple: (deserialize_key_func, deserialize_value_func, use_parallel: bool)
+        """
+        match request_format:
+            case "json":
+                # JSON: same function for key and value, synchronous path
+                return self._json_decode_func, self._json_decode_func, False
+
+            case "binary":
+                # Binary: same function for key and value, synchronous path
+                return self._binary_decode_func, self._binary_decode_func, False
+
+            case "avro" | "protobuf":
+                # Schema registry formats: key uses fallback to binary, value is strict, parallel path
+                key_func = self._create_format_binary_fallback_func(request_format)
+                value_func = self._create_format_strict_func(request_format)
+                return key_func, value_func, True
+
+            case "jsonschema":
+                # JSONSchema: both key and value are strict, parallel path
+                value_func = self._create_format_strict_func(request_format)
+                return value_func, value_func, True
+
+            case _:
+                # Default to binary for unknown formats
+                return self._binary_decode_func, self._binary_decode_func, False
+
+    def _json_decode_func(self, bytes_: bytes | None) -> dict | None:
+        """Decode JSON bytes synchronously."""
+        if not bytes_:
+            return None
+        try:
+            return json_decode(bytes_)
+        except (JSONDecodeError, UnicodeDecodeError) as e:
+            raise DeserializationError(e) from e
+
+    def _binary_decode_func(self, bytes_: bytes | None) -> str | None:
+        """Encode bytes to base64 string."""
+        if not bytes_:
+            return None
+        try:
+            return base64.b64encode(bytes_).decode("utf-8")
+        except Exception as e:
+            raise DeserializationError(e) from e
+
+    def _create_format_binary_fallback_func(self, fmt: str):
+        """Create an async deserialize function that falls back to binary on error."""
+
+        async def deserialize_with_fallback(bytes_: bytes | None) -> dict | str | None:
+            if not bytes_:
+                return None
+            try:
+                return await self.deserializer.deserialize(bytes_)
+            except Exception:
+                # Catch all exceptions and fall back to binary (for keys in avro/protobuf)
+                LOG.warning(f"Cannot deserialize using {fmt} deserializer, falling back to binary.")
+                return self._binary_decode_func(bytes_)
+
+        return deserialize_with_fallback
+
+    def _create_format_strict_func(self, fmt: str):
+        """Create an async deserialize function that doesn't fall back (strict)."""
+
+        async def deserialize_strict(bytes_: bytes | None) -> dict | None:
+            if not bytes_:
+                return None
+            try:
+                return await self.deserializer.deserialize(bytes_)
+            except (UnpackError, InvalidMessageHeader, InvalidPayload, JSONDecodeError, UnicodeDecodeError) as e:
+                raise DeserializationError(e) from e
+
+        return deserialize_strict
+
+    def _deserialize_messages_sync(
+        self, consumed_messages, content_type: str, request_format: str, deserialize_key_func, deserialize_value_func
+    ):
+        """Synchronous batch deserialization for simple formats (JSON, binary)."""
+        response = []
+        for msg in consumed_messages:
+            try:
+                key = deserialize_key_func(msg.key())
+            except DeserializationError as e:
+                KarapaceBase.unprocessable_entity(
+                    message=f"key deserialization error for format {request_format}: {e}",
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                    content_type=content_type,
+                )
+            try:
+                value = deserialize_value_func(msg.value())
+            except DeserializationError as e:
+                KarapaceBase.unprocessable_entity(
+                    message=f"value deserialization error for format {request_format}: {e}",
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                    content_type=content_type,
+                )
+            response.append(
+                {
                     "topic": msg.topic(),
                     "partition": msg.partition(),
                     "offset": msg.offset(),
-                    # `confluent_kafka.Message.timestamp()` returns a tuple where the first component is
-                    # the timestamp type, see `karapace.core.kafka.types.Timestamp`
-                    # In case of the `NOT_AVAILABLE` type whatever the timestamp may be, it cannot be trusted
-                    # and should be ignored according to the confluent-kafka documentation:
-                    # https://docs.confluent.io/platform/current/clients/confluent-kafka-python/html/#confluent_kafka.Message
                     "timestamp": msg.timestamp()[1] if msg.timestamp()[0] != Timestamp.NOT_AVAILABLE else None,
                     "key": key,
                     "value": value,
                 }
-                response.append(element)
+            )
+        return response
 
-            KarapaceBase.r(content_type=content_type, body=response)
+    async def _deserialize_messages_parallel(
+        self, consumed_messages, content_type: str, request_format: str, deserialize_key_func, deserialize_value_func
+    ):
+        """Parallel async batch deserialization for schema registry formats."""
 
-    async def deserialize(self, bytes_: bytes, fmt: str):
-        try:
-            if not bytes_:
-                return None
-            if fmt in {"avro", "jsonschema", "protobuf"}:
-                return await self.deserializer.deserialize(bytes_)
-            if fmt == "json":
-                return json_decode(bytes_)
-            return base64.b64encode(bytes_).decode("utf-8")
-        except (UnpackError, InvalidMessageHeader, InvalidPayload, JSONDecodeError, UnicodeDecodeError) as e:
-            raise DeserializationError(e) from e
+        async def deserialize_message(msg):
+            try:
+                key = await deserialize_key_func(msg.key())
+            except DeserializationError as e:
+                KarapaceBase.unprocessable_entity(
+                    message=f"key deserialization error for format {request_format}: {e}",
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                    content_type=content_type,
+                )
+            try:
+                value = await deserialize_value_func(msg.value())
+            except DeserializationError as e:
+                KarapaceBase.unprocessable_entity(
+                    message=f"value deserialization error for format {request_format}: {e}",
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                    content_type=content_type,
+                )
+            return {
+                "topic": msg.topic(),
+                "partition": msg.partition(),
+                "offset": msg.offset(),
+                "timestamp": msg.timestamp()[1] if msg.timestamp()[0] != Timestamp.NOT_AVAILABLE else None,
+                "key": key,
+                "value": value,
+            }
+
+        response = await asyncio.gather(*[deserialize_message(msg) for msg in consumed_messages])
+        return list(response)
 
     async def aclose(self):
         for k in list(self.consumers.keys()):
