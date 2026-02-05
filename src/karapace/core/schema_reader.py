@@ -228,7 +228,11 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
             assert self.consumer is not None
 
-            schema_topic_exists = False
+            # Perform a metadata list, which is allowed in a describe permission, whereas
+            # topic-create permissions are a coarser permission grant, not typically given out
+            schema_topic_exists = (
+                self.config.topic_name in self.admin_client.list_topics(topic=self.config.topic_name).topics.keys()
+            )
             while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
                     LOG.info("[Schema Topic] Creating %r", self.config.topic_name)
