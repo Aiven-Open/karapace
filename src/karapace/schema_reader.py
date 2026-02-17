@@ -409,9 +409,15 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         for msg in msgs:
             try:
                 message_key = msg.key()
+                message_value = msg.value()
                 message_error = msg.error()
                 if message_error is not None:
                     raise translate_from_kafkaerror(message_error)
+
+                if (message_key is None or message_key == b"") and (message_value is None or message_value == b""):
+                    LOG.debug("Skipping empty message at offset %s", msg.offset())
+                    self.offset = msg.offset()
+                    continue
 
                 assert message_key is not None
                 key = json_decode(message_key)
@@ -447,7 +453,6 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
 
             value = None
-            message_value = msg.value()
             if message_value:
                 try:
                     value = self._parse_message_value(message_value)

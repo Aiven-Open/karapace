@@ -58,6 +58,10 @@ venv/.deps-dev: venv/.make
 	$(PIP) check
 	touch '$(@)'
 
+.PHONY: lint
+lint:
+	mypy --config-file mypy.ini src/
+	pre-commit run --all-files
 
 .PHONY: test
 tests: unit-tests integration-tests
