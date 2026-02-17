@@ -231,20 +231,20 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             schema_topic_exists = False
             while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
-                    LOG.info("[Schema Topic] Creating %r", self.config.topic_name)
+                    LOG.debug("[Schema Topic] Creating %r", self.config.topic_name)
                     topic = self.admin_client.new_topic(
                         name=self.config.topic_name,
                         num_partitions=constants.SCHEMA_TOPIC_NUM_PARTITIONS,
                         replication_factor=self.config.replication_factor,
                         config={"cleanup.policy": "compact"},
                     )
-                    LOG.info("[Schema Topic] Successfully created %r", topic.topic)
+                    LOG.debug("[Schema Topic] Successfully created %r", topic.topic)
                     schema_topic_exists = True
                 except TopicAlreadyExistsError:
                     LOG.warning("[Schema Topic] Already exists %r", self.config.topic_name)
                     schema_topic_exists = True
                 except InvalidReplicationFactorError:
-                    LOG.info(
+                    LOG.debug(
                         "[Schema Topic] Failed to create topic %r, not enough Kafka brokers ready yet, retrying",
                         self.config.topic_name,
                     )
@@ -257,16 +257,16 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             # This is critical with confluent-kafka 2.13+ where subscribing to a non-existent topic
             # causes the consumer to not pick up messages even after the topic is created
             if schema_topic_exists:
-                LOG.info("[Consumer] Subscribing to topic %r after creation", self.config.topic_name)
+                LOG.debug("[Consumer] Subscribing to topic %r after creation", self.config.topic_name)
                 self.consumer.subscribe([self.config.topic_name])
 
                 # Wait for partition assignment to complete by doing an initial poll
                 # The subscribe() call is asynchronous and partitions are assigned during poll/consume
-                LOG.info("[Consumer] Waiting for partition assignment")
+                LOG.debug("[Consumer] Waiting for partition assignment")
                 for _ in range(10):  # Try up to 10 times with 100ms timeout each = 1 second total
                     assignment = self.consumer.assignment()
                     if assignment:
-                        LOG.info("[Consumer] Partitions assigned: %s", assignment)
+                        LOG.debug("[Consumer] Partitions assigned: %s", assignment)
                         break
                     # Trigger partition assignment by polling
                     self.consumer.poll(0.1)
@@ -370,11 +370,20 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         # Offset in the response is the offset for the next upcoming message.
         # Reduce by one for actual highest offset.
         self._highest_offset = end_offset - 1
+
+        # Log when replay starts (first time we know how many messages to process)
+        if self.startup_previous_processed_offset == 0 and self._highest_offset > 0:
+            LOG.info(
+                "Starting schema replay: %s messages to process (offset 0 to %s)",
+                self._highest_offset + 1,
+                self._highest_offset,
+            )
+
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
         progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
         startup_processed_message_per_second = (self.offset - self.startup_previous_processed_offset) / time_from_last_check
-        LOG.info(
+        LOG.debug(
             "Replay progress (%s): %s/%s (%s %%) (recs/s %s)",
             round(time_from_last_check, 2),
             self.offset,
@@ -387,7 +396,12 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         ready = self.offset >= self._highest_offset
         if ready:
             self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
-            LOG.info("Ready in %s seconds", time.monotonic() - self.start_time)
+            # Always log when replay completes - this is important for operators
+            LOG.info(
+                "Schema replay completed in %.2f seconds (processed %s messages)",
+                time.monotonic() - self.start_time,
+                self.offset,
+            )
             # Initialize metrics with current database state when becoming ready
             self._initialize_metrics()
         return ready
@@ -541,7 +555,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
     def _initialize_metrics(self) -> None:
         """Initialize metrics with current database state."""
         num_subjects, num_schemas, live_versions, soft_deleted_versions = self._update_schema_gauges()
-        LOG.info(
+        LOG.debug(
             "Metrics initialized: subjects=%s, schemas=%s, live_versions=%s, soft_deleted_versions=%s",
             num_subjects,
             num_schemas,
@@ -568,16 +582,16 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         subject = key.get("subject")
         if subject is not None:
             if self.database.find_subject(subject=subject) is None:
-                LOG.info("Adding first version of subject: %r with no schemas", subject)
+                LOG.debug("Adding first version of subject: %r with no schemas", subject)
                 self.database.insert_subject(subject=subject)
             if not value:
-                LOG.info("Deleting compatibility config completely for subject: %r", subject)
+                LOG.debug("Deleting compatibility config completely for subject: %r", subject)
                 self.database.delete_subject_compatibility(subject=subject)
             else:
-                LOG.info("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
+                LOG.debug("Setting subject: %r config to: %r, value: %r", subject, value["compatibilityLevel"], value)
                 self.database.set_subject_compatibility(subject=subject, compatibility=value["compatibilityLevel"])
         elif value is not None:
-            LOG.info("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
+            LOG.debug("Setting global config to: %r, value: %r", value["compatibilityLevel"], value)
             self.config.compatibility = value["compatibilityLevel"]
 
     def _handle_msg_delete_subject(self, key: dict, value: dict | None) -> None:
@@ -590,7 +604,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         if self.database.find_subject(subject=subject) is None:
             LOG.warning("Subject: %r did not exist, should have", subject)
         else:
-            LOG.info("Deleting subject: %r, value: %r", subject, value)
+            LOG.debug("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
@@ -601,10 +615,10 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         elif version not in self.database.find_subject_schemas(subject=subject, include_deleted=True):
             LOG.warning("Hard delete: version: %r for subject: %r did not exist, should have", version, subject)
         else:
-            LOG.info("Hard delete: subject: %r version: %r", subject, version)
+            LOG.debug("Hard delete: subject: %r version: %r", subject, version)
             self.database.delete_subject_schema(subject=subject, version=version)
             if not self.database.find_subject_schemas(subject=subject, include_deleted=True):
-                LOG.info("Hard delete last version, subject %r is gone", subject)
+                LOG.debug("Hard delete last version, subject %r is gone", subject)
                 self.database.delete_subject_hard(subject=subject)
 
     def _handle_msg_schema(self, key: dict, value: dict | None) -> None:
