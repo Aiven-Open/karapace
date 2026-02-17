@@ -200,6 +200,37 @@ def test_num_max_messages_to_consume_moved_to_one_after_ready() -> None:
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
+def test_schema_reader_skips_empty_message_and_advances_offset() -> None:
+    key_formatter_mock = Mock(spec=KeyFormatter)
+    consumer_mock = Mock(spec=KafkaConsumer)
+
+    empty_message = Mock(spec=Message)
+    empty_message.key.return_value = None
+    empty_message.value.return_value = None
+    empty_message.error.return_value = None
+    empty_message.offset.return_value = 5
+
+    consumer_mock.consume.return_value = [empty_message]
+    # Return tuple (beginning, end), end offset is the next upcoming record offset
+    consumer_mock.get_watermark_offsets.return_value = (0, 6)
+
+    schema_reader = KafkaSchemaReader(
+        config=DEFAULTS,
+        offset_watcher=OffsetWatcher(),
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+    )
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = 0
+
+    schema_reader.handle_messages()
+
+    assert schema_reader.offset == 5
+    schema_reader._update_is_ready_flag()  # pylint: disable=protected-access
+    assert schema_reader.ready() is True
+
+
 def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_schemas_topic() -> None:
     key_formatter_mock = Mock(spec=KeyFormatter)
     consumer_mock = Mock(spec=KafkaConsumer)
