@@ -49,7 +49,7 @@ from karapace.core.stats import StatsClient
 from karapace.core.typing import JsonObject, SchemaReaderStoppper, Subject, Version
 from karapace.core.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Lock, Thread
-from typing import Final
+from typing import Final, cast
 
 import asyncio
 import json
@@ -453,21 +453,28 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         for msg in msgs:
             try:
                 message_key = msg.key()
+                message_value = msg.value()
                 message_error = msg.error()
                 if message_error is not None:
                     raise translate_from_kafkaerror(message_error)
+
+                # Skip empty control/placeholder records (no key and no value)
+                if (message_key is None or message_key == b"") and (message_value is None or message_value == b""):
+                    LOG.debug("Skipping empty message at offset %s", msg.offset())
+                    self.offset = cast(int, msg.offset())
+                    continue
 
                 assert message_key is not None
                 key = json_decode(message_key)
             except AssertionError as exc:
                 LOG.warning("Empty msg.key() at offset %s", msg.offset())
-                self.offset = msg.offset()  # type: ignore[assignment]  # Invalid entry shall also move the offset so Karapace makes progress.
+                self.offset = cast(int, msg.offset())  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except JSONDecodeError as exc:
                 non_bytes_key = msg.key().decode()  # type: ignore[union-attr]
                 LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, msg.offset())
-                self.offset = msg.offset()  # type: ignore[assignment]  # Invalid entry shall also move the offset so Karapace makes progress.
+                self.offset = cast(int, msg.offset())  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except (GroupAuthorizationFailedError, TopicAuthorizationFailedError) as exc:
@@ -491,13 +498,14 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 self.key_formatter.set_keymode(KeyMode.DEPRECATED_KARAPACE)
 
             value = None
-            message_value = msg.value()
             if message_value:
                 try:
                     value = self._parse_message_value(message_value)
                 except (JSONDecodeError, TypeError) as exc:
                     LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
-                    self.offset = msg.offset()  # type: ignore[assignment]  # Invalid entry shall also move the offset so Karapace makes progress.
+                    self.offset = cast(
+                        int, msg.offset()
+                    )  # Invalid entry shall also move the offset so Karapace makes progress.
                     self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                     continue  # [non-strict mode]
 
@@ -507,7 +515,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue
             finally:
-                self.offset = msg.offset()  # type: ignore[assignment]
+                self.offset = cast(int, msg.offset())
 
             if msg_keymode == KeyMode.CANONICAL:
                 schema_records_processed_keymode_canonical += 1
