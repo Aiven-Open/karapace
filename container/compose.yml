@@ -102,12 +102,7 @@ services:
     image: ghcr.io/aiven-open/karapace:develop
     hostname: karapace-schema-registry-follower
     container_name: karapace-schema-registry-follower
-    build:
-      context: ..
-      dockerfile: container/Dockerfile
-      args:
-        KARAPACE_VERSION: $KARAPACE_VERSION
-        PYTHON_VERSION: $PYTHON_VERSION
+    # Uses same image
     entrypoint:
       - python3
       - -m
@@ -165,12 +160,7 @@ services:
     image: ghcr.io/aiven-open/karapace:develop
     hostname: karapace-rest-proxy
     container_name: karapace-rest-proxy
-    build:
-      context: ..
-      dockerfile: container/Dockerfile
-      args:
-        KARAPACE_VERSION: $KARAPACE_VERSION
-        PYTHON_VERSION: $PYTHON_VERSION
+    # Uses same image
     entrypoint:
       - python3
       - -m
