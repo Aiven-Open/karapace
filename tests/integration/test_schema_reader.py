@@ -240,6 +240,57 @@ async def test_regression_config_for_inexisting_object_should_not_throw(
         await master_coordinator.close()
 
 
+async def test_schema_reader_skips_empty_message_and_advances_offset(
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+    admin_client: KafkaAdminClient,
+) -> None:
+    test_name = "test_schema_reader_skips_empty_message_and_advances_offset"
+    topic_name = new_topic(admin_client)
+    group_id = create_group_name_factory(test_name)()
+    stats_mock = Mock(spec=StatsClient)
+
+    # Produce an empty record (no key, no value) before the reader starts
+    future = producer.send(topic_name, key=None, value=None)
+    producer.flush()
+    empty_msg = future.result()
+    empty_offset = empty_msg.offset()
+
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age = 2
+    config.group_id = group_id
+    config.topic_name = topic_name
+
+    master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
+    try:
+        master_coordinator.start()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=KeyFormatter(),
+            master_coordinator=master_coordinator,
+            database=database,
+            stats=stats_mock,
+        )
+        schema_reader.start()
+
+        with closing(schema_reader):
+            # The reader should be able to catch up even with an empty message at the head
+            await asyncio.wait_for(
+                _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader),
+                timeout=10,
+            )
+
+            # Ensure we actually advanced past the empty offset
+            assert schema_reader.offset >= empty_offset
+    finally:
+        await master_coordinator.close()
+
+
 @dataclass
 class DetectKeyFormatCase(BaseTestCase):
     raw_msgs: list[tuple[bytes, bytes]]
