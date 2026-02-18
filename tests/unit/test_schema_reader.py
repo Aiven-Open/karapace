@@ -204,6 +204,38 @@ def test_num_max_messages_to_consume_moved_to_one_after_ready(karapace_container
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
+def test_schema_reader_skips_empty_message_and_advances_offset(karapace_container: KarapaceContainer) -> None:
+    key_formatter_mock = Mock(spec=KeyFormatter)
+    stats_mock = Mock(spec=StatsClient)
+    consumer_mock = Mock(spec=KafkaConsumer)
+
+    empty_message = Mock(spec=Message)
+    empty_message.key.return_value = None
+    empty_message.value.return_value = None
+    empty_message.error.return_value = None
+    empty_message.offset.return_value = 5
+
+    consumer_mock.consume.return_value = [empty_message]
+    consumer_mock.get_watermark_offsets.return_value = (0, 6)
+
+    schema_reader = KafkaSchemaReader(
+        config=karapace_container.config(),
+        offset_watcher=OffsetWatcher(),
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+        stats=stats_mock,
+    )
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = 0
+
+    schema_reader.handle_messages()
+
+    assert schema_reader.offset == 5
+    schema_reader._update_is_ready_flag()  # pylint: disable=protected-access
+    assert schema_reader.ready() is True
+
+
 def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_schemas_topic(
     karapace_container: KarapaceContainer,
 ) -> None:
