@@ -9,12 +9,15 @@ from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.container import KarapaceContainer
 from karapace.core.metrics_container import MetricsContainer
 from karapace.core.schema_registry import KarapaceSchemaRegistry
+from karapace.core.tls import TlsContextHolder
 
 
 class SchemaRegistryContainer(containers.DeclarativeContainer):
     karapace_container = providers.Container(KarapaceContainer)
     metrics_container = providers.Container(MetricsContainer)
     telemetry_container = providers.Container(TelemetryContainer)
+
+    tls_context_holder = providers.Singleton(TlsContextHolder, config=karapace_container.config)
 
     schema_registry = providers.Singleton(
         KarapaceSchemaRegistry,

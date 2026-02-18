@@ -159,6 +159,34 @@ Verify with list topics::
   $ curl "http://localhost:8082/topics"
 
 
+TLS reload endpoint (Schema Registry)
+=====================================
+
+Karapace Schema Registry exposes an internal endpoint that can be used to
+validate and reload the TLS server configuration without restarting the
+process.
+
+* **Endpoint**: ``POST /internal/tls/reload``
+* **Header**: ``X-TLS-Reload-Token`` must match ``server_tls_reload_token``
+  from the configuration (or corresponding ``KARAPACE_SERVER_TLS_RELOAD_TOKEN``
+  environment variable).
+* **Mode**: The current implementation operates in ``prepare_only`` mode,
+  meaning that it validates certificate and key files and rebuilds the
+  server ``SSLContext`` in memory, but the running listener continues to use
+  the TLS configuration created at process start. The new context will be
+  applied only on the next restart or if future versions wire it directly
+  into the HTTP server.
+
+Example call::
+
+  $ curl -X POST \
+      -H "X-TLS-Reload-Token: changeme" \
+      https://localhost:8081/internal/tls/reload
+
+On success the endpoint returns a JSON payload with the operation status
+and the timestamp of the last successful reload.
+
+
 Schema Registry Api reference
 =============================
 
