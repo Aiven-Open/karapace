@@ -1,9 +1,13 @@
-"""Unit tests for TlsContextHolder."""
+"""
+Unit tests for TlsContextHolder.
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
+"""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock
+from datetime import datetime, timezone
 
 import pytest
 

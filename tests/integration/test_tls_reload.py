@@ -2,6 +2,9 @@
 
 These tests start a Schema Registry instance with TLS enabled and
 exercise the internal /internal/tls/reload endpoint over HTTPS.
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
 """
 
 from __future__ import annotations
