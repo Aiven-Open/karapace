@@ -11,6 +11,8 @@ from karapace.core.config import Config, InvalidConfiguration
 from karapace.core import tls as tls_module
 from karapace.core.tls import TlsContextHolder
 
+from datetime import datetime, timezone
+
 
 @pytest.fixture
 def base_config() -> Config:

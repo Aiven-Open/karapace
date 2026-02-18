@@ -354,6 +354,7 @@ class SchemaRegistrySerializer:
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema
         return schema
+
     async def get_or_register_id_for_schema(
         self,
         schema_typed: ValidatedTypedSchema,
