@@ -38,6 +38,7 @@ import avro
 import avro.schema
 import io
 import struct
+from http import HTTPStatus
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
@@ -137,6 +138,39 @@ class SchemaRegistryClient:
         if not result.ok:
             raise SchemaRetrievalError(result.json())
         return SchemaId(result.json()["id"])
+
+    async def lookup_schema(
+        self,
+        subject: str,
+        schema: ValidatedTypedSchema,
+        references: Reference | None = None,
+    ) -> SchemaId | None:
+        if schema.schema_type is SchemaType.PROTOBUF:
+            payload: dict[str, object] = {
+                "schema": str(schema),
+                "schemaType": schema.schema_type.value,
+            }
+            if references:
+                payload["references"] = references.json()
+        else:
+            payload = {
+                "schema": json_encode(schema.to_dict()),
+                "schemaType": schema.schema_type.value,
+            }
+
+        result = await self.client.post(f"subjects/{quote(subject)}", json=payload)
+
+        if result.status == HTTPStatus.NOT_FOUND:
+            return None
+
+        if not result.ok:
+            raise SchemaRetrievalError(result.json())
+
+        json_result = result.json()
+        if "id" not in json_result:
+            raise SchemaRetrievalError(f"Invalid result format: {json_result}")
+
+        return SchemaId(json_result["id"])
 
     async def _get_schema_recursive(
         self,
@@ -320,8 +354,13 @@ class SchemaRegistrySerializer:
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema
         return schema
-
-    async def upsert_id_for_schema(self, schema_typed: ValidatedTypedSchema, subject: str) -> SchemaId:
+    async def get_or_register_id_for_schema(
+        self,
+        schema_typed: ValidatedTypedSchema,
+        subject: Subject,
+        *,
+        lookup_first: bool,
+    ) -> SchemaId:
         assert self.registry_client, "must not call this method after the object is closed."
 
         schema_ser = str(schema_typed)
@@ -329,13 +368,21 @@ class SchemaRegistrySerializer:
         if schema_ser in self.schemas_to_ids:
             return self.schemas_to_ids[schema_ser]
 
-        # note: the post is idempotent, so it is like a get or insert (aka upsert)
-        schema_id = await self.registry_client.post_new_schema(subject, schema_typed)
+        schema_id: SchemaId | None = None
+
+        if lookup_first:
+            schema_id = await self.registry_client.lookup_schema(subject, schema_typed)
+
+        if schema_id is None:
+            schema_id = await self.registry_client.post_new_schema(subject, schema_typed)
 
         async with self.state_lock:
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema_typed
         return schema_id
+
+    async def upsert_id_for_schema(self, schema_typed: ValidatedTypedSchema, subject: str) -> SchemaId:
+        return await self.get_or_register_id_for_schema(schema_typed, Subject(subject), lookup_first=False)
 
     async def get_schema_for_id(
         self,
