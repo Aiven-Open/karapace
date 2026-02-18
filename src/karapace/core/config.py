@@ -107,6 +107,7 @@ class Config(BaseSettings):
     server_tls_keyfile: str | None = None
     server_tls_cafile: str | None = None
     server_tls_client_auth: ServerTLSClientAuth = ServerTLSClientAuth.NONE
+    server_tls_reload_token: str | None = None
     registry_scheme: str = "http"
     registry_host: str = "karapace-schema-registry"
     registry_port: int = 8081

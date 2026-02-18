@@ -13,6 +13,7 @@ from karapace.api.routers.mode import mode_router
 from karapace.api.routers.root import root_router
 from karapace.api.routers.schemas import schemas_router
 from karapace.api.routers.subjects import subjects_router
+from karapace.api.routers.tls import tls_router
 
 
 def setup_routers(app: FastAPI) -> None:
@@ -25,3 +26,4 @@ def setup_routers(app: FastAPI) -> None:
     app.include_router(subjects_router)
     app.include_router(metrics_router)
     app.include_router(master_availability_router)
+    app.include_router(tls_router)
