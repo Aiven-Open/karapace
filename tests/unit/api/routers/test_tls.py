@@ -1,6 +1,9 @@
 """Unit tests for TLS reload endpoint.
 
 Covers token-based authorization and basic success/error flows.
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
 """
 
 from __future__ import annotations

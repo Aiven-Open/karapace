@@ -3,6 +3,9 @@
 This module provides a small helper that can be injected via the
 `SchemaRegistryContainer` and used by internal endpoints to validate
 and (in the future) refresh the server TLS context.
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
 """
 
 from __future__ import annotations
@@ -10,8 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-
 from dependency_injector.wiring import inject, Provide
+
 
 from karapace.core.config import Config, create_server_ssl_context, InvalidConfiguration
 

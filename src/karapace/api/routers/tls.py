@@ -3,6 +3,9 @@
 The endpoints in this module are intended for operational use from
 trusted networks. They allow validating and reloading the TLS server
 configuration without restarting the process.
+
+Copyright (c) 2023 Aiven Ltd
+See LICENSE for details
 """
 
 from __future__ import annotations
