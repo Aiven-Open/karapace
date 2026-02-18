@@ -164,6 +164,7 @@ class Config(BaseSettings):
     kafka_retriable_errors_silenced: bool = True
     use_protobuf_formatter: bool = False
     waiting_time_before_acting_as_master_ms: int = 5000
+    rest_lookup_schema_before_register: bool = False
 
     sentry: Mapping[str, object] | None = None
     tags: KarapaceTags = KarapaceTags()

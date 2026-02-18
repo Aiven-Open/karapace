@@ -5,10 +5,6 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from __future__ import annotations
-
-from datetime import datetime, timezone
-
 import pytest
 
 from karapace.core.config import Config, InvalidConfiguration
