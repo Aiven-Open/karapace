@@ -325,7 +325,9 @@ class KafkaRest(KarapaceBase):
                         except Exception as e:
                             log.warning("Failed to create UserRestProxy: %s", e)
                             self.proxies[key] = None  # type: ignore[assignment]
-                            self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
+                            self.r(
+                                body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN
+                            )
                     elif self.proxies[key] is None:
                         log.debug("Proxy creation previously failed for this key")
                         self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
@@ -336,7 +338,9 @@ class KafkaRest(KarapaceBase):
                         except Exception as e:
                             log.warning("Failed to create UserRestProxy: %s", e)
                             self.proxies[key] = None  # type: ignore[assignment]
-                            self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
+                            self.r(
+                                body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN
+                            )
                     elif self.proxies[key] is None:
                         log.debug("Proxy creation previously failed for unauthenticated requests")
                         self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
@@ -344,11 +348,11 @@ class KafkaRest(KarapaceBase):
                 # This catch is for any other connection failures not caught above
                 log.warning("Failed to connect to Kafka: %s", e)
                 self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
-            
+
             # Only proceed if proxy was successfully created
             if key not in self.proxies:
                 return None  # type: ignore[return-value]
-                
+
             proxy = self.proxies[key]
             proxy.mark_used()
             return proxy
