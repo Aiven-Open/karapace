@@ -31,13 +31,6 @@ import uvicorn
 from karapace.core.metrics_container import MetricsContainer
 
 if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.warning("=" * 80)
-    logger.warning("KARAPACE STARTING FROM GITHUB REPO - FIX BRANCH - BUILD TIMESTAMP: 2026-02-23T14:20")
-    logger.warning("=" * 80)
-    
     karapace_container = KarapaceContainer()
     karapace_container.wire(
         modules=[

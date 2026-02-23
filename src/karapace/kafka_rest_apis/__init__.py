@@ -307,7 +307,6 @@ class KafkaRest(KarapaceBase):
 
                     key = auth_header
                     if key not in self.proxies:
-                        log.info("Creating new UserRestProxy for authenticated user")
                         config = self.config.copy()
                         config.bootstrap_uri = config.sasl_bootstrap_uri
                         config.security_protocol = (
@@ -325,34 +324,22 @@ class KafkaRest(KarapaceBase):
                             self.proxies[key] = UserRestProxy(config, self.kafka_timeout, self.serializer, auth_expiry)
                         except Exception as e:
                             log.warning("Failed to create UserRestProxy: %s", e)
-                            # Mark this key as failed to prevent retry on every request
                             self.proxies[key] = None  # type: ignore[assignment]
-                            log.info("Marked proxy as failed for key (len=%d)", len(key) if key else 0)
-                            # Now return forbidden response
                             self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
                     elif self.proxies[key] is None:
-                        # Previously failed to create proxy
-                        log.warning("Proxy creation previously failed for this key")
+                        log.debug("Proxy creation previously failed for this key")
                         self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
-                    else:
-                        log.debug("Reusing existing UserRestProxy for authenticated user")
                 else:
                     if key not in self.proxies:
-                        log.info("Creating new UserRestProxy for unauthenticated requests")
                         try:
                             self.proxies[key] = UserRestProxy(self.config, self.kafka_timeout, self.serializer)
                         except Exception as e:
-                            log.warning("EXCEPTION CAUGHT! Failed to create UserRestProxy: %s", e)
-                            # Mark this key as failed to prevent retry on every request
+                            log.warning("Failed to create UserRestProxy: %s", e)
                             self.proxies[key] = None  # type: ignore[assignment]
-                            log.warning("MARKED PROXY AS FAILED for key='%s'", key)
                             self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
                     elif self.proxies[key] is None:
-                        # Previously failed to create proxy
-                        log.warning("Proxy creation previously failed for unauthenticated requests")
+                        log.debug("Proxy creation previously failed for unauthenticated requests")
                         self.r(body={"message": "Forbidden"}, content_type=JSON_CONTENT_TYPE, status=HTTPStatus.FORBIDDEN)
-                    else:
-                        log.debug("Reusing existing UserRestProxy for unauthenticated requests")
             except Exception as e:
                 # This catch is for any other connection failures not caught above
                 log.warning("Failed to connect to Kafka: %s", e)
