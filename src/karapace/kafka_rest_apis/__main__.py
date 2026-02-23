@@ -27,6 +27,13 @@ def main() -> int:
     configure_logging(config=container.config())
     log_config_without_secrets(config=container.config())
 
+    print("=" * 100, flush=True)
+    print("KARAPACE REST PROXY - GITHUB REPO FIX BRANCH - BUILD: 2026-02-23T14:22", flush=True)
+    print("=" * 100, flush=True)
+    logging.warning("=" * 100)
+    logging.warning("KARAPACE REST PROXY - GITHUB REPO FIX BRANCH - BUILD: 2026-02-23T14:22")
+    logging.warning("=" * 100)
+    
     logging.info("\n%s\nStarting %s\n%s", ("=" * 100), "Starting Karapace Rest Proxy", ("=" * 100))
     app = KafkaRest(config=container.config())
 
