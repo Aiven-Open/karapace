@@ -1,6 +1,6 @@
 ARG PYTHON_VERSION=3.12
 
-FROM python:${PYTHON_VERSION}-bullseye AS builder
+FROM python:${PYTHON_VERSION}-bookworm AS builder
 ARG KARAPACE_VERSION
 
 # Create, activate, and enforce usage of virtualenv.
@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Karapace image, i.e. production.
 FROM builder AS karapace
 # Install protobuf compiler.
-ARG PROTOBUF_COMPILER_VERSION="3.12.4-1+deb11u1"
+ARG PROTOBUF_COMPILER_VERSION="3.21.12-3"
 RUN apt-get update \
  && apt-get install --assume-yes --no-install-recommends \
     protobuf-compiler=$PROTOBUF_COMPILER_VERSION \
@@ -58,7 +58,7 @@ ENV CAROOT=/opt/karapace/certs/ca
 
 # Setup files and directories.
 RUN mkdir -p /opt/karapace /opt/karapace/runtime /var/log/karapace /opt/karapace/coverage $CAROOT \
-&& touch /opt/karapace/coverage/.coverage.3.12 /opt/karapace/coverage/.coverage.3.13 \
+&& touch /opt/karapace/coverage/.coverage.3.12 /opt/karapace/coverage/.coverage.3.13 /opt/karapace/coverage/.coverage.3.14 \
 && chown --recursive "$RUNNER_UID:$RUNNER_GID" /opt/karapace /opt/karapace/coverage /var/log/karapace
 
 # Install Java via openjdk-11

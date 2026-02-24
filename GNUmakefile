@@ -115,7 +115,7 @@ schema:
 
 .PHONY: pin-requirements
 pin-requirements:
-	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -t -v "$(CURDIR):/karapace" --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
+	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -t -v "$(CURDIR):/karapace" --security-opt label=disable python:$(PYTHON_VERSION)-bookworm /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
 
 .PHONY: stop-karapace-docker-resources
 stop-karapace-docker-resources:
