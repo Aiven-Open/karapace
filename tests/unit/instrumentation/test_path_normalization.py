@@ -25,7 +25,7 @@ class TestNormalizePath:
     def test_topic_name_normalized(self) -> None:
         """Topic names should be replaced with {topic}."""
         assert normalize_path("/topics/my-topic") == "/topics/{topic}"
-        assert normalize_path("/topics/yunextraffic.fct.yuhubiot_live_raw.1") == "/topics/{topic}"
+        assert normalize_path("/topics/example.fct.sensor_data_raw.1") == "/topics/{topic}"
 
     def test_consumer_group_uuid_normalized(self) -> None:
         """Consumer group UUIDs should be replaced with {uuid}."""
