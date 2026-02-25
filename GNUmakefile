@@ -108,11 +108,6 @@ requirements:
 	$(PIP) install --upgrade pip setuptools pip-tools
 	$(PIP) install .[dev,typing]
 
-.PHONY: schema
-schema: against := origin/main
-schema:
-	$(PYTHON) -m karapace.backup.backends.v3.schema_tool --against=$(against)
-
 .PHONY: pin-requirements
 pin-requirements:
 	docker run -e CUSTOM_COMPILE_COMMAND='make pin-requirements' -t -v "$(CURDIR):/karapace" --security-opt label=disable python:$(PYTHON_VERSION)-bullseye /bin/bash -c "$(PIN_VERSIONS_COMMAND)"
