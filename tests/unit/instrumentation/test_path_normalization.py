@@ -7,7 +7,6 @@ See LICENSE for details
 
 from __future__ import annotations
 
-import pytest
 
 from karapace.core.instrumentation.prometheus import normalize_path
 
