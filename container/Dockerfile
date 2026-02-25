@@ -1,11 +1,36 @@
 # Current versions of avro and zstandard don't yet have wheels for 3.11.
-FROM python:3.10.11-bullseye AS builder
+ARG PYTHON_VERSION=3.10
+FROM python:${PYTHON_VERSION}-bookworm AS builder
+ARG LIBRDKAFKA_VERSION=2.5.0
+# Build librdkafka from source (need v2.4.0+ for confluent-kafka 2.3.0+)
+# hadolint ignore=DL3008
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        libssl-dev \
+        libsasl2-dev \
+        libzstd-dev \
+        liblz4-dev \
+        libcurl4-openssl-dev \
+        pkg-config && \
+    wget -q "https://github.com/confluentinc/librdkafka/archive/refs/tags/v${LIBRDKAFKA_VERSION}.tar.gz" && \
+    tar -xzf "v${LIBRDKAFKA_VERSION}.tar.gz" && \
+    rm -rf /var/lib/apt/lists/*
 
+WORKDIR /librdkafka-${LIBRDKAFKA_VERSION}
+RUN ./configure --prefix=/usr && \
+    make -j"$(nproc)" && \
+    make install && \
+    ldconfig
+
+WORKDIR /
+RUN rm -rf "/librdkafka-${LIBRDKAFKA_VERSION}" "/v${LIBRDKAFKA_VERSION}.tar.gz"
 ARG KARAPACE_VERSION
 
 # Create, activate, and enforce usage of virtualenv.
 RUN python3 -m venv /venv
 ENV PATH="/venv/bin:$PATH"
+
 ENV PIP_REQUIRE_VIRTUALENV=true
 
 # Install golang needed by extensions
@@ -36,7 +61,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     SETUPTOOLS_SCM_PRETEND_VERSION=$PRETEND_VERSION python3 -m pip install --no-deps .
 
 # Karapace image, i.e. production.
-FROM python:3.10.11-slim-bullseye AS karapace
+FROM python:${PYTHON_VERSION}-bookworm AS karapace
 
 # Setup user and directories.
 # https://docs.redhat.com/en/documentation/openshift_container_platform/4.17/html/images/creating-images#use-uid_create-images
@@ -46,7 +71,7 @@ RUN useradd --system --gid 0 karapace \
  && chmod -R g+rwX /opt/karapace
 
 # Install protobuf compiler.
-ARG PROTOBUF_COMPILER_VERSION="3.12.4-1+deb11u1"
+ARG PROTOBUF_COMPILER_VERSION="3.21.12-3"
 RUN apt-get update \
  && apt-get install --assume-yes --no-install-recommends \
     protobuf-compiler=$PROTOBUF_COMPILER_VERSION \
@@ -54,6 +79,10 @@ RUN apt-get update \
 
 # Copy virtualenv from builder and activate it.
 COPY --from=builder /venv /venv
+
+# Copy librdkafka shared libraries from builder (needed by confluent-kafka at runtime)
+COPY --from=builder /usr/lib/librdkafka* /usr/lib/
+RUN ldconfig
 ENV PATH="/venv/bin:$PATH"
 
 COPY ./container/start.sh /opt/karapace
