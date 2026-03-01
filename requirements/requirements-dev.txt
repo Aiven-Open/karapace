@@ -175,7 +175,7 @@ mdurl==0.1.2
     # via markdown-it-py
 msgpack==1.1.2
     # via locust
-multidict==6.7.0
+multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
