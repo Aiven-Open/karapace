@@ -38,7 +38,7 @@ backoff==2.2.1
     # via
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-cachetools==6.2.4
+cachetools==7.0.1
     # via karapace (pyproject.toml)
 certifi==2026.1.4
     # via

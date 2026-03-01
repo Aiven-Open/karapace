@@ -44,7 +44,7 @@ blinker==1.9.0
     # via flask
 brotli==1.2.0
     # via geventhttpclient
-cachetools==6.2.4
+cachetools==7.0.1
     # via karapace (pyproject.toml)
 certifi==2026.1.4
     # via
