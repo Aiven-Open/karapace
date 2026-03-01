@@ -118,7 +118,7 @@ googleapis-common-protos==1.72.0
     # via
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-greenlet==3.3.0
+greenlet==3.3.2
     # via gevent
 grpcio==1.76.0
     # via opentelemetry-exporter-otlp-proto-grpc
