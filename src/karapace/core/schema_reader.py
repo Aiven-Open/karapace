@@ -231,7 +231,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             # Perform a metadata list, which is allowed in a describe permission, whereas
             # topic-create permissions are a coarser permission grant, not typically given out
             schema_topic_exists = (
-                self.config.topic_name in self.admin_client.list_topics(topic=self.config.topic_name).topics.keys()
+                self.config.topic_name in self.admin_client.list_topics().topics.keys()
             )
             while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
@@ -341,7 +341,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         except KafkaTimeoutError:
             LOG.warning("Reading begin offsets timed out.")
         except UnknownTopicOrPartitionError:
-            LOG.warning("Topic does not yet exist.")
+            LOG.warning("Topic: %r does not yet exist.", self.config.topic_name)
         except (LeaderNotAvailableError, NotLeaderForPartitionError):
             LOG.warning("Retrying to find leader for schema topic partition.")
         except Exception as e:
