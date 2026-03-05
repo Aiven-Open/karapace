@@ -444,11 +444,11 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``producer_acks``
      - ``1``
      - Level of consistency desired by each producer message sent on the rest proxy.
-       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`__
    * - ``producer_linger_ms``
      - ``0``
      - Time to wait for grouping together requests.
-       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`__
    * - ``producer_max_request_size``
      - ``1048576``
      - The maximum size of a request in bytes.
@@ -493,9 +493,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``server_tls_cafile``
      - ``/path/to/cafile``
      - Filename to the SSL CA certificate.
-  * - ``server_tls_client_auth``
-    - ``none``
-    - Client certificate requirement: ``none``, ``optional``, or ``required``.
+   * - ``server_tls_client_auth``
+     - ``none``
+     - Client certificate requirement: ``none``, ``optional``, or ``required``.
    * - ``registry_scheme``
      - ``http``
      - Schema Registry scheme to use for rest-proxy, http | https (if certificates are provided).
@@ -678,7 +678,7 @@ Example of complete authorization file
     }
 
 Karapace Schema Registry access to the _schemas topic
-====================================================
+=====================================================
 
 The principal used by the Karapace Schema Registry has to have adequate access to the _schemas topic (see the ``topic_name`` configuration option above).
 In addition to what is required to access the topic, as described in the Confluent Schema Registry documentation_, the unique, single-member consumer group
@@ -838,7 +838,7 @@ For local development and testing with Docker, use the convenience make commands
 These handle all the setup automatically and ensure consistency across development environments.
 
 Quick Start
-^^^^^^^^^^^
+-----------
 
 **Set `.env`:** ``cp .env.example .env``
 
@@ -851,7 +851,7 @@ Edit ``.env`` to customize:
 - ``PYTEST_ARGS`` - Pytest arguments for test runs
 
 Available Commands
-^^^^^^^^^^^^^^^^^^^^^^^
+------------------
 
 **Container Management:**
 
