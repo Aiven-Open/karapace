@@ -89,12 +89,19 @@ class MessageType(Enum):
     no_operation = "NOOP"
 
 
+def _get_oauth_token_provider(config: Config):
+    """Instantiate the configured OAuth token provider, if any."""
+    if config.sasl_oauth_token_provider_class is not None:
+        return config.sasl_oauth_token_provider_class()
+    return None
+
+
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
     # NOTE: Don't pass topic= here to avoid subscribing before the topic exists
     # (causes issues with confluent-kafka 2.13+). Subscribe after topic creation instead.
     session_timeout_ms = config.session_timeout_ms
-    return KafkaConsumer(
+    kwargs: dict = dict(
         bootstrap_servers=config.bootstrap_uri,
         enable_auto_commit=False,
         client_id=config.client_id,
@@ -110,10 +117,14 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         session_timeout_ms=session_timeout_ms,
         metadata_max_age_ms=config.metadata_max_age_ms,
     )
+    token_provider = _get_oauth_token_provider(config)
+    if token_provider is not None:
+        kwargs["sasl_oauth_token_provider"] = token_provider
+    return KafkaConsumer(**kwargs)
 
 
 def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
-    return KafkaAdminClient(
+    kwargs: dict = dict(
         bootstrap_servers=config.bootstrap_uri,
         client_id=config.client_id,
         security_protocol=config.security_protocol,
@@ -124,6 +135,10 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
         sasl_plain_username=config.sasl_plain_username,
         sasl_plain_password=config.sasl_plain_password,
     )
+    token_provider = _get_oauth_token_provider(config)
+    if token_provider is not None:
+        kwargs["sasl_oauth_token_provider"] = token_provider
+    return KafkaAdminClient(**kwargs)
 
 
 class KafkaSchemaReader(Thread, SchemaReaderStoppper):
