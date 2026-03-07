@@ -142,6 +142,7 @@ class Config(BaseSettings):
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None
     sasl_oauth_token: str | None = None
+    sasl_oauth_token_provider_class: ImportString | None = None
     topic_name: str = DEFAULT_SCHEMA_TOPIC
     metadata_max_age_ms: int = 60000
     admin_metadata_max_age: int = 5
