@@ -1,5 +1,8 @@
 """Example: AWS MSK IAM token provider for Karapace OAUTHBEARER auth.
 
+Copyright (c) 2024 Aiven Ltd
+See LICENSE for details
+
 This module provides a token provider that generates short-lived AWS MSK
 authentication tokens using IAM credentials. It implements the
 ``TokenWithExpiryProvider`` protocol expected by Karapace's Kafka clients.

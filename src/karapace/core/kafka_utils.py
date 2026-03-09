@@ -12,7 +12,7 @@ from karapace.core.kafka.producer import KafkaProducer
 import contextlib
 
 
-def _get_oauth_token_provider(config: Config):
+def _get_oauth_token_provider(config: Config) -> object | None:
     """Instantiate the configured OAuth token provider, if any."""
     if config.sasl_oauth_token_provider_class is not None:
         return config.sasl_oauth_token_provider_class()
