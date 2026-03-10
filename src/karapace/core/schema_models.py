@@ -212,7 +212,7 @@ def avro_resolve(schema_str: str, dependencies: Mapping[str, Dependency] | None 
         current_schema_str, current_dependencies = stack.pop()
         if current_dependencies:
             stack.append((current_schema_str, None))
-            for dependency in reversed(current_dependencies.values()):
+            for dependency in reversed(list(current_dependencies.values())):
                 stack.append((dependency.schema.schema_str, dependency.schema.dependencies))
         else:
             merge.append(current_schema_str)

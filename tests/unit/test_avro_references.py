@@ -20,17 +20,17 @@ def create_validated_schema(schema_str: str, dependencies=None) -> ValidatedType
 
 @pytest.fixture(name="base_schema")
 def fixture_base_schema():
-    return '{"type": "record", "name": "BaseRecord", "fields": [{"name": "field1", "type": "string"}]}'
+    return '{"fields":[{"name":"field1","type":"string"}],"name":"BaseRecord","type":"record"}'
 
 
 @pytest.fixture(name="dependency_schema")
 def fixture_dependency_schema():
-    return '{"type": "record", "name": "DependencyRecord", "fields": [{"name": "depField", "type": "int"}]}'
+    return '{"fields":[{"name":"depField","type":"int"}],"name":"DependencyRecord","type":"record"}'
 
 
 @pytest.fixture(name="another_dependency_schema")
 def fixture_another_dependency_schema():
-    return '{"type": "record", "name": "AnotherDependency", "fields": [{"name": "anotherField", "type": "boolean"}]}'
+    return '{"fields":[{"name":"anotherField","type":"boolean"}],"name":"AnotherDependency","type":"record"}'
 
 
 def test_resolver_without_dependencies(base_schema):
