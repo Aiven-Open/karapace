@@ -174,14 +174,14 @@ def stored_person_subject(subject_prefix: str, subject_id: int) -> dict:
 
 
 async def basic_avro_references_fill_test(registry_async_client: Client, subject_prefix: str) -> dict:
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}country/versions", json={"schema": json.dumps(SCHEMA_COUNTRY)}
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}country", json={"schema": json.dumps(SCHEMA_COUNTRY)}
     )
     assert res.status_code == 200
     assert "id" in res.json()
 
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}address/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}address",
         json={"schemaType": "AVRO", "schema": json.dumps(SCHEMA_ADDRESS), "references": address_references(subject_prefix)},
     )
     assert res.status_code == 200
@@ -189,8 +189,8 @@ async def basic_avro_references_fill_test(registry_async_client: Client, subject
     address_id = res.json()["id"]
 
     # Check if the schema has now been registered under the subject
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}address",
+    res = await registry_async_client.post_subjects(
+        subject=f"{subject_prefix}address",
         json={"schemaType": "AVRO", "schema": json.dumps(SCHEMA_ADDRESS), "references": address_references(subject_prefix)},
     )
     assert res.status_code == 200
@@ -200,11 +200,13 @@ async def basic_avro_references_fill_test(registry_async_client: Client, subject
     assert "version" in res.json()
     assert "schema" in res.json()
 
-    res = await registry_async_client.post(f"subjects/{subject_prefix}job/versions", json={"schema": json.dumps(SCHEMA_JOB)})
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}job", json={"schema": json.dumps(SCHEMA_JOB)}
+    )
     assert res.status_code == 200
     assert "id" in res.json()
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}person/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}person",
         json={"schemaType": "AVRO", "schema": json.dumps(SCHEMA_PERSON), "references": person_references(subject_prefix)},
     )
     assert res.status_code == 200
@@ -216,7 +218,7 @@ async def test_basic_avro_references(registry_async_client: Client) -> None:
     subject_prefix = create_subject_name_factory("basic-avro-references-")()
     result = await basic_avro_references_fill_test(registry_async_client, subject_prefix)
     person_id = result["id"]
-    res = await registry_async_client.get(f"subjects/{subject_prefix}person/versions/latest")
+    res = await registry_async_client.get_subjects_subject_version(subject=f"{subject_prefix}person", version="latest")
     assert res.status_code == 200
     assert res.json() == stored_person_subject(subject_prefix, person_id)
 
@@ -225,8 +227,9 @@ async def test_avro_references_compatibility(registry_async_client: Client) -> N
     subject_prefix = create_subject_name_factory("avro-references-compatibility-")()
     await basic_avro_references_fill_test(registry_async_client, subject_prefix)
 
-    res = await registry_async_client.post(
-        f"compatibility/subjects/{subject_prefix}person/versions/latest",
+    res = await registry_async_client.post_compatibility_subject_version(
+        subject=f"{subject_prefix}person",
+        version="latest",
         json={
             "schemaType": "AVRO",
             "schema": json.dumps(SCHEMA_PERSON_AGE_INT_LONG),
@@ -235,8 +238,9 @@ async def test_avro_references_compatibility(registry_async_client: Client) -> N
     )
     assert res.status_code == 200
     assert res.json() == {"is_compatible": True}
-    res = await registry_async_client.post(
-        f"compatibility/subjects/{subject_prefix}person/versions/latest",
+    res = await registry_async_client.post_compatibility_subject_version(
+        subject=f"{subject_prefix}person",
+        version="latest",
         json={
             "schemaType": "AVRO",
             "schema": json.dumps(SCHEMA_PERSON_AGE_LONG_STRING),
@@ -250,8 +254,8 @@ async def test_avro_references_compatibility(registry_async_client: Client) -> N
 async def test_avro_union_references(registry_async_client: Client) -> None:
     subject_prefix = create_subject_name_factory("avro-references-union-one-")()
     await basic_avro_references_fill_test(registry_async_client, subject_prefix)
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}person2/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}person2",
         json={
             "schemaType": "AVRO",
             "schema": json.dumps(SCHEMA_UNION_REFERENCES),
@@ -265,8 +269,8 @@ async def test_avro_union_references(registry_async_client: Client) -> None:
 async def test_avro_union_references2(registry_async_client: Client) -> None:
     subject_prefix = create_subject_name_factory("avro-references-union-two-")()
     await basic_avro_references_fill_test(registry_async_client, subject_prefix)
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}person2/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}person2",
         json={
             "schemaType": "AVRO",
             "schema": json.dumps(SCHEMA_UNION_REFERENCES2),
@@ -279,8 +283,8 @@ async def test_avro_union_references2(registry_async_client: Client) -> None:
 async def test_avro_incompatible_name_references(registry_async_client: Client) -> None:
     subject_prefix = create_subject_name_factory("avro-references-incompatible-name-")()
     await basic_avro_references_fill_test(registry_async_client, subject_prefix)
-    res = await registry_async_client.post(
-        f"subjects/{subject_prefix}address/versions",
+    res = await registry_async_client.post_subjects_versions(
+        subject=f"{subject_prefix}address",
         json={
             "schemaType": "AVRO",
             "schema": json.dumps(SCHEMA_ADDRESS_INCOMPATIBLE),
