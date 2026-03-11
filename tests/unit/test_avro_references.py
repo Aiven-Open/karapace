@@ -96,6 +96,38 @@ def test_resolver_with_nested_dependencies(base_schema, dependency_schema, anoth
     ), "Nested dependency should be resolved before its parent"
 
 
+def test_resolver_with_diamond_dependencies(base_schema, dependency_schema, another_dependency_schema):
+    """Test that diamond dependencies (A→B→D, A→C→D) only include D once."""
+    shared_dep = Dependency(
+        name="SharedDep",
+        subject=Subject("SharedSubject"),
+        version=Version(1),
+        target_schema=create_validated_schema(another_dependency_schema),
+    )
+    dep_b = Dependency(
+        name="DepB",
+        subject=Subject("SubjectB"),
+        version=Version(1),
+        target_schema=create_validated_schema(dependency_schema, dependencies={"SharedDep": shared_dep}),
+    )
+    dep_c_schema = '{"fields":[{"name":"cField","type":"float"}],"name":"CRecord","type":"record"}'
+    dep_c = Dependency(
+        name="DepC",
+        subject=Subject("SubjectC"),
+        version=Version(1),
+        target_schema=create_validated_schema(dep_c_schema, dependencies={"SharedDep": shared_dep}),
+    )
+    dependencies = {"DepB": dep_b, "DepC": dep_c}
+    resolved_schemas = avro_resolve(schema_str=base_schema, dependencies=dependencies)
+
+    # The shared dependency should appear exactly once
+    assert resolved_schemas.count(another_dependency_schema) == 1, "Diamond dependency should only appear once"
+    assert resolved_schemas[-1] == base_schema, "Base schema should be last"
+    # Shared dep must come before both B and C
+    assert resolved_schemas.index(another_dependency_schema) < resolved_schemas.index(dependency_schema)
+    assert resolved_schemas.index(another_dependency_schema) < resolved_schemas.index(dep_c_schema)
+
+
 def test_avro_reference() -> None:
     country_schema = ValidatedTypedSchema.parse(
         schema_type=SchemaType.AVRO,

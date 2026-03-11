@@ -32,7 +32,6 @@ from karapace.core.utils import assert_never, json_decode, json_encode, JSONDeco
 from typing import Any, cast, Final, final
 
 import hashlib
-import json
 import logging
 
 LOG = logging.getLogger(__name__)
@@ -198,7 +197,7 @@ class TypedSchema:
         return parsed_typed_schema.schema
 
 
-def avro_resolve(schema_str: str, dependencies: Mapping[str, Dependency] | None = None) -> list:
+def avro_resolve(schema_str: str, dependencies: Mapping[str, Dependency] | None = None) -> list[str]:
     """Resolve the given ``schema_str`` with ``dependencies`` to a list of schemas
     sorted in an order where all referenced schemas are located prior to their referrers.
 
@@ -206,7 +205,8 @@ def avro_resolve(schema_str: str, dependencies: Mapping[str, Dependency] | None 
     """
     schema_str = json_encode(json_decode(schema_str), compact=True, sort_keys=True)
     stack: list[tuple[str, Mapping[str, Dependency] | None]] = [(schema_str, dependencies)]
-    merge: list = []
+    merge: list[str] = []
+    seen: set[str] = set()
 
     while stack:
         current_schema_str, current_dependencies = stack.pop()
@@ -215,7 +215,9 @@ def avro_resolve(schema_str: str, dependencies: Mapping[str, Dependency] | None 
             for dependency in reversed(list(current_dependencies.values())):
                 stack.append((dependency.schema.schema_str, dependency.schema.dependencies))
         else:
-            merge.append(current_schema_str)
+            if current_schema_str not in seen:
+                seen.add(current_schema_str)
+                merge.append(current_schema_str)
 
     return merge
 
@@ -242,7 +244,7 @@ def parse(
                 merged_schema = None
                 for schema in schemas_list:
                     merged_schema = make_avsc_object(
-                        json.loads(schema),
+                        json_decode(schema),
                         names,
                         validate_enum_symbols=validate_avro_enum_symbols,
                         validate_names=validate_avro_names,

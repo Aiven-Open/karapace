@@ -658,43 +658,40 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
         parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None
         resolved_dependencies: dict[str, Dependency] | None = None
-        if schema_type_parsed == SchemaType.AVRO:
-            try:
-                if schema_references:
-                    candidate_references = [reference_from_mapping(reference_data) for reference_data in schema_references]
-                    resolved_references, resolved_dependencies = self.resolve_references(candidate_references)
-                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
-            except json.JSONDecodeError as exc:
-                LOG.warning("Schema is not valid JSON")
-                raise InvalidSchema from exc
-            except InvalidReferences as exc:
-                LOG.exception("Invalid AVRO references")
-                raise InvalidSchema from exc
-        elif schema_type_parsed == SchemaType.JSONSCHEMA:
+        if schema_type_parsed == SchemaType.JSONSCHEMA:
             try:
                 schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
             except json.JSONDecodeError as exc:
                 LOG.warning("Schema is not valid JSON")
                 raise InvalidSchema from exc
-        elif schema_type_parsed == SchemaType.PROTOBUF:
+        else:
             try:
                 if schema_references:
                     candidate_references = [reference_from_mapping(reference_data) for reference_data in schema_references]
                     resolved_references, resolved_dependencies = self.resolve_references(candidate_references)
-                parsed_schema = parse_protobuf_schema_definition(
-                    schema_str,
-                    resolved_references,
-                    resolved_dependencies,
-                    validate_references=False,
-                    normalize=False,
-                )
-                schema_str = str(parsed_schema)
-            except (InvalidSchema, ProtobufException) as exc:
-                LOG.warning("Schema is not valid ProtoBuf definition")
-                raise InvalidSchema from exc
             except InvalidReferences as exc:
-                LOG.warning("Invalid Protobuf references")
+                LOG.warning("Invalid %s references", schema_type_parsed.value.capitalize())
                 raise InvalidSchema from exc
+
+            if schema_type_parsed == SchemaType.AVRO:
+                try:
+                    schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+                except json.JSONDecodeError as exc:
+                    LOG.warning("Schema is not valid JSON")
+                    raise InvalidSchema from exc
+            elif schema_type_parsed == SchemaType.PROTOBUF:
+                try:
+                    parsed_schema = parse_protobuf_schema_definition(
+                        schema_str,
+                        resolved_references,
+                        resolved_dependencies,
+                        validate_references=False,
+                        normalize=False,
+                    )
+                    schema_str = str(parsed_schema)
+                except (InvalidSchema, ProtobufException) as exc:
+                    LOG.warning("Schema is not valid ProtoBuf definition")
+                    raise InvalidSchema from exc
 
         try:
             typed_schema = TypedSchema(
