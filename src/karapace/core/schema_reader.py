@@ -660,7 +660,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         resolved_dependencies: dict[str, Dependency] | None = None
         if schema_type_parsed == SchemaType.JSONSCHEMA:
             try:
-                schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+                schema_str = json.dumps(json_decode(schema_str), sort_keys=True)
             except json.JSONDecodeError as exc:
                 LOG.warning("Schema is not valid JSON")
                 raise InvalidSchema from exc
@@ -675,7 +675,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
             if schema_type_parsed == SchemaType.AVRO:
                 try:
-                    schema_str = json.dumps(json.loads(schema_str), sort_keys=True)
+                    schema_str = json.dumps(json_decode(schema_str), sort_keys=True)
                 except json.JSONDecodeError as exc:
                     LOG.warning("Schema is not valid JSON")
                     raise InvalidSchema from exc

@@ -654,7 +654,7 @@ class KarapaceSchemaRegistryController:
         # Allow passing `null` as value for compatibility
         if references is None:
             return None
-        if references and schema_request.schema_type not in (SchemaType.PROTOBUF, SchemaType.AVRO):
+        if references and schema_request.schema_type == SchemaType.JSONSCHEMA:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
