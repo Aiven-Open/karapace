@@ -58,7 +58,13 @@ def create_karapace_application(
     log_config_without_secrets(config=config)
     logging.info("Starting Karapace Schema Registry (%s)", karapace_version.__version__)
 
-    app = FastAPI(lifespan=lifespan)  # type: ignore[arg-type]
+    # Show major.minor.patch in API docs (e.g. 6.0.1 from 6.0.1.dev0+g3...)
+    version_display = ".".join(str(x) for x in karapace_version.version_tuple[:3])
+    app = FastAPI(
+        title="Karapace Schema Registry",
+        version=version_display,
+        lifespan=lifespan,  # type: ignore[arg-type]
+    )
 
     setup_tracing()
     setup_metering()
