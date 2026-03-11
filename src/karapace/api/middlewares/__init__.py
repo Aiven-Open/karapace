@@ -22,6 +22,10 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
 
     @app.middleware("http")
     async def set_content_types(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        # Skip schema-registry header checks and Content-Type override for docs (Swagger UI, ReDoc, OpenAPI JSON).
+        if request.url.path in {"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}:
+            return await call_next(request)
+
         try:
             response_content_type = check_schema_headers(request)
         except HTTPException as exc:
