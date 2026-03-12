@@ -31,6 +31,7 @@ class ForwardClient:
         {
             "authorization",
             "content-type",
+            "traceparent",
         }
     )
 

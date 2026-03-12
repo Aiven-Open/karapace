@@ -269,7 +269,7 @@ async def test_forwarded_headers_allowlist(forward_client: ForwardClient) -> Non
     assert "authorization" in {k.lower() for k in forwarded_headers}
     assert "content-type" in {k.lower() for k in forwarded_headers}
 
-    for dangerous_header in (
+    for header in (
         "host",
         "transfer-encoding",
         "content-length",
@@ -278,12 +278,11 @@ async def test_forwarded_headers_allowlist(forward_client: ForwardClient) -> Non
         "te",
         "trailer",
         "upgrade",
+        "x-custom-header",
     ):
-        assert dangerous_header not in {
+        assert header not in {
             k.lower() for k in forwarded_headers
-        }, f"Hop-by-hop header '{dangerous_header}' must not be forwarded"
-
-    assert "x-custom-header" not in {k.lower() for k in forwarded_headers}, "Only allowlisted headers should be forwarded"
+        }, f"Header '{header}' must not be forwarded — only allowlisted headers should be forwarded"
 
 
 async def test_forward_request_with_error_response(forward_client: ForwardClient) -> None:
