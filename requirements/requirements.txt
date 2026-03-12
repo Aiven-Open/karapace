@@ -155,7 +155,7 @@ opentelemetry-sdk==1.39.1
     #   opentelemetry-exporter-otlp-proto-http
 opentelemetry-semantic-conventions==0.60b1
     # via opentelemetry-sdk
-orjson==3.11.5
+orjson==3.11.6
     # via karapace (pyproject.toml)
 packaging==25.0
     # via aiokafka
