@@ -3,7 +3,7 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request
 from karapace.core.utils import json_decode
 from karapace.core.config import Config
 from karapace.version import __version__
@@ -26,6 +26,14 @@ SimpleTypeResponse = TypeVar("SimpleTypeResponse", bound=Union[int, list[int]])
 class ForwardClient:
     USER_AGENT = f"Karapace/{__version__}"
 
+    # Only these headers are forwarded to the upstream primary
+    _HEADERS_TO_FORWARD: frozenset[str] = frozenset(
+        {
+            "authorization",
+            "content-type",
+        }
+    )
+
     def __init__(self, config: Config) -> None:
         self.advertised_protocol = config.advertised_protocol
         self._forward_client: aiohttp.ClientSession = aiohttp.ClientSession(headers={"User-Agent": self.USER_AGENT})
@@ -43,6 +51,9 @@ class ForwardClient:
             content_type.startswith("application/") and content_type.endswith("json")
         ) or content_type == "application/octet-stream"
 
+    def _forwardable_headers(self, request: Request) -> dict[str, str]:
+        return {k: v for k, v in request.headers.items() if k.lower() in self._HEADERS_TO_FORWARD}
+
     async def _forward_request_remote(
         self,
         *,
@@ -57,22 +68,23 @@ class ForwardClient:
         if request.url.query:
             forward_url = f"{forward_url}?{request.url.query}"
 
+        headers = self._forwardable_headers(request)
+
         async with async_timeout.timeout(timeout):
             body_data = await request.body()
-            async with func(
-                forward_url, headers=request.headers.mutablecopy(), data=body_data, ssl=self._ssl_context
-            ) as response:
+            async with func(forward_url, headers=headers, data=body_data, ssl=self._ssl_context) as response:
                 response_status = response.status
-                if self._acceptable_response_content_type(content_type=response.headers.get("Content-Type")):
-                    return (response_status, await response.text())
-                LOG.error("Unknown response for forwarded request: %s", response)
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail={
-                        "error_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        "message": "Unknown response for forwarded request.",
-                    },
-                )
+                content_type = response.headers.get("Content-Type", "")
+                response_body = await response.text()
+                if not self._acceptable_response_content_type(content_type=content_type):
+                    LOG.warning(
+                        "Forwarded request got unexpected content type %r (status=%s, url=%s): %s",
+                        content_type,
+                        response_status,
+                        forward_url,
+                        response_body,
+                    )
+                return (response_status, response_body)
 
     @overload
     async def forward_request_remote(

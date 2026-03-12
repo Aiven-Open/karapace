@@ -214,6 +214,78 @@ async def test_forward_request_with_https(karapace_container: KarapaceContainer)
         assert response == 12
 
 
+async def test_forwarded_headers_allowlist(forward_client: ForwardClient) -> None:
+    """Only Authorization and Content-Type should be forwarded.
+
+    Hop-by-hop headers (Host, Transfer-Encoding, Content-Length, Connection,
+    etc.) must NOT be forwarded — aiohttp sets these correctly for the
+    outgoing request.  Forwarding them verbatim caused malformed HTTP
+    requests on the primary (see: 5.x header-forwarding regression).
+    """
+    incoming_headers = MutableHeaders()
+    incoming_headers["host"] = "broker-1-48.example.com:8081"
+    incoming_headers["transfer-encoding"] = "chunked"
+    incoming_headers["content-length"] = "999"
+    incoming_headers["connection"] = "keep-alive"
+    incoming_headers["keep-alive"] = "timeout=5"
+    incoming_headers["content-type"] = "application/vnd.schemaregistry.v1+json"
+    incoming_headers["authorization"] = "Bearer test-token"
+    incoming_headers["te"] = "trailers"
+    incoming_headers["trailer"] = "X-Checksum"
+    incoming_headers["upgrade"] = "h2c"
+    incoming_headers["x-custom-header"] = "should-not-be-forwarded"
+
+    mock_request = Mock(spec=Request)
+    mock_request.method = "POST"
+    mock_request.headers = Headers(raw=[(k.encode(), v.encode()) for k, v in incoming_headers.items()])
+
+    mock_post_func = Mock()
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.text.return_value = '{"number":1,"string":"ok"}'
+    response_headers = MutableHeaders()
+    response_headers["Content-Type"] = "application/json"
+    mock_response.headers = response_headers
+
+    async def mock_aenter(_) -> AsyncMock:
+        return mock_response
+
+    async def mock_aexit(_, __, ___, ____) -> None:
+        return
+
+    mock_post_func.__aenter__ = mock_aenter
+    mock_post_func.__aexit__ = mock_aexit
+    forward_client._forward_client.post.return_value = mock_post_func
+
+    await forward_client.forward_request_remote(
+        request=mock_request,
+        primary_url="http://broker-1-47.example.com:8081",
+        response_type=TestResponse,
+    )
+
+    call_kwargs = forward_client._forward_client.post.call_args
+    forwarded_headers = call_kwargs[1]["headers"] if "headers" in call_kwargs[1] else call_kwargs[0][1]
+
+    assert "authorization" in {k.lower() for k in forwarded_headers}
+    assert "content-type" in {k.lower() for k in forwarded_headers}
+
+    for dangerous_header in (
+        "host",
+        "transfer-encoding",
+        "content-length",
+        "connection",
+        "keep-alive",
+        "te",
+        "trailer",
+        "upgrade",
+    ):
+        assert dangerous_header not in {
+            k.lower() for k in forwarded_headers
+        }, f"Hop-by-hop header '{dangerous_header}' must not be forwarded"
+
+    assert "x-custom-header" not in {k.lower() for k in forwarded_headers}, "Only allowlisted headers should be forwarded"
+
+
 async def test_forward_request_with_error_response(forward_client: ForwardClient) -> None:
     """Test that error responses (4xx/5xx) are properly handled and not parsed as success responses."""
     mock_request = Mock(spec=Request)
