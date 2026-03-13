@@ -16,6 +16,24 @@ from karapace.core.kafka.producer import KafkaProducer
 from tests.utils import new_topic as create_new_topic
 
 
+def _update_topic_config_and_wait(
+    admin_client: KafkaAdminClient,
+    topic: str,
+    config: dict[str, str],
+    timeout: float = 10.0,
+) -> None:
+    """Update topic config and wait for the change to propagate."""
+    admin_client.update_topic_config(topic, config)
+    # alter_configs is async — poll until the config is visible
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        current = admin_client.get_topic_config(topic)
+        if all(current.get(k) == v for k, v in config.items()):
+            return
+        time.sleep(0.2)
+    raise TimeoutError(f"Topic config {config} not visible on {topic} after {timeout}s")
+
+
 class TestNewTopic:
     def test_new_topic_raises_for_duplicate(self, admin_client: KafkaAdminClient, new_topic: NewTopic) -> None:
         with pytest.raises(TopicAlreadyExistsError):
@@ -88,7 +106,7 @@ class TestGetTopicConfig:
         assert topic_config_filtered == {}
 
     def test_get_topic_config_source_filter_only(self, admin_client: KafkaAdminClient, new_topic: NewTopic) -> None:
-        admin_client.update_topic_config(new_topic.topic, {"flush.ms": "12345"})
+        _update_topic_config_and_wait(admin_client, new_topic.topic, {"flush.ms": "12345"})
 
         topic_config_filtered = admin_client.get_topic_config(
             new_topic.topic,
@@ -112,7 +130,7 @@ class TestGetTopicConfig:
         the dynamic config should be returned.
         """
         # Set a dynamic config value that differs from the default
-        admin_client.update_topic_config(new_topic.topic, {"flush.ms": "12345"})
+        _update_topic_config_and_wait(admin_client, new_topic.topic, {"flush.ms": "12345"})
 
         # Get config without filters (should include all sources)
         all_config = admin_client.get_topic_config(new_topic.topic)
@@ -131,7 +149,8 @@ class TestGetTopicConfig:
     def test_get_topic_config_multiple_dynamic_configs(self, admin_client: KafkaAdminClient, new_topic: NewTopic) -> None:
         """Test retrieving multiple dynamic configs at once."""
         # Set multiple dynamic configs
-        admin_client.update_topic_config(
+        _update_topic_config_and_wait(
+            admin_client,
             new_topic.topic,
             {
                 "flush.ms": "99999",
@@ -154,7 +173,7 @@ class TestGetTopicConfig:
 
     def test_get_topic_config_combined_filters(self, admin_client: KafkaAdminClient, new_topic: NewTopic) -> None:
         """Test that name and source filters work together (OR logic)."""
-        admin_client.update_topic_config(new_topic.topic, {"flush.ms": "55555"})
+        _update_topic_config_and_wait(admin_client, new_topic.topic, {"flush.ms": "55555"})
 
         # Request dynamic configs OR cleanup.policy (which is likely default)
         combined_config = admin_client.get_topic_config(
@@ -170,7 +189,7 @@ class TestGetTopicConfig:
 
 class TestUpdateTopicConfig:
     def test_update_topic_config(self, admin_client: KafkaAdminClient, new_topic: NewTopic) -> None:
-        admin_client.update_topic_config(new_topic.topic, {"flush.ms": "12345"})
+        _update_topic_config_and_wait(admin_client, new_topic.topic, {"flush.ms": "12345"})
 
         topic_config_filtered = admin_client.get_topic_config(
             new_topic.topic,
