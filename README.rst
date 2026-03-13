@@ -314,31 +314,12 @@ Delete consumer::
 Backing up your Karapace
 ========================
 
-Karapace natively stores its data in a Kafka topic the name of which you can
-configure freely but which by default is called _schemas.
+.. note::
 
-Karapace includes a tool to backing up and restoring data. To back up, run::
-
-  karapace_schema_backup get --config karapace.config.json --location schemas.log
-
-You can also back up the data by using Kafka's Java console
-consumer::
-
-  ./kafka-console-consumer.sh --bootstrap-server brokerhostname:9092 --topic _schemas --from-beginning --property print.key=true --timeout-ms 1000 1> schemas.log
-
-Restoring Karapace from backup
-==============================
-
-Your backup can be restored with Karapace by running::
-
-  karapace_schema_backup restore --config karapace.config.json --location schemas.log
-
-Or Kafka's Java console producer can be used to restore the data
-to a new Kafka cluster.
-
-You can restore the data from the previous step by running::
-
-  ./kafka-console-producer.sh --broker-list brokerhostname:9092 --topic _schemas --property parse.key=true < schemas.log
+   The built-in backup functionality (``karapace_schema_backup``) has been removed
+   as of version 6.0.0. Users who need this functionality can continue to use
+   Karapace versions prior to 6.0.0, however it will no longer be maintained
+   within the project.
 
 Performance comparison to Confluent stack
 ==========================================
@@ -472,11 +453,11 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``producer_acks``
      - ``1``
      - Level of consistency desired by each producer message sent on the rest proxy.
-       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`__
    * - ``producer_linger_ms``
      - ``0``
      - Time to wait for grouping together requests.
-       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`_
+       More on `Kafka Producer <https://kafka.apache.org/10/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html>`__
    * - ``producer_max_request_size``
      - ``1048576``
      - The maximum size of a request in bytes.
@@ -521,9 +502,9 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``server_tls_cafile``
      - ``/path/to/cafile``
      - Filename to the SSL CA certificate.
-  * - ``server_tls_client_auth``
-    - ``none``
-    - Client certificate requirement: ``none``, ``optional``, or ``required``.
+   * - ``server_tls_client_auth``
+     - ``none``
+     - Client certificate requirement: ``none``, ``optional``, or ``required``.
    * - ``registry_scheme``
      - ``http``
      - Schema Registry scheme to use for rest-proxy, http | https (if certificates are provided).
@@ -706,7 +687,7 @@ Example of complete authorization file
     }
 
 Karapace Schema Registry access to the _schemas topic
-====================================================
+=====================================================
 
 The principal used by the Karapace Schema Registry has to have adequate access to the _schemas topic (see the ``topic_name`` configuration option above).
 In addition to what is required to access the topic, as described in the Confluent Schema Registry documentation_, the unique, single-member consumer group
@@ -896,7 +877,7 @@ For local development and testing with Docker, use the convenience make commands
 These handle all the setup automatically and ensure consistency across development environments.
 
 Quick Start
-^^^^^^^^^^^
+-----------
 
 **Set `.env`:** ``cp .env.example .env``
 
@@ -909,7 +890,7 @@ Edit ``.env`` to customize:
 - ``PYTEST_ARGS`` - Pytest arguments for test runs
 
 Available Commands
-^^^^^^^^^^^^^^^^^^^^^^^
+------------------
 
 **Container Management:**
 

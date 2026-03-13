@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "karapace"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.15"
 dynamic = ["version"]
 readme = "README.rst"
 license = {file = "LICENSE"}
@@ -17,7 +17,6 @@ dependencies = [
   "confluent-kafka",
   "cryptography",
   "fastapi[standard]",
-  "isodate",
   "jsonschema",
   "lz4",
   "networkx",
@@ -27,13 +26,11 @@ dependencies = [
   "pyjwt",
   "python-dateutil",
   "python-snappy",
-  "rich",
   "tenacity",
   "typing-extensions",
   "orjson",
   "ujson",  # Keep as fallback
   "watchfiles",
-  "xxhash",
   "zstandard",
   "prometheus-client",
   "yarl",
@@ -69,7 +66,6 @@ classifiers=[
 [project.scripts]
 karapace = "karapace.__main__:main"
 karapace_rest_proxy = "karapace.kafka_rest_apis.__main__:main"
-karapace_schema_backup = "karapace.backup.cli:main"
 karapace_mkpasswd = "karapace.core.auth:main"
 
 [project.urls]
