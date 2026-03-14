@@ -36,6 +36,8 @@ from urllib.parse import quote
 import asyncio
 import avro
 import avro.schema
+import datetime
+import decimal
 import io
 import struct
 from http import HTTPStatus
@@ -498,6 +500,78 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
+def convert_logical_types(schema: avro.schema.Schema, value: Any) -> Any:
+    if isinstance(schema, avro.schema.RecordSchema) and isinstance(value, dict):
+        result: dict[Any, Any] = dict(value)
+        for field in schema.fields:
+            if field.name in value:
+                result[field.name] = convert_logical_types(field.type, value[field.name])
+        return result
+
+    if isinstance(schema, avro.schema.UnionSchema):
+        # Try to find a branch schema that validates after conversion.
+        for branch in schema.schemas:
+            converted = convert_logical_types(branch, value)
+            if avro.io.validate(branch, converted):
+                return converted
+        return value
+
+    if isinstance(schema, avro.schema.ArraySchema) and isinstance(value, list):
+        return [convert_logical_types(schema.items, v) for v in value]
+
+    if isinstance(schema, avro.schema.MapSchema) and isinstance(value, dict):
+        return {k: convert_logical_types(schema.values, v) for (k, v) in value.items()}
+
+    if isinstance(schema, avro.schema.LogicalSchema):
+        logical_type = getattr(schema, "logical_type", None)
+
+        # Timestamps
+        if logical_type == "timestamp-millis" and isinstance(value, int):
+            epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+            return epoch + datetime.timedelta(milliseconds=value)
+
+        if logical_type == "timestamp-micros" and isinstance(value, int):
+            epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+            return epoch + datetime.timedelta(microseconds=value)
+
+        # Date
+        if logical_type == "date" and isinstance(value, int):
+            epoch_date = datetime.date(1970, 1, 1)
+            return epoch_date + datetime.timedelta(days=value)
+
+        # Time
+        if logical_type == "time-millis" and isinstance(value, int):
+            millis_in_day = 24 * 60 * 60 * 1000
+            value = value % millis_in_day
+            seconds, millis = divmod(value, 1000)
+            hours, rem = divmod(seconds, 3600)
+            minutes, seconds = divmod(rem, 60)
+            microseconds = millis * 1000
+            return datetime.time(hour=hours, minute=minutes, second=seconds, microsecond=microseconds)
+
+        if logical_type == "time-micros" and isinstance(value, int):
+            micros_in_day = 24 * 60 * 60 * 1_000_000
+            value = value % micros_in_day
+            seconds, micros = divmod(value, 1_000_000)
+            hours, rem = divmod(seconds, 3600)
+            minutes, seconds = divmod(rem, 60)
+            return datetime.time(hour=hours, minute=minutes, second=seconds, microsecond=micros)
+
+        # Decimal: convert JSON-friendly value and quantize to the schema's scale
+        # so that 12345 with scale=4 encodes as 12345.0000, not 1.2345.
+        if logical_type == "decimal" and isinstance(value, (int, float, str, decimal.Decimal)):
+            try:
+                scale: int = getattr(schema, "scale", 0)
+                return decimal.Decimal(str(value)).quantize(
+                    decimal.Decimal(10) ** -scale,
+                    rounding=decimal.ROUND_HALF_UP,
+                )
+            except (decimal.InvalidOperation, ValueError):
+                return value
+
+    return value
+
+
 def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(writers_schema=schema.schema)
@@ -525,8 +599,17 @@ def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dic
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
         if avro.io.validate(schema.schema, value):
             data = value
+
+        # First, try to convert logical types on the original value. If the resulting
+        # value validates against the schema, use it as-is to preserve backwards
+        # compatibility with existing union encodings. Otherwise, fall back to
+        # flattening unions and then converting logical types.
+        converted = convert_logical_types(schema.schema, value)
+        if avro.io.validate(schema.schema, converted):
+            data = converted
         else:
-            data = flatten_unions(schema.schema, value)
+            flattened = flatten_unions(schema.schema, value)
+            data = convert_logical_types(schema.schema, flattened)
 
         writer = DatumWriter(writers_schema=schema.schema)
         writer.write(data, BinaryEncoder(bio))

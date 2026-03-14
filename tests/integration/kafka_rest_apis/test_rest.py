@@ -509,6 +509,128 @@ async def test_publish_with_incompatible_schema(rest_async_client: Client, admin
     assert "Error when registering schema" in res_json["message"]
 
 
+async def test_avro_publish_timestamp_millis_with_int(
+    rest_async_client: Client,
+    admin_client: KafkaAdminClient,
+) -> None:
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    schema = {
+        "namespace": "example.avro",
+        "type": "record",
+        "name": "example.avro.TimestampMillisRecord",
+        "fields": [
+            {
+                "name": "ts",
+                "type": {
+                    "type": "long",
+                    "logicalType": "timestamp-millis",
+                },
+            },
+            {
+                "name": "op",
+                "type": "string",
+            },
+        ],
+    }
+
+    payload = {
+        "value_schema": json.dumps(schema),
+        "records": [
+            {
+                "value": {
+                    "ts": 1664458277000,
+                    "op": "I",
+                }
+            }
+        ],
+    }
+
+    res = await rest_async_client.post(
+        f"/topics/{topic_name}",
+        json=payload,
+        headers=REST_HEADERS["avro"],
+    )
+    # Before the fix this returned 422 \"Object does not fit to stored schema\"
+    check_successful_publish_response(res, [payload["records"][0]["value"]])
+
+
+async def test_avro_publish_all_logical_types_with_ints(
+    rest_async_client: Client,
+    admin_client: KafkaAdminClient,
+) -> None:
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    schema = {
+        "namespace": "example.avro",
+        "type": "record",
+        "name": "example.avro.LogicalTypesRecord",
+        "fields": [
+            {
+                "name": "ts_millis",
+                "type": {
+                    "type": "long",
+                    "logicalType": "timestamp-millis",
+                },
+            },
+            {
+                "name": "ts_micros",
+                "type": {
+                    "type": "long",
+                    "logicalType": "timestamp-micros",
+                },
+            },
+            {
+                "name": "d",
+                "type": {
+                    "type": "int",
+                    "logicalType": "date",
+                },
+            },
+            {
+                "name": "t_millis",
+                "type": {
+                    "type": "int",
+                    "logicalType": "time-millis",
+                },
+            },
+            {
+                "name": "t_micros",
+                "type": {
+                    "type": "long",
+                    "logicalType": "time-micros",
+                },
+            },
+        ],
+    }
+
+    value = {
+        "ts_millis": 1_600_000_000_000,
+        "ts_micros": 1_600_000_000_000_000,
+        "d": 18_000,
+        "t_millis": 12 * 60 * 60 * 1000,
+        "t_micros": 12 * 60 * 60 * 1_000_000,
+    }
+
+    payload = {
+        "value_schema": json.dumps(schema),
+        "records": [
+            {
+                "value": value,
+            }
+        ],
+    }
+
+    res = await rest_async_client.post(
+        f"/topics/{topic_name}",
+        json=payload,
+        headers=REST_HEADERS["avro"],
+    )
+    check_successful_publish_response(res, [value])
+
+
 async def test_publish_with_schema_id_of_another_subject(
     rest_async_client: Client,
     registry_async_client: Client,
