@@ -210,6 +210,35 @@ async def test_avro_publish(
             # assert res.status_code == 422, f"Expecting schema {second_schema_json} to not match records {test_objects}"
 
 
+async def test_avro_publish_with_lookup_only(
+    rest_async_lookup_first_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaAdminClient,
+) -> None:
+    """Publish Avro records via REST Proxy with rest_lookup_schema_before_register=True.
+
+    Verifies that when schema is pre-registered, REST Proxy resolves its ID
+    via lookup (not register) and produces successfully with the correct schema_id.
+    """
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_lookup_first_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    subject = f"{topic_name}-value"
+    register_response = await registry_async_client.post(f"subjects/{subject}/versions", json={"schema": schema_avro_json})
+    assert register_response.ok
+    expected_schema_id = register_response.json()["id"]
+
+    payload = {"value_schema": schema_avro_json, "records": [{"value": value} for value in test_objects_avro]}
+    publish_response = await rest_async_lookup_first_client.post(
+        f"/topics/{topic_name}",
+        json=payload,
+        headers=REST_HEADERS["avro"],
+    )
+
+    check_successful_publish_response(publish_response, test_objects_avro)
+    assert publish_response.json()["value_schema_id"] == expected_schema_id
+
+
 async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaAdminClient) -> None:
     topic_name = new_topic(admin_client)
     prepared_records = [

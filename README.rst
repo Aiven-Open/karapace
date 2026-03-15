@@ -669,6 +669,36 @@ These unique (per instance of the schema registry) consumer group names are pref
 .. _`documentation`: https://docs.confluent.io/platform/current/schema-registry/security/index.html#authorizing-access-to-the-schemas-topic
 .. _`permissions`: https://docs.confluent.io/platform/current/kafka/authorization.html#group-resource-type-operations
 
+REST Proxy read-only schema lookup
+==================================
+
+When running Karapace REST Proxy together with Schema Registry, you can control
+how the REST Proxy interacts with the registry when resolving schema IDs.
+
+By default, Karapace REST Proxy registers schemas on demand by calling
+``POST /subjects/{subject}/versions`` when a new schema is seen in a produce
+request. This requires ``Write`` permissions on the corresponding ``Subject:``
+resources in the Schema Registry ACL configuration.
+
+If you want REST Proxy to operate in a read-only mode with respect to Schema
+Registry, enable the configuration option::
+
+  rest_lookup_schema_before_register = true
+
+When this option is enabled, REST Proxy will first try to look up an existing
+schema under the subject using::
+
+  POST /subjects/(string: subject)
+
+If the schema is found, the existing schema ID is used and no new registration
+is performed. Only if the lookup fails (schema not found) will REST Proxy fall
+back to registering the schema with ``POST /subjects/{subject}/versions``.
+
+Together with Schema Registry ACLs, you can enforce that REST Proxy has only
+``Read`` permissions on ``Subject:`` resources (allowing lookups) while a
+separate service with ``Write`` permissions is responsible for registering new
+schemas.
+
 OAuth2 authentication and authorization of Karapace
 ===================================================
 
