@@ -22,7 +22,7 @@ class SchemaRequest(BaseModel):
     references: list[SchemaReference] | None = None
     metadata: Any | None = None
     ruleSet: Any | None = None
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     @field_validator("schema_str")
     @classmethod
