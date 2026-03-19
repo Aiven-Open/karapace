@@ -1,7 +1,7 @@
 """
 Path normalization utilities for preventing unbounded metric label cardinality.
 
-Copyright (c) 2024 Aiven Ltd
+Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
 """
 
