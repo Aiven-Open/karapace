@@ -8,7 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 
-from karapace.core.instrumentation.prometheus import normalize_path
+from karapace.core.instrumentation.path_normalization import normalize_path
 
 
 class TestNormalizePath:
@@ -77,3 +77,41 @@ class TestNormalizePath:
         """Mixed case UUIDs should also be normalized."""
         path = "/consumers/3f410583-CFA3-48e8-BD9F-22eff1881c00"
         assert normalize_path(path) == "/consumers/{uuid}"
+
+    def test_config_subject_normalized(self) -> None:
+        """Subject names after /config/ should be replaced with {subject}."""
+        assert normalize_path("/config/my-subject") == "/config/{subject}"
+
+    def test_config_root_unchanged(self) -> None:
+        """The /config endpoint without a subject should not be modified."""
+        assert normalize_path("/config") == "/config"
+
+    def test_mode_subject_normalized(self) -> None:
+        """Subject names after /mode/ should be replaced with {subject}."""
+        assert normalize_path("/mode/my-subject") == "/mode/{subject}"
+
+    def test_mode_root_unchanged(self) -> None:
+        """The /mode endpoint without a subject should not be modified."""
+        assert normalize_path("/mode") == "/mode"
+
+    def test_compatibility_path_normalized(self) -> None:
+        """Full compatibility check path should be normalized."""
+        path = "/compatibility/subjects/my-subject/versions/3"
+        assert normalize_path(path) == "/compatibility/subjects/{subject}/versions/{version}"
+
+    def test_large_schema_id_normalized(self) -> None:
+        """Large schema IDs (the OOM trigger) should be normalized."""
+        assert normalize_path("/schemas/ids/878916964") == "/schemas/ids/{id}"
+        assert normalize_path("/schemas/ids/999999999") == "/schemas/ids/{id}"
+
+    def test_schema_id_versions_path_normalized(self) -> None:
+        """Schema ID versions path should be normalized."""
+        assert normalize_path("/schemas/ids/42/versions") == "/schemas/ids/{id}/versions"
+
+    def test_schemas_types_unchanged(self) -> None:
+        """/schemas/types should not be modified."""
+        assert normalize_path("/schemas/types") == "/schemas/types"
+
+    def test_root_unchanged(self) -> None:
+        """Root path should not be modified."""
+        assert normalize_path("/") == "/"

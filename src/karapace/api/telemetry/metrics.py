@@ -6,6 +6,7 @@ See LICENSE for details
 from collections.abc import Mapping
 from fastapi import HTTPException, Request, Response
 from karapace.core.instrumentation.meter import Meter
+from karapace.core.instrumentation.path_normalization import normalize_path
 from opentelemetry.metrics import Counter, Histogram, UpDownCounter
 from typing import Final
 
@@ -38,7 +39,7 @@ class HTTPRequestMetrics:
         # Set start time for request
         setattr(request.state, self.START_TIME_KEY, time.monotonic())
 
-        PATH = request.url.path
+        PATH = normalize_path(request.url.path)
         METHOD = request.method
         ATTRIBUTES = {"method": METHOD, "path": PATH, "resource": self.get_resource_from_request(request=request)}
 

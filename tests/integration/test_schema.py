@@ -2168,7 +2168,7 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_schema_body_validation")()
     post_functions = {registry_async_client.post_subjects, registry_async_client.post_subjects_versions}
     for function in post_functions:
-        # Wrong field name
+        # Wrong field name (required field "schema" is still missing)
         res = await function(subject=subject, json={"invalid_field": "invalid_value"})
         assert res.status_code == 422
         assert res.json()["error_code"] == 422
@@ -2179,25 +2179,10 @@ async def test_schema_body_validation(registry_async_client: Client) -> None:
                 "msg": "Field required",
                 "input": {"invalid_field": "invalid_value"},
             },
-            {
-                "type": "extra_forbidden",
-                "loc": ["body", "invalid_field"],
-                "msg": "Extra inputs are not permitted",
-                "input": "invalid_value",
-            },
         ]
-        # Additional field
+        # Additional field (extra fields are ignored to match v4 behavior)
         res = await function(subject=subject, json={"schema": '{"type": "string"}', "invalid_field": "invalid_value"})
-        assert res.status_code == 422
-        assert res.json()["error_code"] == 422
-        assert res.json()["message"] == [
-            {
-                "type": "extra_forbidden",
-                "loc": ["body", "invalid_field"],
-                "msg": "Extra inputs are not permitted",
-                "input": "invalid_value",
-            },
-        ]
+        assert res.ok
         # Invalid body type
         res = await function(subject=subject, json="invalid")
         assert res.status_code == 422

@@ -151,6 +151,20 @@ def test_update_span_with_request():
     )
 
 
+def test_update_span_with_request_normalizes_path():
+    span = MagicMock(spec=Span)
+    span.is_recording.return_value = True
+
+    request = MagicMock(spec=Request)
+    request.headers = {"content-type": "application/json", "connection": "keep-alive", "user-agent": "pytest"}
+    request.method = "GET"
+    request.url = MagicMock(port=8081, scheme="http", path="/schemas/ids/878916964", hostname="server")
+    request.client = MagicMock(host="client", port=8080)
+
+    Tracer.update_span_with_request(request=request, span=span)
+    span.set_attribute.assert_any_call("url.path", "/schemas/ids/{id}")
+
+
 def test_update_span_with_response():
     span = MagicMock(spec=Span)
 

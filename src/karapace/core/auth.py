@@ -152,10 +152,7 @@ class ACLAuthorizer(AuthorizeProtocol):
         self.permissions = permissions or []
 
     def get_user(self, username: str) -> User | None:
-        user = self.user_db.get(username)
-        if not user:
-            raise ValueError("No user found")
-        return user
+        return self.user_db.get(username)
 
     def _check_resources(self, resources: list[str], aclentry: ACLEntry) -> bool:
         for resource in resources:
