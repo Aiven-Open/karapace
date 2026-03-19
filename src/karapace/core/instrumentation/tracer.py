@@ -8,6 +8,7 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import Request, Response
 from karapace.core.config import Config, KarapaceTelemetryOTelExporter
 from karapace.core.container import KarapaceContainer
+from karapace.core.instrumentation.path_normalization import normalize_path
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import ReadableSpan
@@ -91,7 +92,7 @@ class Tracer:
             span.set_attribute(S.SERVER_ADDRESS, config.host)
             span.set_attribute(S.SERVER_PORT, config.port)
             span.set_attribute(U.URL_SCHEME, request.url.scheme)
-            span.set_attribute(U.URL_PATH, request.url.path)
+            span.set_attribute(U.URL_PATH, normalize_path(request.url.path))
             span.set_attribute(H.HTTP_REQUEST_METHOD, request.method)
             span.set_attribute(f"{H.HTTP_REQUEST_HEADER_TEMPLATE}.connection", request.headers.get("connection", ""))
             span.set_attribute(f"{H.HTTP_REQUEST_HEADER_TEMPLATE}.user_agent", request.headers.get("user-agent", ""))
