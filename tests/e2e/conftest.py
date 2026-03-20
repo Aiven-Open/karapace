@@ -235,7 +235,7 @@ class TokenProvider:
 
 
 # --- Helper functions for Keycloak admin API ---
-def get_admin_token():
+def get_admin_token(retries: int = 10, delay: float = 2.0):
     url = "http://keycloak:8080/realms/master/protocol/openid-connect/token"
     data = {
         "grant_type": "password",
@@ -243,9 +243,15 @@ def get_admin_token():
         "username": os.environ.get("KEYCLOAK_ADMIN", "admin"),
         "password": os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin"),
     }
-    resp = requests.post(url, data=data)
-    resp.raise_for_status()
-    return resp.json()["access_token"]
+    for attempt in range(retries):
+        try:
+            resp = requests.post(url, data=data, timeout=5)
+            resp.raise_for_status()
+            return resp.json()["access_token"]
+        except (requests.RequestException, KeyError):
+            if attempt == retries - 1:
+                raise
+            time.sleep(delay)
 
 
 def get_client_uuid(realm, client_id, admin_token):
