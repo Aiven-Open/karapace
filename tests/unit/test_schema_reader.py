@@ -38,7 +38,11 @@ from karapace.core.schema_reader import (
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import SchemaId, Version
 from tests.base_testcase import BaseTestCase
-from tests.utils import schema_protobuf_invalid_because_corrupted, schema_protobuf_with_invalid_ref
+from tests.utils import (
+    schema_avro_json,
+    schema_protobuf_invalid_because_corrupted,
+    schema_protobuf_with_invalid_ref,
+)
 
 
 def test_offset_watcher() -> None:
@@ -713,3 +717,60 @@ def test_message_error_handling_with_invalid_reference_schema_protobuf(
 
         assert warn_records[1].name == "karapace.core.schema_reader"
         assert warn_records[1].message == "Invalid Protobuf references"
+
+
+def test_message_error_handling_with_invalid_reference_schema_avro(
+    caplog: LogCaptureFixture,
+    schema_reader_with_consumer_messages_factory: Callable[[tuple[list[Message]]], KafkaSchemaReader],
+    message_factory: Callable[[bytes, bytes, int], Message],
+) -> None:
+    # Given an invalid schema (malformed JSON)
+    key_ref = b'{"keytype":"SCHEMA","subject":"testref","version":1,"magic":1}'
+    value_ref = (
+        b'{"schemaType": "AVRO", "subject": "testref", "version": 1, "id": 1, "deleted": false'
+        b', "schema": "not-a-valid-json"}'
+    )
+    message_ref = message_factory(key=key_ref, value=value_ref)
+
+    # And given a schema referencing that missing schema (valid otherwise)
+    key_using_ref = b'{"keytype":"SCHEMA","subject":"test","version":1,"magic":1}'
+    value_using_ref = (
+        b'{"schemaType": "AVRO", "subject": "test", "version": 1, "id": 1, "deleted": false'
+        b', "schema": '
+        + schema_avro_json.encode()
+        + b', "references": [{"name": "testref.avsc", "subject": "testref", "version": 1}]'
+        + b"}"
+    )
+    message_using_ref = message_factory(key=key_using_ref, value=value_using_ref)
+
+    with caplog.at_level(logging.WARN, logger="karapace.core.schema_reader"):
+        # When handling the corrupted schema
+        schema_reader = schema_reader_with_consumer_messages_factory(([message_ref],))
+
+        # Then the schema is recognised as invalid
+        with pytest.raises(CorruptKafkaRecordException):
+            schema_reader.handle_messages()
+
+            assert schema_reader.offset == 1
+            assert not schema_reader.ready()
+
+        # When handling the schema
+        schema_reader.consumer.consume.side_effect = ([message_using_ref],)
+
+        # Then the schema is recognised as invalid because of the missing referenced schema
+        with pytest.raises(CorruptKafkaRecordException):
+            schema_reader.handle_messages()
+
+            assert schema_reader.offset == 1
+            assert not schema_reader.ready()
+
+        warn_records = [r for r in caplog.records if r.levelname == "WARNING"]
+
+        assert len(warn_records) == 2
+
+        # Check that different warnings are logged for each schema
+        assert warn_records[0].name == "karapace.core.schema_reader"
+        assert warn_records[0].message == "Schema is not valid JSON"
+
+        assert warn_records[1].name == "karapace.core.schema_reader"
+        assert warn_records[1].message == "Invalid Avro references"

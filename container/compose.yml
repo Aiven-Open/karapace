@@ -86,7 +86,7 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
-      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
@@ -144,7 +144,7 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
-      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
