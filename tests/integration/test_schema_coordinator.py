@@ -167,6 +167,7 @@ async def test_coordinator_workflow(
         session_timeout_ms=10000,
         heartbeat_interval_ms=500,
         retry_backoff_ms=100,
+        waiting_time_before_acting_as_master_ms=waiting_time_before_acting_as_master_sec * 1000,
     )
     coordinator2.start()
     assert coordinator2.coordinator_id is None
@@ -205,8 +206,8 @@ async def test_coordinator_workflow(
     await primary.close()
     await primary_client.close()
 
-    now = time.time()
-    while time.time() - now < waiting_time_before_acting_as_master_sec:
+    now = time.monotonic()
+    while time.monotonic() - now < waiting_time_before_acting_as_master_sec:
         assert not secondary.are_we_master(), (
             f"Cannot become master before {waiting_time_before_acting_as_master_sec} seconds "
             f"for the late records that can arrive from the previous master"
