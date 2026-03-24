@@ -2166,7 +2166,7 @@ async def test_http_headers(registry_async_client: Client) -> None:
 
 async def test_schema_body_validation(registry_async_client: Client) -> None:
     subject = create_subject_name_factory("test_schema_body_validation")()
-    post_functions = {registry_async_client.post_subjects, registry_async_client.post_subjects_versions}
+    post_functions = [registry_async_client.post_subjects_versions, registry_async_client.post_subjects]
     for function in post_functions:
         # Wrong field name (required field "schema" is still missing)
         res = await function(subject=subject, json={"invalid_field": "invalid_value"})
