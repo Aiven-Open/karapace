@@ -5,7 +5,18 @@ See LICENSE for details
 
 import re
 
-from karapace.core.auth import ACLAuthorizer, ACLEntry, HashAlgorithm, Operation, User, hash_password
+import pytest
+
+from karapace.core.auth import (
+    ACLAuthorizer,
+    ACLEntry,
+    AuthenticationError,
+    HashAlgorithm,
+    HTTPAuthorizer,
+    Operation,
+    User,
+    hash_password,
+)
 
 
 def test_empty_acl_authorizer() -> None:
@@ -223,3 +234,53 @@ def test_acl_authorizer() -> None:
             "Subject:readwrite_subject",
         ],
     )
+
+
+def test_get_user_returns_none_for_nonexistent_user() -> None:
+    """get_user must return None (not raise) for unknown usernames.
+
+    Regression test: a previous implementation raised ValueError here,
+    which bypassed the AuthenticationError handling in authenticate()
+    and surfaced as an unhandled 500 to clients.
+    """
+    admin_password_hash = hash_password(algorithm=HashAlgorithm.SHA256, salt="salt", plaintext_password="password")
+    authorizer = ACLAuthorizer(
+        user_db={
+            "admin": User(username="admin", algorithm=HashAlgorithm.SHA256, salt="salt", password_hash=admin_password_hash),
+        },
+    )
+
+    assert authorizer.get_user("admin") is not None
+    assert authorizer.get_user("nonexistent") is None
+
+
+def test_authenticate_raises_authentication_error_for_nonexistent_user() -> None:
+    """authenticate() must raise AuthenticationError -- not ValueError --
+    when the user does not exist, so the caller can return a proper 401."""
+    admin_password_hash = hash_password(algorithm=HashAlgorithm.SHA256, salt="salt", plaintext_password="password")
+    authorizer = ACLAuthorizer(
+        user_db={
+            "admin": User(username="admin", algorithm=HashAlgorithm.SHA256, salt="salt", password_hash=admin_password_hash),
+        },
+    )
+    http_authorizer = HTTPAuthorizer.__new__(HTTPAuthorizer)
+    http_authorizer.user_db = authorizer.user_db
+    http_authorizer.permissions = authorizer.permissions
+
+    with pytest.raises(AuthenticationError):
+        http_authorizer.authenticate(username="nonexistent", password="any")
+
+
+def test_authenticate_raises_authentication_error_for_wrong_password() -> None:
+    admin_password_hash = hash_password(algorithm=HashAlgorithm.SHA256, salt="salt", plaintext_password="password")
+    authorizer = ACLAuthorizer(
+        user_db={
+            "admin": User(username="admin", algorithm=HashAlgorithm.SHA256, salt="salt", password_hash=admin_password_hash),
+        },
+    )
+    http_authorizer = HTTPAuthorizer.__new__(HTTPAuthorizer)
+    http_authorizer.user_db = authorizer.user_db
+    http_authorizer.permissions = authorizer.permissions
+
+    with pytest.raises(AuthenticationError):
+        http_authorizer.authenticate(username="admin", password="wrong")

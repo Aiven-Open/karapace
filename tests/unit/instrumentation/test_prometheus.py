@@ -233,3 +233,95 @@ class TestPrometheusInstrumentation:
 
         # Total should NOT be incremented when handler raises a non-HTTP exception
         total_metric.labels.assert_not_called()
+
+    @patch("karapace.core.instrumentation.prometheus.time")
+    async def test_http_request_metrics_middleware_normalizes_path(
+        self,
+        mock_time: MagicMock,
+        prometheus: PrometheusInstrumentation,
+    ) -> None:
+        """Verify that the middleware normalizes dynamic path segments to prevent unbounded metric cardinality."""
+        mock_time.time.return_value = 10
+
+        (
+            app_metrics,
+            in_progress_metric,
+            in_progress_instance,
+            duration_metric,
+            duration_instance,
+            total_metric,
+            total_instance,
+        ) = _make_metric_mocks(prometheus)
+
+        request = DummyRequest(path="/schemas/ids/878916964", method="GET", app=app_metrics)
+
+        response = MagicMock(status=200)
+
+        async def handler(req):
+            return response
+
+        await prometheus.http_request_metrics_middleware(request=request, handler=handler)
+
+        in_progress_metric.labels.assert_called_with("GET", "/schemas/ids/{id}")
+        total_metric.labels.assert_called_with("GET", "/schemas/ids/{id}", response.status)
+        duration_metric.labels.assert_called_with("GET", "/schemas/ids/{id}")
+
+    @patch("karapace.core.instrumentation.prometheus.time")
+    async def test_http_request_metrics_middleware_normalizes_subject_version_path(
+        self,
+        mock_time: MagicMock,
+        prometheus: PrometheusInstrumentation,
+    ) -> None:
+        mock_time.time.return_value = 10
+
+        (
+            app_metrics,
+            in_progress_metric,
+            in_progress_instance,
+            duration_metric,
+            duration_instance,
+            total_metric,
+            total_instance,
+        ) = _make_metric_mocks(prometheus)
+
+        request = DummyRequest(path="/subjects/my-subject/versions/3", method="GET", app=app_metrics)
+
+        response = MagicMock(status=200)
+
+        async def handler(req):
+            return response
+
+        await prometheus.http_request_metrics_middleware(request=request, handler=handler)
+
+        in_progress_metric.labels.assert_called_with("GET", "/subjects/{subject}/versions/{version}")
+        total_metric.labels.assert_called_with("GET", "/subjects/{subject}/versions/{version}", response.status)
+
+    @patch("karapace.core.instrumentation.prometheus.time")
+    async def test_http_request_metrics_middleware_normalizes_config_subject_path(
+        self,
+        mock_time: MagicMock,
+        prometheus: PrometheusInstrumentation,
+    ) -> None:
+        mock_time.time.return_value = 10
+
+        (
+            app_metrics,
+            in_progress_metric,
+            in_progress_instance,
+            duration_metric,
+            duration_instance,
+            total_metric,
+            total_instance,
+        ) = _make_metric_mocks(prometheus)
+
+        request = DummyRequest(path="/config/journeys_v1-dbx", method="GET", app=app_metrics)
+
+        response = MagicMock(status=200)
+
+        async def handler(req):
+            return response
+
+        await prometheus.http_request_metrics_middleware(request=request, handler=handler)
+
+        in_progress_metric.labels.assert_called_with("GET", "/config/{subject}")
+        total_metric.labels.assert_called_with("GET", "/config/{subject}", response.status)
