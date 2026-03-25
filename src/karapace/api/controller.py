@@ -33,6 +33,7 @@ from karapace.core.config import Config
 from karapace.core.errors import (
     IncompatibleSchema,
     InvalidReferences,
+    PreCommitHookException,
     InvalidSchema,
     InvalidSchemaType,
     InvalidVersion,
@@ -853,6 +854,14 @@ class KarapaceSchemaRegistryController:
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
                         "error_code": SchemaErrorCodes.HTTP_CONFLICT.value,
+                        "message": str(exc),
+                    },
+                ) from exc
+            except PreCommitHookException as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error_code": SchemaErrorCodes.HTTP_BAD_REQUEST.value,
                         "message": str(exc),
                     },
                 ) from exc

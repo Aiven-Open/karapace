@@ -180,3 +180,17 @@ curl-sr-https:
 	$(KARAPACE_CLI) curl -i -X $(method) --location $(url) --cacert /opt/karapace/certs/ca/rootCA.pem \
 		--header $(header) \
 		--data '$(data)'
+
+# Docker image (PEP 440 version from git; override KARAPACE_DOCKER_* as needed)
+KARAPACE_DOCKER_VERSION ?= $(shell git describe --tags | cut -d '-' -f -2 | sed 's/-/.dev/g')
+KARAPACE_DOCKER_IMAGE ?= karapace
+KARAPACE_DOCKER_TAG ?= latest-with-hook
+
+.PHONY: docker-build-latest-with-hook
+docker-build-latest-with-hook:
+	docker build \
+		-f container/Dockerfile \
+		-t '$(KARAPACE_DOCKER_IMAGE):$(KARAPACE_DOCKER_TAG)' \
+		--build-arg PYTHON_VERSION='$(PYTHON_VERSION)' \
+		--build-arg KARAPACE_VERSION='$(KARAPACE_DOCKER_VERSION)' \
+		.

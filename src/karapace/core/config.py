@@ -160,6 +160,7 @@ class Config(BaseSettings):
     statsd_host: str | None = None
     statsd_port: int = 8125
     kafka_schema_reader_strict_mode: bool = False
+    hook_socket: str | None = None
     kafka_retriable_errors_silenced: bool = True
     use_protobuf_formatter: bool = False
     waiting_time_before_acting_as_master_ms: int = 5000

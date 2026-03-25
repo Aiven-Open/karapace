@@ -75,6 +75,10 @@ class SchemaTooLargeException(Exception):
     pass
 
 
+class PreCommitHookException(Exception):
+    """Raised when the pre-commit hook rejects a schema registration."""
+
+
 class ShutdownException(Exception):
     """Raised when the service has encountered an error where it should not continue and shutdown."""
 

@@ -5,6 +5,8 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from asyncio import StreamWriter
+
 from avro.compatibility import SchemaCompatibilityResult, SchemaCompatibilityType
 from collections.abc import Sequence
 from contextlib import AsyncExitStack, closing
@@ -17,6 +19,7 @@ from karapace.core.coordinator.master_coordinator import MasterCoordinator
 from karapace.core.dependency import Dependency
 from karapace.core.errors import (
     IncompatibleSchema,
+    PreCommitHookException,
     ReferenceExistsException,
     SchemasNotFoundException,
     SchemaVersionNotSoftDeletedException,
@@ -44,6 +47,7 @@ from karapace.core.stats import StatsClient
 from karapace.core.typing import JsonObject, Mode, PrimaryInfo, SchemaId, Subject, Version
 
 import asyncio
+import json
 import logging
 
 LOG = logging.getLogger(__name__)
@@ -322,6 +326,11 @@ class KarapaceSchemaRegistry:
                 LOG.debug("Schema id %r found from subject+schema cache", maybe_schema_id)
                 return maybe_schema_id
 
+            hook_socket = self.config.hook_socket
+            LOG.info("Pre-commit hook socket: %r", hook_socket)
+            if hook_socket:
+                await _call_pre_commit_hook(hook_socket, subject, new_schema, new_schema_references)
+
             all_schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
             if not all_schema_versions:
                 version = Version(1)
@@ -502,3 +511,52 @@ class KarapaceSchemaRegistry:
             if schema_version.deleted is False
         }
         return sorted(live_schema_versions)
+
+
+async def _call_pre_commit_hook(socket_path: str,
+                                subject: Subject,
+                                new_schema: ValidatedTypedSchema,
+                                new_schema_references: Sequence[Reference] | None,
+                                ) -> None:
+    LOG.info("Calling pre-commit hook for subject %r", subject)
+
+    schema_body: JsonObject = {
+        "schemaType": new_schema.schema_type.value,
+        "schema": new_schema.schema_str,
+    }
+    if new_schema.references:
+        schema_body["references"] = [reference.to_dict() for reference in new_schema.references]
+    payload: JsonObject = {
+        "operation": "pre-write",
+        "subject": subject,
+        "schema": schema_body,
+    }
+    if new_schema_references:
+        payload["request_references"] = [reference.to_dict() for reference in new_schema_references]
+
+    writer: StreamWriter | None = None
+    try:
+        reader, writer = await asyncio.open_unix_connection(socket_path)
+        assert writer is not None
+
+        writer.write(json.dumps(payload).encode("utf-8"))
+        writer.write_eof()
+        await writer.drain()
+
+        response = await reader.read()
+        LOG.info("Pre-commit hook for subject %r response: %r", subject, response)
+        parsed = json.loads(response)
+        if parsed.get("status") == "error":
+            raise PreCommitHookException(parsed.get("message", "Unknown pre-commit hook error"))
+    except PreCommitHookException:
+        raise
+    except Exception:
+        LOG.exception("Pre-commit hook for subject %r failed", subject)
+        raise
+    finally:
+        if writer:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except OSError:
+                LOG.exception("Error closing writer")

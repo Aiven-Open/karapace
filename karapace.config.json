@@ -29,6 +29,7 @@
     "karapace_registry": true,
     "registry_authfile": null,
     "topic_name": "_schemas",
+    "hook_socket": null,
     "protobuf_runtime_directory": "runtime",
     "session_timeout_ms": 10000
 }
