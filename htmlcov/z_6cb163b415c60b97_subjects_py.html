@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_95f74305e6d99be1_container_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.1">coverage.py v7.13.1</a>,
-            created at 2026-03-24 13:29 +0000
+            created at 2026-03-27 09:15 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -93,7 +93,7 @@
     <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">controller</span> <span class="key">import</span> <span class="nam">KarapaceSchemaRegistryController</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">forward_client</span> <span class="key">import</span> <span class="nam">ForwardClient</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">routers</span><span class="op">.</span><span class="nam">errors</span> <span class="key">import</span> <span class="nam">no_primary_url_error</span><span class="op">,</span> <span class="nam">unauthorized</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">routers</span><span class="op">.</span><span class="nam">raw_path_router</span> <span class="key">import</span> <span class="nam">RawPathRoute</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">routers</span><span class="op">.</span><span class="nam">raw_path_router</span> <span class="key">import</span> <span class="nam">SchemaRegistryRoute</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">routers</span><span class="op">.</span><span class="nam">requests</span> <span class="key">import</span> <span class="nam">SchemaIdResponse</span><span class="op">,</span> <span class="nam">SchemaRequest</span><span class="op">,</span> <span class="nam">SchemaResponse</span><span class="op">,</span> <span class="nam">SubjectSchemaVersionResponse</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">api</span><span class="op">.</span><span class="nam">user</span> <span class="key">import</span> <span class="nam">get_current_user</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="nam">karapace</span><span class="op">.</span><span class="nam">core</span><span class="op">.</span><span class="nam">auth</span> <span class="key">import</span> <span class="nam">AuthenticatorAndAuthorizer</span><span class="op">,</span> <span class="nam">Operation</span><span class="op">,</span> <span class="nam">User</span>&nbsp;</span><span class="r"></span></p>
@@ -112,7 +112,7 @@
     <p class="run run2"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t">    <span class="nam">prefix</span><span class="op">=</span><span class="str">"/subjects"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">    <span class="nam">tags</span><span class="op">=</span><span class="op">[</span><span class="str">"subjects"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">    <span class="nam">responses</span><span class="op">=</span><span class="op">{</span><span class="num">404</span><span class="op">:</span> <span class="op">{</span><span class="str">"description"</span><span class="op">:</span> <span class="str">"Not found"</span><span class="op">}</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">    <span class="nam">route_class</span><span class="op">=</span><span class="nam">RawPathRoute</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">    <span class="nam">route_class</span><span class="op">=</span><span class="nam">SchemaRegistryRoute</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t"><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -306,7 +306,7 @@
             <a class="nav" href="z_95f74305e6d99be1_container_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.1">coverage.py v7.13.1</a>,
-            created at 2026-03-24 13:29 +0000
+            created at 2026-03-27 09:15 +0000
         </p>
     </div>
 </footer>
