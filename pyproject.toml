@@ -33,6 +33,7 @@ dependencies = [
   "watchfiles",
   "zstandard",
   "prometheus-client",
+  "prometheus-fastapi-instrumentator",
   "yarl",
   "opentelemetry-api",
   "opentelemetry-sdk",

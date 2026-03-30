@@ -16,7 +16,6 @@ import karapace.api.routers.compatibility
 import karapace.api.routers.config
 import karapace.api.routers.health
 import karapace.api.routers.master_availability
-import karapace.api.routers.metrics
 import karapace.api.routers.mode
 import karapace.api.routers.schemas
 import karapace.api.routers.subjects
@@ -90,7 +89,6 @@ if __name__ == "__main__":
             karapace.api.routers.config,
             karapace.api.routers.health,
             karapace.api.routers.master_availability,
-            karapace.api.routers.metrics,
             karapace.api.routers.mode,
             karapace.api.routers.schemas,
             karapace.api.routers.subjects,
