@@ -75,7 +75,7 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
 
     setup_telemetry_middleware(app=app)
 
-    # Metrics via prometheus-fastapi-instrumentator; /metrics served by metrics_router.
+    # Metrics via prometheus-fastapi-instrumentator.
     # .add() before .instrument(): Starlette defers middleware construction, so if the
     # instrumentations list is non-empty the middleware skips its built-in defaults.
     # We include default_metrics() explicitly to get both standard and karapace_* names.
@@ -90,7 +90,7 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
         _karapace_requests_total(),
         _karapace_requests_duration(),
     )
-    instrumentator.instrument(app)
+    instrumentator.instrument(app).expose(app, include_in_schema=False)
 
 
 def _karapace_requests_total() -> Callable[[Info], None]:

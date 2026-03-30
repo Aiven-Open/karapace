@@ -6,9 +6,9 @@ See LICENSE for details
 """
 
 import pytest
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from prometheus_client import REGISTRY, generate_latest
+from prometheus_client import REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator.metrics import default as default_metrics
 
@@ -42,7 +42,7 @@ def app() -> FastAPI:
         _karapace_requests_total(),
         _karapace_requests_duration(),
     )
-    instrumentator.instrument(app)
+    instrumentator.instrument(app).expose(app, include_in_schema=False)
 
     @app.get("/subjects")
     async def subjects():
@@ -55,13 +55,6 @@ def app() -> FastAPI:
     @app.get("/fail")
     async def fail():
         raise HTTPException(status_code=404, detail="Not found")
-
-    @app.get("/metrics")
-    async def metrics():
-        return Response(
-            content=generate_latest(REGISTRY),
-            media_type="text/plain; version=0.0.4; charset=utf-8",
-        )
 
     return app
 
