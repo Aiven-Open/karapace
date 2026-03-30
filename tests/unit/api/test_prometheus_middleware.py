@@ -1,149 +1,163 @@
 """
-schema_registry - FastAPI prometheus metrics middleware tests
+schema_registry - Prometheus metrics tests (standard + backwards-compatible karapace_* metrics)
 
 Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
-from unittest.mock import MagicMock, patch
+import pytest
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.testclient import TestClient
+from prometheus_client import REGISTRY, generate_latest
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator.metrics import default as default_metrics
 
-from fastapi import FastAPI
-
-from karapace.api.middlewares import _setup_prometheus_middleware
-from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
-
-
-class TestPrometheusMetricsMiddleware:
-    def test_setup_registers_middleware(self) -> None:
-        app = MagicMock(spec=FastAPI)
-        _setup_prometheus_middleware(app=app)
-        app.middleware.assert_called_once_with("http")
+from karapace.api.middlewares import _karapace_requests_total, _karapace_requests_duration
 
 
-class TestPrometheusMetricsMiddlewareIntegration:
-    """Integration test using a real FastAPI app and TestClient."""
+@pytest.fixture(autouse=True)
+def _clean_registries():
+    """Prevent duplicate metric registration errors across tests."""
+    yield
+    collectors = list(REGISTRY._names_to_collectors.values())
+    for c in set(collectors):
+        try:
+            REGISTRY.unregister(c)
+        except Exception:
+            pass
 
-    def test_metrics_populated_after_requests(self) -> None:
-        from fastapi.testclient import TestClient
-        from prometheus_client import CollectorRegistry
 
-        app = FastAPI()
-        _setup_prometheus_middleware(app=app)
+@pytest.fixture
+def app() -> FastAPI:
+    app = FastAPI()
 
-        @app.get("/subjects")
-        async def subjects():
-            return []
+    instrumentator = Instrumentator(
+        should_group_status_codes=False,
+        should_instrument_requests_inprogress=True,
+        excluded_handlers=["/metrics"],
+        inprogress_labels=True,
+    )
+    instrumentator.add(
+        default_metrics(),
+        _karapace_requests_total(),
+        _karapace_requests_duration(),
+    )
+    instrumentator.instrument(app)
 
-        @app.get("/config")
-        async def config():
-            return {"compatibilityLevel": "NONE"}
+    @app.get("/subjects")
+    async def subjects():
+        return []
 
-        # Use a fresh registry to avoid cross-test pollution
-        test_registry = CollectorRegistry()
-        with (
-            patch.object(
-                PrometheusInstrumentation,
-                "karapace_http_requests_total",
-                PrometheusInstrumentation.karapace_http_requests_total.__class__(
-                    registry=test_registry,
-                    name="karapace_http_requests_total_test",
-                    documentation="test",
-                    labelnames=("method", "path", "status"),
-                ),
-            ),
-            patch.object(
-                PrometheusInstrumentation,
-                "karapace_http_requests_duration_seconds",
-                PrometheusInstrumentation.karapace_http_requests_duration_seconds.__class__(
-                    registry=test_registry,
-                    name="karapace_http_requests_duration_seconds_test",
-                    documentation="test",
-                    labelnames=("method", "path"),
-                ),
-            ),
-            patch.object(
-                PrometheusInstrumentation,
-                "karapace_http_requests_in_progress",
-                PrometheusInstrumentation.karapace_http_requests_in_progress.__class__(
-                    registry=test_registry,
-                    name="karapace_http_requests_in_progress_test",
-                    documentation="test",
-                    labelnames=("method", "path"),
-                ),
-            ),
-        ):
-            client = TestClient(app)
+    @app.get("/config")
+    async def config():
+        return {"compatibilityLevel": "NONE"}
 
-            client.get("/subjects")
-            client.get("/subjects")
-            client.get("/config")
+    @app.get("/fail")
+    async def fail():
+        raise HTTPException(status_code=404, detail="Not found")
 
-            total = PrometheusInstrumentation.karapace_http_requests_total
-            assert total.labels("GET", "/subjects", 200)._value.get() == 2.0
-            assert total.labels("GET", "/config", 200)._value.get() == 1.0
+    @app.get("/metrics")
+    async def metrics():
+        return Response(
+            content=generate_latest(REGISTRY),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
-            in_progress = PrometheusInstrumentation.karapace_http_requests_in_progress
-            assert in_progress.labels("GET", "/subjects")._value.get() == 0.0
-            assert in_progress.labels("GET", "/config")._value.get() == 0.0
+    return app
 
-            duration = PrometheusInstrumentation.karapace_http_requests_duration_seconds
-            assert duration.labels("GET", "/subjects")._sum.get() > 0
-            assert duration.labels("GET", "/config")._sum.get() > 0
 
-    def test_metrics_record_error_status(self) -> None:
-        from fastapi import HTTPException
-        from fastapi.testclient import TestClient
-        from prometheus_client import CollectorRegistry
+@pytest.fixture
+def client(app: FastAPI) -> TestClient:
+    return TestClient(app, raise_server_exceptions=False)
 
-        app = FastAPI()
-        _setup_prometheus_middleware(app=app)
 
-        @app.get("/fail")
-        async def fail():
-            raise HTTPException(status_code=404, detail="Not found")
+class TestStandardMetrics:
+    """Tests for prometheus-fastapi-instrumentator (standard metric names)."""
 
-        test_registry = CollectorRegistry()
-        with patch.object(
-            PrometheusInstrumentation,
-            "karapace_http_requests_total",
-            PrometheusInstrumentation.karapace_http_requests_total.__class__(
-                registry=test_registry,
-                name="karapace_http_requests_total_err",
-                documentation="test",
-                labelnames=("method", "path", "status"),
-            ),
-        ):
-            client = TestClient(app, raise_server_exceptions=False)
-            client.get("/fail")
+    def test_standard_metrics_populated_after_requests(self, client: TestClient) -> None:
+        client.get("/subjects")
 
-            total = PrometheusInstrumentation.karapace_http_requests_total
-            assert total.labels("GET", "/fail", 404)._value.get() == 1.0
+        response = client.get("/metrics")
+        body = response.text
 
-    def test_metrics_normalize_paths(self) -> None:
-        from fastapi.testclient import TestClient
-        from prometheus_client import CollectorRegistry
+        assert "http_requests_total{" in body
+        assert "http_request_duration_seconds" in body
 
-        app = FastAPI()
-        _setup_prometheus_middleware(app=app)
+    def test_standard_metrics_record_error_status(self, client: TestClient) -> None:
+        client.get("/fail")
 
-        @app.get("/subjects/{subject}/versions/{version}")
-        async def subject_version(subject: str, version: str):
-            return {}
+        response = client.get("/metrics")
+        body = response.text
+        assert 'status="404"' in body
 
-        test_registry = CollectorRegistry()
-        with patch.object(
-            PrometheusInstrumentation,
-            "karapace_http_requests_total",
-            PrometheusInstrumentation.karapace_http_requests_total.__class__(
-                registry=test_registry,
-                name="karapace_http_requests_total_norm",
-                documentation="test",
-                labelnames=("method", "path", "status"),
-            ),
-        ):
-            client = TestClient(app)
-            client.get("/subjects/my-subject/versions/3")
-            client.get("/subjects/other-subject/versions/1")
+    def test_standard_metrics_not_grouped(self, client: TestClient) -> None:
+        """Status codes should be exact (404), not grouped (4xx)."""
+        client.get("/fail")
 
-            total = PrometheusInstrumentation.karapace_http_requests_total
-            assert total.labels("GET", "/subjects/{subject}/versions/{version}", 200)._value.get() == 2.0
+        response = client.get("/metrics")
+        body = response.text
+        assert 'status="4xx"' not in body
+
+    def test_metrics_endpoint_not_instrumented(self, client: TestClient) -> None:
+        """The /metrics endpoint itself should be excluded from instrumentation."""
+        client.get("/metrics")
+        client.get("/metrics")
+
+        response = client.get("/metrics")
+        body = response.text
+        assert 'handler="/metrics"' not in body
+
+
+class TestKarapaceMetrics:
+    """Tests for backwards-compatible karapace_* metrics (via instrumentator .add())."""
+
+    def test_karapace_metrics_populated_after_requests(self, client: TestClient) -> None:
+        client.get("/subjects")
+        client.get("/config")
+
+        response = client.get("/metrics")
+        body = response.text
+
+        assert "karapace_http_requests_total{" in body
+        assert "karapace_http_requests_duration_seconds" in body
+
+    def test_karapace_metrics_record_error_status(self, client: TestClient) -> None:
+        client.get("/fail")
+
+        response = client.get("/metrics")
+        body = response.text
+        assert 'path="/fail"' in body
+
+    def test_karapace_metrics_use_path_label(self, client: TestClient) -> None:
+        """Karapace metrics use 'path' label (not 'handler') for backwards compat."""
+        client.get("/subjects")
+
+        response = client.get("/metrics")
+        body = response.text
+        assert 'path="/subjects"' in body
+
+
+class TestMetricsEndpoint:
+    """Tests for the /metrics endpoint."""
+
+    def test_metrics_endpoint_exists(self, client: TestClient) -> None:
+        response = client.get("/metrics")
+        assert response.status_code == 200
+
+    def test_both_metric_systems_present(self, client: TestClient) -> None:
+        client.get("/subjects")
+
+        response = client.get("/metrics")
+        body = response.text
+
+        assert "http_requests_total{" in body
+        assert "karapace_http_requests_total{" in body
+
+    def test_metrics_with_prometheus_accept_header(self, client: TestClient) -> None:
+        """Prometheus-style Accept header should not cause 406."""
+        prometheus_accept = (
+            "application/openmetrics-text;version=1.0.0,application/openmetrics-text;version=0.0.1;q=0.75,"
+            "text/plain;version=0.0.4;q=0.5,*/*;q=0.1"
+        )
+        response = client.get("/metrics", headers={"Accept": prometheus_accept})
+        assert response.status_code == 200
