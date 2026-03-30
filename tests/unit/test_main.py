@@ -91,7 +91,6 @@ def test_main_container_initialization():
             __main__.karapace.api.routers.config,
             __main__.karapace.api.routers.health,
             __main__.karapace.api.routers.master_availability,
-            __main__.karapace.api.routers.metrics,
             __main__.karapace.api.routers.mode,
             __main__.karapace.api.routers.schemas,
             __main__.karapace.api.routers.subjects,

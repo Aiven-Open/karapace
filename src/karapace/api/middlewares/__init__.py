@@ -94,9 +94,10 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
 
 
 def _karapace_requests_total() -> Callable[[Info], None]:
+    """Deprecated: use http_requests_total instead. Subject to removal."""
     counter = Counter(
         "karapace_http_requests_total",
-        "Total Request Count for HTTP/TCP Protocol",
+        "Deprecated: use http_requests_total. Total Request Count for HTTP/TCP Protocol",
         labelnames=("method", "path", "status"),
     )
 
@@ -108,9 +109,10 @@ def _karapace_requests_total() -> Callable[[Info], None]:
 
 
 def _karapace_requests_duration() -> Callable[[Info], None]:
+    """Deprecated: use http_request_duration_seconds instead. Subject to removal."""
     histogram = Histogram(
         "karapace_http_requests_duration_seconds",
-        "Request Duration for HTTP/TCP Protocol",
+        "Deprecated: use http_request_duration_seconds. Request Duration for HTTP/TCP Protocol",
         labelnames=("method", "path"),
     )
 
