@@ -1,7 +1,7 @@
 """
 schema_registry - Prometheus metrics tests (standard + backwards-compatible karapace_* metrics)
 
-Copyright (c) 2024 Aiven Ltd
+Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
 """
 
