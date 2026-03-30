@@ -7,6 +7,7 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends, Query
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
+from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 from karapace.api.routers.requests import SchemaListingItem, SchemasResponse, SubjectVersion
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, User
@@ -18,6 +19,7 @@ schemas_router = APIRouter(
     prefix="/schemas",
     tags=["schemas"],
     responses={404: {"description": "Not found"}},
+    route_class=SchemaRegistryRoute,
 )
 
 

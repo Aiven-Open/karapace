@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
 from karapace.api.routers.errors import unauthorized
-from karapace.api.routers.raw_path_router import RawPathRoute
+from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 from karapace.api.routers.requests import ModeResponse
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
@@ -21,7 +21,7 @@ mode_router = APIRouter(
     prefix="/mode",
     tags=["mode"],
     responses={404: {"description": "Not found"}},
-    route_class=RawPathRoute,
+    route_class=SchemaRegistryRoute,
 )
 
 

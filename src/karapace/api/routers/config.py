@@ -9,7 +9,7 @@ from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
 from karapace.api.forward_client import ForwardClient
 from karapace.api.routers.errors import no_primary_url_error, unauthorized
-from karapace.api.routers.raw_path_router import RawPathRoute
+from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 from karapace.api.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
@@ -23,7 +23,7 @@ config_router = APIRouter(
     prefix="/config",
     tags=["config"],
     responses={404: {"description": "Not found"}},
-    route_class=RawPathRoute,
+    route_class=SchemaRegistryRoute,
 )
 
 

@@ -123,3 +123,42 @@ def test_record_request_exception_uncaught_exception(http_request_metrics: HTTPR
     http_request_metrics.karapace_http_requests_total.add.assert_called_with(
         amount=1, attributes={**ATTRIBUTES, "status": 0}
     )
+
+
+def test_start_request_normalizes_schema_id_path(http_request_metrics: HTTPRequestMetrics) -> None:
+    """Verify that schema ID paths are normalized to prevent unbounded metric cardinality."""
+    request_mock = AsyncMock(spec=Request)
+    request_mock.method = "GET"
+    request_mock.url.path = "/schemas/ids/878916964"
+
+    http_request_metrics.karapace_http_requests_in_progress = MagicMock()
+
+    with patch("karapace.api.telemetry.metrics.time.monotonic", return_value=1):
+        ATTRIBUTES = http_request_metrics.start_request(request=request_mock)
+        assert ATTRIBUTES == {"method": "GET", "path": "/schemas/ids/{id}", "resource": "schemas"}
+
+
+def test_start_request_normalizes_subject_version_path(http_request_metrics: HTTPRequestMetrics) -> None:
+    """Verify that subject/version paths are normalized."""
+    request_mock = AsyncMock(spec=Request)
+    request_mock.method = "GET"
+    request_mock.url.path = "/subjects/my-subject/versions/3"
+
+    http_request_metrics.karapace_http_requests_in_progress = MagicMock()
+
+    with patch("karapace.api.telemetry.metrics.time.monotonic", return_value=1):
+        ATTRIBUTES = http_request_metrics.start_request(request=request_mock)
+        assert ATTRIBUTES == {"method": "GET", "path": "/subjects/{subject}/versions/{version}", "resource": "subjects"}
+
+
+def test_start_request_normalizes_config_subject_path(http_request_metrics: HTTPRequestMetrics) -> None:
+    """Verify that config subject paths are normalized."""
+    request_mock = AsyncMock(spec=Request)
+    request_mock.method = "GET"
+    request_mock.url.path = "/config/my-subject"
+
+    http_request_metrics.karapace_http_requests_in_progress = MagicMock()
+
+    with patch("karapace.api.telemetry.metrics.time.monotonic", return_value=1):
+        ATTRIBUTES = http_request_metrics.start_request(request=request_mock)
+        assert ATTRIBUTES == {"method": "GET", "path": "/config/{subject}", "resource": "config"}

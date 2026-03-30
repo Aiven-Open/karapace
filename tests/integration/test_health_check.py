@@ -13,6 +13,31 @@ from karapace.version import __version__
 from tests.integration.utils.cluster import RegistryDescription
 
 
+async def test_health_check_with_non_schema_accept_header(registry_async_client: Client) -> None:
+    """Regression test: /_health must be exempt from schema-registry content negotiation.
+
+    Monitoring tools (e.g. Kubernetes probes) may send Accept headers that don't match
+    schema-registry content types. This must not result in HTTP 406.
+    """
+    res = await registry_async_client.get("/_health", headers={"Accept": "text/plain, */*;q=0.1"})
+    assert res.status_code in (
+        http.HTTPStatus.OK,
+        http.HTTPStatus.SERVICE_UNAVAILABLE,
+    ), f"Expected 200 or 503, got {res.status_code}"
+
+
+async def test_root_with_non_schema_accept_header(registry_async_client: Client) -> None:
+    """Regression test: / must be exempt from schema-registry content negotiation."""
+    res = await registry_async_client.get("/", headers={"Accept": "text/html"})
+    assert res.ok, f"Expected 200, got {res.status_code}"
+
+
+async def test_master_available_with_non_schema_accept_header(registry_async_client: Client) -> None:
+    """Regression test: /master_available must be exempt from schema-registry content negotiation."""
+    res = await registry_async_client.get("/master_available", headers={"Accept": "text/plain"})
+    assert res.ok, f"Expected 200, got {res.status_code}"
+
+
 async def test_health_check(
     registry_cluster: RegistryDescription, registry_async_client: Client, admin_client: KafkaAdminClient
 ) -> None:
