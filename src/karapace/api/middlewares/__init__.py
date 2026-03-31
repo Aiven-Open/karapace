@@ -7,6 +7,11 @@ from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from karapace.api.telemetry.middleware import setup_telemetry_middleware
+from karapace.core.instrumentation.path_normalization import normalize_path
+from prometheus_client import Counter, Histogram
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator.metrics import Info
+from prometheus_fastapi_instrumentator.metrics import default as default_metrics
 
 from karapace.api.oidc.middleware import OIDCMiddleware
 from karapace.core.auth import AuthenticationError
@@ -69,3 +74,50 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
         return response
 
     setup_telemetry_middleware(app=app)
+
+    # Metrics via prometheus-fastapi-instrumentator.
+    # .add() before .instrument(): Starlette defers middleware construction, so if the
+    # instrumentations list is non-empty the middleware skips its built-in defaults.
+    # We include default_metrics() explicitly to get both standard and karapace_* names.
+    instrumentator = Instrumentator(
+        should_group_status_codes=False,
+        should_instrument_requests_inprogress=True,
+        excluded_handlers=["/metrics"],
+        inprogress_labels=True,
+    )
+    instrumentator.add(
+        default_metrics(),
+        _karapace_requests_total(),
+        _karapace_requests_duration(),
+    )
+    instrumentator.instrument(app).expose(app, include_in_schema=False)
+
+
+def _karapace_requests_total() -> Callable[[Info], None]:
+    """Deprecated: use http_requests_total instead. Subject to removal."""
+    counter = Counter(
+        "karapace_http_requests_total",
+        "Deprecated: use http_requests_total. Total Request Count for HTTP/TCP Protocol",
+        labelnames=("method", "path", "status"),
+    )
+
+    def instrumentation(info: Info) -> None:
+        path = normalize_path(info.request.url.path)
+        counter.labels(info.request.method, path, info.modified_status).inc()
+
+    return instrumentation
+
+
+def _karapace_requests_duration() -> Callable[[Info], None]:
+    """Deprecated: use http_request_duration_seconds instead. Subject to removal."""
+    histogram = Histogram(
+        "karapace_http_requests_duration_seconds",
+        "Deprecated: use http_request_duration_seconds. Request Duration for HTTP/TCP Protocol",
+        labelnames=("method", "path"),
+    )
+
+    def instrumentation(info: Info) -> None:
+        path = normalize_path(info.request.url.path)
+        histogram.labels(info.request.method, path).observe(info.modified_duration)
+
+    return instrumentation
