@@ -258,7 +258,7 @@ types-cachetools==6.2.0.20260317
     # via karapace (/karapace/pyproject.toml)
 types-jsonschema==4.26.0.20260325
     # via karapace (/karapace/pyproject.toml)
-types-protobuf==3.20.4.6
+types-protobuf==6.32.1.20260221
     # via karapace (/karapace/pyproject.toml)
 typing-extensions==4.15.0
     # via
