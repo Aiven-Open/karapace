@@ -4,6 +4,7 @@ See LICENSE for details
 """
 
 from karapace.core.config import Config
+from karapace.core.access_logging import HealthRouteFilter
 
 import logging
 import sys
@@ -43,3 +44,13 @@ def log_config_without_secrets(config: Config) -> None:
             value = "****"
         config_without_secrets[key] = value
     logging.log(logging.DEBUG, "Config %r", config_without_secrets)
+
+
+def configure_uvicorn_access_logging(*, config: Config) -> None:
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+
+    if config.suppress_health_access_logs:
+        for existing_filter in uvicorn_access_logger.filters:
+            if isinstance(existing_filter, HealthRouteFilter):
+                return
+        uvicorn_access_logger.addFilter(HealthRouteFilter(suppress_health_access_logs=True))
