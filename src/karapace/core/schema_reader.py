@@ -38,6 +38,7 @@ from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.common import translate_from_kafkaerror
 from karapace.core.kafka.consumer import KafkaConsumer
 from karapace.core.kafka_error_handler import KafkaErrorHandler, KafkaErrorLocation
+from karapace.core.kafka_utils import get_oauth_token_provider
 from karapace.core.key_format import is_key_in_canonical_format, KeyFormatter, KeyMode
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.protobuf.exception import ProtobufException
@@ -89,13 +90,6 @@ class MessageType(Enum):
     no_operation = "NOOP"
 
 
-def _get_oauth_token_provider(config: Config) -> object | None:
-    """Instantiate the configured OAuth token provider, if any."""
-    if config.sasl_oauth_token_provider_class is not None:
-        return config.sasl_oauth_token_provider_class()
-    return None
-
-
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
     # Group not set on purpose, all consumers read the same data
     # NOTE: Don't pass topic= here to avoid subscribing before the topic exists
@@ -117,7 +111,7 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         session_timeout_ms=session_timeout_ms,
         metadata_max_age_ms=config.metadata_max_age_ms,
     )
-    token_provider = _get_oauth_token_provider(config)
+    token_provider = get_oauth_token_provider(config)
     if token_provider is not None:
         kwargs["sasl_oauth_token_provider"] = token_provider
     return KafkaConsumer(**kwargs)
@@ -135,7 +129,7 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
         sasl_plain_username=config.sasl_plain_username,
         sasl_plain_password=config.sasl_plain_password,
     )
-    token_provider = _get_oauth_token_provider(config)
+    token_provider = get_oauth_token_provider(config)
     if token_provider is not None:
         kwargs["sasl_oauth_token_provider"] = token_provider
     return KafkaAdminClient(**kwargs)

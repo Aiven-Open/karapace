@@ -1,13 +1,25 @@
 """
 Tests for sasl_oauth_token_provider_class config and passthrough.
 
-Copyright (c) 2023 Aiven Ltd
+Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
 """
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from karapace.core.config import Config
+from karapace.core import kafka_utils
+from karapace.core.kafka_utils import get_oauth_token_provider
+
+
+@pytest.fixture(autouse=True)
+def _clear_provider_cache():
+    """Clear the singleton cache between tests."""
+    kafka_utils._oauth_token_provider_cache.clear()
+    yield
+    kafka_utils._oauth_token_provider_cache.clear()
 
 
 class StubTokenProvider:
@@ -27,19 +39,30 @@ def _make_config_with_provider():
 
 class TestGetOauthTokenProvider:
     def test_returns_none_when_not_configured(self):
-        from karapace.core.kafka_utils import _get_oauth_token_provider
-
         config = Config()
-        assert _get_oauth_token_provider(config) is None
+        assert get_oauth_token_provider(config) is None
 
     def test_returns_instance_when_configured(self):
-        from karapace.core.kafka_utils import _get_oauth_token_provider
-
         config = _make_config_with_provider()
-        provider = _get_oauth_token_provider(config)
+        provider = get_oauth_token_provider(config)
         assert provider is not None
         assert isinstance(provider, StubTokenProvider)
         assert provider.token_with_expiry() == ("fake-token", 9999999999)
+
+    def test_raises_when_missing_token_with_expiry(self):
+        class BadProvider:
+            pass
+
+        config = Config()
+        config.sasl_oauth_token_provider_class = BadProvider
+        with pytest.raises(ValueError, match="must implement a token_with_expiry"):
+            get_oauth_token_provider(config)
+
+    def test_returns_cached_instance(self):
+        config = _make_config_with_provider()
+        first = get_oauth_token_provider(config)
+        second = get_oauth_token_provider(config)
+        assert first is second
 
 
 class TestKafkaUtilsPassthrough:

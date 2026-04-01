@@ -12,11 +12,28 @@ from karapace.core.kafka.producer import KafkaProducer
 import contextlib
 
 
-def _get_oauth_token_provider(config: Config) -> object | None:
-    """Instantiate the configured OAuth token provider, if any."""
-    if config.sasl_oauth_token_provider_class is not None:
-        return config.sasl_oauth_token_provider_class()
-    return None
+_oauth_token_provider_cache: dict[type, object] = {}
+
+
+def get_oauth_token_provider(config: Config) -> object | None:
+    """Return the configured OAuth token provider singleton, if any.
+
+    The provider class is instantiated once and cached for the lifetime of the
+    process.  The instance must expose a ``token_with_expiry`` method as
+    required by confluent-kafka's OAUTHBEARER flow.
+    """
+    if config.sasl_oauth_token_provider_class is None:
+        return None
+    cls = config.sasl_oauth_token_provider_class
+    if cls not in _oauth_token_provider_cache:
+        instance = cls()
+        if not callable(getattr(instance, "token_with_expiry", None)):
+            raise ValueError(
+                f"OAuth token provider {cls.__name__} must implement a "
+                f"token_with_expiry() method returning {{'token': str, 'expiry': float}}"
+            )
+        _oauth_token_provider_cache[cls] = instance
+    return _oauth_token_provider_cache[cls]
 
 
 def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
@@ -31,7 +48,7 @@ def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
         ssl_certfile=config.ssl_certfile,
         ssl_keyfile=config.ssl_keyfile,
     )
-    token_provider = _get_oauth_token_provider(config)
+    token_provider = get_oauth_token_provider(config)
     if token_provider is not None:
         kwargs["sasl_oauth_token_provider"] = token_provider
     return KafkaAdminClient(**kwargs)
@@ -55,7 +72,7 @@ def kafka_consumer_from_config(config: Config, topic: str) -> Iterator[KafkaCons
         session_timeout_ms=config.session_timeout_ms,
         metadata_max_age_ms=config.metadata_max_age_ms,
     )
-    token_provider = _get_oauth_token_provider(config)
+    token_provider = get_oauth_token_provider(config)
     if token_provider is not None:
         kwargs["sasl_oauth_token_provider"] = token_provider
     consumer = KafkaConsumer(**kwargs)
@@ -80,7 +97,7 @@ def kafka_producer_from_config(config: Config) -> Iterator[KafkaProducer]:
         retries=0,
         session_timeout_ms=config.session_timeout_ms,
     )
-    token_provider = _get_oauth_token_provider(config)
+    token_provider = get_oauth_token_provider(config)
     if token_provider is not None:
         kwargs["sasl_oauth_token_provider"] = token_provider
     producer = KafkaProducer(**kwargs)
