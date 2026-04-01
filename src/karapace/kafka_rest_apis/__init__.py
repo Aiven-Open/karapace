@@ -964,7 +964,9 @@ class UserRestProxy:
         schema_id = self.topic_schema_cache.get_schema_id(subject_name, parsed_schema)
         if schema_id is None:
             log.debug("[resolve schema id] Registering / Retrieving ID for %s and schema %s", subject_name, schema_str)
-            schema_id = await self.serializer.upsert_id_for_schema(parsed_schema, subject_name)
+            schema_id = await self.serializer.upsert_id_for_schema(
+                parsed_schema, subject_name, self.config.rest_lookup_schema_before_register
+            )
             log.debug("[resolve schema id] Found schema id %s from registry for subject %s", schema_id, subject_name)
             self.topic_schema_cache.set_schema(subject_name, schema_id, parsed_schema)
         else:
