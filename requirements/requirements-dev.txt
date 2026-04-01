@@ -10,7 +10,7 @@ aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.4
     # via karapace (/karapace/pyproject.toml)
-aiokafka==0.12.0
+aiokafka==0.13.0
     # via karapace (/karapace/pyproject.toml)
 aiosignal==1.4.0
     # via aiohttp
