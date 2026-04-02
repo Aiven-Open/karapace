@@ -1,5 +1,6 @@
 {
     "access_logs_debug": false,
+    "suppress_health_access_logs": false,
     "advertised_hostname": "localhost",
     "bootstrap_uri": "127.0.0.1:9092",
     "sasl_bootstrap_uri": "127.0.0.1:9094",
