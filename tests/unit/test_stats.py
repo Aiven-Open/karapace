@@ -8,7 +8,7 @@ from __future__ import annotations
 from unittest.mock import Mock
 
 import pytest
-from prometheus_client import Gauge
+from prometheus_client import CollectorRegistry, Gauge
 
 from karapace.core.instrumentation.meter import Meter
 from karapace.core.stats import (
@@ -33,19 +33,20 @@ def stats(mock_config: Mock) -> StatsClient:
     mock_meter_instance = Mock()
     meter.get_meter.return_value = mock_meter_instance
     mock_meter_instance.create_counter.return_value = Mock()
-    return StatsClient(config=mock_config, meter=meter)
+    registry = CollectorRegistry()
+    return StatsClient(config=mock_config, meter=meter, registry=registry)
 
 
 class TestSchemaGaugeMetrics:
-    def test_schemas_gauge_is_registered_in_default_prometheus_registry(self, stats: StatsClient) -> None:
+    def test_schemas_gauge_is_prometheus_gauge(self, stats: StatsClient) -> None:
         assert isinstance(stats._total_schemas_gauge, Gauge)
         assert stats._total_schemas_gauge._name == METRIC_SCHEMAS_GAUGE
 
-    def test_subjects_gauge_is_registered_in_default_prometheus_registry(self, stats: StatsClient) -> None:
+    def test_subjects_gauge_is_prometheus_gauge(self, stats: StatsClient) -> None:
         assert isinstance(stats._total_subjects_gauge, Gauge)
         assert stats._total_subjects_gauge._name == METRIC_SUBJECTS_GAUGE
 
-    def test_schema_versions_gauge_is_registered_in_default_prometheus_registry(self, stats: StatsClient) -> None:
+    def test_schema_versions_gauge_is_prometheus_gauge(self, stats: StatsClient) -> None:
         assert isinstance(stats._schema_versions_gauge, Gauge)
         assert stats._schema_versions_gauge._name == METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE
 

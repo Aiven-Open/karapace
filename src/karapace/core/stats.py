@@ -12,7 +12,7 @@ from karapace.core.instrumentation.meter import Meter
 from karapace.core.key_format import KeyMode
 from karapace.core.sentry import get_sentry_client
 from opentelemetry.metrics import Counter
-from prometheus_client import Gauge as PrometheusGauge
+from prometheus_client import CollectorRegistry, Gauge as PrometheusGauge, REGISTRY
 from typing import Final, Mapping
 
 import logging
@@ -33,7 +33,7 @@ class StatsClient:
     Exception reporting uses Sentry integration if Sentry DSN is set.
     """
 
-    def __init__(self, *, config: Config, meter: Meter) -> None:
+    def __init__(self, *, config: Config, meter: Meter, registry: CollectorRegistry = REGISTRY) -> None:
         self._tags: Mapping[str, str] = config.tags.dict()
         self.sentry_client: Final = get_sentry_client(sentry_config=(config.sentry or None))
         self._meter = meter
@@ -49,16 +49,19 @@ class StatsClient:
             METRIC_SCHEMAS_GAUGE,
             "Total number of schemas",
             labelnames=sorted(self._tags.keys()),
+            registry=registry,
         )
         self._total_subjects_gauge: Final[PrometheusGauge] = PrometheusGauge(
             METRIC_SUBJECTS_GAUGE,
             "Total number of subjects",
             labelnames=sorted(self._tags.keys()),
+            registry=registry,
         )
         self._schema_versions_gauge: Final[PrometheusGauge] = PrometheusGauge(
             METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE,
             "Schema versions",
             labelnames=["state", *sorted(self._tags.keys())],
+            registry=registry,
         )
         self._exceptions_total: Final[Counter] = self._meter.get_meter().create_counter(
             name=METRIC_EXCEPTIONS, description="Unexpected exceptions"
