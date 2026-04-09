@@ -11,7 +11,8 @@ from karapace.core.config import Config
 from karapace.core.instrumentation.meter import Meter
 from karapace.core.key_format import KeyMode
 from karapace.core.sentry import get_sentry_client
-from opentelemetry.metrics import Counter, _Gauge
+from opentelemetry.metrics import Counter
+from prometheus_client import Gauge as PrometheusGauge
 from typing import Final, Mapping
 
 import logging
@@ -20,9 +21,9 @@ LOG = logging.getLogger(__name__)
 
 # Metric names
 METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT: Final = "karapace_schema_reader_records_processed_total"
-METRIC_SCHEMAS_GAUGE: Final = "karapace_schema_reader_schemas_total"
-METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects_total"
-METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions_total"
+METRIC_SCHEMAS_GAUGE: Final = "karapace_schema_reader_schemas"
+METRIC_SUBJECTS_GAUGE: Final = "karapace_schema_reader_subjects"
+METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE: Final = "karapace_schema_reader_subject_data_schema_versions"
 METRIC_EXCEPTIONS = "karapace_exceptions_total"
 
 
@@ -44,17 +45,20 @@ class StatsClient:
             name=METRIC_SCHEMA_TOPIC_RECORDS_PROCESSED_COUNT,
             description="Total processed schema records",
         )
-        self._total_schemas_gauge: Final[_Gauge] = self._meter.get_meter().create_gauge(
-            name=METRIC_SCHEMAS_GAUGE,
-            description="Total number of schemas",
+        self._total_schemas_gauge: Final[PrometheusGauge] = PrometheusGauge(
+            METRIC_SCHEMAS_GAUGE,
+            "Total number of schemas",
+            labelnames=sorted(self._tags.keys()),
         )
-        self._total_subjects_gauge: Final[_Gauge] = self._meter.get_meter().create_gauge(
-            name=METRIC_SUBJECTS_GAUGE,
-            description="Total number of subjects",
+        self._total_subjects_gauge: Final[PrometheusGauge] = PrometheusGauge(
+            METRIC_SUBJECTS_GAUGE,
+            "Total number of subjects",
+            labelnames=sorted(self._tags.keys()),
         )
-        self._schema_versions_gauge: Final[_Gauge] = self._meter.get_meter().create_gauge(
-            name=METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE,
-            description="Schema versions",
+        self._schema_versions_gauge: Final[PrometheusGauge] = PrometheusGauge(
+            METRIC_SUBJECT_DATA_SCHEMA_VERSIONS_GAUGE,
+            "Schema versions",
+            labelnames=["state", *sorted(self._tags.keys())],
         )
         self._exceptions_total: Final[Counter] = self._meter.get_meter().create_counter(
             name=METRIC_EXCEPTIONS, description="Unexpected exceptions"
@@ -69,22 +73,22 @@ class StatsClient:
         )
 
     def set_schemas_num_total(self, *, value: int) -> None:
-        LOG.debug("Setting schemas gauge to %s with attributes %s", value, self._tags)
-        self._total_schemas_gauge.set(amount=value, attributes=self._tags)
+        LOG.debug("Setting schemas gauge to %s with labels %s", value, self._tags)
+        self._total_schemas_gauge.labels(**self._tags).set(value)
 
     def set_subjects_num_total(self, *, value: int) -> None:
-        LOG.debug("Setting subjects gauge to %s with attributes %s", value, self._tags)
-        self._total_subjects_gauge.set(amount=value, attributes=self._tags)
+        LOG.debug("Setting subjects gauge to %s with labels %s", value, self._tags)
+        self._total_subjects_gauge.labels(**self._tags).set(value)
 
     def set_schema_versions_num_total(self, *, live_versions: int, soft_deleted_versions: int) -> None:
         LOG.debug(
-            "Setting schema versions gauge: live=%s, soft_deleted=%s with attributes %s",
+            "Setting schema versions gauge: live=%s, soft_deleted=%s with labels %s",
             live_versions,
             soft_deleted_versions,
             self._tags,
         )
-        self._schema_versions_gauge.set(amount=live_versions, attributes={"state": "live", **self._tags})
-        self._schema_versions_gauge.set(amount=soft_deleted_versions, attributes={"state": "soft_deleted", **self._tags})
+        self._schema_versions_gauge.labels(state="live", **self._tags).set(live_versions)
+        self._schema_versions_gauge.labels(state="soft_deleted", **self._tags).set(soft_deleted_versions)
 
     def unexpected_exception(self, ex: Exception, where: str, tags: dict | None = None) -> None:
         all_tags = {
