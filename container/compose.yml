@@ -186,6 +186,10 @@ services:
       KARAPACE_STATSD_PORT: 8125
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Enable rest_authorization in production to enforce Kafka ACLs on REST proxy requests.
+      # When disabled (default), the REST proxy bypasses all Kafka ACLs.
+      # KARAPACE_REST_AUTHORIZATION: true
+      # KARAPACE_SASL_BOOTSTRAP_URI: kafka:29094
 
   kafka:
     networks:

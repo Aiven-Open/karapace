@@ -114,6 +114,7 @@ class Config(BaseSettings):
     registry_password: str | None = None
     registry_ca: str | None = None
     registry_authfile: str | None = None
+    # When False (default), the REST proxy bypasses Kafka ACLs. Set to True for production use.
     rest_authorization: bool = False
     rest_base_uri: str | None = None
     log_handler: str | None = "stdout"

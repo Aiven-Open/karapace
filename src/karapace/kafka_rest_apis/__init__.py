@@ -79,7 +79,15 @@ class KafkaRest(KarapaceBase):
         self.serializer = SchemaRegistrySerializer(config=config)
         self.proxies: dict[str, UserRestProxy] = {}
         self._proxy_lock = asyncio.Lock()
-        log.info("REST proxy starting with (delegated authorization=%s)", self.config.rest_authorization)
+        if self.config.rest_authorization:
+            log.info("REST proxy starting with delegated authorization enabled")
+        else:
+            log.warning(
+                "REST proxy starting with authorization disabled (rest_authorization=false). "
+                "All Kafka ACLs will be bypassed for REST proxy requests. "
+                "This is suitable for development only. "
+                "Set rest_authorization=true and configure sasl_bootstrap_uri for production use."
+            )
         self._idle_proxy_janitor_task: asyncio.Task | None = None
 
     async def close(self) -> None:
