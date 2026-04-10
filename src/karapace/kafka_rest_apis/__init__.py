@@ -85,7 +85,7 @@ class KafkaRest(KarapaceBase):
             log.warning(
                 "REST proxy starting with authorization disabled (rest_authorization=false). "
                 "All Kafka ACLs will be bypassed for REST proxy requests. "
-                "Set rest_authorization=true and configure sasl_bootstrap_uri for production use."
+                "Set rest_authorization=true and configure sasl_bootstrap_uri."
             )
         self._idle_proxy_janitor_task: asyncio.Task | None = None
 
