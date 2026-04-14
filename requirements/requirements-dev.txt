@@ -264,7 +264,7 @@ pyjwt==2.12.1
     # via karapace (/karapace/pyproject.toml)
 pyrepl==0.11.4
     # via fancycompleter
-pytest==9.0.2
+pytest==9.0.3
     # via
     #   karapace (/karapace/pyproject.toml)
     #   locust
