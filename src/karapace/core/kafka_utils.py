@@ -12,28 +12,14 @@ from karapace.core.kafka.producer import KafkaProducer
 import contextlib
 
 
-_oauth_token_provider_cache: dict[type, object] = {}
-
-
 def get_oauth_token_provider(config: Config) -> object | None:
-    """Return the configured OAuth token provider singleton, if any.
+    """Return the configured OAuth token provider instance, if any.
 
-    The provider class is instantiated once and cached for the lifetime of the
-    process.  The instance must expose a ``token_with_expiry`` method as
-    required by confluent-kafka's OAUTHBEARER flow.
+    The provider is instantiated once during Config initialization and
+    validated to expose a ``token_with_expiry`` method as required by
+    confluent-kafka's OAUTHBEARER flow.
     """
-    if config.sasl_oauth_token_provider_class is None:
-        return None
-    cls = config.sasl_oauth_token_provider_class
-    if cls not in _oauth_token_provider_cache:
-        instance = cls()
-        if not callable(getattr(instance, "token_with_expiry", None)):
-            raise ValueError(
-                f"OAuth token provider {cls.__name__} must implement a "
-                f"token_with_expiry() method returning {{'token': str, 'expiry': float}}"
-            )
-        _oauth_token_provider_cache[cls] = instance
-    return _oauth_token_provider_cache[cls]
+    return config._sasl_oauth_token_provider
 
 
 def kafka_admin_from_config(config: Config) -> KafkaAdminClient:

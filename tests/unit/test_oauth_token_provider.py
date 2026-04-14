@@ -10,16 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from karapace.core.config import Config
-from karapace.core import kafka_utils
 from karapace.core.kafka_utils import get_oauth_token_provider
-
-
-@pytest.fixture(autouse=True)
-def _clear_provider_cache():
-    """Clear the singleton cache between tests."""
-    kafka_utils._oauth_token_provider_cache.clear()
-    yield
-    kafka_utils._oauth_token_provider_cache.clear()
 
 
 class StubTokenProvider:
@@ -34,6 +25,7 @@ def _make_config_with_provider():
     config.sasl_mechanism = "OAUTHBEARER"
     config.security_protocol = "SASL_SSL"
     config.sasl_oauth_token_provider_class = StubTokenProvider
+    config.model_post_init(None)
     return config
 
 
@@ -54,11 +46,11 @@ class TestGetOauthTokenProvider:
             pass
 
         config = Config()
-        config.sasl_oauth_token_provider_class = BadProvider
         with pytest.raises(ValueError, match="must implement a token_with_expiry"):
-            get_oauth_token_provider(config)
+            config.sasl_oauth_token_provider_class = BadProvider
+            config.model_post_init(None)
 
-    def test_returns_cached_instance(self):
+    def test_returns_same_instance(self):
         config = _make_config_with_provider()
         first = get_oauth_token_provider(config)
         second = get_oauth_token_provider(config)
