@@ -76,20 +76,12 @@ class StatsClient:
         )
 
     def set_schemas_num_total(self, *, value: int) -> None:
-        LOG.debug("Setting schemas gauge to %s with labels %s", value, self._tags)
         self._total_schemas_gauge.labels(**self._tags).set(value)
 
     def set_subjects_num_total(self, *, value: int) -> None:
-        LOG.debug("Setting subjects gauge to %s with labels %s", value, self._tags)
         self._total_subjects_gauge.labels(**self._tags).set(value)
 
     def set_schema_versions_num_total(self, *, live_versions: int, soft_deleted_versions: int) -> None:
-        LOG.debug(
-            "Setting schema versions gauge: live=%s, soft_deleted=%s with labels %s",
-            live_versions,
-            soft_deleted_versions,
-            self._tags,
-        )
         self._schema_versions_gauge.labels(state="live", **self._tags).set(live_versions)
         self._schema_versions_gauge.labels(state="soft_deleted", **self._tags).set(soft_deleted_versions)
 

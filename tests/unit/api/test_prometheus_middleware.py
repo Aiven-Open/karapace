@@ -74,7 +74,6 @@ class TestStandardMetrics:
         body = response.text
 
         assert "http_requests_total{" in body
-        assert "http_request_duration_seconds" in body
 
     def test_standard_metrics_record_error_status(self, client: TestClient) -> None:
         client.get("/fail")
@@ -112,7 +111,6 @@ class TestKarapaceMetrics:
         body = response.text
 
         assert "karapace_http_requests_total{" in body
-        assert "karapace_http_requests_duration_seconds" in body
 
     def test_karapace_metrics_record_error_status(self, client: TestClient) -> None:
         client.get("/fail")

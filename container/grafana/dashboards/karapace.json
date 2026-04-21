@@ -352,83 +352,6 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineWidth": 1,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "karapace_http_requests_duration_seconds_bucket",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "instance={{instance}} method={{method}} path={{path}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "HTTP Requests Duration",
-      "type": "histogram"
-    },
-    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -501,7 +424,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "karapace_schema_reader_subjects_total{exported_job=\"karapace-schema-registry\"}",
+          "expr": "karapace_schema_reader_subjects{app=\"karapace-schema-registry\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -574,7 +497,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "karapace_schema_reader_schemas_total{exported_job=\"karapace-schema-registry\"}",
+          "expr": "karapace_schema_reader_schemas{app=\"karapace-schema-registry\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -719,7 +642,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "karapace_schema_reader_subject_data_schema_versions_total",
+          "expr": "karapace_schema_reader_subject_data_schema_versions",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
