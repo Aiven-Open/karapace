@@ -12,7 +12,7 @@ from prometheus_client import REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator.metrics import default as default_metrics
 
-from karapace.api.middlewares import _karapace_requests_total, _karapace_requests_duration
+from karapace.api.middlewares import _karapace_requests_total
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,6 @@ def app() -> FastAPI:
     instrumentator.add(
         default_metrics(),
         _karapace_requests_total(),
-        _karapace_requests_duration(),
     )
     instrumentator.instrument(app).expose(app, include_in_schema=False)
 
