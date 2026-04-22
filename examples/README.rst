@@ -21,6 +21,18 @@ Your class must implement a single method::
 This matches the ``TokenWithExpiryProvider`` protocol defined in
 ``karapace.core.kafka.common``.
 
+.. note::
+
+   This protocol shape is a transitive consequence of Karapace's Kafka
+   client layer: all admin/consumer/producer clients are built on
+   ``confluent-kafka`` (librdkafka), and the provider's
+   ``token_with_expiry`` method is wired directly into librdkafka's
+   ``oauth_cb`` callback, which expects ``(token, expiry)``. Providers
+   written against ``aiokafka`` or ``kafka-python`` — which use
+   ``AbstractTokenProvider.token()`` returning just a string, with no
+   expiry or refresh callback — are **not** compatible and cannot be
+   used here.
+
 Configuration
 -------------
 
