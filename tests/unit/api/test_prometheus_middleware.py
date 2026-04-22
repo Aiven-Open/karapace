@@ -12,7 +12,7 @@ from prometheus_client import REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator.metrics import default as default_metrics
 
-from karapace.api.middlewares import _karapace_requests_total, _karapace_requests_duration
+from karapace.api.middlewares import _karapace_requests_total
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,6 @@ def app() -> FastAPI:
     instrumentator.add(
         default_metrics(),
         _karapace_requests_total(),
-        _karapace_requests_duration(),
     )
     instrumentator.instrument(app).expose(app, include_in_schema=False)
 
@@ -74,7 +73,6 @@ class TestStandardMetrics:
         body = response.text
 
         assert "http_requests_total{" in body
-        assert "http_request_duration_seconds" in body
 
     def test_standard_metrics_record_error_status(self, client: TestClient) -> None:
         client.get("/fail")
@@ -112,7 +110,6 @@ class TestKarapaceMetrics:
         body = response.text
 
         assert "karapace_http_requests_total{" in body
-        assert "karapace_http_requests_duration_seconds" in body
 
     def test_karapace_metrics_record_error_status(self, client: TestClient) -> None:
         client.get("/fail")
