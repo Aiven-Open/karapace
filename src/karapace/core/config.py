@@ -15,7 +15,7 @@ from karapace.core.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRO
 from karapace.core.typing import ElectionStrategy, NameStrategy
 from karapace.core.utils import json_encode
 from pathlib import Path
-from pydantic import BaseModel, ImportString, field_validator
+from pydantic import BaseModel, ImportString, PrivateAttr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import enum
@@ -143,6 +143,8 @@ class Config(BaseSettings):
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None
     sasl_oauth_token: str | None = None
+    sasl_oauth_token_provider_class: ImportString | None = None
+    _sasl_oauth_token_provider: object = PrivateAttr(default=None)
     topic_name: str = DEFAULT_SCHEMA_TOPIC
     metadata_max_age_ms: int = 60000
     admin_metadata_max_age: int = 5
@@ -174,6 +176,16 @@ class Config(BaseSettings):
 
     # set tags if not set
     #  new_config["tags"]["app"] = "Karapace"
+
+    def model_post_init(self, __context: object) -> None:
+        if self.sasl_oauth_token_provider_class is not None:
+            instance = self.sasl_oauth_token_provider_class()
+            if not callable(getattr(instance, "token_with_expiry", None)):
+                raise ValueError(
+                    f"OAuth token provider {self.sasl_oauth_token_provider_class.__name__} must implement a "
+                    f"token_with_expiry() method returning (token: str, expiry: float)"
+                )
+            self._sasl_oauth_token_provider = instance
 
     def get_advertised_port(self) -> int:
         return self.advertised_port or self.port
