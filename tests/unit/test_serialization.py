@@ -374,6 +374,41 @@ async def test_deserialization_fails(karapace_container: KarapaceContainer):
     assert mock_registry_client.method_calls == [call.get_schema_for_id(1)]
 
 
+async def test_upsert_id_for_schema_does_not_reuse_cached_id_from_other_subject(
+    karapace_container: KarapaceContainer,
+) -> None:
+    subject_1 = Subject("upsert-subject-cache-subject-1")
+    subject_2 = Subject("upsert-subject-cache-subject-2")
+    schema_id_1 = 81
+    schema_id_2 = 82
+    mock_registry_client = Mock()
+
+    post_first_future = asyncio.Future()
+    post_first_future.set_result(schema_id_1)
+    get_schema_for_id_future = asyncio.Future()
+    get_schema_for_id_future.set_result((TYPED_AVRO_SCHEMA, [subject_1]))
+    post_second_future = asyncio.Future()
+    post_second_future.set_result(schema_id_2)
+
+    mock_registry_client.post_new_schema.side_effect = [
+        post_first_future,
+        post_second_future,
+    ]
+    mock_registry_client.get_schema_for_id.return_value = get_schema_for_id_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    first_schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject_1)
+    second_schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject_2)
+
+    assert first_schema_id == schema_id_1
+    assert second_schema_id == schema_id_2
+    assert mock_registry_client.method_calls == [
+        call.post_new_schema(subject_1, TYPED_AVRO_SCHEMA),
+        call.get_schema_for_id(schema_id_1),
+        call.post_new_schema(subject_2, TYPED_AVRO_SCHEMA),
+    ]
+
+
 @pytest.mark.parametrize(
     "expected_subject,strategy,subject_type",
     (
