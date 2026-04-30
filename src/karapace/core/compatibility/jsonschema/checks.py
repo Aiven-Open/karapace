@@ -875,7 +875,8 @@ def compatibility_subschemas(
 
     if reader_type in (Subschema.ANY_OF, Subschema.ONE_OF) and not writer_has_subschema:
         assert isinstance(reader_type, Subschema)
-        for reader_subschema in reader_schema[reader_type.value]:
+        assert reader_subschemas is not None
+        for reader_subschema in reader_subschemas:
             rec_result = compatibility_rec(reader_subschema, writer_schema, subschema_location)
             if is_compatible(rec_result):
                 return rec_result

@@ -83,6 +83,16 @@ ONEOF_INT_SCHEMA = parse_jsonschema_definition('{"oneOf":[{"type":"integer"}]}')
 ONEOF_NUMBER_SCHEMA = parse_jsonschema_definition('{"oneOf":[{"type":"number"}]}')
 TYPES_STRING_INT_SCHEMA = parse_jsonschema_definition('{"type":["string","integer"]}')
 TYPES_STRING_SCHEMA = parse_jsonschema_definition('{"type":["string"]}')
+TYPES_STRING_NULL_SCHEMA = parse_jsonschema_definition('{"type":["string","null"]}')
+TYPES_INT_BOOL_SCHEMA = parse_jsonschema_definition('{"type":["integer","boolean"]}')
+TYPES_STRING_NULL_BOOL_SCHEMA = parse_jsonschema_definition('{"type":["string","null","boolean"]}')
+A_STRING_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","properties":{"a":{"type":"string"}}}')
+A_STRING_OR_NULL_OBJECT_SCHEMA = parse_jsonschema_definition(
+    '{"type":"object","properties":{"a":{"type":["string","null"]}}}'
+)
+A_INT_OR_BOOL_OBJECT_SCHEMA = parse_jsonschema_definition(
+    '{"type":"object","properties":{"a":{"type":["integer","boolean"]}}}'
+)
 EMPTY_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","additionalProperties":false}')
 A_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","properties":{"a":{}}}')
 A_INT_OBJECT_SCHEMA = parse_jsonschema_definition(
