@@ -100,8 +100,14 @@ from tests.schemas.json_schemas import (
     TUPLE_OF_INT_OPEN_SCHEMA,
     TUPLE_OF_INT_SCHEMA,
     TUPLE_OF_INT_WITH_ADDITIONAL_INT_SCHEMA,
+    TYPES_INT_BOOL_SCHEMA,
     TYPES_STRING_INT_SCHEMA,
+    TYPES_STRING_NULL_BOOL_SCHEMA,
+    TYPES_STRING_NULL_SCHEMA,
     TYPES_STRING_SCHEMA,
+    A_INT_OR_BOOL_OBJECT_SCHEMA,
+    A_STRING_OBJECT_SCHEMA,
+    A_STRING_OR_NULL_OBJECT_SCHEMA,
 )
 
 COMPATIBLE = SchemaCompatibilityResult(SchemaCompatibilityType.compatible)
@@ -1452,6 +1458,61 @@ def test_type_with_list():
         reader=TYPES_STRING_INT_SCHEMA,
         writer=TYPES_STRING_SCHEMA,
         msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_type_array_reader_vs_plain_writer():
+    # Regression for KeyError: 'anyOf' raised from compatibility_subschemas when
+    # the reader uses the "type": [...] shorthand (which is normalized to an
+    # anyOf in memory but has no anyOf key on the dict) and the writer has no
+    # subschema construct. See: checks.py:compatibility_subschemas.
+
+    # --- Compatible: reader type-array is a superset of writer's single type ---
+
+    # The customer-reported case: string -> ["string", "null"] (nullable widening)
+    schemas_are_compatible(
+        reader=TYPES_STRING_NULL_SCHEMA,
+        writer=STRING_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+    # Nested: the same widening inside an object property
+    schemas_are_compatible(
+        reader=A_STRING_OR_NULL_OBJECT_SCHEMA,
+        writer=A_STRING_OBJECT_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+    # Non-null widening: integer -> ["integer", "boolean"]
+    schemas_are_compatible(
+        reader=TYPES_INT_BOOL_SCHEMA,
+        writer=INT_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+    # 3-way type-array still works: string -> ["string", "null", "boolean"]
+    schemas_are_compatible(
+        reader=TYPES_STRING_NULL_BOOL_SCHEMA,
+        writer=STRING_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+    # --- Incompatible: writer's single type is not in the reader's type-array ---
+
+    # boolean -> ["string", "null"]: old boolean data no longer validates
+    not_schemas_are_compatible(
+        reader=TYPES_STRING_NULL_SCHEMA,
+        writer=BOOLEAN_SCHEMA,
+        msg=INCOMPATIBLE_READER_CHANGED_FIELD_TYPE,
+    )
+    # Nested: {a: integer} -> {a: ["string", "null"]}
+    not_schemas_are_compatible(
+        reader=A_STRING_OR_NULL_OBJECT_SCHEMA,
+        writer=A_INT_OPEN_OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_CHANGED_FIELD_TYPE,
+    )
+    # Nested: {a: string} -> {a: ["integer", "boolean"]}
+    not_schemas_are_compatible(
+        reader=A_INT_OR_BOOL_OBJECT_SCHEMA,
+        writer=A_STRING_OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_CHANGED_FIELD_TYPE,
     )
 
 
