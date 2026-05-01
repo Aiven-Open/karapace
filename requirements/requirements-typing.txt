@@ -130,7 +130,7 @@ multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
-mypy==1.19.1
+mypy==1.20.2
     # via karapace (/karapace/pyproject.toml)
 mypy-extensions==1.1.0
     # via mypy
