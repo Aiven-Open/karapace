@@ -254,7 +254,7 @@ typer==0.24.1
     # via
     #   fastapi-cli
     #   fastapi-cloud-cli
-types-cachetools==6.2.0.20260317
+types-cachetools==6.2.0.20260408
     # via karapace (/karapace/pyproject.toml)
 types-jsonschema==4.26.0.20260325
     # via karapace (/karapace/pyproject.toml)
