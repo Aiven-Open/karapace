@@ -310,7 +310,7 @@ requests==2.33.0
     #   locust
     #   opentelemetry-exporter-otlp-proto-http
     #   python-socketio
-rich==14.3.3
+rich==15.0.0
     # via
     #   rich-toolkit
     #   typer
