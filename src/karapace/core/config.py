@@ -120,6 +120,7 @@ class Config(BaseSettings):
     log_handler: str | None = "stdout"
     log_level: str = "DEBUG"
     log_format: str = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"
+    suppress_health_access_logs: bool = False
     master_eligibility: bool = True
     replication_factor: int = 1
     security_protocol: str = "PLAINTEXT"

@@ -88,6 +88,13 @@ what you need to change.
 
 .. _`Here`: https://github.com/Aiven-Open/karapace/blob/master/karapace.config.json
 
+To reduce log noise from Kubernetes or load balancer probes, enable::
+
+  suppress_health_access_logs = true
+
+This opt-in setting suppresses access logs for ``/_health`` while keeping all
+other HTTP access logs unchanged.
+
 Using Sources
 -------------
 
