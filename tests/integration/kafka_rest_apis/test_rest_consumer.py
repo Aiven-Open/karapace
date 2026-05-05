@@ -577,6 +577,245 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
         assert expected == actual, f"Expecting {actual} to be {expected}"
 
 
+async def test_avro_publish_consume_logical_types_roundtrip(rest_async_client, admin_client):
+    header = REST_HEADERS["avro"]
+    group_name = new_random_name("logical_types_group")
+    instance_id = await new_consumer(rest_async_client, group_name, fmt="avro")
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000"
+
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_client.post(assign_path, json=assign_payload, headers=header)
+    assert res.ok
+
+    schema = {
+        "type": "record",
+        "name": "example.avro.ComplexRecord",
+        "fields": [
+            {
+                "name": "ts_millis",
+                "type": ["null", {"type": "long", "logicalType": "timestamp-millis"}],
+            },
+            {
+                "name": "ts_micros",
+                "type": {"type": "long", "logicalType": "timestamp-micros"},
+            },
+            {
+                "name": "d",
+                "type": {"type": "int", "logicalType": "date"},
+            },
+            {
+                "name": "t_millis",
+                "type": ["null", {"type": "int", "logicalType": "time-millis"}],
+            },
+            {
+                "name": "t_micros",
+                "type": {"type": "long", "logicalType": "time-micros"},
+            },
+            {
+                "name": "price",
+                "type": {"type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 2},
+            },
+            {
+                "name": "dates",
+                "type": {"type": "array", "items": {"type": "int", "logicalType": "date"}},
+            },
+            {
+                "name": "events",
+                "type": {
+                    "type": "map",
+                    "values": {"type": "long", "logicalType": "timestamp-millis"},
+                },
+            },
+            {
+                "name": "meta",
+                "type": {
+                    "type": "record",
+                    "name": "example.avro.Meta",
+                    "fields": [
+                        {
+                            "name": "updated_at",
+                            "type": {"type": "long", "logicalType": "timestamp-micros"},
+                        }
+                    ],
+                },
+            },
+            {
+                "name": "maybe_ts",
+                "type": ["null", {"type": "long", "logicalType": "timestamp-millis"}],
+            },
+        ],
+    }
+
+    value = {
+        "ts_millis": 1_600_000_000_000,
+        "ts_micros": 1_600_000_000_000_000,
+        "d": 18_000,
+        "t_millis": 43_200_000,
+        "t_micros": 43_200_000_000,
+        "price": "BZw=",  # Confluent base64: bytes 0x05 0x9c = unscaled 1436, scale=2 → 14.36
+        "dates": [18_000, 18_001],
+        "events": {"open": 1_600_000_000_000, "close": 1_600_086_400_000},
+        "meta": {"updated_at": 1_600_000_000_000_000},
+        "maybe_ts": None,
+    }
+
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        f"topics/{topic_name}",
+        json_data={"value_schema": json.dumps(schema), "records": [{"value": value}]},
+        headers=header,
+        error_msg="Unexpected response status for offset commit",
+        timeout=10,
+        sleep=1,
+    )
+
+    resp = await rest_async_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == 1
+
+    expected = {
+        "ts_millis": "2020-09-13T12:26:40Z",
+        "ts_micros": "2020-09-13T12:26:40Z",
+        "d": "2019-04-14",
+        "t_millis": "12:00:00",
+        "t_micros": "12:00:00",
+        "price": "14.36",
+        "dates": ["2019-04-14", "2019-04-15"],
+        "events": {"open": "2020-09-13T12:26:40Z", "close": "2020-09-14T12:26:40Z"},
+        "meta": {"updated_at": "2020-09-13T12:26:40Z"},
+        "maybe_ts": None,
+    }
+
+    assert data[0]["value"] == expected
+
+
+async def test_avro_publish_consume_iso8601_timezone_roundtrip(rest_async_extended_parser_client, admin_client):
+    """Round-trip test using the example from the Avro specification
+    (https://avro.apache.org/docs/1.12.0/specification/#time_ms):
+
+    An event at noon local time on 2000-01-01 in Helsinki (UTC+2) is
+    published as the ISO 8601 string "2000-01-01T12:00:00+02:00".
+    The REST proxy must shift it to UTC (10:00) before encoding, so when
+    read back the value is "2000-01-01T10:00:00Z" — equivalent to Avro
+    long 946720800000 ms.
+    """
+    header = REST_HEADERS["avro"]
+    group_name = new_random_name("iso8601_tz_group")
+    instance_id = await new_consumer(rest_async_extended_parser_client, group_name, fmt="avro")
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000"
+
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_extended_parser_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_extended_parser_client.post(assign_path, json=assign_payload, headers=header)
+    assert res.ok
+
+    schema = {
+        "type": "record",
+        "name": "example.avro.TimezoneRecord",
+        "fields": [
+            {"name": "ts_millis", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+            {"name": "ts_micros", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+        ],
+    }
+
+    # Helsinki noon (UTC+2) — both millis and micros precision
+    value = {
+        "ts_millis": "2000-01-01T12:00:00+02:00",
+        "ts_micros": "2000-01-01T12:00:00+02:00",
+    }
+
+    await repeat_until_successful_request(
+        rest_async_extended_parser_client.post,
+        f"topics/{topic_name}",
+        json_data={"value_schema": json.dumps(schema), "records": [{"value": value}]},
+        headers=header,
+        error_msg="Unexpected response status for publish",
+        timeout=10,
+        sleep=1,
+    )
+
+    resp = await rest_async_extended_parser_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == 1
+
+    # After UTC shift: 2000-01-01T10:00:00Z (946720800000 ms from epoch)
+    expected = {
+        "ts_millis": "2000-01-01T10:00:00Z",
+        "ts_micros": "2000-01-01T10:00:00Z",
+    }
+
+    assert data[0]["value"] == expected
+
+
+async def test_avro_publish_consume_iso8601_roundtrip(rest_async_extended_parser_client, admin_client):
+    header = REST_HEADERS["avro"]
+    group_name = new_random_name("iso8601_group")
+    instance_id = await new_consumer(rest_async_extended_parser_client, group_name, fmt="avro")
+    assign_path = f"/consumers/{group_name}/instances/{instance_id}/assignments"
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000"
+
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_extended_parser_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    assign_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
+    res = await rest_async_extended_parser_client.post(assign_path, json=assign_payload, headers=header)
+    assert res.ok
+
+    schema = {
+        "type": "record",
+        "name": "example.avro.Iso8601LogicalTypesRecord",
+        "fields": [
+            {"name": "ts_millis", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+            {"name": "ts_micros", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+            {"name": "d", "type": {"type": "int", "logicalType": "date"}},
+            {"name": "t_millis", "type": {"type": "int", "logicalType": "time-millis"}},
+            {"name": "t_micros", "type": {"type": "long", "logicalType": "time-micros"}},
+        ],
+    }
+
+    value = {
+        "ts_millis": "2020-09-13T12:26:40Z",
+        "ts_micros": "2020-09-13T12:26:40Z",
+        "d": "2019-04-14",
+        "t_millis": "12:00:00",
+        "t_micros": "12:00:00",
+    }
+
+    await repeat_until_successful_request(
+        rest_async_extended_parser_client.post,
+        f"topics/{topic_name}",
+        json_data={"value_schema": json.dumps(schema), "records": [{"value": value}]},
+        headers=header,
+        error_msg="Unexpected response status for publish",
+        timeout=10,
+        sleep=1,
+    )
+
+    resp = await rest_async_extended_parser_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == 1
+
+    expected = {
+        "ts_millis": "2020-09-13T12:26:40Z",
+        "ts_micros": "2020-09-13T12:26:40Z",
+        "d": "2019-04-14",
+        "t_millis": "12:00:00",
+        "t_micros": "12:00:00",
+    }
+
+    assert data[0]["value"] == expected
+
+
 @pytest.mark.parametrize("fmt", ["avro"])
 async def test_consume_avro_key_deserialization_error_fallback(
     rest_async_client,

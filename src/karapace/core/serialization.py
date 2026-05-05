@@ -36,12 +36,23 @@ from urllib.parse import quote
 import asyncio
 import avro
 import avro.schema
+import base64
+import datetime
+import decimal
 import io
+import re
 import struct
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
 HEADER_SIZE = 5
+
+_EPOCH_DATETIME = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+_EPOCH_DATE = datetime.date(1970, 1, 1)
+_MILLIS_PER_DAY = 86_400_000
+_MICROS_PER_DAY = 86_400_000_000
+_DECIMAL_TEN = decimal.Decimal(10)
+_DECIMAL_STRING_RE = re.compile(r"-?\d+(\.\d+)?([Ee][+-]?\d+)?")
 
 
 class DeserializationError(Exception):
@@ -450,6 +461,150 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
+def convert_logical_types(schema: avro.schema.Schema, value: Any, extended_json_parser: bool = False) -> Any:
+    """Recursively coerce JSON-friendly Avro values to logical Python types.
+    https://avro.apache.org/docs/++version++/specification/#logical-types
+
+    The function traverses records, arrays, maps, and unions, converting values
+    for known logical types:
+
+    - timestamp-millis / timestamp-micros:
+        int (ms/µs since epoch) -> timezone-aware UTC datetime.datetime.
+        str ISO 8601 (extended_json_parser only) -> UTC datetime.datetime;
+        timezone-aware strings are shifted to UTC, naive strings are assumed UTC.
+    - date:
+        int (days since epoch) -> datetime.date.
+        str ISO 8601 (extended_json_parser only) -> datetime.date.
+    - time-millis / time-micros:
+        int (ms/µs of day) -> datetime.time.
+        str ISO 8601 (extended_json_parser only) -> datetime.time.
+    - decimal:
+        extended_json_parser=True: int or numeric string ("123.45", "-7")
+          -> decimal.Decimal quantized to schema scale (ROUND_HALF_UP).
+        extended_json_parser=False (default): Confluent-compatible Base64-encoded
+          two's complement unscaled bytes (e.g. "BZw=" for 14.36 at scale=2)
+          -> decimal.Decimal. Integer inputs are also accepted in both modes.
+        float inputs are intentionally not accepted to avoid silent precision loss.
+
+    Args:
+        schema: The Avro schema for the current node.
+        value: The JSON-decoded value to coerce.
+        extended_json_parser: When True, temporal fields additionally accept ISO 8601
+            strings and decimal fields accept numeric strings. Defaults to False
+            (Confluent-compatible behaviour).
+
+    For unions, each branch is tried in order; the first branch that validates after
+    conversion is returned. If conversion is not applicable or fails, the original
+    value is returned unchanged.
+    """
+    if isinstance(schema, avro.schema.RecordSchema) and isinstance(value, dict):
+        result: dict[Any, Any] = dict(value)
+        for field in schema.fields:
+            if field.name in value:
+                result[field.name] = convert_logical_types(field.type, value[field.name], extended_json_parser)
+        return result
+
+    if isinstance(schema, avro.schema.UnionSchema):
+        # Try to find a branch schema that validates after conversion.
+        for branch in schema.schemas:
+            converted = convert_logical_types(branch, value, extended_json_parser)
+            if avro.io.validate(branch, converted):
+                return converted
+        return value
+
+    if isinstance(schema, avro.schema.ArraySchema) and isinstance(value, list):
+        return [convert_logical_types(schema.items, v, extended_json_parser) for v in value]
+
+    if isinstance(schema, avro.schema.MapSchema) and isinstance(value, dict):
+        return {k: convert_logical_types(schema.values, v, extended_json_parser) for (k, v) in value.items()}
+
+    if isinstance(schema, avro.schema.LogicalSchema):
+        logical_type = getattr(schema, "logical_type", None)
+
+        # Timestamps
+        if logical_type == "timestamp-millis":
+            if isinstance(value, int):
+                return _EPOCH_DATETIME + datetime.timedelta(milliseconds=value)
+            if extended_json_parser and isinstance(value, str):
+                try:
+                    parsed = datetime.datetime.fromisoformat(value)
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+                    return parsed.astimezone(datetime.timezone.utc)
+                except ValueError:
+                    return value
+
+        if logical_type == "timestamp-micros":
+            if isinstance(value, int):
+                return _EPOCH_DATETIME + datetime.timedelta(microseconds=value)
+            if extended_json_parser and isinstance(value, str):
+                try:
+                    parsed = datetime.datetime.fromisoformat(value)
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+                    return parsed.astimezone(datetime.timezone.utc)
+                except ValueError:
+                    return value
+
+        # Date
+        if logical_type == "date":
+            if isinstance(value, int):
+                return _EPOCH_DATE + datetime.timedelta(days=value)
+            if extended_json_parser and isinstance(value, str):
+                try:
+                    return datetime.date.fromisoformat(value)
+                except ValueError:
+                    return value
+
+        # Time
+        if logical_type == "time-millis":
+            if isinstance(value, int):
+                value = value % _MILLIS_PER_DAY
+                seconds, millis = divmod(value, 1000)
+                hours, rem = divmod(seconds, 3600)
+                minutes, seconds = divmod(rem, 60)
+                return datetime.time(hour=hours, minute=minutes, second=seconds, microsecond=millis * 1000)
+            if extended_json_parser and isinstance(value, str):
+                try:
+                    return datetime.time.fromisoformat(value)
+                except ValueError:
+                    return value
+
+        if logical_type == "time-micros":
+            if isinstance(value, int):
+                value = value % _MICROS_PER_DAY
+                seconds, micros = divmod(value, 1_000_000)
+                hours, rem = divmod(seconds, 3600)
+                minutes, seconds = divmod(rem, 60)
+                return datetime.time(hour=hours, minute=minutes, second=seconds, microsecond=micros)
+            if extended_json_parser and isinstance(value, str):
+                try:
+                    return datetime.time.fromisoformat(value)
+                except ValueError:
+                    return value
+
+        # Decimal: accept numeric values (int/float/str/Decimal) or Confluent-style
+        # base64-encoded two's complement unscaled bytes (e.g. "BYw=" for 14.36 scale=2).
+        if logical_type == "decimal" and isinstance(value, (int, str)):
+            scale: int = getattr(schema, "scale", 0)
+            # Numeric path: int or decimal-looking string ("123.45", "-7")
+            if extended_json_parser:
+                if isinstance(value, int) or (isinstance(value, str) and _DECIMAL_STRING_RE.fullmatch(value)):
+                    try:
+                        return decimal.Decimal(str(value)).quantize(_DECIMAL_TEN**-scale, rounding=decimal.ROUND_HALF_UP)
+                    except (decimal.InvalidOperation, ValueError):
+                        return value
+            # Confluent base64 bytes path: base64 string or raw bytes
+            try:
+                raw: bytes = base64.b64decode(value, validate=True) if isinstance(value, str) else value
+                unscaled = int.from_bytes(raw, byteorder="big", signed=True)
+                return decimal.Decimal(unscaled).scaleb(-scale)
+            except Exception:
+                return value
+
+    return value
+
+
 def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
         reader = DatumReader(writers_schema=schema.schema)
@@ -475,10 +630,16 @@ def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
 def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
-        if avro.io.validate(schema.schema, value):
-            data = value
+        # First, try to convert logical types on the original value. If the resulting
+        # value validates against the schema, use it as-is to preserve backwards
+        # compatibility with existing union encodings. Otherwise, fall back to
+        # flattening unions and then converting logical types.
+        converted = convert_logical_types(schema.schema, value, config.rest_avro_extended_json_parser)
+        if avro.io.validate(schema.schema, converted):
+            data = converted
         else:
-            data = flatten_unions(schema.schema, value)
+            flattened = flatten_unions(schema.schema, value)
+            data = convert_logical_types(schema.schema, flattened, config.rest_avro_extended_json_parser)
 
         writer = DatumWriter(writers_schema=schema.schema)
         writer.write(data, BinaryEncoder(bio))

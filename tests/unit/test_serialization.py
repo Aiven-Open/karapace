@@ -5,6 +5,8 @@ See LICENSE for details
 
 import asyncio
 import copy
+import datetime
+import decimal
 import io
 import json
 import logging
@@ -25,6 +27,7 @@ from karapace.core.serialization import (
     SchemaRegistryClient,
     SchemaRegistrySerializer,
     flatten_unions,
+    convert_logical_types,
     get_subject_name,
     write_value,
 )
@@ -213,6 +216,233 @@ def test_flatten_unions_map() -> None:
     record = [{"string": "foo"}, None, {"int": 1}]
     flatten_record = ["foo", None, 1]
     assert flatten_unions(typed_schema.schema, record) == flatten_record
+
+
+@pytest.mark.parametrize(
+    "schema_json,value,expected_type",
+    (
+        ({"type": "long", "logicalType": "timestamp-millis"}, 1_600_000_000_000, "datetime"),
+        ({"type": "long", "logicalType": "timestamp-micros"}, 1_600_000_000_000_000, "datetime"),
+        ({"type": "int", "logicalType": "date"}, 18_000, "date"),
+        ({"type": "int", "logicalType": "time-millis"}, 12 * 60 * 60 * 1000, "time"),
+        ({"type": "long", "logicalType": "time-micros"}, 12 * 60 * 60 * 1_000_000, "time"),
+        ({"type": "bytes", "logicalType": "decimal", "precision": 5, "scale": 2}, "123.45", "decimal"),
+    ),
+)
+def test_convert_logical_types_primitives(schema_json, value, expected_type) -> None:
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+    extended = expected_type == "decimal"
+    converted = convert_logical_types(typed_schema.schema, value, extended_json_parser=extended)
+
+    if expected_type == "datetime":
+        assert isinstance(converted, datetime.datetime)
+    elif expected_type == "date":
+        assert isinstance(converted, datetime.date)
+    elif expected_type == "time":
+        assert isinstance(converted, datetime.time)
+    elif expected_type == "decimal":
+        assert isinstance(converted, decimal.Decimal)
+
+
+def test_convert_logical_types_in_record_and_union() -> None:
+    schema = {
+        "type": "record",
+        "name": "TestRecord",
+        "fields": [
+            {
+                "name": "ts",
+                "type": [
+                    "null",
+                    {
+                        "type": "long",
+                        "logicalType": "timestamp-millis",
+                    },
+                ],
+            },
+            {
+                "name": "d",
+                "type": {
+                    "type": "int",
+                    "logicalType": "date",
+                },
+            },
+        ],
+    }
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema))
+    value = {"ts": 1_600_000_000_000, "d": 18_000}
+
+    converted = convert_logical_types(typed_schema.schema, value)
+    assert isinstance(converted["ts"], datetime.datetime)
+    assert isinstance(converted["d"], datetime.date)
+
+
+def test_convert_logical_types_decimal_quantize_int() -> None:
+    schema_json = {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 10,
+        "scale": 4,
+    }
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+    converted = convert_logical_types(typed_schema.schema, 12345, extended_json_parser=True)
+
+    assert isinstance(converted, decimal.Decimal)
+    assert str(converted) == "12345.0000"
+
+
+def test_convert_logical_types_decimal_quantize_round() -> None:
+    schema_json = {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 2,
+    }
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+    converted = convert_logical_types(typed_schema.schema, "12345.123", extended_json_parser=True)
+
+    assert isinstance(converted, decimal.Decimal)
+    assert str(converted) == "12345.12"
+
+
+def test_convert_logical_types_decimal_confluent_base64() -> None:
+    schema_json = {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 10,
+        "scale": 2,
+    }
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+    converted = convert_logical_types(typed_schema.schema, "BZw=")
+
+    assert isinstance(converted, decimal.Decimal)
+    assert str(converted) == "14.36"
+
+
+def test_convert_logical_types_decimal_invalid_base64() -> None:
+    schema_json = {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 10,
+        "scale": 2,
+    }
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+    value = "not-base64!"
+    converted = convert_logical_types(typed_schema.schema, value)
+    assert converted == value
+
+
+def test_convert_logical_types_decimal_float_is_rejected() -> None:
+    schema_json = {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 10,
+        "scale": 2,
+    }
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+    value = 14.36
+    converted = convert_logical_types(typed_schema.schema, value)
+    assert converted == value
+
+
+@pytest.mark.parametrize(
+    "schema_json,value,assertion",
+    [
+        (
+            {"type": "long", "logicalType": "timestamp-millis"},
+            "2020-09-13T12:26:40Z",
+            lambda v: (
+                isinstance(v, datetime.datetime)
+                and v == datetime.datetime(2020, 9, 13, 12, 26, 40, tzinfo=datetime.timezone.utc)
+            ),
+        ),
+        (
+            {"type": "long", "logicalType": "timestamp-micros"},
+            "2020-09-13T17:26:40+05:00",
+            lambda v: (
+                isinstance(v, datetime.datetime)
+                and v == datetime.datetime(2020, 9, 13, 12, 26, 40, tzinfo=datetime.timezone.utc)
+            ),
+        ),
+        # Example from Avro spec (https://avro.apache.org/docs/1.12.0/specification/#time_ms):
+        # noon in Helsinki (UTC+2) is shifted to 10:00 UTC → Avro long 946720800000 ms.
+        (
+            {"type": "long", "logicalType": "timestamp-millis"},
+            "2000-01-01T12:00:00+02:00",
+            lambda v: (
+                isinstance(v, datetime.datetime)
+                and v == datetime.datetime(2000, 1, 1, 10, 0, 0, tzinfo=datetime.timezone.utc)
+            ),
+        ),
+        (
+            {"type": "long", "logicalType": "timestamp-micros"},
+            "2000-01-01T12:00:00+02:00",
+            lambda v: (
+                isinstance(v, datetime.datetime)
+                and v == datetime.datetime(2000, 1, 1, 10, 0, 0, tzinfo=datetime.timezone.utc)
+            ),
+        ),
+        (
+            {"type": "long", "logicalType": "timestamp-millis"},
+            "2020-09-13T12:26:40",
+            lambda v: (
+                isinstance(v, datetime.datetime)
+                and v == datetime.datetime(2020, 9, 13, 12, 26, 40, tzinfo=datetime.timezone.utc)
+            ),
+        ),
+        (
+            {"type": "int", "logicalType": "date"},
+            "2019-04-14",
+            lambda v: isinstance(v, datetime.date) and v == datetime.date(2019, 4, 14),
+        ),
+        (
+            {"type": "int", "logicalType": "time-millis"},
+            "12:00:00.123",
+            lambda v: isinstance(v, datetime.time) and v == datetime.time(12, 0, 0, 123000),
+        ),
+        (
+            {"type": "long", "logicalType": "time-micros"},
+            "12:00:00.123456",
+            lambda v: isinstance(v, datetime.time) and v == datetime.time(12, 0, 0, 123456),
+        ),
+    ],
+)
+def test_convert_logical_types_iso8601_extended_parser(schema_json, value, assertion) -> None:
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+
+    converted = convert_logical_types(typed_schema.schema, value, extended_json_parser=True)
+    assert assertion(converted)
+
+
+@pytest.mark.parametrize(
+    "schema_json,value",
+    [
+        ({"type": "long", "logicalType": "timestamp-millis"}, "2020-09-13T12:26:40Z"),
+        ({"type": "int", "logicalType": "date"}, "2019-04-14"),
+        ({"type": "long", "logicalType": "time-micros"}, "12:00:00.123456"),
+    ],
+)
+def test_convert_logical_types_iso8601_disabled_returns_original(schema_json, value) -> None:
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+
+    converted_disabled = convert_logical_types(typed_schema.schema, value, extended_json_parser=False)
+    assert converted_disabled == value
+
+
+@pytest.mark.parametrize(
+    "schema_json",
+    [
+        {"type": "long", "logicalType": "timestamp-millis"},
+        {"type": "long", "logicalType": "timestamp-micros"},
+        {"type": "int", "logicalType": "date"},
+        {"type": "int", "logicalType": "time-millis"},
+        {"type": "long", "logicalType": "time-micros"},
+    ],
+)
+def test_convert_logical_types_iso8601_invalid_returns_original(schema_json) -> None:
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(schema_json))
+
+    converted_invalid = convert_logical_types(typed_schema.schema, "not-an-iso", extended_json_parser=True)
+    assert converted_invalid == "not-an-iso"
 
 
 def test_avro_json_write_invalid(karapace_container: KarapaceContainer) -> None:
