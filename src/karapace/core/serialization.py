@@ -321,13 +321,24 @@ class SchemaRegistrySerializer:
             self.ids_to_schemas[schema_id] = schema
         return schema
 
-    async def upsert_id_for_schema(self, schema_typed: ValidatedTypedSchema, subject: str) -> SchemaId:
+    async def _schema_id_has_subject(self, schema_id: SchemaId, subject: Subject) -> bool:
+        def subject_not_included(_: TypedSchema, subjects: list[Subject]) -> bool:
+            return subject not in subjects
+
+        try:
+            _, subjects = await self.get_schema_for_id(schema_id, need_new_call=subject_not_included)
+        except SchemaRetrievalError:
+            return False
+
+        return subject in subjects
+
+    async def upsert_id_for_schema(self, schema_typed: ValidatedTypedSchema, subject: Subject) -> SchemaId:
         assert self.registry_client, "must not call this method after the object is closed."
 
         schema_ser = str(schema_typed)
-
-        if schema_ser in self.schemas_to_ids:
-            return self.schemas_to_ids[schema_ser]
+        cached_schema_id = self.schemas_to_ids.get(schema_ser)
+        if cached_schema_id is not None and await self._schema_id_has_subject(cached_schema_id, subject):
+            return cached_schema_id
 
         # note: the post is idempotent, so it is like a get or insert (aka upsert)
         schema_id = await self.registry_client.post_new_schema(subject, schema_typed)
@@ -335,6 +346,10 @@ class SchemaRegistrySerializer:
         async with self.state_lock:
             self.schemas_to_ids[schema_ser] = schema_id
             self.ids_to_schemas[schema_id] = schema_typed
+            known_subjects = list(self.ids_to_subjects.get(schema_id, []))
+            if subject not in known_subjects:
+                known_subjects.append(subject)
+            self.ids_to_subjects[schema_id] = known_subjects
         return schema_id
 
     async def get_schema_for_id(

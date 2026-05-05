@@ -617,6 +617,112 @@ async def test_publish_with_schema_id_of_another_subject_novalidation(
     assert res.status_code == 200
 
 
+async def test_publish_with_value_schema_is_rebound_to_new_subject(
+    rest_async_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaAdminClient,
+) -> None:
+    topic_name_1 = new_topic(admin_client)
+    topic_name_2 = new_topic(admin_client)
+    subject_1 = f"{topic_name_1}-value"
+    subject_2 = f"{topic_name_2}-value"
+
+    await wait_for_topics(rest_async_client, topic_names=[topic_name_1, topic_name_2], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+
+    res = await registry_async_client.post(
+        f"subjects/{subject_1}/versions",
+        json={"schema": json.dumps(schema_1)},
+    )
+    assert res.status_code == 200
+    schema_1_id = res.json()["id"]
+
+    # Warm serializer cache with schema string -> id mapping.
+    res = await rest_async_client.post(
+        f"/topics/{topic_name_1}",
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+    assert res.json()["value_schema_id"] == schema_1_id
+
+    # Producing the same schema to another topic should bind subject_2 as well.
+    res = await rest_async_client.post(
+        f"/topics/{topic_name_2}",
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Mr. Mustache"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert res.status_code == 200
+    assert res.json()["value_schema_id"] == schema_1_id
+
+    subjects = (await registry_async_client.get("subjects")).json()
+    assert subject_1 in subjects
+    assert subject_2 in subjects
+
+    subject_2_latest = (await registry_async_client.get(f"subjects/{subject_2}/versions/latest")).json()
+    assert subject_2_latest["id"] == schema_1_id
+
+
+async def test_publish_with_value_schema_cache_not_cross_subject(
+    rest_async_client: Client,
+    registry_async_client: Client,
+    admin_client: KafkaAdminClient,
+) -> None:
+    topic_name_1 = new_topic(admin_client)
+    topic_name_2 = new_topic(admin_client)
+    subject_1 = f"{topic_name_1}-value"
+    subject_2 = f"{topic_name_2}-value"
+
+    await wait_for_topics(rest_async_client, topic_names=[topic_name_1, topic_name_2], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    schema_1 = {
+        "type": "record",
+        "name": "Schema1",
+        "fields": [
+            {
+                "name": "name",
+                "type": "string",
+            },
+        ],
+    }
+
+    first_res = await rest_async_client.post(
+        f"/topics/{topic_name_1}",
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "First"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert first_res.status_code == 200
+    first_schema_id = first_res.json()["value_schema_id"]
+
+    second_res = await rest_async_client.post(
+        f"/topics/{topic_name_2}",
+        json={"value_schema": json.dumps(schema_1), "records": [{"value": {"name": "Second"}}]},
+        headers=REST_HEADERS["avro"],
+    )
+    assert second_res.status_code == 200
+    second_schema_id = second_res.json()["value_schema_id"]
+    assert second_schema_id == first_schema_id
+
+    subjects = (await registry_async_client.get("subjects")).json()
+    assert subject_1 in subjects
+    assert subject_2 in subjects
+
+    subject_1_latest = (await registry_async_client.get(f"subjects/{subject_1}/versions/latest")).json()
+    subject_2_latest = (await registry_async_client.get(f"subjects/{subject_2}/versions/latest")).json()
+    assert subject_1_latest["id"] == first_schema_id
+    assert subject_2_latest["id"] == first_schema_id
+
+
 async def test_brokers(rest_async_client: Client) -> None:
     res = await rest_async_client.get("/brokers")
     assert res.ok
