@@ -553,7 +553,7 @@ async def test_logical_types_iso8601_values_are_rejected(
     admin_client: KafkaAdminClient,
 ) -> None:
     topic_name = await _topic_name(rest_async_strict_client, admin_client)
-    status, _ = await _post_and_get_status(
+    status, body = await _post_and_get_status(
         rest_async_strict_client,
         topic_name,
         _payload(
@@ -562,6 +562,8 @@ async def test_logical_types_iso8601_values_are_rejected(
         ),
     )
     _assert_rejected(status)
+    assert body.get("message")
+    assert body["message"] != "None"
 
 
 @pytest.mark.parametrize(

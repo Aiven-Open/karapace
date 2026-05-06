@@ -471,7 +471,13 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
-def _unfold_avro_json(schema: avro.schema.Schema, value: Any, extended_json_parser: bool = False) -> Any:
+def _unfold_avro_json(
+    schema: avro.schema.Schema,
+    value: Any,
+    extended_json_parser: bool = False,
+    *,
+    path: str = "value",
+) -> Any:
     """Recursively unfold Avro JSON union wrappers using strict branch names.
 
     Strict mode requires union wrappers to use the exact Avro branch name:
@@ -483,7 +489,12 @@ def _unfold_avro_json(schema: avro.schema.Schema, value: Any, extended_json_pars
         result = dict(value)
         for field in schema.fields:
             if field.name in value:
-                result[field.name] = _unfold_avro_json(field.type, value[field.name], extended_json_parser)
+                result[field.name] = _unfold_avro_json(
+                    field.type,
+                    value[field.name],
+                    extended_json_parser,
+                    path=f"{path}.{field.name}",
+                )
         return result
 
     if isinstance(schema, avro.schema.UnionSchema):
@@ -495,10 +506,10 @@ def _unfold_avro_json(schema: avro.schema.Schema, value: Any, extended_json_pars
             )
             if has_null_branch:
                 return value
-            raise InvalidPayload
+            raise InvalidPayload(f"{path}: null is not allowed (union does not contain null branch)")
 
         if not isinstance(value, dict) or len(value) != 1:
-            raise InvalidPayload
+            raise InvalidPayload(f'{path}: expected Avro union wrapper object with single key like {{"<tag>": ...}}')
 
         ((tag, wrapped_value),) = value.items()
 
@@ -519,32 +530,42 @@ def _unfold_avro_json(schema: avro.schema.Schema, value: Any, extended_json_pars
 
         matching_branches = [branch for branch in schema.schemas if tag in get_names(branch)]
         if len(matching_branches) != 1:
-            raise InvalidPayload
+            allowed_tags = sorted({name for branch in schema.schemas for name in get_names(branch)})
+            raise InvalidPayload(
+                f"{path}: invalid union tag {tag!r}; expected exactly one of {allowed_tags!r} (got {len(matching_branches)} matches)"
+            )
 
         # Strict path removes the tagged wrapper only when a single branch can
         # be selected from the explicit union tag.
         selected_branch = matching_branches[0]
-        unfolded_branch_value = _unfold_avro_json(selected_branch, wrapped_value, extended_json_parser)
+        unfolded_branch_value = _unfold_avro_json(
+            selected_branch,
+            wrapped_value,
+            extended_json_parser,
+            path=f"{path}<{tag}>",
+        )
         converted_branch_value = convert_logical_types(selected_branch, unfolded_branch_value, extended_json_parser)
         # Enforce strict constraints that may be too permissive in generic validate().
         if isinstance(selected_branch, avro.schema.EnumSchema):
             if not isinstance(converted_branch_value, str) or converted_branch_value not in selected_branch.symbols:
-                raise InvalidPayload
+                raise InvalidPayload(f"{path}: invalid enum value for union branch {tag!r}")
         if isinstance(selected_branch, avro.schema.FixedSchema):
             if (
                 not isinstance(converted_branch_value, (bytes, bytearray))
                 or len(converted_branch_value) != selected_branch.size
             ):
-                raise InvalidPayload
+                raise InvalidPayload(f"{path}: invalid fixed value for union branch {tag!r}")
         if not avro.io.validate(selected_branch, converted_branch_value):
-            raise InvalidPayload
+            raise InvalidPayload(f"{path}: value does not validate against union branch {tag!r}")
         return converted_branch_value
 
     if isinstance(schema, avro.schema.ArraySchema) and isinstance(value, list):
-        return [_unfold_avro_json(schema.items, v, extended_json_parser) for v in value]
+        return [_unfold_avro_json(schema.items, v, extended_json_parser, path=f"{path}[{i}]") for i, v in enumerate(value)]
 
     if isinstance(schema, avro.schema.MapSchema) and isinstance(value, dict):
-        return {k: _unfold_avro_json(schema.values, v, extended_json_parser) for (k, v) in value.items()}
+        return {
+            k: _unfold_avro_json(schema.values, v, extended_json_parser, path=f"{path}[{k!r}]") for (k, v) in value.items()
+        }
 
     return value
 
@@ -760,10 +781,15 @@ def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dic
                 data = convert_logical_types(schema.schema, flattened, config.rest_avro_extended_json_parser)
         else:
             # Strict mode: only accept properly tagged union JSON.
-            unfolded = _unfold_avro_json(schema.schema, value, config.rest_avro_extended_json_parser)
+            unfolded = _unfold_avro_json(
+                schema.schema,
+                value,
+                config.rest_avro_extended_json_parser,
+                path="records[0].value",
+            )
             data = convert_logical_types(schema.schema, unfolded, config.rest_avro_extended_json_parser)
             if not avro.io.validate(schema.schema, data):
-                raise InvalidPayload
+                raise InvalidPayload("records[0].value: value does not validate against Avro schema")
 
         writer = DatumWriter(writers_schema=schema.schema)
         writer.write(data, BinaryEncoder(bio))

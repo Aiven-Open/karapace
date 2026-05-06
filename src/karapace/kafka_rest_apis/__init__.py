@@ -838,9 +838,14 @@ class UserRestProxy:
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         except InvalidPayload as e:
-            cause = str(e.__cause__)
+            # InvalidPayload is often raised without a chained exception (e.__cause__ is None),
+            # especially in strict Avro JSON union parsing. In that case we still want a useful message.
+            cause = str(e.__cause__) if e.__cause__ is not None else ""
+            message = str(e) if str(e) else cause
+            if not message:
+                message = "Invalid payload"
             KafkaRest.r(
-                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": cause},
+                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": message},
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
