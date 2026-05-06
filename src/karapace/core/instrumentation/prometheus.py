@@ -13,11 +13,10 @@ from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from karapace.core.instrumentation.path_normalization import normalize_path
 from karapace.rapu import HTTPResponse, RestApp
-from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, Histogram
+from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest
 from typing import Final, NoReturn
 
 import logging
-import time
 
 LOG = logging.getLogger(__name__)
 
@@ -25,7 +24,6 @@ LOG = logging.getLogger(__name__)
 class PrometheusInstrumentation:
     METRICS_ENDPOINT_PATH: Final[str] = "/metrics"
     CONTENT_TYPE_LATEST: Final[str] = "text/plain; version=0.0.4; charset=utf-8"
-    START_TIME_REQUEST_KEY: Final[str] = "start_time"
 
     registry: Final[CollectorRegistry] = CollectorRegistry()
 
@@ -34,13 +32,6 @@ class PrometheusInstrumentation:
         name="karapace_http_requests_total",
         documentation="Total Request Count for HTTP/TCP Protocol",
         labelnames=("method", "path", "status"),
-    )
-
-    karapace_http_requests_duration_seconds: Final[Histogram] = Histogram(
-        registry=registry,
-        name="karapace_http_requests_duration_seconds",
-        documentation="Request Duration for HTTP/TCP Protocol",
-        labelnames=("method", "path"),
     )
 
     karapace_http_requests_in_progress: Final[Gauge] = Gauge(
@@ -68,7 +59,6 @@ class PrometheusInstrumentation:
         # the issue is in the type difference (Counter, Gauge, etc) of the arguments which we are
         # passing to `__setitem__()`, but we need to keep these objects in the `app.app` dict.
         app.app[cls.karapace_http_requests_total] = cls.karapace_http_requests_total
-        app.app[cls.karapace_http_requests_duration_seconds] = cls.karapace_http_requests_duration_seconds
         app.app[cls.karapace_http_requests_in_progress] = cls.karapace_http_requests_in_progress
 
     @classmethod
@@ -88,8 +78,6 @@ class PrometheusInstrumentation:
         request: Request,
         handler: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        request[cls.START_TIME_REQUEST_KEY] = time.time()
-
         # Extract request labels - normalize path to prevent unbounded cardinality
         path = normalize_path(request.path)
         method = request.method
@@ -102,9 +90,4 @@ class PrometheusInstrumentation:
             request.app[cls.karapace_http_requests_total].labels(method, path, response.status).inc()
             return response
         finally:
-            try:
-                request.app[cls.karapace_http_requests_duration_seconds].labels(method, path).observe(
-                    time.time() - request[cls.START_TIME_REQUEST_KEY]
-                )
-            finally:
-                in_progress.dec()
+            in_progress.dec()

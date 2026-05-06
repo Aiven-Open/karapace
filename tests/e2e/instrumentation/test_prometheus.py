@@ -49,9 +49,7 @@ async def test_metrics_endpoint_parsed_response(registry_async_client: Client) -
 
     # Standard metrics (from prometheus-fastapi-instrumentator)
     assert "http_requests" in metrics
-    assert "http_request_duration_seconds" in metrics
     assert "http_requests_inprogress" in metrics
 
     # Backwards-compatible karapace_* metrics
     assert "karapace_http_requests" in metrics
-    assert "karapace_http_requests_duration_seconds" in metrics

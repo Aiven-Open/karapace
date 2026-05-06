@@ -148,7 +148,7 @@ To enable authorization & authentication on the rest proxy, configure 'sasl_mech
 If 'sasl_mechanism' is configured to PLAIN::
 
     sasl_mechanism = "PLAIN",
-    security_protocol = "SASL_PLAIN",
+    security_protocol = "SASL_PLAINTEXT",
     sasl_plain_username = "your_username",
     sasl_plain_password = "your_password"
 
@@ -438,7 +438,7 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - ``PLAINTEXT``
      - Default Kafka security protocol needed to communicate with the Kafka
        cluster.  Other options is to use SSL for SSL client certificate
-       authentication.
+       authentication, or SASL_PLAINTEXT / SASL_SSL for simple authentication.
    * - ``sentry``
      - ``None``
      - Used to configure parameters for sentry integration (dsn, tags, ...). Setting the

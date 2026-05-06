@@ -12,43 +12,30 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import aiohttp.web
 import pytest
 from _pytest.logging import LogCaptureFixture
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+from prometheus_client import CollectorRegistry, Counter, Gauge
 
 from karapace.core.instrumentation.prometheus import PrometheusInstrumentation
 from karapace.rapu import HTTPResponse, RestApp
 
 
-# Simple request object implementing mapping semantics for START_TIME used by tests
 class DummyRequest:
     def __init__(self, path: str, method: str, app: dict):
         self.path = path
         self.method = method
         self.app = app
-        self._store: dict = {}
-
-    def __setitem__(self, key, value):
-        self._store[key] = value
-
-    def __getitem__(self, key):
-        return self._store[key]
 
 
 def _make_metric_mocks(prometheus: PrometheusInstrumentation):
     """Create isolated metric mocks to avoid cross-test leakage.
 
     Returns a tuple: (app_metrics, in_progress_metric, in_progress_instance,
-    duration_metric, duration_instance, total_metric, total_instance)
+    total_metric, total_instance)
     """
     in_progress_instance = MagicMock()
     in_progress_instance.inc = MagicMock()
     in_progress_instance.dec = MagicMock()
     in_progress_metric = MagicMock()
     in_progress_metric.labels = MagicMock(return_value=in_progress_instance)
-
-    duration_instance = MagicMock()
-    duration_instance.observe = MagicMock()
-    duration_metric = MagicMock()
-    duration_metric.labels = MagicMock(return_value=duration_instance)
 
     total_instance = MagicMock()
     total_instance.inc = MagicMock()
@@ -57,7 +44,6 @@ def _make_metric_mocks(prometheus: PrometheusInstrumentation):
 
     app_metrics = {
         prometheus.karapace_http_requests_in_progress: in_progress_metric,
-        prometheus.karapace_http_requests_duration_seconds: duration_metric,
         prometheus.karapace_http_requests_total: total_metric,
     }
 
@@ -65,8 +51,6 @@ def _make_metric_mocks(prometheus: PrometheusInstrumentation):
         app_metrics,
         in_progress_metric,
         in_progress_instance,
-        duration_metric,
-        duration_instance,
         total_metric,
         total_instance,
     )
@@ -78,21 +62,15 @@ class TestPrometheusInstrumentation:
         return PrometheusInstrumentation()
 
     def test_constants(self, prometheus: PrometheusInstrumentation) -> None:
-        assert prometheus.START_TIME_REQUEST_KEY == "start_time"
         assert isinstance(prometheus.registry, CollectorRegistry)
 
     def test_metric_types(self, prometheus: PrometheusInstrumentation) -> None:
         assert isinstance(prometheus.karapace_http_requests_total, Counter)
-        assert isinstance(prometheus.karapace_http_requests_duration_seconds, Histogram)
         assert isinstance(prometheus.karapace_http_requests_in_progress, Gauge)
 
     def test_metric_values(self, prometheus: PrometheusInstrumentation) -> None:
         # `_total` suffix is stripped off the metric name for `Counters`, but needed for clarity.
         assert repr(prometheus.karapace_http_requests_total) == "prometheus_client.metrics.Counter(karapace_http_requests)"
-        assert (
-            repr(prometheus.karapace_http_requests_duration_seconds)
-            == "prometheus_client.metrics.Histogram(karapace_http_requests_duration_seconds)"
-        )
         assert (
             repr(prometheus.karapace_http_requests_in_progress)
             == "prometheus_client.metrics.Gauge(karapace_http_requests_in_progress)"
@@ -117,10 +95,6 @@ class TestPrometheusInstrumentation:
             app.app.__setitem__.assert_has_calls(
                 [
                     call(prometheus.karapace_http_requests_total, prometheus.karapace_http_requests_total),
-                    call(
-                        prometheus.karapace_http_requests_duration_seconds,
-                        prometheus.karapace_http_requests_duration_seconds,
-                    ),
                     call(prometheus.karapace_http_requests_in_progress, prometheus.karapace_http_requests_in_progress),
                 ]
             )
@@ -144,20 +118,11 @@ class TestPrometheusInstrumentation:
         assert exc_info.value.headers.get("Content-Type") == prometheus.CONTENT_TYPE_LATEST
         assert exc_info.value.body == mock_metrics_data
 
-    @patch("karapace.core.instrumentation.prometheus.time")
-    async def test_http_request_metrics_middleware(
-        self,
-        mock_time: MagicMock,
-        prometheus: PrometheusInstrumentation,
-    ) -> None:
-        mock_time.time.return_value = 10
-
+    async def test_http_request_metrics_middleware(self, prometheus: PrometheusInstrumentation) -> None:
         (
             app_metrics,
             in_progress_metric,
             in_progress_instance,
-            duration_metric,
-            duration_instance,
             total_metric,
             total_instance,
         ) = _make_metric_mocks(prometheus)
@@ -177,9 +142,6 @@ class TestPrometheusInstrumentation:
         # Handler was invoked with the request
         assert called == [request]
 
-        # START_TIME should have been set from patched time.time()
-        assert request._store[prometheus.START_TIME_REQUEST_KEY] == 10
-
         # In-progress gauge incremented and then decremented
         in_progress_metric.labels.assert_called_with("GET", "/path")
         in_progress_instance.inc.assert_called_once()
@@ -189,24 +151,11 @@ class TestPrometheusInstrumentation:
         total_metric.labels.assert_called_with("GET", "/path", response.status)
         total_instance.inc.assert_called_once()
 
-        # Duration observed
-        duration_metric.labels.assert_called_with("GET", "/path")
-        duration_instance.observe.assert_called_once()
-
-    @patch("karapace.core.instrumentation.prometheus.time")
-    async def test_http_request_metrics_middleware_exception(
-        self,
-        mock_time: MagicMock,
-        prometheus: PrometheusInstrumentation,
-    ) -> None:
-        mock_time.time.return_value = 10
-
+    async def test_http_request_metrics_middleware_exception(self, prometheus: PrometheusInstrumentation) -> None:
         (
             app_metrics,
             in_progress_metric,
             in_progress_instance,
-            duration_metric,
-            duration_instance,
             total_metric,
             total_instance,
         ) = _make_metric_mocks(prometheus)
@@ -219,36 +168,20 @@ class TestPrometheusInstrumentation:
         with pytest.raises(Exception):
             await prometheus.http_request_metrics_middleware(request=request, handler=handler)
 
-        # START_TIME should have been set from patched time.time()
-        assert request._store[prometheus.START_TIME_REQUEST_KEY] == 10
-
         # In-progress gauge should have been incremented and eventually decremented
         in_progress_metric.labels.assert_called_with("POST", "/error")
         in_progress_instance.inc.assert_called_once()
         in_progress_instance.dec.assert_called_once()
 
-        # Duration should be observed
-        duration_metric.labels.assert_called_with("POST", "/error")
-        duration_instance.observe.assert_called_once()
-
         # Total should NOT be incremented when handler raises a non-HTTP exception
         total_metric.labels.assert_not_called()
 
-    @patch("karapace.core.instrumentation.prometheus.time")
-    async def test_http_request_metrics_middleware_normalizes_path(
-        self,
-        mock_time: MagicMock,
-        prometheus: PrometheusInstrumentation,
-    ) -> None:
+    async def test_http_request_metrics_middleware_normalizes_path(self, prometheus: PrometheusInstrumentation) -> None:
         """Verify that the middleware normalizes dynamic path segments to prevent unbounded metric cardinality."""
-        mock_time.time.return_value = 10
-
         (
             app_metrics,
             in_progress_metric,
             in_progress_instance,
-            duration_metric,
-            duration_instance,
             total_metric,
             total_instance,
         ) = _make_metric_mocks(prometheus)
@@ -264,22 +197,14 @@ class TestPrometheusInstrumentation:
 
         in_progress_metric.labels.assert_called_with("GET", "/schemas/ids/{id}")
         total_metric.labels.assert_called_with("GET", "/schemas/ids/{id}", response.status)
-        duration_metric.labels.assert_called_with("GET", "/schemas/ids/{id}")
 
-    @patch("karapace.core.instrumentation.prometheus.time")
     async def test_http_request_metrics_middleware_normalizes_subject_version_path(
-        self,
-        mock_time: MagicMock,
-        prometheus: PrometheusInstrumentation,
+        self, prometheus: PrometheusInstrumentation
     ) -> None:
-        mock_time.time.return_value = 10
-
         (
             app_metrics,
             in_progress_metric,
             in_progress_instance,
-            duration_metric,
-            duration_instance,
             total_metric,
             total_instance,
         ) = _make_metric_mocks(prometheus)
@@ -296,20 +221,13 @@ class TestPrometheusInstrumentation:
         in_progress_metric.labels.assert_called_with("GET", "/subjects/{subject}/versions/{version}")
         total_metric.labels.assert_called_with("GET", "/subjects/{subject}/versions/{version}", response.status)
 
-    @patch("karapace.core.instrumentation.prometheus.time")
     async def test_http_request_metrics_middleware_normalizes_config_subject_path(
-        self,
-        mock_time: MagicMock,
-        prometheus: PrometheusInstrumentation,
+        self, prometheus: PrometheusInstrumentation
     ) -> None:
-        mock_time.time.return_value = 10
-
         (
             app_metrics,
             in_progress_metric,
             in_progress_instance,
-            duration_metric,
-            duration_instance,
             total_metric,
             total_instance,
         ) = _make_metric_mocks(prometheus)

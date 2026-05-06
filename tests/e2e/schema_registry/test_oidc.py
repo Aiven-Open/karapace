@@ -3,6 +3,7 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
 import json
 
 from karapace.core.client import Client
@@ -10,10 +11,28 @@ from karapace.core.schema_reader import SchemaType
 from tests.utils import new_random_name
 
 
+async def _wait_for_primary(client: Client, timeout: float = 30.0) -> None:
+    """Wait until the schema registry has elected a primary (master).
+
+    Without this, write requests may be forwarded to a node that hasn't
+    become primary yet, causing a forwarding loop and a timeout.
+    """
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        res = await client.get("master_available")
+        if res.status_code == 200 and res.json_result and res.json_result.get("master_available") is True:
+            return
+        await asyncio.sleep(1.0)
+    raise TimeoutError("Schema registry did not elect a primary within timeout")
+
+
 async def test_schema_registry_oidc(
     registry_async_client_oidc: Client,
 ) -> None:
     subject = new_random_name("subject")
+
+    # Wait for the registry to elect a primary before attempting writes.
+    await _wait_for_primary(registry_async_client_oidc)
 
     # sanity check.
     subject_res = await registry_async_client_oidc.get(f"subjects/{subject}/versions")
