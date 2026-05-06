@@ -519,7 +519,11 @@ def _unfold_avro_json(
                 names.add(obj.fullname)
                 logical_type = getattr(obj, "logical_type", None)
                 if isinstance(logical_type, str):
-                    names.add(logical_type)
+                    # String-backed logical types (e.g. uuid) are safe in strict mode
+                    # without extended parser conversion. Other logical-type tags are
+                    # accepted only when extended parser is enabled.
+                    if obj.fullname == "string" or extended_json_parser:
+                        names.add(logical_type)
                 return names
             if isinstance(obj, (avro.schema.ArraySchema, avro.schema.MapSchema)):
                 names.add(obj.type)
@@ -538,6 +542,16 @@ def _unfold_avro_json(
         # Strict path removes the tagged wrapper only when a single branch can
         # be selected from the explicit union tag.
         selected_branch = matching_branches[0]
+        is_logical_type_tag = (
+            isinstance(selected_branch, avro.schema.PrimitiveSchema)
+            and tag != selected_branch.fullname
+            and tag == getattr(selected_branch, "logical_type", None)
+        )
+        if is_logical_type_tag and not isinstance(wrapped_value, str):
+            raise InvalidPayload(
+                f"{path}: logical type tag {tag!r} only accepts string values; "
+                f"use base type tag {selected_branch.fullname!r} for non-string values"
+            )
         unfolded_branch_value = _unfold_avro_json(
             selected_branch,
             wrapped_value,

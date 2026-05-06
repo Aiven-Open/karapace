@@ -748,6 +748,40 @@ async def test_logical_type_union_string_tag_is_rejected_without_extended_parser
 
 @pytest.mark.parametrize(
     "case",
+    [case for case in ALL_LOGICAL_TYPES_CASES if case["base_type"] != "string"],
+    ids=[case["id"] for case in ALL_LOGICAL_TYPES_CASES if case["base_type"] != "string"],
+)
+async def test_logical_type_union_non_string_value_with_logical_tag_is_rejected(
+    rest_async_strict_client: Client,
+    rest_async_strict_extended_parser_client: Client,
+    admin_client: KafkaAdminClient,
+    case: dict,
+) -> None:
+    """Logical-type union tags must carry string values; base numeric values use base-type tags."""
+    schema = _single_union_logical_schema(case)
+    # Decimal base representation in current matrix is a string (base64); use an int
+    # here to validate the non-string rejection path for logical-type tags.
+    non_string_value = 1234 if case["logical_type"] == "decimal" else case["base_value"]
+
+    topic_name_no_ext = await _topic_name(rest_async_strict_client, admin_client)
+    status_no_ext, _ = await _post_and_get_status(
+        rest_async_strict_client,
+        topic_name_no_ext,
+        _payload(schema, {"example1": {case["logical_type"]: non_string_value}}),
+    )
+    _assert_status(status_no_ext, expected_ok=False)
+
+    topic_name_ext = await _topic_name(rest_async_strict_extended_parser_client, admin_client)
+    status_ext, _ = await _post_and_get_status(
+        rest_async_strict_extended_parser_client,
+        topic_name_ext,
+        _payload(schema, {"example1": {case["logical_type"]: non_string_value}}),
+    )
+    _assert_status(status_ext, expected_ok=False)
+
+
+@pytest.mark.parametrize(
+    "case",
     ADDITIONAL_LOGICAL_TYPES_CASES,
     ids=[case["id"] for case in ADDITIONAL_LOGICAL_TYPES_CASES],
 )
