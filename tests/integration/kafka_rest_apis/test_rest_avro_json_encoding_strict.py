@@ -780,6 +780,29 @@ async def test_logical_type_union_non_string_value_with_logical_tag_is_rejected(
     _assert_status(status_ext, expected_ok=False)
 
 
+@pytest.mark.parametrize("case", ALL_LOGICAL_TYPES_CASES, ids=[case["id"] for case in ALL_LOGICAL_TYPES_CASES])
+async def test_logical_type_union_invalid_string_gives_helpful_message(
+    rest_async_strict_extended_parser_client: Client,
+    admin_client: KafkaAdminClient,
+    case: dict,
+) -> None:
+    """Invalid logical-type strings should include value and expected format hint."""
+    topic_name = await _topic_name(rest_async_strict_extended_parser_client, admin_client)
+    schema = _single_union_logical_schema(case)
+    bad_value = "not-a-valid-value"
+    status, body = await _post_and_get_status(
+        rest_async_strict_extended_parser_client,
+        topic_name,
+        _payload(schema, {"example1": {case["logical_type"]: bad_value}}),
+    )
+
+    _assert_status(status, expected_ok=False)
+    message = body.get("message", "")
+    assert bad_value in message
+    assert case["logical_type"] in message
+    assert "expected" in message
+
+
 @pytest.mark.parametrize(
     "case",
     ADDITIONAL_LOGICAL_TYPES_CASES,
