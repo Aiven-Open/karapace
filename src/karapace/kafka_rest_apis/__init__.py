@@ -87,6 +87,15 @@ class KafkaRest(KarapaceBase):
                 "All Kafka ACLs will be bypassed for REST proxy requests. "
                 "Set rest_authorization=true and configure sasl_bootstrap_uri."
             )
+        if self.config.rest_avro_permissive_json_parser:
+            log.warning(
+                "REST proxy starting with permissive Avro JSON parsing enabled "
+                "(rest_avro_permissive_json_parser=true). "
+                "Ambiguous or non-canonical union payloads may be accepted and mapped to an unintended branch. "
+                "Set rest_avro_permissive_json_parser=false to enforce strict, deterministic Avro JSON parsing."
+            )
+        else:
+            log.info("REST proxy starting with strict Avro JSON parsing enabled")
         self._idle_proxy_janitor_task: asyncio.Task | None = None
 
     async def close(self) -> None:

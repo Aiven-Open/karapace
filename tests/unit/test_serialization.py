@@ -113,6 +113,26 @@ TYPED_PROTOBUF_SCHEMA = ValidatedTypedSchema.parse(
     """,
 )
 
+NAMESPACED_UNION_SCHEMA = {
+    "type": "record",
+    "name": "Simple",
+    "namespace": "example.avro",
+    "fields": [
+        {
+            "name": "payload",
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "Payload",
+                    "namespace": "org.polyus.ipl.ds.erd.doc.asdfasdf.ver1",
+                    "fields": [{"name": "amount", "type": "float"}],
+                },
+            ],
+        }
+    ],
+}
+
 
 async def make_ser_deser(
     karapace_container: KarapaceContainer, mock_client: SchemaRegistryClient
@@ -155,6 +175,15 @@ async def test_happy_flow(karapace_container: KarapaceContainer):
 )
 def test_flatten_unions_record(record, flattened_record) -> None:
     assert flatten_unions(TYPED_AVRO_SCHEMA.schema, record) == flattened_record
+
+
+def test_flatten_unions_record_short_name_is_legacy_compatible() -> None:
+    """Keep permissive short-name behavior in flatten_unions for backward compatibility."""
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(NAMESPACED_UNION_SCHEMA))
+    record = {"payload": {"Payload": {"amount": 2.3}}}
+
+    flattened = flatten_unions(typed_schema.schema, record)
+    assert flattened == {"payload": {"amount": 2.3}}
 
 
 def test_flatten_unions_array() -> None:
@@ -540,6 +569,37 @@ def test_avro_json_write_accepts_json_encoded_data_without_tagged_unions(karapac
     write_value(karapace_container.config(), typed_schema, buffer_a, properly_tagged_encoding_b)
     write_value(karapace_container.config(), typed_schema, buffer_b, missing_tag_encoding_b)
     assert buffer_a.getbuffer() == buffer_b.getbuffer()
+
+
+def test_write_value_strict_mode_rejects_shortname_tag(karapace_container: KarapaceContainer) -> None:
+    """In strict mode, namespaced union records must use fullname wrapper keys."""
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(NAMESPACED_UNION_SCHEMA))
+    config = karapace_container.config()
+    config.rest_avro_permissive_json_parser = False
+    payload = {"payload": {"Payload": {"amount": 2.3}}}
+
+    with pytest.raises(InvalidPayload):
+        write_value(config, typed_schema, io.BytesIO(), payload)
+
+
+def test_write_value_strict_mode_accepts_fullname_tag(karapace_container: KarapaceContainer) -> None:
+    """In strict mode, fullname wrapper keys are accepted for namespaced union records."""
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(NAMESPACED_UNION_SCHEMA))
+    config = karapace_container.config()
+    config.rest_avro_permissive_json_parser = False
+    payload = {"payload": {"org.polyus.ipl.ds.erd.doc.asdfasdf.ver1.Payload": {"amount": 2.3}}}
+
+    write_value(config, typed_schema, io.BytesIO(), payload)
+
+
+def test_write_value_permissive_mode_still_accepts_shortname_tag(karapace_container: KarapaceContainer) -> None:
+    """Permissive mode keeps short-name compatibility for existing clients."""
+    typed_schema = ValidatedTypedSchema.parse(SchemaType.AVRO, json.dumps(NAMESPACED_UNION_SCHEMA))
+    config = karapace_container.config()
+    config.rest_avro_permissive_json_parser = True
+    payload = {"payload": {"Payload": {"amount": 2.3}}}
+
+    write_value(config, typed_schema, io.BytesIO(), payload)
 
 
 async def test_serialization_fails(karapace_container: KarapaceContainer):
