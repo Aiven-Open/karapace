@@ -117,6 +117,10 @@ class Config(BaseSettings):
     # When False (default), the REST proxy bypasses Kafka ACLs.
     rest_authorization: bool = False
     rest_base_uri: str | None = None
+    rest_avro_extended_json_parser: bool = False
+    # When True (default), legacy permissive Avro JSON parsing is used for unions.
+    # Set to False to require strict Avro JSON union tagging and deterministic branch resolution.
+    rest_avro_permissive_json_parser: bool = True
     log_handler: str | None = "stdout"
     log_level: str = "DEBUG"
     log_format: str = "%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s"

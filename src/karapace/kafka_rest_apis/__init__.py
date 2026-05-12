@@ -87,6 +87,15 @@ class KafkaRest(KarapaceBase):
                 "All Kafka ACLs will be bypassed for REST proxy requests. "
                 "Set rest_authorization=true and configure sasl_bootstrap_uri."
             )
+        if self.config.rest_avro_permissive_json_parser:
+            log.warning(
+                "REST proxy starting with permissive Avro JSON parsing enabled "
+                "(rest_avro_permissive_json_parser=true). "
+                "Ambiguous or non-canonical union payloads may be accepted and mapped to an unintended branch. "
+                "Set rest_avro_permissive_json_parser=false to enforce strict, deterministic Avro JSON parsing."
+            )
+        else:
+            log.info("REST proxy starting with strict Avro JSON parsing enabled")
         self._idle_proxy_janitor_task: asyncio.Task | None = None
 
     async def close(self) -> None:
@@ -829,9 +838,14 @@ class UserRestProxy:
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         except InvalidPayload as e:
-            cause = str(e.__cause__)
+            # InvalidPayload is often raised without a chained exception (e.__cause__ is None),
+            # especially in strict Avro JSON union parsing. In that case we still want a useful message.
+            cause = str(e.__cause__) if e.__cause__ is not None else ""
+            message = str(e) if str(e) else cause
+            if not message:
+                message = "Invalid payload"
             KafkaRest.r(
-                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": cause},
+                body={"error_code": RESTErrorCodes.INVALID_DATA.value, "message": message},
                 content_type=content_type,
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )

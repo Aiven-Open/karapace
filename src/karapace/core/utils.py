@@ -12,7 +12,8 @@ from aiohttp.web_log import AccessLogger
 from aiohttp.web_request import BaseRequest
 from aiohttp.web_response import StreamResponse
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+import datetime as _dt_module
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
@@ -42,7 +43,7 @@ if importlib.util.find_spec("orjson"):
         @staticmethod
         def dumps(obj, *, default=None, indent=None, sort_keys=False, separators=None, **kwargs):
             """Dump object to JSON string (returns str for compatibility)."""
-            options = 0
+            options = orjson.OPT_PASSTHROUGH_DATETIME
             if sort_keys:
                 options |= orjson.OPT_SORT_KEYS
             if indent is not None:
@@ -63,7 +64,7 @@ if importlib.util.find_spec("orjson"):
         @staticmethod
         def dump(obj, fp, *, default=None, indent=None, sort_keys=False, separators=None, **kwargs):
             """Dump object to JSON file."""
-            options = 0
+            options = orjson.OPT_PASSTHROUGH_DATETIME
             if sort_keys:
                 options |= orjson.OPT_SORT_KEYS
             if indent is not None:
@@ -76,7 +77,48 @@ if importlib.util.find_spec("orjson"):
 elif importlib.util.find_spec("ujson"):
     from ujson import JSONDecodeError  # noqa: F401
 
-    import ujson as json
+    import ujson as _ujson
+
+    class _JsonModule:  # type: ignore[no-redef]
+        """Wrapper around ujson that routes datetime/date/time through default_json_serialization.
+
+        ujson serialises datetime objects natively as "+00:00" offset strings, bypassing
+        the ``default`` callback (which is only invoked for *unknown* types).  To keep
+        the output format consistent with the stdlib-json backend (which calls
+        ``_isoformat`` and produces "Z"), we recursively replace datetime/date/time
+        objects before handing the value to ujson.
+        """
+
+        @staticmethod
+        def _preprocess(obj):
+            """Recursively convert datetime/date/time so ujson never sees them natively."""
+            if isinstance(obj, datetime):
+                return _isoformat(obj)
+            if isinstance(obj, (date, _dt_module.time)):
+                return obj.isoformat()
+            if isinstance(obj, dict):
+                return {k: _JsonModule._preprocess(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [_JsonModule._preprocess(v) for v in obj]
+            return obj
+
+        @staticmethod
+        def loads(s):
+            return _ujson.loads(s)
+
+        @staticmethod
+        def dumps(obj, *, default=None, indent=None, sort_keys=False, separators=None, **kwargs):
+            return _ujson.dumps(_JsonModule._preprocess(obj), default=default, indent=indent or 0, sort_keys=sort_keys)
+
+        @staticmethod
+        def load(fp):
+            return _ujson.load(fp)
+
+        @staticmethod
+        def dump(obj, fp, *, default=None, indent=None, sort_keys=False, separators=None, **kwargs):
+            return _ujson.dump(_JsonModule._preprocess(obj), fp, default=default, indent=indent or 0, sort_keys=sort_keys)
+
+    json = _JsonModule()
 else:
     from json import JSONDecodeError  # noqa: F401
 
@@ -110,11 +152,19 @@ def default_json_serialization(obj: Decimal) -> str: ...
 
 
 @overload
+def default_json_serialization(obj: date) -> str: ...
+
+
+@overload
+def default_json_serialization(obj: _dt_module.time) -> str: ...
+
+
+@overload
 def default_json_serialization(obj: MappingProxyType) -> dict: ...
 
 
 def default_json_serialization(
-    obj: datetime | timedelta | Decimal | MappingProxyType,
+    obj: datetime | timedelta | Decimal | date | _dt_module.time | MappingProxyType,
 ) -> str | float | dict:
     if isinstance(obj, datetime):
         return _isoformat(obj)
@@ -122,6 +172,10 @@ def default_json_serialization(
         return obj.total_seconds()
     if isinstance(obj, Decimal):
         return str(obj)
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, _dt_module.time):
+        return obj.isoformat()
     if isinstance(obj, MappingProxyType):
         return dict(obj)
 
