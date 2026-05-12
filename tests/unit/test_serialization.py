@@ -23,6 +23,7 @@ from karapace.core.serialization import (
     InvalidMessageSchema,
     InvalidPayload,
     SchemaRegistryClient,
+    SchemaRetrievalError,
     SchemaRegistrySerializer,
     flatten_unions,
     get_subject_name,
@@ -372,6 +373,168 @@ async def test_deserialization_fails(karapace_container: KarapaceContainer):
         await deserializer.deserialize(enc_bytes)
 
     assert mock_registry_client.method_calls == [call.get_schema_for_id(1)]
+
+
+class MockLookupResult:
+    def __init__(self, status: int, body: dict):
+        self.status_code = status
+        self._body = body
+
+    @property
+    def ok(self) -> bool:
+        return 200 <= self.status_code < 300
+
+    def json(self) -> dict:
+        return self._body
+
+
+async def test_lookup_schema_returns_schema_id_on_success() -> None:
+    """lookup_schema returns SchemaId when SR responds 200 with valid id."""
+    subject = Subject("lookup-subject")
+    expected_id = 42
+    client = SchemaRegistryClient()
+    client.client = Mock()
+    post_future = asyncio.Future()
+    post_future.set_result(MockLookupResult(status=200, body={"id": expected_id}))
+    client.client.post.return_value = post_future
+
+    schema_id = await client.lookup_schema(subject=subject, schema=TYPED_AVRO_SCHEMA)
+
+    assert schema_id == expected_id
+    client.client.post.assert_called_once_with(
+        "subjects/lookup-subject",
+        json=SchemaRegistryClient._build_schema_payload(TYPED_AVRO_SCHEMA),
+    )
+
+
+async def test_lookup_schema_returns_none_on_not_found() -> None:
+    """lookup_schema returns None when SR responds 404 (schema not registered)."""
+    client = SchemaRegistryClient()
+    client.client = Mock()
+    post_future = asyncio.Future()
+    post_future.set_result(MockLookupResult(status=404, body={"error_code": 40403}))
+    client.client.post.return_value = post_future
+
+    schema_id = await client.lookup_schema(subject=Subject("missing-subject"), schema=TYPED_AVRO_SCHEMA)
+
+    assert schema_id is None
+
+
+async def test_lookup_schema_raises_on_unsuccessful_non_404_response() -> None:
+    """lookup_schema raises SchemaRetrievalError on non-404 error responses."""
+    client = SchemaRegistryClient()
+    client.client = Mock()
+    post_future = asyncio.Future()
+    post_future.set_result(MockLookupResult(status=500, body={"message": "oops"}))
+    client.client.post.return_value = post_future
+
+    with pytest.raises(SchemaRetrievalError):
+        await client.lookup_schema(subject=Subject("broken-subject"), schema=TYPED_AVRO_SCHEMA)
+
+
+async def test_lookup_schema_raises_on_missing_id_in_success_response() -> None:
+    """lookup_schema raises SchemaRetrievalError when 200 response has no 'id' field."""
+    client = SchemaRegistryClient()
+    client.client = Mock()
+    post_future = asyncio.Future()
+    post_future.set_result(MockLookupResult(status=200, body={"status": "ok"}))
+    client.client.post.return_value = post_future
+
+    with pytest.raises(SchemaRetrievalError):
+        await client.lookup_schema(subject=Subject("bad-payload-subject"), schema=TYPED_AVRO_SCHEMA)
+
+
+async def test_upsert_id_for_schema_uses_lookup_first_when_enabled_and_lookup_hits(
+    karapace_container: KarapaceContainer,
+) -> None:
+    """With lookup_first=True and schema found, only lookup_schema is called."""
+    subject = Subject("upsert-subject-lookup-hit")
+    expected_id = 71
+    mock_registry_client = Mock()
+    lookup_future = asyncio.Future()
+    lookup_future.set_result(expected_id)
+    mock_registry_client.lookup_schema.return_value = lookup_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject, lookup_first=True)
+
+    assert schema_id == expected_id
+    assert serializer.schemas_to_ids[str(TYPED_AVRO_SCHEMA)] == expected_id
+    assert serializer.ids_to_schemas[expected_id] == TYPED_AVRO_SCHEMA
+    assert mock_registry_client.method_calls == [call.lookup_schema(subject, TYPED_AVRO_SCHEMA)]
+
+
+async def test_upsert_id_for_schema_falls_back_to_register_when_lookup_enabled_and_lookup_misses(
+    karapace_container: KarapaceContainer,
+) -> None:
+    """With lookup_first=True and schema not found, falls back to post_new_schema."""
+    subject = Subject("upsert-subject-lookup-miss")
+    expected_id = 72
+    mock_registry_client = Mock()
+    lookup_future = asyncio.Future()
+    lookup_future.set_result(None)
+    post_future = asyncio.Future()
+    post_future.set_result(expected_id)
+    mock_registry_client.lookup_schema.return_value = lookup_future
+    mock_registry_client.post_new_schema.return_value = post_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject, lookup_first=True)
+
+    assert schema_id == expected_id
+    assert serializer.schemas_to_ids[str(TYPED_AVRO_SCHEMA)] == expected_id
+    assert serializer.ids_to_schemas[expected_id] == TYPED_AVRO_SCHEMA
+    assert mock_registry_client.method_calls == [
+        call.lookup_schema(subject, TYPED_AVRO_SCHEMA),
+        call.post_new_schema(subject, TYPED_AVRO_SCHEMA),
+    ]
+
+
+async def test_upsert_id_for_schema_registers_directly_when_lookup_disabled(
+    karapace_container: KarapaceContainer,
+) -> None:
+    """With lookup_first=False, only post_new_schema is called (default behavior)."""
+    subject = Subject("upsert-subject-no-lookup")
+    expected_id = 73
+    mock_registry_client = Mock()
+    post_future = asyncio.Future()
+    post_future.set_result(expected_id)
+    mock_registry_client.post_new_schema.return_value = post_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject, lookup_first=False)
+
+    assert schema_id == expected_id
+    assert serializer.schemas_to_ids[str(TYPED_AVRO_SCHEMA)] == expected_id
+    assert serializer.ids_to_schemas[expected_id] == TYPED_AVRO_SCHEMA
+    assert mock_registry_client.method_calls == [call.post_new_schema(subject, TYPED_AVRO_SCHEMA)]
+
+
+async def test_upsert_id_for_schema_uses_cache_after_first_lookup_or_register(
+    karapace_container: KarapaceContainer,
+) -> None:
+    """Second call with same schema uses cache — no extra SR requests."""
+    subject = Subject("upsert-subject-cache")
+    expected_id = 74
+    mock_registry_client = Mock()
+    lookup_future = asyncio.Future()
+    lookup_future.set_result(None)
+    post_future = asyncio.Future()
+    post_future.set_result(expected_id)
+    mock_registry_client.lookup_schema.return_value = lookup_future
+    mock_registry_client.post_new_schema.return_value = post_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+
+    first_schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject, lookup_first=True)
+    second_schema_id = await serializer.upsert_id_for_schema(TYPED_AVRO_SCHEMA, subject, lookup_first=True)
+
+    assert first_schema_id == expected_id
+    assert second_schema_id == expected_id
+    assert mock_registry_client.method_calls == [
+        call.lookup_schema(subject, TYPED_AVRO_SCHEMA),
+        call.post_new_schema(subject, TYPED_AVRO_SCHEMA),
+    ]
 
 
 @pytest.mark.parametrize(
