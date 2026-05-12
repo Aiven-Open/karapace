@@ -118,10 +118,15 @@ or with curl ::
 
 To enable oidc authentication on the karapace, configure oidc jwks url config details ::
 
+   sasl_oauthbearer_authentication_enabled: bool = True
    sasl_oauthbearer_jwks_endpoint_url = "",
    sasl_oauthbearer_expected_issuer = "",
    sasl_oauthbearer_expected_audience = "",
    sasl_oauthbearer_sub_claim_name = "sub",
+
+When ``sasl_oauthbearer_authentication_enabled`` is true, every request must carry a valid
+Bearer token (the JWT signature, issuer and audience are verified via JWKS). Authorization
+(role-based access) is opt-in on top of this with ``sasl_oauthbearer_authorization_enabled``.
 
 There is a detailed section about OAuth2 authentication for karapace below.
 
@@ -131,6 +136,11 @@ To enable oidc authorization on karapace, configure the below params together wi
    sasl_oauthbearer_client_id: str | None = None
    sasl_oauthbearer_roles_claim_path: str | None = None
    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+
+Note: ``sasl_oauthbearer_authorization_enabled=true`` requires
+``sasl_oauthbearer_authentication_enabled=true``. For backwards compatibility, enabling
+authorization without explicitly enabling authentication will auto-enable authentication and
+log a deprecation warning — set both flags explicitly.
 
 There is a detailed section about OAuth2 authorization for karapace below.
 
@@ -677,13 +687,15 @@ eg. ``Authorization: Bearer $JWT``. If a ``Bearer`` token is present in schema r
 
 Below here is an example of karapace OpenId connect config ::
 
+   sasl_oauthbearer_authentication_enabled: bool = True
    sasl_oauthbearer_jwks_endpoint_url = "http://localhost:8383/realms/karapace/protocol/openid-connect/certs",
    sasl_oauthbearer_expected_issuer = "http://localhost:8383/realms/karapace",
    sasl_oauthbearer_expected_audience = "account",
    sasl_oauthbearer_sub_claim_name = "sub",
 
-  For authorization::
+  For authorization (requires authentication to be enabled)::
 
+   sasl_oauthbearer_authentication_enabled: bool = True
    sasl_oauthbearer_authorization_enabled: bool = False
    sasl_oauthbearer_client_id: str | None = None
    sasl_oauthbearer_roles_claim_path: str | None = None
@@ -692,6 +704,7 @@ Below here is an example of karapace OpenId connect config ::
 
 Below here is an example of karapace OpenId connect docker config ::
 
+    KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: True
     KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
     KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
     KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "account"
@@ -699,11 +712,21 @@ Below here is an example of karapace OpenId connect docker config ::
 
   For authorization, example config::
 
+  KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: True
   KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
   KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace"
   KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.[client_id].roles"
   KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
                                                            "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": []}
+
+
+Production hardening notes
+--------------------------
+
+* ``sasl_oauthbearer_jwks_endpoint_url`` must use ``https://``; startup fails otherwise.
+  The ``sasl_oauthbearer_allow_insecure_jwks`` flag overrides this for dev/test only.
+* ``/docs``, ``/redoc``, ``/openapi.json`` bypass the auth gate (by design, for Swagger UI).
+  Block them at the reverse proxy in production to avoid leaking the API surface.
 
 
 Testing the authentication and authorization with docker

@@ -12,12 +12,58 @@ from prometheus_client import Counter
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator.metrics import Info, request_size, requests, response_size
 
-from karapace.api.oidc.middleware import OIDCMiddleware
+from karapace.api.oidc.middleware import OIDCMiddleware, TokenExpiredError
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
 import logging
 
 log = logging.getLogger(__name__)
+
+
+def _authenticate_and_authorize(request: Request, config: Config, oidc_middleware: OIDCMiddleware) -> JSONResponse | None:
+    """Run the OIDC auth gate. Return a JSONResponse on failure, or None to continue."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
+        )
+
+    token = auth_header[len("Bearer ") :].strip()
+    if not token:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
+        )
+
+    try:
+        payload = oidc_middleware.validate_jwt(token)
+    except TokenExpiredError:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Unauthorized", "reason": "Token expired"},
+        )
+    except AuthenticationError:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Unauthorized", "reason": "Invalid token/payload"},
+        )
+
+    # Expose only the configured subject claim to handlers, never the full payload.
+    # Prevents downstream code from picking up attacker-controlled claims (e.g. "roles")
+    # and using them for authz decisions.
+    request.state.user = payload.get(oidc_middleware.claim_name) if oidc_middleware.claim_name else None
+    log.debug("Authenticated")
+
+    if config.sasl_oauthbearer_authorization_enabled:
+        try:
+            oidc_middleware.authorize_request(payload, request.method)
+        except HTTPException as e:
+            return JSONResponse(
+                {"error": "Authorization error", "reason": e.detail},
+                status_code=e.status_code,
+            )
+    return None
 
 
 def setup_middlewares(app: FastAPI, config: Config) -> None:
@@ -33,36 +79,10 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
         if request.url.path in config.sasl_oauthbearer_skip_auth_paths:
             return await call_next(request)
 
-        # Check for bearer token in header
-        auth_header = request.headers.get("Authorization")
-
-        if config.sasl_oauthbearer_authorization_enabled:
-            if not auth_header or not auth_header.startswith("Bearer "):
-                # Fail fast if header is missing or invalid
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
-                )
-
-            # Header exists and starts with Bearer → validate JWT
-            token = auth_header.split(" ", 1)[1]
-            try:
-                payload = oidc_middleware.validate_jwt(token)
-                request.state.user = payload
-                log.debug("Authenticated")
-            except AuthenticationError:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": "Unauthorized", "reason": "Invalid token/payload"},
-                )
-
-            try:
-                oidc_middleware.authorize_request(payload, request.method)
-            except HTTPException as e:
-                return JSONResponse(
-                    {"error": "Authorization error", "reason": e.detail},
-                    status_code=e.status_code,
-                )
+        if config.sasl_oauthbearer_authentication_enabled:
+            failure = _authenticate_and_authorize(request, config, oidc_middleware)
+            if failure is not None:
+                return failure
 
         response = await call_next(request)
 

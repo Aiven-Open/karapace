@@ -222,6 +222,84 @@ async def registry_async_client_oidc_no_auth_header(
         await client.close()
 
 
+# ---------------------------------------------------------------------------
+# AuthN-only registry fixtures: a separate Schema Registry instance that has
+# sasl_oauthbearer_authentication_enabled=true and authorization_enabled=false.
+# Defined as karapace-schema-registry-authn-only in container/compose.yml.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="function", name="registry_authn_only_cluster")
+async def fixture_registry_authn_only_cluster(
+    loop: asyncio.AbstractEventLoop,
+) -> RegistryDescription:
+    endpoint = RegistryEndpoint("https", "karapace-schema-registry-authn-only", 8281)
+    return RegistryDescription(endpoint, "_schemas_authn_only")
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_authn_only")
+async def fixture_registry_async_client_oidc_authn_only(
+    request: SubRequest,
+    registry_authn_only_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
+
+    client = Client(
+        server_uri=registry_authn_only_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_authn_only_invalid")
+async def fixture_registry_async_client_oidc_authn_only_invalid(
+    request: SubRequest,
+    registry_authn_only_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": "Bearer invalid_token"})
+
+    client = Client(
+        server_uri=registry_authn_only_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_authn_only_no_auth_header")
+async def fixture_registry_async_client_oidc_authn_only_no_auth_header(
+    request: SubRequest,
+    registry_authn_only_cluster: RegistryDescription,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={})
+
+    client = Client(
+        server_uri=registry_authn_only_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
 class TokenProvider:
     def __init__(self, token: str, expiry_seconds: int = 3600):
         self._token = token

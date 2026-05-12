@@ -86,8 +86,11 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: true
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
@@ -144,14 +147,68 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: true
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
       KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
       KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
       KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
+
+  # Schema Registry running with OIDC authentication only (no role-based authorization).
+  # Used to verify the sasl_oauthbearer_authentication_enabled flag in isolation.
+  karapace-schema-registry-authn-only:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-authn-only
+    container_name: karapace-schema-registry-authn-only
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+      - opentelemetry-collector
+    ports:
+      - 8281:8281
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-authn-only
+      KARAPACE_ADVERTISED_PROTOCOL: https
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8281
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-authn-only
+      KARAPACE_GROUP_ID: karapace-schema-registry-authn-only
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas_authn_only
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_TAGS__APP: karapace-schema-registry-authn-only
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
+      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: true
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   karapace-rest-proxy:

@@ -84,6 +84,9 @@ def get_auth_config_from_header(
 
 
 def get_expiration_timestamp_from_jwt(token: str) -> int | None:
+    # REST Proxy forwards the Bearer JWT to Kafka via SASL/OAUTHBEARER; Kafka validates
+    # signature/issuer/audience. This unverified decode is only used to evict the per-user
+    # proxy when the token expires. SR `sasl_oauthbearer_*` validation fields do not apply.
     return jwt.decode(token, options={"verify_signature": False}).get("exp")
 
 
