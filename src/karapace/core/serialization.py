@@ -8,7 +8,7 @@ from __future__ import annotations
 from aiohttp import BasicAuth
 from async_lru import alru_cache
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
-from cachetools import TTLCache
+from cachetools import LRUCache, TTLCache
 from collections.abc import Callable, MutableMapping
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
@@ -42,6 +42,9 @@ import struct
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
 HEADER_SIZE = 5
+
+_datum_reader_cache: MutableMapping[str, DatumReader] = LRUCache(maxsize=100)
+_datum_writer_cache: MutableMapping[str, DatumWriter] = LRUCache(maxsize=100)
 
 
 class DeserializationError(Exception):
@@ -452,7 +455,11 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
 
 def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
-        reader = DatumReader(writers_schema=schema.schema)
+        fp = schema.fingerprint()
+        reader = _datum_reader_cache.get(fp)
+        if reader is None:
+            reader = DatumReader(writers_schema=schema.schema)
+            _datum_reader_cache[fp] = reader
         return reader.read(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
         value = json_decode(bio)
@@ -480,7 +487,11 @@ def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dic
         else:
             data = flatten_unions(schema.schema, value)
 
-        writer = DatumWriter(writers_schema=schema.schema)
+        fp = schema.fingerprint()
+        writer = _datum_writer_cache.get(fp)
+        if writer is None:
+            writer = DatumWriter(writers_schema=schema.schema)
+            _datum_writer_cache[fp] = writer
         writer.write(data, BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
