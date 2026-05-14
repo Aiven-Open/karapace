@@ -4,12 +4,13 @@ See LICENSE for details
 """
 
 import asyncio
+import base64
 import copy
 import io
 import json
 import logging
 import struct
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 import avro
 import pytest
@@ -22,6 +23,7 @@ from karapace.core.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
+    SchemaRetrievalError,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
     flatten_unions,
@@ -108,6 +110,74 @@ TYPED_PROTOBUF_SCHEMA = ValidatedTypedSchema.parse(
         string attr2 = 2;
     }\
     """,
+)
+
+MAP_UNION_AVRO_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "MapUnionTest",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+            ],
+        }
+    ),
+)
+
+AVRO_BYTES_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.bytes",
+            "name": "BytesEnvelope",
+            "type": "record",
+            "fields": [
+                {
+                    "name": "payload",
+                    "type": {
+                        "type": "record",
+                        "name": "Payload",
+                        "fields": [
+                            {"name": "raw", "type": "bytes"},
+                            {"name": "items", "type": {"type": "array", "items": "bytes"}},
+                        ],
+                    },
+                }
+            ],
+        }
+    ),
+)
+
+COMPLEX_UNION_AVRO_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "MinimalUnionTest",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {
+                    "name": "attrs",
+                    "type": {
+                        "type": "array",
+                        "items": {
+                            "type": "record",
+                            "name": "Attr",
+                            "fields": [
+                                {"name": "k", "type": "string"},
+                                {"name": "v", "type": ["null", "string", "long", "double", "boolean"]},
+                            ],
+                        },
+                    },
+                },
+                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+            ],
+        }
+    ),
 )
 
 
@@ -372,6 +442,187 @@ async def test_deserialization_fails(karapace_container: KarapaceContainer):
         await deserializer.deserialize(enc_bytes)
 
     assert mock_registry_client.method_calls == [call.get_schema_for_id(1)]
+
+
+async def test_deserialization_propagates_schema_retrieval_error(karapace_container: KarapaceContainer) -> None:
+    mock_registry_client = Mock()
+    mock_registry_client.get_schema_for_id.side_effect = SchemaRetrievalError("schema registry unavailable")
+
+    deserializer = await make_ser_deser(karapace_container, mock_registry_client)
+    payload = struct.pack(">bI", START_BYTE, 1)
+
+    with pytest.raises(SchemaRetrievalError, match="schema registry unavailable"):
+        await deserializer.deserialize(payload)
+
+    assert mock_registry_client.method_calls == [call.get_schema_for_id(1)]
+
+
+async def test_deserialize_offloads_avro_read_to_thread(karapace_container: KarapaceContainer) -> None:
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, COMPLEX_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((COMPLEX_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {
+        "id": "one",
+        "attrs": [
+            {"k": "text", "v": "value"},
+            {"k": "count", "v": 5},
+            {"k": "ratio", "v": 1.5},
+            {"k": "flag", "v": True},
+            {"k": "empty", "v": None},
+        ],
+        "props": {"present": "yes", "missing": None},
+    }
+    payload = await serializer.serialize(schema, record)
+
+    to_thread_calls: list[str] = []
+
+    async def fake_to_thread(func, *args, **kwargs):
+        to_thread_calls.append(func.__name__)
+        return func(*args, **kwargs)
+
+    with patch("karapace.core.serialization.asyncio.to_thread", side_effect=fake_to_thread):
+        assert await serializer.deserialize(payload) == record
+
+    assert to_thread_calls == ["_read_avro_value"]
+
+
+async def test_deserialize_reuses_datum_reader_for_map_union_schema(karapace_container: KarapaceContainer) -> None:
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, MAP_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((MAP_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {"id": "one", "props": {"present": "yes", "missing": None}}
+    payload = await serializer.serialize(schema, record)
+    original_datum_reader = avro.io.DatumReader
+    datum_reader_init_count = 0
+
+    class CountingDatumReader:
+        def __init__(self, writers_schema):
+            nonlocal datum_reader_init_count
+            datum_reader_init_count += 1
+            self._delegate = original_datum_reader(writers_schema=writers_schema)
+
+        def read(self, decoder):
+            return self._delegate.read(decoder)
+
+    with patch("karapace.core.serialization.DatumReader", CountingDatumReader):
+        assert await serializer.deserialize(payload) == record
+        assert await serializer.deserialize(payload) == record
+
+    assert datum_reader_init_count == 1
+
+
+async def test_deserialize_reuses_datum_reader_for_complex_avro_schema(karapace_container: KarapaceContainer) -> None:
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, COMPLEX_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((COMPLEX_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {
+        "id": "one",
+        "attrs": [
+            {"k": "text", "v": "value"},
+            {"k": "count", "v": 5},
+            {"k": "ratio", "v": 1.5},
+            {"k": "flag", "v": True},
+        ],
+        "props": {"present": "yes", "missing": None},
+    }
+    payload = await serializer.serialize(schema, record)
+    original_datum_reader = avro.io.DatumReader
+    datum_reader_init_count = 0
+
+    class CountingDatumReader:
+        def __init__(self, writers_schema):
+            nonlocal datum_reader_init_count
+            datum_reader_init_count += 1
+            self._delegate = original_datum_reader(writers_schema=writers_schema)
+
+        def read(self, decoder):
+            return self._delegate.read(decoder)
+
+    with patch("karapace.core.serialization.DatumReader", CountingDatumReader):
+        assert await serializer.deserialize(payload) == record
+        assert await serializer.deserialize(payload) == record
+
+    assert datum_reader_init_count == 1
+
+
+async def test_deserialize_converts_avro_bytes_to_base64_strings(karapace_container: KarapaceContainer) -> None:
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, AVRO_BYTES_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((AVRO_BYTES_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {
+        "payload": {
+            "raw": b"\x01\x02",
+            "items": [b"\x03\x04", b"\x05\x06"],
+        }
+    }
+    payload = await serializer.serialize(schema, record)
+
+    assert await serializer.deserialize(payload) == {
+        "payload": {
+            "raw": base64.b64encode(b"\x01\x02").decode("ascii"),
+            "items": [
+                base64.b64encode(b"\x03\x04").decode("ascii"),
+                base64.b64encode(b"\x05\x06").decode("ascii"),
+            ],
+        }
+    }
+
+
+async def test_deserialize_converts_empty_avro_bytes_to_empty_base64_strings(
+    karapace_container: KarapaceContainer,
+) -> None:
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, AVRO_BYTES_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((AVRO_BYTES_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {
+        "payload": {
+            "raw": b"",
+            "items": [b"", b""],
+        }
+    }
+    payload = await serializer.serialize(schema, record)
+
+    assert await serializer.deserialize(payload) == {
+        "payload": {
+            "raw": "",
+            "items": ["", ""],
+        }
+    }
 
 
 @pytest.mark.parametrize(

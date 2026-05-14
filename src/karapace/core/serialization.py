@@ -36,8 +36,11 @@ from urllib.parse import quote
 import asyncio
 import avro
 import avro.schema
+import base64
 import io
 import struct
+import threading
+import weakref
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
@@ -306,6 +309,10 @@ class SchemaRegistrySerializer:
         self.ids_to_schemas: dict[int, TypedSchema] = {}
         self.ids_to_subjects: MutableMapping[int, list[Subject]] = TTLCache(maxsize=10000, ttl=600)
         self.schemas_to_ids: dict[str, SchemaId] = {}
+        self._avro_readers_lock = threading.Lock()
+        self._avro_readers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumReader]] = (
+            weakref.WeakKeyDictionary()
+        )
 
     async def close(self) -> None:
         if self.registry_client:
@@ -380,12 +387,48 @@ class SchemaRegistrySerializer:
                 schema, _ = await self.get_schema_for_id(schema_id)
                 if schema is None:
                     raise InvalidPayload("No schema with ID from payload")
-                ret_val = read_value(self.config, schema, bio)
+                if schema.schema_type is SchemaType.AVRO:
+                    ret_val = await asyncio.to_thread(self._read_avro_value, SchemaId(schema_id), schema, bio)
+                else:
+                    ret_val = read_value(self.config, schema, bio)
                 return ret_val
             except (UnicodeDecodeError, TypeError, avro.errors.InvalidAvroBinaryEncoding) as e:
                 raise InvalidPayload("Data does not contain a valid message") from e
             except avro.errors.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
+
+    def _get_avro_reader(self, schema_id: SchemaId, schema: TypedSchema) -> DatumReader:
+        current_thread = threading.current_thread()
+        with self._avro_readers_lock:
+            reader_cache = self._avro_readers_by_thread.get(current_thread)
+            if reader_cache is None:
+                reader_cache = TTLCache(maxsize=10000, ttl=600)
+                self._avro_readers_by_thread[current_thread] = reader_cache
+
+        reader = reader_cache.get(schema_id)
+        if reader is None:
+            reader = DatumReader(writers_schema=schema.schema)
+            reader_cache[schema_id] = reader
+        return reader
+
+    def _read_avro_value(self, schema_id: SchemaId, schema: TypedSchema, bio: io.BytesIO) -> Any:
+        return read_value(self.config, schema, bio, avro_reader=self._get_avro_reader(schema_id, schema))
+
+
+def _jsonify_avro_payload(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return base64.b64encode(value).decode("ascii")
+
+    if isinstance(value, bytearray):
+        return base64.b64encode(bytes(value)).decode("ascii")
+
+    if isinstance(value, list):
+        return [_jsonify_avro_payload(item) for item in value]
+
+    if isinstance(value, dict):
+        return {key: _jsonify_avro_payload(item) for key, item in value.items()}
+
+    return value
 
 
 def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
@@ -450,10 +493,10 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
-def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
+def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader: DatumReader | None = None):
     if schema.schema_type is SchemaType.AVRO:
-        reader = DatumReader(writers_schema=schema.schema)
-        return reader.read(BinaryDecoder(bio))
+        reader = avro_reader if avro_reader is not None else DatumReader(writers_schema=schema.schema)
+        return _jsonify_avro_payload(reader.read(BinaryDecoder(bio)))
     if schema.schema_type is SchemaType.JSONSCHEMA:
         value = json_decode(bio)
         try:
