@@ -27,6 +27,18 @@ Performance test is run from the shell script::
 
   ./run-locust-test.sh
 
+Or use the dedicated Make targets from the repository root::
+
+  make performance-test-rest-proxy
+  make performance-test-schema-registry
+
+For the schema-registry Locust test, the dedicated Make target uses the local HTTPS schema-registry endpoint::
+
+  make performance-test-schema-registry
+
+The script also fetches an OIDC bearer token automatically for `schema-registry-schema-post.py` by calling
+`bin/get_oidc_token.py`, using `KEYCLOAK_CONNECT_URL=http://localhost:8383` by default.
+
 A web interface must be running on http://0.0.0.0:8089/ to run tests
 
 Here is a screenshot of performance tests locally.
