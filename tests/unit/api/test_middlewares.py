@@ -25,6 +25,20 @@ def _clean_prometheus_registry() -> Iterator[None]:
             pass
 
 
+def _oidc_config(**overrides) -> Config:
+    """Build a Config with the OIDC fields the middleware constructor needs."""
+    base: dict = {
+        "sasl_oauthbearer_jwks_endpoint_url": "https://oidc.test/realms/r/protocol/openid-connect/certs",
+        "sasl_oauthbearer_expected_issuer": "https://oidc.test/realms/r",
+        "sasl_oauthbearer_expected_audience": "audience",
+        "sasl_oauthbearer_sub_claim_name": "sub",
+        "sasl_oauthbearer_client_id": "client-id",
+        "sasl_oauthbearer_roles_claim_path": "realm_access.roles",
+    }
+    base.update(overrides)
+    return Config(**base)
+
+
 def _build_app(config: Config) -> FastAPI:
     app = FastAPI()
 
@@ -49,7 +63,7 @@ def _client(config: Config) -> TestClient:
 
 
 def test_docs_path_bypasses_auth() -> None:
-    config = Config(sasl_oauthbearer_authorization_enabled=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     response = _client(config).get("/docs")
 
@@ -58,7 +72,8 @@ def test_docs_path_bypasses_auth() -> None:
 
 
 def test_skip_auth_path_bypasses_bearer_check() -> None:
-    config = Config(
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
         sasl_oauthbearer_authorization_enabled=True,
         sasl_oauthbearer_skip_auth_paths=["/_health", "/metrics"],
     )
@@ -84,7 +99,7 @@ def test_auth_disabled_allows_requests_without_token() -> None:
 
 
 def test_missing_authorization_header_returns_401() -> None:
-    config = Config(sasl_oauthbearer_authorization_enabled=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     response = _client(config).get("/subjects")
 
@@ -95,7 +110,7 @@ def test_missing_authorization_header_returns_401() -> None:
 
 
 def test_non_bearer_authorization_returns_401() -> None:
-    config = Config(sasl_oauthbearer_authorization_enabled=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     response = _client(config).get("/subjects", headers={"Authorization": "Basic abc"})
 
@@ -106,7 +121,7 @@ def test_non_bearer_authorization_returns_401() -> None:
 
 
 def test_valid_bearer_token_passes_and_sets_content_type() -> None:
-    config = Config(sasl_oauthbearer_authorization_enabled=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     with (
         patch("karapace.api.middlewares.OIDCMiddleware.validate_jwt", return_value={"sub": "u1"}),
@@ -119,7 +134,7 @@ def test_valid_bearer_token_passes_and_sets_content_type() -> None:
 
 
 def test_invalid_jwt_returns_401() -> None:
-    config = Config(sasl_oauthbearer_authorization_enabled=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     with patch(
         "karapace.api.middlewares.OIDCMiddleware.validate_jwt",
@@ -132,7 +147,7 @@ def test_invalid_jwt_returns_401() -> None:
 
 
 def test_authorization_failure_returns_role_error() -> None:
-    config = Config(sasl_oauthbearer_authorization_enabled=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     with (
         patch("karapace.api.middlewares.OIDCMiddleware.validate_jwt", return_value={"sub": "u1"}),

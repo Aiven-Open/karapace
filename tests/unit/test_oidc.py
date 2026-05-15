@@ -8,14 +8,15 @@ See LICENSE for details
 from __future__ import annotations
 
 import datetime
+import logging
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
-from jwt import InvalidTokenError
-from karapace.api.oidc.middleware import OIDCMiddleware
+from jwt import ExpiredSignatureError, InvalidTokenError
+from karapace.api.oidc.middleware import OIDCMiddleware, TokenExpiredError
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
 from karapace.rapu import JSON_CONTENT_TYPE, HTTPResponse
@@ -35,6 +36,7 @@ class DummyConfig:
     sasl_oauthbearer_expected_audience: str | None
     sasl_oauthbearer_sub_claim_name: str | None
     sasl_oauthbearer_authorization_enabled: bool
+    sasl_oauthbearer_authentication_enabled: bool = False
     sasl_oauthbearer_client_id: str | None = None
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = field(
@@ -44,7 +46,7 @@ class DummyConfig:
 
 valid_configs = [
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+        sasl_oauthbearer_jwks_endpoint_url="https://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
         sasl_oauthbearer_expected_issuer="https://oidcprovider.com",
         sasl_oauthbearer_expected_audience="accounts-audience",
         sasl_oauthbearer_sub_claim_name="sub",
@@ -67,7 +69,7 @@ valid_configs = [
 
 invalid_configs = [
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+        sasl_oauthbearer_jwks_endpoint_url="https://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
         sasl_oauthbearer_expected_issuer=None,
         sasl_oauthbearer_expected_audience="accounts-audience",
         sasl_oauthbearer_sub_claim_name="sub",
@@ -77,7 +79,7 @@ invalid_configs = [
         sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
     DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+        sasl_oauthbearer_jwks_endpoint_url="https://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
         sasl_oauthbearer_expected_issuer=None,
         sasl_oauthbearer_expected_audience=None,
         sasl_oauthbearer_sub_claim_name="sub",
@@ -135,17 +137,17 @@ def test_validate_token_valid_configs(
     mock_jwt_decode.return_value = mock_payload
 
     token = auth_header.split(" ", 1)[1]
-    payload = oidc_middleware.validate_jwt(token)
 
     if dummy_config.sasl_oauthbearer_jwks_endpoint_url:
-        # JWKS URL is present, validate normally
+        payload = oidc_middleware.validate_jwt(token)
         if expected_expiration is not None:
             assert payload.get("exp") == int(expected_expiration.timestamp())
         else:
             assert "exp" not in payload or payload.get("exp") is None
     else:
-        # No JWKS URL, validation is skipped, payload is empty dict
-        assert payload == {}
+        # No JWKS URL: validate_jwt fails closed instead of returning an empty payload.
+        with pytest.raises(AuthenticationError, match="OIDC not configured"):
+            oidc_middleware.validate_jwt(token)
 
 
 @pytest.mark.parametrize("dummy_config", invalid_configs)
@@ -161,6 +163,28 @@ def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
         ValueError, match="OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
     ):
         OIDCMiddleware(app=MagicMock(), config=config)
+
+
+def test_oidc_middleware_rejects_http_jwks_url_by_default():
+    config = Config(
+        sasl_oauthbearer_jwks_endpoint_url="http://idp/realms/r/protocol/openid-connect/certs",
+        sasl_oauthbearer_expected_issuer="http://idp/realms/r",
+        sasl_oauthbearer_expected_audience="aud",
+    )
+    with pytest.raises(ValueError, match="https://"):
+        OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_oidc_middleware_allows_http_jwks_when_override_set(mock_pyjwks_client):
+    mock_pyjwks_client.return_value = MagicMock()
+    config = Config(
+        sasl_oauthbearer_jwks_endpoint_url="http://idp/realms/r/protocol/openid-connect/certs",
+        sasl_oauthbearer_expected_issuer="http://idp/realms/r",
+        sasl_oauthbearer_expected_audience="aud",
+        sasl_oauthbearer_allow_insecure_jwks=True,
+    )
+    OIDCMiddleware(app=MagicMock(), config=config)
 
 
 @pytest.mark.parametrize("dummy_config", valid_configs, ids=["valid_full", "no_oidc"], indirect=True)
@@ -189,9 +213,9 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
             oidc_middleware.validate_jwt(invalid_token)
         assert "Invalid OIDC token" in str(exc_info.value)
     else:
-        # When JWKS URL is missing, validate_jwt returns empty dict instead of raising
-        payload = oidc_middleware.validate_jwt(invalid_token)
-        assert payload == {}
+        # When JWKS URL is missing, validate_jwt fails closed.
+        with pytest.raises(AuthenticationError, match="OIDC not configured"):
+            oidc_middleware.validate_jwt(invalid_token)
 
 
 @pytest.mark.parametrize(
@@ -223,7 +247,7 @@ def test_get_roles_from_claim_path(payload, path, expected_roles):
 )
 def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expect_error):
     config = DummyConfig(
-        sasl_oauthbearer_jwks_endpoint_url="http://fake",
+        sasl_oauthbearer_jwks_endpoint_url="https://fake",
         sasl_oauthbearer_expected_issuer="issuer",
         sasl_oauthbearer_expected_audience="aud",
         sasl_oauthbearer_sub_claim_name="sub",
@@ -242,3 +266,263 @@ def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expec
         assert exc_info.value.status_code == 403
     else:
         middleware.authorize_request(payload, method)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Tests for the authN / authZ flag split (sasl_oauthbearer_authentication_enabled
+# is independent from sasl_oauthbearer_authorization_enabled).
+# ---------------------------------------------------------------------------
+
+
+def _oidc_config(**overrides) -> Config:
+    """Build a Config with sane OIDC defaults plus any overrides for the test."""
+    base: dict = {
+        "sasl_oauthbearer_jwks_endpoint_url": "https://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+        "sasl_oauthbearer_expected_issuer": "https://oidcprovider.com",
+        "sasl_oauthbearer_expected_audience": "accounts-audience",
+    }
+    base.update(overrides)
+    return Config(**base)
+
+
+def test_config_bc_shim_authz_implies_authn(caplog):
+    """Setting only authorization_enabled=True must auto-enable authentication_enabled with a warning."""
+    with caplog.at_level(logging.WARNING):
+        config = _oidc_config(sasl_oauthbearer_authorization_enabled=True)
+    assert config.sasl_oauthbearer_authentication_enabled is True
+    assert config.sasl_oauthbearer_authorization_enabled is True
+    assert any("deprecated" in rec.message for rec in caplog.records)
+
+
+def test_config_authn_only_does_not_warn(caplog):
+    """Enabling only authN must not trigger the BC deprecation warning."""
+    with caplog.at_level(logging.WARNING):
+        config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    assert config.sasl_oauthbearer_authentication_enabled is True
+    assert config.sasl_oauthbearer_authorization_enabled is False
+    assert not any("deprecated" in rec.message for rec in caplog.records)
+
+
+def test_config_both_enabled_no_warning(caplog):
+    with caplog.at_level(logging.WARNING):
+        config = _oidc_config(
+            sasl_oauthbearer_authentication_enabled=True,
+            sasl_oauthbearer_authorization_enabled=True,
+        )
+    assert config.sasl_oauthbearer_authentication_enabled is True
+    assert config.sasl_oauthbearer_authorization_enabled is True
+    assert not any("deprecated" in rec.message for rec in caplog.records)
+
+
+def test_config_both_disabled_default():
+    config = Config()
+    assert config.sasl_oauthbearer_authentication_enabled is False
+    assert config.sasl_oauthbearer_authorization_enabled is False
+
+
+# ---------------------------------------------------------------------------
+# HTTP middleware behavior: authN-only vs authN+authZ vs disabled.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clean_prometheus_registry():
+    """setup_middlewares registers prometheus collectors into a global REGISTRY.
+    Re-running it across tests in this module collides — unregister between tests.
+    """
+    from prometheus_client import REGISTRY
+
+    yield
+    for collector in list(REGISTRY._names_to_collectors.values()):
+        try:
+            REGISTRY.unregister(collector)
+        except Exception:
+            pass
+
+
+def _build_app_with_middleware(
+    monkeypatch, config: Config, *, validate_jwt_payload: dict | None = None, validate_jwt_raises: Exception | None = None
+):
+    """Build a minimal FastAPI app wired to setup_middlewares, with OIDCMiddleware patched."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from karapace.api import middlewares as middlewares_mod
+
+    app = FastAPI()
+
+    @app.get("/subjects")
+    async def subjects():
+        return []
+
+    @app.get("/_health")
+    async def health():
+        return {"ok": True}
+
+    def _fake_validate_jwt(self, token):
+        if validate_jwt_raises is not None:
+            raise validate_jwt_raises
+        return validate_jwt_payload or {}
+
+    def _fake_authorize(self, payload, method):
+        # Re-use real role logic to verify the gate, but make it raise if enabled+roles missing.
+        return True
+
+    # Patch heavy bits of OIDCMiddleware: skip real JWKS client construction.
+    monkeypatch.setattr(
+        "karapace.api.oidc.middleware.PyJWKClient",
+        lambda *a, **kw: MagicMock(),
+    )
+    monkeypatch.setattr(OIDCMiddleware, "validate_jwt", _fake_validate_jwt)
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _fake_authorize)
+
+    middlewares_mod.setup_middlewares(app=app, config=config)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_middleware_disabled_allows_unauth_request(monkeypatch):
+    config = Config()  # authN/authZ both False
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    r = client.get("/subjects")
+    assert r.status_code == 200
+
+
+def test_middleware_authn_only_requires_bearer(monkeypatch):
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    r = client.get("/subjects")
+    assert r.status_code == 401
+    assert r.json()["reason"] == "Missing or invalid Authorization header"
+
+
+def test_middleware_authn_only_valid_token_passes(monkeypatch):
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    assert r.status_code == 200
+
+
+def test_middleware_authn_only_invalid_token_returns_401(monkeypatch):
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_raises=AuthenticationError("bad"))
+    r = client.get("/subjects", headers={"Authorization": "Bearer bad.token"})
+    assert r.status_code == 401
+    assert r.json()["reason"] == "Invalid token/payload"
+
+
+def test_middleware_authn_only_skips_authorize_request(monkeypatch):
+    """When only authN is enabled, authorize_request must NOT be invoked even with a valid token."""
+    calls: list = []
+
+    def _spy_authorize(self, payload, method):
+        calls.append((payload, method))
+        return True
+
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    # Re-patch authorize_request after _build_app_with_middleware (which also patches it).
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+
+    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    assert r.status_code == 200
+    assert calls == []  # authZ never called
+
+
+def test_middleware_authn_and_authz_calls_authorize(monkeypatch):
+    """When both flags are on, authorize_request must be invoked with the validated payload."""
+    calls: list = []
+
+    def _spy_authorize(self, payload, method):
+        calls.append((payload, method))
+        return True
+
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_authorization_enabled=True,
+        sasl_oauthbearer_client_id="client-id",
+        sasl_oauthbearer_roles_claim_path="realm_access.roles",
+    )
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+
+    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    assert r.status_code == 200
+    assert calls and calls[0][1] == "GET"
+
+
+def test_middleware_authn_and_authz_returns_403_on_role_failure(monkeypatch):
+    def _deny(self, payload, method):
+        raise HTTPException(status_code=403, detail="Insufficient roles")
+
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_authorization_enabled=True,
+        sasl_oauthbearer_client_id="client-id",
+        sasl_oauthbearer_roles_claim_path="realm_access.roles",
+    )
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _deny)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _deny)
+
+    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    assert r.status_code == 403
+    assert r.json()["reason"] == "Insufficient roles"
+
+
+def test_middleware_skip_paths_bypass_auth(monkeypatch):
+    """Paths in sasl_oauthbearer_skip_auth_paths must bypass the gate even when authN is enabled."""
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    r = client.get("/_health")  # no Authorization header
+    assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Expired token: ExpiredSignatureError must surface as TokenExpiredError from
+# validate_jwt and translate to a 401 with reason "Token expired".
+# ---------------------------------------------------------------------------
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.middleware.jwt.decode")
+def test_validate_jwt_expired_token_raises_token_expired(mock_jwt_decode, mock_pyjwks_client):
+    mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_jwt_decode.side_effect = ExpiredSignatureError("Signature has expired")
+
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+
+    with pytest.raises(TokenExpiredError) as exc_info:
+        middleware.validate_jwt("expired.jwt.token")
+    assert "expired" in str(exc_info.value).lower()
+    # TokenExpiredError must remain a subclass of AuthenticationError so existing handlers still catch it.
+    assert isinstance(exc_info.value, AuthenticationError)
+
+
+def test_middleware_returns_401_token_expired_on_expired_token(monkeypatch):
+    """An expired token must produce a 401 with a distinct 'Token expired' reason."""
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(
+        monkeypatch,
+        config,
+        validate_jwt_raises=TokenExpiredError("OIDC token expired"),
+    )
+    r = client.get("/subjects", headers={"Authorization": "Bearer expired.token"})
+    assert r.status_code == 401
+    assert r.json()["error"] == "Unauthorized"
+    assert r.json()["reason"] == "Token expired"
+
+
+def test_middleware_invalid_token_still_returns_invalid_reason(monkeypatch):
+    """Generic AuthenticationError (non-expiry) must keep the original 'Invalid token/payload' reason."""
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(
+        monkeypatch,
+        config,
+        validate_jwt_raises=AuthenticationError("bad sig"),
+    )
+    r = client.get("/subjects", headers={"Authorization": "Bearer bogus.token"})
+    assert r.status_code == 401
+    assert r.json()["reason"] == "Invalid token/payload"

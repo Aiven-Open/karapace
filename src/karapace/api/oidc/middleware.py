@@ -8,11 +8,14 @@ from typing import Any
 import jwt
 import logging
 from fastapi import FastAPI, HTTPException
-from jwt import PyJWKClient, InvalidTokenError
-from starlette.responses import JSONResponse
+from jwt import ExpiredSignatureError, PyJWKClient, InvalidTokenError
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
-from starlette.types import Scope, Receive, Send
+
+
+class TokenExpiredError(AuthenticationError):
+    """Raised when an OIDC JWT is rejected because its `exp` claim is in the past."""
+
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +30,7 @@ class OIDCMiddleware:
         self.issuer = config.sasl_oauthbearer_expected_issuer
         self.audience = config.sasl_oauthbearer_expected_audience
         self.claim_name = config.sasl_oauthbearer_sub_claim_name
+        self.authentication_enabled = config.sasl_oauthbearer_authentication_enabled
         self.authorization_enabled = config.sasl_oauthbearer_authorization_enabled
         self.client_id = config.sasl_oauthbearer_client_id
         self.sasl_oauthbearer_method_roles: dict[str, list[str]] = config.sasl_oauthbearer_method_roles
@@ -37,6 +41,18 @@ class OIDCMiddleware:
 
         # Validate required fields if JWKS URL is set
         if self.jwks_url:
+            if not self.jwks_url.lower().startswith("https://"):
+                if not config.sasl_oauthbearer_allow_insecure_jwks:
+                    # Plain HTTP lets an in-path attacker swap the signing keys and
+                    # forge tokens that pass validation. Fail closed by default.
+                    raise ValueError(
+                        "OIDC config error: sasl_oauthbearer_jwks_endpoint_url must use https://. "
+                        "Set sasl_oauthbearer_allow_insecure_jwks=true to override (dev only)."
+                    )
+                log.warning(
+                    "OIDC: JWKS URL uses plain HTTP (%s) — INSECURE override is active. " "DO NOT use in production.",
+                    self.jwks_url,
+                )
             if not self.issuer or not self.audience:
                 raise ValueError(
                     "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
@@ -48,23 +64,23 @@ class OIDCMiddleware:
                 self.audience,
             )
 
-            self._jwks_client = PyJWKClient(self.jwks_url)
+            # lifespan caps how long a key stays cached after IdP rotation/revocation.
+            # max_cached_keys=16 is generous; IdPs typically expose 1-3 active signing keys.
+            self._jwks_client = PyJWKClient(self.jwks_url, cache_keys=True, lifespan=300, max_cached_keys=16)
 
             log.info("OIDC Authorization enabled: %s", self.authorization_enabled)
             if self.authorization_enabled:
                 if self.client_id is None or self.sasl_oauthbearer_roles_claim_path is None:
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Invalid configuration: client_id and roles_claim_path are required when authorization is enabled.",
+                    raise ValueError(
+                        "OIDC config error: client_id and roles_claim_path are required when authorization is enabled."
                     )
 
                 required_http_methods = set(self.sasl_oauthbearer_method_roles.keys())
                 # Validate required HTTP methods in method_roles
                 missing_methods = required_http_methods - self.sasl_oauthbearer_method_roles.keys()
                 if missing_methods:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Invalid configuration: method_roles is missing definitions for: {', '.join(sorted(missing_methods))}",
+                    raise ValueError(
+                        f"OIDC config error: method_roles is missing definitions for: {', '.join(sorted(missing_methods))}"
                     )
                 log.info(
                     "OIDC Authorization configured. — client_id: %s, method_roles: %s, roles_claim_path: %s",
@@ -73,13 +89,16 @@ class OIDCMiddleware:
                     self.sasl_oauthbearer_roles_claim_path,
                 )
         else:
+            if self.authentication_enabled or self.authorization_enabled:
+                raise ValueError(
+                    "OIDC config error: sasl_oauthbearer_jwks_endpoint_url is required when "
+                    "authentication or authorization is enabled. Also set expected_issuer and expected_audience."
+                )
             self._jwks_client = None
-            log.warning("OIDC middleware initialized without JWKS URL — token validation will be skipped.")
 
     def validate_jwt(self, token: str) -> dict:
         if not self._jwks_client:
-            log.warning("Skipping JWT validation due to missing JWKS configs. Ignoring authentication.")
-            return {}
+            raise AuthenticationError("OIDC not configured: JWKS client unavailable")
 
         try:
             signing_key = self._jwks_client.get_signing_key_from_jwt(token)
@@ -94,8 +113,16 @@ class OIDCMiddleware:
                 algorithms=self.algorithms,
                 audience=audiences,
                 issuer=self.issuer,
+                # Require exp/iss/aud so a token missing any of these is rejected,
+                # not silently accepted (PyJWT does not require them by default).
+                options={"require": ["exp", "iss", "aud"]},
             )
             return payload
+        except ExpiredSignatureError:
+            # Surface expiry distinctly so callers can return a clearer 401 reason
+            # and operators can debug clock-skew vs. real-auth failures.
+            log.warning("JWT validation failed: token expired")
+            raise TokenExpiredError("OIDC token expired")
         except InvalidTokenError:
             log.error("JWT validation failed")
             raise AuthenticationError("Invalid OIDC token")
@@ -111,7 +138,11 @@ class OIDCMiddleware:
         if self.sasl_oauthbearer_roles_claim_path is not None and self.client_id is not None:
             roles_claim_path = self.sasl_oauthbearer_roles_claim_path.replace("[client_id]", self.client_id)
         else:
-            raise HTTPException(status_code=403, detail="Insufficient roles. Invalid roles_claim_path.")
+            # Same body as the role-mismatch branch below so an attacker cannot use the
+            # response to distinguish a valid token with bad config from a token that
+            # simply lacks the required role.
+            log.error("Authorization misconfigured: roles_claim_path or client_id is unset")
+            raise HTTPException(status_code=403, detail="Forbidden")
 
         user_roles = self.get_roles_from_claim_path(payload, roles_claim_path)
 
@@ -122,7 +153,7 @@ class OIDCMiddleware:
                 user_roles,
                 allowed_roles,
             )
-            raise HTTPException(status_code=403, detail="Insufficient roles")
+            raise HTTPException(status_code=403, detail="Forbidden")
         log.debug("Authorized")
         return True
 
@@ -143,17 +174,3 @@ class OIDCMiddleware:
         except Exception:
             pass
         return []
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        headers = dict(scope.get("headers", []))
-        auth_header = headers.get(b"authorization", b"").decode()
-        if auth_header.startswith("Bearer "):
-            try:
-                payload = self.validate_jwt(auth_header.split(" ", 1)[1])
-                scope["user"] = payload  # inject user info into scope
-            except AuthenticationError as e:
-                response = JSONResponse({"error": "Authentication error", "reason": str(e)}, status_code=401)
-                await response(scope, receive, send)
-                return
-
-        await self.app(scope, receive, send)

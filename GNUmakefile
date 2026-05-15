@@ -140,6 +140,7 @@ unit-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker
+e2e-tests-in-docker: export COMPOSE_PROFILES = e2e
 e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
