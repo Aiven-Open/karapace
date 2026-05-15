@@ -114,7 +114,7 @@ pin-requirements:
 
 .PHONY: stop-karapace-docker-resources
 stop-karapace-docker-resources:
-	$(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
+	COMPOSE_PROFILES=e2e $(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
 
 .PHONY: start-karapace-docker-resources
 start-karapace-docker-resources:
@@ -132,6 +132,21 @@ smoke-test-schema-registry: start-karapace-docker-resources
 .PHONY: smoke-test-rest-proxy
 smoke-test-rest-proxy: start-karapace-docker-resources
 	$(KARAPACE_CLI) /opt/karapace/bin/smoke-test-rest-proxy.sh
+
+.PHONY: performance-test-rest-proxy
+performance-test-rest-proxy: start-karapace-docker-resources
+	cd performance-test && \
+		BASE_URL=http://localhost:8082 \
+		LOCUST_FILE=rest-proxy-produce-consume-test.py \
+		./run-locust-test.sh
+
+.PHONY: performance-test-schema-registry
+performance-test-schema-registry: start-karapace-docker-resources
+	cd performance-test && \
+		BASE_URL=https://localhost:8081 \
+		AUTO_GET_SCHEMA_REGISTRY_OIDC_TOKEN=1 \
+		LOCUST_FILE=schema-registry-schema-post.py \
+		./run-locust-test.sh
 
 .PHONY: unit-tests-in-docker
 unit-tests-in-docker: start-karapace-docker-resources
@@ -163,7 +178,7 @@ cli: start-karapace-docker-resources
 	$(KARAPACE_CLI) bash
 
 .PHONY: generate-sr-https-certs
- generate-sr-https-certs:
+generate-sr-https-certs:
 	$(info ====> Generating self-signed certificates <====)
 	$(KARAPACE_CLI) mkcert -key-file $(CERTS_FOLDER)/key.pem -cert-file $(CERTS_FOLDER)/cert.pem \
 		localhost \
