@@ -9,7 +9,7 @@ import io
 import json
 import logging
 import struct
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 import avro
 import pytest
@@ -26,6 +26,7 @@ from karapace.core.serialization import (
     SchemaRegistrySerializer,
     flatten_unions,
     get_subject_name,
+    read_value,
     write_value,
 )
 from karapace.core.typing import NameStrategy, Subject, SubjectType
@@ -441,4 +442,77 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
     assert (
         get_subject_name(topic_name="foo", schema=TYPED_PROTOBUF_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
         == expected_subject
+    )
+
+
+MAP_UNION_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "MinimalUnionTest",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+            ],
+        }
+    ),
+)
+
+
+def _encode_map_union_message(record: dict) -> bytes:
+    """Encode a record using MAP_UNION_SCHEMA into raw Avro binary (no framing header)."""
+    bio = io.BytesIO()
+    write_value(None, MAP_UNION_SCHEMA, bio, record)  # type: ignore[arg-type]
+    return bio.getvalue()
+
+
+def test_read_value_reuses_datum_reader_for_map_union_schema(karapace_container: KarapaceContainer) -> None:
+    """DatumReader must be constructed once per schema, not once per message.
+
+    DatumReader.__init__ is cheap (stores two references), but constructing a new
+    instance per message causes repeated allocation and GC pressure on large batches.
+    """
+    payload = _encode_map_union_message({"id": "x", "props": {"k": "v"}})
+
+    original_init = avro.io.DatumReader.__init__
+    init_call_count = 0
+
+    def counting_init(self, *args, **kwargs):
+        nonlocal init_call_count
+        init_call_count += 1
+        return original_init(self, *args, **kwargs)
+
+    with patch.object(avro.io.DatumReader, "__init__", counting_init):
+        for _ in range(10):
+            read_value(karapace_container.config(), MAP_UNION_SCHEMA, io.BytesIO(payload))
+
+    assert init_call_count == 1, (
+        f"DatumReader was constructed {init_call_count} times for 10 messages with the same schema; "
+        "expected 1 (cached)."
+    )
+
+
+def test_write_value_reuses_datum_writer_for_map_union_schema(karapace_container: KarapaceContainer) -> None:
+    """DatumWriter must be constructed once per schema, not once per message.
+
+    DatumWriter.__init__ is cheap (stores two references), but constructing a new
+    instance per message causes repeated allocation and GC pressure on large batches.
+    """
+    original_init = avro.io.DatumWriter.__init__
+    init_call_count = 0
+
+    def counting_init(self, *args, **kwargs):
+        nonlocal init_call_count
+        init_call_count += 1
+        return original_init(self, *args, **kwargs)
+
+    with patch.object(avro.io.DatumWriter, "__init__", counting_init):
+        for _ in range(10):
+            write_value(karapace_container.config(), MAP_UNION_SCHEMA, io.BytesIO(), {"id": "x", "props": {"k": "v"}})
+
+    assert init_call_count == 1, (
+        f"DatumWriter was constructed {init_call_count} times for 10 messages with the same schema; "
+        "expected 1 (cached)."
     )
