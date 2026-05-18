@@ -15,6 +15,9 @@ services:
         RUNNER_UID: $RUNNER_UID
         RUNNER_GID: $RUNNER_GID
     tty: true
+    cpus: 1.0
+    mem_limit: 1g
+    mem_reservation: 512m
     depends_on:
       - kafka
       - karapace-schema-registry
@@ -54,6 +57,9 @@ services:
       - opentelemetry-collector
     ports:
       - 8081:8081
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     volumes:
       - ./certs:/opt/karapace/certs
     environment:
@@ -115,6 +121,9 @@ services:
       - opentelemetry-collector
     ports:
       - 8181:8181
+    cpus: 0.25
+    mem_limit: 256m
+    mem_reservation: 256m
     volumes:
       - ./certs:/opt/karapace/certs
     environment:
@@ -179,6 +188,9 @@ services:
       - opentelemetry-collector
     ports:
       - 8281:8281
+    cpus: 0.25
+    mem_limit: 256m
+    mem_reservation: 256m
     volumes:
       - ./certs:/opt/karapace/certs
     environment:
@@ -227,6 +239,9 @@ services:
       - karapace-schema-registry
     ports:
       - 8082:8082
+    cpus: 0.5
+    mem_limit: 1g
+    mem_reservation: 512m
     environment:
       KARAPACE_KARAPACE_REST: true
       KARAPACE_PORT: 8082
@@ -257,6 +272,9 @@ services:
     ports:
       - "9092:9092"
       - "9101:9101"  # JMX
+    cpus: 1.0
+    mem_limit: 1g
+    mem_reservation: 1g
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -293,6 +311,9 @@ services:
     image: prom/prometheus
     hostname: prometheus
     container_name: prometheus
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     command:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=1d
@@ -314,6 +335,9 @@ services:
     image: grafana/grafana
     hostname: grafana
     container_name: grafana
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     environment:
       GF_SECURITY_ADMIN_USER: karapace
       GF_SECURITY_ADMIN_PASSWORD: karapace
@@ -330,6 +354,9 @@ services:
     image: prom/statsd-exporter
     hostname: statsd-exporter
     container_name: statsd-exporter
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     command: --statsd.listen-udp=:8125 --web.listen-address=:9102
     ports:
       - 9102:9102
@@ -341,6 +368,9 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     hostname: opentelemetry-collector
     container_name: opentelemetry-collector
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     command: --config=/etc/collector-config.yaml
     volumes:
       - ./opentelemetry/collector-config.yaml:/etc/collector-config.yaml
@@ -355,6 +385,9 @@ services:
     image: jaegertracing/all-in-one:latest
     hostname: jaeger
     container_name: jaeger
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     ports:  # 6831=agent | 16686=UI | 14268=spans | 4317=metrics (not exposing, clashes with opentelemetry-collector)
       - 6831:6831/udp
       - 16686:16686
@@ -366,6 +399,9 @@ services:
     image: quay.io/keycloak/keycloak:24.0
     hostname: keycloak
     container_name: keycloak
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 512m
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
