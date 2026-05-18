@@ -15,13 +15,14 @@ services:
         RUNNER_UID: $RUNNER_UID
         RUNNER_GID: $RUNNER_GID
     tty: true
-    cpus: 1.0
+    cpus: 2.0
     mem_limit: 1g
     mem_reservation: 512m
     depends_on:
       - kafka
       - karapace-schema-registry
       - karapace-rest-proxy
+      - keycloak
     volumes:
       - ./certs:/opt/karapace/certs
       - ../bin:/opt/karapace/bin
@@ -55,11 +56,12 @@ services:
     depends_on:
       - kafka
       - opentelemetry-collector
+      - keycloak
     ports:
       - 8081:8081
     cpus: 0.5
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: 256m
+    mem_reservation: 256m
     volumes:
       - ./certs:/opt/karapace/certs
     environment:
@@ -119,6 +121,7 @@ services:
     depends_on:
       - kafka
       - opentelemetry-collector
+      - keycloak
     ports:
       - 8181:8181
     cpus: 0.25
@@ -186,6 +189,7 @@ services:
     depends_on:
       - kafka
       - opentelemetry-collector
+      - keycloak
     ports:
       - 8281:8281
     cpus: 0.25
@@ -385,7 +389,7 @@ services:
     ports:
       - 8082:8082
     cpus: 0.5
-    mem_limit: 1g
+    mem_limit: 512m
     mem_reservation: 512m
     environment:
       KARAPACE_KARAPACE_REST: true
@@ -457,8 +461,8 @@ services:
     hostname: prometheus
     container_name: prometheus
     cpus: 0.5
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: 256m
+    mem_reservation: 256m
     command:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=1d
@@ -481,8 +485,8 @@ services:
     hostname: grafana
     container_name: grafana
     cpus: 0.5
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: 256m
+    mem_reservation: 256m
     environment:
       GF_SECURITY_ADMIN_USER: karapace
       GF_SECURITY_ADMIN_PASSWORD: karapace
@@ -500,8 +504,8 @@ services:
     hostname: statsd-exporter
     container_name: statsd-exporter
     cpus: 0.5
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: 256m
+    mem_reservation: 256m
     command: --statsd.listen-udp=:8125 --web.listen-address=:9102
     ports:
       - 9102:9102
@@ -514,8 +518,8 @@ services:
     hostname: opentelemetry-collector
     container_name: opentelemetry-collector
     cpus: 0.5
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: 256m
+    mem_reservation: 256m
     command: --config=/etc/collector-config.yaml
     volumes:
       - ./opentelemetry/collector-config.yaml:/etc/collector-config.yaml
@@ -531,8 +535,8 @@ services:
     hostname: jaeger
     container_name: jaeger
     cpus: 0.5
-    mem_limit: 512m
-    mem_reservation: 512m
+    mem_limit: 256m
+    mem_reservation: 256m
     ports:  # 6831=agent | 16686=UI | 14268=spans | 4317=metrics (not exposing, clashes with opentelemetry-collector)
       - 6831:6831/udp
       - 16686:16686
@@ -545,7 +549,7 @@ services:
     hostname: keycloak
     container_name: keycloak
     cpus: 0.5
-    mem_limit: 512m
+    mem_limit: 1g
     mem_reservation: 512m
     environment:
       KEYCLOAK_ADMIN: admin

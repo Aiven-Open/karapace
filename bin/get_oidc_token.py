@@ -5,27 +5,64 @@ See LICENSE for details
 """
 
 import os
+import sys
+import time
 import requests
+from requests.exceptions import RequestException
 from urllib.parse import urlsplit, urlunsplit
 
 KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://keycloak:8080")
 KEYCLOAK_CONNECT_URL = os.environ.get("KEYCLOAK_CONNECT_URL", KEYCLOAK_URL)
+KEYCLOAK_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("KEYCLOAK_REQUEST_TIMEOUT_SECONDS", "5"))
+KEYCLOAK_STARTUP_TIMEOUT_SECONDS = float(os.environ.get("KEYCLOAK_STARTUP_TIMEOUT_SECONDS", "60"))
+KEYCLOAK_RETRY_DELAY_SECONDS = float(os.environ.get("KEYCLOAK_RETRY_DELAY_SECONDS", "1"))
+KEYCLOAK_RETRYABLE_STATUS_CODES = {502, 503}
 REALM = "karapace"
 CLIENT_ID = "karapace-client"
 ADMIN_USER = os.environ.get("KEYCLOAK_ADMIN", "admin")
 ADMIN_PASS = os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin")
 
 
+def _build_request_url(path):
+    connect = urlsplit(KEYCLOAK_CONNECT_URL)
+    connect_path = connect.path.rstrip("/")
+    request_path = path if path.startswith("/") else f"/{path}"
+    full_path = f"{connect_path}{request_path}" if connect_path else request_path
+    return urlunsplit((connect.scheme, connect.netloc, full_path, "", ""))
+
+
 def _request(method, path, **kwargs):
     logical = urlsplit(KEYCLOAK_URL)
     connect = urlsplit(KEYCLOAK_CONNECT_URL)
-    url = urlunsplit((connect.scheme, connect.netloc, path, "", ""))
+    url = _build_request_url(path)
 
     headers = dict(kwargs.pop("headers", {}))
     if connect.netloc != logical.netloc:
         headers["Host"] = logical.netloc
 
-    return requests.request(method, url, headers=headers, **kwargs)
+    deadline = time.monotonic() + KEYCLOAK_STARTUP_TIMEOUT_SECONDS
+    last_exception = None
+
+    while time.monotonic() < deadline:
+        try:
+            response = requests.request(
+                method,
+                url,
+                headers=headers,
+                timeout=KEYCLOAK_REQUEST_TIMEOUT_SECONDS,
+                **kwargs,
+            )
+            if response.status_code not in KEYCLOAK_RETRYABLE_STATUS_CODES:
+                return response
+            last_exception = RuntimeError(f"Keycloak returned retryable status {response.status_code} for {url}")
+        except RequestException as exc:
+            last_exception = exc
+
+        time.sleep(KEYCLOAK_RETRY_DELAY_SECONDS)
+
+    raise TimeoutError(
+        f"Keycloak did not become ready for {url} within {KEYCLOAK_STARTUP_TIMEOUT_SECONDS} seconds"
+    ) from last_exception
 
 
 def get_admin_token():
@@ -67,8 +104,12 @@ def get_oidc_token(client_secret):
 
 
 if __name__ == "__main__":
-    admin_token = get_admin_token()
-    client_uuid = get_client_uuid(admin_token)
-    client_secret = get_client_secret(client_uuid, admin_token)
-    token = get_oidc_token(client_secret)
-    print(token)
+    try:
+        admin_token = get_admin_token()
+        client_uuid = get_client_uuid(admin_token)
+        client_secret = get_client_secret(client_uuid, admin_token)
+        token = get_oidc_token(client_secret)
+        print(token)
+    except Exception as exc:
+        print(f"get_oidc_token.py: {exc}", file=sys.stderr)
+        raise SystemExit(1)

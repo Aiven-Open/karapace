@@ -32,6 +32,9 @@ OIDC_TOKEN = os.environ.get("SCHEMA_REGISTRY_OIDC_TOKEN")
 if OIDC_TOKEN:
     SCHEMA_REGISTRY_HEADERS["Authorization"] = f"Bearer {OIDC_TOKEN}"
 
+SCHEMA_REGISTER_NEW_WEIGHT = int(os.environ.get("SCHEMA_REGISTER_NEW_WEIGHT", "10"))
+SCHEMA_CHECK_REGISTERED_WEIGHT = int(os.environ.get("SCHEMA_CHECK_REGISTERED_WEIGHT", "10"))
+
 NO_SCHEMAS_TO_REGISTER = 4000
 SCHEMAS_PER_SUBJECT = NO_SCHEMAS_TO_REGISTER / len(SUBJECTS)
 
@@ -52,7 +55,7 @@ def _get_new_schema(alias: uuid.UUID):
 
 
 class NewSchemaCreateUser(FastHttpUser):
-    @task
+    @task(SCHEMA_REGISTER_NEW_WEIGHT)
     def post_new_schema(self) -> None:
         added = False
         for subject in SUBJECTS:
@@ -98,7 +101,7 @@ class NewSchemaCreateUser(FastHttpUser):
                 path, headers=SCHEMA_REGISTRY_HEADERS, json=new_schema, name="/subjects/[subject]/versions EXISTING"
             )
 
-    @task
+    @task(SCHEMA_CHECK_REGISTERED_WEIGHT)
     def check_schema_registered(self) -> None:
         subject = random.choice(SUBJECTS)
         test_data = SUBJECT_TEST_DATA.get(subject, None)
