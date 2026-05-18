@@ -6,14 +6,20 @@ See LICENSE for details
 import asyncio
 import base64
 import copy
+import io
 import json
 import logging
 import random
+import struct
 import time
+from pathlib import Path
 
 import pytest
 from pytest import LogCaptureFixture
 
+from karapace.core.config import Config
+from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
+from karapace.core.serialization import HEADER_FORMAT, START_BYTE, write_value
 from karapace.kafka_rest_apis.consumer_manager import KNOWN_FORMATS
 from tests.integration.kafka_rest_apis.test_rest import NEW_TOPIC_TIMEOUT
 from tests.utils import (
@@ -26,6 +32,91 @@ from tests.utils import (
     schema_data,
     wait_for_topics,
 )
+
+COMPLEX_UNION_AVRO_SCHEMA_JSON = json.dumps(
+    {
+        "namespace": "io.aiven.minimal",
+        "name": "MinimalUnionTest",
+        "type": "record",
+        "fields": [
+            {"name": "id", "type": "string"},
+            {
+                "name": "attrs",
+                "type": {
+                    "type": "array",
+                    "items": {
+                        "type": "record",
+                        "name": "Attr",
+                        "fields": [
+                            {"name": "k", "type": "string"},
+                            {"name": "v", "type": ["null", "string", "long", "double", "boolean"]},
+                        ],
+                    },
+                },
+            },
+            {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+        ],
+    }
+)
+
+COMPLEX_UNION_AVRO_RECORDS = [
+    {
+        "id": "one",
+        "attrs": [
+            {"k": "text", "v": "value"},
+            {"k": "count", "v": 5},
+            {"k": "ratio", "v": 1.5},
+            {"k": "flag", "v": True},
+            {"k": "empty", "v": None},
+        ],
+        "props": {"present": "yes", "missing": None},
+    }
+]
+
+DEBEZIUM_BYTES_SCHEMA_JSON = (
+    Path(__file__).resolve().parent / "test_data" / "debezium_decimal_bytes_envelope.avsc"
+).read_text()
+DEBEZIUM_BYTES_TYPED_SCHEMA = ValidatedTypedSchema.parse(SchemaType.AVRO, DEBEZIUM_BYTES_SCHEMA_JSON)
+DEBEZIUM_BYTES_RECORD = {
+    "before": None,
+    "after": {
+        "id": 1,
+        "uuid": "11111111-1111-1111-1111-111111111111",
+        "rate_table_id": 100,
+        "prediction_log_id": 200,
+        "probability": {"scale": 2, "value": b"\x01\x02"},
+        "prediction": "match",
+        "created_at": 1700000000000000,
+        "created_by": "22222222-2222-2222-2222-222222222222",
+        "updated_at": 1700000000000001,
+        "updated_by": "33333333-3333-3333-3333-333333333333",
+        "deleted_at": None,
+        "deleted_by": None,
+        "demand_sub_account_id": None,
+        "db_updated_at": None,
+    },
+    "source": {
+        "version": "2.5.0.Final",
+        "connector": "postgresql",
+        "name": "fixture_source",
+        "ts_ms": 1700000000000,
+        "snapshot": None,
+        "db": "fixture_db",
+        "sequence": None,
+        "ts_us": None,
+        "ts_ns": None,
+        "schema": "fixture_schema",
+        "table": "fixture_table",
+        "txId": None,
+        "lsn": None,
+        "xmin": None,
+    },
+    "transaction": None,
+    "op": "c",
+    "ts_ms": None,
+    "ts_us": None,
+    "ts_ns": None,
+}
 
 
 def produce_messages_from_list(producer, topic_name: str, values: list[bytes]) -> None:
@@ -84,6 +175,13 @@ def produce_json_messages(producer, topic_name: str, num_messages: int) -> None:
     """
     values = [json.dumps({"id": i, "data": f"item{i}"}).encode() for i in range(num_messages)]
     produce_messages_from_list(producer, topic_name, values)
+
+
+def encode_schema_registry_message(schema_id: int, schema: ValidatedTypedSchema, record: dict) -> bytes:
+    with io.BytesIO() as bio:
+        bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
+        write_value(Config(), schema, bio, record)
+        return bio.getvalue()
 
 
 async def assign_and_seek_to_beginning(
@@ -575,6 +673,71 @@ async def test_publish_consume_avro(rest_async_client, admin_client, trail, sche
     data_values = [x["value"] for x in data]
     for expected, actual in zip(publish_payload, data_values):
         assert expected == actual, f"Expecting {actual} to be {expected}"
+
+
+async def test_consume_complex_union_avro_schema_does_not_500(rest_async_client, admin_client):
+    header = REST_HEADERS["avro"]
+    group_name = "complex_union_group"
+    topic_name = new_topic(admin_client, prefix="complex_union")
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        f"topics/{topic_name}",
+        json_data={
+            "value_schema": COMPLEX_UNION_AVRO_SCHEMA_JSON,
+            "records": [{"value": o} for o in COMPLEX_UNION_AVRO_RECORDS],
+        },
+        headers=header,
+        error_msg="Unexpected response status for complex union Avro publish",
+        timeout=10,
+        sleep=1,
+    )
+
+    instance_id = await new_consumer(rest_async_client, group_name, fmt="avro")
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
+
+    resp = await rest_async_client.get(
+        f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000", headers=header
+    )
+    assert resp.ok, f"Expected a successful response: {resp}"
+    assert [item["value"] for item in resp.json()] == COMPLEX_UNION_AVRO_RECORDS
+
+
+async def test_consume_debezium_bytes_schema_does_not_500(
+    rest_async_client,
+    registry_async_client,
+    admin_client,
+    producer,
+):
+    header = REST_HEADERS["avro"]
+    group_name = "debezium_bytes_group"
+    topic_name = new_topic(admin_client, prefix="debezium_bytes")
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    subject = f"{topic_name}-value"
+    register_response = await registry_async_client.post(
+        f"subjects/{subject}/versions", json={"schema": DEBEZIUM_BYTES_SCHEMA_JSON}
+    )
+    assert register_response.ok, f"Expected schema registration to succeed: {register_response}"
+    schema_id = register_response.json()["id"]
+
+    producer.send(
+        topic_name,
+        value=encode_schema_registry_message(schema_id, DEBEZIUM_BYTES_TYPED_SCHEMA, DEBEZIUM_BYTES_RECORD),
+    )
+    producer.flush()
+
+    instance_id = await new_consumer(rest_async_client, group_name, fmt="avro")
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
+
+    resp = await rest_async_client.get(
+        f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000", headers=header
+    )
+    assert resp.ok, f"Expected a successful response: {resp}"
+
+    [message] = resp.json()
+    assert message["value"]["after"]["probability"]["value"] == base64.b64encode(b"\x01\x02").decode("ascii")
 
 
 @pytest.mark.parametrize("fmt", ["avro"])

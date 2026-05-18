@@ -1,0 +1,320 @@
+{
+  "connect.name": "fixture_5f3a2c1d.envelope",
+  "connect.version": 2,
+  "fields": [
+    {
+      "default": null,
+      "name": "before",
+      "type": [
+        "null",
+        {
+          "connect.name": "fixture_5f3a2c1d.value",
+          "fields": [
+            {
+              "default": 0,
+              "name": "id",
+              "type": {
+                "connect.default": 0,
+                "type": "long"
+              }
+            },
+            {
+              "name": "uuid",
+              "type": {
+                "connect.name": "io.debezium.data.Uuid",
+                "connect.version": 1,
+                "type": "string"
+              }
+            },
+            {
+              "name": "rate_table_id",
+              "type": "long"
+            },
+            {
+              "name": "prediction_log_id",
+              "type": "long"
+            },
+            {
+              "name": "probability",
+              "type": {
+                "connect.doc": "Variable scaled decimal",
+                "connect.name": "io.debezium.data.VariableScaleDecimal",
+                "connect.version": 1,
+                "fields": [
+                  {
+                    "name": "scale",
+                    "type": "int"
+                  },
+                  {
+                    "name": "value",
+                    "type": "bytes"
+                  }
+                ],
+                "name": "VariableScaleDecimal",
+                "namespace": "io.debezium.data",
+                "type": "record"
+              }
+            },
+            {
+              "name": "prediction",
+              "type": "string"
+            },
+            {
+              "default": 0,
+              "name": "created_at",
+              "type": {
+                "connect.default": 0,
+                "connect.name": "io.debezium.time.MicroTimestamp",
+                "connect.version": 1,
+                "type": "long"
+              }
+            },
+            {
+              "name": "created_by",
+              "type": {
+                "connect.name": "io.debezium.data.Uuid",
+                "connect.version": 1,
+                "type": "string"
+              }
+            },
+            {
+              "default": 0,
+              "name": "updated_at",
+              "type": {
+                "connect.default": 0,
+                "connect.name": "io.debezium.time.MicroTimestamp",
+                "connect.version": 1,
+                "type": "long"
+              }
+            },
+            {
+              "name": "updated_by",
+              "type": {
+                "connect.name": "io.debezium.data.Uuid",
+                "connect.version": 1,
+                "type": "string"
+              }
+            },
+            {
+              "default": null,
+              "name": "deleted_at",
+              "type": [
+                "null",
+                {
+                  "connect.name": "io.debezium.time.MicroTimestamp",
+                  "connect.version": 1,
+                  "type": "long"
+                }
+              ]
+            },
+            {
+              "default": null,
+              "name": "deleted_by",
+              "type": [
+                "null",
+                {
+                  "connect.name": "io.debezium.data.Uuid",
+                  "connect.version": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "default": null,
+              "name": "demand_sub_account_id",
+              "type": [
+                "null",
+                "long"
+              ]
+            },
+            {
+              "default": null,
+              "name": "db_updated_at",
+              "type": [
+                "null",
+                {
+                  "connect.name": "io.debezium.time.ZonedTimestamp",
+                  "connect.version": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          ],
+          "name": "Value",
+          "type": "record"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "after",
+      "type": [
+        "null",
+        "Value"
+      ]
+    },
+    {
+      "name": "source",
+      "type": {
+        "connect.name": "io.debezium.connector.postgresql.Source",
+        "connect.version": 1,
+        "fields": [
+          {
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "name": "connector",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "ts_ms",
+            "type": "long"
+          },
+          {
+            "default": "false",
+            "name": "snapshot",
+            "type": [
+              {
+                "connect.default": "false",
+                "connect.name": "io.debezium.data.Enum",
+                "connect.parameters": {
+                  "allowed": "true,first,first_in_data_collection,last_in_data_collection,last,false,incremental"
+                },
+                "connect.version": 1,
+                "type": "string"
+              },
+              "null"
+            ]
+          },
+          {
+            "name": "db",
+            "type": "string"
+          },
+          {
+            "default": null,
+            "name": "sequence",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          {
+            "default": null,
+            "name": "ts_us",
+            "type": [
+              "null",
+              "long"
+            ]
+          },
+          {
+            "default": null,
+            "name": "ts_ns",
+            "type": [
+              "null",
+              "long"
+            ]
+          },
+          {
+            "name": "schema",
+            "type": "string"
+          },
+          {
+            "name": "table",
+            "type": "string"
+          },
+          {
+            "default": null,
+            "name": "txId",
+            "type": [
+              "null",
+              "long"
+            ]
+          },
+          {
+            "default": null,
+            "name": "lsn",
+            "type": [
+              "null",
+              "long"
+            ]
+          },
+          {
+            "default": null,
+            "name": "xmin",
+            "type": [
+              "null",
+              "long"
+            ]
+          }
+        ],
+        "name": "Source",
+        "namespace": "io.debezium.connector.postgresql",
+        "type": "record"
+      }
+    },
+    {
+      "default": null,
+      "name": "transaction",
+      "type": [
+        "null",
+        {
+          "connect.name": "event.block",
+          "connect.version": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "string"
+            },
+            {
+              "name": "total_order",
+              "type": "long"
+            },
+            {
+              "name": "data_collection_order",
+              "type": "long"
+            }
+          ],
+          "name": "block",
+          "namespace": "event",
+          "type": "record"
+        }
+      ]
+    },
+    {
+      "name": "op",
+      "type": "string"
+    },
+    {
+      "default": null,
+      "name": "ts_ms",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ts_us",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ts_ns",
+      "type": [
+        "null",
+        "long"
+      ]
+    }
+  ],
+  "name": "Envelope",
+  "namespace": "fixture_5f3a2c1d",
+  "type": "record"
+}
