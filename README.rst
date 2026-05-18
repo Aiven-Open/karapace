@@ -107,9 +107,9 @@ Run
 ^^^
 - Make sure kafka is running.
 
-Start Karapace. This shout start karapace on http://localhost:8081 ::
+Start Karapace. This should start karapace on http://localhost:8081 ::
 
-  $ karapace karapace.config.json
+    python -m karapace
 
 Verify in browser http://localhost:8081/subjects should return an array of subjects if exist or an empty array.
 or with curl ::
@@ -146,7 +146,8 @@ There is a detailed section about OAuth2 authorization for karapace below.
 
 Start Karapace rest proxy. This shout start karapace on http://localhost:8082 ::
 
-    karapace rest-proxy-karapace.config.json
+        python -m karapace.kafka_rest_apis
+
 
 To enable authorization & authentication on the rest proxy, configure 'sasl_mechanism' in the config with values like PLAIN/OAUTHBEARER ::
 
