@@ -24,3 +24,4 @@ src/karapace/version.py
 *.coverage
 *.env
 test-tmp.*
+performance-test/results/
