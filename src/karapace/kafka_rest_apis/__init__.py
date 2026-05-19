@@ -33,6 +33,7 @@ from karapace.core.serialization import (
     InvalidPayload,
     SchemaRegistrySerializer,
     SchemaRetrievalError,
+    sr_authorization_ctx,
 )
 from karapace.core.typing import NameStrategy, SchemaId, Subject, SubjectType
 from karapace.core.utils import json_encode
@@ -641,6 +642,8 @@ class UserRestProxy:
         )
 
     async def fetch(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
+        if self.config.sasl_oauthbearer_authentication_enabled:
+            sr_authorization_ctx.set(request.headers.get("Authorization"))
         await self.consumer_manager.fetch(
             internal_name=ConsumerManager.create_internal_name(group_name, instance),
             content_type=content_type,
@@ -798,6 +801,11 @@ class UserRestProxy:
         """
         formats: dict = request.content_type
         data: dict = request.json
+        # Forwarding gate: only when the deployment has SR-side OIDC enabled do we propagate
+        # the inbound Authorization header to Schema Registry. Existing Basic-auth deployments
+        # leave the flag false and continue to use the static session_auth on the SR client.
+        if self.config.sasl_oauthbearer_authentication_enabled:
+            sr_authorization_ctx.set(request.headers.get("Authorization"))
         _ = await self.get_topic_info(topic, content_type)
         if partition_id is not None:
             _ = await self.get_partition_info(topic, partition_id, content_type)
