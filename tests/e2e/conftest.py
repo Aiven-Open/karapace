@@ -16,8 +16,9 @@ import pytest
 from _pytest.fixtures import SubRequest
 from aiohttp import BasicAuth, ClientSession
 from confluent_kafka.admin import NewTopic
-import requests
 import os
+import requests
+from requests.exceptions import RequestException
 
 from karapace.core.client import Client
 from karapace.core.container import KarapaceContainer
@@ -26,6 +27,34 @@ from karapace.core.kafka.consumer import AsyncKafkaConsumer, KafkaConsumer
 from karapace.core.kafka.producer import AsyncKafkaProducer, KafkaProducer
 from tests.integration.utils.cluster import RegistryDescription, RegistryEndpoint
 from tests.integration.utils.kafka_server import KafkaServers
+
+
+KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://keycloak:8080")
+KEYCLOAK_REQUEST_TIMEOUT_SECONDS = 5.0
+KEYCLOAK_STARTUP_TIMEOUT_SECONDS = 60.0
+KEYCLOAK_RETRY_DELAY_SECONDS = 1.0
+KEYCLOAK_RETRYABLE_STATUS_CODES = {502, 503}
+
+
+def _keycloak_request(method: str, path: str, **kwargs) -> requests.Response:
+    deadline = time.monotonic() + KEYCLOAK_STARTUP_TIMEOUT_SECONDS
+    last_exception: Exception | None = None
+    url = f"{KEYCLOAK_URL}{path}"
+
+    while time.monotonic() < deadline:
+        try:
+            response = requests.request(method, url, timeout=KEYCLOAK_REQUEST_TIMEOUT_SECONDS, **kwargs)
+            if response.status_code not in KEYCLOAK_RETRYABLE_STATUS_CODES:
+                return response
+            last_exception = RuntimeError(f"Keycloak returned retryable status {response.status_code} for {url}")
+        except RequestException as exc:
+            last_exception = exc
+
+        time.sleep(KEYCLOAK_RETRY_DELAY_SECONDS)
+
+    raise TimeoutError(
+        f"Keycloak did not become ready for {url} within {KEYCLOAK_STARTUP_TIMEOUT_SECONDS} seconds"
+    ) from last_exception
 
 
 @pytest.fixture(scope="session", name="basic_auth")
@@ -139,6 +168,10 @@ def fixture_new_topic(admin_client: KafkaAdminClient) -> NewTopic:
 
 @pytest.fixture(scope="session")
 def oidc_token():
+    precomputed_token = os.environ.get("KARAPACE_E2E_OIDC_TOKEN")
+    if precomputed_token:
+        return precomputed_token
+
     # --- Step 1: Get admin token ---
     admin_token = get_admin_token()
 
@@ -151,9 +184,8 @@ def oidc_token():
     client_secret = get_client_secret(realm, client_uuid, admin_token)
 
     # --- Step 4: Get OIDC token for the client ---
-    token_url = f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
     data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": "openid"}
-    response = requests.post(token_url, data=data)
+    response = _keycloak_request("POST", f"/realms/{realm}/protocol/openid-connect/token", data=data)
     response.raise_for_status()
     return response.json()["access_token"]
 
@@ -314,30 +346,27 @@ class TokenProvider:
 
 # --- Helper functions for Keycloak admin API ---
 def get_admin_token():
-    url = "http://keycloak:8080/realms/master/protocol/openid-connect/token"
     data = {
         "grant_type": "password",
         "client_id": "admin-cli",
         "username": os.environ.get("KEYCLOAK_ADMIN", "admin"),
         "password": os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin"),
     }
-    resp = requests.post(url, data=data)
+    resp = _keycloak_request("POST", "/realms/master/protocol/openid-connect/token", data=data)
     resp.raise_for_status()
     return resp.json()["access_token"]
 
 
 def get_client_uuid(realm, client_id, admin_token):
-    url = f"http://keycloak:8080/admin/realms/{realm}/clients?clientId={client_id}"
     headers = {"Authorization": f"Bearer {admin_token}"}
-    resp = requests.get(url, headers=headers)
+    resp = _keycloak_request("GET", f"/admin/realms/{realm}/clients", headers=headers, params={"clientId": client_id})
     resp.raise_for_status()
     clients = resp.json()
     return clients[0]["id"]
 
 
 def get_client_secret(realm, client_uuid, admin_token):
-    url = f"http://keycloak:8080/admin/realms/{realm}/clients/{client_uuid}/client-secret"
     headers = {"Authorization": f"Bearer {admin_token}"}
-    resp = requests.get(url, headers=headers)
+    resp = _keycloak_request("GET", f"/admin/realms/{realm}/clients/{client_uuid}/client-secret", headers=headers)
     resp.raise_for_status()
     return resp.json()["value"]

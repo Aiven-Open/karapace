@@ -114,6 +114,7 @@ pin-requirements:
 
 .PHONY: stop-karapace-docker-resources
 stop-karapace-docker-resources:
+	$(DOCKER_COMPOSE) -f container/compose.yml rm -sfv karapace-schema-registry-authn-only || true
 	$(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
 
 .PHONY: start-karapace-docker-resources
@@ -126,12 +127,42 @@ start-karapace-docker-resources:
 	$(DOCKER_COMPOSE) -f container/compose.yml up -d --build --wait --detach
 
 .PHONY: smoke-test-schema-registry
-smoke-test-schema-registry: start-karapace-docker-resources
+smoke-test-schema-registry: stop-karapace-docker-resources start-karapace-docker-resources
 	$(KARAPACE_CLI) /opt/karapace/bin/smoke-test-schema-registry.sh
 
 .PHONY: smoke-test-rest-proxy
-smoke-test-rest-proxy: start-karapace-docker-resources
+smoke-test-rest-proxy: stop-karapace-docker-resources start-karapace-docker-resources
 	$(KARAPACE_CLI) /opt/karapace/bin/smoke-test-rest-proxy.sh
+
+.PHONY: performance-test-rest-proxy
+performance-test-rest-proxy: start-karapace-docker-resources
+	cd performance-test && \
+		CLEAN_RESULTS=0 \
+		COLLECT_DOCKER_STATS=1 \
+		LOCUST_GUI=0 LOCUST_AUTOQUIT=0 \
+		BASE_URL=http://localhost:8082 \
+		CONCURRENCY=200 \
+		LOCUST_SPAWN_RATE=50 \
+		CONSUME_TIMEOUT=10 \
+		PRODUCE_TASK_WEIGHT=5 \
+		CONSUME_TASK_WEIGHT=10 \
+		LOCUST_FILE=rest-proxy-produce-consume-test.py \
+		./run-locust-test.sh
+
+.PHONY: performance-test-schema-registry
+performance-test-schema-registry: start-karapace-docker-resources
+	cd performance-test && \
+		CLEAN_RESULTS=0 \
+		COLLECT_DOCKER_STATS=1 \
+		LOCUST_GUI=0 LOCUST_AUTOQUIT=0 \
+		BASE_URL=https://localhost:8081 \
+		AUTO_GET_SCHEMA_REGISTRY_OIDC_TOKEN=1 \
+		CONCURRENCY=200 \
+		LOCUST_SPAWN_RATE=50 \
+		SCHEMA_REGISTER_NEW_WEIGHT=5 \
+		SCHEMA_CHECK_REGISTERED_WEIGHT=10 \
+		LOCUST_FILE=schema-registry-schema-post.py \
+		./run-locust-test.sh
 
 .PHONY: unit-tests-in-docker
 unit-tests-in-docker: start-karapace-docker-resources
@@ -140,15 +171,32 @@ unit-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker
-e2e-tests-in-docker: export COMPOSE_PROFILES = e2e
-e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
+e2e-tests-in-docker:
+	COMPOSE_PROFILES=e2e $(MAKE) stop-karapace-docker-resources
+	COMPOSE_PROFILES=e2e $(MAKE) start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
-	$(KARAPACE_CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
+	set +x; \
+	token_file=$$(mktemp) && \
+	for attempt in 1 2 3; do \
+		if COMPOSE_PROFILES=e2e KEYCLOAK_STARTUP_TIMEOUT_SECONDS=180 $(KARAPACE_CLI) /opt/karapace/bin/get_oidc_token.py > "$$token_file"; then \
+			break; \
+		fi; \
+		if [[ $$attempt -eq 3 ]]; then \
+			rm -f "$$token_file"; \
+			exit 1; \
+		fi; \
+		echo "Fetching e2e OIDC token failed, retrying in 10 seconds ..."; \
+		sleep 10; \
+	done && \
+	TOKEN=$$(tr -d '\r\n' < "$$token_file") && \
+	rm -f "$$token_file"; \
+	set -x; \
+	COMPOSE_PROFILES=e2e KARAPACE_E2E_OIDC_TOKEN="$$TOKEN" $(KARAPACE_CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
 	rm -fr runtime/*
 
 .PHONY: integration-tests-in-docker
-integration-tests-in-docker: start-karapace-docker-resources
+integration-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-resources
 	rm -fr runtime/*
 	sleep 10
 	$(KARAPACE_CLI) $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/integration/
@@ -163,7 +211,7 @@ cli: start-karapace-docker-resources
 	$(KARAPACE_CLI) bash
 
 .PHONY: generate-sr-https-certs
- generate-sr-https-certs:
+generate-sr-https-certs:
 	$(info ====> Generating self-signed certificates <====)
 	$(KARAPACE_CLI) mkcert -key-file $(CERTS_FOLDER)/key.pem -cert-file $(CERTS_FOLDER)/cert.pem \
 		localhost \
