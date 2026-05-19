@@ -211,6 +211,168 @@ services:
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
+  # REST Proxy paired with the authn-only Schema Registry. The proxy's
+  # sasl_oauthbearer_authentication_enabled flag is true, which causes
+  # UserRestProxy.publish/fetch to forward the inbound Authorization header
+  # to SR via the sr_authorization_ctx contextvar.
+  # Used by tests/e2e/kafka_rest_apis/test_oidc_forwarding.py.
+  karapace-rest-proxy-oidc:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-oidc
+    container_name: karapace-rest-proxy-oidc
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-authn-only
+    ports:
+      - 8382:8382
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8382
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-oidc
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: https
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-authn-only
+      KARAPACE_REGISTRY_PORT: 8281
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Forwarding gate. When true, UserRestProxy copies the inbound
+      # Authorization header into sr_authorization_ctx so SR sees it.
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+
+  # Backwards-compat regression: REST Proxy pointing at the OIDC-protected SR but
+  # with the forwarding gate DISABLED. Used to prove that even with a valid
+  # inbound Bearer header, the proxy does not forward it to SR and the schema
+  # write fails — i.e. existing flag-False deployments stay byte-identical.
+  karapace-rest-proxy-no-forward:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-no-forward
+    container_name: karapace-rest-proxy-no-forward
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-authn-only
+    ports:
+      - 8482:8482
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8482
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-no-forward
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: https
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-authn-only
+      KARAPACE_REGISTRY_PORT: 8281
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Forwarding gate intentionally OFF (the default). Even with a valid
+      # inbound Bearer, the proxy must not forward it to SR.
+      # KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED defaults to false.
+
+  # ---------------------------------------------------------------------------
+  # Backwards-compat scenario 7: Basic-auth Schema Registry + REST Proxy with
+  # registry_user/registry_password configured. Forwarding gate is OFF, so the
+  # proxy keeps using its static BasicAuth on the SR client. This is the most
+  # common existing customer setup; the test exists to prove the contextvar
+  # change does not regress it.
+  # ---------------------------------------------------------------------------
+  karapace-schema-registry-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-basic
+    container_name: karapace-schema-registry-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+    ports:
+      - 8581:8581
+    volumes:
+      - ../tests/integration/config/karapace.auth.json:/opt/karapace/karapace.auth.json:ro
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8581
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-basic
+      KARAPACE_GROUP_ID: karapace-schema-registry-basic
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas_basic
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_REGISTRY_AUTHFILE: /opt/karapace/karapace.auth.json
+
+  karapace-rest-proxy-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-basic
+    container_name: karapace-rest-proxy-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-basic
+    ports:
+      - 8682:8682
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8682
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: http
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-basic
+      KARAPACE_REGISTRY_PORT: 8581
+      KARAPACE_REGISTRY_USER: admin
+      KARAPACE_REGISTRY_PASSWORD: admin
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Gate intentionally OFF — proxy must keep sending Basic to SR.
+      # KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED defaults to false.
+
   karapace-rest-proxy:
     networks:
       - karapace
