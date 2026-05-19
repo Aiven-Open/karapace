@@ -222,11 +222,8 @@ async def registry_async_client_oidc_no_auth_header(
         await client.close()
 
 
-# ---------------------------------------------------------------------------
-# AuthN-only registry fixtures: a separate Schema Registry instance that has
-# sasl_oauthbearer_authentication_enabled=true and authorization_enabled=false.
-# Defined as karapace-schema-registry-authn-only in container/compose.yml.
-# ---------------------------------------------------------------------------
+# OIDC SR with authentication only (no role-based authorization).
+# Backed by karapace-schema-registry-authn-only in container/compose.yml (profile: e2e).
 
 
 @pytest.fixture(scope="function", name="registry_authn_only_cluster")
@@ -293,6 +290,123 @@ async def fixture_registry_async_client_oidc_authn_only_no_auth_header(
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# REST Proxy fixtures for OIDC forwarding tests.
+# karapace-rest-proxy-oidc has the gate ON; karapace-rest-proxy-no-forward has it OFF.
+# Both target the same authn-only SR. Compose profile: e2e.
+
+
+def _make_oidc_proxy_client(token: str | None) -> Client:
+    factory_headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
+
+    async def factory(auth):
+        return ClientSession(headers=factory_headers)
+
+    return Client(
+        server_uri="http://karapace-rest-proxy-oidc:8382",
+        client_factory=factory,
+        session_auth=None,
+    )
+
+
+def _make_no_forward_proxy_client(token: str | None) -> Client:
+    factory_headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
+
+    async def factory(auth):
+        return ClientSession(headers=factory_headers)
+
+    return Client(
+        server_uri="http://karapace-rest-proxy-no-forward:8482",
+        client_factory=factory,
+        session_auth=None,
+    )
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy")
+async def fixture_rest_async_client_oidc_proxy(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    client = _make_oidc_proxy_client(oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_invalid")
+async def fixture_rest_async_client_oidc_proxy_invalid(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    client = _make_oidc_proxy_client("invalid_token")
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_no_auth_header")
+async def fixture_rest_async_client_oidc_proxy_no_auth_header(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    client = _make_oidc_proxy_client(None)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_no_forward")
+async def fixture_rest_async_client_oidc_proxy_no_forward(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    """Valid Bearer aimed at a proxy with the forwarding gate OFF.
+    Used by the regression test: even with a valid token the proxy must not relay it."""
+    client = _make_no_forward_proxy_client(oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# Basic-auth SR + REST Proxy with registry_user/password + gate OFF.
+# This is the most common existing deployment shape from issue #1274 — confirms
+# the contextvar change did not regress it.
+
+
+@pytest.fixture(scope="function", name="rest_async_client_basic_proxy")
+async def fixture_rest_async_client_basic_proxy(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={})
+
+    client = Client(
+        server_uri="http://karapace-rest-proxy-basic:8682",
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_basic")
+async def fixture_registry_async_client_basic(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    """Direct client to the Basic-auth SR for primary-election waits."""
+    client = Client(
+        server_uri="http://karapace-schema-registry-basic:8581",
+        session_auth=BasicAuth("admin", "admin"),
     )
     try:
         yield client

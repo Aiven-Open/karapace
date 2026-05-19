@@ -26,8 +26,10 @@ from karapace.core.serialization import (
     SchemaRetrievalError,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
+    _authorization_headers,
     flatten_unions,
     get_subject_name,
+    sr_authorization_ctx,
     write_value,
 )
 from karapace.core.typing import NameStrategy, Subject, SubjectType
@@ -693,3 +695,144 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
         get_subject_name(topic_name="foo", schema=TYPED_PROTOBUF_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
         == expected_subject
     )
+
+
+# Authorization-header forwarding from REST proxy to SR via sr_authorization_ctx.
+# Covers the _authorization_headers helper, the three HTTP call sites in
+# SchemaRegistryClient (post_new_schema, _get_schema_recursive, get_schema_for_id),
+# and the @alru_cache key invariant on get_schema.
+
+
+@pytest.fixture
+def reset_sr_authorization_ctx():
+    """Reset the contextvar between tests so cross-test ordering can't leak tokens."""
+    token = sr_authorization_ctx.set(None)
+    try:
+        yield
+    finally:
+        sr_authorization_ctx.reset(token)
+
+
+def test_authorization_headers_returns_none_when_unset(reset_sr_authorization_ctx) -> None:
+    sr_authorization_ctx.set(None)
+    assert _authorization_headers() is None
+
+
+def test_authorization_headers_returns_dict_when_set(reset_sr_authorization_ctx) -> None:
+    sr_authorization_ctx.set("Bearer abc.def.ghi")
+    assert _authorization_headers() == {"Authorization": "Bearer abc.def.ghi"}
+
+
+def test_authorization_headers_returns_none_for_empty_string(reset_sr_authorization_ctx) -> None:
+    # Empty string is treated like missing — never forward an empty Authorization header.
+    sr_authorization_ctx.set("")
+    assert _authorization_headers() is None
+
+
+def _make_result(json_result: dict, status: int = 200) -> Mock:
+    result = Mock()
+    result.ok = 200 <= status < 300
+    result.status_code = status
+    result.json = Mock(return_value=json_result)
+    return result
+
+
+async def test_post_new_schema_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    post_future = asyncio.Future()
+    post_future.set_result(_make_result({"id": 42}))
+    sr_client.client.post = Mock(return_value=post_future)
+
+    sr_authorization_ctx.set("Bearer fwd.token")
+    schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    schema_id = await sr_client.post_new_schema("subj", schema)
+
+    assert schema_id == 42
+    _, kwargs = sr_client.client.post.call_args
+    assert kwargs["headers"] == {"Authorization": "Bearer fwd.token"}
+
+
+async def test_post_new_schema_no_authorization_header_when_ctx_unset(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    post_future = asyncio.Future()
+    post_future.set_result(_make_result({"id": 42}))
+    sr_client.client.post = Mock(return_value=post_future)
+
+    schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    await sr_client.post_new_schema("subj", schema)
+
+    _, kwargs = sr_client.client.post.call_args
+    # No per-call override — the underlying Client falls back to session_auth.
+    assert kwargs["headers"] is None
+
+
+async def test_get_schema_for_id_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    get_future = asyncio.Future()
+    get_future.set_result(
+        _make_result(
+            {
+                "schema": schema_avro_json,
+                "subjects": ["subj"],
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+    sr_client.client.get = Mock(return_value=get_future)
+
+    sr_authorization_ctx.set("Bearer xyz")
+    await sr_client.get_schema_for_id(1)
+
+    _, kwargs = sr_client.client.get.call_args
+    assert kwargs["headers"] == {"Authorization": "Bearer xyz"}
+
+
+async def test_get_schema_recursive_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    get_future = asyncio.Future()
+    get_future.set_result(
+        _make_result(
+            {
+                "id": 7,
+                "schema": schema_avro_json,
+                "version": 1,
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+    sr_client.client.get = Mock(return_value=get_future)
+
+    sr_authorization_ctx.set("Bearer recursive")
+    # Bypass @alru_cache on get_schema.
+    schema_id, _, _ = await sr_client._get_schema_recursive(Subject("subj"), set(), None)
+
+    assert schema_id == 7
+    _, kwargs = sr_client.client.get.call_args
+    assert kwargs["headers"] == {"Authorization": "Bearer recursive"}
+
+
+async def test_get_schema_cache_key_excludes_contextvar(reset_sr_authorization_ctx) -> None:
+    """Cache is keyed only on (subject, version); changing the contextvar must still hit cache.
+    The HTTP call must happen exactly once even though the token differs between calls."""
+    sr_client = SchemaRegistryClient()
+    get_future = asyncio.Future()
+    get_future.set_result(
+        _make_result(
+            {
+                "id": 11,
+                "schema": schema_avro_json,
+                "version": 1,
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+    sr_client.client.get = Mock(return_value=get_future)
+
+    sr_authorization_ctx.set("Bearer first")
+    schema_id_1, _, _ = await sr_client.get_schema(Subject("uniq-subject-for-cache-key-test"))
+
+    sr_authorization_ctx.set("Bearer second")
+    schema_id_2, _, _ = await sr_client.get_schema(Subject("uniq-subject-for-cache-key-test"))
+
+    assert schema_id_1 == schema_id_2 == 11
+    assert sr_client.client.get.call_count == 1

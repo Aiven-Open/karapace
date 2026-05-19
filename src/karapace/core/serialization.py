@@ -37,10 +37,21 @@ import asyncio
 import avro
 import avro.schema
 import base64
+import contextvars
 import io
 import struct
 import threading
 import weakref
+
+# Per-request Authorization header forwarded from the REST Proxy to SR.
+# When None (default), the SR client falls back to its session-level BasicAuth.
+sr_authorization_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("sr_authorization", default=None)
+
+
+def _authorization_headers() -> dict[str, str] | None:
+    auth = sr_authorization_ctx.get()
+    return {"Authorization": auth} if auth else None
+
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
@@ -136,7 +147,9 @@ class SchemaRegistryClient:
                 payload = {"schema": str(schema), "schemaType": schema.schema_type.value}
         else:
             payload = {"schema": json_encode(schema.to_dict()), "schemaType": schema.schema_type.value}
-        result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)
+        result = await self.client.post(
+            f"subjects/{quote(subject)}/versions", json=payload, headers=_authorization_headers()
+        )
         if not result.ok:
             raise SchemaRetrievalError(result.json())
         return SchemaId(result.json()["id"])
@@ -156,7 +169,7 @@ class SchemaRegistryClient:
         explored_schemas = explored_schemas | {(subject, version)}
 
         version_str = str(version) if version is not None else "latest"
-        result = await self.client.get(f"subjects/{quote(subject)}/versions/{version_str}")
+        result = await self.client.get(f"subjects/{quote(subject)}/versions/{version_str}", headers=_authorization_headers())
 
         if not result.ok:
             raise SchemaRetrievalError(result.json())
@@ -215,7 +228,9 @@ class SchemaRegistryClient:
         return await self._get_schema_recursive(subject, set(), version)
 
     async def get_schema_for_id(self, schema_id: SchemaId) -> tuple[TypedSchema, list[Subject]]:
-        result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
+        result = await self.client.get(
+            f"schemas/ids/{schema_id}", params={"includeSubjects": "True"}, headers=_authorization_headers()
+        )
         if not result.ok:
             raise SchemaRetrievalError(result.json()["message"])
         json_result = result.json()
