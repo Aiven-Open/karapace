@@ -160,8 +160,8 @@ services:
       KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
-  # Schema Registry running with OIDC authentication only (no role-based authorization).
-  # Used to verify the sasl_oauthbearer_authentication_enabled flag in isolation.
+  # OIDC authentication only (no role-based authorization).
+  # Used to isolate the sasl_oauthbearer_authentication_enabled flag in tests.
   karapace-schema-registry-authn-only:
     profiles:
       - e2e
@@ -211,11 +211,9 @@ services:
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
-  # REST Proxy paired with the authn-only Schema Registry. The proxy's
-  # sasl_oauthbearer_authentication_enabled flag is true, which causes
-  # UserRestProxy.publish/fetch to forward the inbound Authorization header
-  # to SR via the sr_authorization_ctx contextvar.
-  # Used by tests/e2e/kafka_rest_apis/test_oidc_forwarding.py.
+  # REST Proxy with the forwarding gate ON, paired with the authn-only SR.
+  # UserRestProxy.publish/fetch copies the inbound Authorization header into
+  # sr_authorization_ctx so SR sees it. Used by tests/e2e/kafka_rest_apis/test_oidc_forwarding.py.
   karapace-rest-proxy-oidc:
     profiles:
       - e2e
@@ -249,14 +247,12 @@ services:
       KARAPACE_LOG_LEVEL: INFO
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
-      # Forwarding gate. When true, UserRestProxy copies the inbound
-      # Authorization header into sr_authorization_ctx so SR sees it.
+      # Forwarding gate ON.
       KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
 
-  # Backwards-compat regression: REST Proxy pointing at the OIDC-protected SR but
-  # with the forwarding gate DISABLED. Used to prove that even with a valid
-  # inbound Bearer header, the proxy does not forward it to SR and the schema
-  # write fails — i.e. existing flag-False deployments stay byte-identical.
+  # REST Proxy with the forwarding gate OFF, pointed at the OIDC-protected SR.
+  # Used to prove that even with a valid inbound Bearer the proxy does not forward it,
+  # so existing flag-False deployments stay byte-identical.
   karapace-rest-proxy-no-forward:
     profiles:
       - e2e
@@ -290,17 +286,12 @@ services:
       KARAPACE_LOG_LEVEL: INFO
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
-      # Forwarding gate intentionally OFF (the default). Even with a valid
-      # inbound Bearer, the proxy must not forward it to SR.
-      # KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED defaults to false.
+      # Forwarding gate OFF (default).
 
-  # ---------------------------------------------------------------------------
-  # Backwards-compat scenario 7: Basic-auth Schema Registry + REST Proxy with
-  # registry_user/registry_password configured. Forwarding gate is OFF, so the
-  # proxy keeps using its static BasicAuth on the SR client. This is the most
-  # common existing customer setup; the test exists to prove the contextvar
-  # change does not regress it.
-  # ---------------------------------------------------------------------------
+  # Basic-auth Schema Registry + REST Proxy with registry_user/password configured.
+  # Forwarding gate is OFF, so the proxy keeps using its static BasicAuth on the SR client.
+  # This is the most common existing customer setup; the test proves the contextvar
+  # change does not regress it (issue #1274 baseline).
   karapace-schema-registry-basic:
     profiles:
       - e2e
@@ -370,8 +361,7 @@ services:
       KARAPACE_LOG_LEVEL: INFO
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
-      # Gate intentionally OFF — proxy must keep sending Basic to SR.
-      # KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED defaults to false.
+      # Gate OFF: proxy keeps sending Basic to SR.
 
   karapace-rest-proxy:
     networks:

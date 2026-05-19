@@ -2,36 +2,17 @@
 Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
 
-End-to-end tests for OIDC bearer token forwarding from the REST Proxy to the
-Schema Registry.
+End-to-end tests for OIDC bearer forwarding from the REST Proxy to the Schema Registry.
 
 Topology (compose profile: e2e):
-- karapace-schema-registry-authn-only:8281  — SR with sasl_oauthbearer_authentication_enabled=true
-- karapace-rest-proxy-oidc:8382              — REST Proxy with the forwarding gate ON
-- karapace-rest-proxy-no-forward:8482        — REST Proxy pointing at the same SR with the gate OFF
-                                              (used to prove the gate keeps existing deployments unchanged)
-- karapace-schema-registry-basic:8581        — SR with Basic auth (registry_authfile)
-- karapace-rest-proxy-basic:8682             — REST Proxy with registry_user/password + gate OFF
-                                              (covers the most common existing customer shape — issue #1274 baseline)
+- karapace-schema-registry-authn-only:8281  — OIDC SR (forwarding gate target).
+- karapace-rest-proxy-oidc:8382              — REST Proxy with the gate ON.
+- karapace-rest-proxy-no-forward:8482        — REST Proxy with the gate OFF (regression guard).
+- karapace-schema-registry-basic:8581        — Basic-auth SR.
+- karapace-rest-proxy-basic:8682             — Basic-auth proxy paired with it (issue #1274 baseline).
 
-Schema-aware request flow (e.g. POST /topics/<t> with vnd.kafka.avro.v2+json):
-1. Client → REST Proxy with `Authorization: Bearer <token>`.
-2. Proxy enters publish() / fetch(); the gate copies the inbound header into
-   `sr_authorization_ctx` only when the flag is True.
-3. SchemaRegistryClient reads the contextvar and attaches it as a per-request
-   header on the outgoing aiohttp call to SR.
-4. SR's OIDCMiddleware validates the token → 200 (happy) or 401 (unhappy).
-
-These tests prove the wire path actually carries the token (happy paths) and
-that SR is actually validating it (unhappy paths). The flag-OFF regression test
-guards every existing deployment against an accidental forwarding leak.
-
-Note on topic creation: the Kafka broker in compose has
-KAFKA_AUTO_CREATE_TOPICS_ENABLE=false, and the proxy's publish() resolves topic
-metadata BEFORE calling into SR. Tests must create the topic up front via
-admin_client + wait_for_topics so the request actually reaches the schema
-fetch — otherwise every call short-circuits with a 40401 "Topic not found"
-and the SR auth path is never exercised.
+Topics are created up front because the broker has auto-create disabled; otherwise
+publish() short-circuits with 40401 before the SR auth path is exercised.
 """
 
 from __future__ import annotations
@@ -53,14 +34,9 @@ pytestmark = pytest.mark.asyncio
 
 
 async def _wait_for_sr_primary(sr_client: Client, timeout: float = PRIMARY_TIMEOUT) -> None:
-    """Block until the OIDC SR has elected itself primary.
-
-    Without this guard, schema POSTs hit a non-primary node which then forwards
-    them via SR's internal forward_client. That client uses strict TLS verification
-    and the shared dev cert has no SAN for karapace-schema-registry-authn-only,
-    so the forward fails with a hostname mismatch and SR responds 500 — masking
-    the actual token-forwarding behavior we are trying to test.
-    """
+    """Wait until SR has elected a primary. Without this, writes can hit a non-primary node
+    which forwards via SR's internal forward_client; with the shared dev cert that path
+    fails on hostname mismatch and masks the actual forwarding behavior under test."""
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
         res = await sr_client.get("master_available")
@@ -72,26 +48,23 @@ async def _wait_for_sr_primary(sr_client: Client, timeout: float = PRIMARY_TIMEO
 
 @pytest.fixture(name="oidc_sr_primary_ready")
 async def fixture_oidc_sr_primary_ready(registry_async_client_oidc_authn_only: Client) -> None:
-    """Block until the OIDC SR primary is elected. Tests opt in by listing this fixture."""
     await _wait_for_sr_primary(registry_async_client_oidc_authn_only)
 
 
 @pytest.fixture(name="basic_sr_primary_ready")
 async def fixture_basic_sr_primary_ready(registry_async_client_basic: Client) -> None:
-    """Block until the Basic-auth SR primary is elected."""
     await _wait_for_sr_primary(registry_async_client_basic)
 
 
 async def _ensure_topic(rest_client: Client, admin_client: KafkaAdminClient) -> str:
-    """Create a fresh topic and wait until the given proxy can see it."""
+    """Create a fresh topic and wait until the proxy sees it."""
     topic = new_topic(admin_client)
     await wait_for_topics(rest_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
     return topic
 
 
-# ---------------------------------------------------------------------------
 # Happy paths: gate ON, valid Bearer reaches SR, schema is registered.
-# ---------------------------------------------------------------------------
+# Proves the wire path actually carries the inbound token through to SR.
 
 
 async def test_avro_publish_forwards_bearer(
@@ -99,7 +72,7 @@ async def test_avro_publish_forwards_bearer(
     admin_client: KafkaAdminClient,
     oidc_sr_primary_ready: None,
 ) -> None:
-    """AVRO produce with a valid Bearer succeeds end-to-end through the OIDC SR."""
+    """AVRO produce with a valid Bearer succeeds through the OIDC SR."""
     topic = await _ensure_topic(rest_async_client_oidc_proxy, admin_client)
 
     payload = {
@@ -119,7 +92,7 @@ async def test_jsonschema_publish_forwards_bearer(
     admin_client: KafkaAdminClient,
     oidc_sr_primary_ready: None,
 ) -> None:
-    """JSON Schema produce with a valid Bearer succeeds (covers the JSON-schema serializer path)."""
+    """JSON Schema produce with a valid Bearer succeeds."""
     topic = await _ensure_topic(rest_async_client_oidc_proxy, admin_client)
 
     payload = {
@@ -137,12 +110,9 @@ async def test_consumer_fetch_forwards_bearer(
     admin_client: KafkaAdminClient,
     oidc_sr_primary_ready: None,
 ) -> None:
-    """Schema-aware consume path: register, produce, then fetch records — all under a valid Bearer.
-
-    Exercises the fetch() gate at karapace/kafka_rest_apis/__init__.py: deserialization in
-    consumer_manager pulls the schema from SR and must succeed because the contextvar carries
-    the inbound bearer through asyncio's per-task context copy.
-    """
+    """Register, produce, then fetch records under a valid Bearer.
+    Exercises the fetch() gate: deserialization in consumer_manager pulls the schema
+    from SR and must succeed because the contextvar carries the bearer per-task."""
     topic = await _ensure_topic(rest_async_client_oidc_proxy, admin_client)
     group = "group-" + topic
     instance = "instance-" + topic
@@ -180,17 +150,10 @@ async def test_consumer_fetch_forwards_bearer(
     assert any(r.get("value") == {"n": "hi"} for r in records), records
 
 
-# ---------------------------------------------------------------------------
-# Unhappy paths: gate ON, but the token fails at SR.
-#
-# The proxy currently maps any SR error during schema registration to error_code
-# RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR (40801) at HTTP 408 — see __init__.py:1022-1031.
-# We assert on that envelope; what matters is that the failure is forced by SR's
-# token validation, not by the proxy itself bypassing SR.
-#
-# Topic must be created first so the proxy doesn't bail with 40401 before
-# reaching the schema fetch.
-# ---------------------------------------------------------------------------
+# Unhappy paths: gate ON, but SR rejects the token.
+# The proxy maps any SR error during schema registration to RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR
+# (40801). What matters here is that the failure is forced by SR's token validation,
+# not by the proxy bypassing SR.
 
 
 async def test_avro_publish_invalid_bearer_is_rejected(
@@ -199,9 +162,8 @@ async def test_avro_publish_invalid_bearer_is_rejected(
     admin_client: KafkaAdminClient,
     oidc_sr_primary_ready: None,
 ) -> None:
-    """Garbage Bearer → SR's OIDCMiddleware returns 401 → proxy surfaces it as 40801."""
-    # Topic creation needs to happen via the proxy with a VALID token, otherwise we'd
-    # still be testing the no-topic path. The invalid-token client only drives publish.
+    """Garbage Bearer is rejected by SR; proxy surfaces 40801."""
+    # Topic creation uses a valid-token client so we test the SR auth path, not the no-topic path.
     topic = await _ensure_topic(rest_async_client_oidc_proxy, admin_client)
 
     payload = {
@@ -220,12 +182,9 @@ async def test_avro_publish_no_auth_header_is_rejected(
     admin_client: KafkaAdminClient,
     oidc_sr_primary_ready: None,
 ) -> None:
-    """No inbound Authorization → contextvar set to None → SR sees no token → 401.
-
-    With the gate ON, the proxy explicitly clears the contextvar when the inbound header
-    is missing. The SR client does not fall back to any session_auth here because no
-    registry_user is configured for this proxy, so SR's OIDCMiddleware rejects the request.
-    """
+    """Gate ON, no inbound Authorization → contextvar set to None → SR sees no token → 401.
+    No registry_user is configured for this proxy, so the SR client cannot fall back
+    to session_auth and SR's OIDCMiddleware rejects the request."""
     topic = await _ensure_topic(rest_async_client_oidc_proxy, admin_client)
 
     payload = {
@@ -238,12 +197,9 @@ async def test_avro_publish_no_auth_header_is_rejected(
     assert res.json().get("error_code") == RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value
 
 
-# ---------------------------------------------------------------------------
-# Backwards-compat regression: gate OFF (the default for every existing
-# deployment). Even with a valid inbound Bearer, the proxy must NOT forward it,
-# so a schema write to the OIDC-protected SR fails. This is the unit-test
-# `test_publish_does_not_set_ctxvar_when_flag_disabled` proven on the wire.
-# ---------------------------------------------------------------------------
+# Backwards-compat: gate OFF must not forward the inbound Bearer.
+# Guards every existing customer deployment — turning on SR-side OIDC without
+# explicitly enabling the proxy flag must not silently leak the inbound token.
 
 
 async def test_avro_publish_with_gate_off_does_not_forward_bearer(
@@ -251,11 +207,7 @@ async def test_avro_publish_with_gate_off_does_not_forward_bearer(
     admin_client: KafkaAdminClient,
     oidc_sr_primary_ready: None,
 ) -> None:
-    """Flag-OFF proxy + valid Bearer + OIDC SR → schema write must fail.
-
-    This guards every existing customer deployment: turning on SR-side OIDC without
-    explicitly enabling the proxy flag must not silently leak the inbound token.
-    """
+    """Gate OFF + valid Bearer + OIDC SR: write must fail because nothing is forwarded."""
     topic = await _ensure_topic(rest_async_client_oidc_proxy_no_forward, admin_client)
 
     payload = {
@@ -264,20 +216,14 @@ async def test_avro_publish_with_gate_off_does_not_forward_bearer(
     }
     res = await rest_async_client_oidc_proxy_no_forward.post(f"/topics/{topic}", payload, headers=REST_HEADERS["avro"])
 
-    # Flag is OFF, so the proxy did not forward the token; SR rejects the call.
     assert res.status_code != 200
     assert res.json().get("error_code") == RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value
 
 
-# ---------------------------------------------------------------------------
-# Scenario 7 — backwards-compat for the most common existing customer shape:
-# Basic-auth SR + REST Proxy with registry_user/password configured + gate OFF.
-#
-# This is the deployment that was already working before issue #1274 was filed.
-# The contextvar change must NOT regress it: with the gate OFF, the proxy keeps
-# using its static BasicAuth on the SR client, so produce succeeds even though
-# no inbound Authorization header is provided.
-# ---------------------------------------------------------------------------
+# Scenario 7 — Basic SR + Basic proxy + gate OFF (issue #1274 baseline).
+# This is the deployment shape that already worked before the contextvar change.
+# The test proves the change does not regress it: gate OFF means the proxy keeps
+# using its static BasicAuth on the SR client, so produce succeeds.
 
 
 async def test_basic_auth_proxy_to_basic_sr_unchanged_by_contextvar(
@@ -285,7 +231,7 @@ async def test_basic_auth_proxy_to_basic_sr_unchanged_by_contextvar(
     admin_client: KafkaAdminClient,
     basic_sr_primary_ready: None,
 ) -> None:
-    """Gate OFF + registry_user/password set + Basic SR → produce works as before."""
+    """Gate OFF + registry_user/password + Basic SR: produce still works as before."""
     topic = await _ensure_topic(rest_async_client_basic_proxy, admin_client)
 
     payload = {

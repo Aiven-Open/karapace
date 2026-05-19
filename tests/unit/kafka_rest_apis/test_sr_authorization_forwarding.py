@@ -3,15 +3,9 @@ Copyright (c) 2025 Aiven Ltd
 See LICENSE for details
 
 Tests for the REST Proxy → Schema Registry Authorization-header forwarding gate.
-
-The gate lives at two edge points in `UserRestProxy`:
-- `publish` (POST /topics/<topic>) — schema-aware produce path.
-- `fetch` (GET /consumers/.../records) — schema-aware consume path.
-
-Both copy the inbound `Authorization` header into `sr_authorization_ctx` ONLY when
-`config.sasl_oauthbearer_authentication_enabled` is True. Existing deployments leave
-the flag False — these tests assert the gate keeps the contextvar at None in that case
-so the static `session_auth` (Basic) on the SR client remains in charge.
+The gate lives in `UserRestProxy.publish` and `UserRestProxy.fetch`: the inbound
+Authorization header is copied into `sr_authorization_ctx` only when
+`sasl_oauthbearer_authentication_enabled` is true.
 """
 
 from __future__ import annotations
@@ -28,7 +22,7 @@ from karapace.kafka_rest_apis import UserRestProxy
 
 @pytest.fixture
 def reset_sr_authorization_ctx():
-    """Restore the contextvar after each test so cross-test ordering can't leak tokens."""
+    """Reset the contextvar between tests."""
     token = sr_authorization_ctx.set(None)
     try:
         yield
@@ -37,11 +31,8 @@ def reset_sr_authorization_ctx():
 
 
 def _make_proxy(*, sasl_oauthbearer_authentication_enabled: bool) -> UserRestProxy:
-    """Build a UserRestProxy stub without going through __init__ (which requires a live Kafka).
-
-    We only need the `config` attribute set; downstream calls in publish/fetch are stubbed
-    per-test below to short-circuit before any real I/O.
-    """
+    """Build a UserRestProxy stub without going through __init__ (which needs a live Kafka).
+    Only the `config` attribute is populated; downstream calls are stubbed per-test."""
     proxy = UserRestProxy.__new__(UserRestProxy)
     proxy.config = Config(sasl_oauthbearer_authentication_enabled=sasl_oauthbearer_authentication_enabled)
     return proxy
@@ -57,15 +48,12 @@ def _make_request(*, headers: dict[str, str] | None = None) -> Mock:
     return request
 
 
-# ---------------------------------------------------------------------------
-# fetch() gate — clean to test because the only line before consumer_manager.fetch
-# is the gate itself.
-# ---------------------------------------------------------------------------
+# fetch() gate — only line before consumer_manager.fetch is the gate itself.
 
 
 async def test_fetch_does_not_set_ctxvar_when_flag_disabled(reset_sr_authorization_ctx) -> None:
-    """Existing OIDC-on-proxy deployments (flag False) must NOT propagate the inbound
-    bearer to SR. Static session_auth (Basic) stays in charge."""
+    """Flag off: existing OIDC-on-proxy deployments must NOT propagate the inbound bearer.
+    The static session_auth (Basic) on the SR client stays in charge."""
     proxy = _make_proxy(sasl_oauthbearer_authentication_enabled=False)
 
     captured: list[str | None] = []
@@ -79,7 +67,7 @@ async def test_fetch_does_not_set_ctxvar_when_flag_disabled(reset_sr_authorizati
     request = _make_request(headers={"Authorization": "Bearer leak.if.broken"})
     await proxy.fetch("group", "instance", "application/json", request=request)
 
-    assert captured == [None], "contextvar must remain None when flag is disabled"
+    assert captured == [None]
 
 
 async def test_fetch_sets_ctxvar_to_inbound_bearer_when_flag_enabled(reset_sr_authorization_ctx) -> None:
@@ -100,9 +88,8 @@ async def test_fetch_sets_ctxvar_to_inbound_bearer_when_flag_enabled(reset_sr_au
 
 
 async def test_fetch_sets_ctxvar_to_none_when_flag_enabled_but_no_header(reset_sr_authorization_ctx) -> None:
-    """Flag on, no inbound Authorization header → contextvar set to None.
-    The SR client falls back to its session_auth (Basic), preserving the
-    flag-true + Basic-SR fallback path described in the behavior matrix."""
+    """Flag on but no inbound Authorization: contextvar set to None so the SR client
+    falls back to its session_auth (Basic). Covers the flag-true + Basic-SR path."""
     proxy = _make_proxy(sasl_oauthbearer_authentication_enabled=True)
 
     captured: list[str | None] = []
@@ -119,10 +106,8 @@ async def test_fetch_sets_ctxvar_to_none_when_flag_enabled_but_no_header(reset_s
     assert captured == [None]
 
 
-# ---------------------------------------------------------------------------
-# publish() gate — driven by stubbing get_topic_info to raise after the gate
-# runs, so we can read the contextvar without touching Kafka or the producer.
-# ---------------------------------------------------------------------------
+# publish() gate — stub get_topic_info to raise right after the gate runs,
+# so we can read the contextvar without touching Kafka or the producer.
 
 
 class _StopAfterGate(Exception):
@@ -141,7 +126,7 @@ async def _drive_publish_capture_ctx(proxy: UserRestProxy, request: Mock) -> str
     with pytest.raises(_StopAfterGate):
         await proxy.publish(topic="t", partition_id=None, content_type="application/json", request=request)
 
-    assert captured, "get_topic_info stub never observed — publish exited too early"
+    assert captured
     return captured[0]
 
 
@@ -169,18 +154,15 @@ async def test_publish_sets_ctxvar_to_none_when_flag_enabled_but_no_header(reset
     assert observed is None
 
 
-# ---------------------------------------------------------------------------
-# Concurrency: each request must see its own contextvar value.
-# asyncio.gather copies context per coroutine, so two concurrent publish calls
-# with different inbound tokens must not bleed into each other.
-# ---------------------------------------------------------------------------
+# Concurrent requests must not bleed tokens into each other.
+# asyncio.gather copies context per coroutine, so each call sees only its own value.
 
 
 async def test_concurrent_requests_isolate_ctxvar(reset_sr_authorization_ctx) -> None:
     captured: dict[str, str | None] = {}
 
     async def fake_get_topic_info(topic: str, _content_type: str) -> dict:
-        # Yield the loop so requests interleave before the stub captures the ctxvar.
+        # Yield so the two coroutines interleave before reading the contextvar.
         await asyncio.sleep(0)
         captured[topic] = sr_authorization_ctx.get()
         raise _StopAfterGate()

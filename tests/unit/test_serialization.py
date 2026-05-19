@@ -697,17 +697,15 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
     )
 
 
-# ---------------------------------------------------------------------------
-# Tests for the contextvar-based Authorization forwarding from REST proxy to SR.
-# Covers: _authorization_headers helper, the three HTTP call sites in
+# Authorization-header forwarding from REST proxy to SR via sr_authorization_ctx.
+# Covers the _authorization_headers helper, the three HTTP call sites in
 # SchemaRegistryClient (post_new_schema, _get_schema_recursive, get_schema_for_id),
 # and the @alru_cache key invariant on get_schema.
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def reset_sr_authorization_ctx():
-    """Restore the contextvar after each test so cross-test ordering can't leak tokens."""
+    """Reset the contextvar between tests so cross-test ordering can't leak tokens."""
     token = sr_authorization_ctx.set(None)
     try:
         yield
@@ -726,7 +724,7 @@ def test_authorization_headers_returns_dict_when_set(reset_sr_authorization_ctx)
 
 
 def test_authorization_headers_returns_none_for_empty_string(reset_sr_authorization_ctx) -> None:
-    # Empty string should be treated like missing — don't forward an empty Authorization header.
+    # Empty string is treated like missing — never forward an empty Authorization header.
     sr_authorization_ctx.set("")
     assert _authorization_headers() is None
 
@@ -764,7 +762,8 @@ async def test_post_new_schema_no_authorization_header_when_ctx_unset(reset_sr_a
     await sr_client.post_new_schema("subj", schema)
 
     _, kwargs = sr_client.client.post.call_args
-    assert kwargs["headers"] is None  # falls back to session_auth on the underlying Client
+    # No per-call override — the underlying Client falls back to session_auth.
+    assert kwargs["headers"] is None
 
 
 async def test_get_schema_for_id_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
@@ -804,7 +803,7 @@ async def test_get_schema_recursive_forwards_authorization_header(reset_sr_autho
     sr_client.client.get = Mock(return_value=get_future)
 
     sr_authorization_ctx.set("Bearer recursive")
-    # Bypass @alru_cache on get_schema by going straight to the recursive helper.
+    # Bypass @alru_cache on get_schema.
     schema_id, _, _ = await sr_client._get_schema_recursive(Subject("subj"), set(), None)
 
     assert schema_id == 7
@@ -813,10 +812,9 @@ async def test_get_schema_recursive_forwards_authorization_header(reset_sr_autho
 
 
 async def test_get_schema_cache_key_excludes_contextvar(reset_sr_authorization_ctx) -> None:
-    """The contextvar must not pollute the @alru_cache key; the second call must hit cache
-    even after the token changes. Cache is keyed only on (subject, version)."""
+    """Cache is keyed only on (subject, version); changing the contextvar must still hit cache.
+    The HTTP call must happen exactly once even though the token differs between calls."""
     sr_client = SchemaRegistryClient()
-    # Seed a fresh client so its alru_cache is empty for this test.
     get_future = asyncio.Future()
     get_future.set_result(
         _make_result(
@@ -837,5 +835,4 @@ async def test_get_schema_cache_key_excludes_contextvar(reset_sr_authorization_c
     schema_id_2, _, _ = await sr_client.get_schema(Subject("uniq-subject-for-cache-key-test"))
 
     assert schema_id_1 == schema_id_2 == 11
-    # The HTTP call must have happened only once even though the token changed between calls.
     assert sr_client.client.get.call_count == 1

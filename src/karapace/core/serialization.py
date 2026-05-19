@@ -43,10 +43,8 @@ import struct
 import threading
 import weakref
 
-# Per-request Authorization header forwarded from the REST Proxy to the Schema Registry.
-# Set by the REST Proxy edge handler when SR-side OIDC is enabled; read at the HTTP call sites
-# inside SchemaRegistryClient. Default None means "no per-call override" — the client falls back
-# to its session-level BasicAuth (existing behavior).
+# Per-request Authorization header forwarded from the REST Proxy to SR.
+# When None (default), the SR client falls back to its session-level BasicAuth.
 sr_authorization_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("sr_authorization", default=None)
 
 

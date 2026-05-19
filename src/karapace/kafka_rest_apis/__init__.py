@@ -801,9 +801,8 @@ class UserRestProxy:
         """
         formats: dict = request.content_type
         data: dict = request.json
-        # Forwarding gate: only when the deployment has SR-side OIDC enabled do we propagate
-        # the inbound Authorization header to Schema Registry. Existing Basic-auth deployments
-        # leave the flag false and continue to use the static session_auth on the SR client.
+        # Forward the caller's Authorization header to SR only when SR-side OIDC is on.
+        # Existing Basic-auth deployments leave the flag false and keep using session_auth.
         if self.config.sasl_oauthbearer_authentication_enabled:
             sr_authorization_ctx.set(request.headers.get("Authorization"))
         _ = await self.get_topic_info(topic, content_type)
