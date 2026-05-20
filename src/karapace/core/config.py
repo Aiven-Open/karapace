@@ -147,6 +147,8 @@ class Config(BaseSettings):
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
+    # LRU cap on (subject, version, token_fingerprint) in the SR client. Raise for multi-tenant.
+    schema_registry_client_cache_maxsize: int = 100
     # Kafka SASL client credentials (used by both services; selected by sasl_mechanism).
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None
