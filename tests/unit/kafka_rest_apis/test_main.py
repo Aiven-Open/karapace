@@ -98,8 +98,8 @@ def test_main_reports_unexpected_exceptions_via_stats_and_reraises() -> None:
         with pytest.raises(RuntimeError, match="boom"):
             rest_main.main()
 
-        # The failure must be reported through the stats client before re-raising.
         mock_app.stats.unexpected_exception.assert_called_once_with(ex=boom, where="karapace")
+        assert mock_app.run.call_count == 1
 
 
 def test_main_accepts_version_flag_and_exits_via_argparse() -> None:

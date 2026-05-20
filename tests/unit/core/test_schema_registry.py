@@ -12,6 +12,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,13 +66,13 @@ def fixture_registry(karapace_container: KarapaceContainer) -> KarapaceSchemaReg
 
 def _avro_schema(name: str = "Obj", extra_field: str | None = None) -> ValidatedTypedSchema:
     """Build a tiny, valid Avro TypedSchema for tests that need to insert one."""
-    fields = '{"name": "age", "type": "int"}'
+    fields: list[dict] = [{"name": "age", "type": "int"}]
     if extra_field is not None:
         # ``extra_field`` is appended with a default so it stays BACKWARD-compatible
         # with the base schema when used as a *newer* version.
-        fields += ', {"name": "' + extra_field + '", "type": "string", "default": ""}'
-    schema_str = '{"type": "record", "name": "' + name + '", "fields": [' + fields + "]}"
-    return ValidatedTypedSchema.parse(schema_type=SchemaType.AVRO, schema_str=schema_str)
+        fields.append({"name": extra_field, "type": "string", "default": ""})
+    schema = {"type": "record", "name": name, "fields": fields}
+    return ValidatedTypedSchema.parse(schema_type=SchemaType.AVRO, schema_str=json.dumps(schema))
 
 
 def _insert_subject_with_schema(
@@ -382,7 +383,7 @@ class TestCheckSchemaCompatibility:
         v1_schema = _avro_schema()  # ``age: int``
         v2_schema = ValidatedTypedSchema.parse(
             schema_type=SchemaType.AVRO,
-            schema_str='{"type": "record", "name": "Obj", "fields": [{"name": "age", "type": "string"}]}',
+            schema_str=json.dumps({"type": "record", "name": "Obj", "fields": [{"name": "age", "type": "string"}]}),
         )
         _insert_subject_with_schema(registry, subject="s", schema_id=1, version=1, schema=v1_schema)
         _insert_subject_with_schema(registry, subject="s", schema_id=2, version=2, schema=v2_schema)
@@ -398,7 +399,7 @@ class TestCheckSchemaCompatibility:
         # Type change int -> string is BACKWARD-incompatible with v1.
         v2_schema = ValidatedTypedSchema.parse(
             schema_type=SchemaType.AVRO,
-            schema_str='{"type": "record", "name": "Obj", "fields": [{"name": "age", "type": "string"}]}',
+            schema_str=json.dumps({"type": "record", "name": "Obj", "fields": [{"name": "age", "type": "string"}]}),
         )
         _insert_subject_with_schema(registry, subject="s", schema_id=1, version=1, schema=v1_schema)
         _insert_subject_with_schema(registry, subject="s", schema_id=2, version=2, schema=v2_schema)
@@ -452,26 +453,26 @@ class TestWriteNewSchemaLocal:
         assert isinstance(schema_id, int)
         registry.producer.send_message.assert_called_once()
         sent = registry.producer.send_message.call_args.kwargs
-        # The resurrection branch bumps the version via ``get_next_version``.
-        assert sent["key"]["version"] >= 2
+        assert sent["key"]["version"] == 2
         assert sent["value"]["deleted"] is False
 
     async def test_raises_incompatible_when_new_schema_breaks_backward_compatibility(
         self, registry: KarapaceSchemaRegistry
     ) -> None:
         subject = Subject("s")
-        v1_schema = ValidatedTypedSchema.parse(
-            schema_type=SchemaType.AVRO,
-            schema_str=('{"type": "record", "name": "Obj", "fields": [{"name": "age", "type": "int"}]}'),
-        )
+        v1_schema = _avro_schema()  # ``age: int``
         # Adding a required field with NO default is BACKWARD-incompatible.
         v2_schema = ValidatedTypedSchema.parse(
             schema_type=SchemaType.AVRO,
-            schema_str=(
-                '{"type": "record", "name": "Obj", "fields": ['
-                '{"name": "age", "type": "int"},'
-                '{"name": "must_have", "type": "string"}'
-                "]}"
+            schema_str=json.dumps(
+                {
+                    "type": "record",
+                    "name": "Obj",
+                    "fields": [
+                        {"name": "age", "type": "int"},
+                        {"name": "must_have", "type": "string"},
+                    ],
+                }
             ),
         )
         _insert_subject_with_schema(registry, subject="s", schema_id=1, version=1, schema=v1_schema)
