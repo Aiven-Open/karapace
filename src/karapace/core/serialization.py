@@ -145,7 +145,7 @@ class SchemaRegistryClient:
         server_ca: str | None = None,
         session_auth: BasicAuth | None = None,
         *,
-        cache_maxsize: int,
+        cache_maxsize: int = Config.model_fields["schema_registry_client_cache_maxsize"].default,
     ):
         self.client = Client(server_uri=schema_registry_url, server_ca=server_ca, session_auth=session_auth)
         self.base_url = schema_registry_url

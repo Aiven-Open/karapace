@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, Mock, call, patch
 import avro
 import pytest
 
-from karapace.core.config import Config
 from karapace.core.container import KarapaceContainer
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema, Versioner
 from karapace.core.serialization import (
@@ -702,20 +701,6 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
 # and the @alru_cache partitioning on get_schema.
 
 
-@pytest.fixture
-def reset_sr_authorization_ctx():
-    """Reset the contextvar between tests."""
-    token = sr_authorization_ctx.set(None)
-    try:
-        yield
-    finally:
-        sr_authorization_ctx.reset(token)
-
-
-# Track the production default so tests don't drift.
-_DEFAULT_CACHE_MAXSIZE = Config.model_fields["schema_registry_client_cache_maxsize"].default
-
-
 def _make_result(json_result: dict, status: int = 200) -> Mock:
     result = Mock()
     result.ok = 200 <= status < 300
@@ -725,7 +710,7 @@ def _make_result(json_result: dict, status: int = 200) -> Mock:
 
 
 async def test_post_new_schema_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     post_future = asyncio.Future()
     post_future.set_result(_make_result({"id": 42}))
     sr_client.client.post = Mock(return_value=post_future)
@@ -744,7 +729,7 @@ async def test_post_new_schema_forwards_authorization_header(reset_sr_authorizat
 
 
 async def test_post_new_schema_no_authorization_header_when_ctx_unset(reset_sr_authorization_ctx) -> None:
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     post_future = asyncio.Future()
     post_future.set_result(_make_result({"id": 42}))
     sr_client.client.post = Mock(return_value=post_future)
@@ -759,7 +744,7 @@ async def test_post_new_schema_no_authorization_header_when_ctx_unset(reset_sr_a
 
 async def test_post_new_schema_treats_empty_token_as_unset(reset_sr_authorization_ctx) -> None:
     """Empty contextvar string must not produce an `Authorization: ` header."""
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     post_future = asyncio.Future()
     post_future.set_result(_make_result({"id": 42}))
     sr_client.client.post = Mock(return_value=post_future)
@@ -774,7 +759,7 @@ async def test_post_new_schema_treats_empty_token_as_unset(reset_sr_authorizatio
 
 
 async def test_get_schema_for_id_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     get_future = asyncio.Future()
     get_future.set_result(
         _make_result(
@@ -795,7 +780,7 @@ async def test_get_schema_for_id_forwards_authorization_header(reset_sr_authoriz
 
 
 async def test_get_schema_recursive_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     get_future = asyncio.Future()
     get_future.set_result(
         _make_result(
@@ -821,7 +806,7 @@ async def test_get_schema_recursive_forwards_authorization_header(reset_sr_autho
 async def test_get_schema_cache_partitions_by_token(reset_sr_authorization_ctx) -> None:
     """Cache key includes the token fingerprint: same token hits cache, different token misses."""
 
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     sr_client.client.get = AsyncMock(
         return_value=_make_result(
             {
@@ -851,7 +836,7 @@ async def test_get_schema_cache_partitions_by_token(reset_sr_authorization_ctx) 
 
 async def test_get_schema_cache_unauthenticated_path_unchanged(reset_sr_authorization_ctx) -> None:
     """Unauthenticated path: empty fingerprint, back-to-back calls still hit cache."""
-    sr_client = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    sr_client = SchemaRegistryClient()
     get_future = asyncio.Future()
     get_future.set_result(
         _make_result(

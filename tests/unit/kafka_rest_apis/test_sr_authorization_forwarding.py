@@ -1,5 +1,5 @@
 """
-Copyright (c) 2025 Aiven Ltd
+Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
 
 Tests for the REST Proxy → Schema Registry Authorization-header forwarding gate.
@@ -18,16 +18,6 @@ import pytest
 from karapace.core.config import Config
 from karapace.core.serialization import sr_authorization_ctx
 from karapace.kafka_rest_apis import UserRestProxy
-
-
-@pytest.fixture
-def reset_sr_authorization_ctx():
-    """Reset the contextvar between tests."""
-    token = sr_authorization_ctx.set(None)
-    try:
-        yield
-    finally:
-        sr_authorization_ctx.reset(token)
 
 
 def _make_proxy(*, sasl_oauthbearer_authentication_enabled: bool) -> UserRestProxy:

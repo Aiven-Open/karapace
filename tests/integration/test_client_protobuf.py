@@ -3,19 +3,16 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
-from karapace.core.config import Config
 from karapace.core.protobuf.kotlin_wrapper import trim_margin
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.core.serialization import SchemaRegistryClient
 from tests.schemas.protobuf import schema_protobuf_order_after, schema_protobuf_order_before, schema_protobuf_plain
 from tests.utils import new_random_name
 
-_DEFAULT_CACHE_MAXSIZE = Config.model_fields["schema_registry_client_cache_maxsize"].default
-
 
 async def test_remote_client_protobuf(registry_async_client):
     schema_protobuf = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, schema_protobuf_plain)
-    reg_cli = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    reg_cli = SchemaRegistryClient()
     reg_cli.client = registry_async_client
     subject = new_random_name("subject")
     sc_id = await reg_cli.post_new_schema(subject, schema_protobuf, None)
@@ -36,7 +33,7 @@ async def test_remote_client_protobuf(registry_async_client):
 async def test_remote_client_protobuf2(registry_async_client):
     schema_protobuf = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf_order_before))
     schema_protobuf_after = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, trim_margin(schema_protobuf_order_after))
-    reg_cli = SchemaRegistryClient(cache_maxsize=_DEFAULT_CACHE_MAXSIZE)
+    reg_cli = SchemaRegistryClient()
     reg_cli.client = registry_async_client
     subject = new_random_name("subject")
     sc_id = await reg_cli.post_new_schema(subject, schema_protobuf, None)
