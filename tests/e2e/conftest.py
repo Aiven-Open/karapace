@@ -222,11 +222,7 @@ async def registry_async_client_oidc_no_auth_header(
         await client.close()
 
 
-# ---------------------------------------------------------------------------
-# AuthN-only registry fixtures: a separate Schema Registry instance that has
-# sasl_oauthbearer_authentication_enabled=true and authorization_enabled=false.
-# Defined as karapace-schema-registry-authn-only in container/compose.yml.
-# ---------------------------------------------------------------------------
+# OIDC SR with authentication only (karapace-schema-registry-authn-only, profile: e2e).
 
 
 @pytest.fixture(scope="function", name="registry_authn_only_cluster")
@@ -293,6 +289,110 @@ async def fixture_registry_async_client_oidc_authn_only_no_auth_header(
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# REST Proxy fixtures for OIDC forwarding tests (compose profile: e2e).
+# -oidc has the gate ON; -no-forward has it OFF; both target the authn-only SR.
+
+
+_OIDC_PROXY_URI = "http://karapace-rest-proxy-oidc:8382"
+_NO_FORWARD_PROXY_URI = "http://karapace-rest-proxy-no-forward:8482"
+
+
+def _make_proxy_client(server_uri: str, token: str | None) -> Client:
+    factory_headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
+
+    async def factory(auth):
+        return ClientSession(headers=factory_headers)
+
+    return Client(
+        server_uri=server_uri,
+        client_factory=factory,
+        session_auth=None,
+    )
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy")
+async def fixture_rest_async_client_oidc_proxy(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    client = _make_proxy_client(_OIDC_PROXY_URI, oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_invalid")
+async def fixture_rest_async_client_oidc_proxy_invalid(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    client = _make_proxy_client(_OIDC_PROXY_URI, "invalid_token")
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_no_auth_header")
+async def fixture_rest_async_client_oidc_proxy_no_auth_header(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    client = _make_proxy_client(_OIDC_PROXY_URI, None)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_no_forward")
+async def fixture_rest_async_client_oidc_proxy_no_forward(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    """Valid Bearer aimed at a proxy with the gate OFF — proxy must not relay it."""
+    client = _make_proxy_client(_NO_FORWARD_PROXY_URI, oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# Basic-auth SR + Basic proxy + gate OFF — issue #1274 baseline.
+
+
+@pytest.fixture(scope="function", name="rest_async_client_basic_proxy")
+async def fixture_rest_async_client_basic_proxy(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={})
+
+    client = Client(
+        server_uri="http://karapace-rest-proxy-basic:8682",
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_basic")
+async def fixture_registry_async_client_basic(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    """Direct client to the Basic-auth SR (used to wait for primary election)."""
+    client = Client(
+        server_uri="http://karapace-schema-registry-basic:8581",
+        session_auth=BasicAuth("admin", "admin"),
     )
     try:
         yield client

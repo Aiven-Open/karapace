@@ -10,7 +10,7 @@ import io
 import json
 import logging
 import struct
-from unittest.mock import Mock, call, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import avro
 import pytest
@@ -28,6 +28,7 @@ from karapace.core.serialization import (
     SchemaRegistrySerializer,
     flatten_unions,
     get_subject_name,
+    sr_authorization_ctx,
     write_value,
 )
 from karapace.core.typing import NameStrategy, Subject, SubjectType
@@ -693,3 +694,163 @@ def test_name_strategy_for_protobuf(expected_subject: Subject, strategy: NameStr
         get_subject_name(topic_name="foo", schema=TYPED_PROTOBUF_SCHEMA, subject_type=subject_type, naming_strategy=strategy)
         == expected_subject
     )
+
+
+# Authorization forwarding via sr_authorization_ctx. Tested through observed headers
+# on the mocked Client — covers post_new_schema, _get_schema_recursive, get_schema_for_id,
+# and the @alru_cache partitioning on get_schema.
+
+
+def _make_result(json_result: dict, status: int = 200) -> Mock:
+    result = Mock()
+    result.ok = 200 <= status < 300
+    result.status_code = status
+    result.json = Mock(return_value=json_result)
+    return result
+
+
+async def test_post_new_schema_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    post_future = asyncio.Future()
+    post_future.set_result(_make_result({"id": 42}))
+    sr_client.client.post = Mock(return_value=post_future)
+
+    sr_authorization_ctx.set("Bearer fwd.token")
+    schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    schema_id = await sr_client.post_new_schema("subj", schema)
+
+    assert schema_id == 42
+    _, kwargs = sr_client.client.post.call_args
+    # Authorization is forwarded; SR vendor Content-Type is preserved.
+    assert kwargs["headers"] == {
+        "Content-Type": "application/vnd.schemaregistry.v1+json",
+        "Authorization": "Bearer fwd.token",
+    }
+
+
+async def test_post_new_schema_no_authorization_header_when_ctx_unset(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    post_future = asyncio.Future()
+    post_future.set_result(_make_result({"id": 42}))
+    sr_client.client.post = Mock(return_value=post_future)
+
+    schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    await sr_client.post_new_schema("subj", schema)
+
+    _, kwargs = sr_client.client.post.call_args
+    # Ctx unset → no Authorization; vendor Content-Type stays.
+    assert kwargs["headers"] == {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+
+
+async def test_post_new_schema_treats_empty_token_as_unset(reset_sr_authorization_ctx) -> None:
+    """Empty contextvar string must not produce an `Authorization: ` header."""
+    sr_client = SchemaRegistryClient()
+    post_future = asyncio.Future()
+    post_future.set_result(_make_result({"id": 42}))
+    sr_client.client.post = Mock(return_value=post_future)
+
+    sr_authorization_ctx.set("")
+    schema = ValidatedTypedSchema.parse(SchemaType.AVRO, schema_avro_json)
+    await sr_client.post_new_schema("subj", schema)
+
+    _, kwargs = sr_client.client.post.call_args
+    assert "Authorization" not in kwargs["headers"]
+    assert kwargs["headers"] == {"Content-Type": "application/vnd.schemaregistry.v1+json"}
+
+
+async def test_get_schema_for_id_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    get_future = asyncio.Future()
+    get_future.set_result(
+        _make_result(
+            {
+                "schema": schema_avro_json,
+                "subjects": ["subj"],
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+    sr_client.client.get = Mock(return_value=get_future)
+
+    sr_authorization_ctx.set("Bearer xyz")
+    await sr_client.get_schema_for_id(1)
+
+    _, kwargs = sr_client.client.get.call_args
+    assert kwargs["headers"] == {"Authorization": "Bearer xyz"}
+
+
+async def test_get_schema_recursive_forwards_authorization_header(reset_sr_authorization_ctx) -> None:
+    sr_client = SchemaRegistryClient()
+    get_future = asyncio.Future()
+    get_future.set_result(
+        _make_result(
+            {
+                "id": 7,
+                "schema": schema_avro_json,
+                "version": 1,
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+    sr_client.client.get = Mock(return_value=get_future)
+
+    sr_authorization_ctx.set("Bearer recursive")
+    # Bypass @alru_cache on get_schema.
+    schema_id, _, _ = await sr_client._get_schema_recursive(Subject("subj"), set(), None)
+
+    assert schema_id == 7
+    _, kwargs = sr_client.client.get.call_args
+    assert kwargs["headers"] == {"Authorization": "Bearer recursive"}
+
+
+async def test_get_schema_cache_partitions_by_token(reset_sr_authorization_ctx) -> None:
+    """Cache key includes the token fingerprint: same token hits cache, different token misses."""
+
+    sr_client = SchemaRegistryClient()
+    sr_client.client.get = AsyncMock(
+        return_value=_make_result(
+            {
+                "id": 11,
+                "schema": schema_avro_json,
+                "version": 1,
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+
+    subject = Subject("uniq-subject-for-cache-partition-test")
+
+    sr_authorization_ctx.set("Bearer first")
+    await sr_client.get_schema(subject)
+    await sr_client.get_schema(subject)  # same token — cache hit
+    assert sr_client.client.get.call_count == 1
+
+    sr_authorization_ctx.set("Bearer second")
+    await sr_client.get_schema(subject)  # different token — cache miss, SR is consulted again
+    assert sr_client.client.get.call_count == 2
+
+    sr_authorization_ctx.set("Bearer first")
+    await sr_client.get_schema(subject)  # back to first token — cache hit
+    assert sr_client.client.get.call_count == 2
+
+
+async def test_get_schema_cache_unauthenticated_path_unchanged(reset_sr_authorization_ctx) -> None:
+    """Unauthenticated path: empty fingerprint, back-to-back calls still hit cache."""
+    sr_client = SchemaRegistryClient()
+    get_future = asyncio.Future()
+    get_future.set_result(
+        _make_result(
+            {
+                "id": 12,
+                "schema": schema_avro_json,
+                "version": 1,
+                "schemaType": SchemaType.AVRO.value,
+            }
+        )
+    )
+    sr_client.client.get = Mock(return_value=get_future)
+
+    subject = Subject("uniq-subject-for-cache-unauth-test")
+    await sr_client.get_schema(subject)
+    await sr_client.get_schema(subject)
+    assert sr_client.client.get.call_count == 1
