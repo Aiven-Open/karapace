@@ -66,7 +66,7 @@ Versions `3.7.1` and earlier are available from the `ghcr.io/aiven` registry::
 
   docker pull ghcr.io/aiven/karapace:3.7.1
 
-An example setup including configuration and Kafka connection is available as compose example::
+An example setup including configuration and a Kafka connection is available as a compose example::
 
     docker compose -f ./container/compose.yml up -d
 
