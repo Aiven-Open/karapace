@@ -13,7 +13,6 @@ Karapace is an open-source implementation of Kafka Schema Registry and Kafka RES
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install .               # production install
 pip install -e ".[dev]"     # development install (includes test/lint deps)
 ```
 
@@ -22,157 +21,53 @@ Requires Python 3.12+, Go, Rust, and protoc < 3.20.0.
 ### Running services locally
 
 ```bash
-# Schema Registry (FastAPI, port 8081)
-python3 -m karapace
-
-# REST Proxy (aiohttp, port 8082)
-python3 -m karapace.kafka_rest_apis
+python3 -m karapace                  # Schema Registry (FastAPI, port 8081)
+python3 -m karapace.kafka_rest_apis  # REST Proxy (aiohttp, port 8082)
 ```
 
-Config is loaded from env vars prefixed `KARAPACE_`, or override `bootstrap_uri`/`port` in `src/karapace/core/config.py` defaults during local dev.
+Config is loaded from env vars prefixed `KARAPACE_`, or override defaults in `src/karapace/core/config.py` during local dev.
 
-### Linting & formatting
+### Linting, formatting, type checking
 
 ```bash
-# Ruff (line length: 125)
 ruff check .
 ruff format .
-
-# Or use pre-commit (runs ruff + isort + other hooks)
-pre-commit run --all-files
-```
-
-### Type checking
-
-```bash
+pre-commit run --all-files  # runs ruff + isort + other hooks
 mypy
 ```
 
 ### Running tests
 
 ```bash
-# All tests (uses pytest-xdist with --numprocesses auto)
-pytest
-
-# Unit tests only (no Kafka required)
-pytest tests/unit/
-
-# Single test file
-pytest tests/unit/test_schema_models.py
-
-# Single test function
-pytest tests/unit/test_schema_models.py::test_function_name -x
-
-# Integration tests (requires running Kafka)
-pytest tests/integration/
-pytest tests/integration/test_dependencies_compatibility_protobuf.py  # single integration file
-
-# E2E tests
+pytest                                                          # all tests (pytest-xdist --numprocesses auto)
+pytest tests/unit/                                              # unit (no Kafka required)
+pytest tests/unit/test_schema_models.py::test_function_name -x  # single test
+pytest tests/integration/                                       # requires running Kafka
 pytest tests/e2e/
 ```
 
-Pytest config is in `pytest.ini`: uses `--numprocesses auto`, `--import-mode=importlib`, 90s timeout.
+Pytest config in `pytest.ini`: `--numprocesses auto`, `--import-mode=importlib`, 90s timeout.
 
 ### Docker-based development
 
 ```bash
-cp .env.example .env  # then edit: PYTHON_VERSION, RUNNER_UID, RUNNER_GID, etc.
-
-# Container management
 make cli                              # interactive shell in container
 make start-karapace-docker-resources  # start all containers
 make stop-karapace-docker-resources   # stop all containers
 
-# Tests in Docker (common env vars: DOCKER_COMPOSE, RUNNER_UID, RUNNER_GID, PYTHON_VERSION, PYTEST_ARGS)
 make unit-tests-in-docker
 make integration-tests-in-docker
 make e2e-tests-in-docker
 make smoke-test-schema-registry
 make smoke-test-rest-proxy
 make type-check-mypy-in-docker
-
-# Example with full env overrides
-PYTEST_ARGS="--cov=src/karapace --cov-append --numprocesses 4" \
-  DOCKER_COMPOSE="docker-compose" RUNNER_UID=503 RUNNER_GID=20 \
-  PYTHON_VERSION=3.12 make unit-tests-in-docker
 ```
 
-### Docker compose
+Common env overrides for the `*-in-docker` targets: `DOCKER_COMPOSE`, `RUNNER_UID`, `RUNNER_GID`, `PYTHON_VERSION`, `PYTEST_ARGS`.
 
-```bash
-# Start everything (registry on :8081, REST proxy on :8082)
-docker compose -f ./container/compose.yml up -d
+For ad-hoc compose usage, see `container/compose.yml` (registry on :8081, REST proxy on :8082).
 
-# Start individual services
-docker compose -f ./container/compose.yml up -d kafka
-docker compose -f ./container/compose.yml up -d karapace-schema-registry
-
-# Build local image
-docker build --build-arg PYTHON_VERSION=3.12 -t karapacelocal -f ./container/Dockerfile .
-```
-
-### Reinstalling after code changes
-
-```bash
-pip cache purge
-pip uninstall karapace
-pip install .
-```
-
-### Useful API curl commands for manual testing
-
-```bash
-# List subjects
-curl http://localhost:8081/subjects
-
-# Register Avro schema
-curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"schema": "{\"type\": \"record\", \"name\": \"Obj\", \"fields\":[{\"name\": \"age\", \"type\": \"int\"}]}"}' \
-  http://localhost:8081/subjects/testtopic1-value/versions
-
-# Register Protobuf schema
-curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"schemaType": "PROTOBUF", "schema": "syntax = \"proto3\";\n\nmessage Obj {\n  int32 age = 1;\n}"}' \
-  http://localhost:8081/subjects/testtopic-value/versions
-
-# Register JSON Schema
-curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"schemaType": "JSON", "schema": "{\"type\": \"object\", \"properties\": {\"age\": {\"type\": \"integer\"}}, \"required\": [\"age\"]}"}' \
-  http://localhost:8081/subjects/accountstopic-value/versions
-
-# Get schema version
-curl "http://localhost:8081/subjects/testtopic1-value/versions/1"
-
-# Set compatibility level
-curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
-  --data '{"compatibility": "NONE"}' http://localhost:8081/config
-
-# REST Proxy: list topics
-curl "http://localhost:8082/topics"
-
-# REST Proxy: produce Avro message
-curl -H "Content-Type: application/vnd.kafka.avro.v2+json" -X POST -d \
-  '{"value_schema": "{\"type\": \"record\", \"name\": \"simple\", \"namespace\": \"example.avro\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "name0"}}]}' \
-  http://localhost:8082/topics/testtopic
-
-# REST Proxy: create consumer, subscribe, consume
-curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" -H "Accept: application/vnd.kafka.v2+json" \
-  --data '{"name": "my_consumer", "format": "avro", "auto.offset.reset": "earliest"}' \
-  http://localhost:8082/consumers/avro_consumers
-
-curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" \
-  --data '{"topics":["testtopic"]}' \
-  http://localhost:8082/consumers/avro_consumers/instances/my_consumer/subscription
-
-curl -X GET -H "Accept: application/vnd.kafka.avro.v2+json" \
-  http://localhost:8082/consumers/avro_consumers/instances/my_consumer/records
-
-# Auth: basic auth
-curl -X GET -u "user:mypwd" http://localhost:8081/subjects
-
-# Auth: OIDC Bearer token
-curl -H "Authorization: Bearer $ACCESS_TOKEN" http://localhost:8081/subjects
-```
+For manual API curl examples, see the project README.
 
 ## Architecture
 
