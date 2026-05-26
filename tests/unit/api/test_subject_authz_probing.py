@@ -1,10 +1,6 @@
 """
-Unit tests for the subject probing protection.
-
-When an authenticated caller is denied access to a subject-scoped resource,
-the response must be byte-identical to the response for a genuinely-missing
-subject (status 404 with the canonical 40401 body). Otherwise an attacker can
-enumerate which subjects exist by comparing 403 vs 404.
+Subject-scoped authZ denials must return the canonical 40401 404 so callers
+cannot distinguish forbidden subjects from missing ones.
 
 Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
@@ -39,12 +35,6 @@ from karapace.core.typing import Subject
 SUBJECT = Subject("secret-subject")
 
 
-# ---------------------------------------------------------------------------
-# subject_not_found helper: body must match the genuine "subject does not exist"
-# response raised by KarapaceSchemaRegistryController._subject_get.
-# ---------------------------------------------------------------------------
-
-
 def test_subject_not_found_returns_404_with_canonical_body() -> None:
     exc = subject_not_found(SUBJECT)
     assert exc.status_code == status.HTTP_404_NOT_FOUND
@@ -55,10 +45,7 @@ def test_subject_not_found_returns_404_with_canonical_body() -> None:
 
 
 def test_subject_not_found_body_matches_genuine_missing_response() -> None:
-    """The probing-protection 404 must be indistinguishable from a real not-found 404."""
     forbidden = subject_not_found(SUBJECT)
-    # Build the same shape KarapaceSchemaRegistryController._subject_get raises
-    # for a SubjectNotFoundException (see src/karapace/api/controller.py).
     genuine = HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail={
@@ -71,17 +58,9 @@ def test_subject_not_found_body_matches_genuine_missing_response() -> None:
 
 
 def test_unauthorized_helper_still_returns_403() -> None:
-    """The 403 helper must remain available for non-subject scopes (Config:, method-level OIDC)."""
     exc = unauthorized()
     assert exc.status_code == status.HTTP_403_FORBIDDEN
     assert exc.detail == {"message": "Forbidden"}
-
-
-# ---------------------------------------------------------------------------
-# Per-route assertions: a denying authorizer must produce the 404 helper, not
-# the legacy 403. Calling the route function directly with a MagicMock
-# authorizer is enough — we are only exercising the early authZ branch.
-# ---------------------------------------------------------------------------
 
 
 def _denying_authorizer() -> MagicMock:
@@ -96,9 +75,6 @@ def _assert_subject_not_found(exc_info: pytest.ExceptionInfo[HTTPException]) -> 
         "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
         "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=SUBJECT),
     }
-
-
-# subjects.py
 
 
 async def test_subjects_subject_post_denied_returns_404() -> None:
@@ -210,9 +186,6 @@ async def test_subjects_subject_version_referenced_by_denied_returns_404() -> No
     _assert_subject_not_found(exc_info)
 
 
-# config.py — only the subject-scoped routes; global Config: stays 403 elsewhere.
-
-
 async def test_config_get_subject_denied_returns_404() -> None:
     with pytest.raises(HTTPException) as exc_info:
         await config_get_subject(
@@ -254,9 +227,6 @@ async def test_config_delete_subject_denied_returns_404() -> None:
     _assert_subject_not_found(exc_info)
 
 
-# mode.py
-
-
 async def test_mode_get_subject_denied_returns_404() -> None:
     with pytest.raises(HTTPException) as exc_info:
         await mode_get_subject(
@@ -266,9 +236,6 @@ async def test_mode_get_subject_denied_returns_404() -> None:
             controller=MagicMock(),
         )
     _assert_subject_not_found(exc_info)
-
-
-# compatibility.py
 
 
 async def test_compatibility_post_denied_returns_404() -> None:
@@ -282,12 +249,6 @@ async def test_compatibility_post_denied_returns_404() -> None:
             controller=MagicMock(),
         )
     _assert_subject_not_found(exc_info)
-
-
-# ---------------------------------------------------------------------------
-# Cross-check: the authZ resource must be the Subject:* form. Confirms we did
-# not accidentally swap a Config: site to subject_not_found().
-# ---------------------------------------------------------------------------
 
 
 async def test_subject_scoped_authz_uses_subject_resource_form() -> None:

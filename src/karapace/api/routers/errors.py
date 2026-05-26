@@ -71,11 +71,8 @@ def unauthorized() -> HTTPException:
 
 
 def subject_not_found(subject: str) -> HTTPException:
-    # Returned in place of 403 for subject-scoped authorization denials so an
-    # authenticated-but-unauthorized caller cannot distinguish a forbidden
-    # subject from a non-existent one. Body must stay byte-identical to the
-    # 404 raised by the registry when a subject genuinely does not exist
-    # (see KarapaceSchemaRegistryController._subject_get).
+    # Body must match the genuine SubjectNotFoundException 404 so authZ denials
+    # cannot be distinguished from missing subjects.
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail={
