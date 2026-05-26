@@ -250,7 +250,7 @@ class SchemaRegistryClient:
         self,
         subject: Subject,
         version: Version | None,
-        token_fingerprint: str,
+        token_fingerprint: str,  # cache-key only; partitions the LRU per principal
     ) -> tuple[SchemaId, ValidatedTypedSchema, Version]:
         return await self._get_schema_recursive(subject, set(), version)
 
