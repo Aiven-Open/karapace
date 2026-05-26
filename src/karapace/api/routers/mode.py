@@ -7,7 +7,7 @@ from dependency_injector.wiring import inject, Provide
 from fastapi import APIRouter, Depends
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.api.routers.errors import unauthorized
+from karapace.api.routers.errors import subject_not_found, unauthorized
 from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 from karapace.api.routers.requests import ModeResponse
 from karapace.api.user import get_current_user
@@ -48,6 +48,6 @@ async def mode_get_subject(
 ) -> ModeResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.get_subject_mode(subject=subject)

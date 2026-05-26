@@ -68,3 +68,18 @@ def unauthorized() -> HTTPException:
         status_code=status.HTTP_403_FORBIDDEN,
         detail={"message": "Forbidden"},
     )
+
+
+def subject_not_found(subject: str) -> HTTPException:
+    # Returned in place of 403 for subject-scoped authorization denials so an
+    # authenticated-but-unauthorized caller cannot distinguish a forbidden
+    # subject from a non-existent one. Body must stay byte-identical to the
+    # 404 raised by the registry when a subject genuinely does not exist
+    # (see KarapaceSchemaRegistryController._subject_get).
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+            "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+        },
+    )

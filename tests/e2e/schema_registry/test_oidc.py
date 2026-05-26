@@ -151,3 +151,34 @@ async def test_schema_registry_oidc_authn_only_skip_paths(
 
     res = await registry_async_client_oidc_authn_only_no_auth_header.get("metrics", json_response=False)
     assert res.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Subject probing protection: the canonical 404 body for a missing subject
+# must be returned through the OIDC bearer-auth path so it is byte-identical
+# to the 404 used to mask subject-scoped authorization denials.
+#
+# The full forbidden-vs-missing indistinguishability contract is exercised in
+# the basic-auth integration suite (test_sr_unauthorized_subject_indistinguishable_from_missing
+# in tests/integration/test_schema_registry_auth.py). The fix lives in the
+# routers, which are auth-mechanism-agnostic — once the response shape is
+# confirmed identical on both code paths, the security property holds for
+# OIDC callers as well. This e2e test pins the OIDC half of that contract.
+# ---------------------------------------------------------------------------
+
+
+async def test_schema_registry_oidc_missing_subject_returns_canonical_404(
+    registry_async_client_oidc: Client,
+) -> None:
+    """Probing a non-existent subject under OIDC must return the canonical
+    SUBJECT_NOT_FOUND body — same shape an authenticated-but-unauthorized
+    caller will see for forbidden subjects."""
+    subject = new_random_name("missing-")
+    await _wait_for_primary(registry_async_client_oidc)
+
+    res = await registry_async_client_oidc.get(f"subjects/{subject}/versions")
+    assert res.status_code == 404
+    assert res.json_result == {
+        "error_code": 40401,
+        "message": f"Subject '{subject}' not found.",
+    }
