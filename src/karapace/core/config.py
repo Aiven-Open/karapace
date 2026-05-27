@@ -147,6 +147,15 @@ class Config(BaseSettings):
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
+    # Clock-skew tolerance for exp/nbf/iat (seconds). Small drift between IdP and Karapace
+    # is normal; default 30s prevents spurious 401s without meaningfully extending token life.
+    sasl_oauthbearer_leeway_seconds: int = 30
+    # RFC 9068: require access tokens to carry header `typ: at+jwt`. Off by default since
+    # not all IdPs emit it. Turning this on rejects ID tokens being misused as access tokens.
+    sasl_oauthbearer_require_at_jwt_typ: bool = False
+    # OIDC `azp` (authorized party) binding: enforce that the token was issued for this
+    # client_id. Recommended when the IdP issues multi-audience tokens. Requires client_id.
+    sasl_oauthbearer_enforce_azp: bool = False
     # LRU cap on (subject, version, token_fingerprint) in the SR client. Raise for multi-tenant.
     schema_registry_client_cache_maxsize: int = 100
     # Kafka SASL client credentials (used by both services; selected by sasl_mechanism).

@@ -35,6 +35,9 @@ class OIDCMiddleware:
         self.client_id = config.sasl_oauthbearer_client_id
         self.sasl_oauthbearer_method_roles: dict[str, list[str]] = config.sasl_oauthbearer_method_roles
         self.sasl_oauthbearer_roles_claim_path = config.sasl_oauthbearer_roles_claim_path
+        self.leeway_seconds = config.sasl_oauthbearer_leeway_seconds
+        self.require_at_jwt_typ = config.sasl_oauthbearer_require_at_jwt_typ
+        self.enforce_azp = config.sasl_oauthbearer_enforce_azp
 
         # Hardcoded default algorithms
         self.algorithms = ["RS256", "RS384", "RS512"]
@@ -57,6 +60,8 @@ class OIDCMiddleware:
                 raise ValueError(
                     "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
                 )
+            if self.enforce_azp and not self.client_id:
+                raise ValueError("OIDC config error: client_id is required when sasl_oauthbearer_enforce_azp is enabled.")
             log.info(
                 "OIDC middleware initialized — Bearer token validation enabled. " "jwks_url=%s issuer=%s audience=%s",
                 self.jwks_url,
@@ -99,32 +104,47 @@ class OIDCMiddleware:
     def validate_jwt(self, token: str) -> dict:
         if not self._jwks_client:
             raise AuthenticationError("OIDC not configured: JWKS client unavailable")
+        # Defense-in-depth: __init__ enforces audience when JWKS is set, but a misconfigured
+        # validator should fail closed rather than disable aud checks via audience=None.
+        if not self.audience:
+            raise AuthenticationError("OIDC not configured: audience missing")
 
         try:
+            if self.require_at_jwt_typ:
+                # RFC 9068: access tokens carry `typ: at+jwt`. Reject ID tokens or other
+                # JWT shapes being misused as access tokens. Header is unverified bytes,
+                # but it's only used to gate; the signature is still checked below.
+                header_typ = jwt.get_unverified_header(token).get("typ", "")
+                if header_typ.lower() != "at+jwt":
+                    raise InvalidTokenError(f"Invalid token type: expected at+jwt, got {header_typ!r}")
+
             signing_key = self._jwks_client.get_signing_key_from_jwt(token)
-            # Split the comma-separated audience string into a list and strip whitespace
-            if self.audience:
-                audiences = [aud.strip() for aud in self.audience.split(",") if aud.strip()]
-            else:
-                audiences = None  # or leave it out
+            audiences = [aud.strip() for aud in self.audience.split(",") if aud.strip()]
+            require = ["exp", "iss", "aud"]
+            if self.claim_name:
+                require.append(self.claim_name)
             payload = jwt.decode(
                 token,
                 signing_key.key,
                 algorithms=self.algorithms,
                 audience=audiences,
                 issuer=self.issuer,
-                # Require exp/iss/aud so a token missing any of these is rejected,
-                # not silently accepted (PyJWT does not require them by default).
-                options={"require": ["exp", "iss", "aud"]},
+                leeway=self.leeway_seconds,
+                # Require exp/iss/aud (and the configured subject claim) so a token missing
+                # any of these is rejected — PyJWT does not require them by default.
+                options={"require": require},
             )
+            if self.enforce_azp and payload.get("azp") != self.client_id:
+                raise InvalidTokenError("azp claim does not match configured client_id")
             return payload
         except ExpiredSignatureError:
             # Surface expiry distinctly so callers can return a clearer 401 reason
             # and operators can debug clock-skew vs. real-auth failures.
             log.warning("JWT validation failed: token expired")
             raise TokenExpiredError("OIDC token expired")
-        except InvalidTokenError:
-            log.error("JWT validation failed")
+        except InvalidTokenError as exc:
+            # Log the underlying reason for operator debugging; keep the response opaque.
+            log.warning("JWT validation failed: %s", exc)
             raise AuthenticationError("Invalid OIDC token")
 
     def authorize_request(self, payload: dict, request_method: str) -> bool:
