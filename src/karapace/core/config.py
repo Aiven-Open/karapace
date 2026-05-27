@@ -147,14 +147,11 @@ class Config(BaseSettings):
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
-    # Clock-skew tolerance for exp/nbf/iat (seconds). Small drift between IdP and Karapace
-    # is normal; default 30s prevents spurious 401s without meaningfully extending token life.
+    # Clock-skew tolerance for exp/nbf/iat (seconds).
     sasl_oauthbearer_leeway_seconds: int = 30
-    # RFC 9068: require access tokens to carry header `typ: at+jwt`. Off by default since
-    # not all IdPs emit it. Turning this on rejects ID tokens being misused as access tokens.
+    # RFC 9068: require header `typ: at+jwt` on access tokens.
     sasl_oauthbearer_require_at_jwt_typ: bool = False
-    # OIDC `azp` (authorized party) binding: enforce that the token was issued for this
-    # client_id. Recommended when the IdP issues multi-audience tokens. Requires client_id.
+    # Enforce `azp == client_id`. Requires client_id.
     sasl_oauthbearer_enforce_azp: bool = False
     # LRU cap on (subject, version, token_fingerprint) in the SR client. Raise for multi-tenant.
     schema_registry_client_cache_maxsize: int = 100
@@ -233,6 +230,17 @@ class Config(BaseSettings):
                 "Auto-enabling authentication for backwards compatibility."
             )
             self.sasl_oauthbearer_authentication_enabled = True
+        return self
+
+    @model_validator(mode="after")
+    def _enforce_azp_requires_client_id(self) -> Config:
+        # Catch misconfig at config-parse time, not just middleware construction.
+        # OIDCMiddleware also enforces this defensively for the case where Config is built
+        # directly (e.g. tests) bypassing this validator's failure path.
+        if self.sasl_oauthbearer_enforce_azp and not self.sasl_oauthbearer_client_id:
+            raise ValueError(
+                "OIDC config error: sasl_oauthbearer_client_id is required when " "sasl_oauthbearer_enforce_azp is enabled."
+            )
         return self
 
     def get_rest_base_uri(self) -> str:

@@ -686,7 +686,51 @@ def test_validate_jwt_azp_check_skipped_when_flag_off(mock_jwt_decode, mock_pyjw
     assert middleware.validate_jwt("good.jwt.token")["azp"] == "anything-goes"
 
 
+def test_config_rejects_enforce_azp_without_client_id():
+    """Config-level validator catches the misconfig at parse time (before middleware construction)."""
+    with pytest.raises(ValueError, match="client_id is required"):
+        _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_enforce_azp=True)
+
+
 def test_oidc_middleware_requires_client_id_when_azp_enforced():
-    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_enforce_azp=True)
+    """Middleware-level guard: catches the misconfig when Config is constructed bypassing the
+    Pydantic validator (e.g. by mutating fields directly, as tests can do)."""
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_enforce_azp=True,
+        sasl_oauthbearer_client_id="client-id",
+    )
+    config.sasl_oauthbearer_client_id = None  # bypass Pydantic validator
     with pytest.raises(ValueError, match="client_id is required"):
         OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.middleware.jwt.decode")
+def test_validate_jwt_default_leeway_is_30(mock_jwt_decode, mock_pyjwks_client):
+    mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_jwt_decode.return_value = {"sub": "u"}
+
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware.validate_jwt("good.jwt.token")
+
+    assert mock_jwt_decode.call_args.kwargs["leeway"] == 30
+
+
+@pytest.mark.parametrize("typ_value", ["AT+JWT", "at+jwt", "application/at+jwt", "Application/AT+JWT"])
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.middleware.jwt.get_unverified_header")
+@patch("karapace.api.oidc.middleware.jwt.decode")
+def test_validate_jwt_at_jwt_typ_accepts_case_insensitive_and_long_form(
+    mock_jwt_decode, mock_unverified_header, mock_pyjwks_client, typ_value
+):
+    mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_unverified_header.return_value = {"typ": typ_value}
+    mock_jwt_decode.return_value = {"sub": "u"}
+
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_at_jwt_typ=True)
+    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}

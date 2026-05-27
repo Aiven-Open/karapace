@@ -104,24 +104,21 @@ class OIDCMiddleware:
     def validate_jwt(self, token: str) -> dict:
         if not self._jwks_client:
             raise AuthenticationError("OIDC not configured: JWKS client unavailable")
-        # Defense-in-depth: __init__ enforces audience when JWKS is set, but a misconfigured
-        # validator should fail closed rather than disable aud checks via audience=None.
+        # Fail closed if audience is somehow unset at decode time; __init__ already enforces it.
         if not self.audience:
             raise AuthenticationError("OIDC not configured: audience missing")
 
         try:
             if self.require_at_jwt_typ:
-                # RFC 9068: access tokens carry `typ: at+jwt`. Reject ID tokens or other
-                # JWT shapes being misused as access tokens. Header is unverified bytes,
-                # but it's only used to gate; the signature is still checked below.
+                # Header is unverified, but only gates rejection; signature is still checked below.
                 header_typ = jwt.get_unverified_header(token).get("typ", "")
-                if header_typ.lower() != "at+jwt":
+                if header_typ.lower() not in ("at+jwt", "application/at+jwt"):
                     raise InvalidTokenError(f"Invalid token type: expected at+jwt, got {header_typ!r}")
 
             signing_key = self._jwks_client.get_signing_key_from_jwt(token)
             audiences = [aud.strip() for aud in self.audience.split(",") if aud.strip()]
             require = ["exp", "iss", "aud"]
-            if self.claim_name:
+            if self.claim_name and self.claim_name not in require:
                 require.append(self.claim_name)
             payload = jwt.decode(
                 token,
@@ -130,20 +127,17 @@ class OIDCMiddleware:
                 audience=audiences,
                 issuer=self.issuer,
                 leeway=self.leeway_seconds,
-                # Require exp/iss/aud (and the configured subject claim) so a token missing
-                # any of these is rejected — PyJWT does not require them by default.
+                # PyJWT does not require these by default; enforce presence explicitly.
                 options={"require": require},
             )
             if self.enforce_azp and payload.get("azp") != self.client_id:
                 raise InvalidTokenError("azp claim does not match configured client_id")
             return payload
         except ExpiredSignatureError:
-            # Surface expiry distinctly so callers can return a clearer 401 reason
-            # and operators can debug clock-skew vs. real-auth failures.
             log.warning("JWT validation failed: token expired")
             raise TokenExpiredError("OIDC token expired")
         except InvalidTokenError as exc:
-            # Log the underlying reason for operator debugging; keep the response opaque.
+            # Log the reason for debugging; response body stays opaque.
             log.warning("JWT validation failed: %s", exc)
             raise AuthenticationError("Invalid OIDC token")
 

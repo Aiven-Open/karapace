@@ -194,6 +194,9 @@ return http_authorizer if config.registry_authfile else no_auth_authorizer
 | `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT |
 | `sasl_oauthbearer_method_roles` | `{GET/POST/PUT/DELETE: []}` | Per-method allowed roles |
 | `sasl_oauthbearer_skip_auth_paths` | `["/_health","/metrics"]` | Bypass paths |
+| `sasl_oauthbearer_leeway_seconds` | `30` | Clock-skew tolerance for `exp`/`nbf`/`iat` |
+| `sasl_oauthbearer_require_at_jwt_typ` | `False` | RFC 9068: require header `typ: at+jwt` (or `application/at+jwt`) |
+| `sasl_oauthbearer_enforce_azp` | `False` | Require `azp == client_id`; needs `client_id` |
 | `schema_registry_client_cache_maxsize` | `100` | LRU cap on `(subject, version, fp)` |
 | `registry_authfile` | `None` | Selects basic-auth `HTTPAuthorizer` |
 
