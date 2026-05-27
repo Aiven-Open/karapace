@@ -15,7 +15,7 @@ from karapace.core.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRO
 from karapace.core.typing import ElectionStrategy, NameStrategy
 from karapace.core.utils import json_encode
 from pathlib import Path
-from pydantic import BaseModel, ImportString, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, Field, ImportString, PrivateAttr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import enum
@@ -147,10 +147,10 @@ class Config(BaseSettings):
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
-    # Clock-skew tolerance for exp/nbf/iat (seconds).
-    sasl_oauthbearer_leeway_seconds: int = 30
-    # RFC 9068: require header `typ: at+jwt` on access tokens.
-    sasl_oauthbearer_require_at_jwt_typ: bool = False
+    # Clock-skew tolerance for exp/nbf/iat (seconds). 0 preserves prior strict behavior.
+    sasl_oauthbearer_leeway_seconds: int = Field(default=0, ge=0)
+    # Require header `typ: at+jwt` on access tokens.
+    sasl_oauthbearer_require_access_token_typ: bool = False
     # Enforce `azp == client_id`. Requires client_id.
     sasl_oauthbearer_enforce_azp: bool = False
     # LRU cap on (subject, version, token_fingerprint) in the SR client. Raise for multi-tenant.

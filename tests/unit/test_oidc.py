@@ -43,7 +43,7 @@ class DummyConfig:
         default_factory=lambda: {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     )
     sasl_oauthbearer_leeway_seconds: int = 30
-    sasl_oauthbearer_require_at_jwt_typ: bool = False
+    sasl_oauthbearer_require_access_token_typ: bool = False
     sasl_oauthbearer_enforce_azp: bool = False
 
 
@@ -606,7 +606,7 @@ def test_validate_jwt_at_jwt_typ_enforced_accepts(mock_jwt_decode, mock_unverifi
     mock_unverified_header.return_value = {"typ": "at+jwt"}
     mock_jwt_decode.return_value = {"sub": "u"}
 
-    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_at_jwt_typ=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
     assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}
 
@@ -620,7 +620,7 @@ def test_validate_jwt_at_jwt_typ_enforced_rejects_id_token(mock_jwt_decode, mock
     mock_unverified_header.return_value = {"typ": "JWT"}
     mock_jwt_decode.return_value = {"sub": "u"}
 
-    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_at_jwt_typ=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
     with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
         middleware.validate_jwt("idtoken.jwt.token")
@@ -707,7 +707,8 @@ def test_oidc_middleware_requires_client_id_when_azp_enforced():
 
 @patch("karapace.api.oidc.middleware.PyJWKClient")
 @patch("karapace.api.oidc.middleware.jwt.decode")
-def test_validate_jwt_default_leeway_is_30(mock_jwt_decode, mock_pyjwks_client):
+def test_validate_jwt_default_leeway_is_zero(mock_jwt_decode, mock_pyjwks_client):
+    """Default leeway is 0 — preserves prior strict behavior. Operators opt into skew tolerance."""
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
     mock_jwt_decode.return_value = {"sub": "u"}
@@ -716,7 +717,15 @@ def test_validate_jwt_default_leeway_is_30(mock_jwt_decode, mock_pyjwks_client):
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
     middleware.validate_jwt("good.jwt.token")
 
-    assert mock_jwt_decode.call_args.kwargs["leeway"] == 30
+    assert mock_jwt_decode.call_args.kwargs["leeway"] == 0
+
+
+def test_config_rejects_negative_leeway():
+    """Pydantic Field(ge=0) rejects negative values at config-parse time."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Config(sasl_oauthbearer_leeway_seconds=-1)
 
 
 @pytest.mark.parametrize("typ_value", ["AT+JWT", "at+jwt", "application/at+jwt", "Application/AT+JWT"])
@@ -731,6 +740,6 @@ def test_validate_jwt_at_jwt_typ_accepts_case_insensitive_and_long_form(
     mock_unverified_header.return_value = {"typ": typ_value}
     mock_jwt_decode.return_value = {"sub": "u"}
 
-    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_at_jwt_typ=True)
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
     assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}

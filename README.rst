@@ -131,8 +131,8 @@ verified via JWKS). Authorization (role-based access) is opt-in on top of this w
 
 Optional hardening flags::
 
-   sasl_oauthbearer_leeway_seconds: int = 30          # clock-skew tolerance for exp/nbf/iat
-   sasl_oauthbearer_require_at_jwt_typ: bool = False  # RFC 9068: require typ "at+jwt" header
+   sasl_oauthbearer_leeway_seconds: int = 0           # clock-skew tolerance for exp/nbf/iat (must be >= 0)
+   sasl_oauthbearer_require_access_token_typ: bool = False  # require typ "at+jwt" header
    sasl_oauthbearer_enforce_azp: bool = False         # require azp claim == client_id
 
 ``sasl_oauthbearer_enforce_azp=true`` requires ``sasl_oauthbearer_client_id`` to be set;
