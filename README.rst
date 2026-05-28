@@ -125,8 +125,18 @@ To enable oidc authentication on the karapace, configure oidc jwks url config de
    sasl_oauthbearer_sub_claim_name = "sub",
 
 When ``sasl_oauthbearer_authentication_enabled`` is true, every request must carry a valid
-Bearer token (the JWT signature, issuer and audience are verified via JWKS). Authorization
-(role-based access) is opt-in on top of this with ``sasl_oauthbearer_authorization_enabled``.
+Bearer token (the JWT signature, issuer, audience and the configured subject claim are
+verified via JWKS). Authorization (role-based access) is opt-in on top of this with
+``sasl_oauthbearer_authorization_enabled``.
+
+Optional hardening flags::
+
+   sasl_oauthbearer_leeway_seconds: int = 0           # clock-skew tolerance for exp/nbf/iat (must be >= 0)
+   sasl_oauthbearer_require_access_token_typ: bool = False  # require typ "at+jwt" header
+   sasl_oauthbearer_enforce_azp: bool = False         # require azp claim == client_id
+
+``sasl_oauthbearer_enforce_azp=true`` requires ``sasl_oauthbearer_client_id`` to be set;
+startup fails otherwise.
 
 There is a detailed section about OAuth2 authentication for karapace below.
 

@@ -35,6 +35,9 @@ class OIDCMiddleware:
         self.client_id = config.sasl_oauthbearer_client_id
         self.sasl_oauthbearer_method_roles: dict[str, list[str]] = config.sasl_oauthbearer_method_roles
         self.sasl_oauthbearer_roles_claim_path = config.sasl_oauthbearer_roles_claim_path
+        self.leeway_seconds = config.sasl_oauthbearer_leeway_seconds
+        self.require_access_token_typ = config.sasl_oauthbearer_require_access_token_typ
+        self.enforce_azp = config.sasl_oauthbearer_enforce_azp
 
         # Hardcoded default algorithms
         self.algorithms = ["RS256", "RS384", "RS512"]
@@ -57,6 +60,8 @@ class OIDCMiddleware:
                 raise ValueError(
                     "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
                 )
+            if self.enforce_azp and not self.client_id:
+                raise ValueError("OIDC config error: client_id is required when sasl_oauthbearer_enforce_azp is enabled.")
             log.info(
                 "OIDC middleware initialized — Bearer token validation enabled. " "jwks_url=%s issuer=%s audience=%s",
                 self.jwks_url,
@@ -99,33 +104,54 @@ class OIDCMiddleware:
     def validate_jwt(self, token: str) -> dict:
         if not self._jwks_client:
             raise AuthenticationError("OIDC not configured: JWKS client unavailable")
+        # Fail closed if audience is somehow unset at decode time; __init__ already enforces it.
+        if not self.audience:
+            raise AuthenticationError("OIDC not configured: audience missing")
 
         try:
-            signing_key = self._jwks_client.get_signing_key_from_jwt(token)
-            # Split the comma-separated audience string into a list and strip whitespace
-            if self.audience:
-                audiences = [aud.strip() for aud in self.audience.split(",") if aud.strip()]
-            else:
-                audiences = None  # or leave it out
-            payload = jwt.decode(
-                token,
-                signing_key.key,
-                algorithms=self.algorithms,
-                audience=audiences,
-                issuer=self.issuer,
-                # Require exp/iss/aud so a token missing any of these is rejected,
-                # not silently accepted (PyJWT does not require them by default).
-                options={"require": ["exp", "iss", "aud"]},
-            )
+            self._check_at_jwt_typ(token)
+            payload = self._decode_and_verify(token)
+            self._check_azp(payload)
             return payload
         except ExpiredSignatureError:
-            # Surface expiry distinctly so callers can return a clearer 401 reason
-            # and operators can debug clock-skew vs. real-auth failures.
             log.warning("JWT validation failed: token expired")
             raise TokenExpiredError("OIDC token expired")
-        except InvalidTokenError:
-            log.error("JWT validation failed")
+        except InvalidTokenError as exc:
+            # Log the reason for debugging; response body stays opaque.
+            log.warning("JWT validation failed: %s", exc)
             raise AuthenticationError("Invalid OIDC token")
+
+    def _check_at_jwt_typ(self, token: str) -> None:
+        if not self.require_access_token_typ:
+            return
+        # Header is unverified, but only gates rejection; signature is still checked at decode.
+        header_typ = jwt.get_unverified_header(token).get("typ", "")
+        if header_typ.lower() not in ("at+jwt", "application/at+jwt"):
+            raise InvalidTokenError(f"Invalid token type: expected at+jwt, got {header_typ!r}")
+
+    def _decode_and_verify(self, token: str) -> dict:
+        assert self._jwks_client is not None and self.audience  # validated by validate_jwt
+        signing_key = self._jwks_client.get_signing_key_from_jwt(token)
+        audiences = {aud.strip() for aud in self.audience.split(",") if aud.strip()}
+        require = {"exp", "iss", "aud"}
+        if self.claim_name:
+            require.add(self.claim_name)
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=self.algorithms,
+            audience=audiences,
+            issuer=self.issuer,
+            leeway=self.leeway_seconds,
+            # PyJWT does not require these by default; enforce presence explicitly.
+            options={"require": list(require)},
+        )
+
+    def _check_azp(self, payload: dict) -> None:
+        if not self.enforce_azp:
+            return
+        if payload.get("azp") != self.client_id:
+            raise InvalidTokenError("azp claim does not match configured client_id")
 
     def authorize_request(self, payload: dict, request_method: str) -> bool:
         if not self.authorization_enabled:
