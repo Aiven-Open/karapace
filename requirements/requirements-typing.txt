@@ -101,7 +101,7 @@ httpx==0.28.1
     # via
     #   fastapi
     #   fastapi-cloud-cli
-idna==3.11
+idna==3.17
     # via
     #   anyio
     #   email-validator

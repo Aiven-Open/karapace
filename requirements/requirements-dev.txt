@@ -139,7 +139,7 @@ httpx==0.28.1
     #   fastapi-cloud-cli
 hypothesis==6.151.10
     # via karapace (/karapace/pyproject.toml)
-idna==3.11
+idna==3.17
     # via
     #   anyio
     #   email-validator
