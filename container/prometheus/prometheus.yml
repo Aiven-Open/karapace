@@ -16,7 +16,7 @@ scrape_configs:
     metrics_path: /metrics
     scheme: https
     tls_config:
-      ca_file: /opt/prometheus/certs/rootCA.pem
+      ca_file: /opt/prometheus/certs/rootCA.txt
     static_configs:
       - targets:
         - karapace-schema-registry:8081

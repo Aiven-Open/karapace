@@ -83,9 +83,9 @@ services:
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
-      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
-      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
-      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.txt
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.txt
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.txt
       KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
@@ -144,9 +144,9 @@ services:
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_NAME: opentelemetry
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_LANGUAGE: python
       KARAPACE_TELEMETRY__RESOURCE_TELEMETRY_SDK_VERSION: 1.27.0
-      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
-      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
-      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.txt
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.txt
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.txt
       KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
@@ -198,9 +198,9 @@ services:
       KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
       KARAPACE_TAGS__APP: karapace-schema-registry-authn-only
-      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
-      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
-      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.txt
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.txt
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.txt
       KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
