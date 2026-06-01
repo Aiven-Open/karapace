@@ -308,7 +308,7 @@ yarl==1.23.0
     # via
     #   aiohttp
     #   karapace (/karapace/pyproject.toml)
-zipp==3.23.0
+zipp==4.1.0
     # via importlib-metadata
 zstandard==0.25.0
     # via karapace (/karapace/pyproject.toml)

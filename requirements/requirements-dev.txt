@@ -406,7 +406,7 @@ yarl==1.23.0
     # via
     #   aiohttp
     #   karapace (/karapace/pyproject.toml)
-zipp==3.23.0
+zipp==4.1.0
     # via importlib-metadata
 zope-event==6.1
     # via gevent
