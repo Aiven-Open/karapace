@@ -165,6 +165,7 @@ async def test_forward_request_with_integer_response(forward_client: ForwardClie
 async def test_forward_request_with_https(karapace_container: KarapaceContainer) -> None:
     https_config = karapace_container.config()
     https_config.advertised_protocol = "https"
+    https_config.forward_ssl_verify = True
     https_config.server_tls_cafile = "test-cafile"
 
     with (

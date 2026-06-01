@@ -130,6 +130,7 @@ class Config(BaseSettings):
     ssl_certfile: str | None = None
     ssl_keyfile: str | None = None
     ssl_check_hostname: bool = True
+    forward_ssl_verify: bool = False
     ssl_crlfile: str | None = None
     ssl_password: str | None = None
     sasl_mechanism: str | None = None

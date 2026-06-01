@@ -39,10 +39,15 @@ class ForwardClient:
         self.advertised_protocol = config.advertised_protocol
         self._forward_client: aiohttp.ClientSession = aiohttp.ClientSession(headers={"User-Agent": self.USER_AGENT})
         self._ssl_context: ssl.SSLContext | None = None
-        if self.advertised_protocol == "https" and config.server_tls_cafile:
-            if os.path.exists(config.server_tls_cafile):
+        if self.advertised_protocol == "https":
+            if not config.forward_ssl_verify:
+                self._ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+                self._ssl_context.check_hostname = False
+                self._ssl_context.verify_mode = ssl.CERT_NONE
+            elif config.server_tls_cafile and os.path.exists(config.server_tls_cafile):
                 self._ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
                 self._ssl_context.load_verify_locations(cafile=config.server_tls_cafile)
+                self._ssl_context.verify_mode = ssl.CERT_REQUIRED
 
     async def close(self) -> None:
         await self._forward_client.close()
