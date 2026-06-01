@@ -42,7 +42,7 @@ backoff==2.2.1
     #   opentelemetry-exporter-otlp-proto-http
 cachetools==7.0.5
     # via karapace (/karapace/pyproject.toml)
-certifi==2026.2.25
+certifi==2026.5.20
     # via
     #   httpcore
     #   httpx
