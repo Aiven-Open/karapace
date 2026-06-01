@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
 from karapace.api.forward_client import ForwardClient
-from karapace.api.routers.errors import no_primary_url_error, unauthorized
+from karapace.api.routers.errors import no_primary_url_error, subject_not_found
 from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 from karapace.api.routers.requests import SchemaIdResponse, SchemaRequest, SchemaResponse, SubjectSchemaVersionResponse
 from karapace.api.user import get_current_user
@@ -60,7 +60,7 @@ async def subjects_subject_post(
 ) -> SchemaResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.subjects_schema_post(
         subject=subject,
@@ -84,7 +84,7 @@ async def subjects_subject_delete(
 ) -> list[int]:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
@@ -110,7 +110,7 @@ async def subjects_subject_versions_post(
 ) -> SchemaIdResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     # TODO: split the functionality so primary error and forwarding can be handled here
     # and local/primary write is in controller.
@@ -134,7 +134,7 @@ async def subjects_subject_versions_list(
 ) -> list[int]:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.subject_versions_list(subject=subject, deleted=deleted)
 
@@ -151,7 +151,7 @@ async def subjects_subject_version_get(
 ) -> SubjectSchemaVersionResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.subject_version_get(subject=subject, version=version, deleted=deleted)
 
@@ -171,7 +171,7 @@ async def subjects_subject_version_delete(
 ) -> int:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
@@ -194,7 +194,7 @@ async def subjects_subject_version_schema_get(
 ) -> dict:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.subject_version_schema_get(subject=subject, version=version)
 
@@ -210,6 +210,6 @@ async def subjects_subject_version_referenced_by(
 ) -> list[int]:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.subject_version_referencedby_get(subject=subject, version=version)
