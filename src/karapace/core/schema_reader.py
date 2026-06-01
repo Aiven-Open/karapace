@@ -380,6 +380,14 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         # Reduce by one for actual highest offset.
         self._highest_offset = end_offset - 1
 
+        try:
+            positions = self.consumer.position([TopicPartition(self.config.topic_name, 0)])
+            if positions and positions[0].offset >= end_offset:
+                self.offset = max(self.offset, self._highest_offset)
+        except Exception as e:
+            self.stats.unexpected_exception(ex=e, where="_is_ready_position")
+            LOG.warning("Failed to get consumer position: %s", e)
+
         # Log when replay starts (first time we know how many messages to process)
         if self.startup_previous_processed_offset == 0 and self._highest_offset > 0:
             LOG.info(
