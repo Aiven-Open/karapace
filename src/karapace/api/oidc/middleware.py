@@ -19,6 +19,10 @@ class TokenExpiredError(AuthenticationError):
 
 log = logging.getLogger(__name__)
 
+# Methods served by SR routers — each must appear in ``method_roles`` when authz
+# is on, otherwise ``authorize_request`` silently 403s that method.
+REQUIRED_HTTP_METHODS: frozenset[str] = frozenset({"GET", "POST", "PUT", "DELETE"})
+
 
 class OIDCMiddleware:
     def __init__(self, app: FastAPI, config: Config) -> None:
@@ -53,7 +57,7 @@ class OIDCMiddleware:
                         "Set sasl_oauthbearer_allow_insecure_jwks=true to override (dev only)."
                     )
                 log.warning(
-                    "OIDC: JWKS URL uses plain HTTP (%s) — INSECURE override is active. " "DO NOT use in production.",
+                    "OIDC: JWKS URL uses plain HTTP (%s) — INSECURE override is active. DO NOT use in production.",
                     self.jwks_url,
                 )
             if not self.issuer or not self.audience:
@@ -63,7 +67,7 @@ class OIDCMiddleware:
             if self.enforce_azp and not self.client_id:
                 raise ValueError("OIDC config error: client_id is required when sasl_oauthbearer_enforce_azp is enabled.")
             log.info(
-                "OIDC middleware initialized — Bearer token validation enabled. " "jwks_url=%s issuer=%s audience=%s",
+                "OIDC middleware initialized — Bearer token validation enabled. jwks_url=%s issuer=%s audience=%s",
                 self.jwks_url,
                 self.issuer,
                 self.audience,
@@ -80,9 +84,9 @@ class OIDCMiddleware:
                         "OIDC config error: client_id and roles_claim_path are required when authorization is enabled."
                     )
 
-                required_http_methods = set(self.sasl_oauthbearer_method_roles.keys())
-                # Validate required HTTP methods in method_roles
-                missing_methods = required_http_methods - self.sasl_oauthbearer_method_roles.keys()
+                # Fail fast on incomplete ``method_roles`` rather than silently 403 at request time.
+                configured_methods = {m.upper() for m in self.sasl_oauthbearer_method_roles.keys()}
+                missing_methods = REQUIRED_HTTP_METHODS - configured_methods
                 if missing_methods:
                     raise ValueError(
                         f"OIDC config error: method_roles is missing definitions for: {', '.join(sorted(missing_methods))}"

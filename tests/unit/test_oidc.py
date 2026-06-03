@@ -11,6 +11,7 @@ import datetime
 import logging
 from dataclasses import dataclass, field
 from http import HTTPStatus
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -237,15 +238,22 @@ def test_get_roles_from_claim_path(payload, path, expected_roles):
     assert roles == expected_roles
 
 
+# Padding for the other three required methods so the constructor's completeness
+# check passes. Each row below only cares about ONE method; the others are inert.
+_FULL_METHOD_ROLES = {"GET": ["admin"], "POST": ["admin"], "PUT": ["admin"], "DELETE": ["admin"]}
+
+
 @pytest.mark.parametrize(
     "roles,method,method_roles,expect_error",
     [
-        (["admin"], "GET", {"GET": ["admin"]}, False),
-        (["user"], "POST", {"POST": ["admin", "user"]}, False),
-        (["guest"], "DELETE", {"DELETE": ["admin"]}, True),
-        ([], "GET", {"GET": ["admin"]}, True),
-        (["reader"], "GET", {"GET": []}, True),  # roles required but none configured
-        (["admin"], "PATCH", {}, True),  # unsupported method, no roles allowed
+        (["admin"], "GET", {**_FULL_METHOD_ROLES, "GET": ["admin"]}, False),
+        (["user"], "POST", {**_FULL_METHOD_ROLES, "POST": ["admin", "user"]}, False),
+        (["guest"], "DELETE", {**_FULL_METHOD_ROLES, "DELETE": ["admin"]}, True),
+        ([], "GET", {**_FULL_METHOD_ROLES, "GET": ["admin"]}, True),
+        # roles required but none configured for the method under test.
+        (["reader"], "GET", {**_FULL_METHOD_ROLES, "GET": []}, True),
+        # unsupported method (PATCH) -> get(METHOD, []) -> empty allow-list -> 403.
+        (["admin"], "PATCH", _FULL_METHOD_ROLES, True),
     ],
 )
 def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expect_error):
@@ -743,3 +751,103 @@ def test_validate_jwt_at_jwt_typ_accepts_case_insensitive_and_long_form(
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
     assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}
+
+
+# ``sasl_oauthbearer_method_roles`` completeness — regression for the
+# ``set(keys) - keys`` no-op that let incomplete configs silently 403 at runtime.
+
+
+def _authz_config(method_roles: dict[str, list[str]]) -> Config:
+    """Build a fully-valid OIDC authz config with the supplied ``method_roles``."""
+    return _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_authorization_enabled=True,
+        sasl_oauthbearer_client_id="karapace-client",
+        sasl_oauthbearer_roles_claim_path="resource_access.[client_id].roles",
+        sasl_oauthbearer_method_roles=method_roles,
+    )
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_method_roles_complete_set_is_accepted(mock_pyjwks_client):
+    """All four required methods present -> constructor succeeds."""
+    mock_pyjwks_client.return_value = MagicMock()
+    config = _authz_config({"GET": ["r"], "POST": ["w"], "PUT": ["w"], "DELETE": ["w"]})
+    OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@pytest.mark.parametrize(
+    ("method_roles", "expected_missing"),
+    [
+        # Single missing method — the original silent-failure case.
+        ({"GET": ["r"], "PUT": ["w"], "DELETE": ["w"]}, "POST"),
+        ({"GET": ["r"], "POST": ["w"], "PUT": ["w"]}, "DELETE"),
+        ({"POST": ["w"], "PUT": ["w"], "DELETE": ["w"]}, "GET"),
+        # Multiple missing — message must list them sorted for determinism.
+        ({"GET": ["r"], "POST": ["w"]}, "DELETE, PUT"),
+        # Empty dict — every required method is missing.
+        ({}, "DELETE, GET, POST, PUT"),
+    ],
+)
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_method_roles_missing_required_method_raises(mock_pyjwks_client, method_roles, expected_missing):
+    mock_pyjwks_client.return_value = MagicMock()
+    config = _authz_config(method_roles)
+    with pytest.raises(ValueError, match=f"method_roles is missing definitions for: {expected_missing}"):
+        OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_method_roles_extra_unknown_method_is_allowed(mock_pyjwks_client):
+    """Extra methods beyond the required set are tolerated — only missing ones fail."""
+    mock_pyjwks_client.return_value = MagicMock()
+    config = _authz_config({"GET": ["r"], "POST": ["w"], "PUT": ["w"], "DELETE": ["w"], "PATCH": ["w"]})
+    OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_method_roles_validation_is_case_insensitive(mock_pyjwks_client):
+    """Lowercase method keys are normalised before the completeness check."""
+    mock_pyjwks_client.return_value = MagicMock()
+    config = _authz_config({"get": ["r"], "post": ["w"], "put": ["w"], "delete": ["w"]})
+    OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_method_roles_not_validated_when_authorization_disabled(mock_pyjwks_client):
+    """``method_roles`` is irrelevant when authz is off — even an empty dict is fine."""
+    mock_pyjwks_client.return_value = MagicMock()
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_authorization_enabled=False,
+        sasl_oauthbearer_method_roles={},
+    )
+    OIDCMiddleware(app=MagicMock(), config=config)
+
+
+@patch("karapace.api.oidc.middleware.PyJWKClient")
+def test_constructor_refuses_misconfigured_method_roles(mock_pyjwks_client):
+    """The check refuses a config missing ``POST`` upfront at startup."""
+    mock_pyjwks_client.return_value = MagicMock()
+    bad_config = _authz_config({"GET": ["r"], "PUT": ["w"], "DELETE": ["w"]})
+    with pytest.raises(ValueError, match="method_roles is missing definitions for: POST"):
+        OIDCMiddleware(app=MagicMock(), config=bad_config)
+
+
+def test_authorize_request_silently_denies_when_method_unmapped():
+    """Documents the runtime failure mode the constructor check exists to prevent:
+    an unmapped method falls back to ``allowed_roles=[]`` and unconditionally 403s,
+    regardless of which roles the token carries.
+    """
+    ns = SimpleNamespace(
+        authorization_enabled=True,
+        sasl_oauthbearer_method_roles={"GET": ["r"], "PUT": ["w"], "DELETE": ["w"]},
+        sasl_oauthbearer_roles_claim_path="resource_access.karapace-client.roles",
+        client_id="karapace-client",
+        get_roles_from_claim_path=OIDCMiddleware.get_roles_from_claim_path,
+    )
+    payload = {"resource_access": {"karapace-client": {"roles": ["w"]}}}
+
+    with pytest.raises(HTTPException) as exc_info:
+        OIDCMiddleware.authorize_request(ns, payload, request_method="POST")
+    assert exc_info.value.status_code == 403
