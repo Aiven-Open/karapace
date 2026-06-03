@@ -12,19 +12,19 @@
 | src/karapace/api/forward\_client.py                      |       65 |        3 |       16 |        3 |     93% |69-\>72, 81, 133, 148 |
 | src/karapace/api/http\_handlers/\_\_init\_\_.py          |       19 |       11 |        2 |        0 |     38% |     16-28 |
 | src/karapace/api/middlewares/\_\_init\_\_.py             |       61 |        1 |       16 |        1 |     97% |        34 |
-| src/karapace/api/oidc/middleware.py                      |      115 |        8 |       46 |        7 |     91% |79, 87, 98, 137-\>139, 158, 170-171, 198-\>202, 200-201 |
-| src/karapace/api/routers/compatibility.py                |       21 |        4 |        2 |        0 |     74% |     38-42 |
-| src/karapace/api/routers/config.py                       |       64 |       26 |       22 |        1 |     50% |37-40, 55, 76-80, 95-104, 120-129 |
-| src/karapace/api/routers/errors.py                       |       40 |        3 |        0 |        0 |     92% | 52-53, 67 |
+| src/karapace/api/oidc/middleware.py                      |      116 |        7 |       46 |        6 |     92% |83, 102, 141-\>143, 162, 174-175, 202-\>206, 204-205 |
+| src/karapace/api/routers/compatibility.py                |       21 |        1 |        2 |        1 |     91% |        42 |
+| src/karapace/api/routers/config.py                       |       64 |       17 |       22 |        4 |     64% |37-40, 55, 80, 99-104, 124-129 |
+| src/karapace/api/routers/errors.py                       |       42 |        2 |        0 |        0 |     95% |     52-53 |
 | src/karapace/api/routers/health.py                       |       35 |       17 |        4 |        0 |     46% |43-51, 60-88 |
 | src/karapace/api/routers/master\_availability.py         |       25 |        8 |        4 |        0 |     59% |     43-60 |
-| src/karapace/api/routers/mode.py                         |       27 |        7 |        4 |        0 |     65% |35-38, 49-53 |
+| src/karapace/api/routers/mode.py                         |       27 |        4 |        4 |        1 |     77% | 35-38, 53 |
 | src/karapace/api/routers/raw\_path\_router.py            |       40 |        1 |        8 |        3 |     92% |36-\>39, 40, 43-\>46 |
 | src/karapace/api/routers/requests.py                     |       50 |        1 |        2 |        1 |     96% |        31 |
 | src/karapace/api/routers/root.py                         |        5 |        1 |        0 |        0 |     80% |        16 |
 | src/karapace/api/routers/schemas.py                      |       27 |        4 |        0 |        0 |     85% |36, 55, 82, 95 |
 | src/karapace/api/routers/setup.py                        |       18 |        8 |        0 |        0 |     56% |     18-25 |
-| src/karapace/api/routers/subjects.py                     |       88 |       43 |       24 |        0 |     40% |43, 61-65, 85-94, 111-117, 135-139, 152-156, 172-181, 195-199, 211-215 |
+| src/karapace/api/routers/subjects.py                     |       88 |       19 |       24 |        8 |     69% |43, 65, 89-94, 117, 139, 156, 176-181, 199, 215 |
 | src/karapace/api/telemetry/container.py                  |       18 |        1 |        0 |        0 |     94% |        18 |
 | src/karapace/api/telemetry/metrics.py                    |       31 |        0 |        0 |        0 |    100% |           |
 | src/karapace/api/telemetry/middleware.py                 |       30 |        0 |        0 |        0 |    100% |           |
@@ -128,7 +128,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317-\>320, 320-\>330, 322-\>325, 325-\>328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       11 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                | **11058** | **1699** | **3090** |  **400** | **82%** |           |
+| **TOTAL**                                                | **11061** | **1658** | **3090** |  **412** | **83%** |           |
 
 13 empty files skipped.
 
