@@ -57,7 +57,7 @@ click==8.3.1
     #   rich-toolkit
     #   typer
     #   uvicorn
-confluent-kafka==2.13.2
+confluent-kafka==2.12.2
     # via karapace (/karapace/pyproject.toml)
 cramjam==2.11.0
     # via python-snappy

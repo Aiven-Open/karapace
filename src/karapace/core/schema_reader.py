@@ -193,6 +193,16 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.start_time = time.monotonic()
         self.startup_previous_processed_offset = 0
 
+        # Replay diagnostics — counted only until _ready flips True.
+        self.replay_processed_total = 0
+        self.replay_skipped_empty = 0
+        self.replay_corrupt_key_empty = 0
+        self.replay_corrupt_key_json = 0
+        self.replay_corrupt_value_json = 0
+        self.replay_invalid_schema = 0
+        self.replay_unknown_keytype = 0
+        self.last_progress_info_log = self.start_time
+
         self.consecutive_unexpected_errors: int = 0
         self.consecutive_unexpected_errors_start: float = 0
 
@@ -267,6 +277,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             # causes the consumer to not pick up messages even after the topic is created
             if schema_topic_exists:
                 LOG.debug("[Consumer] Subscribing to topic %r after creation", self.config.topic_name)
+                LOG.info("[Consumer] Subscribing to topic %r", self.config.topic_name)
                 self.consumer.subscribe([self.config.topic_name])
 
                 # Wait for partition assignment to complete by doing an initial poll
@@ -276,6 +287,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     assignment = self.consumer.assignment()
                     if assignment:
                         LOG.debug("[Consumer] Partitions assigned: %s", assignment)
+                        LOG.info("[Consumer] Partitions assigned: %s", assignment)
                         break
                     # Trigger partition assignment by polling
                     self.consumer.poll(0.1)
@@ -400,6 +412,22 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             progress_pct,
             startup_processed_message_per_second,
         )
+        # Throttled INFO heartbeat so operators see progress without DEBUG.
+        if cur_time - self.last_progress_info_log >= 5.0:
+            LOG.info(
+                "Schema replay progress: offset %s/%s (%.2f%%) recs/s=%.1f "
+                "loaded=%s skipped_empty=%s corrupt_key=%s corrupt_value=%s invalid_schema=%s",
+                self.offset,
+                self._highest_offset,
+                progress_pct,
+                startup_processed_message_per_second,
+                self.replay_processed_total,
+                self.replay_skipped_empty,
+                self.replay_corrupt_key_empty + self.replay_corrupt_key_json,
+                self.replay_corrupt_value_json,
+                self.replay_invalid_schema,
+            )
+            self.last_progress_info_log = cur_time
         self.last_check = cur_time
         self.startup_previous_processed_offset = self.offset
         ready = self.offset >= self._highest_offset
@@ -410,6 +438,26 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 "Schema replay completed in %.2f seconds (processed %s messages)",
                 time.monotonic() - self.start_time,
                 self.offset,
+            )
+            # Diagnostic summary: in-memory database state and per-category corrupt-record counts.
+            num_subjects = self.database.num_subjects()
+            num_schemas = self.database.num_schemas()
+            live_versions, soft_deleted_versions = self.database.num_schema_versions()
+            LOG.info(
+                "Schema replay summary: loaded=%s subjects=%s schemas=%s live_versions=%s "
+                "soft_deleted_versions=%s skipped_empty=%s corrupt_key_empty=%s "
+                "corrupt_key_json=%s corrupt_value_json=%s invalid_schema=%s bad_record=%s",
+                self.replay_processed_total,
+                num_subjects,
+                num_schemas,
+                live_versions,
+                soft_deleted_versions,
+                self.replay_skipped_empty,
+                self.replay_corrupt_key_empty,
+                self.replay_corrupt_key_json,
+                self.replay_corrupt_value_json,
+                self.replay_invalid_schema,
+                self.replay_unknown_keytype,
             )
             # Initialize metrics with current database state when becoming ready
             self._initialize_metrics()
@@ -442,6 +490,12 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
         msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s, num_messages=self.max_messages_to_process)
+        LOG.info(
+            "consume() returned %s msgs (requested up to %s, timeout=%ss)",
+            len(msgs),
+            self.max_messages_to_process,
+            self.timeout_s,
+        )
         self._update_is_ready_flag()
 
         watch_offsets = False
@@ -470,6 +524,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 # Skip empty control/placeholder records (no key and no value)
                 if (message_key is None or message_key == b"") and (message_value is None or message_value == b""):
                     LOG.debug("Skipping empty message at offset %s", msg.offset())
+                    self.replay_skipped_empty += 1
                     self.offset = cast(int, msg.offset())
                     continue
 
@@ -477,12 +532,14 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 key = json_decode(message_key)
             except AssertionError as exc:
                 LOG.warning("Empty msg.key() at offset %s", msg.offset())
+                self.replay_corrupt_key_empty += 1
                 self.offset = cast(int, msg.offset())  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
             except JSONDecodeError as exc:
-                non_bytes_key = msg.key().decode()  # type: ignore[union-attr]
+                non_bytes_key = msg.key().decode()
                 LOG.warning("Invalid JSON in msg.key(): %s at offset %s", non_bytes_key, msg.offset())
+                self.replay_corrupt_key_json += 1
                 self.offset = cast(int, msg.offset())  # Invalid entry shall also move the offset so Karapace makes progress.
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue  # [non-strict mode]
@@ -512,19 +569,32 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     value = self._parse_message_value(message_value)
                 except (JSONDecodeError, TypeError) as exc:
                     LOG.warning("Invalid JSON in msg.value() at offset %s", msg.offset())
+                    self.replay_corrupt_value_json += 1
                     self.offset = cast(
                         int, msg.offset()
                     )  # Invalid entry shall also move the offset so Karapace makes progress.
                     self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                     continue  # [non-strict mode]
 
+            handled_ok = False
             try:
                 self.handle_msg(key, value)
-            except (InvalidSchema, InvalidVersion, TypeError) as exc:
+                handled_ok = True
+            except InvalidSchema as exc:
+                LOG.info("Invalid schema at offset %s key=%r: %r", msg.offset(), key, exc)
+                self.replay_invalid_schema += 1
+                self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
+                continue
+            except (InvalidVersion, TypeError) as exc:
+                LOG.info("Bad record at offset %s key=%r: %r", msg.offset(), key, exc)
+                self.replay_unknown_keytype += 1
                 self.kafka_error_handler.handle_error(location=KafkaErrorLocation.SCHEMA_READER, error=exc)
                 continue
             finally:
                 self.offset = cast(int, msg.offset())
+
+            if handled_ok:
+                self.replay_processed_total += 1
 
             if msg_keymode == KeyMode.CANONICAL:
                 schema_records_processed_keymode_canonical += 1

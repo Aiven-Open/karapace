@@ -214,7 +214,7 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
             raise_from_kafkaexception(exc)
         return {"beginning_offset": startoffset.offset, "end_offset": endoffset.offset}
 
-    def describe_topics(self, topics: TopicCollection, **kwargs: object) -> dict[str, Future[TopicMetadata]]:  # type: ignore[override]
+    def describe_topics(self, topics: TopicCollection, **kwargs: object) -> dict[str, Future[TopicMetadata]]:
         with self._tracer.get_tracer().start_as_current_span(
             self._tracer.get_name_from_caller_with_class(self, self.describe_topics)
         ):
