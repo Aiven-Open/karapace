@@ -6,20 +6,22 @@ See LICENSE for details
 from .config import Config
 from collections.abc import Iterator
 from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.common import TokenWithExpiryProvider
 from karapace.core.kafka.consumer import KafkaConsumer
 from karapace.core.kafka.producer import KafkaProducer
+from typing import cast
 
 import contextlib
 
 
-def get_oauth_token_provider(config: Config) -> object | None:
+def get_oauth_token_provider(config: Config) -> TokenWithExpiryProvider | None:
     """Return the configured OAuth token provider instance, if any.
 
     The provider is instantiated once during Config initialization and
     validated to expose a ``token_with_expiry`` method as required by
     confluent-kafka's OAUTHBEARER flow.
     """
-    return config._sasl_oauth_token_provider
+    return cast(TokenWithExpiryProvider, config._sasl_oauth_token_provider) if config._sasl_oauth_token_provider is not None else None
 
 
 def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
