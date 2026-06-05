@@ -10,9 +10,10 @@ See LICENSE for details
 from accept_types import get_best_match
 from collections.abc import Callable
 from http import HTTPStatus
+from karapace.core.access_logging import HealthSkippingAccessLogger
 from karapace.core.config import Config, create_server_ssl_context
 from karapace.statsd import StatsClient
-from karapace.core.utils import json_decode, json_encode
+from karapace.core.utils import DebugAccessLogger, HealthSkippingDebugAccessLogger, json_decode, json_encode
 from karapace.version import __version__
 from typing import NoReturn, overload
 
@@ -25,6 +26,7 @@ import hashlib
 import logging
 import re
 import time
+from aiohttp.web_log import AccessLogger
 
 SERVER_NAME = f"Karapace/{__version__}"
 JSON_CONTENT_TYPE = "application/json"
@@ -484,12 +486,26 @@ class RestApp:
 
     def run(self) -> None:
         ssl_context = create_server_ssl_context(self.config)
+        access_log_class = self.config.access_log_class
+        if self.config.suppress_health_access_logs:
+            if access_log_class is AccessLogger:
+                access_log_class = HealthSkippingAccessLogger
+            elif access_log_class is DebugAccessLogger:
+                access_log_class = HealthSkippingDebugAccessLogger
+            elif (
+                access_log_class is not HealthSkippingAccessLogger
+                and access_log_class is not HealthSkippingDebugAccessLogger
+            ):
+                self.log.warning(
+                    "suppress_health_access_logs is enabled but access_log_class=%s is custom; skipping health access-log suppression",
+                    access_log_class,
+                )
 
         aiohttp.web.run_app(
             app=self.app,
             host=self.config.host,
             port=self.config.port,
             ssl_context=ssl_context,
-            access_log_class=self.config.access_log_class,
+            access_log_class=access_log_class,
             access_log_format='%Tfs %{x-client-ip}i "%r" %s "%{user-agent}i" response=%bb request_body=%{content-length}ib',
         )
