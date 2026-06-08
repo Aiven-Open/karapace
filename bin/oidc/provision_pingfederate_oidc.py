@@ -10,61 +10,38 @@ import time
 from typing import Any
 
 import httpx
-from pydantic import Field, SecretStr, field_validator
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-DEFAULT_BASE_URL = "https://pingfederate:9999"
-DEFAULT_ADMIN_USER = "administrator"
-DEFAULT_ADMIN_PASSWORD = "2FederateM0re"
-DEFAULT_CLIENT_ID = "karapace-client"
-DEFAULT_CLIENT_SECRET = "karapace-secret"
-DEFAULT_CLIENT_NAME = "Karapace Client"
-DEFAULT_ATM_ID = "karapacejwtatm"
-DEFAULT_ATM_NAME = "Karapace JWT ATM"
-DEFAULT_ISSUER = "https://pingfederate:9031"
-DEFAULT_AUDIENCE = "karapace-audience"
-DEFAULT_CLIENT_ID_CLAIM = "client_id"
-DEFAULT_ROLES_CLAIM = "karapace.roles"
-DEFAULT_ROLE_VALUES = (
-    "schema:read,schema:write,schema:delete,subject:read,subject:write,subject:delete,"
-    "config_subject:update,config_global:update"
-)
-DEFAULT_READY_TIMEOUT_SECONDS = 180
-DEFAULT_READY_INTERVAL_SECONDS = 5.0
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=True, extra="ignore")
 
-    base_url: str = Field(default=DEFAULT_BASE_URL, alias="PINGFEDERATE_ADMIN_URL")
-    admin_user: str = Field(default=DEFAULT_ADMIN_USER, alias="PINGFEDERATE_ADMIN_USER")
-    admin_password: SecretStr = Field(default=SecretStr(DEFAULT_ADMIN_PASSWORD), alias="PINGFEDERATE_ADMIN_PASSWORD")
-    verify_tls: bool = Field(default=False, alias="PINGFEDERATE_VERIFY_TLS")
-    client_id: str = Field(default=DEFAULT_CLIENT_ID, alias="PINGFEDERATE_CLIENT_ID")
-    client_secret: SecretStr = Field(default=SecretStr(DEFAULT_CLIENT_SECRET), alias="PINGFEDERATE_CLIENT_SECRET")
-    client_name: str = Field(default=DEFAULT_CLIENT_NAME, alias="PINGFEDERATE_CLIENT_NAME")
-    atm_id: str = Field(default=DEFAULT_ATM_ID, alias="PINGFEDERATE_ATM_ID")
-    atm_name: str = Field(default=DEFAULT_ATM_NAME, alias="PINGFEDERATE_ATM_NAME")
-    issuer: str = Field(default=DEFAULT_ISSUER, alias="PINGFEDERATE_TOKEN_ISSUER")
-    audience: str = Field(default=DEFAULT_AUDIENCE, alias="PINGFEDERATE_TOKEN_AUDIENCE")
-    client_id_claim: str = Field(default=DEFAULT_CLIENT_ID_CLAIM, alias="PINGFEDERATE_CLIENT_ID_CLAIM")
-    roles_claim: str = Field(default=DEFAULT_ROLES_CLAIM, alias="PINGFEDERATE_ROLES_CLAIM")
-    role_values: list[str] = Field(default=DEFAULT_ROLE_VALUES, alias="PINGFEDERATE_ROLE_VALUES")
-    ready_timeout_seconds: int = Field(
-        default=DEFAULT_READY_TIMEOUT_SECONDS,
-        alias="PINGFEDERATE_READY_TIMEOUT_SECONDS",
+    PINGFEDERATE_ADMIN_URL: str = "https://pingfederate:9999"
+    PINGFEDERATE_ADMIN_USER: str = "administrator"
+    PINGFEDERATE_ADMIN_PASSWORD: SecretStr = SecretStr("2FederateM0re")
+    PINGFEDERATE_VERIFY_TLS: bool = False
+    PINGFEDERATE_CLIENT_ID: str = "karapace-client"
+    PINGFEDERATE_CLIENT_SECRET: SecretStr = SecretStr("karapace-secret")
+    PINGFEDERATE_CLIENT_NAME: str = "Karapace Client"
+    PINGFEDERATE_ATM_ID: str = "karapacejwtatm"
+    PINGFEDERATE_ATM_NAME: str = "Karapace JWT ATM"
+    PINGFEDERATE_TOKEN_ISSUER: str = "https://pingfederate:9031"
+    PINGFEDERATE_TOKEN_AUDIENCE: str = "karapace-audience"
+    PINGFEDERATE_CLIENT_ID_CLAIM: str = "client_id"
+    PINGFEDERATE_ROLES_CLAIM: str = "roles"
+    PINGFEDERATE_ROLE_VALUES: list[str] = (
+        "schema:read,schema:write,schema:delete,subject:read,subject:write,subject:delete,"
+        "config_subject:update,config_global:update"
     )
-    ready_interval_seconds: float = Field(
-        default=DEFAULT_READY_INTERVAL_SECONDS,
-        alias="PINGFEDERATE_READY_INTERVAL_SECONDS",
-    )
+    PINGFEDERATE_READY_TIMEOUT_SECONDS: int = 180
+    PINGFEDERATE_READY_INTERVAL_SECONDS: float = 5.0
 
-    @field_validator("role_values", mode="before")
+    @field_validator("PINGFEDERATE_ROLE_VALUES", mode="before")
     @classmethod
     def parse_role_values(cls, value: object) -> list[str]:
         if value is None:
-            value = DEFAULT_ROLE_VALUES
+            value = cls.model_fields["PINGFEDERATE_ROLE_VALUES"].default
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         if isinstance(value, list):
@@ -76,14 +53,14 @@ class PingFederateAdmin:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.client = httpx.Client(
-            auth=(settings.admin_user, settings.admin_password.get_secret_value()),
-            base_url=settings.base_url,
+            auth=(settings.PINGFEDERATE_ADMIN_USER, settings.PINGFEDERATE_ADMIN_PASSWORD.get_secret_value()),
+            base_url=settings.PINGFEDERATE_ADMIN_URL,
             headers={
                 "X-XSRF-Header": "PingFederate",
                 "Content-Type": "application/json",
             },
             timeout=60.0,
-            verify=settings.verify_tls,
+            verify=settings.PINGFEDERATE_VERIFY_TLS,
         )
 
     def request(self, method: str, path: str, expected: tuple[int, ...], body: dict[str, Any] | None = None) -> Any:
@@ -113,7 +90,7 @@ def resource_link(resource_id: str) -> dict[str, str]:
 
 def wait_until_ready(admin: PingFederateAdmin) -> None:
     settings = admin.settings
-    deadline = time.monotonic() + settings.ready_timeout_seconds
+    deadline = time.monotonic() + settings.PINGFEDERATE_READY_TIMEOUT_SECONDS
     last_error = "unknown error"
 
     while time.monotonic() < deadline:
@@ -126,10 +103,11 @@ def wait_until_ready(admin: PingFederateAdmin) -> None:
             last_error = f"HTTP {response.status_code}: {response.text}"
         except httpx.HTTPError as exc:
             last_error = str(exc)
-        time.sleep(settings.ready_interval_seconds)
+        time.sleep(settings.PINGFEDERATE_READY_INTERVAL_SECONDS)
 
     raise SystemExit(
-        "Timed out waiting for PingFederate admin API readiness after " f"{settings.ready_timeout_seconds}s: {last_error}"
+        "Timed out waiting for PingFederate admin API readiness after "
+        f"{settings.PINGFEDERATE_READY_TIMEOUT_SECONDS}s: {last_error}"
     )
 
 
@@ -140,19 +118,19 @@ def upsert_access_token_manager(admin: PingFederateAdmin) -> None:
         {"name": "Token Lifetime", "value": "120"},
         {"name": "Use Centralized Signing Key", "value": "true"},
         {"name": "JWS Algorithm", "value": "RS256"},
-        {"name": "Issuer Claim Value", "value": settings.issuer},
-        {"name": "Audience Claim Value", "value": settings.audience},
+        {"name": "Issuer Claim Value", "value": settings.PINGFEDERATE_TOKEN_ISSUER},
+        {"name": "Audience Claim Value", "value": settings.PINGFEDERATE_TOKEN_AUDIENCE},
         {"name": "Type Header Value", "value": "at+jwt"},
-        {"name": "Client ID Claim Name", "value": settings.client_id_claim},
+        {"name": "Client ID Claim Name", "value": settings.PINGFEDERATE_CLIENT_ID_CLAIM},
     ]
     payload = {
-        "id": settings.atm_id,
-        "name": settings.atm_name,
+        "id": settings.PINGFEDERATE_ATM_ID,
+        "name": settings.PINGFEDERATE_ATM_NAME,
         "pluginDescriptorRef": resource_link(descriptor_id),
         "configuration": {"fields": fields, "tables": []},
         "attributeContract": {
             "extendedAttributes": [
-                {"name": settings.roles_claim, "multiValued": True},
+                {"name": settings.PINGFEDERATE_ROLES_CLAIM, "multiValued": True},
             ]
         },
         "tokenEndpointAttributeContract": {"attributes": []},
@@ -163,8 +141,8 @@ def upsert_access_token_manager(admin: PingFederateAdmin) -> None:
 
     managers_payload = admin.get_json("/pf-admin-api/v1/oauth/accessTokenManagers")
     managers = managers_payload.get("items", []) if isinstance(managers_payload, dict) else []
-    if any(item.get("id") == settings.atm_id for item in managers):
-        admin.put_json(f"/pf-admin-api/v1/oauth/accessTokenManagers/{settings.atm_id}", payload)
+    if any(item.get("id") == settings.PINGFEDERATE_ATM_ID for item in managers):
+        admin.put_json(f"/pf-admin-api/v1/oauth/accessTokenManagers/{settings.PINGFEDERATE_ATM_ID}", payload)
         return
     admin.post_json("/pf-admin-api/v1/oauth/accessTokenManagers", payload)
 
@@ -172,32 +150,33 @@ def upsert_access_token_manager(admin: PingFederateAdmin) -> None:
 def upsert_client(admin: PingFederateAdmin) -> None:
     settings = admin.settings
     payload = {
-        "clientId": settings.client_id,
-        "name": settings.client_name,
+        "clientId": settings.PINGFEDERATE_CLIENT_ID,
+        "name": settings.PINGFEDERATE_CLIENT_NAME,
         "grantTypes": ["CLIENT_CREDENTIALS"],
         "enabled": True,
-        "clientAuth": {"type": "SECRET", "secret": settings.client_secret.get_secret_value()},
-        "defaultAccessTokenManagerRef": resource_link(settings.atm_id),
+        "clientAuth": {"type": "SECRET", "secret": settings.PINGFEDERATE_CLIENT_SECRET.get_secret_value()},
+        "defaultAccessTokenManagerRef": resource_link(settings.PINGFEDERATE_ATM_ID),
         "restrictToDefaultAccessTokenManager": True,
         "restrictScopes": False,
     }
 
     clients_payload = admin.get_json("/pf-admin-api/v1/oauth/clients")
     clients = clients_payload.get("items", []) if isinstance(clients_payload, dict) else []
-    if any(item.get("clientId") == settings.client_id for item in clients):
-        admin.put_json(f"/pf-admin-api/v1/oauth/clients/{settings.client_id}", payload)
+    if any(item.get("clientId") == settings.PINGFEDERATE_CLIENT_ID for item in clients):
+        admin.put_json(f"/pf-admin-api/v1/oauth/clients/{settings.PINGFEDERATE_CLIENT_ID}", payload)
         return
     admin.post_json("/pf-admin-api/v1/oauth/clients", payload)
 
 
 def upsert_client_credentials_mapping(admin: PingFederateAdmin) -> None:
     settings = admin.settings
+    serialized_roles = " ".join(settings.PINGFEDERATE_ROLE_VALUES)
     payload = {
         "context": {"type": "CLIENT_CREDENTIALS"},
-        "accessTokenManagerRef": resource_link(settings.atm_id),
+        "accessTokenManagerRef": resource_link(settings.PINGFEDERATE_ATM_ID),
         "attributeSources": [],
         "attributeContractFulfillment": {
-            settings.roles_claim: {"source": {"type": "TEXT"}, "value": " ".join(settings.role_values)},
+            settings.PINGFEDERATE_ROLES_CLAIM: {"source": {"type": "TEXT"}, "value": serialized_roles},
         },
     }
 
@@ -208,15 +187,23 @@ def upsert_client_credentials_mapping(admin: PingFederateAdmin) -> None:
             item
             for item in mappings
             if item.get("context", {}).get("type") == "CLIENT_CREDENTIALS"
-            and item.get("accessTokenManagerRef", {}).get("id") == settings.atm_id
+            and item.get("accessTokenManagerRef", {}).get("id") == settings.PINGFEDERATE_ATM_ID
         ),
         None,
     )
     if existing:
         mapping_id = existing.get("id")
         if isinstance(mapping_id, str) and mapping_id:
-            existing_roles = existing.get("attributeContractFulfillment", {}).get(settings.roles_claim, {})
-            expected_roles = payload["attributeContractFulfillment"][settings.roles_claim]
+            existing_claims = existing.get("attributeContractFulfillment", {})
+            if settings.PINGFEDERATE_ROLES_CLAIM not in existing_claims and existing_claims:
+                existing_claim_names = ", ".join(sorted(existing_claims.keys()))
+                raise SystemExit(
+                    "Existing PingFederate access token mapping uses a different roles claim "
+                    f"({existing_claim_names}). Recreate the PingFederate stack from a clean state "
+                    "before switching roles claim names."
+                )
+            existing_roles = existing.get("attributeContractFulfillment", {}).get(settings.PINGFEDERATE_ROLES_CLAIM, {})
+            expected_roles = payload["attributeContractFulfillment"][settings.PINGFEDERATE_ROLES_CLAIM]
             if existing_roles == expected_roles:
                 return
             admin.put_json(
@@ -243,13 +230,14 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "client_id": settings.client_id,
-                    "client_secret": settings.client_secret.get_secret_value(),
-                    "token_issuer": settings.issuer,
-                    "token_audience": settings.audience,
-                    "karapace_sub_claim_name": settings.client_id_claim,
-                    "roles_claim": settings.roles_claim,
-                    "role_values": settings.role_values,
+                    "client_id": settings.PINGFEDERATE_CLIENT_ID,
+                    "client_secret": settings.PINGFEDERATE_CLIENT_SECRET.get_secret_value(),
+                    "token_issuer": settings.PINGFEDERATE_TOKEN_ISSUER,
+                    "token_audience": settings.PINGFEDERATE_TOKEN_AUDIENCE,
+                    "karapace_sub_claim_name": settings.PINGFEDERATE_CLIENT_ID_CLAIM,
+                    "roles_claim": settings.PINGFEDERATE_ROLES_CLAIM,
+                    "role_values": settings.PINGFEDERATE_ROLE_VALUES,
+                    "serialized_role_value": " ".join(settings.PINGFEDERATE_ROLE_VALUES),
                 },
                 indent=2,
             )

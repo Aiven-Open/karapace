@@ -51,6 +51,13 @@ pip install pip-tools && \
 	python -m piptools compile --upgrade --extra typing -o /karapace/requirements/requirements-typing.txt /karapace/pyproject.toml
 endef
 
+define RUN_E2E_TESTS_IN_DOCKER_COMMAND
+rm -fr runtime/*; \
+sleep 10; \
+$1 exec -T karapace-cli $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/; \
+rm -fr runtime/*
+endef
+
 export PATH   := $(VENV_DIR)/bin:$(PATH)
 export PS4    := \e[0m\e[32m==> \e[0m
 export LC_ALL := C
@@ -174,14 +181,14 @@ print-keycloak-oidc-token: start-karapace-docker-auth-resources
 		OIDC_TOKEN_URL="http://keycloak:8080/realms/karapace/protocol/openid-connect/token" \
 		OIDC_SCOPE="openid" \
 		OIDC_VERIFY_TLS="true" \
+		OIDC_ALLOW_INSECURE_JWKS="true" \
 		$(PYTHON) /opt/karapace/bin/oidc/get_oidc_token.py
 
 .PHONY: print-pingfederate-oidc-token
 print-pingfederate-oidc-token: start-karapace-docker-auth-pingfederate-resources
-	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) exec -T karapace-cli env \
-		PINGFEDERATE_CLIENT_ID_CLAIM="client_id" \
+	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) exec -T karapace-cli \
 		$(PYTHON) /opt/karapace/bin/oidc/provision_pingfederate_oidc.py >/dev/null
-	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) exec -T karapace-cli env \
+	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) exec -T karapace-cli env -u OIDC_CLIENT_SECRET \
 		OIDC_PROVIDER="pingfederate" \
 		OIDC_SUB_CLAIM_NAME="client_id" \
 		OIDC_CLIENT_ID="karapace-client" \
@@ -189,6 +196,7 @@ print-pingfederate-oidc-token: start-karapace-docker-auth-pingfederate-resources
 		OIDC_TOKEN_URL="https://pingfederate:9031/as/token.oauth2" \
 		OIDC_SCOPE="openid" \
 		OIDC_VERIFY_TLS="false" \
+		OIDC_ALLOW_INSECURE_JWKS="true" \
 		$(PYTHON) /opt/karapace/bin/oidc/get_oidc_token.py
 
 .PHONY: smoke-test-schema-registry
@@ -206,25 +214,20 @@ unit-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker
-e2e-tests-in-docker: stop-karapace-docker-resources
-	$(DOCKER_COMPOSE_AUTH) up -d --build --wait
-	rm -fr runtime/*
-	sleep 10
-	$(DOCKER_COMPOSE_AUTH) exec -T karapace-cli $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
-	rm -fr runtime/*
+e2e-tests-in-docker: stop-karapace-docker-resources start-karapace-docker-auth-resources
+	$(call RUN_E2E_TESTS_IN_DOCKER_COMMAND,$(DOCKER_COMPOSE_AUTH))
 
 .PHONY: e2e-tests-in-docker-keycloak
 e2e-tests-in-docker-keycloak: export OIDC_PROVIDER=keycloak
-e2e-tests-in-docker-keycloak: e2e-tests-in-docker
+e2e-tests-in-docker-keycloak: stop-karapace-docker-resources start-karapace-docker-auth-pingfederate-resources
+	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) stop pingfederate >/dev/null 2>&1 || true
+	$(call RUN_E2E_TESTS_IN_DOCKER_COMMAND,$(DOCKER_COMPOSE_AUTH_PINGFEDERATE))
 
 .PHONY: e2e-tests-in-docker-pingfederate
 e2e-tests-in-docker-pingfederate: export OIDC_PROVIDER=pingfederate
-e2e-tests-in-docker-pingfederate: stop-karapace-docker-resources
-	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) up -d --build --wait
-	rm -fr runtime/*
-	sleep 10
-	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) exec -T karapace-cli $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
-	rm -fr runtime/*
+e2e-tests-in-docker-pingfederate: stop-karapace-docker-resources provision-pingfederate-oidc
+	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) stop keycloak >/dev/null 2>&1 || true; \
+	$(call RUN_E2E_TESTS_IN_DOCKER_COMMAND,$(DOCKER_COMPOSE_AUTH_PINGFEDERATE))
 
 .PHONY: integration-tests-in-docker
 integration-tests-in-docker: start-karapace-docker-resources

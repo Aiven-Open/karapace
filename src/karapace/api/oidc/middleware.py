@@ -200,9 +200,6 @@ class OIDCMiddleware:
     @staticmethod
     def get_roles_from_claim_path(payload: dict[str, Any], path: str) -> list[str]:
         try:
-            if path in payload:
-                return OIDCMiddleware._normalize_role_values(payload[path])
-
             parts = path.split(".")
             value: Any = payload
             for part in parts:
@@ -218,11 +215,8 @@ class OIDCMiddleware:
     @staticmethod
     def _normalize_role_values(value: Any) -> list[str]:
         if isinstance(value, list) and all(isinstance(role, str) for role in value):
-            if len(value) == 1:
-                flattened = [item for item in value[0].replace(",", " ").split() if item]
-                if flattened:
-                    return flattened
-            return value
-        if isinstance(value, str):
-            return [item for item in value.replace(",", " ").split() if item]
+            flattened: list[str] = []
+            for role in value:
+                flattened.extend(item for item in role.replace(",", " ").split() if item)
+            return flattened
         return []

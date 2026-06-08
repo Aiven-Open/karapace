@@ -17,7 +17,7 @@ OIDC_EXPECTED_ISSUER=https://pingfederate:9031
 OIDC_EXPECTED_AUDIENCE=karapace-audience
 OIDC_SUB_CLAIM_NAME=client_id
 OIDC_CLIENT_ID=karapace-client
-OIDC_ROLES_CLAIM_PATH=karapace.roles
+OIDC_ROLES_CLAIM_PATH=roles
 OIDC_METHOD_ROLES={"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}
 ```
 
@@ -46,7 +46,7 @@ make \
   OIDC_TOKEN_URL=https://pingfederate:9031/as/token.oauth2 \
   OIDC_SCOPE=openid \
   OIDC_VERIFY_TLS=false \
-  OIDC_ROLES_CLAIM_PATH=karapace.roles \
+  OIDC_ROLES_CLAIM_PATH=roles \
   OIDC_METHOD_ROLES='{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}' \
   provision-pingfederate-oidc
 ```
@@ -88,7 +88,6 @@ PINGFEDERATE_CLIENT_ID=karapace-client \
 PINGFEDERATE_CLIENT_SECRET=karapace-secret \
 PINGFEDERATE_TOKEN_ISSUER=https://pingfederate:9031 \
 PINGFEDERATE_TOKEN_AUDIENCE=karapace-audience \
-PINGFEDERATE_CLIENT_ID_CLAIM=client_id \
 python3 bin/oidc/provision_pingfederate_oidc.py
 ```
 
@@ -96,7 +95,7 @@ The script creates:
 
 - a JWT access token manager
 - an OAuth client using `client_credentials`
-- a client-credentials mapping that emits `karapace.roles`
+- a client-credentials mapping that emits `roles`
 
 By default, it configures the JWT access token manager to emit the client identity in the `client_id` claim for this local flow. You can override that with `PINGFEDERATE_CLIENT_ID_CLAIM` if you need a different non-reserved claim name.
 
@@ -124,9 +123,11 @@ Karapace expects these token properties from PingFederate:
 - `iss`: `https://pingfederate:9031`
 - `aud`: `karapace-audience`
 - `client_id`: the caller identity used by Karapace for this local client-credentials flow
-- `karapace.roles`: the roles used by `OIDC_METHOD_ROLES`
+- `roles`: the roles used by `OIDC_METHOD_ROLES`
 
-`karapace.roles` can be emitted as a JSON array or as a single space-delimited role string. Karapace accepts both.
+For the local PingFederate flow in this repository, `roles` is provisioned as a multi-valued claim containing a single space-delimited string, for example `[`schema:read schema:write subject:read`]`. Karapace splits that entry into individual roles during authorization. The middleware also accepts a comma-delimited single entry for compatibility in tests and alternate local setups.
+
+If you already provisioned an older local setup that emits `karapace.roles`, switching the claim name in place can fail on PingFederate's existing access token mapping. Recreate the local PingFederate stack from a clean state before changing the claim name.
 
 For the local PingFederate setup in this repository, the provisioner configures the JWT access token manager so the client identity is emitted in `client_id`. PingFederate rejects reserved JWT claim names such as `sub` for `Client ID Claim Name`. If you override the claim name with `PINGFEDERATE_CLIENT_ID_CLAIM`, keep `OIDC_SUB_CLAIM_NAME` aligned with that value and use a non-reserved claim name.
 
