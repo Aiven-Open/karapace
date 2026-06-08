@@ -1,0 +1,179 @@
+2026-06-05 13:11:56,227 INFO OIDC request POST http://keycloak:8080/realms/master/protocol/openid-connect/token
+2026-06-05 13:11:56,228 INFO OIDC request data:
+{
+  "client_id": "admin-cli",
+  "grant_type": "password",
+  "password": "admin",
+  "username": "admin"
+}
+2026-06-05 13:11:56,515 INFO HTTP Request: POST http://keycloak:8080/realms/master/protocol/openid-connect/token "HTTP/1.1 200 OK"
+2026-06-05 13:11:56,515 INFO OIDC response POST http://keycloak:8080/realms/master/protocol/openid-connect/token -> 200
+2026-06-05 13:11:56,516 INFO OIDC response body:
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJoNDFvY3BSdUJNMXNtQTR6eGFTNHVCdE53UmRYR2xHajhxSU9naHR1ZXZBIn0.eyJleHAiOjE3ODA2NjUxNzYsImlhdCI6MTc4MDY2NTExNiwianRpIjoiN2JkY2ZiYTEtMDkwMS00ZjEyLWEwMWYtMGU5ODY3Njk2ZGE3IiwiaXNzIjoiaHR0cDovL2tleWNsb2FrOjgwODAvcmVhbG1zL21hc3RlciIsInN1YiI6Ijk4ODNlZTRmLTNkODctNGU0MC04NWJkLTYwMDdhZDIyMzRlOSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFkbWluLWNsaSIsInNlc3Npb25fc3RhdGUiOiIyYzIyYmQ2MS1hMGZmLTQxNjAtYTQ5OS0zMjNkMTNlMmNiMjIiLCJhY3IiOiIxIiwic2NvcGUiOiJlbWFpbCBwcm9maWxlIiwic2lkIjoiMmMyMmJkNjEtYTBmZi00MTYwLWE0OTktMzIzZDEzZTJjYjIyIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJhZG1pbiJ9.IPu1VpF-0K7v81qw36rfYWclZtsvL3RIMHkA7ZU-NVinixWmO7Pj1t23DjSCyM1illXGuV3Rg5AG45jDr4o7RxCsDXQZyQHZbR4cCjWoa68V8fNOUKtJ7CLUH77-rcKeSAu_PM8jMPjqHjOJE3nTvmi6LOMEDK7rlcJ5zHgCoNsvXA-RS6DAD1HhJm4ZUbzegSzwJa5lcQSr_rNJLKk_vFO3YdVENMI1yZGQWOPoTdrxYLchQ1NtOCTrkRaOBZMMRxt3LDkfU1XGwVaWhMyWhSadyU19pt_mfEf_GpZL0FStzxkX16VTphbfIJoEabrlUgCcnVzYFJbGSR_2y0DlTg",
+  "expires_in": 60,
+  "not-before-policy": 0,
+  "refresh_expires_in": 1800,
+  "refresh_token": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI3ZGE3MTE2ZS1jODI0LTQwNWEtYWY2NS0xMmQ1MThjOWE3ZjMifQ.eyJleHAiOjE3ODA2NjY5MTYsImlhdCI6MTc4MDY2NTExNiwianRpIjoiYmNmNDc5ZjEtNGM2My00NGJlLThjNTgtMjFkNjMzMzE2NWUyIiwiaXNzIjoiaHR0cDovL2tleWNsb2FrOjgwODAvcmVhbG1zL21hc3RlciIsImF1ZCI6Imh0dHA6Ly9rZXljbG9hazo4MDgwL3JlYWxtcy9tYXN0ZXIiLCJzdWIiOiI5ODgzZWU0Zi0zZDg3LTRlNDAtODViZC02MDA3YWQyMjM0ZTkiLCJ0eXAiOiJSZWZyZXNoIiwiYXpwIjoiYWRtaW4tY2xpIiwic2Vzc2lvbl9zdGF0ZSI6IjJjMjJiZDYxLWEwZmYtNDE2MC1hNDk5LTMyM2QxM2UyY2IyMiIsInNjb3BlIjoiZW1haWwgcHJvZmlsZSIsInNpZCI6IjJjMjJiZDYxLWEwZmYtNDE2MC1hNDk5LTMyM2QxM2UyY2IyMiJ9.b8AlXR2V4p-fBvlXmEHvAtpLoD7D0M8DAGgn2v1oMYqos9IZI0FeL8NxdLw_ZAtyM2Z6FTa-VMRypPVVp80Y2Q",
+  "scope": "email profile",
+  "session_state": "2c22bd61-a0ff-4160-a499-323d13e2cb22",
+  "token_type": "Bearer"
+}
+2026-06-05 13:11:56,516 INFO OIDC request GET http://keycloak:8080/admin/realms/karapace/clients
+2026-06-05 13:11:56,516 INFO OIDC request params:
+{
+  "clientId": "karapace-client"
+}
+2026-06-05 13:11:56,531 INFO HTTP Request: GET http://keycloak:8080/admin/realms/karapace/clients?clientId=karapace-client "HTTP/1.1 200 OK"
+2026-06-05 13:11:56,531 INFO OIDC response GET http://keycloak:8080/admin/realms/karapace/clients -> 200
+2026-06-05 13:11:56,532 INFO OIDC response body:
+[
+  {
+    "access": {
+      "configure": true,
+      "manage": true,
+      "view": true
+    },
+    "alwaysDisplayInConsole": false,
+    "attributes": {
+      "backchannel.logout.revoke.offline.tokens": "false",
+      "client.secret.creation.time": "1780663664",
+      "client_credentials.use_refresh_token": "false",
+      "exclude.session.state.from.auth.response": "false",
+      "oauth2.device.authorization.grant.enabled": "false",
+      "post.logout.redirect.uris": "+",
+      "saml.assertion.signature": "false",
+      "saml.client.signature": "false",
+      "saml.encrypt": "false",
+      "saml.force.post.binding": "false",
+      "saml.multivalued.roles": "false",
+      "saml.server.signature": "false",
+      "saml.server.signature.keyinfo.ext": "false",
+      "saml_force_name_id_format": "false",
+      "tls.client.certificate.bound.access.tokens": "false"
+    },
+    "authenticationFlowBindingOverrides": {},
+    "bearerOnly": false,
+    "clientAuthenticatorType": "client-secret",
+    "clientId": "karapace-client",
+    "consentRequired": false,
+    "defaultClientScopes": [
+      "roles",
+      "profile",
+      "email"
+    ],
+    "directAccessGrantsEnabled": false,
+    "enabled": true,
+    "frontchannelLogout": false,
+    "fullScopeAllowed": true,
+    "id": "e5051f9d-624b-4e28-b4ba-30d4cdee0417",
+    "implicitFlowEnabled": false,
+    "nodeReRegistrationTimeout": -1,
+    "notBefore": 0,
+    "optionalClientScopes": [
+      "address",
+      "phone"
+    ],
+    "protocol": "openid-connect",
+    "protocolMappers": [
+      {
+        "config": {
+          "access.token.claim": "true",
+          "claim.name": "aud",
+          "claim.type": "String",
+          "claim.value": "karapace-audience",
+          "id.token.claim": "true",
+          "userinfo.token.claim": "true"
+        },
+        "consentRequired": false,
+        "id": "486ca608-57a7-4e71-9fee-7bee6e7ea99e",
+        "name": "aud-claim",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-hardcoded-claim-mapper"
+      },
+      {
+        "config": {
+          "access.token.claim": "true",
+          "claim.name": "clientHost",
+          "id.token.claim": "true",
+          "introspection.token.claim": "true",
+          "jsonType.label": "String",
+          "user.session.note": "clientHost"
+        },
+        "consentRequired": false,
+        "id": "94501098-f32e-40a4-ae2c-9df1518fc222",
+        "name": "Client Host",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-usersessionmodel-note-mapper"
+      },
+      {
+        "config": {
+          "access.token.claim": "true",
+          "claim.name": "client_id",
+          "id.token.claim": "true",
+          "introspection.token.claim": "true",
+          "jsonType.label": "String",
+          "user.session.note": "client_id"
+        },
+        "consentRequired": false,
+        "id": "26f490d4-40f3-4cc9-94e8-3dc9cc9200d1",
+        "name": "Client ID",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-usersessionmodel-note-mapper"
+      },
+      {
+        "config": {
+          "access.token.claim": "true",
+          "claim.name": "clientAddress",
+          "id.token.claim": "true",
+          "introspection.token.claim": "true",
+          "jsonType.label": "String",
+          "user.session.note": "clientAddress"
+        },
+        "consentRequired": false,
+        "id": "513618fc-1437-4e2b-8c4b-3e5fdccc68ca",
+        "name": "Client IP Address",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-usersessionmodel-note-mapper"
+      }
+    ],
+    "publicClient": false,
+    "redirectUris": [
+      "*"
+    ],
+    "secret": "wBdVLScvXwvYM0q6ZUIBcRI0Dtyx0WU8",
+    "serviceAccountsEnabled": true,
+    "standardFlowEnabled": false,
+    "surrogateAuthRequired": false,
+    "webOrigins": []
+  }
+]
+2026-06-05 13:11:56,532 INFO OIDC request GET http://keycloak:8080/admin/realms/karapace/clients/e5051f9d-624b-4e28-b4ba-30d4cdee0417/client-secret
+2026-06-05 13:11:56,540 INFO HTTP Request: GET http://keycloak:8080/admin/realms/karapace/clients/e5051f9d-624b-4e28-b4ba-30d4cdee0417/client-secret "HTTP/1.1 200 OK"
+2026-06-05 13:11:56,540 INFO OIDC response GET http://keycloak:8080/admin/realms/karapace/clients/e5051f9d-624b-4e28-b4ba-30d4cdee0417/client-secret -> 200
+2026-06-05 13:11:56,540 INFO OIDC response body:
+{
+  "type": "secret",
+  "value": "wBdVLScvXwvYM0q6ZUIBcRI0Dtyx0WU8"
+}
+2026-06-05 13:11:56,540 INFO OIDC request POST http://keycloak:8080/realms/karapace/protocol/openid-connect/token
+2026-06-05 13:11:56,540 INFO OIDC request data:
+{
+  "client_id": "karapace-client",
+  "client_secret": "wBdVLScvXwvYM0q6ZUIBcRI0Dtyx0WU8",
+  "grant_type": "client_credentials",
+  "scope": "openid"
+}
+2026-06-05 13:11:56,557 INFO HTTP Request: POST http://keycloak:8080/realms/karapace/protocol/openid-connect/token "HTTP/1.1 200 OK"
+2026-06-05 13:11:56,557 INFO OIDC response POST http://keycloak:8080/realms/karapace/protocol/openid-connect/token -> 200
+2026-06-05 13:11:56,557 INFO OIDC response body:
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJRQWU3UnBiNHdteXFYLVJxd0lFTE9kQnNWdXM1aXJGazVEb0FGZEdXU0dVIn0.eyJleHAiOjE3ODA2NjU0MTYsImlhdCI6MTc4MDY2NTExNiwianRpIjoiY2FlYjk0ZTEtODNjNy00Y2IzLTljYWItM2I4YTllYWI2Yjg0IiwiaXNzIjoiaHR0cDovL2tleWNsb2FrOjgwODAvcmVhbG1zL2thcmFwYWNlIiwiYXVkIjoia2FyYXBhY2UtYXVkaWVuY2UiLCJzdWIiOiJlNGY4ZWY4Mi0wOGJjLTQ2MzEtYTdmMS1kYWJhMTQ2ZjE4YjAiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJrYXJhcGFjZS1jbGllbnQiLCJyZXNvdXJjZV9hY2Nlc3MiOnsia2FyYXBhY2UtY2xpZW50Ijp7InJvbGVzIjpbInNjaGVtYTpkZWxldGUiLCJzdWJqZWN0OndyaXRlIiwic2NoZW1hOnJlYWQiLCJzdWJqZWN0OmRlbGV0ZSIsImNvbmZpZ19nbG9iYWw6dXBkYXRlIiwic3ViamVjdDpyZWFkIiwic2NoZW1hOndyaXRlIiwiY29uZmlnX3N1YmplY3Q6dXBkYXRlIl19fSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwiY2xpZW50SG9zdCI6IjE3Mi4yNC4wLjE4IiwicHJlZmVycmVkX3VzZXJuYW1lIjoic2VydmljZS1hY2NvdW50LWthcmFwYWNlLWNsaWVudCIsImNsaWVudEFkZHJlc3MiOiIxNzIuMjQuMC4xOCIsImNsaWVudF9pZCI6ImthcmFwYWNlLWNsaWVudCJ9.SwA4bD_S4IcaiV2XkvqU8lSz9khYia9iL6xCVJ60F0IecsltVrWzffQml56akRDng3tJOg4zTU1B5XcUq1ei23IhFi7e36rLj6X3I9xL3TMCqyg2GJjbBoJJCcByJ2FjZ0_vTXM7k235KaiLndbCXiobwLe9994EBZF8B_7MZW1v5cYIDyz6qJR2o_wavXvu0jweFoB7bBvSmWX1iplecK3hUHNqwUVJBXvlzmEh1yG_cWt9aW8YkM8gpQyDz5UWZTIs96zzTWL2LBNJtbZHNMkHr8OZCDI6xuBX8Jci_Y46KPgxLAtrAJZs1J8ekRsZxHyoayzQWhO0DOYBYPB0fg",
+  "expires_in": 300,
+  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJRQWU3UnBiNHdteXFYLVJxd0lFTE9kQnNWdXM1aXJGazVEb0FGZEdXU0dVIn0.eyJleHAiOjE3ODA2NjU0MTYsImlhdCI6MTc4MDY2NTExNiwiYXV0aF90aW1lIjowLCJqdGkiOiJiMjcwNTVjNy1hODE0LTQ5YmYtOWIzMS02MWE1ZTZmNWE1ZWUiLCJpc3MiOiJodHRwOi8va2V5Y2xvYWs6ODA4MC9yZWFsbXMva2FyYXBhY2UiLCJhdWQiOiJrYXJhcGFjZS1hdWRpZW5jZSIsInN1YiI6ImU0ZjhlZjgyLTA4YmMtNDYzMS1hN2YxLWRhYmExNDZmMThiMCIsInR5cCI6IklEIiwiYXpwIjoia2FyYXBhY2UtY2xpZW50IiwiYXRfaGFzaCI6IkQxM1pHWmJWTWJRS2JWSktrN0lQaGciLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsImNsaWVudEhvc3QiOiIxNzIuMjQuMC4xOCIsInByZWZlcnJlZF91c2VybmFtZSI6InNlcnZpY2UtYWNjb3VudC1rYXJhcGFjZS1jbGllbnQiLCJjbGllbnRBZGRyZXNzIjoiMTcyLjI0LjAuMTgiLCJjbGllbnRfaWQiOiJrYXJhcGFjZS1jbGllbnQifQ.X5qCzZm4ubjK9VxkUIN4EmC1KB7WHCD9NSPvTTNJWlY38tHGWjV7mD25_T8QSuuiiI2fY4YyXVUpZ5dKzIBafu49VKtBLyoT5h7OztUMQAAGOIbNvgPV42kMCCoLvUpb4xasIhuAi24N2CwIdxEUAgvsyHeXb1f9BOkSvrGuyBzBiAES0eD4BSAlbDMjNjJQjjlYFHCSyQOI_AbRJ8T5BCD3sc3nrVkSG2r1SX4tbx8XAcKEn1Mn_icbohc8dP_7-P-xJF2lAqTgB3cpqpIQWRUJq0TI5IRtc3DFCE1RpEL-hKF-ugbU9IfVLB932G2MSOE1p-UHgRIXOjUHEpDCvQ",
+  "not-before-policy": 0,
+  "refresh_expires_in": 0,
+  "scope": "openid profile email",
+  "token_type": "Bearer"
+}
+eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJRQWU3UnBiNHdteXFYLVJxd0lFTE9kQnNWdXM1aXJGazVEb0FGZEdXU0dVIn0.eyJleHAiOjE3ODA2NjU0MTYsImlhdCI6MTc4MDY2NTExNiwianRpIjoiY2FlYjk0ZTEtODNjNy00Y2IzLTljYWItM2I4YTllYWI2Yjg0IiwiaXNzIjoiaHR0cDovL2tleWNsb2FrOjgwODAvcmVhbG1zL2thcmFwYWNlIiwiYXVkIjoia2FyYXBhY2UtYXVkaWVuY2UiLCJzdWIiOiJlNGY4ZWY4Mi0wOGJjLTQ2MzEtYTdmMS1kYWJhMTQ2ZjE4YjAiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJrYXJhcGFjZS1jbGllbnQiLCJyZXNvdXJjZV9hY2Nlc3MiOnsia2FyYXBhY2UtY2xpZW50Ijp7InJvbGVzIjpbInNjaGVtYTpkZWxldGUiLCJzdWJqZWN0OndyaXRlIiwic2NoZW1hOnJlYWQiLCJzdWJqZWN0OmRlbGV0ZSIsImNvbmZpZ19nbG9iYWw6dXBkYXRlIiwic3ViamVjdDpyZWFkIiwic2NoZW1hOndyaXRlIiwiY29uZmlnX3N1YmplY3Q6dXBkYXRlIl19fSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwiY2xpZW50SG9zdCI6IjE3Mi4yNC4wLjE4IiwicHJlZmVycmVkX3VzZXJuYW1lIjoic2VydmljZS1hY2NvdW50LWthcmFwYWNlLWNsaWVudCIsImNsaWVudEFkZHJlc3MiOiIxNzIuMjQuMC4xOCIsImNsaWVudF9pZCI6ImthcmFwYWNlLWNsaWVudCJ9.SwA4bD_S4IcaiV2XkvqU8lSz9khYia9iL6xCVJ60F0IecsltVrWzffQml56akRDng3tJOg4zTU1B5XcUq1ei23IhFi7e36rLj6X3I9xL3TMCqyg2GJjbBoJJCcByJ2FjZ0_vTXM7k235KaiLndbCXiobwLe9994EBZF8B_7MZW1v5cYIDyz6qJR2o_wavXvu0jweFoB7bBvSmWX1iplecK3hUHNqwUVJBXvlzmEh1yG_cWt9aW8YkM8gpQyDz5UWZTIs96zzTWL2LBNJtbZHNMkHr8OZCDI6xuBX8Jci_Y46KPgxLAtrAJZs1J8ekRsZxHyoayzQWhO0DOYBYPB0fg

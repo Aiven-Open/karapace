@@ -1,0 +1,713 @@
+2026-06-05 13:09:44,583 INFO HTTP Request: GET https://pingfederate:9999/pf-admin-api/v1/oauth/clients "HTTP/1.1 200 OK"
+2026-06-05 13:09:44,583 INFO PingFederate admin API is ready
+2026-06-05 13:09:44,583 INFO PingFederate request GET /pf-admin-api/v1/oauth/accessTokenManagers
+2026-06-05 13:09:44,591 INFO HTTP Request: GET https://pingfederate:9999/pf-admin-api/v1/oauth/accessTokenManagers "HTTP/1.1 200 OK"
+2026-06-05 13:09:44,591 INFO PingFederate response GET /pf-admin-api/v1/oauth/accessTokenManagers -> 200
+2026-06-05 13:09:44,591 INFO PingFederate response headers:
+{
+  "cache-control": "no-cache, no-store",
+  "content-length": "2751",
+  "content-type": "application/json",
+  "date": "Fri, 05 Jun 2026 13:09:44 GMT",
+  "expires": "0",
+  "pragma": "no-cache",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+}
+2026-06-05 13:09:44,592 INFO PingFederate response body:
+{
+  "items": [
+    {
+      "accessControlSettings": {
+        "allowedClients": [],
+        "restrictClients": false
+      },
+      "attributeContract": {
+        "coreAttributes": [],
+        "extendedAttributes": [
+          {
+            "multiValued": true,
+            "name": "karapace.roles"
+          }
+        ]
+      },
+      "configuration": {
+        "fields": [
+          {
+            "name": "Token Lifetime",
+            "value": "120"
+          },
+          {
+            "name": "Use Centralized Signing Key",
+            "value": "true"
+          },
+          {
+            "name": "JWS Algorithm",
+            "value": "RS256"
+          },
+          {
+            "name": "Active Symmetric Key ID",
+            "value": ""
+          },
+          {
+            "name": "Active Signing Certificate Key ID",
+            "value": ""
+          },
+          {
+            "name": "JWE Algorithm",
+            "value": ""
+          },
+          {
+            "name": "JWE Content Encryption Algorithm",
+            "value": ""
+          },
+          {
+            "name": "Active Symmetric Encryption Key ID",
+            "value": ""
+          },
+          {
+            "name": "Asymmetric Encryption Key",
+            "value": ""
+          },
+          {
+            "name": "Asymmetric Encryption JWKS URL",
+            "value": ""
+          },
+          {
+            "name": "Enable Token Revocation",
+            "value": "false"
+          },
+          {
+            "name": "Issuer Claim Value",
+            "value": "https://pingfederate:9031"
+          },
+          {
+            "name": "Audience Claim Value",
+            "value": "karapace-audience"
+          },
+          {
+            "name": "Type Header Value",
+            "value": "at+jwt"
+          },
+          {
+            "name": "Client ID Claim Name",
+            "value": "client_id"
+          },
+          {
+            "name": "Include Key ID Header Parameter",
+            "value": "true"
+          },
+          {
+            "name": "Include X.509 Thumbprint Header Parameter",
+            "value": "false"
+          },
+          {
+            "name": "Default JWKS URL Cache Duration",
+            "value": "720"
+          },
+          {
+            "name": "Include JWE Key ID Header Parameter",
+            "value": "true"
+          },
+          {
+            "name": "Include JWE X.509 Thumbprint Header Parameter",
+            "value": "false"
+          },
+          {
+            "name": "Scope Claim Name",
+            "value": "scope"
+          },
+          {
+            "name": "Space Delimit Scope Values",
+            "value": "true"
+          },
+          {
+            "name": "Authorization Details Claim Name",
+            "value": "authorization_details"
+          },
+          {
+            "name": "Not Before Claim Offset",
+            "value": ""
+          },
+          {
+            "name": "Include Issued At Claim",
+            "value": "false"
+          },
+          {
+            "name": "JWT ID Claim Length",
+            "value": "0"
+          },
+          {
+            "name": "Access Grant GUID Claim Name",
+            "value": ""
+          },
+          {
+            "name": "Publish Keys to the PingFederate JWKS Endpoint",
+            "value": "false"
+          },
+          {
+            "name": "JWKS Endpoint Path",
+            "value": ""
+          },
+          {
+            "name": "JWKS Endpoint Cache Duration",
+            "value": "720"
+          },
+          {
+            "name": "Publish Key ID X.509 URL",
+            "value": "false"
+          },
+          {
+            "name": "Publish Thumbprint X.509 URL",
+            "value": "false"
+          },
+          {
+            "name": "Expand Scope Groups",
+            "value": "false"
+          }
+        ],
+        "tables": [
+          {
+            "name": "Symmetric Keys",
+            "rows": []
+          },
+          {
+            "name": "Certificates",
+            "rows": []
+          }
+        ]
+      },
+      "id": "karapacejwtatm",
+      "lastModified": "2026-06-05T13:05:19.121Z",
+      "name": "Karapace JWT ATM",
+      "pluginDescriptorRef": {
+        "id": "com.pingidentity.pf.access.token.management.plugins.JwtBearerAccessTokenManagementPlugin",
+        "location": "https://localhost:9999/pf-admin-api/v1/oauth/accessTokenManagers/descriptors/com.pingidentity.pf.access.token.management.plugins.JwtBearerAccessTokenManagementPlugin"
+      },
+      "selectionSettings": {
+        "resourceUris": []
+      },
+      "sequenceNumber": 727188,
+      "sessionValidationSettings": {
+        "checkSessionRevocationStatus": false,
+        "checkValidAuthnSession": false,
+        "includeSessionId": false,
+        "updateAuthnSessionActivity": false
+      },
+      "tokenEndpointAttributeContract": {
+        "attributes": [],
+        "inherited": false
+      }
+    }
+  ]
+}
+2026-06-05 13:09:44,592 INFO PingFederate request PUT /pf-admin-api/v1/oauth/accessTokenManagers/karapacejwtatm
+2026-06-05 13:09:44,592 INFO PingFederate request body:
+{
+  "accessControlSettings": {
+    "allowedClients": [],
+    "restrictClients": false
+  },
+  "attributeContract": {
+    "extendedAttributes": [
+      {
+        "multiValued": true,
+        "name": "karapace.roles"
+      }
+    ]
+  },
+  "configuration": {
+    "fields": [
+      {
+        "name": "Token Lifetime",
+        "value": "120"
+      },
+      {
+        "name": "Use Centralized Signing Key",
+        "value": "true"
+      },
+      {
+        "name": "JWS Algorithm",
+        "value": "RS256"
+      },
+      {
+        "name": "Issuer Claim Value",
+        "value": "https://pingfederate:9031"
+      },
+      {
+        "name": "Audience Claim Value",
+        "value": "karapace-audience"
+      },
+      {
+        "name": "Type Header Value",
+        "value": "at+jwt"
+      },
+      {
+        "name": "Client ID Claim Name",
+        "value": "client_id"
+      }
+    ],
+    "tables": []
+  },
+  "id": "karapacejwtatm",
+  "name": "Karapace JWT ATM",
+  "pluginDescriptorRef": {
+    "id": "com.pingidentity.pf.access.token.management.plugins.JwtBearerAccessTokenManagementPlugin"
+  },
+  "selectionSettings": {
+    "resourceUris": []
+  },
+  "sessionValidationSettings": {
+    "includeSessionId": false
+  },
+  "tokenEndpointAttributeContract": {
+    "attributes": []
+  }
+}
+2026-06-05 13:09:44,628 INFO HTTP Request: PUT https://pingfederate:9999/pf-admin-api/v1/oauth/accessTokenManagers/karapacejwtatm "HTTP/1.1 200 OK"
+2026-06-05 13:09:44,628 INFO PingFederate response PUT /pf-admin-api/v1/oauth/accessTokenManagers/karapacejwtatm -> 200
+2026-06-05 13:09:44,628 INFO PingFederate response headers:
+{
+  "cache-control": "no-cache, no-store",
+  "content-length": "2739",
+  "content-type": "application/json",
+  "date": "Fri, 05 Jun 2026 13:09:44 GMT",
+  "expires": "0",
+  "pragma": "no-cache",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+}
+2026-06-05 13:09:44,629 INFO PingFederate response body:
+{
+  "accessControlSettings": {
+    "allowedClients": [],
+    "restrictClients": false
+  },
+  "attributeContract": {
+    "coreAttributes": [],
+    "extendedAttributes": [
+      {
+        "multiValued": true,
+        "name": "karapace.roles"
+      }
+    ]
+  },
+  "configuration": {
+    "fields": [
+      {
+        "name": "Token Lifetime",
+        "value": "120"
+      },
+      {
+        "name": "Use Centralized Signing Key",
+        "value": "true"
+      },
+      {
+        "name": "JWS Algorithm",
+        "value": "RS256"
+      },
+      {
+        "name": "Active Symmetric Key ID",
+        "value": ""
+      },
+      {
+        "name": "Active Signing Certificate Key ID",
+        "value": ""
+      },
+      {
+        "name": "JWE Algorithm",
+        "value": ""
+      },
+      {
+        "name": "JWE Content Encryption Algorithm",
+        "value": ""
+      },
+      {
+        "name": "Active Symmetric Encryption Key ID",
+        "value": ""
+      },
+      {
+        "name": "Asymmetric Encryption Key",
+        "value": ""
+      },
+      {
+        "name": "Asymmetric Encryption JWKS URL",
+        "value": ""
+      },
+      {
+        "name": "Enable Token Revocation",
+        "value": "false"
+      },
+      {
+        "name": "Issuer Claim Value",
+        "value": "https://pingfederate:9031"
+      },
+      {
+        "name": "Audience Claim Value",
+        "value": "karapace-audience"
+      },
+      {
+        "name": "Type Header Value",
+        "value": "at+jwt"
+      },
+      {
+        "name": "Client ID Claim Name",
+        "value": "client_id"
+      },
+      {
+        "name": "Include Key ID Header Parameter",
+        "value": "true"
+      },
+      {
+        "name": "Include X.509 Thumbprint Header Parameter",
+        "value": "false"
+      },
+      {
+        "name": "Default JWKS URL Cache Duration",
+        "value": "720"
+      },
+      {
+        "name": "Include JWE Key ID Header Parameter",
+        "value": "true"
+      },
+      {
+        "name": "Include JWE X.509 Thumbprint Header Parameter",
+        "value": "false"
+      },
+      {
+        "name": "Scope Claim Name",
+        "value": "scope"
+      },
+      {
+        "name": "Space Delimit Scope Values",
+        "value": "true"
+      },
+      {
+        "name": "Authorization Details Claim Name",
+        "value": "authorization_details"
+      },
+      {
+        "name": "Not Before Claim Offset",
+        "value": ""
+      },
+      {
+        "name": "Include Issued At Claim",
+        "value": "false"
+      },
+      {
+        "name": "JWT ID Claim Length",
+        "value": "0"
+      },
+      {
+        "name": "Access Grant GUID Claim Name",
+        "value": ""
+      },
+      {
+        "name": "Publish Keys to the PingFederate JWKS Endpoint",
+        "value": "false"
+      },
+      {
+        "name": "JWKS Endpoint Path",
+        "value": ""
+      },
+      {
+        "name": "JWKS Endpoint Cache Duration",
+        "value": "720"
+      },
+      {
+        "name": "Publish Key ID X.509 URL",
+        "value": "false"
+      },
+      {
+        "name": "Publish Thumbprint X.509 URL",
+        "value": "false"
+      },
+      {
+        "name": "Expand Scope Groups",
+        "value": "false"
+      }
+    ],
+    "tables": [
+      {
+        "name": "Symmetric Keys",
+        "rows": []
+      },
+      {
+        "name": "Certificates",
+        "rows": []
+      }
+    ]
+  },
+  "id": "karapacejwtatm",
+  "lastModified": "2026-06-05T13:09:44.611Z",
+  "name": "Karapace JWT ATM",
+  "pluginDescriptorRef": {
+    "id": "com.pingidentity.pf.access.token.management.plugins.JwtBearerAccessTokenManagementPlugin",
+    "location": "https://localhost:9999/pf-admin-api/v1/oauth/accessTokenManagers/descriptors/com.pingidentity.pf.access.token.management.plugins.JwtBearerAccessTokenManagementPlugin"
+  },
+  "selectionSettings": {
+    "resourceUris": []
+  },
+  "sequenceNumber": 727188,
+  "sessionValidationSettings": {
+    "checkSessionRevocationStatus": false,
+    "checkValidAuthnSession": false,
+    "includeSessionId": false,
+    "updateAuthnSessionActivity": false
+  },
+  "tokenEndpointAttributeContract": {
+    "attributes": [],
+    "inherited": false
+  }
+}
+2026-06-05 13:09:44,630 INFO PingFederate request GET /pf-admin-api/v1/oauth/clients
+2026-06-05 13:09:44,639 INFO HTTP Request: GET https://pingfederate:9999/pf-admin-api/v1/oauth/clients "HTTP/1.1 200 OK"
+2026-06-05 13:09:44,640 INFO PingFederate response GET /pf-admin-api/v1/oauth/clients -> 200
+2026-06-05 13:09:44,640 INFO PingFederate response headers:
+{
+  "cache-control": "no-cache, no-store",
+  "content-length": "2137",
+  "content-type": "application/json",
+  "date": "Fri, 05 Jun 2026 13:09:44 GMT",
+  "expires": "0",
+  "pragma": "no-cache",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+}
+2026-06-05 13:09:44,640 INFO PingFederate response body:
+{
+  "items": [
+    {
+      "allowAuthenticationApiInit": false,
+      "authorizationDetailTypes": [],
+      "bypassApprovalPage": false,
+      "clientAuth": {
+        "encryptedSecret": "OBF:JWE:eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2Iiwia2lkIjoiUWVzOVR5eTV5WiIsInZlcnNpb24iOiIxMy4wLjIuMCJ9..sSPRzOdiFPjcPJ_6MGMLWw.TZJfRC_RcD5_7h8p6blRhiaKTzgPW0ID1uvF8QtQK9trtZMasM8TYu6qnUjqESegE9VXRlSdY2uI4OAU8SbAgBVeDldtDmjkImVRSiKc6j8.Kc_sZaDActXR9vHyp5AtxQ",
+        "secondarySecrets": [],
+        "type": "SECRET"
+      },
+      "clientId": "karapace-client",
+      "clientSecretChangedTime": "2026-06-05T12:48:11.000Z",
+      "clientSecretRetentionPeriodType": "SERVER_DEFAULT",
+      "creationDate": "2026-06-05T12:48:11.571Z",
+      "defaultAccessTokenManagerRef": {
+        "id": "karapacejwtatm",
+        "location": "https://localhost:9999/pf-admin-api/v1/oauth/accessTokenManagers/karapacejwtatm"
+      },
+      "deviceFlowSettingType": "SERVER_DEFAULT",
+      "enableCookielessAuthenticationApi": false,
+      "enabled": true,
+      "exclusiveScopes": [],
+      "grantTypes": [
+        "CLIENT_CREDENTIALS"
+      ],
+      "lockoutMaxMaliciousActionsType": "SERVER_DEFAULT",
+      "modificationDate": "2026-06-05T13:05:19.158Z",
+      "name": "Karapace Client",
+      "offlineAccessRequireConsentPrompt": "SERVER_DEFAULT",
+      "oidcPolicy": {
+        "grantAccessSessionRevocationApi": false,
+        "grantAccessSessionSessionManagementApi": false,
+        "logoutMode": "NONE",
+        "pairwiseIdentifierUserType": false,
+        "pingAccessLogoutCapable": false
+      },
+      "persistentGrantExpirationTime": 0,
+      "persistentGrantExpirationTimeUnit": "DAYS",
+      "persistentGrantExpirationType": "SERVER_DEFAULT",
+      "persistentGrantIdleTimeout": 0,
+      "persistentGrantIdleTimeoutTimeUnit": "DAYS",
+      "persistentGrantIdleTimeoutType": "SERVER_DEFAULT",
+      "persistentGrantReuseType": "SERVER_DEFAULT",
+      "redirectUris": [],
+      "refreshRolling": "SERVER_DEFAULT",
+      "refreshTokenRollingGracePeriodType": "SERVER_DEFAULT",
+      "refreshTokenRollingIntervalType": "SERVER_DEFAULT",
+      "requireDpop": false,
+      "requireJwtSecuredAuthorizationResponseMode": false,
+      "requireOfflineAccessScopeToIssueRefreshTokens": "SERVER_DEFAULT",
+      "requireProofKeyForCodeExchange": false,
+      "requirePushedAuthorizationRequests": false,
+      "requireSignedRequests": false,
+      "restrictScopes": false,
+      "restrictToDefaultAccessTokenManager": true,
+      "restrictedResponseTypes": [],
+      "restrictedScopes": [],
+      "validateUsingAllEligibleAtms": false
+    }
+  ]
+}
+2026-06-05 13:09:44,640 INFO PingFederate request PUT /pf-admin-api/v1/oauth/clients/karapace-client
+2026-06-05 13:09:44,640 INFO PingFederate request body:
+{
+  "clientAuth": {
+    "secret": "karapace-secret",
+    "type": "SECRET"
+  },
+  "clientId": "karapace-client",
+  "defaultAccessTokenManagerRef": {
+    "id": "karapacejwtatm"
+  },
+  "enabled": true,
+  "grantTypes": [
+    "CLIENT_CREDENTIALS"
+  ],
+  "name": "Karapace Client",
+  "restrictScopes": false,
+  "restrictToDefaultAccessTokenManager": true
+}
+2026-06-05 13:09:44,669 INFO HTTP Request: PUT https://pingfederate:9999/pf-admin-api/v1/oauth/clients/karapace-client "HTTP/1.1 200 OK"
+2026-06-05 13:09:44,669 INFO PingFederate response PUT /pf-admin-api/v1/oauth/clients/karapace-client -> 200
+2026-06-05 13:09:44,669 INFO PingFederate response headers:
+{
+  "cache-control": "no-cache, no-store",
+  "content-length": "2125",
+  "content-type": "application/json",
+  "date": "Fri, 05 Jun 2026 13:09:44 GMT",
+  "expires": "0",
+  "pragma": "no-cache",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+}
+2026-06-05 13:09:44,669 INFO PingFederate response body:
+{
+  "allowAuthenticationApiInit": false,
+  "authorizationDetailTypes": [],
+  "bypassApprovalPage": false,
+  "clientAuth": {
+    "encryptedSecret": "OBF:JWE:eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2Iiwia2lkIjoiUWVzOVR5eTV5WiIsInZlcnNpb24iOiIxMy4wLjIuMCJ9..nBrcHy3XbH4JmPf0A8wNDw.vcL1HE7VCP1uDAuLpjXSQddKwJBEOgZxSmLDQfpWEVOx_0_NmQpY4nHBFO-uLaslHdjPlFcpwJoGV5mcjNhgnq_KUQzbSov2jxQ8lMk-PuI.UOCGO3wVjgcMRuWNI-VL0A",
+    "secondarySecrets": [],
+    "type": "SECRET"
+  },
+  "clientId": "karapace-client",
+  "clientSecretChangedTime": "2026-06-05T12:48:11.000Z",
+  "clientSecretRetentionPeriodType": "SERVER_DEFAULT",
+  "creationDate": "2026-06-05T12:48:11.571Z",
+  "defaultAccessTokenManagerRef": {
+    "id": "karapacejwtatm",
+    "location": "https://localhost:9999/pf-admin-api/v1/oauth/accessTokenManagers/karapacejwtatm"
+  },
+  "deviceFlowSettingType": "SERVER_DEFAULT",
+  "enableCookielessAuthenticationApi": false,
+  "enabled": true,
+  "exclusiveScopes": [],
+  "grantTypes": [
+    "CLIENT_CREDENTIALS"
+  ],
+  "lockoutMaxMaliciousActionsType": "SERVER_DEFAULT",
+  "modificationDate": "2026-06-05T13:09:44.655Z",
+  "name": "Karapace Client",
+  "offlineAccessRequireConsentPrompt": "SERVER_DEFAULT",
+  "oidcPolicy": {
+    "grantAccessSessionRevocationApi": false,
+    "grantAccessSessionSessionManagementApi": false,
+    "logoutMode": "NONE",
+    "pairwiseIdentifierUserType": false,
+    "pingAccessLogoutCapable": false
+  },
+  "persistentGrantExpirationTime": 0,
+  "persistentGrantExpirationTimeUnit": "DAYS",
+  "persistentGrantExpirationType": "SERVER_DEFAULT",
+  "persistentGrantIdleTimeout": 0,
+  "persistentGrantIdleTimeoutTimeUnit": "DAYS",
+  "persistentGrantIdleTimeoutType": "SERVER_DEFAULT",
+  "persistentGrantReuseType": "SERVER_DEFAULT",
+  "redirectUris": [],
+  "refreshRolling": "SERVER_DEFAULT",
+  "refreshTokenRollingGracePeriodType": "SERVER_DEFAULT",
+  "refreshTokenRollingIntervalType": "SERVER_DEFAULT",
+  "requireDpop": false,
+  "requireJwtSecuredAuthorizationResponseMode": false,
+  "requireOfflineAccessScopeToIssueRefreshTokens": "SERVER_DEFAULT",
+  "requireProofKeyForCodeExchange": false,
+  "requirePushedAuthorizationRequests": false,
+  "requireSignedRequests": false,
+  "restrictScopes": false,
+  "restrictToDefaultAccessTokenManager": true,
+  "restrictedResponseTypes": [],
+  "restrictedScopes": [],
+  "validateUsingAllEligibleAtms": false
+}
+2026-06-05 13:09:44,669 INFO PingFederate request GET /pf-admin-api/v1/oauth/accessTokenMappings
+2026-06-05 13:09:44,674 INFO HTTP Request: GET https://pingfederate:9999/pf-admin-api/v1/oauth/accessTokenMappings "HTTP/1.1 200 OK"
+2026-06-05 13:09:44,675 INFO PingFederate response GET /pf-admin-api/v1/oauth/accessTokenMappings -> 200
+2026-06-05 13:09:44,675 INFO PingFederate response headers:
+{
+  "cache-control": "no-cache, no-store",
+  "content-length": "504",
+  "content-type": "application/json",
+  "date": "Fri, 05 Jun 2026 13:09:44 GMT",
+  "expires": "0",
+  "pragma": "no-cache",
+  "x-frame-options": "SAMEORIGIN",
+  "x-robots-tag": "noindex"
+}
+2026-06-05 13:09:44,675 INFO PingFederate response body:
+[
+  {
+    "accessTokenManagerRef": {
+      "id": "karapacejwtatm",
+      "location": "https://localhost:9999/pf-admin-api/v1/oauth/accessTokenManagers/karapacejwtatm"
+    },
+    "attributeContractFulfillment": {
+      "karapace.roles": {
+        "source": {
+          "type": "TEXT"
+        },
+        "value": "schema:read schema:write schema:delete subject:read subject:write subject:delete config_subject:update config_global:update"
+      }
+    },
+    "attributeSources": [],
+    "context": {
+      "type": "CLIENT_CREDENTIALS"
+    },
+    "id": "client_credentials|karapacejwtatm",
+    "issuanceCriteria": {
+      "conditionalCriteria": []
+    }
+  }
+]
+{
+  "client_id": "karapace-client",
+  "client_secret": "karapace-secret",
+  "token_issuer": "https://pingfederate:9031",
+  "token_audience": "karapace-audience",
+  "karapace_sub_claim_name": "client_id",
+  "roles_claim": "karapace.roles",
+  "role_values": [
+    "schema:read",
+    "schema:write",
+    "schema:delete",
+    "subject:read",
+    "subject:write",
+    "subject:delete",
+    "config_subject:update",
+    "config_global:update"
+  ]
+}
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"KARAPACE_VERSION\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"PYTHON_VERSION\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"KARAPACE_VERSION\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"PYTHON_VERSION\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"RUNNER_UID\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"RUNNER_GID\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"PYTHON_VERSION\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"PYTHON_VERSION\" variable is not set. Defaulting to a blank string."
+time="2026-06-05T15:09:44+02:00" level=warning msg="The \"PYTHON_VERSION\" variable is not set. Defaulting to a blank string."
+2026-06-05 13:09:44,993 INFO OIDC request POST https://pingfederate:9031/as/token.oauth2
+2026-06-05 13:09:44,993 INFO OIDC request data:
+{
+  "client_id": "karapace-client",
+  "client_secret": "karapace-secret",
+  "grant_type": "client_credentials",
+  "scope": "openid"
+}
+2026-06-05 13:09:45,008 INFO HTTP Request: POST https://pingfederate:9031/as/token.oauth2 "HTTP/1.1 200 OK"
+2026-06-05 13:09:45,008 INFO OIDC response POST https://pingfederate:9031/as/token.oauth2 -> 200
+2026-06-05 13:09:45,008 INFO OIDC response body:
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IlVucGVPcXowc1RsTXRXd2UyYkNFeUJ2S21jNF9SUzI1NiIsInBpLmF0bSI6ImZsM28iLCJ0eXAiOiJhdCtqd3QifQ.eyJzY29wZSI6Im9wZW5pZCIsImF1dGhvcml6YXRpb25fZGV0YWlscyI6W10sImNsaWVudF9pZCI6ImthcmFwYWNlLWNsaWVudCIsImlzcyI6Imh0dHBzOi8vcGluZ2ZlZGVyYXRlOjkwMzEiLCJhdWQiOiJrYXJhcGFjZS1hdWRpZW5jZSIsImthcmFwYWNlLnJvbGVzIjpbInNjaGVtYTpyZWFkIHNjaGVtYTp3cml0ZSBzY2hlbWE6ZGVsZXRlIHN1YmplY3Q6cmVhZCBzdWJqZWN0OndyaXRlIHN1YmplY3Q6ZGVsZXRlIGNvbmZpZ19zdWJqZWN0OnVwZGF0ZSBjb25maWdfZ2xvYmFsOnVwZGF0ZSJdLCJleHAiOjE3ODA2NzIxODV9.WJzpHj9mng9Opb9DN43mlVAOtJARoskGJ0ZXS9ytL6Qp7jQtgzxY5ZUgK5NxM8Z0HzQsfkOu_x6jTZ2f6cuUBRPRIMS8uj-ZtoYlErVsV4ro5FfecWAqjHCHrvlny54gvHP8DZsE1wmgMrjV0GAIOFJxhYc2qpx2lMFalYlczitdgN0lKZnqdHBNW8wDkg6yMfSXDcvg4CgTEXkwFkLVgJ4mFlQzk42R4aeEzdEoRGtkRRxVZmWKtCRMKpyYPF1ZIUHt7r6SeDdOp7Ae7g2uQCaAFkLC9l_MzZJJO4RxbS6FFXb9GoUwCXmCrJhQztXyy_2amXasCUu7Ah9HOS8qNA",
+  "expires_in": 7199,
+  "token_type": "Bearer"
+}
+eyJhbGciOiJSUzI1NiIsImtpZCI6IlVucGVPcXowc1RsTXRXd2UyYkNFeUJ2S21jNF9SUzI1NiIsInBpLmF0bSI6ImZsM28iLCJ0eXAiOiJhdCtqd3QifQ.eyJzY29wZSI6Im9wZW5pZCIsImF1dGhvcml6YXRpb25fZGV0YWlscyI6W10sImNsaWVudF9pZCI6ImthcmFwYWNlLWNsaWVudCIsImlzcyI6Imh0dHBzOi8vcGluZ2ZlZGVyYXRlOjkwMzEiLCJhdWQiOiJrYXJhcGFjZS1hdWRpZW5jZSIsImthcmFwYWNlLnJvbGVzIjpbInNjaGVtYTpyZWFkIHNjaGVtYTp3cml0ZSBzY2hlbWE6ZGVsZXRlIHN1YmplY3Q6cmVhZCBzdWJqZWN0OndyaXRlIHN1YmplY3Q6ZGVsZXRlIGNvbmZpZ19zdWJqZWN0OnVwZGF0ZSBjb25maWdfZ2xvYmFsOnVwZGF0ZSJdLCJleHAiOjE3ODA2NzIxODV9.WJzpHj9mng9Opb9DN43mlVAOtJARoskGJ0ZXS9ytL6Qp7jQtgzxY5ZUgK5NxM8Z0HzQsfkOu_x6jTZ2f6cuUBRPRIMS8uj-ZtoYlErVsV4ro5FfecWAqjHCHrvlny54gvHP8DZsE1wmgMrjV0GAIOFJxhYc2qpx2lMFalYlczitdgN0lKZnqdHBNW8wDkg6yMfSXDcvg4CgTEXkwFkLVgJ4mFlQzk42R4aeEzdEoRGtkRRxVZmWKtCRMKpyYPF1ZIUHt7r6SeDdOp7Ae7g2uQCaAFkLC9l_MzZJJO4RxbS6FFXb9GoUwCXmCrJhQztXyy_2amXasCUu7Ah9HOS8qNA

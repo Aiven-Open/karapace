@@ -206,12 +206,11 @@ unit-tests-in-docker: start-karapace-docker-resources
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker
-e2e-tests-in-docker: OIDC_E2E_COMPOSE = $(if $(filter pingfederate pingidentity,$(OIDC_PROVIDER)),$(DOCKER_COMPOSE_AUTH_PINGFEDERATE),$(DOCKER_COMPOSE_AUTH))
 e2e-tests-in-docker: stop-karapace-docker-resources
-	$(OIDC_E2E_COMPOSE) up -d --build --wait
+	$(DOCKER_COMPOSE_AUTH) up -d --build --wait
 	rm -fr runtime/*
 	sleep 10
-	$(OIDC_E2E_COMPOSE) exec -T karapace-cli $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
+	$(DOCKER_COMPOSE_AUTH) exec -T karapace-cli $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
 	rm -fr runtime/*
 
 .PHONY: e2e-tests-in-docker-keycloak
@@ -220,7 +219,12 @@ e2e-tests-in-docker-keycloak: e2e-tests-in-docker
 
 .PHONY: e2e-tests-in-docker-pingfederate
 e2e-tests-in-docker-pingfederate: export OIDC_PROVIDER=pingfederate
-e2e-tests-in-docker-pingfederate: e2e-tests-in-docker
+e2e-tests-in-docker-pingfederate: stop-karapace-docker-resources
+	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) up -d --build --wait
+	rm -fr runtime/*
+	sleep 10
+	$(DOCKER_COMPOSE_AUTH_PINGFEDERATE) exec -T karapace-cli $(PYTHON) -m pytest -s -vvv $(PYTEST_ARGS) tests/e2e/
+	rm -fr runtime/*
 
 .PHONY: integration-tests-in-docker
 integration-tests-in-docker: start-karapace-docker-resources
