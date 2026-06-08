@@ -3,6 +3,7 @@ Copyright (c) 2025 Aiven Ltd
 See LICENSE for details
 """
 
+import ssl
 from typing import Any
 
 import jwt
@@ -42,6 +43,7 @@ class OIDCMiddleware:
         self.leeway_seconds = config.sasl_oauthbearer_leeway_seconds
         self.require_access_token_typ = config.sasl_oauthbearer_require_access_token_typ
         self.enforce_azp = config.sasl_oauthbearer_enforce_azp
+        self.allow_insecure_jwks = config.sasl_oauthbearer_allow_insecure_jwks
 
         # Hardcoded default algorithms
         self.algorithms = ["RS256", "RS384", "RS512"]
@@ -75,7 +77,15 @@ class OIDCMiddleware:
 
             # lifespan caps how long a key stays cached after IdP rotation/revocation.
             # max_cached_keys=16 is generous; IdPs typically expose 1-3 active signing keys.
-            self._jwks_client = PyJWKClient(self.jwks_url, cache_keys=True, lifespan=300, max_cached_keys=16)
+            self._jwks_client = PyJWKClient(
+                self.jwks_url,
+                cache_keys=True,
+                lifespan=300,
+                max_cached_keys=16,
+                headers={"Accept": "application/json"},
+                timeout=30,
+                ssl_context=ssl._create_unverified_context() if self.allow_insecure_jwks else None,
+            )
 
             log.info("OIDC Authorization enabled: %s", self.authorization_enabled)
             if self.authorization_enabled:
@@ -190,6 +200,9 @@ class OIDCMiddleware:
     @staticmethod
     def get_roles_from_claim_path(payload: dict[str, Any], path: str) -> list[str]:
         try:
+            if path in payload:
+                return OIDCMiddleware._normalize_role_values(payload[path])
+
             parts = path.split(".")
             value: Any = payload
             for part in parts:
@@ -197,10 +210,19 @@ class OIDCMiddleware:
                     return []  # path broken
                 value = value.get(part)
 
-            # value might not be a list of strings, so check
-            if isinstance(value, list):
-                if all(isinstance(role, str) for role in value):
-                    return value
+            return OIDCMiddleware._normalize_role_values(value)
         except Exception:
             pass
+        return []
+
+    @staticmethod
+    def _normalize_role_values(value: Any) -> list[str]:
+        if isinstance(value, list) and all(isinstance(role, str) for role in value):
+            if len(value) == 1:
+                flattened = [item for item in value[0].replace(",", " ").split() if item]
+                if flattened:
+                    return flattened
+            return value
+        if isinstance(value, str):
+            return [item for item in value.replace(",", " ").split() if item]
         return []
