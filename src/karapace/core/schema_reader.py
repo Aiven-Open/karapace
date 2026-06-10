@@ -191,7 +191,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.processed_deprecated_karapace_keys_total = 0
         self.last_check = time.monotonic()
         self.start_time = time.monotonic()
-        self.startup_previous_processed_offset = 0
+        self._replay_start_logged = False
 
         self.consecutive_unexpected_errors: int = 0
         self.consecutive_unexpected_errors_start: float = 0
@@ -380,34 +380,27 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         # Reduce by one for actual highest offset.
         self._highest_offset = end_offset - 1
 
-        # Log when replay starts (first time we know how many messages to process)
-        if self.startup_previous_processed_offset == 0 and self._highest_offset > 0:
-            LOG.info(
-                "Starting schema replay: %s messages to process (offset 0 to %s)",
-                self._highest_offset + 1,
-                self._highest_offset,
-            )
+        if not self._replay_start_logged and self._highest_offset > 0:
+            LOG.info("Starting schema replay: reading up to offset %s", self._highest_offset)
+            self._replay_start_logged = True
 
         cur_time = time.monotonic()
         time_from_last_check = cur_time - self.last_check
         progress_pct = 0 if not self._highest_offset else round((self.offset / self._highest_offset) * 100, 2)
-        startup_processed_message_per_second = (self.offset - self.startup_previous_processed_offset) / time_from_last_check
         LOG.debug(
-            "Replay progress (%s): %s/%s (%s %%) (recs/s %s)",
+            "Replay progress (%s): %s/%s (%s %%)",
             round(time_from_last_check, 2),
             self.offset,
             self._highest_offset,
             progress_pct,
-            startup_processed_message_per_second,
         )
         self.last_check = cur_time
-        self.startup_previous_processed_offset = self.offset
         ready = self.offset >= self._highest_offset
         if ready:
             self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
             # Always log when replay completes - this is important for operators
             LOG.info(
-                "Schema replay completed in %.2f seconds (processed %s messages)",
+                "Schema replay completed in %.2f seconds (read up to offset %s)",
                 time.monotonic() - self.start_time,
                 self.offset,
             )
@@ -427,8 +420,12 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 return self._ready
 
     def set_not_ready(self) -> None:
+        now = time.monotonic()
         with self._ready_lock:
             self._ready = False
+            self.start_time = now
+            self.last_check = now
+            self._replay_start_logged = False
 
     @staticmethod
     def _parse_message_value(raw_value: str | bytes) -> JsonObject | None:
