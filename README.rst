@@ -722,7 +722,8 @@ Below here is an example of karapace OpenId connect config ::
    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
 
 
-Below here is an example of karapace OpenId connect docker config ::
+Below here is an example of karapace OpenId connect docker config using the local
+Keycloak defaults in ``container/compose.yml`` ::
 
     KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: True
     KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
@@ -768,6 +769,12 @@ and get a token like below. ::
   -d "client_secret=client-secret" \
 
 Note : client id and client secret can be retrieved from Oidc provider
+
+The helper script ``bin/oidc/get_oidc_token.py`` supports both providers. For local Keycloak::
+
+  OIDC_PROVIDER=keycloak python3 bin/oidc/get_oidc_token.py
+
+For PingFederate examples, see ``container/oidc/pingidentity/README.md``.
 
 Response of the above curl should be a access token, and other scope and expiry details.
 Export the token into ACCESS_TOKEN variable::

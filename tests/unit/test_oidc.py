@@ -46,6 +46,7 @@ class DummyConfig:
     sasl_oauthbearer_leeway_seconds: int = 30
     sasl_oauthbearer_require_access_token_typ: bool = False
     sasl_oauthbearer_enforce_azp: bool = False
+    sasl_oauthbearer_allow_insecure_jwks = False
 
 
 valid_configs = [
@@ -231,6 +232,28 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
         ({}, "realm_access.roles", []),
         ({"custom": {"nested": {"roles": ["reader"]}}}, "custom.nested.roles", ["reader"]),
         ({"custom": {"nested": {"roles": "notalist"}}}, "custom.nested.roles", []),
+        ({"roles": ["reader"]}, "roles", ["reader"]),
+        ({"roles": ["schema:read,schema:write,subject:read"]}, "roles", ["schema:read", "schema:write", "subject:read"]),
+        ({"roles": ["schema:read schema:write subject:read"]}, "roles", ["schema:read", "schema:write", "subject:read"]),
+        (
+            {"custom": {"nested": {"roles": ["schema:read,schema:write,subject:read"]}}},
+            "custom.nested.roles",
+            ["schema:read", "schema:write", "subject:read"],
+        ),
+        (
+            {"custom": {"nested": {"roles": ["schema:read schema:write subject:read"]}}},
+            "custom.nested.roles",
+            ["schema:read", "schema:write", "subject:read"],
+        ),
+        ({"roles": []}, "roles", []),
+        ({"roles": [""]}, "roles", []),
+        ({"roles": ["", "", None]}, "roles", []),
+        ({"roles": ["schema:write", "subject:read"]}, "", []),
+        ({"roles": ["schema:write", "subject:read"]}, None, []),
+        ({"custom": {"nested": {"roles": [""]}}}, "custom.nested.roles", []),
+        ({"custom": {"nested": {"roles": ["", "", None]}}}, "custom.nested.roles", []),
+        ({"custom": {"nested": {"roles": ["schema:write", "subject:read"]}}}, "", []),
+        ({"custom": {"nested": {"roles": ["schema:write", "subject:read"]}}}, "custom", []),
     ],
 )
 def test_get_roles_from_claim_path(payload, path, expected_roles):

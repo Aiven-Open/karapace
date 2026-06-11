@@ -83,6 +83,10 @@ async def test_integration_oidc_enabled_no_auth_header_skipped_endpoints_success
     res = await registry_async_client_oidc_no_auth_header.get("metrics", json_response=False)
     assert res.status_code == 200
 
+    # master availability is used as a readiness probe and must not depend on OIDC/JWKS reachability.
+    res = await registry_async_client_oidc_no_auth_header.get("master_available")
+    assert res.status_code == 200
+
 
 # ---------------------------------------------------------------------------
 # AuthN-only mode: sasl_oauthbearer_authentication_enabled=true with
@@ -152,11 +156,12 @@ async def test_schema_registry_oidc_authn_only_skip_paths(
     res = await registry_async_client_oidc_authn_only_no_auth_header.get("metrics", json_response=False)
     assert res.status_code == 200
 
+    res = await registry_async_client_oidc_authn_only_no_auth_header.get("master_available")
+    assert res.status_code == 200
+
 
 # Pins the OIDC-side 404 body shape; full forbidden-vs-missing parity is
 # exercised in tests/integration/test_schema_registry_auth.py.
-
-
 async def test_schema_registry_oidc_missing_subject_returns_canonical_404(
     registry_async_client_oidc: Client,
 ) -> None:
