@@ -239,11 +239,13 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
             # Perform a metadata list, which is allowed in a describe permission, whereas
             # topic-create permissions are a coarser permission grant, not typically given out
+            #
+            # check if schema topic is already created, if not try to create it
             try:
                 schema_topic_exists = (
                     self.config.topic_name in self.admin_client.list_topics().topics.keys()
                 )
-            except TopicAuthorizationFailedError:
+            except Exception:
                 schema_topic_exists = False
                 LOG.warning(
                     "[Schema Topic] not authorized to list topics, assuming topic: %r does not exist",
