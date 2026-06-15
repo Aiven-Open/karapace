@@ -7,6 +7,7 @@ See LICENSE for details
 
 from karapace.core.config import Config
 from karapace.core.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST
+import pytest
 
 
 def test_http_request_max_size() -> None:
@@ -39,3 +40,10 @@ def test_http_request_max_size() -> None:
     config.http_request_max_size = 1024
     config.producer_max_request_size = DEFAULT_PRODUCER_MAX_REQUEST + 1024
     assert config.get_max_request_size() == 1024
+
+
+def test_suppress_health_access_logs_defaults_and_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Config().suppress_health_access_logs is False
+
+    monkeypatch.setenv("KARAPACE_SUPPRESS_HEALTH_ACCESS_LOGS", "true")
+    assert Config().suppress_health_access_logs is True
