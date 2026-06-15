@@ -146,7 +146,7 @@ class Config(BaseSettings):
     sasl_oauthbearer_client_id: str | None = None
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
-    sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
+    sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics", "/master_available"]
     # Clock-skew tolerance for exp/nbf/iat (seconds). 0 preserves prior strict behavior.
     sasl_oauthbearer_leeway_seconds: int = Field(default=0, ge=0)
     # Require header `typ: at+jwt` on access tokens.

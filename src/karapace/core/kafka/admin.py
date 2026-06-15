@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Container, Iterable
 from concurrent.futures import Future
+import time
 from confluent_kafka import IsolationLevel, TopicCollection, TopicPartition
 from confluent_kafka.admin import (
     AdminClient,
@@ -60,9 +61,30 @@ class KafkaAdminClient(_KafkaConfigMixin, AdminClient):
         futmap: dict[str, Future] = self.create_topics([new_topic], request_timeout=request_timeout)
         try:
             single_futmap_result(futmap)
+            self._wait_for_topic_metadata(name=name, num_partitions=num_partitions, timeout=request_timeout)
             return new_topic
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
+
+    def _wait_for_topic_metadata(self, *, name: str, num_partitions: int, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                topic_metadata = self.list_topics(topic=name, timeout=1).topics.get(name)
+            except KafkaException:
+                time.sleep(0.1)
+                continue
+
+            if (
+                topic_metadata is not None
+                and topic_metadata.error is None
+                and len(topic_metadata.partitions) == num_partitions
+            ):
+                return
+
+            time.sleep(0.1)
+
+        raise TimeoutError(f"Topic metadata for '{name}' did not propagate within {timeout} seconds")
 
     def update_topic_config(self, name: str, config: dict[str, str]) -> None:
         self.log.info("Updating topic '%s' configuration with %s", name, config)

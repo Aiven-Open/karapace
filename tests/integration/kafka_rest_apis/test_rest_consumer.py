@@ -399,13 +399,27 @@ async def test_seek(rest_async_client, admin_client, trail):
     res = await rest_async_client.post(assign_path, headers=REST_HEADERS["json"], json=assign_payload)
     assert res.ok
     seek_payload = {"offsets": [{"topic": topic_name, "partition": 0, "offset": 10}]}
-    res = await rest_async_client.post(seek_path, json=seek_payload, headers=REST_HEADERS["json"])
-    assert res.ok, f"Unexpected status for {res}"
+    await repeat_until_successful_request(
+        rest_async_client.post,
+        seek_path,
+        json_data=seek_payload,
+        headers=REST_HEADERS["json"],
+        error_msg="Unexpected response status for seek",
+        timeout=20,
+        sleep=1,
+    )
     extreme_payload = {"partitions": [{"topic": topic_name, "partition": 0}]}
     for pos in ["beginning", "end"]:
         url = f"{seek_path}/{pos}"
-        res = await rest_async_client.post(url, json=extreme_payload, headers=REST_HEADERS["json"])
-        assert res.ok, f"Expecting a successful response: {res}"
+        await repeat_until_successful_request(
+            rest_async_client.post,
+            url,
+            json_data=extreme_payload,
+            headers=REST_HEADERS["json"],
+            error_msg=f"Unexpected response status for seek {pos}",
+            timeout=20,
+            sleep=1,
+        )
     # unassigned seeks should fail
     invalid_payload = {"offsets": [{"topic": "faulty", "partition": 0, "offset": 10}]}
     res = await rest_async_client.post(seek_path, json=invalid_payload, headers=REST_HEADERS["json"])
