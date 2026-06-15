@@ -254,7 +254,7 @@ async def test_schema_reader_skips_empty_message_and_advances_offset(
     future = producer.send(topic_name, key=None, value=None)
     producer.flush()
     empty_msg = future.result()
-    empty_offset = empty_msg.offset()
+    empty_offset = empty_msg.offset() or 0
 
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
