@@ -160,6 +160,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
         self._tracer = Tracer()
 
+        # indicate whether karapace created the schema_topic
+        self._karapace_created_schema_topic: bool = False
+
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
         # consumed the produced messages. This makes the REST APIs more
@@ -261,6 +264,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                         config={"cleanup.policy": "compact"},
                     )
                     LOG.debug("[Schema Topic] Successfully created %r", topic.topic)
+                    self._karapace_created_schema_topic = True
                     schema_topic_exists = True
                 except TopicAlreadyExistsError:
                     LOG.warning("[Schema Topic] Already exists %r", self.config.topic_name)
