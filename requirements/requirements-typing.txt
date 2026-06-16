@@ -201,7 +201,7 @@ pydantic-settings==2.13.1
     #   karapace (/karapace/pyproject.toml)
 pygments==2.20.0
     # via rich
-pyjwt==2.12.1
+pyjwt==2.13.0
     # via karapace (/karapace/pyproject.toml)
 python-dateutil==2.9.0.post0
     # via karapace (/karapace/pyproject.toml)
