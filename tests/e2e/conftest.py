@@ -138,57 +138,24 @@ def fixture_new_topic(admin_client: KafkaAdminClient) -> NewTopic:
 
 
 @pytest.fixture(scope="session")
-def oidc_provider_name() -> str:
-    provider = (os.environ.get("OIDC_PROVIDER") or "keycloak").strip().lower()
-    if provider in {"pingfederate", "pingidentity"}:
-        return "pingfederate"
-    return "keycloak"
+def oidc_token():
+    # --- Step 1: Get admin token ---
+    admin_token = get_admin_token()
 
+    # --- Step 2: Get client UUID ---
+    realm = "karapace"
+    client_id = "karapace-client"
+    client_uuid = get_client_uuid(realm, client_id, admin_token)
 
-def _env_bool(name: str, default: bool) -> bool:
-    value = os.environ.get(name)
-    if value is None or value.strip() == "":
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    # --- Step 3: Get client secret ---
+    client_secret = get_client_secret(realm, client_uuid, admin_token)
 
-
-def _get_keycloak_oidc_token() -> str:
-    admin_token = get_keycloak_admin_token()
-    realm = os.environ.get("OIDC_REALM") or "karapace"
-    client_id = os.environ.get("OIDC_CLIENT_ID") or "karapace-client"
-    client_uuid = get_keycloak_client_uuid(realm, client_id, admin_token)
-    client_secret = os.environ.get("OIDC_CLIENT_SECRET") or get_keycloak_client_secret(realm, client_uuid, admin_token)
-    token_url = os.environ.get("OIDC_TOKEN_URL") or f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "scope": os.environ.get("OIDC_SCOPE") or "openid",
-    }
-    response = requests.post(token_url, data=data, timeout=30)
+    # --- Step 4: Get OIDC token for the client ---
+    token_url = f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": "openid"}
+    response = requests.post(token_url, data=data)
     response.raise_for_status()
     return response.json()["access_token"]
-
-
-def _get_pingfederate_oidc_token() -> str:
-    token_url = os.environ.get("OIDC_TOKEN_URL") or "https://pingfederate:9031/as/token.oauth2"
-    client_secret = os.environ.get("OIDC_CLIENT_SECRET") or "karapace-secret"
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": os.environ.get("OIDC_CLIENT_ID") or "karapace-client",
-        "client_secret": client_secret,
-        "scope": os.environ.get("OIDC_SCOPE") or "openid",
-    }
-    response = requests.post(token_url, data=data, verify=_env_bool("OIDC_VERIFY_TLS", False), timeout=30)
-    response.raise_for_status()
-    return response.json()["access_token"]
-
-
-@pytest.fixture(scope="session")
-def oidc_token(oidc_provider_name: str) -> str:
-    if oidc_provider_name == "pingfederate":
-        return _get_pingfederate_oidc_token()
-    return _get_keycloak_oidc_token()
 
 
 @pytest.fixture(scope="function", name="registry_async_client_oidc")
@@ -446,7 +413,7 @@ class TokenProvider:
 
 
 # --- Helper functions for Keycloak admin API ---
-def get_keycloak_admin_token():
+def get_admin_token():
     url = "http://keycloak:8080/realms/master/protocol/openid-connect/token"
     data = {
         "grant_type": "password",
@@ -454,23 +421,23 @@ def get_keycloak_admin_token():
         "username": os.environ.get("KEYCLOAK_ADMIN", "admin"),
         "password": os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin"),
     }
-    resp = requests.post(url, data=data, timeout=30)
+    resp = requests.post(url, data=data)
     resp.raise_for_status()
     return resp.json()["access_token"]
 
 
-def get_keycloak_client_uuid(realm, client_id, admin_token):
+def get_client_uuid(realm, client_id, admin_token):
     url = f"http://keycloak:8080/admin/realms/{realm}/clients?clientId={client_id}"
     headers = {"Authorization": f"Bearer {admin_token}"}
-    resp = requests.get(url, headers=headers, timeout=30)
+    resp = requests.get(url, headers=headers)
     resp.raise_for_status()
     clients = resp.json()
     return clients[0]["id"]
 
 
-def get_keycloak_client_secret(realm, client_uuid, admin_token):
+def get_client_secret(realm, client_uuid, admin_token):
     url = f"http://keycloak:8080/admin/realms/{realm}/clients/{client_uuid}/client-secret"
     headers = {"Authorization": f"Bearer {admin_token}"}
-    resp = requests.get(url, headers=headers, timeout=30)
+    resp = requests.get(url, headers=headers)
     resp.raise_for_status()
     return resp.json()["value"]

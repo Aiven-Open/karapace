@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 retries=5
-chmod +x /opt/karapace/bin/oidc/get_oidc_token.py
-token=$(/opt/karapace/bin/oidc/get_oidc_token.py)
+chmod +x /opt/karapace/bin/get_oidc_token.py
+token=$(/opt/karapace/bin/get_oidc_token.py)
 
 for ((i = 0; i <= retries; i++)); do
     response=$(
