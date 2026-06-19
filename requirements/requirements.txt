@@ -267,7 +267,7 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
-ujson==5.12.0
+ujson==5.13.0
     # via karapace (/karapace/pyproject.toml)
 urllib3==2.6.3
     # via
