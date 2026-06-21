@@ -28,8 +28,6 @@ from karapace.core.protobuf.type_tree import SourceFileReference, TypeTree
 from karapace.core.protobuf.utils import append_documentation, append_indented
 from karapace.core.schema_references import Reference
 
-import binascii
-
 
 def add_slashes(text: str) -> str:
     escape_dict = {
@@ -184,7 +182,8 @@ class ProtobufSchema:
         else:
             try:
                 self.proto_file_element = deserialize(schema)
-            except binascii.Error:  # If not base64 formatted
+            # binascii.Error (bad b64) and plain ValueError (non-ASCII) both mean "not base64"; DecodeError propagates
+            except ValueError:
                 self.proto_file_element = ProtoParser.parse(DEFAULT_LOCATION, schema)
 
         self.references = references
