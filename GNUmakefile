@@ -104,7 +104,6 @@ cleanest: cleaner
 
 .PHONY: requirements
 requirements:
-requirements:
 	$(PIP) install --upgrade pip setuptools pip-tools
 	$(PIP) install .[dev,typing]
 
@@ -117,7 +116,6 @@ stop-karapace-docker-resources:
 	$(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
 
 .PHONY: start-karapace-docker-resources
-start-karapace-docker-resources:
 start-karapace-docker-resources:
 	touch .coverage.${PYTHON_VERSION} || sudo touch .coverage.${PYTHON_VERSION}
 	chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION} 2>/dev/null || sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION}

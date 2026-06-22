@@ -155,8 +155,6 @@ async def test_schema_registry_oidc_authn_only_skip_paths(
 
 # Pins the OIDC-side 404 body shape; full forbidden-vs-missing parity is
 # exercised in tests/integration/test_schema_registry_auth.py.
-
-
 async def test_schema_registry_oidc_missing_subject_returns_canonical_404(
     registry_async_client_oidc: Client,
 ) -> None:

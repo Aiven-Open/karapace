@@ -2,6 +2,10 @@
 """
 Copyright (c) 2025 Aiven Ltd
 See LICENSE for details
+
+Fetches an OIDC access token from the local Keycloak container for use
+against the Schema Registry. Used by bin/smoke-test-schema-registry.sh
+and can be run ad-hoc by developers to grab a token for CLI/API calls.
 """
 
 import os
