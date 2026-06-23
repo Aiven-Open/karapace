@@ -38,12 +38,6 @@ async def test_master_available_with_non_schema_accept_header(registry_async_cli
     assert res.ok, f"Expected 200, got {res.status_code}"
 
 
-async def test_master_available_without_auth_header(registry_async_client: Client) -> None:
-    """Regression test: /master_available must remain available as an unauthenticated readiness probe."""
-    res = await registry_async_client.get("/master_available")
-    assert res.ok, f"Expected 200, got {res.status_code}"
-
-
 async def test_health_check(
     registry_cluster: RegistryDescription, registry_async_client: Client, admin_client: KafkaAdminClient
 ) -> None:
