@@ -254,7 +254,7 @@ async def test_schema_reader_skips_empty_message_and_advances_offset(
     future = producer.send(topic_name, key=None, value=None)
     producer.flush()
     empty_msg = future.result()
-    empty_offset = empty_msg.offset()
+    empty_offset = empty_msg.offset() or 0
 
     config = Config()
     config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
@@ -375,5 +375,93 @@ async def test_key_format_detection(
             await _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
 
         assert key_formatter.get_keymode() == testcase.expected
+    finally:
+        await master_coordinator.close()
+
+
+async def test_schema_topic_existence_check_skips_creation_when_exists(
+    kafka_servers: KafkaServers,
+    admin_client: KafkaAdminClient,
+) -> None:
+    """Schema reader should not attempt to create schema topic if it already exists."""
+    test_name = "test_schema_topic_existence_check_skips_creation_when_exists"
+
+    # topic is created outside of karapace here
+    topic_name = new_topic(admin_client)
+    group_id = create_group_name_factory(test_name)()
+    stats_mock = Mock(spec=StatsClient)
+
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age = 2
+    config.group_id = group_id
+
+    # use the created topic name
+    config.topic_name = topic_name
+
+    master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
+    try:
+        master_coordinator.start()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=KeyFormatter(),
+            master_coordinator=master_coordinator,
+            database=database,
+            stats=stats_mock,
+        )
+        schema_reader.start()
+
+        with closing(schema_reader):
+            await _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
+
+            assert not schema_reader._karapace_created_schema_topic, "ensure schema_reader did not create the schema topic"
+    finally:
+        await master_coordinator.close()
+
+
+async def test_schema_topic_existence_check_attempts_creation(
+    kafka_servers: KafkaServers,
+    admin_client: KafkaAdminClient,
+) -> None:
+    """Schema reader should attempt to create schema topic if not present."""
+    test_name = "test_schema_topic_existence_check_attempts_creation"
+
+    # randomized_name
+    topic_name = new_random_name("schema_topic")
+    group_id = create_group_name_factory(test_name)()
+    stats_mock = Mock(spec=StatsClient)
+
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age = 2
+    config.group_id = group_id
+
+    # use the created topic name
+    config.topic_name = topic_name
+
+    master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
+    try:
+        master_coordinator.start()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=KeyFormatter(),
+            master_coordinator=master_coordinator,
+            database=database,
+            stats=stats_mock,
+        )
+        schema_reader.start()
+
+        with closing(schema_reader):
+            await _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader)
+
+            assert schema_reader._karapace_created_schema_topic, "ensure schema_reader created the schema topic"
     finally:
         await master_coordinator.close()

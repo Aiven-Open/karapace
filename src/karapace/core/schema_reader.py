@@ -160,6 +160,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.kafka_error_handler: KafkaErrorHandler = KafkaErrorHandler(config=config)
         self._tracer = Tracer()
 
+        # indicate whether karapace created the schema_topic
+        self._karapace_created_schema_topic: bool = False
+
         # Thread synchronization objects
         # - offset is used by the REST API to wait until this thread has
         # consumed the produced messages. This makes the REST APIs more
@@ -237,7 +240,17 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
             assert self.consumer is not None
 
-            schema_topic_exists = False
+            # Perform a metadata list, which is allowed in a describe permission, whereas
+            # topic-create permissions are a coarser permission grant, not typically given out
+            #
+            # check if schema topic is already created, if not try to create it
+            try:
+                schema_topic_exists = self.config.topic_name in self.admin_client.list_topics().topics.keys()
+            except Exception:
+                schema_topic_exists = False
+                LOG.warning(
+                    "[Schema Topic] not authorized to list topics, assuming topic: %r does not exist", self.config.topic_name
+                )
             while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
                     LOG.debug("[Schema Topic] Creating %r", self.config.topic_name)
@@ -248,6 +261,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                         config={"cleanup.policy": "compact"},
                     )
                     LOG.debug("[Schema Topic] Successfully created %r", topic.topic)
+                    self._karapace_created_schema_topic = True
                     schema_topic_exists = True
                 except TopicAlreadyExistsError:
                     LOG.warning("[Schema Topic] Already exists %r", self.config.topic_name)
@@ -346,7 +360,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         except KafkaTimeoutError:
             LOG.warning("Reading begin offsets timed out.")
         except UnknownTopicOrPartitionError:
-            LOG.warning("Topic does not yet exist.")
+            LOG.warning("Topic: %r does not yet exist.", self.config.topic_name)
         except (LeaderNotAvailableError, NotLeaderForPartitionError):
             LOG.warning("Retrying to find leader for schema topic partition.")
         except Exception as e:
