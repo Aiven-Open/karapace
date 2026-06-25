@@ -74,6 +74,15 @@ def _deserialize_enum(enumtype: Any) -> EnumElement:
     return EnumElement(DEFAULT_LOCATION, enumtype.name, "", None, constants)
 
 
+def _deserialize_message_options(options: Any) -> list[OptionElement]:
+    result: list[OptionElement] = []
+    if options.HasField("map_entry") and options.map_entry:
+        result.append(OptionElement("map_entry", OptionElement.Kind.BOOLEAN, True))
+    if options.HasField("deprecated") and options.deprecated:
+        result.append(OptionElement("deprecated", OptionElement.Kind.BOOLEAN, True))
+    return result
+
+
 def _deserialize_msg(msgtype: Any) -> MessageElement:
     reserved_values: list[str | int | KotlinRange] = []
     reserveds: list[ReservedElement] = []
@@ -112,6 +121,7 @@ def _deserialize_msg(msgtype: Any) -> MessageElement:
             fields.append(sf)
 
     one_ofs_filtered: list[OneOfElement] = [oneof for oneof in one_ofs if oneof is not None]
+    message_options = _deserialize_message_options(msgtype.options)
     return MessageElement(
         DEFAULT_LOCATION,
         msgtype.name,
@@ -119,6 +129,7 @@ def _deserialize_msg(msgtype: Any) -> MessageElement:
         reserveds=reserveds,
         fields=fields,
         one_ofs=one_ofs_filtered,
+        options=message_options or None,
     )
 
 
@@ -282,6 +293,11 @@ def _serialize_msgtype(t: MessageElement) -> google.protobuf.descriptor_pb2.Desc
             sf = _serialize_field(field)
             sf.oneof_index = oneof_index
             d.field.append(sf)
+    for opt in t.options:
+        if opt.name == "map_entry":
+            d.options.map_entry = opt.value is True or opt.value == "true"
+        elif opt.name == "deprecated":
+            d.options.deprecated = opt.value is True or opt.value == "true"
     return d
 
 

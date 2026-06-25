@@ -816,7 +816,12 @@ Karapace uses a schema normalization algorithm to ensure that the schema is stor
 This normalization process is done so that schemas semantically equivalent are stored in the same way and should be considered equal.
 
 Normalization is currently only supported for Protobuf schemas. Karapace does not support all normalization features implemented by Confluent Schema Registry.
-Currently the normalization process is done only for the ordering of the optional fields in the schema.
+Currently the normalization process covers:
+
+- Ordering of optional fields in the schema.
+- Restoration of map field shorthand: binary-registered schemas that contain the expanded entry-message
+  form (a ``repeated`` field pointing to a synthetic nested message with ``option map_entry = true``)
+  are converted back to ``map<K, V>`` syntax, matching Confluent Schema Registry behaviour.
 Use the feature with the assumption that it will be extended in the future and so two schemas that are semantically equivalent could be considered
 different by the normalization process in different future versions of Karapace.
 The safe choice, when using a normalization process, is always to consider as different two schemas that are semantically equivalent while the problem is when two semantically different schemas are considered equivalent.
