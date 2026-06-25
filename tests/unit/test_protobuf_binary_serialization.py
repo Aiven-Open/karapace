@@ -139,12 +139,14 @@ def test_simple_schema_serialize(schema):
     assert schema.strip() == ProtobufSchema("", None, None, proto_file_element=deserialize(serialized)).to_schema().strip()
 
 
-# Binary descriptor for:
+# Binary FileDescriptorProto produced by google.protobuf.descriptor_pb2 from:
 #   syntax = "proto3";
 #   message MapMessage {
 #     map<string, string> labels = 1;
 #   }
-# Produced by google.protobuf.descriptor_pb2 — contains 3a 02 38 01 (options { map_entry: true })
+# The binary does NOT contain map<> shorthand — protoc always compiles map<K,V> to the
+# expanded entry-message form: a repeated field plus a synthetic LabelsEntry nested
+# message with options { map_entry: true } (wire bytes 3a 02 38 01 at offset 98).
 _MAP_ENTRY_BIN = "ImQKCk1hcE1lc3NhZ2USJwoGbGFiZWxzGAEgAygLMhcuTWFwTWVzc2FnZS5MYWJlbHNFbnRyeRotCgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBYgZwcm90bzM="
 
 
