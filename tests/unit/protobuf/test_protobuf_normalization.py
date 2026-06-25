@@ -1064,3 +1064,126 @@ def test_full_path_and_simple_names_are_not_equal_if_simple_name_is_not_unique_w
     assert (
         normalized_schema.schema == schema.schema
     ), "Since the simple name is not unique identifying the type isn't replacing the source"
+
+
+# ---------------------------------------------------------------------------
+# map<K,V> shorthand restoration on normalisation
+# ---------------------------------------------------------------------------
+
+# The explicit expanded form — as written in source text or as returned by
+# Karapace (patched) after binary registration without ?normalize=true.
+_MAP_ENTRY_EXPLICIT_PROTO = """\
+syntax = "proto3";
+
+message MapMessage {
+  repeated .MapMessage.LabelsEntry labels = 1;
+
+  message LabelsEntry {
+    option map_entry = true;
+
+    string key = 1;
+    string value = 2;
+  }
+}
+"""
+
+# Pre-compiled binary FileDescriptorProto produced by protoc from the map<string,string>
+# source above.  The binary does NOT contain map<> shorthand — protoc always compiles map<K,V>
+# to the expanded entry-message form: a repeated field plus a synthetic LabelsEntry nested
+# message with options { map_entry: true } (wire bytes 3a 02 38 01 at offset 98).
+_MAP_ENTRY_BIN = (
+    "ImQKCk1hcE1lc3NhZ2USJwoGbGFiZWxzGAEgAygLMhcuTWFwTWVzc2FnZS5MYWJlbHNFbnRyeRot"
+    "CgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBYgZwcm90bzM="
+)
+
+_MAP_SHORTHAND_NORMALISED = """\
+syntax = "proto3";
+
+message MapMessage {
+  map<string, string> labels = 1;
+}
+"""
+
+
+def test_normalize_converts_explicit_map_entry_to_map_shorthand() -> None:
+    """option map_entry = true in text source is converted to map<> shorthand on normalisation."""
+    result = parse_protobuf_schema_definition(
+        schema_definition=_MAP_ENTRY_EXPLICIT_PROTO,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
+    assert result.to_schema().strip() == _MAP_SHORTHAND_NORMALISED.strip()
+
+
+def test_normalize_converts_binary_map_field_to_map_shorthand() -> None:
+    """Binary-registered schema with map<string,string>: normalisation converts to map<> shorthand."""
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    pfe = deserialize(_MAP_ENTRY_BIN)
+    schema = ProtobufSchema("", None, None, proto_file_element=pfe)
+    result = normalize(schema)
+    assert result.to_schema().strip() == _MAP_SHORTHAND_NORMALISED.strip()
+
+
+def test_normalize_map_is_idempotent() -> None:
+    """Normalising a schema that already uses map<> shorthand syntax leaves it unchanged."""
+    shorthand_proto = 'syntax = "proto3";\n\nmessage MapMessage {\n  map<string, string> labels = 1;\n}\n'
+    result = parse_protobuf_schema_definition(
+        schema_definition=shorthand_proto,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
+    assert result.to_schema().strip() == shorthand_proto.strip()
+
+
+# Binary FileDescriptorProto produced by google.protobuf.descriptor_pb2 from:
+#   syntax = "proto3";
+#   message Mixed {
+#     string name = 1;
+#     map<string, string> labels = 2;
+#     int32 count = 3;
+#   }
+# The binary contains the expanded entry-message form with options { map_entry: true }
+# at byte offset 117.  Used to verify that shorthand restoration preserves field order.
+_MIXED_FIELDS_BIN = (
+    "IncKBU1peGVkEgwKBG5hbWUYASABKAkSIgoGbGFiZWxzGAIgAygLMhIuTWl4ZWQuTGFiZWxzRW50"
+    "cnkSDQoFY291bnQYAyABKAUaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIg"
+    "ASgJOgI4AWIGcHJvdG8z"
+)
+
+
+def test_normalize_map_field_order_when_map_is_in_the_middle() -> None:
+    """map<> field between two regular fields keeps its position after shorthand restoration.
+
+    Input (binary, expanded form):
+      message Mixed {
+        string name = 1;
+        repeated .Mixed.LabelsEntry labels = 2;
+        int32 count = 3;
+        message LabelsEntry { option map_entry = true; string key = 1; string value = 2; }
+      }
+    Expected after normalize:
+      message Mixed {
+        string name = 1;
+        map<string, string> labels = 2;
+        int32 count = 3;
+      }
+    """
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    pfe = deserialize(_MIXED_FIELDS_BIN)
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<string, string>" in result, "map field not converted to shorthand"
+    assert "LabelsEntry" not in result, "synthetic entry message not suppressed"
+    assert result.index("name") < result.index("labels") < result.index("count"), (
+        f"field order wrong:\n{result}"
+    )

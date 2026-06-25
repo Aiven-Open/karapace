@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from karapace.core.protobuf.enum_constant_element import EnumConstantElement
 from karapace.core.protobuf.enum_element import EnumElement
 from karapace.core.protobuf.extend_element import ExtendElement
+from karapace.core.protobuf.field import Field
 from karapace.core.protobuf.field_element import FieldElement
 from karapace.core.protobuf.group_element import GroupElement
 from karapace.core.protobuf.known_dependency import KnownDependency
@@ -27,6 +28,60 @@ import abc
 
 def sort_by_name(element: OptionElement) -> str:
     return element.name
+
+
+def _is_map_entry(message: MessageElement) -> bool:
+    """Return True if this message has option map_entry = true."""
+    return any(opt.name == "map_entry" and (opt.value is True or opt.value == "true") for opt in message.options)
+
+
+def _restore_map_shorthand(
+    message_element: MessageElement,
+) -> tuple[list[FieldElement], list[TypeElement]]:
+    """Convert binary-deserialized map fields back to map<K,V> shorthand syntax during normalisation.
+
+    A binary FileDescriptorProto expands map<K,V> into a synthetic nested entry
+    message (with option map_entry = true) plus a repeated field pointing to it.
+    This function replaces the repeated field with a map<K,V> field and removes the
+    synthetic entry message, matching Confluent SR's ?normalize=true behaviour.
+    """
+    entry_messages: dict[str, MessageElement] = {
+        nt.name: nt
+        for nt in message_element.nested_types
+        if isinstance(nt, MessageElement) and _is_map_entry(nt)
+    }
+    if not entry_messages:
+        return list(message_element.fields), list(message_element.nested_types)
+
+    new_fields: list[FieldElement] = []
+    for field in message_element.fields:
+        entry_name = field.element_type.split(".")[-1]
+        entry = entry_messages.get(entry_name)
+        if entry is not None and field.label == Field.Label.REPEATED:
+            entry_fields = {f.name: f for f in entry.fields}
+            key_field = entry_fields.get("key")
+            value_field = entry_fields.get("value")
+            if key_field is not None and value_field is not None:
+                new_fields.append(
+                    NormalizedFieldElement(
+                        location=field.location,
+                        label=None,  # map fields carry no label in .proto syntax
+                        element_type=f"map<{key_field.element_type}, {value_field.element_type}>",
+                        name=field.name,
+                        default_value=field.default_value,
+                        json_name=field.json_name,
+                        tag=field.tag,
+                        documentation=field.documentation,
+                        options=field.options,
+                    )
+                )
+                continue
+        new_fields.append(field)
+
+    new_nested_types: list[TypeElement] = [
+        nt for nt in message_element.nested_types if not (isinstance(nt, MessageElement) and nt.name in entry_messages)
+    ]
+    return new_fields, new_nested_types
 
 
 class NormalizedRpcElement(RpcElement):
@@ -178,10 +233,13 @@ def message_element_with_sorted_options(
     message_element: MessageElement, package: str, type_tree: TypeTree
 ) -> NormalizedMessageElement:
     sorted_options = None if message_element.options is None else list(sorted(message_element.options, key=sort_by_name))
+
+    shorthand_fields, shorthand_nested_types = _restore_map_shorthand(message_element)
+
     sorted_nested_types = [
-        type_element_with_sorted_options(nested_type, package, type_tree) for nested_type in message_element.nested_types
+        type_element_with_sorted_options(nested_type, package, type_tree) for nested_type in shorthand_nested_types
     ]
-    sorted_fields = [normalize_type_field_element(field, package, type_tree) for field in message_element.fields]
+    sorted_fields = [normalize_type_field_element(field, package, type_tree) for field in shorthand_fields]
     sorted_one_ofs = [one_ofs_with_sorted_options(one_of, package, type_tree) for one_of in message_element.one_ofs]
 
     return NormalizedMessageElement(
