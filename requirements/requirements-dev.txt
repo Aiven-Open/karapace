@@ -294,7 +294,7 @@ python-multipart==0.0.22
     # via fastapi
 python-snappy==0.7.3
     # via karapace (/karapace/pyproject.toml)
-python-socketio[client]==5.16.1
+python-socketio[client]==5.16.2
     # via locust
 pyyaml==6.0.3
     # via uvicorn
