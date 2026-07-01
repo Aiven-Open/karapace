@@ -146,7 +146,7 @@ idna==3.11
     #   httpx
     #   requests
     #   yarl
-importlib-metadata==8.7.1
+importlib-metadata==9.0.0
     # via opentelemetry-api
 iniconfig==2.3.0
     # via pytest
