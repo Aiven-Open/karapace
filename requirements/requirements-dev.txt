@@ -286,7 +286,7 @@ python-dotenv==1.2.2
     # via
     #   pydantic-settings
     #   uvicorn
-python-engineio==4.13.1
+python-engineio==4.13.3
     # via
     #   locust
     #   python-socketio
