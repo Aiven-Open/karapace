@@ -139,21 +139,31 @@ def fixture_new_topic(admin_client: KafkaAdminClient) -> NewTopic:
 
 @pytest.fixture(scope="session")
 def oidc_token():
-    # --- Step 1: Get admin token ---
-    admin_token = get_admin_token()
+    provider = os.environ.get("OIDC_PROVIDER", "keycloak").strip().lower()
+    known_providers = ("keycloak", "pingfederate", "entra")
+    if provider not in known_providers:
+        raise ValueError(f"Unknown OIDC_PROVIDER={provider!r}; expected one of {', '.join(known_providers)}")
+    client_id = os.environ.get("OIDC_CLIENT_ID", "karapace-client")
+    scope = os.environ.get("OIDC_SCOPE", "openid")
 
-    # --- Step 2: Get client UUID ---
-    realm = "karapace"
-    client_id = "karapace-client"
-    client_uuid = get_client_uuid(realm, client_id, admin_token)
+    if provider == "keycloak":
+        realm = os.environ.get("OIDC_REALM", "karapace")
+        admin_token = get_admin_token()
+        client_uuid = get_client_uuid(realm, client_id, admin_token)
+        client_secret = os.environ.get("OIDC_CLIENT_SECRET") or get_client_secret(realm, client_uuid, admin_token)
+        token_url = os.environ.get("OIDC_TOKEN_URL") or (
+            f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
+        )
+        verify_tls = True
+    else:
+        token_url = os.environ.get("OIDC_TOKEN_URL")
+        client_secret = os.environ.get("OIDC_CLIENT_SECRET")
+        if not token_url or not client_secret:
+            pytest.skip(f"OIDC_PROVIDER={provider} requires OIDC_TOKEN_URL and OIDC_CLIENT_SECRET")
+        verify_tls = os.environ.get("OIDC_VERIFY_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
 
-    # --- Step 3: Get client secret ---
-    client_secret = get_client_secret(realm, client_uuid, admin_token)
-
-    # --- Step 4: Get OIDC token for the client ---
-    token_url = f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
-    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": "openid"}
-    response = requests.post(token_url, data=data)
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": scope}
+    response = requests.post(token_url, data=data, verify=verify_tls)
     response.raise_for_status()
     return response.json()["access_token"]
 
