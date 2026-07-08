@@ -95,7 +95,7 @@ services:
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
       KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
-      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["karapace.schema:read", "karapace.subject:read"], "POST": ["karapace.schema:write", "karapace.subject:write"], "PUT": ["karapace.config_subject:update","karapace.config_global:update"], "DELETE": ["karapace.schema:delete", "karapace.subject:delete"]}'
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   karapace-schema-registry-follower:
@@ -155,7 +155,7 @@ services:
       KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
       KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
-      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["karapace.schema:read", "karapace.subject:read"], "POST": ["karapace.schema:write", "karapace.subject:write"], "PUT": ["karapace.config_subject:update","karapace.config_global:update"], "DELETE": ["karapace.schema:delete", "karapace.subject:delete"]}'
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   # OIDC authentication only (no role-based authorization).

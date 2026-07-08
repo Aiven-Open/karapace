@@ -11,7 +11,12 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Literal
 
-from karapace.core.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
+from karapace.core.constants import (
+    DEFAULT_AIOHTTP_CLIENT_MAX_SIZE,
+    DEFAULT_OIDC_METHOD_ROLES,
+    DEFAULT_PRODUCER_MAX_REQUEST,
+    DEFAULT_SCHEMA_TOPIC,
+)
 from karapace.core.typing import ElectionStrategy, NameStrategy
 from karapace.core.utils import json_encode
 from pathlib import Path
@@ -144,7 +149,9 @@ class Config(BaseSettings):
     sasl_oauthbearer_expected_audience: str | None = None
     sasl_oauthbearer_sub_claim_name: str | None = "sub"
     sasl_oauthbearer_roles_claim_path: str | None = None
-    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+    sasl_oauthbearer_method_roles: dict[str, list[str]] = Field(
+        default_factory=lambda: {method: list(roles) for method, roles in DEFAULT_OIDC_METHOD_ROLES.items()}
+    )
     sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics", "/master_available"]
     # Clock-skew tolerance for exp/nbf/iat (seconds). 0 preserves prior strict behavior.
     sasl_oauthbearer_leeway_seconds: int = Field(default=0, ge=0)

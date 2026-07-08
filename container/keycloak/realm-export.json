@@ -66,14 +66,14 @@
       "serviceAccountClientId": "karapace-client",
       "clientRoles": {
         "karapace-client": [
-          "schema:read",
-          "schema:write",
-          "schema:delete",
-          "subject:read",
-          "subject:write",
-          "subject:delete",
-          "config_subject:update",
-          "config_global:update"
+          "karapace.schema:read",
+          "karapace.schema:write",
+          "karapace.schema:delete",
+          "karapace.subject:read",
+          "karapace.subject:write",
+          "karapace.subject:delete",
+          "karapace.config_subject:update",
+          "karapace.config_global:update"
         ]
       }
     }
@@ -91,7 +91,7 @@
     "client": {
       "karapace-client": [
         {
-          "name": "schema:read",
+          "name": "karapace.schema:read",
           "description": "Read access to schemas",
           "composite": false,
           "clientRole": true,
@@ -99,7 +99,7 @@
           "attributes": {}
         },
         {
-          "name": "schema:write",
+          "name": "karapace.schema:write",
           "description": "Write access to schemas",
           "composite": false,
           "clientRole": true,
@@ -107,7 +107,7 @@
           "attributes": {}
         },
         {
-          "name": "subject:read",
+          "name": "karapace.subject:read",
           "description": "Read access to subjects",
           "composite": false,
           "clientRole": true,
@@ -115,14 +115,14 @@
           "attributes": {}
         },
         {
-          "name": "subject:write",
+          "name": "karapace.subject:write",
           "description": "Write access to subjects",
           "composite": false,
           "clientRole": true,
           "containerId": "karapace-client",
           "attributes": {}
         },{
-          "name": "subject:delete",
+          "name": "karapace.subject:delete",
           "description": "Delete access to subjects",
           "composite": false,
           "clientRole": true,
@@ -130,7 +130,7 @@
           "attributes": {}
         },
         {
-          "name": "schema:delete",
+          "name": "karapace.schema:delete",
           "description": "Delete access to schemas",
           "composite": false,
           "clientRole": true,
@@ -138,7 +138,7 @@
           "attributes": {}
         },
         {
-          "name": "config_subject:update",
+          "name": "karapace.config_subject:update",
           "description": "Update configs to subjects, like compatibility",
           "composite": false,
           "clientRole": true,
@@ -146,7 +146,7 @@
           "attributes": {}
         },
         {
-          "name": "config_global:update",
+          "name": "karapace.config_global:update",
           "description": "Update configs to global, like compatibility",
           "composite": false,
           "clientRole": true,

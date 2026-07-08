@@ -62,6 +62,13 @@ After validation, only the configured subject claim (`claim_name`, default `"sub
 
 Missing it → `ValueError` at startup (fail-closed).
 
+### Canonical role names — `src/karapace/core/constants.py`
+Role strings are prefixed `karapace.` (e.g. `karapace.schema:read`) and defined as `OIDC_ROLE_*`
+constants. `DEFAULT_OIDC_METHOD_ROLES` maps HTTP methods to them and is the config default for
+`sasl_oauthbearer_method_roles`. These must match the roles the IdP mints into tokens — the
+reference Keycloak realm (`container/keycloak/realm-export.json`) defines the same set. Change
+role names in the constants module, keep the realm export and `container/compose.yml` in sync.
+
 ### Backwards-compat shim — `Config._enforce_authn_when_authz_enabled`
 If `sasl_oauthbearer_authorization_enabled=true` but `sasl_oauthbearer_authentication_enabled=false`, we auto-enable authn and log a deprecation warning. Authz without authn is meaningless; the prior single-flag config is preserved with a warning so operators migrate.
 
@@ -190,7 +197,7 @@ return http_authorizer if config.registry_authfile else no_auth_authorizer
 | `sasl_oauthbearer_expected_audience` | `None` | Comma-separated list; required when JWKS is set |
 | `sasl_oauthbearer_sub_claim_name` | `"sub"` | Claim to expose as `request.state.user` |
 | `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT; required for authz |
-| `sasl_oauthbearer_method_roles` | `{GET/POST/PUT/DELETE: []}` | Per-method allowed roles |
+| `sasl_oauthbearer_method_roles` | `DEFAULT_OIDC_METHOD_ROLES` (the `karapace.*` roles) | Per-method allowed roles |
 | `sasl_oauthbearer_skip_auth_paths` | `["/_health","/metrics"]` | Bypass paths |
 | `sasl_oauthbearer_leeway_seconds` | `0` | Clock-skew tolerance for `exp`/`nbf`/`iat` (must be >= 0) |
 | `sasl_oauthbearer_require_access_token_typ` | `False` | Require header `typ: at+jwt` (or `application/at+jwt`) |

@@ -140,7 +140,8 @@ To enable oidc authorization on karapace, configure the below params together wi
 
    sasl_oauthbearer_authorization_enabled: bool = False
    sasl_oauthbearer_roles_claim_path: str | None = None
-   sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+   # Defaults to the karapace.* roles shown in the example below; override per deployment.
+   sasl_oauthbearer_method_roles: dict[str, list[str]]
 
 Note: ``sasl_oauthbearer_authorization_enabled=true`` requires
 ``sasl_oauthbearer_authentication_enabled=true``. For backwards compatibility, enabling
@@ -713,7 +714,8 @@ Below here is an example of karapace OpenId connect config ::
    sasl_oauthbearer_authentication_enabled: bool = True
    sasl_oauthbearer_authorization_enabled: bool = False
    sasl_oauthbearer_roles_claim_path: str | None = None
-   sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
+   # Defaults to the karapace.* roles shown in the example below; override per deployment.
+   sasl_oauthbearer_method_roles: dict[str, list[str]]
 
 
 Below here is an example of karapace OpenId connect docker config ::
@@ -729,8 +731,8 @@ Below here is an example of karapace OpenId connect docker config ::
   KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: True
   KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
   KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
-  KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
-                                                           "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": []}
+  KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["karapace.schema:read", "karapace.subject:read"],
+                                                           "POST": ["karapace.schema:write", "karapace.subject:write"], "PUT": [], "DELETE": []}
 
 .. note::
    ``sasl_oauthbearer_client_id`` and ``sasl_oauthbearer_enforce_azp`` have been removed. The
