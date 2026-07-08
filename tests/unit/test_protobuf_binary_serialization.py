@@ -7,7 +7,6 @@ import pytest
 
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.protobuf.serialization import deserialize, serialize
-import google.protobuf.descriptor_pb2 as _pb2
 import base64
 from tests.schemas.protobuf import (
     schema_protobuf_complex,
@@ -174,6 +173,7 @@ def test_map_entry_option_only_on_entry_message():
     """map_entry=true must appear only on LabelsEntry, not on the outer MapMessage."""
     pfe = deserialize(_MAP_ENTRY_BIN)
     from karapace.core.protobuf.message_element import MessageElement
+
     messages = {t.name: t for t in pfe.types if isinstance(t, MessageElement)}
     outer = messages["MapMessage"]
     assert not any(o.name == "map_entry" for o in outer.options), "map_entry leaked onto outer message"

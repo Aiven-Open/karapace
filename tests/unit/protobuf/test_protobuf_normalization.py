@@ -1184,6 +1184,4 @@ def test_normalize_map_field_order_when_map_is_in_the_middle() -> None:
 
     assert "map<string, string>" in result, "map field not converted to shorthand"
     assert "LabelsEntry" not in result, "synthetic entry message not suppressed"
-    assert result.index("name") < result.index("labels") < result.index("count"), (
-        f"field order wrong:\n{result}"
-    )
+    assert result.index("name") < result.index("labels") < result.index("count"), f"field order wrong:\n{result}"

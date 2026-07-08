@@ -46,9 +46,7 @@ def _restore_map_shorthand(
     synthetic entry message, matching Confluent SR's ?normalize=true behaviour.
     """
     entry_messages: dict[str, MessageElement] = {
-        nt.name: nt
-        for nt in message_element.nested_types
-        if isinstance(nt, MessageElement) and _is_map_entry(nt)
+        nt.name: nt for nt in message_element.nested_types if isinstance(nt, MessageElement) and _is_map_entry(nt)
     }
     if not entry_messages:
         return list(message_element.fields), list(message_element.nested_types)
