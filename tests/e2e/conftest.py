@@ -158,10 +158,21 @@ def oidc_token():
     return response.json()["access_token"]
 
 
+# Full OIDC (authn + authz) SR — karapace-schema-registry-oidc, profile: e2e.
+
+
+@pytest.fixture(scope="function", name="registry_oidc_cluster")
+async def fixture_registry_oidc_cluster(
+    loop: asyncio.AbstractEventLoop,
+) -> RegistryDescription:
+    endpoint = RegistryEndpoint("https", "karapace-schema-registry-oidc", 8091)
+    return RegistryDescription(endpoint, "_schemas_oidc")
+
+
 @pytest.fixture(scope="function", name="registry_async_client_oidc")
 async def fixture_registry_async_client_oidc(
     request: SubRequest,
-    registry_cluster: RegistryDescription,
+    registry_oidc_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
     oidc_token,
 ) -> AsyncGenerator[Client, None]:
@@ -169,7 +180,7 @@ async def fixture_registry_async_client_oidc(
         return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
 
     client = Client(
-        server_uri=registry_cluster.endpoint.to_url(),
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
@@ -183,7 +194,7 @@ async def fixture_registry_async_client_oidc(
 @pytest.fixture(scope="function", name="registry_async_client_oidc_invalid")
 async def fixture_registry_async_client_oidc_invalid(
     request: SubRequest,
-    registry_cluster: RegistryDescription,
+    registry_oidc_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
     oidc_token,
 ) -> AsyncGenerator[Client, None]:
@@ -191,7 +202,7 @@ async def fixture_registry_async_client_oidc_invalid(
         return ClientSession(headers={"Authorization": "Bearer invalid_token"})
 
     client = Client(
-        server_uri=registry_cluster.endpoint.to_url(),
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
@@ -205,13 +216,13 @@ async def fixture_registry_async_client_oidc_invalid(
 @pytest.fixture(scope="function", name="registry_async_client_oidc_no_auth_header")
 async def registry_async_client_oidc_no_auth_header(
     request: SubRequest,
-    registry_cluster: RegistryDescription,
+    registry_oidc_cluster: RegistryDescription,
 ) -> AsyncGenerator[Client, None]:
     async def factory(auth):
         return ClientSession(headers={})
 
     client = Client(
-        server_uri=registry_cluster.endpoint.to_url(),
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
