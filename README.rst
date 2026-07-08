@@ -133,17 +133,12 @@ Optional hardening flags::
 
    sasl_oauthbearer_leeway_seconds: int = 0           # clock-skew tolerance for exp/nbf/iat (must be >= 0)
    sasl_oauthbearer_require_access_token_typ: bool = False  # require typ "at+jwt" header
-   sasl_oauthbearer_enforce_azp: bool = False         # require azp claim == client_id
-
-``sasl_oauthbearer_enforce_azp=true`` requires ``sasl_oauthbearer_client_id`` to be set;
-startup fails otherwise.
 
 There is a detailed section about OAuth2 authentication for karapace below.
 
 To enable oidc authorization on karapace, configure the below params together with the above ::
 
    sasl_oauthbearer_authorization_enabled: bool = False
-   sasl_oauthbearer_client_id: str | None = None
    sasl_oauthbearer_roles_claim_path: str | None = None
    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
 
@@ -717,7 +712,6 @@ Below here is an example of karapace OpenId connect config ::
 
    sasl_oauthbearer_authentication_enabled: bool = True
    sasl_oauthbearer_authorization_enabled: bool = False
-   sasl_oauthbearer_client_id: str | None = None
    sasl_oauthbearer_roles_claim_path: str | None = None
    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
 
@@ -734,10 +728,15 @@ Below here is an example of karapace OpenId connect docker config ::
 
   KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: True
   KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: True
-  KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace"
-  KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.[client_id].roles"
+  KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
   KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: dict[str, list[str]] = {"GET": ["schema:read", "subject:read"],
                                                            "POST": ["schema:write", "subject:write"], "PUT": [], "DELETE": []}
+
+.. note::
+   ``sasl_oauthbearer_client_id`` and ``sasl_oauthbearer_enforce_azp`` have been removed. The
+   ``azp`` claim is no longer validated. The ``[client_id]`` placeholder in
+   ``sasl_oauthbearer_roles_claim_path`` is no longer substituted — write the literal client id
+   into the path (e.g. ``resource_access.karapace-client.roles``).
 
 
 Production hardening notes

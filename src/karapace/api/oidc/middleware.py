@@ -37,12 +37,10 @@ class OIDCMiddleware:
         self.claim_name = config.sasl_oauthbearer_sub_claim_name
         self.authentication_enabled = config.sasl_oauthbearer_authentication_enabled
         self.authorization_enabled = config.sasl_oauthbearer_authorization_enabled
-        self.client_id = config.sasl_oauthbearer_client_id
         self.sasl_oauthbearer_method_roles: dict[str, list[str]] = config.sasl_oauthbearer_method_roles
         self.sasl_oauthbearer_roles_claim_path = config.sasl_oauthbearer_roles_claim_path
         self.leeway_seconds = config.sasl_oauthbearer_leeway_seconds
         self.require_access_token_typ = config.sasl_oauthbearer_require_access_token_typ
-        self.enforce_azp = config.sasl_oauthbearer_enforce_azp
         self.allow_insecure_jwks = config.sasl_oauthbearer_allow_insecure_jwks
 
         # Hardcoded default algorithms
@@ -66,8 +64,6 @@ class OIDCMiddleware:
                 raise ValueError(
                     "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
                 )
-            if self.enforce_azp and not self.client_id:
-                raise ValueError("OIDC config error: client_id is required when sasl_oauthbearer_enforce_azp is enabled.")
             log.info(
                 "OIDC middleware initialized — Bearer token validation enabled. jwks_url=%s issuer=%s audience=%s",
                 self.jwks_url,
@@ -89,10 +85,8 @@ class OIDCMiddleware:
 
             log.info("OIDC Authorization enabled: %s", self.authorization_enabled)
             if self.authorization_enabled:
-                if self.client_id is None or self.sasl_oauthbearer_roles_claim_path is None:
-                    raise ValueError(
-                        "OIDC config error: client_id and roles_claim_path are required when authorization is enabled."
-                    )
+                if self.sasl_oauthbearer_roles_claim_path is None:
+                    raise ValueError("OIDC config error: roles_claim_path is required when authorization is enabled.")
 
                 # Fail fast on incomplete ``method_roles`` rather than silently 403 at request time.
                 configured_methods = {m.upper() for m in self.sasl_oauthbearer_method_roles.keys()}
@@ -102,8 +96,7 @@ class OIDCMiddleware:
                         f"OIDC config error: method_roles is missing definitions for: {', '.join(sorted(missing_methods))}"
                     )
                 log.info(
-                    "OIDC Authorization configured. — client_id: %s, method_roles: %s, roles_claim_path: %s",
-                    self.client_id,
+                    "OIDC Authorization configured. — method_roles: %s, roles_claim_path: %s",
                     self.sasl_oauthbearer_method_roles,
                     self.sasl_oauthbearer_roles_claim_path,
                 )
@@ -125,7 +118,6 @@ class OIDCMiddleware:
         try:
             self._check_at_jwt_typ(token)
             payload = self._decode_and_verify(token)
-            self._check_azp(payload)
             return payload
         except ExpiredSignatureError:
             log.warning("JWT validation failed: token expired")
@@ -161,12 +153,6 @@ class OIDCMiddleware:
             options={"require": list(require)},
         )
 
-    def _check_azp(self, payload: dict) -> None:
-        if not self.enforce_azp:
-            return
-        if payload.get("azp") != self.client_id:
-            raise InvalidTokenError("azp claim does not match configured client_id")
-
     def authorize_request(self, payload: dict, request_method: str) -> bool:
         if not self.authorization_enabled:
             return True
@@ -175,13 +161,13 @@ class OIDCMiddleware:
         allowed_roles = self.sasl_oauthbearer_method_roles.get(request_method, [])
 
         # Dynamic role extraction based on configured path
-        if self.sasl_oauthbearer_roles_claim_path is not None and self.client_id is not None:
-            roles_claim_path = self.sasl_oauthbearer_roles_claim_path.replace("[client_id]", self.client_id)
+        if self.sasl_oauthbearer_roles_claim_path is not None:
+            roles_claim_path = self.sasl_oauthbearer_roles_claim_path
         else:
             # Same body as the role-mismatch branch below so an attacker cannot use the
             # response to distinguish a valid token with bad config from a token that
             # simply lacks the required role.
-            log.error("Authorization misconfigured: roles_claim_path or client_id is unset")
+            log.error("Authorization misconfigured: roles_claim_path is unset")
             raise HTTPException(status_code=403, detail="Forbidden")
 
         user_roles = self.get_roles_from_claim_path(payload, roles_claim_path)
