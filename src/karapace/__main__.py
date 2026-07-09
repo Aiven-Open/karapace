@@ -9,6 +9,7 @@ from karapace.api.telemetry.container import TelemetryContainer
 from karapace.core.auth_container import AuthContainer
 from karapace.core.config import ServerTLSClientAuth, get_client_auth_verify_mode
 from karapace.core.container import KarapaceContainer
+from karapace.core.logging_setup import configure_uvicorn_access_logging
 
 import karapace.api.controller
 import karapace.api.factory
@@ -96,6 +97,7 @@ if __name__ == "__main__":
     )
 
     config = karapace_container.config()
+    configure_uvicorn_access_logging(config=config)
     app = create_karapace_application(config=config, lifespan=karapace_schema_registry_lifespan)
 
     # Calculate SSL certificate requirements for uvicorn

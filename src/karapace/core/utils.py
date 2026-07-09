@@ -7,6 +7,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+from .access_logging import should_skip_access_log
 from .typing import ArgJsonData, JsonData
 from aiohttp.web_log import AccessLogger
 from aiohttp.web_request import BaseRequest
@@ -271,6 +272,18 @@ class DebugAccessLogger(AccessLogger):
             self.logger.debug(self._log_format % tuple(values), extra=extra)
         except Exception:
             self.logger.exception("Error in logging")
+
+
+class HealthSkippingDebugAccessLogger(DebugAccessLogger):
+    def log(
+        self,
+        request: BaseRequest,
+        response: StreamResponse,
+        time: float,
+    ) -> None:
+        if should_skip_access_log(path=request.path, suppress_health_access_logs=True):
+            return
+        super().log(request, response, time)
 
 
 def shutdown():
