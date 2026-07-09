@@ -823,6 +823,104 @@ The safe choice, when using a normalization process, is always to consider as di
 In that view the future extension of the normalization process isn't considered a breaking change but rather an extension of the normalization process.
 
 
+JSON Schema support
+===================
+
+Karapace supports registering schemas of type ``JSON`` (set ``"schemaType": "JSON"`` when registering). This section
+describes which JSON Schema drafts are supported, how compatibility is evaluated, current limitations, and guidance for
+migrating between drafts.
+
+Supported drafts and ``$schema`` URIs
+-------------------------------------
+
+Karapace validates every JSON Schema as **Draft-7**, regardless of the ``$schema`` value declared in the document. This
+matches the behaviour of Confluent Schema Registry, which also standardizes on Draft-7. The ``$schema`` keyword is
+currently **not used to select a validator** — it is accepted and stored as part of the schema, but does not change how
+the schema is validated or compared.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Draft
+     - ``$schema`` URI
+     - Status
+   * - draft-04
+     - ``http://json-schema.org/draft-04/schema#``
+     - Accepted, but validated as Draft-7 (unknown keywords ignored)
+   * - draft-06
+     - ``http://json-schema.org/draft-06/schema#``
+     - Accepted, but validated as Draft-7 (unknown keywords ignored)
+   * - draft-07
+     - ``http://json-schema.org/draft-07/schema#``
+     - Supported (native)
+   * - 2019-09
+     - ``https://json-schema.org/draft/2019-09/schema``
+     - Not yet natively supported; validated as Draft-7 (roadmap)
+   * - 2020-12
+     - ``https://json-schema.org/draft/2020-12/schema``
+     - Not yet natively supported; validated as Draft-7 (roadmap)
+
+Compatibility behavior
+----------------------
+
+Compatibility between schema versions is evaluated using the compatibility mode configured for the subject (or the
+global default). The supported modes are ``NONE``, ``BACKWARD``, ``BACKWARD_TRANSITIVE``, ``FORWARD``,
+``FORWARD_TRANSITIVE``, ``FULL`` and ``FULL_TRANSITIVE``. Transitive modes check the new schema against *all* previous
+versions; non-transitive modes only check against the latest one.
+
+For JSON Schema, compatibility is computed under Draft-7 semantics. The following keywords are taken into account when
+comparing versions: ``type``, ``properties``, ``required``, ``additionalProperties``, ``enum``, ``$ref``, the numeric
+bounds (``minimum``, ``maximum``, ``exclusiveMinimum``, ``exclusiveMaximum``, ``multipleOf``), the string constraints
+(``minLength``, ``maxLength``, ``pattern``), the array constraints (``items``, ``additionalItems``, ``minItems``,
+``maxItems``, ``uniqueItems``), the object-size constraints (``minProperties``, ``maxProperties``, ``propertyNames``,
+``patternProperties``) and the dependency keywords (``dependencies``, ``dependentSchemas``).
+
+Examples of backward-compatible evolutions (a new schema can read data written with the old one):
+
+* Adding an optional property to an open content model (``additionalProperties: true``)
+* Widening a numeric range (lowering ``minimum`` or raising ``maximum``)
+* Relaxing string constraints (lowering ``minLength``, raising ``maxLength``, removing ``pattern``)
+* Adding options to an ``enum``
+
+Examples of backward-**incompatible** evolutions:
+
+* Narrowing ``type`` (e.g. from ``number`` to ``integer``)
+* Adding or decreasing ``maxLength`` / ``maximum``
+* Removing options from an ``enum``
+* Removing a property from a closed content model (``additionalProperties: false``)
+* Tightening ``additionalProperties`` (from ``true`` to ``false``)
+* Adding a ``required`` property to a content model that is not open
+
+Forward compatibility applies the mirror of these rules, and full compatibility requires both directions.
+
+Limitations
+-----------
+
+Because all schemas are validated and compared as Draft-7, keywords introduced in later drafts are **not enforced with
+their intended semantics**. Such keywords are treated as unknown (and therefore ignored) or handled with Draft-7
+meaning. These include, among others: ``$defs`` (Draft-7 uses ``definitions``), keywords placed as siblings of
+``$ref``, ``prefixItems`` (2020-12 tuple validation), the ``dependentRequired`` / ``dependentSchemas`` split,
+``$recursiveRef`` / ``$dynamicRef``, and ``unevaluatedProperties`` / ``unevaluatedItems``. A schema using these will be
+accepted, but the newer-draft behaviour is not applied.
+
+There is no strict/lenient mode for JSON Schema validation or compatibility. (The ``kafka_schema_reader_strict_mode``
+configuration is unrelated — it controls error handling when reading the internal ``_schemas`` topic, not JSON Schema
+validation.)
+
+Migration guidance
+------------------
+
+* **Recommended today:** author schemas as Draft-7, or omit ``$schema`` entirely, for predictable validation and
+  compatibility results.
+* **Sending 2019-09 or 2020-12 schemas today:** they are accepted, but validated and compared as Draft-7. Do not rely on
+  newer-draft-only keyword semantics until native support ships.
+* **Mixing drafts within a subject:** a subject may contain versions that declare different ``$schema`` values, but
+  compatibility is always computed under Draft-7 rules. Changing a version's declared draft does not change how
+  compatibility is evaluated. Review the limitations above before relying on newer-draft keywords across versions.
+* **Roadmap:** native validation and compatibility support for Draft 2019-09 and 2020-12 keywords is planned. This
+  section will be expanded when that support lands.
+
+
 Uninstall
 =========
 
