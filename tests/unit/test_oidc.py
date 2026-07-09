@@ -38,14 +38,12 @@ class DummyConfig:
     sasl_oauthbearer_sub_claim_name: str | None
     sasl_oauthbearer_authorization_enabled: bool
     sasl_oauthbearer_authentication_enabled: bool = False
-    sasl_oauthbearer_client_id: str | None = None
     sasl_oauthbearer_roles_claim_path: str | None = None
     sasl_oauthbearer_method_roles: dict[str, list[str]] = field(
         default_factory=lambda: {"GET": [], "POST": [], "PUT": [], "DELETE": []}
     )
     sasl_oauthbearer_leeway_seconds: int = 30
     sasl_oauthbearer_require_access_token_typ: bool = False
-    sasl_oauthbearer_enforce_azp: bool = False
     sasl_oauthbearer_allow_insecure_jwks = False
 
 
@@ -56,7 +54,6 @@ valid_configs = [
         sasl_oauthbearer_expected_audience="accounts-audience",
         sasl_oauthbearer_sub_claim_name="sub",
         sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
         sasl_oauthbearer_roles_claim_path=None,
         sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
@@ -66,7 +63,6 @@ valid_configs = [
         sasl_oauthbearer_expected_audience=None,
         sasl_oauthbearer_sub_claim_name=None,
         sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
         sasl_oauthbearer_roles_claim_path=None,
         sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
@@ -79,7 +75,6 @@ invalid_configs = [
         sasl_oauthbearer_expected_audience="accounts-audience",
         sasl_oauthbearer_sub_claim_name="sub",
         sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
         sasl_oauthbearer_roles_claim_path=None,
         sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
@@ -89,7 +84,6 @@ invalid_configs = [
         sasl_oauthbearer_expected_audience=None,
         sasl_oauthbearer_sub_claim_name="sub",
         sasl_oauthbearer_authorization_enabled=False,
-        sasl_oauthbearer_client_id=None,
         sasl_oauthbearer_roles_claim_path=None,
         sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
     ),
@@ -266,7 +260,6 @@ def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expec
         sasl_oauthbearer_authorization_enabled=True,
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
         sasl_oauthbearer_method_roles=method_roles,
-        sasl_oauthbearer_client_id="client-id",
     )
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
 
@@ -451,7 +444,6 @@ def test_middleware_authn_and_authz_calls_authorize(monkeypatch):
     config = _oidc_config(
         sasl_oauthbearer_authentication_enabled=True,
         sasl_oauthbearer_authorization_enabled=True,
-        sasl_oauthbearer_client_id="client-id",
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
     )
     monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
@@ -470,7 +462,6 @@ def test_middleware_authn_and_authz_returns_403_on_role_failure(monkeypatch):
     config = _oidc_config(
         sasl_oauthbearer_authentication_enabled=True,
         sasl_oauthbearer_authorization_enabled=True,
-        sasl_oauthbearer_client_id="client-id",
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
     )
     monkeypatch.setattr(OIDCMiddleware, "authorize_request", _deny)
@@ -541,7 +532,7 @@ def test_middleware_invalid_token_still_returns_invalid_reason(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Hardening: leeway, require sub, log reason, audience guard, typ:at+jwt, azp.
+# Hardening: leeway, require sub, log reason, audience guard, typ:at+jwt.
 # ---------------------------------------------------------------------------
 
 
@@ -651,67 +642,18 @@ def test_validate_jwt_typ_check_skipped_when_flag_off(mock_jwt_decode, mock_unve
 
 
 @patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
-def test_validate_jwt_azp_enforced_accepts(mock_jwt_decode, mock_pyjwks_client):
+def test_authorization_enabled_without_client_id_is_accepted(mock_pyjwks_client):
+    """Authz needs only a static roles_claim_path — client_id is no longer required."""
     mock_pyjwks_client.return_value = MagicMock()
-    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
-    mock_jwt_decode.return_value = {"sub": "u", "azp": "client-id"}
-
     config = _oidc_config(
         sasl_oauthbearer_authentication_enabled=True,
-        sasl_oauthbearer_enforce_azp=True,
-        sasl_oauthbearer_client_id="client-id",
+        sasl_oauthbearer_authorization_enabled=True,
+        sasl_oauthbearer_roles_claim_path="realm_access.roles",
+        sasl_oauthbearer_method_roles={"GET": ["reader"], "POST": ["admin"], "PUT": ["admin"], "DELETE": ["admin"]},
     )
     middleware = OIDCMiddleware(app=MagicMock(), config=config)
-    assert middleware.validate_jwt("good.jwt.token")["azp"] == "client-id"
-
-
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
-def test_validate_jwt_azp_enforced_rejects_mismatch(mock_jwt_decode, mock_pyjwks_client):
-    mock_pyjwks_client.return_value = MagicMock()
-    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
-    mock_jwt_decode.return_value = {"sub": "u", "azp": "other-client"}
-
-    config = _oidc_config(
-        sasl_oauthbearer_authentication_enabled=True,
-        sasl_oauthbearer_enforce_azp=True,
-        sasl_oauthbearer_client_id="client-id",
-    )
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
-    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
-        middleware.validate_jwt("good.jwt.token")
-
-
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
-def test_validate_jwt_azp_check_skipped_when_flag_off(mock_jwt_decode, mock_pyjwks_client):
-    mock_pyjwks_client.return_value = MagicMock()
-    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
-    mock_jwt_decode.return_value = {"sub": "u", "azp": "anything-goes"}
-
-    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_client_id="client-id")
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
-    assert middleware.validate_jwt("good.jwt.token")["azp"] == "anything-goes"
-
-
-def test_config_rejects_enforce_azp_without_client_id():
-    """Config-level validator catches the misconfig at parse time (before middleware construction)."""
-    with pytest.raises(ValueError, match="client_id is required"):
-        _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_enforce_azp=True)
-
-
-def test_oidc_middleware_requires_client_id_when_azp_enforced():
-    """Middleware-level guard: catches the misconfig when Config is constructed bypassing the
-    Pydantic validator (e.g. by mutating fields directly, as tests can do)."""
-    config = _oidc_config(
-        sasl_oauthbearer_authentication_enabled=True,
-        sasl_oauthbearer_enforce_azp=True,
-        sasl_oauthbearer_client_id="client-id",
-    )
-    config.sasl_oauthbearer_client_id = None  # bypass Pydantic validator
-    with pytest.raises(ValueError, match="client_id is required"):
-        OIDCMiddleware(app=MagicMock(), config=config)
+    payload = {"realm_access": {"roles": ["reader"]}}
+    assert middleware.authorize_request(payload, "GET") is True
 
 
 @patch("karapace.api.oidc.middleware.PyJWKClient")
@@ -763,8 +705,7 @@ def _authz_config(method_roles: dict[str, list[str]]) -> Config:
     return _oidc_config(
         sasl_oauthbearer_authentication_enabled=True,
         sasl_oauthbearer_authorization_enabled=True,
-        sasl_oauthbearer_client_id="karapace-client",
-        sasl_oauthbearer_roles_claim_path="resource_access.[client_id].roles",
+        sasl_oauthbearer_roles_claim_path="resource_access.karapace-client.roles",
         sasl_oauthbearer_method_roles=method_roles,
     )
 

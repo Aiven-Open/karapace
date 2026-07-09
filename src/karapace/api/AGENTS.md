@@ -32,9 +32,9 @@ After validation, **only the configured subject claim** (`claim_name`, default `
 
 - Off when `sasl_oauthbearer_authorization_enabled=false` — returns `True` immediately.
 - Allowed roles per HTTP method come from `sasl_oauthbearer_method_roles`, e.g. `{"GET": ["reader","admin"], "POST": ["admin"], ...}`.
-- Roles are extracted via `sasl_oauthbearer_roles_claim_path` (dot-path, e.g. `realm_access.roles`). Supports a `[client_id]` token in the path that's substituted with `sasl_oauthbearer_client_id` (Keycloak `resource_access.<client>.roles` style).
+- Roles are extracted via `sasl_oauthbearer_roles_claim_path` (dot-path, e.g. `realm_access.roles`, or a literal Keycloak path `resource_access.<client>.roles`).
 - Mismatch **or any misconfig** ⇒ **403 with the same body** as a real role mismatch. This is intentional — an attacker with a valid token must not be able to distinguish "bad config" from "missing role" by the response.
-- Required config when authz is on: `sasl_oauthbearer_client_id` and `sasl_oauthbearer_roles_claim_path`. Missing either ⇒ `ValueError` at startup (fail-closed).
+- Required config when authz is on: `sasl_oauthbearer_roles_claim_path`. Missing it ⇒ `ValueError` at startup (fail-closed).
 
 ## Error response shape
 

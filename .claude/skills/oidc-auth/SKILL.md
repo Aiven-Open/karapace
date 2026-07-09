@@ -54,14 +54,20 @@ After validation, only the configured subject claim (`claim_name`, default `"sub
 ### Flow — `OIDCMiddleware.authorize_request`
 - Off when `sasl_oauthbearer_authorization_enabled=false` — returns `True` immediately.
 - Looks up allowed roles for the request method in `sasl_oauthbearer_method_roles`, e.g. `{"GET": ["reader","admin"], "POST": ["admin"], ...}`.
-- Extracts user roles via `sasl_oauthbearer_roles_claim_path` (dot-path, e.g. `realm_access.roles`). Supports `[client_id]` token in the path that gets replaced with `sasl_oauthbearer_client_id` (Keycloak `resource_access.<client>.roles` style).
+- Extracts user roles via `sasl_oauthbearer_roles_claim_path` (dot-path, e.g. `realm_access.roles`, or a literal Keycloak path `resource_access.<client>.roles`).
 - Mismatch (or any misconfig) → **403 with the same body** as a real role mismatch. This is intentional — an attacker with a valid token must not be able to distinguish "bad config" from "missing role" via response differences.
 
 ### Required config when authz is on (`OIDCMiddleware.__init__`)
-- `sasl_oauthbearer_client_id`
 - `sasl_oauthbearer_roles_claim_path`
 
-Missing either → `ValueError` at startup (fail-closed).
+Missing it → `ValueError` at startup (fail-closed).
+
+### Canonical role names — `src/karapace/core/constants.py`
+Role strings are prefixed `karapace.` (e.g. `karapace.schema:read`) and defined as `OIDC_ROLE_*`
+constants. `DEFAULT_OIDC_METHOD_ROLES` maps HTTP methods to them and is the config default for
+`sasl_oauthbearer_method_roles`. These must match the roles the IdP mints into tokens — the
+reference Keycloak realm (`container/keycloak/realm-export.json`) defines the same set. Change
+role names in the constants module, keep the realm export and `container/compose.yml` in sync.
 
 ### Backwards-compat shim — `Config._enforce_authn_when_authz_enabled`
 If `sasl_oauthbearer_authorization_enabled=true` but `sasl_oauthbearer_authentication_enabled=false`, we auto-enable authn and log a deprecation warning. Authz without authn is meaningless; the prior single-flag config is preserved with a warning so operators migrate.
@@ -190,13 +196,11 @@ return http_authorizer if config.registry_authfile else no_auth_authorizer
 | `sasl_oauthbearer_expected_issuer` | `None` | Required when JWKS is set |
 | `sasl_oauthbearer_expected_audience` | `None` | Comma-separated list; required when JWKS is set |
 | `sasl_oauthbearer_sub_claim_name` | `"sub"` | Claim to expose as `request.state.user` |
-| `sasl_oauthbearer_client_id` | `None` | Required for authz; substituted into `[client_id]` in roles path |
-| `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT |
-| `sasl_oauthbearer_method_roles` | `{GET/POST/PUT/DELETE: []}` | Per-method allowed roles |
+| `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT; required for authz |
+| `sasl_oauthbearer_method_roles` | `DEFAULT_OIDC_METHOD_ROLES` (the `karapace.*` roles) | Per-method allowed roles |
 | `sasl_oauthbearer_skip_auth_paths` | `["/_health","/metrics"]` | Bypass paths |
 | `sasl_oauthbearer_leeway_seconds` | `0` | Clock-skew tolerance for `exp`/`nbf`/`iat` (must be >= 0) |
 | `sasl_oauthbearer_require_access_token_typ` | `False` | Require header `typ: at+jwt` (or `application/at+jwt`) |
-| `sasl_oauthbearer_enforce_azp` | `False` | Require `azp == client_id`; needs `client_id` |
 | `schema_registry_client_cache_maxsize` | `100` | LRU cap on `(subject, version, fp)` |
 | `registry_authfile` | `None` | Selects basic-auth `HTTPAuthorizer` |
 

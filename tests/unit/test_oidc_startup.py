@@ -30,7 +30,6 @@ def test_karapace_startup_fails_when_method_roles_incomplete() -> None:
             "KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL": "https://idp.example.invalid/realms/r/protocol/openid-connect/certs",
             "KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER": "https://idp.example.invalid/realms/r",
             "KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE": "test-audience",
-            "KARAPACE_SASL_OAUTHBEARER_CLIENT_ID": "karapace-client",
             "KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH": "resource_access.karapace-client.roles",
             # Missing DELETE — should be rejected at startup.
             "KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES": '{"GET": ["r"], "POST": ["w"], "PUT": ["w"]}',

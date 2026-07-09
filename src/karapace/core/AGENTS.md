@@ -70,9 +70,8 @@ All env vars are prefixed `KARAPACE_`. The OIDC fields live on `Config`:
 | `sasl_oauthbearer_expected_issuer` | `None` | Required when JWKS is set. |
 | `sasl_oauthbearer_expected_audience` | `None` | Comma-separated list; required when JWKS is set. |
 | `sasl_oauthbearer_sub_claim_name` | `"sub"` | Claim exposed as `request.state.user`. |
-| `sasl_oauthbearer_client_id` | `None` | Required for authz. Substituted into `[client_id]` in roles path. |
-| `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT. |
-| `sasl_oauthbearer_method_roles` | `{GET/POST/PUT/DELETE: []}` | Per-method allowed roles. |
+| `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT; required for authz. |
+| `sasl_oauthbearer_method_roles` | `DEFAULT_OIDC_METHOD_ROLES` (the `karapace.*` roles) | Per-method allowed roles. |
 | `sasl_oauthbearer_skip_auth_paths` | `["/_health","/metrics"]` | Bypass paths. |
 | `schema_registry_client_cache_maxsize` | `100` | LRU cap on `(subject, version, fp)`. |
 | `registry_authfile` | `None` | Selects basic-auth `HTTPAuthorizer`. |

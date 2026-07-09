@@ -32,7 +32,6 @@ def _oidc_config(**overrides) -> Config:
         "sasl_oauthbearer_expected_issuer": "https://oidc.test/realms/r",
         "sasl_oauthbearer_expected_audience": "audience",
         "sasl_oauthbearer_sub_claim_name": "sub",
-        "sasl_oauthbearer_client_id": "client-id",
         "sasl_oauthbearer_roles_claim_path": "realm_access.roles",
     }
     base.update(overrides)
