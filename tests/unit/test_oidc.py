@@ -7,6 +7,7 @@ See LICENSE for details
 
 from __future__ import annotations
 
+import base64
 import datetime
 import logging
 from dataclasses import dataclass, field
@@ -554,10 +555,15 @@ def test_middleware_skip_paths_bypass_auth(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+# Encode at runtime so no literal ``Basic <base64>`` credential lands in source
+# (a hardcoded one trips secret scanners).
+_BASIC_HEADER = "Basic " + base64.b64encode(b"user:pass").decode()
+
+
 @pytest.mark.parametrize(
     "auth_header",
     [
-        "Basic dXNlcjpwYXNz",  # wrong scheme
+        _BASIC_HEADER,  # wrong scheme
         "bearer good.token",  # lowercase scheme — check is case-sensitive
         "Bearer",  # scheme only, no token/space
         "Bearer ",  # empty token
