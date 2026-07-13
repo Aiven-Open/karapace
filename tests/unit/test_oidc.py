@@ -14,7 +14,9 @@ from http import HTTPStatus
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from jwt import ExpiredSignatureError, InvalidTokenError
 from karapace.api.oidc.middleware import OIDCMiddleware, TokenExpiredError
@@ -455,6 +457,70 @@ def test_middleware_authn_and_authz_calls_authorize(monkeypatch):
     assert calls and calls[0][1] == "GET"
 
 
+# ---------------------------------------------------------------------------
+# RBAC through the full HTTP gate with the REAL authorize_request running
+# (get_roles_from_claim_path + method_roles), not a spy. Complements the
+# function-level authorize_request tests above.
+# ---------------------------------------------------------------------------
+
+_REAL_AUTHORIZE = OIDCMiddleware.authorize_request
+
+
+def _authz_middleware_client(monkeypatch, payload: dict):
+    """Build the middleware app with authZ on and the real authorize_request restored.
+    method_roles: GET requires 'reader'. roles claim at realm_access.roles."""
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_authorization_enabled=True,
+        sasl_oauthbearer_roles_claim_path="realm_access.roles",
+        sasl_oauthbearer_method_roles={"GET": ["reader"], "POST": ["writer"], "PUT": ["writer"], "DELETE": ["writer"]},
+    )
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload=payload)
+    # _build_app_with_middleware stubs authorize_request; restore the genuine impl.
+    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _REAL_AUTHORIZE)
+    return client
+
+
+@pytest.mark.parametrize(
+    ("roles_payload", "expected_status"),
+    [
+        ({"realm_access": {"roles": ["reader"]}}, 200),  # has required role
+        ({"realm_access": {"roles": []}}, 403),  # empty roles list
+        ({"realm_access": {"roles": ["someone-else"]}}, 403),  # wrong role
+        ({"realm_access": {}}, 403),  # roles key missing at path
+        ({}, 403),  # claim path absent entirely
+    ],
+)
+def test_middleware_real_authorize_enforces_roles(monkeypatch, roles_payload, expected_status):
+    client = _authz_middleware_client(monkeypatch, roles_payload)
+    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    assert r.status_code == expected_status
+    if expected_status == 403:
+        assert r.json() == {"error": "Authorization error", "reason": "Forbidden"}
+
+
+def test_middleware_real_authorize_denial_body_matches_misconfig(monkeypatch):
+    """Anti-oracle: a real role-mismatch 403 must be byte-identical to the
+    roles_claim_path-unset misconfig 403, so the response can't distinguish them."""
+    # Role-mismatch denial through the gate.
+    mismatch_client = _authz_middleware_client(monkeypatch, {"realm_access": {"roles": ["nope"]}})
+    mismatch = mismatch_client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    assert mismatch.status_code == 403
+
+    # Misconfig branch: roles_claim_path is None at authorize time -> same 403 body.
+    ns = SimpleNamespace(
+        authorization_enabled=True,
+        sasl_oauthbearer_method_roles={"GET": ["reader"], "POST": ["w"], "PUT": ["w"], "DELETE": ["w"]},
+        sasl_oauthbearer_roles_claim_path=None,
+        get_roles_from_claim_path=OIDCMiddleware.get_roles_from_claim_path,
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        OIDCMiddleware.authorize_request(ns, {"realm_access": {"roles": ["reader"]}}, request_method="GET")
+    assert exc_info.value.status_code == 403
+    # The middleware serializes HTTPException.detail into reason; both must render identically.
+    assert mismatch.json() == {"error": "Authorization error", "reason": exc_info.value.detail}
+
+
 def test_middleware_authn_and_authz_returns_403_on_role_failure(monkeypatch):
     def _deny(self, payload, method):
         raise HTTPException(status_code=403, detail="Insufficient roles")
@@ -478,6 +544,39 @@ def test_middleware_skip_paths_bypass_auth(monkeypatch):
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
     client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
     r = client.get("/_health")  # no Authorization header
+    assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Authorization-header parsing branches in _authenticate_and_authorize.
+# The scheme check is case- and space-sensitive; only the missing-header branch
+# was previously covered.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "auth_header",
+    [
+        "Basic dXNlcjpwYXNz",  # wrong scheme
+        "bearer good.token",  # lowercase scheme — check is case-sensitive
+        "Bearer",  # scheme only, no token/space
+        "Bearer ",  # empty token
+        "Bearer    ",  # whitespace-only token
+    ],
+)
+def test_middleware_rejects_non_bearer_or_empty_token(monkeypatch, auth_header):
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    r = client.get("/subjects", headers={"Authorization": auth_header})
+    assert r.status_code == 401
+    assert r.json()["reason"] == "Missing or invalid Authorization header"
+
+
+def test_middleware_accepts_bearer_with_valid_token(monkeypatch):
+    """Control for the rejection cases above."""
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+    client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
+    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
     assert r.status_code == 200
 
 
@@ -793,3 +892,214 @@ def test_authorize_request_silently_denies_when_method_unmapped():
     with pytest.raises(HTTPException) as exc_info:
         OIDCMiddleware.authorize_request(ns, payload, request_method="POST")
     assert exc_info.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Real-key JWT validation. The tests above mock jwt.decode, so they only prove
+# we pass the right arguments — PyJWT's own aud/iss/exp/nbf/algorithm checks are
+# never exercised. Here we sign real RS256 tokens with an in-test RSA keypair and
+# stub ONLY the JWKS client to hand back the matching public key, so validate_jwt
+# runs the genuine decode path.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def rsa_keypair():
+    """A single RSA keypair for the module. PyJWT accepts the cryptography key
+    objects directly, so no PEM round-trip is needed."""
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return private_key, private_key.public_key()
+
+
+def _make_token(signing_key, claims: dict, *, headers: dict | None = None, algorithm: str = "RS256") -> str:
+    return jwt.encode(claims, signing_key, algorithm=algorithm, headers=headers)
+
+
+def _base_claims(**overrides) -> dict:
+    """Valid claims for the default _oidc_config (issuer/audience) with a live exp/iat."""
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    claims = {
+        "sub": "user-1",
+        "iss": "https://oidcprovider.com",
+        "aud": "accounts-audience",
+        "exp": int((now + datetime.timedelta(hours=1)).timestamp()),
+        "iat": int(now.timestamp()),
+    }
+    claims.update(overrides)
+    return {k: v for k, v in claims.items() if v is not _OMIT}
+
+
+_OMIT = object()  # sentinel: pass claim=_OMIT to drop it entirely
+
+
+@pytest.fixture
+def build_real_middleware(rsa_keypair):
+    """Build an OIDCMiddleware whose JWKS client returns the in-test public key,
+    so validate_jwt runs the real PyJWT decode against real signatures."""
+    _, public_key = rsa_keypair
+
+    def _build(**config_overrides) -> OIDCMiddleware:
+        with patch("karapace.api.oidc.middleware.PyJWKClient") as mock_client:
+            instance = MagicMock()
+            instance.get_signing_key_from_jwt.return_value.key = public_key
+            mock_client.return_value = instance
+            config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, **config_overrides)
+            # _jwks_client is captured on the instance during __init__, so it survives the patch exit.
+            return OIDCMiddleware(app=MagicMock(), config=config)
+
+    return _build
+
+
+def test_real_jwt_valid_token_decodes(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    payload = middleware.validate_jwt(_make_token(private_key, _base_claims()))
+    assert payload["sub"] == "user-1"
+
+
+# --- audience ---
+
+
+def test_real_jwt_wrong_audience_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    token = _make_token(private_key, _base_claims(aud="some-other-audience"))
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)
+
+
+def test_real_jwt_missing_audience_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    token = _make_token(private_key, _base_claims(aud=_OMIT))
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)
+
+
+def test_real_jwt_one_of_multiple_configured_audiences_accepted(rsa_keypair, build_real_middleware):
+    """Comma-separated expected audiences: a token matching any one is accepted."""
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_expected_audience="aud-one,aud-two")
+    token = _make_token(private_key, _base_claims(aud="aud-two"))
+    assert middleware.validate_jwt(token)["aud"] == "aud-two"
+
+
+# --- issuer ---
+
+
+def test_real_jwt_wrong_issuer_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    token = _make_token(private_key, _base_claims(iss="https://evil.example.com"))
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)
+
+
+def test_real_jwt_missing_issuer_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    token = _make_token(private_key, _base_claims(iss=_OMIT))
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)
+
+
+# --- expiry / leeway ---
+
+
+def test_real_jwt_expired_raises_token_expired(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    past = int((datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(hours=1)).timestamp())
+    with pytest.raises(TokenExpiredError):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(exp=past)))
+
+
+def test_real_jwt_expired_within_leeway_accepted(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_leeway_seconds=60)
+    just_expired = int((datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(seconds=10)).timestamp())
+    assert middleware.validate_jwt(_make_token(private_key, _base_claims(exp=just_expired)))
+
+
+def test_real_jwt_missing_exp_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(exp=_OMIT)))
+
+
+# --- not-before ---
+
+
+def test_real_jwt_future_nbf_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    future = int((datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)).timestamp())
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(nbf=future)))
+
+
+def test_real_jwt_nbf_within_leeway_accepted(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_leeway_seconds=60)
+    soon = int((datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(seconds=10)).timestamp())
+    assert middleware.validate_jwt(_make_token(private_key, _base_claims(nbf=soon)))
+
+
+# --- subject / configured claim name ---
+
+
+def test_real_jwt_missing_sub_rejected(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware()
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(sub=_OMIT)))
+
+
+def test_real_jwt_alternate_sub_claim_required(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_sub_claim_name="user_id")
+    # Present: accepted.
+    ok = _make_token(private_key, _base_claims(sub=_OMIT, user_id="u-42"))
+    assert middleware.validate_jwt(ok)["user_id"] == "u-42"
+    # Absent: the configured claim is in the require list, so decode rejects.
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(sub=_OMIT)))
+
+
+# --- signing algorithm allow-list (security critical) ---
+
+
+def test_real_jwt_hs256_symmetric_token_rejected(build_real_middleware):
+    """A token signed with a symmetric HS256 secret must be rejected: the allow-list is RSA-only,
+    so an attacker cannot smuggle the public key in as an HMAC secret."""
+    middleware = build_real_middleware()
+    token = _make_token("attacker-known-secret", _base_claims(), algorithm="HS256")
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)
+
+
+def test_real_jwt_alg_none_unsigned_token_rejected(build_real_middleware):
+    """An unsigned ('alg': 'none') token must be rejected."""
+    middleware = build_real_middleware()
+    token = _make_token(None, _base_claims(), algorithm="none")
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)
+
+
+# --- typ header enforcement (real signature, real header) ---
+
+
+def test_real_jwt_typ_at_jwt_accepted_when_required(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_require_access_token_typ=True)
+    token = _make_token(private_key, _base_claims(), headers={"typ": "at+jwt"})
+    assert middleware.validate_jwt(token)["sub"] == "user-1"
+
+
+def test_real_jwt_id_token_typ_rejected_when_required(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_require_access_token_typ=True)
+    token = _make_token(private_key, _base_claims(), headers={"typ": "JWT"})
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(token)

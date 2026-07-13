@@ -168,6 +168,23 @@ def oidc_token():
     return response.json()["access_token"]
 
 
+@pytest.fixture(scope="function", name="oidc_token_limited")
+def oidc_token_limited():
+    """Token for karapace-client-limited: carries only schema:read + schema:write
+    (under resource_access.karapace-client.roles), so PUT/DELETE are denied by RBAC."""
+    admin_token = get_admin_token()
+    realm = "karapace"
+    client_id = "karapace-client-limited"
+    client_uuid = get_client_uuid(realm, client_id, admin_token)
+    client_secret = get_client_secret(realm, client_uuid, admin_token)
+
+    token_url = f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": "openid"}
+    response = requests.post(token_url, data=data)
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+
 # Full OIDC (authn + authz) SR — karapace-schema-registry-oidc, profile: e2e.
 
 
@@ -188,6 +205,31 @@ async def fixture_registry_async_client_oidc(
 ) -> AsyncGenerator[Client, None]:
     async def factory(auth):
         return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
+
+    client = Client(
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_limited")
+async def fixture_registry_async_client_oidc_limited(
+    request: SubRequest,
+    registry_oidc_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+    oidc_token_limited,
+) -> AsyncGenerator[Client, None]:
+    """Client to the authz-enabled SR using the read/write-only token — used to
+    assert RBAC 403 on PUT/DELETE."""
+
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token_limited}"})
 
     client = Client(
         server_uri=registry_oidc_cluster.endpoint.to_url(),

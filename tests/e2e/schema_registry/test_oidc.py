@@ -167,3 +167,106 @@ async def test_schema_registry_oidc_missing_subject_returns_canonical_404(
         "error_code": 40401,
         "message": f"Subject '{subject}' not found.",
     }
+
+
+# ---------------------------------------------------------------------------
+# RBAC denial: karapace-schema-registry-oidc runs with authorization enabled.
+# The karapace-client-limited token carries only karapace.schema:read +
+# schema:write, so methods whose method_roles require other roles are 403:
+#   PUT    -> requires config_subject:update / config_global:update  (not granted)
+#   DELETE -> requires schema:delete / subject:delete                (not granted)
+# GET/POST succeed and are covered by test_schema_registry_oidc above.
+# ---------------------------------------------------------------------------
+
+
+async def test_schema_registry_oidc_put_config_denied_403(
+    registry_async_client_oidc_limited: Client,
+) -> None:
+    subject = new_random_name("subject")
+    await _wait_for_primary(registry_async_client_oidc_limited)
+
+    res = await registry_async_client_oidc_limited.put(
+        f"config/{subject}",
+        json={"compatibility": "NONE"},
+    )
+    assert res.status_code == 403
+    assert res.json_result == {"error": "Authorization error", "reason": "Forbidden"}
+
+
+async def test_schema_registry_oidc_delete_subject_denied_403(
+    registry_async_client_oidc_limited: Client,
+) -> None:
+    subject = new_random_name("subject")
+    await _wait_for_primary(registry_async_client_oidc_limited)
+
+    # POST (schema:write) is granted, so registering succeeds.
+    post_res = await registry_async_client_oidc_limited.post(
+        f"subjects/{subject}/versions",
+        json={
+            "schema": json.dumps({"type": "string"}),
+            "schemaType": SchemaType.JSONSCHEMA.value,
+        },
+    )
+    assert post_res.status_code == 200
+
+    # DELETE requires schema:delete / subject:delete, which the token lacks.
+    del_res = await registry_async_client_oidc_limited.delete(f"subjects/{subject}")
+    assert del_res.status_code == 403
+    assert del_res.json_result == {"error": "Authorization error", "reason": "Forbidden"}
+
+
+# ---------------------------------------------------------------------------
+# Existence non-leakage. The OIDC gate is middleware that runs before routing,
+# so an unauthenticated probe of an EXISTING subject must be indistinguishable
+# from a probe of a MISSING one — both 401, identical body, no 404 that would
+# leak existence. (OIDC authz is per-HTTP-method, not per-subject; there is no
+# per-subject boundary to probe, unlike basic-auth.)
+# ---------------------------------------------------------------------------
+
+
+async def test_schema_registry_oidc_unauthenticated_probe_does_not_leak_existence(
+    registry_async_client_oidc: Client,
+    registry_async_client_oidc_no_auth_header: Client,
+) -> None:
+    existing = new_random_name("existing-")
+    missing = new_random_name("missing-")
+
+    await _wait_for_primary(registry_async_client_oidc)
+
+    # Create `existing` with an authorized token.
+    created = await registry_async_client_oidc.post(
+        f"subjects/{existing}/versions",
+        json={"schema": json.dumps({"type": "string"}), "schemaType": SchemaType.JSONSCHEMA.value},
+    )
+    assert created.status_code == 200
+
+    # Unauthenticated probes of both must be identical 401s — no existence leak.
+    existing_res = await registry_async_client_oidc_no_auth_header.get(f"subjects/{existing}/versions")
+    missing_res = await registry_async_client_oidc_no_auth_header.get(f"subjects/{missing}/versions")
+
+    assert existing_res.status_code == 401
+    assert missing_res.status_code == 401
+    assert existing_res.json_result == missing_res.json_result
+    assert existing_res.json_result == {
+        "error": "Unauthorized",
+        "reason": "Missing or invalid Authorization header",
+    }
+
+
+# Complements the PUT/DELETE 403 tests: the read/write token CAN read an existing
+# subject via GET, making the per-method RBAC model explicit end-to-end.
+async def test_schema_registry_oidc_read_role_can_get_existing_subject(
+    registry_async_client_oidc_limited: Client,
+) -> None:
+    subject = new_random_name("subject")
+    await _wait_for_primary(registry_async_client_oidc_limited)
+
+    created = await registry_async_client_oidc_limited.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps({"type": "string"}), "schemaType": SchemaType.JSONSCHEMA.value},
+    )
+    assert created.status_code == 200
+
+    # GET requires schema:read / subject:read, which the token has.
+    res = await registry_async_client_oidc_limited.get(f"subjects/{subject}/versions")
+    assert res.status_code == 200
