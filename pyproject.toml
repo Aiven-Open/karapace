@@ -20,7 +20,7 @@ dependencies = [
   "jsonschema",
   "lz4",
   "networkx",
-  "protobuf==3.20.3",
+  "protobuf==5.29.6",
   "pydantic",
   "pydantic-settings",
   "pyjwt",
@@ -38,7 +38,7 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
-  "opentelemetry-proto<1.28.0",
+  "opentelemetry-proto",
   "dependency-injector",
 
   # Patched dependencies
@@ -105,7 +105,7 @@ typing = [
   "sentry-sdk",
   "types-cachetools",
   "types-jsonschema",
-  "types-protobuf < 4"
+  "types-protobuf < 6"
 ]
 
 [tool.setuptools]
