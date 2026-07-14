@@ -67,7 +67,7 @@ def _field_type(field: Field, type_: object) -> AvroType:
         type_ = field.metadata.get("type", "int")
         if type_ not in ("int", "long"):
             raise UnsupportedAnnotation(f"Invalid avro type for int: {type_!r}")
-        return type_  # type: ignore[return-value]
+        return type_
     if type_ is bytes:
         return "bytes"
     if type_ is type(None) or type_ is None:  # noqa: E721
