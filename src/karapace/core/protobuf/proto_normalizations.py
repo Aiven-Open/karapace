@@ -51,10 +51,19 @@ def _restore_map_shorthand(
     if not entry_messages:
         return list(message_element.fields), list(message_element.nested_types)
 
+    # Track entry messages that were actually collapsed into map<K,V> fields.
+    # Only these are safe to remove from nested_types — removing an entry message
+    # whose field was not rewritten would leave a dangling type reference.
+    collapsed_entry_names: set[str] = set()
     new_fields: list[FieldElement] = []
     for field in message_element.fields:
-        entry_name = field.element_type.split(".")[-1]
-        entry = entry_messages.get(entry_name)
+        # Match on the full type path suffix, not just the last segment, to avoid
+        # false matches when two entry messages in different scopes share a simple name.
+        matched_name = next(
+            (name for name in entry_messages if field.element_type == name or field.element_type.endswith(f".{name}")),
+            None,
+        )
+        entry = entry_messages.get(matched_name) if matched_name else None
         if entry is not None and field.label == Field.Label.REPEATED:
             entry_fields = {f.name: f for f in entry.fields}
             key_field = entry_fields.get("key")
@@ -73,11 +82,14 @@ def _restore_map_shorthand(
                         options=field.options,
                     )
                 )
+                collapsed_entry_names.add(matched_name)
                 continue
         new_fields.append(field)
 
     new_nested_types: list[TypeElement] = [
-        nt for nt in message_element.nested_types if not (isinstance(nt, MessageElement) and nt.name in entry_messages)
+        nt
+        for nt in message_element.nested_types
+        if not (isinstance(nt, MessageElement) and nt.name in collapsed_entry_names)
     ]
     return new_fields, new_nested_types
 
