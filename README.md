@@ -11,8 +11,8 @@
 | src/karapace/api/factory.py                              |       42 |       18 |        0 |        0 |     57% |38-47, 57-73 |
 | src/karapace/api/forward\_client.py                      |       65 |        3 |       16 |        3 |     93% |69-\>72, 81, 133, 148 |
 | src/karapace/api/http\_handlers/\_\_init\_\_.py          |       19 |       11 |        2 |        0 |     38% |     16-28 |
-| src/karapace/api/middlewares/\_\_init\_\_.py             |       61 |        1 |       16 |        1 |     97% |        34 |
-| src/karapace/api/oidc/middleware.py                      |      114 |        8 |       40 |        5 |     92% |89, 105, 143-\>145, 158, 170-171, 197-199 |
+| src/karapace/api/middlewares/\_\_init\_\_.py             |       61 |        0 |       16 |        0 |    100% |           |
+| src/karapace/api/oidc/middleware.py                      |      114 |        6 |       40 |        4 |     94% |89, 105, 143-\>145, 158, 197-199 |
 | src/karapace/api/routers/compatibility.py                |       21 |        1 |        2 |        1 |     91% |        42 |
 | src/karapace/api/routers/config.py                       |       64 |       17 |       22 |        4 |     64% |37-40, 55, 80, 99-104, 124-129 |
 | src/karapace/api/routers/errors.py                       |       42 |        2 |        0 |        0 |     95% |     52-53 |
@@ -128,7 +128,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317-\>320, 320-\>330, 322-\>325, 325-\>328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       11 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                | **11076** | **1659** | **3086** |  **411** | **83%** |           |
+| **TOTAL**                                                | **11076** | **1656** | **3086** |  **409** | **83%** |           |
 
 13 empty files skipped.
 
