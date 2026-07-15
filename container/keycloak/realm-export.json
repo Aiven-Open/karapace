@@ -44,6 +44,34 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "karapace-client-limited",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "redirectUris": ["*"],
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": ["email", "profile", "roles"],
+      "optionalClientScopes": ["address", "phone"],
+      "protocolMappers": [
+        {
+          "name": "aud-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "aud",
+            "claim.value": "karapace-audience",
+            "claim.type": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -75,6 +103,14 @@
           "karapace.config_subject:update",
           "karapace.config_global:update"
         ]
+      }
+    },
+    {
+      "username": "service-account-karapace-client-limited",
+      "enabled": true,
+      "serviceAccountClientId": "karapace-client-limited",
+      "clientRoles": {
+        "karapace-client": ["karapace.schema:read", "karapace.schema:write"]
       }
     }
   ],

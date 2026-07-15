@@ -137,6 +137,26 @@ def fixture_new_topic(admin_client: KafkaAdminClient) -> NewTopic:
     return admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
 
 
+def _keycloak_client_credentials_token(client_id: str, *, client_secret: str | None = None) -> str:
+    """Mint a client-credentials token from Keycloak, honoring OIDC_* env overrides.
+
+    The secret is fetched at runtime via the Keycloak admin API when not supplied
+    (or via OIDC_CLIENT_SECRET) — never hardcoded.
+    """
+    realm = os.environ.get("OIDC_REALM", "karapace")
+    scope = os.environ.get("OIDC_SCOPE", "openid")
+    if client_secret is None:
+        admin_token = get_admin_token()
+        client_uuid = get_client_uuid(realm, client_id, admin_token)
+        client_secret = get_client_secret(realm, client_uuid, admin_token)
+    token_url = os.environ.get("OIDC_TOKEN_URL") or f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
+
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": scope}
+    response = requests.post(token_url, data=data)
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+
 @pytest.fixture(scope="session")
 def oidc_token():
     provider = os.environ.get("OIDC_PROVIDER", "keycloak").strip().lower()
@@ -144,28 +164,35 @@ def oidc_token():
     if provider not in known_providers:
         raise ValueError(f"Unknown OIDC_PROVIDER={provider!r}; expected one of {', '.join(known_providers)}")
     client_id = os.environ.get("OIDC_CLIENT_ID", "karapace-client")
-    scope = os.environ.get("OIDC_SCOPE", "openid")
 
     if provider == "keycloak":
-        realm = os.environ.get("OIDC_REALM", "karapace")
-        admin_token = get_admin_token()
-        client_uuid = get_client_uuid(realm, client_id, admin_token)
-        client_secret = os.environ.get("OIDC_CLIENT_SECRET") or get_client_secret(realm, client_uuid, admin_token)
-        token_url = os.environ.get("OIDC_TOKEN_URL") or (
-            f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
-        )
-        verify_tls = True
-    else:
-        token_url = os.environ.get("OIDC_TOKEN_URL")
-        client_secret = os.environ.get("OIDC_CLIENT_SECRET")
-        if not token_url or not client_secret:
-            pytest.skip(f"OIDC_PROVIDER={provider} requires OIDC_TOKEN_URL and OIDC_CLIENT_SECRET")
-        verify_tls = os.environ.get("OIDC_VERIFY_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
+        return _keycloak_client_credentials_token(client_id, client_secret=os.environ.get("OIDC_CLIENT_SECRET"))
 
+    token_url = os.environ.get("OIDC_TOKEN_URL")
+    client_secret = os.environ.get("OIDC_CLIENT_SECRET")
+    if not token_url or not client_secret:
+        # Fail loudly rather than skip: a silent skip lets a misconfigured pipeline pass green.
+        pytest.fail(f"OIDC_PROVIDER={provider} requires OIDC_TOKEN_URL and OIDC_CLIENT_SECRET to be set")
+    verify_tls = os.environ.get("OIDC_VERIFY_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
+
+    scope = os.environ.get("OIDC_SCOPE", "openid")
     data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": scope}
     response = requests.post(token_url, data=data, verify=verify_tls)
     response.raise_for_status()
     return response.json()["access_token"]
+
+
+@pytest.fixture(scope="function", name="oidc_token_schema_read_write")
+def oidc_token_schema_read_write():
+    """Token whose only roles are schema:read + schema:write (under
+    resource_access.karapace-client.roles) — so GET/POST are allowed but PUT/DELETE
+    are denied by RBAC. Named for its roles so the limitation is obvious at call sites.
+
+    Keycloak-only — the reduced-role client exists solely in the local realm. Honors
+    OIDC_REALM / OIDC_TOKEN_URL / OIDC_SCOPE; client id overridable via OIDC_LIMITED_CLIENT_ID.
+    """
+    client_id = os.environ.get("OIDC_LIMITED_CLIENT_ID", "karapace-client-limited")
+    return _keycloak_client_credentials_token(client_id)
 
 
 # Full OIDC (authn + authz) SR — karapace-schema-registry-oidc, profile: e2e.
@@ -188,6 +215,31 @@ async def fixture_registry_async_client_oidc(
 ) -> AsyncGenerator[Client, None]:
     async def factory(auth):
         return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
+
+    client = Client(
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_limited")
+async def fixture_registry_async_client_oidc_limited(
+    request: SubRequest,
+    registry_oidc_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+    oidc_token_schema_read_write,
+) -> AsyncGenerator[Client, None]:
+    """Client to the authz-enabled SR using the schema:read+write-only token — used to
+    assert RBAC 403 on PUT/DELETE."""
+
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token_schema_read_write}"})
 
     client = Client(
         server_uri=registry_oidc_cluster.endpoint.to_url(),

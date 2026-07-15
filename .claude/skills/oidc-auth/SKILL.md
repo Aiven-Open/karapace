@@ -212,14 +212,32 @@ All env vars are prefixed `KARAPACE_` (Pydantic `BaseSettings`). The flag double
 
 | Path | What it covers |
 |---|---|
-| `tests/unit/test_oidc.py` | `OIDCMiddleware` unit tests: config validation, `validate_jwt`, role extraction, `authorize_request` |
+| `tests/unit/test_oidc.py` | `OIDCMiddleware` unit tests: config validation, `validate_jwt`, role extraction, `authorize_request`. Two flavors of JWT test — **mocked** `jwt.decode` (argument wiring) and **real RS256** (in-test RSA keypair + stubbed JWKS client, so PyJWT genuinely validates `aud`/`iss`/`exp`/`nbf`/`sub`/alg/`typ`, incl. HS256 & `alg:none` rejection). Also: Authorization-header parsing branches (non-Bearer scheme, lowercase, empty/whitespace token) and RBAC through the real HTTP middleware (empty/missing/wrong roles → 403, anti-oracle body parity). |
 | `tests/unit/kafka_rest_apis/test_sr_authorization_forwarding.py` | RP gate: enabled/disabled, with/without header, concurrent isolation across coroutines |
-| `tests/e2e/schema_registry/test_oidc.py` | SR e2e: valid/invalid/expired tokens, missing headers, skip paths |
+| `tests/e2e/schema_registry/test_oidc.py` | SR e2e: valid/invalid/expired tokens, missing headers, skip paths; **RBAC 403 denial** (PUT/DELETE with the reduced-role token) and **GET success**; unauthenticated existence non-leakage (existing vs missing subject → identical 401) |
 | `tests/e2e/kafka_rest_apis/test_oidc_forwarding.py` | RP→SR e2e: AVRO/JSON publish + consumer fetch with bearer, invalid bearer, no-auth fallthrough |
 | `tests/unit/test_rest_auth.py` | RP per-user proxy janitor (token-expiry eviction) |
+| `tests/integration/test_schema_registry_auth.py` | Basic-auth authz: forbidden-vs-missing parity across 13 subject routes, schema-id boundaries, subject listing |
+| `tests/e2e/conftest.py` | OIDC fixtures: `oidc_token` (env-driven — see below), `oidc_token_limited` (reduced-role), `registry_async_client_oidc` / `_limited` / `_invalid` / `_no_auth_header` |
 | `tests/conftest.py` | Fixtures: `registry_async_client_oidc`, `registry_async_client_basic`, `reset_sr_authorization_ctx` |
 
 The `reset_sr_authorization_ctx` fixture is required for any test that touches `sr_authorization_ctx` — contextvars persist across tests in the same event-loop scope and will leak state otherwise.
+
+### RBAC e2e needs a reduced-role Keycloak client
+The realm's default `karapace-client` service account is granted **all** roles, so it can never
+be denied. RBAC-denial e2e tests use `karapace-client-limited` (defined in
+`container/keycloak/realm-export.json`), whose service account is assigned only
+`karapace.schema:read` + `schema:write` under `karapace-client`'s role container — so the minted
+token carries them at the SR's configured `resource_access.karapace-client.roles` path but lacks
+delete/config. Keycloak imports the realm **only on a fresh container**, so recreate `keycloak`
+(not just restart) after editing `realm-export.json`.
+
+### No hardcoded secrets in tests
+The e2e `oidc_token` fixture is env-driven (`OIDC_PROVIDER`, `OIDC_CLIENT_ID`,
+`OIDC_CLIENT_SECRET`, `OIDC_TOKEN_URL`, `OIDC_SCOPE`, `OIDC_REALM`, `OIDC_VERIFY_TLS`); Keycloak
+secrets are fetched at runtime via the admin API. Never commit a literal `Basic <base64>` header
+or client secret — encode at runtime instead. The canonical convention lives in `CONTRIBUTING.md`
+("Secrets and credentials in tests").
 
 ---
 
