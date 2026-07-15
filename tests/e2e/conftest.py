@@ -171,7 +171,8 @@ def oidc_token():
     token_url = os.environ.get("OIDC_TOKEN_URL")
     client_secret = os.environ.get("OIDC_CLIENT_SECRET")
     if not token_url or not client_secret:
-        pytest.skip(f"OIDC_PROVIDER={provider} requires OIDC_TOKEN_URL and OIDC_CLIENT_SECRET")
+        # Fail loudly rather than skip: a silent skip lets a misconfigured pipeline pass green.
+        pytest.fail(f"OIDC_PROVIDER={provider} requires OIDC_TOKEN_URL and OIDC_CLIENT_SECRET to be set")
     verify_tls = os.environ.get("OIDC_VERIFY_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
 
     scope = os.environ.get("OIDC_SCOPE", "openid")
@@ -181,10 +182,11 @@ def oidc_token():
     return response.json()["access_token"]
 
 
-@pytest.fixture(scope="function", name="oidc_token_limited")
-def oidc_token_limited():
-    """Token for the reduced-role Keycloak client: carries only schema:read + schema:write
-    (under resource_access.karapace-client.roles), so PUT/DELETE are denied by RBAC.
+@pytest.fixture(scope="function", name="oidc_token_schema_read_write")
+def oidc_token_schema_read_write():
+    """Token whose only roles are schema:read + schema:write (under
+    resource_access.karapace-client.roles) — so GET/POST are allowed but PUT/DELETE
+    are denied by RBAC. Named for its roles so the limitation is obvious at call sites.
 
     Keycloak-only — the reduced-role client exists solely in the local realm. Honors
     OIDC_REALM / OIDC_TOKEN_URL / OIDC_SCOPE; client id overridable via OIDC_LIMITED_CLIENT_ID.
@@ -231,13 +233,13 @@ async def fixture_registry_async_client_oidc_limited(
     request: SubRequest,
     registry_oidc_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
-    oidc_token_limited,
+    oidc_token_schema_read_write,
 ) -> AsyncGenerator[Client, None]:
-    """Client to the authz-enabled SR using the read/write-only token — used to
+    """Client to the authz-enabled SR using the schema:read+write-only token — used to
     assert RBAC 403 on PUT/DELETE."""
 
     async def factory(auth):
-        return ClientSession(headers={"Authorization": f"Bearer {oidc_token_limited}"})
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token_schema_read_write}"})
 
     client = Client(
         server_uri=registry_oidc_cluster.endpoint.to_url(),
