@@ -70,7 +70,7 @@ def _restore_map_shorthand(
             None,
         )
         entry = entry_messages.get(matched_name) if matched_name else None
-        if entry is not None and field.label == Field.Label.REPEATED:
+        if matched_name is not None and entry is not None and field.label == Field.Label.REPEATED:
             entry_fields = {f.name: f for f in entry.fields}
             key_field = entry_fields.get("key")
             value_field = entry_fields.get("value")
