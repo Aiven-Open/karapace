@@ -1280,3 +1280,89 @@ def test_normalize_only_well_formed_entry_messages_are_collapsed() -> None:
     assert "GoodEntry" not in result, "well-formed entry message should be suppressed"
     assert "BadEntry" in result, "malformed entry message must not be removed"
     assert "repeated" in result and "bad" in result, "malformed field should remain as repeated"
+
+
+def test_normalize_does_not_collapse_field_pointing_to_same_named_entry_in_sibling_message() -> None:
+    """A field pointing to a same-named entry message in a sibling nested message must not be
+    incorrectly collapsed.
+
+    Schema (binary):
+      message Outer {
+        repeated .Outer.Sibling.LabelsEntry other = 1;   <- points to Sibling.LabelsEntry, NOT the map entry
+        map<string, string> labels = 2;                  <- the real map field
+
+        message Sibling {
+          message LabelsEntry { string x = 1; }          <- NOT a map entry, different scope
+        }
+        message LabelsEntry {                            <- the real map entry (direct child of Outer)
+          option map_entry = true;
+          string key = 1;
+          string value = 2;
+        }
+      }
+
+    The 'other' field ends with '.LabelsEntry' but refers to Sibling.LabelsEntry, not the map
+    entry.  A suffix-only match incorrectly collapses it; the qualified-name match does not.
+    """
+    import base64
+    import google.protobuf.descriptor_pb2 as pb2
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    fd = pb2.FileDescriptorProto()
+    fd.syntax = "proto3"
+    outer = fd.message_type.add()
+    outer.name = "Outer"
+
+    # Sibling message containing its own LabelsEntry (NOT a map entry)
+    sibling = outer.nested_type.add()
+    sibling.name = "Sibling"
+    sibling_entry = sibling.nested_type.add()
+    sibling_entry.name = "LabelsEntry"  # same simple name as the real map entry, different scope
+    sx = sibling_entry.field.add()
+    sx.name = "x"
+    sx.number = 1
+    sx.label = 1
+    sx.type = 9
+
+    # The real map entry as a direct child of Outer
+    map_entry = outer.nested_type.add()
+    map_entry.name = "LabelsEntry"
+    map_entry.options.map_entry = True
+    mk = map_entry.field.add()
+    mk.name = "key"
+    mk.number = 1
+    mk.label = 1
+    mk.type = 9
+    mv = map_entry.field.add()
+    mv.name = "value"
+    mv.number = 2
+    mv.label = 1
+    mv.type = 9
+
+    # Field pointing to Sibling.LabelsEntry (should NOT be collapsed)
+    f_other = outer.field.add()
+    f_other.name = "other"
+    f_other.number = 1
+    f_other.label = 3  # LABEL_REPEATED
+    f_other.type = 11
+    f_other.type_name = ".Outer.Sibling.LabelsEntry"
+
+    # Field pointing to the real map entry (SHOULD be collapsed)
+    f_labels = outer.field.add()
+    f_labels.name = "labels"
+    f_labels.number = 2
+    f_labels.label = 3  # LABEL_REPEATED
+    f_labels.type = 11
+    f_labels.type_name = ".Outer.LabelsEntry"
+
+    b64 = base64.b64encode(fd.SerializeToString()).decode()
+    pfe = deserialize(b64)
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<string, string> labels" in result, "map field should be collapsed to map<>"
+    assert (
+        "repeated" in result and "other" in result
+    ), "'other' field must remain as repeated (points to sibling, not map entry)"
+    assert "Sibling" in result, "Sibling message must not be removed"

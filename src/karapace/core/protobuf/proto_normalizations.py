@@ -37,6 +37,7 @@ def _is_map_entry(message: MessageElement) -> bool:
 
 def _restore_map_shorthand(
     message_element: MessageElement,
+    qualified_name: str,
 ) -> tuple[list[FieldElement], list[TypeElement]]:
     """Convert binary-deserialized map fields back to map<K,V> shorthand syntax during normalisation.
 
@@ -53,9 +54,19 @@ def _restore_map_shorthand(
 
     collapsed_entry_names: set[str] = set()
     new_fields: list[FieldElement] = []
+    # Pre-compute both the dotted and dot-free qualified prefix to match element_type
+    # values regardless of whether they carry a leading dot.
+    _qn_dot = qualified_name
+    _qn_no_dot = qualified_name.lstrip(".")
     for field in message_element.fields:
         matched_name = next(
-            (name for name in entry_messages if field.element_type == name or field.element_type.endswith(f".{name}")),
+            (
+                name
+                for name in entry_messages
+                if field.element_type == name
+                or field.element_type == f"{_qn_dot}.{name}"
+                or field.element_type == f"{_qn_no_dot}.{name}"
+            ),
             None,
         )
         entry = entry_messages.get(matched_name) if matched_name else None
@@ -235,14 +246,15 @@ def one_ofs_with_sorted_options(one_ofs: OneOfElement, package: str, type_tree: 
 
 
 def message_element_with_sorted_options(
-    message_element: MessageElement, package: str, type_tree: TypeTree
+    message_element: MessageElement, package: str, type_tree: TypeTree, qualified_name: str
 ) -> NormalizedMessageElement:
     sorted_options = None if message_element.options is None else list(sorted(message_element.options, key=sort_by_name))
 
-    shorthand_fields, shorthand_nested_types = _restore_map_shorthand(message_element)
+    shorthand_fields, shorthand_nested_types = _restore_map_shorthand(message_element, qualified_name)
 
     sorted_nested_types = [
-        type_element_with_sorted_options(nested_type, package, type_tree) for nested_type in shorthand_nested_types
+        type_element_with_sorted_options(nested_type, package, type_tree, f"{qualified_name}.{nested_type.name}")
+        for nested_type in shorthand_nested_types
     ]
     sorted_fields = [normalize_type_field_element(field, package, type_tree) for field in shorthand_fields]
     sorted_one_ofs = [one_ofs_with_sorted_options(one_of, package, type_tree) for one_of in message_element.one_ofs]
@@ -261,14 +273,19 @@ def message_element_with_sorted_options(
     )
 
 
-def type_element_with_sorted_options(type_element: TypeElement, package: str, type_tree: TypeTree) -> NormalizedTypeElement:
+def type_element_with_sorted_options(
+    type_element: TypeElement, package: str, type_tree: TypeTree, qualified_name: str
+) -> NormalizedTypeElement:
     sorted_nested_types: list[TypeElement] = []
 
     for nested_type in type_element.nested_types:
+        nested_qualified = f"{qualified_name}.{nested_type.name}"
         if isinstance(nested_type, EnumElement):
             sorted_nested_types.append(enum_element_with_sorted_options(nested_type))
         elif isinstance(nested_type, MessageElement):
-            sorted_nested_types.append(message_element_with_sorted_options(nested_type, package, type_tree))
+            sorted_nested_types.append(
+                message_element_with_sorted_options(nested_type, package, type_tree, nested_qualified)
+            )
         else:
             raise ValueError(f"Unknown type element {type(nested_type)}")  # tried with assert_never but it did not work
 
@@ -279,7 +296,7 @@ def type_element_with_sorted_options(type_element: TypeElement, package: str, ty
         return enum_element_with_sorted_options(type_element)
 
     if isinstance(type_element, MessageElement):
-        return message_element_with_sorted_options(type_element, package, type_tree)
+        return message_element_with_sorted_options(type_element, package, type_tree, qualified_name)
 
     raise ValueError(f"Unknown type element of type {type(type_element)}")  # tried with assert_never but it did not work
 
@@ -334,7 +351,13 @@ def normalize(protobuf_schema: ProtobufSchema) -> NormalizedProtobufSchema:
     type_tree = protobuf_schema.types_tree()
     package = proto_file_element.package_name or ""
     sorted_types: Sequence[NormalizedTypeElement] = [
-        type_element_with_sorted_options(type_element, package, type_tree) for type_element in proto_file_element.types
+        type_element_with_sorted_options(
+            type_element,
+            package,
+            type_tree,
+            f".{package}.{type_element.name}" if package else f".{type_element.name}",
+        )
+        for type_element in proto_file_element.types
     ]
     sorted_options = list(sorted(proto_file_element.options, key=sort_by_name))
     sorted_services: Sequence[NormalizedServiceElement] = [
