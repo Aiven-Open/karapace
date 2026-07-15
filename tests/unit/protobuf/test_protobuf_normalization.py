@@ -1185,3 +1185,98 @@ def test_normalize_map_field_order_when_map_is_in_the_middle() -> None:
     assert "map<string, string>" in result, "map field not converted to shorthand"
     assert "LabelsEntry" not in result, "synthetic entry message not suppressed"
     assert result.index("name") < result.index("labels") < result.index("count"), f"field order wrong:\n{result}"
+
+
+def _make_binary(setup_fn) -> str:
+    """Build a base64 FileDescriptorProto by applying setup_fn to a blank message descriptor."""
+    import base64
+    import google.protobuf.descriptor_pb2 as pb2
+
+    fd = pb2.FileDescriptorProto()
+    fd.syntax = "proto3"
+    msg = fd.message_type.add()
+    setup_fn(msg)
+    return base64.b64encode(fd.SerializeToString()).decode()
+
+
+def test_normalize_malformed_entry_message_is_not_collapsed_and_not_removed() -> None:
+    """A map_entry message missing the value field must not be collapsed to map<>
+    and must not be removed from nested types (which would leave a dangling reference)."""
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    def setup(msg) -> None:
+        msg.name = "Msg"
+        entry = msg.nested_type.add()
+        entry.name = "LabelsEntry"
+        entry.options.map_entry = True
+        k = entry.field.add()
+        k.name = "key"
+        k.number = 1
+        k.label = 1
+        k.type = 9  # no value field
+        f = msg.field.add()
+        f.name = "labels"
+        f.number = 1
+        f.label = 3
+        f.type = 11
+        f.type_name = ".Msg.LabelsEntry"
+
+    pfe = deserialize(_make_binary(setup))
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<" not in result, "malformed entry should not be converted to map<>"
+    assert "LabelsEntry" in result, "malformed entry message must not be removed (would dangle)"
+
+
+def test_normalize_only_well_formed_entry_messages_are_collapsed() -> None:
+    """When a message has two map_entry nested messages and only one is well-formed,
+    only the well-formed entry is collapsed to map<> and removed; the other is kept."""
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    def setup(msg) -> None:
+        msg.name = "Msg"
+        good = msg.nested_type.add()
+        good.name = "GoodEntry"
+        good.options.map_entry = True
+        k1 = good.field.add()
+        k1.name = "key"
+        k1.number = 1
+        k1.label = 1
+        k1.type = 9
+        v1 = good.field.add()
+        v1.name = "value"
+        v1.number = 2
+        v1.label = 1
+        v1.type = 9
+        bad = msg.nested_type.add()
+        bad.name = "BadEntry"
+        bad.options.map_entry = True
+        k2 = bad.field.add()
+        k2.name = "key"
+        k2.number = 1
+        k2.label = 1
+        k2.type = 9  # no value
+        f1 = msg.field.add()
+        f1.name = "good"
+        f1.number = 1
+        f1.label = 3
+        f1.type = 11
+        f1.type_name = ".Msg.GoodEntry"
+        f2 = msg.field.add()
+        f2.name = "bad"
+        f2.number = 2
+        f2.label = 3
+        f2.type = 11
+        f2.type_name = ".Msg.BadEntry"
+
+    pfe = deserialize(_make_binary(setup))
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<string, string> good" in result, "well-formed entry should be collapsed to map<>"
+    assert "GoodEntry" not in result, "well-formed entry message should be suppressed"
+    assert "BadEntry" in result, "malformed entry message must not be removed"
+    assert "repeated" in result and "bad" in result, "malformed field should remain as repeated"
