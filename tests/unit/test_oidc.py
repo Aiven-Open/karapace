@@ -938,20 +938,28 @@ def _base_claims(**overrides) -> dict:
 _OMIT = object()  # sentinel: pass claim=_OMIT to drop it entirely
 
 
+class _StubSigningKey:
+    """Stand-in for jwt.PyJWK: exposes only the ``.key`` attribute validate_jwt reads."""
+
+    def __init__(self, key: object) -> None:
+        self.key = key
+
+
 @pytest.fixture
 def build_real_middleware(rsa_keypair):
-    """Build an OIDCMiddleware whose JWKS client returns the in-test public key,
-    so validate_jwt runs the real PyJWT decode against real signatures."""
+    """Build an OIDCMiddleware backed by the REAL ``PyJWKClient``, stubbing only its
+    single network-touching method (``get_signing_key_from_jwt``) to return the in-test
+    public key. ``PyJWKClient.__init__`` performs no I/O — the JWKS endpoint is only hit
+    on key lookup — so the client is constructed for real; validate_jwt then runs the
+    genuine PyJWT decode against real signatures. We patch the seam, not the whole class."""
     _, public_key = rsa_keypair
 
     def _build(**config_overrides) -> OIDCMiddleware:
-        with patch("karapace.api.oidc.middleware.PyJWKClient") as mock_client:
-            instance = MagicMock()
-            instance.get_signing_key_from_jwt.return_value.key = public_key
-            mock_client.return_value = instance
-            config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, **config_overrides)
-            # _jwks_client is captured on the instance during __init__, so it survives the patch exit.
-            return OIDCMiddleware(app=MagicMock(), config=config)
+        config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, **config_overrides)
+        middleware = OIDCMiddleware(app=MagicMock(), config=config)
+        # Stub the network boundary on the real client instance, leaving decode intact.
+        middleware._jwks_client.get_signing_key_from_jwt = lambda _token: _StubSigningKey(public_key)
+        return middleware
 
     return _build
 
