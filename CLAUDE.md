@@ -16,7 +16,7 @@ source venv/bin/activate
 pip install -e ".[dev]"     # development install (includes test/lint deps)
 ```
 
-Requires Python 3.12+, Go, Rust, and protoc < 3.20.0.
+Requires Python 3.12+, Go, Rust, and protoc whose major is not ahead of the pinned `protobuf` runtime lib (currently 5.29.x); an older protoc is fine.
 
 ### Running services locally
 

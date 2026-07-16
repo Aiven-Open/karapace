@@ -25,13 +25,15 @@ import pytest
 _POOL = descriptor_pool.DescriptorPool()
 
 
-_FACTORY = message_factory.MessageFactory(pool=_POOL)
-
-
 def _build_message_class(file_proto: descriptor_pb2.FileDescriptorProto, message_name: str):
-    _POOL.Add(file_proto)
-    msg_desc = _POOL.FindMessageTypeByName(f"{file_proto.package}.{message_name}")
-    return _FACTORY.GetPrototype(msg_desc)
+    full_name = f"{file_proto.package}.{message_name}"
+    try:
+        # protobuf>=5 raises on adding a duplicate file name; reuse if already registered.
+        msg_desc = _POOL.FindMessageTypeByName(full_name)
+    except KeyError:
+        _POOL.Add(file_proto)
+        msg_desc = _POOL.FindMessageTypeByName(full_name)
+    return message_factory.GetMessageClass(msg_desc)
 
 
 def _make_file_proto(name: str, package: str) -> descriptor_pb2.FileDescriptorProto:

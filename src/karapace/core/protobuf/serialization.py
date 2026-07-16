@@ -160,8 +160,6 @@ def _deserialize_options(options: Any) -> list[OptionElement]:
         result.append(OptionElement("php_class_prefix", OptionElement.Kind.STRING, options.php_class_prefix))
     if options.HasField("php_namespace"):
         result.append(OptionElement("php_namespace", OptionElement.Kind.STRING, options.php_namespace))
-    if options.HasField("php_generic_services"):
-        result.append(OptionElement("php_generic_services", OptionElement.Kind.BOOLEAN, options.php_generic_services))
     if options.HasField("php_metadata_namespace"):
         result.append(OptionElement("php_metadata_namespace", OptionElement.Kind.STRING, options.php_metadata_namespace))
     if options.HasField("ruby_package"):
@@ -321,8 +319,6 @@ def _serialize_options(options: Sequence[OptionElement], result: google.protobuf
             result.php_class_prefix = opt.value
         if opt.name == ("php_namespace"):
             result.php_namespace = opt.value
-        if opt.name == ("php_generic_services"):
-            result.php_generic_services = opt.value
         if opt.name == ("php_metadata_namespace"):
             result.php_metadata_namespace = opt.value
         if opt.name == ("ruby_package"):
