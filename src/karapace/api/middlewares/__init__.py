@@ -12,7 +12,7 @@ from prometheus_client import Counter
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_fastapi_instrumentator.metrics import Info, request_size, requests, response_size
 
-from karapace.api.oidc.middleware import OIDCMiddleware, TokenExpiredError
+from karapace.api.oidc.validator import OIDCTokenValidator, TokenExpiredError
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
 import logging
@@ -20,7 +20,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def _authenticate_and_authorize(request: Request, config: Config, oidc_middleware: OIDCMiddleware) -> JSONResponse | None:
+def _authenticate_and_authorize(request: Request, config: Config, oidc_validator: OIDCTokenValidator) -> JSONResponse | None:
     """Run the OIDC auth gate. Return a JSONResponse on failure, or None to continue."""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -37,7 +37,7 @@ def _authenticate_and_authorize(request: Request, config: Config, oidc_middlewar
         )
 
     try:
-        payload = oidc_middleware.validate_jwt(token)
+        payload = oidc_validator.validate_jwt(token)
     except TokenExpiredError:
         return JSONResponse(
             status_code=401,
@@ -52,12 +52,12 @@ def _authenticate_and_authorize(request: Request, config: Config, oidc_middlewar
     # Expose only the configured subject claim to handlers, never the full payload.
     # Prevents downstream code from picking up attacker-controlled claims (e.g. "roles")
     # and using them for authz decisions.
-    request.state.user = payload.get(oidc_middleware.claim_name) if oidc_middleware.claim_name else None
+    request.state.user = payload.get(oidc_validator.claim_name) if oidc_validator.claim_name else None
     log.debug("Authenticated")
 
     if config.sasl_oauthbearer_authorization_enabled:
         try:
-            oidc_middleware.authorize_request(payload, request.method)
+            oidc_validator.authorize_request(payload, request.method)
         except HTTPException as e:
             return JSONResponse(
                 {"error": "Authorization error", "reason": e.detail},
@@ -66,24 +66,17 @@ def _authenticate_and_authorize(request: Request, config: Config, oidc_middlewar
     return None
 
 
-def setup_middlewares(app: FastAPI, config: Config) -> None:
-    oidc_middleware = OIDCMiddleware(app=app, config=config)
+# Paths that bypass the OIDC auth gate: API docs endpoints are always public.
+_DOCS_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
 
+
+def setup_middlewares(app: FastAPI, config: Config) -> None:
+    oidc_validator = OIDCTokenValidator(app=app, config=config)
+
+    # Registered first, so it is the innermost middleware: it sees the response after the
+    # auth gate has passed the request through to the handler.
     @app.middleware("http")
     async def set_content_types(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-        # Skip schema-registry header checks and Content-Type override for docs (Swagger UI, ReDoc, OpenAPI JSON).
-        if request.url.path in {"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}:
-            return await call_next(request)
-
-        # Check for skip paths like /_health and /metrics and bypass
-        if request.url.path in config.sasl_oauthbearer_skip_auth_paths:
-            return await call_next(request)
-
-        if config.sasl_oauthbearer_authentication_enabled:
-            failure = _authenticate_and_authorize(request, config, oidc_middleware)
-            if failure is not None:
-                return failure
-
         response = await call_next(request)
 
         content_type = getattr(request.state, "schema_response_content_type", None)
@@ -91,6 +84,25 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
             response.headers["Content-Type"] = content_type
 
         return response
+
+    # Registered last, so it is the outermost middleware: unauthenticated requests are
+    # rejected before reaching the handler or any inner middleware.
+    @app.middleware("http")
+    async def oidc_auth_gate(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        # Docs (Swagger UI, ReDoc, OpenAPI JSON) are always public.
+        if request.url.path in _DOCS_PATHS:
+            return await call_next(request)
+
+        # Configurable bypass paths like /_health and /metrics.
+        if request.url.path in config.sasl_oauthbearer_skip_auth_paths:
+            return await call_next(request)
+
+        if config.sasl_oauthbearer_authentication_enabled:
+            failure = _authenticate_and_authorize(request, config, oidc_validator)
+            if failure is not None:
+                return failure
+
+        return await call_next(request)
 
     setup_telemetry_middleware(app=app)
 

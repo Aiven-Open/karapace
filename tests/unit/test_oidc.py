@@ -20,7 +20,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from jwt import ExpiredSignatureError, InvalidTokenError
-from karapace.api.oidc.middleware import OIDCMiddleware, TokenExpiredError
+from karapace.api.oidc.validator import OIDCTokenValidator, TokenExpiredError
 from karapace.core.auth import AuthenticationError
 from karapace.core.config import Config
 from karapace.rapu import JSON_CONTENT_TYPE, HTTPResponse
@@ -126,8 +126,8 @@ def dummy_config(request):
         ),
     ),
 )
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_token_valid_configs(
     mock_jwt_decode, mock_pyjwks_client, auth_header, mock_payload, expected_expiration, dummy_config
 ):
@@ -135,7 +135,7 @@ def test_validate_token_valid_configs(
     mock_pyjwks_client.return_value = mock_client_instance
     mock_client_instance.get_signing_key_from_jwt.return_value.key = "fake-public-key"
 
-    oidc_middleware = OIDCMiddleware(app=MagicMock(), config=dummy_config)
+    oidc_middleware = OIDCTokenValidator(app=MagicMock(), config=dummy_config)
     mock_jwt_decode.return_value = mock_payload
 
     token = auth_header.split(" ", 1)[1]
@@ -164,7 +164,7 @@ def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
     with pytest.raises(
         ValueError, match="OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
     ):
-        OIDCMiddleware(app=MagicMock(), config=config)
+        OIDCTokenValidator(app=MagicMock(), config=config)
 
 
 def test_oidc_middleware_rejects_http_jwks_url_by_default():
@@ -174,10 +174,10 @@ def test_oidc_middleware_rejects_http_jwks_url_by_default():
         sasl_oauthbearer_expected_audience="aud",
     )
     with pytest.raises(ValueError, match="https://"):
-        OIDCMiddleware(app=MagicMock(), config=config)
+        OIDCTokenValidator(app=MagicMock(), config=config)
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_oidc_middleware_allows_http_jwks_when_override_set(mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     config = Config(
@@ -186,12 +186,12 @@ def test_oidc_middleware_allows_http_jwks_when_override_set(mock_pyjwks_client):
         sasl_oauthbearer_expected_audience="aud",
         sasl_oauthbearer_allow_insecure_jwks=True,
     )
-    OIDCMiddleware(app=MagicMock(), config=config)
+    OIDCTokenValidator(app=MagicMock(), config=config)
 
 
 @pytest.mark.parametrize("dummy_config", valid_configs, ids=["valid_full", "no_oidc"], indirect=True)
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy_config):
     # Setup mock PyJWKClient instance if JWKS URL is present, else None
     if dummy_config.sasl_oauthbearer_jwks_endpoint_url:
@@ -205,7 +205,7 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
     # Setup jwt.decode to raise InvalidTokenError
     mock_jwt_decode.side_effect = InvalidTokenError("Invalid token")
 
-    oidc_middleware = OIDCMiddleware(app=MagicMock(), config=dummy_config)
+    oidc_middleware = OIDCTokenValidator(app=MagicMock(), config=dummy_config)
 
     invalid_token = "invalid.jwt.token"
 
@@ -232,7 +232,7 @@ def test_validate_token_invalid_token(mock_jwt_decode, mock_pyjwks_client, dummy
     ],
 )
 def test_get_roles_from_claim_path(payload, path, expected_roles):
-    roles = OIDCMiddleware.get_roles_from_claim_path(payload, path)
+    roles = OIDCTokenValidator.get_roles_from_claim_path(payload, path)
     assert roles == expected_roles
 
 
@@ -264,7 +264,7 @@ def test_authorize_request_roles(monkeypatch, roles, method, method_roles, expec
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
         sasl_oauthbearer_method_roles=method_roles,
     )
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
 
     payload = {"realm_access": {"roles": roles}}
 
@@ -351,7 +351,7 @@ def _clean_prometheus_registry():
 def _build_app_with_middleware(
     monkeypatch, config: Config, *, validate_jwt_payload: dict | None = None, validate_jwt_raises: Exception | None = None
 ):
-    """Build a minimal FastAPI app wired to setup_middlewares, with OIDCMiddleware patched."""
+    """Build a minimal FastAPI app wired to setup_middlewares, with OIDCTokenValidator patched."""
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from karapace.api import middlewares as middlewares_mod
@@ -375,13 +375,13 @@ def _build_app_with_middleware(
         # Re-use real role logic to verify the gate, but make it raise if enabled+roles missing.
         return True
 
-    # Patch heavy bits of OIDCMiddleware: skip real JWKS client construction.
+    # Patch heavy bits of OIDCTokenValidator: skip real JWKS client construction.
     monkeypatch.setattr(
-        "karapace.api.oidc.middleware.PyJWKClient",
+        "karapace.api.oidc.validator.PyJWKClient",
         lambda *a, **kw: MagicMock(),
     )
-    monkeypatch.setattr(OIDCMiddleware, "validate_jwt", _fake_validate_jwt)
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _fake_authorize)
+    monkeypatch.setattr(OIDCTokenValidator, "validate_jwt", _fake_validate_jwt)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _fake_authorize)
 
     middlewares_mod.setup_middlewares(app=app, config=config)
     return TestClient(app, raise_server_exceptions=False)
@@ -426,10 +426,10 @@ def test_middleware_authn_only_skips_authorize_request(monkeypatch):
         return True
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _spy_authorize)
     client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
     # Re-patch authorize_request after _build_app_with_middleware (which also patches it).
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _spy_authorize)
 
     r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
     assert r.status_code == 200
@@ -449,9 +449,9 @@ def test_middleware_authn_and_authz_calls_authorize(monkeypatch):
         sasl_oauthbearer_authorization_enabled=True,
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
     )
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _spy_authorize)
     client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _spy_authorize)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _spy_authorize)
 
     r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
     assert r.status_code == 200
@@ -464,7 +464,7 @@ def test_middleware_authn_and_authz_calls_authorize(monkeypatch):
 # function-level authorize_request tests above.
 # ---------------------------------------------------------------------------
 
-_REAL_AUTHORIZE = OIDCMiddleware.authorize_request
+_REAL_AUTHORIZE = OIDCTokenValidator.authorize_request
 
 
 def _authz_middleware_client(monkeypatch, payload: dict):
@@ -478,7 +478,7 @@ def _authz_middleware_client(monkeypatch, payload: dict):
     )
     client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload=payload)
     # _build_app_with_middleware stubs authorize_request; restore the genuine impl.
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _REAL_AUTHORIZE)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _REAL_AUTHORIZE)
     return client
 
 
@@ -513,10 +513,10 @@ def test_middleware_real_authorize_denial_body_matches_misconfig(monkeypatch):
         authorization_enabled=True,
         sasl_oauthbearer_method_roles={"GET": ["reader"], "POST": ["w"], "PUT": ["w"], "DELETE": ["w"]},
         sasl_oauthbearer_roles_claim_path=None,
-        get_roles_from_claim_path=OIDCMiddleware.get_roles_from_claim_path,
+        get_roles_from_claim_path=OIDCTokenValidator.get_roles_from_claim_path,
     )
     with pytest.raises(HTTPException) as exc_info:
-        OIDCMiddleware.authorize_request(ns, {"realm_access": {"roles": ["reader"]}}, request_method="GET")
+        OIDCTokenValidator.authorize_request(ns, {"realm_access": {"roles": ["reader"]}}, request_method="GET")
     assert exc_info.value.status_code == 403
     # The middleware serializes HTTPException.detail into reason; both must render identically.
     assert mismatch.json() == {"error": "Authorization error", "reason": exc_info.value.detail}
@@ -531,9 +531,9 @@ def test_middleware_authn_and_authz_returns_403_on_role_failure(monkeypatch):
         sasl_oauthbearer_authorization_enabled=True,
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
     )
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _deny)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _deny)
     client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
-    monkeypatch.setattr(OIDCMiddleware, "authorize_request", _deny)
+    monkeypatch.setattr(OIDCTokenValidator, "authorize_request", _deny)
 
     r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
     assert r.status_code == 403
@@ -592,15 +592,15 @@ def test_middleware_accepts_bearer_with_valid_token(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_expired_token_raises_token_expired(mock_jwt_decode, mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
     mock_jwt_decode.side_effect = ExpiredSignatureError("Signature has expired")
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
 
     with pytest.raises(TokenExpiredError) as exc_info:
         middleware.validate_jwt("expired.jwt.token")
@@ -641,15 +641,15 @@ def test_middleware_invalid_token_still_returns_invalid_reason(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_passes_leeway_and_require_sub_to_decode(mock_jwt_decode, mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
     mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_leeway_seconds=42)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     middleware.validate_jwt("good.jwt.token")
 
     kwargs = mock_jwt_decode.call_args.kwargs
@@ -657,54 +657,54 @@ def test_validate_jwt_passes_leeway_and_require_sub_to_decode(mock_jwt_decode, m
     assert "sub" in kwargs["options"]["require"]
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_require_uses_configured_sub_claim(mock_jwt_decode, mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
     mock_jwt_decode.return_value = {"user_id": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_sub_claim_name="user_id")
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     middleware.validate_jwt("good.jwt.token")
 
     require = mock_jwt_decode.call_args.kwargs["options"]["require"]
     assert "user_id" in require
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_logs_reason_on_invalid_token(mock_jwt_decode, mock_pyjwks_client, caplog):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
     mock_jwt_decode.side_effect = InvalidTokenError("missing required claim sub")
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
 
-    with caplog.at_level(logging.WARNING, logger="karapace.api.oidc.middleware"):
+    with caplog.at_level(logging.WARNING, logger="karapace.api.oidc.validator"):
         with pytest.raises(AuthenticationError):
             middleware.validate_jwt("bad.jwt.token")
 
     assert any("missing required claim sub" in rec.message for rec in caplog.records)
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_validate_jwt_audience_missing_raises(mock_pyjwks_client):
     """Defense-in-depth: if audience is somehow None at decode time, fail closed."""
     mock_pyjwks_client.return_value = MagicMock()
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     middleware.audience = None  # bypass __init__ guard
 
     with pytest.raises(AuthenticationError, match="audience missing"):
         middleware.validate_jwt("any.jwt.token")
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.get_unverified_header")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.get_unverified_header")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_at_jwt_typ_enforced_accepts(mock_jwt_decode, mock_unverified_header, mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
@@ -712,13 +712,13 @@ def test_validate_jwt_at_jwt_typ_enforced_accepts(mock_jwt_decode, mock_unverifi
     mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.get_unverified_header")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.get_unverified_header")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_at_jwt_typ_enforced_rejects_id_token(mock_jwt_decode, mock_unverified_header, mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
@@ -726,27 +726,27 @@ def test_validate_jwt_at_jwt_typ_enforced_rejects_id_token(mock_jwt_decode, mock
     mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
         middleware.validate_jwt("idtoken.jwt.token")
     mock_jwt_decode.assert_not_called()
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.get_unverified_header")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.get_unverified_header")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_typ_check_skipped_when_flag_off(mock_jwt_decode, mock_unverified_header, mock_pyjwks_client):
     mock_pyjwks_client.return_value = MagicMock()
     mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
     mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     middleware.validate_jwt("good.jwt.token")
     mock_unverified_header.assert_not_called()
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_authorization_enabled_without_client_id_is_accepted(mock_pyjwks_client):
     """Authz needs only a static roles_claim_path — client_id is no longer required."""
     mock_pyjwks_client.return_value = MagicMock()
@@ -756,13 +756,13 @@ def test_authorization_enabled_without_client_id_is_accepted(mock_pyjwks_client)
         sasl_oauthbearer_roles_claim_path="realm_access.roles",
         sasl_oauthbearer_method_roles={"GET": ["reader"], "POST": ["admin"], "PUT": ["admin"], "DELETE": ["admin"]},
     )
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     payload = {"realm_access": {"roles": ["reader"]}}
     assert middleware.authorize_request(payload, "GET") is True
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_default_leeway_is_zero(mock_jwt_decode, mock_pyjwks_client):
     """Default leeway is 0 — preserves prior strict behavior. Operators opt into skew tolerance."""
     mock_pyjwks_client.return_value = MagicMock()
@@ -770,7 +770,7 @@ def test_validate_jwt_default_leeway_is_zero(mock_jwt_decode, mock_pyjwks_client
     mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     middleware.validate_jwt("good.jwt.token")
 
     assert mock_jwt_decode.call_args.kwargs["leeway"] == 0
@@ -785,9 +785,9 @@ def test_config_rejects_negative_leeway():
 
 
 @pytest.mark.parametrize("typ_value", ["AT+JWT", "at+jwt", "application/at+jwt", "Application/AT+JWT"])
-@patch("karapace.api.oidc.middleware.PyJWKClient")
-@patch("karapace.api.oidc.middleware.jwt.get_unverified_header")
-@patch("karapace.api.oidc.middleware.jwt.decode")
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.get_unverified_header")
+@patch("karapace.api.oidc.validator.jwt.decode")
 def test_validate_jwt_at_jwt_typ_accepts_case_insensitive_and_long_form(
     mock_jwt_decode, mock_unverified_header, mock_pyjwks_client, typ_value
 ):
@@ -797,7 +797,7 @@ def test_validate_jwt_at_jwt_typ_accepts_case_insensitive_and_long_form(
     mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_require_access_token_typ=True)
-    middleware = OIDCMiddleware(app=MagicMock(), config=config)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
     assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}
 
 
@@ -815,12 +815,12 @@ def _authz_config(method_roles: dict[str, list[str]]) -> Config:
     )
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_method_roles_complete_set_is_accepted(mock_pyjwks_client):
     """All four required methods present -> constructor succeeds."""
     mock_pyjwks_client.return_value = MagicMock()
     config = _authz_config({"GET": ["r"], "POST": ["w"], "PUT": ["w"], "DELETE": ["w"]})
-    OIDCMiddleware(app=MagicMock(), config=config)
+    OIDCTokenValidator(app=MagicMock(), config=config)
 
 
 @pytest.mark.parametrize(
@@ -836,31 +836,31 @@ def test_method_roles_complete_set_is_accepted(mock_pyjwks_client):
         ({}, "DELETE, GET, POST, PUT"),
     ],
 )
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_method_roles_missing_required_method_raises(mock_pyjwks_client, method_roles, expected_missing):
     mock_pyjwks_client.return_value = MagicMock()
     config = _authz_config(method_roles)
     with pytest.raises(ValueError, match=f"method_roles is missing definitions for: {expected_missing}"):
-        OIDCMiddleware(app=MagicMock(), config=config)
+        OIDCTokenValidator(app=MagicMock(), config=config)
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_method_roles_extra_unknown_method_is_allowed(mock_pyjwks_client):
     """Extra methods beyond the required set are tolerated — only missing ones fail."""
     mock_pyjwks_client.return_value = MagicMock()
     config = _authz_config({"GET": ["r"], "POST": ["w"], "PUT": ["w"], "DELETE": ["w"], "PATCH": ["w"]})
-    OIDCMiddleware(app=MagicMock(), config=config)
+    OIDCTokenValidator(app=MagicMock(), config=config)
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_method_roles_validation_is_case_insensitive(mock_pyjwks_client):
     """Lowercase method keys are normalised before the completeness check."""
     mock_pyjwks_client.return_value = MagicMock()
     config = _authz_config({"get": ["r"], "post": ["w"], "put": ["w"], "delete": ["w"]})
-    OIDCMiddleware(app=MagicMock(), config=config)
+    OIDCTokenValidator(app=MagicMock(), config=config)
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_method_roles_not_validated_when_authorization_disabled(mock_pyjwks_client):
     """``method_roles`` is irrelevant when authz is off — even an empty dict is fine."""
     mock_pyjwks_client.return_value = MagicMock()
@@ -869,16 +869,16 @@ def test_method_roles_not_validated_when_authorization_disabled(mock_pyjwks_clie
         sasl_oauthbearer_authorization_enabled=False,
         sasl_oauthbearer_method_roles={},
     )
-    OIDCMiddleware(app=MagicMock(), config=config)
+    OIDCTokenValidator(app=MagicMock(), config=config)
 
 
-@patch("karapace.api.oidc.middleware.PyJWKClient")
+@patch("karapace.api.oidc.validator.PyJWKClient")
 def test_constructor_refuses_misconfigured_method_roles(mock_pyjwks_client):
     """The check refuses a config missing ``POST`` upfront at startup."""
     mock_pyjwks_client.return_value = MagicMock()
     bad_config = _authz_config({"GET": ["r"], "PUT": ["w"], "DELETE": ["w"]})
     with pytest.raises(ValueError, match="method_roles is missing definitions for: POST"):
-        OIDCMiddleware(app=MagicMock(), config=bad_config)
+        OIDCTokenValidator(app=MagicMock(), config=bad_config)
 
 
 def test_authorize_request_silently_denies_when_method_unmapped():
@@ -891,12 +891,12 @@ def test_authorize_request_silently_denies_when_method_unmapped():
         sasl_oauthbearer_method_roles={"GET": ["r"], "PUT": ["w"], "DELETE": ["w"]},
         sasl_oauthbearer_roles_claim_path="resource_access.karapace-client.roles",
         client_id="karapace-client",
-        get_roles_from_claim_path=OIDCMiddleware.get_roles_from_claim_path,
+        get_roles_from_claim_path=OIDCTokenValidator.get_roles_from_claim_path,
     )
     payload = {"resource_access": {"karapace-client": {"roles": ["w"]}}}
 
     with pytest.raises(HTTPException) as exc_info:
-        OIDCMiddleware.authorize_request(ns, payload, request_method="POST")
+        OIDCTokenValidator.authorize_request(ns, payload, request_method="POST")
     assert exc_info.value.status_code == 403
 
 
@@ -947,16 +947,16 @@ class _StubSigningKey:
 
 @pytest.fixture
 def build_real_middleware(rsa_keypair):
-    """Build an OIDCMiddleware backed by the REAL ``PyJWKClient``, stubbing only its
+    """Build an OIDCTokenValidator backed by the REAL ``PyJWKClient``, stubbing only its
     single network-touching method (``get_signing_key_from_jwt``) to return the in-test
     public key. ``PyJWKClient.__init__`` performs no I/O — the JWKS endpoint is only hit
     on key lookup — so the client is constructed for real; validate_jwt then runs the
     genuine PyJWT decode against real signatures. We patch the seam, not the whole class."""
     _, public_key = rsa_keypair
 
-    def _build(**config_overrides) -> OIDCMiddleware:
+    def _build(**config_overrides) -> OIDCTokenValidator:
         config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, **config_overrides)
-        middleware = OIDCMiddleware(app=MagicMock(), config=config)
+        middleware = OIDCTokenValidator(app=MagicMock(), config=config)
         # Stub the network boundary on the real client instance, leaving decode intact.
         middleware._jwks_client.get_signing_key_from_jwt = lambda _token: _StubSigningKey(public_key)
         return middleware

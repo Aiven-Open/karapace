@@ -123,8 +123,8 @@ def test_valid_bearer_token_passes_and_sets_content_type() -> None:
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     with (
-        patch("karapace.api.middlewares.OIDCMiddleware.validate_jwt", return_value={"sub": "u1"}),
-        patch("karapace.api.middlewares.OIDCMiddleware.authorize_request", return_value=True),
+        patch("karapace.api.middlewares.OIDCTokenValidator.validate_jwt", return_value={"sub": "u1"}),
+        patch("karapace.api.middlewares.OIDCTokenValidator.authorize_request", return_value=True),
     ):
         response = _client(config).get("/subjects", headers={"Authorization": "Bearer good-token"})
 
@@ -136,7 +136,7 @@ def test_invalid_jwt_returns_401() -> None:
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     with patch(
-        "karapace.api.middlewares.OIDCMiddleware.validate_jwt",
+        "karapace.api.middlewares.OIDCTokenValidator.validate_jwt",
         side_effect=AuthenticationError("bad token"),
     ):
         response = _client(config).get("/subjects", headers={"Authorization": "Bearer bad-token"})
@@ -149,9 +149,9 @@ def test_authorization_failure_returns_role_error() -> None:
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_authorization_enabled=True)
 
     with (
-        patch("karapace.api.middlewares.OIDCMiddleware.validate_jwt", return_value={"sub": "u1"}),
+        patch("karapace.api.middlewares.OIDCTokenValidator.validate_jwt", return_value={"sub": "u1"}),
         patch(
-            "karapace.api.middlewares.OIDCMiddleware.authorize_request",
+            "karapace.api.middlewares.OIDCTokenValidator.authorize_request",
             side_effect=HTTPException(status_code=403, detail="Insufficient roles"),
         ),
     ):

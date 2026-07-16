@@ -18,10 +18,10 @@ This file is the load-bearing context for those flows. Anchors below are file pa
 ## 1. SR OIDC — Token Validation
 
 ### Files
-- `src/karapace/api/oidc/middleware.py` — `OIDCMiddleware` (validation + authz)
+- `src/karapace/api/oidc/validator.py` — `OIDCTokenValidator` (validation + authz)
 - `src/karapace/api/middlewares/__init__.py` — HTTP middleware that runs the gate (`_authenticate_and_authorize`, `setup_middlewares`)
 
-### Validation flow — `OIDCMiddleware.validate_jwt`
+### Validation flow — `OIDCTokenValidator.validate_jwt`
 1. `PyJWKClient.get_signing_key_from_jwt(token)` fetches the signing key (cached).
 2. `jwt.decode()` with:
    - `algorithms=["RS256","RS384","RS512"]` (hardcoded, RSA only)
@@ -30,14 +30,14 @@ This file is the load-bearing context for those flows. Anchors below are file pa
    - `options={"require": ["exp","iss","aud"]}` — PyJWT does **not** require these by default; we do, explicitly.
 3. `ExpiredSignatureError` → custom `TokenExpiredError` (subclass of `AuthenticationError`) so the 401 reason can say "Token expired" vs. "Invalid token/payload".
 
-### JWKS client cache — `OIDCMiddleware.__init__` (`self._jwks_client`)
+### JWKS client cache — `OIDCTokenValidator.__init__` (`self._jwks_client`)
 ```python
 PyJWKClient(self.jwks_url, cache_keys=True, lifespan=300, max_cached_keys=16)
 ```
 - `lifespan=300` caps how long a key stays cached after IdP key rotation/revocation.
 - `max_cached_keys=16` — IdPs typically expose 1-3; 16 is generous.
 
-### HTTPS enforcement — `OIDCMiddleware.__init__` (search for `allow_insecure_jwks`)
+### HTTPS enforcement — `OIDCTokenValidator.__init__` (search for `allow_insecure_jwks`)
 JWKS over plain HTTP is rejected unless `sasl_oauthbearer_allow_insecure_jwks=true` (dev-only override; logs a loud warning). Reason: an in-path attacker could swap signing keys and forge valid tokens.
 
 ### Subject exposure — `_authenticate_and_authorize` (search for `request.state.user`)
@@ -51,13 +51,13 @@ After validation, only the configured subject claim (`claim_name`, default `"sub
 
 ## 2. SR OIDC — Authorization (RBAC)
 
-### Flow — `OIDCMiddleware.authorize_request`
+### Flow — `OIDCTokenValidator.authorize_request`
 - Off when `sasl_oauthbearer_authorization_enabled=false` — returns `True` immediately.
 - Looks up allowed roles for the request method in `sasl_oauthbearer_method_roles`, e.g. `{"GET": ["reader","admin"], "POST": ["admin"], ...}`.
 - Extracts user roles via `sasl_oauthbearer_roles_claim_path` (dot-path, e.g. `realm_access.roles`, or a literal Keycloak path `resource_access.<client>.roles`).
 - Mismatch (or any misconfig) → **403 with the same body** as a real role mismatch. This is intentional — an attacker with a valid token must not be able to distinguish "bad config" from "missing role" via response differences.
 
-### Required config when authz is on (`OIDCMiddleware.__init__`)
+### Required config when authz is on (`OIDCTokenValidator.__init__`)
 - `sasl_oauthbearer_roles_claim_path`
 
 Missing it → `ValueError` at startup (fail-closed).
@@ -212,7 +212,7 @@ All env vars are prefixed `KARAPACE_` (Pydantic `BaseSettings`). The flag double
 
 | Path | What it covers |
 |---|---|
-| `tests/unit/test_oidc.py` | `OIDCMiddleware` unit tests: config validation, `validate_jwt`, role extraction, `authorize_request`. Two flavors of JWT test — **mocked** `jwt.decode` (argument wiring) and **real RS256** (in-test RSA keypair + stubbed JWKS client, so PyJWT genuinely validates `aud`/`iss`/`exp`/`nbf`/`sub`/alg/`typ`, incl. HS256 & `alg:none` rejection). Also: Authorization-header parsing branches (non-Bearer scheme, lowercase, empty/whitespace token) and RBAC through the real HTTP middleware (empty/missing/wrong roles → 403, anti-oracle body parity). |
+| `tests/unit/test_oidc.py` | `OIDCTokenValidator` unit tests: config validation, `validate_jwt`, role extraction, `authorize_request`. Two flavors of JWT test — **mocked** `jwt.decode` (argument wiring) and **real RS256** (in-test RSA keypair + stubbed JWKS client, so PyJWT genuinely validates `aud`/`iss`/`exp`/`nbf`/`sub`/alg/`typ`, incl. HS256 & `alg:none` rejection). Also: Authorization-header parsing branches (non-Bearer scheme, lowercase, empty/whitespace token) and RBAC through the real HTTP middleware (empty/missing/wrong roles → 403, anti-oracle body parity). |
 | `tests/unit/kafka_rest_apis/test_sr_authorization_forwarding.py` | RP gate: enabled/disabled, with/without header, concurrent isolation across coroutines |
 | `tests/e2e/schema_registry/test_oidc.py` | SR e2e: valid/invalid/expired tokens, missing headers, skip paths; **RBAC 403 denial** (PUT/DELETE with the reduced-role token) and **GET success**; unauthenticated existence non-leakage (existing vs missing subject → identical 401) |
 | `tests/e2e/kafka_rest_apis/test_oidc_forwarding.py` | RP→SR e2e: AVRO/JSON publish + consumer fetch with bearer, invalid bearer, no-auth fallthrough |
@@ -249,5 +249,5 @@ When you add a feature that crosses the auth boundary, walk through these checks
 2. **New RP endpoint that calls `SchemaRegistryClient`?** Set `sr_authorization_ctx` from the inbound `Authorization` header, gated on `config.sasl_oauthbearer_authentication_enabled`. Update the comment on the contextvar listing the entry points.
 3. **New `SchemaRegistryClient` outbound call?** Pass `headers=_authorization_headers()` (or merge it if you already have headers — see the `post_new_schema` content-type pitfall).
 4. **New cacheable schema lookup?** Include `_token_fingerprint()` in the cache key. Don't store the raw token anywhere.
-5. **New authz rule?** Prefer extending `sasl_oauthbearer_method_roles` over inventing a parallel system. If you must inspect the JWT payload, do it inside `OIDCMiddleware` — don't leak the payload to handlers.
-6. **Error responses on auth failure?** Match the existing pattern: 401 with `{"error": "Unauthorized", "reason": "..."}` for authn, 403 with `{"error": "Authorization error", "reason": "Forbidden"}` for authz. Keep the 403 body identical to the misconfig branch — see `OIDCMiddleware.authorize_request` for the rationale (do not let the response distinguish bad config from a missing role).
+5. **New authz rule?** Prefer extending `sasl_oauthbearer_method_roles` over inventing a parallel system. If you must inspect the JWT payload, do it inside `OIDCTokenValidator` — don't leak the payload to handlers.
+6. **Error responses on auth failure?** Match the existing pattern: 401 with `{"error": "Unauthorized", "reason": "..."}` for authn, 403 with `{"error": "Authorization error", "reason": "Forbidden"}` for authz. Keep the 403 body identical to the misconfig branch — see `OIDCTokenValidator.authorize_request` for the rationale (do not let the response distinguish bad config from a missing role).

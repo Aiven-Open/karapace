@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 REQUIRED_HTTP_METHODS: frozenset[str] = frozenset({"GET", "POST", "PUT", "DELETE"})
 
 
-class OIDCMiddleware:
+class OIDCTokenValidator:
     def __init__(self, app: FastAPI, config: Config) -> None:
         self.app = app
         self.config = config
@@ -193,7 +193,7 @@ class OIDCMiddleware:
                     return []  # path broken
                 value = value.get(part)
 
-            return OIDCMiddleware._normalize_role_values(value)
+            return OIDCTokenValidator._normalize_role_values(value)
         except Exception:
             pass
         return []
