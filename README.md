@@ -36,7 +36,7 @@
 | src/karapace/core/avro\_dataclasses/introspect.py        |       84 |       13 |       48 |        3 |     82% |41, 69, 112-126 |
 | src/karapace/core/avro\_dataclasses/models.py            |       97 |        8 |       32 |        4 |     91% |72-75, 105-106, 108, 111, 131 |
 | src/karapace/core/avro\_dataclasses/schema.py            |       33 |        0 |        0 |        0 |    100% |           |
-| src/karapace/core/client.py                              |      133 |        0 |       18 |        0 |    100% |           |
+| src/karapace/core/client.py                              |      133 |        1 |       18 |        0 |     99% |        42 |
 | src/karapace/core/compatibility/\_\_init\_\_.py          |       15 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/compatibility/jsonschema/checks.py     |      371 |       44 |      162 |       18 |     85% |203, 253, 266, 335, 426, 436-447, 522-534, 547-551, 576, 600, 662, 685, 765-777, 788-798, 823-826, 887, 897-902, 922 |
 | src/karapace/core/compatibility/jsonschema/types.py      |      105 |        0 |        0 |        0 |    100% |           |
@@ -57,7 +57,7 @@
 | src/karapace/core/instrumentation/prometheus.py          |       39 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/instrumentation/tracer.py              |       66 |        2 |       12 |        1 |     96% |42, 45, 61-\>exit |
 | src/karapace/core/kafka/admin.py                         |      107 |       10 |       26 |        1 |     86% |186-200, 240-243 |
-| src/karapace/core/kafka/common.py                        |       89 |        6 |       20 |        6 |     89% |59, 63, 79, 178, 214, 219 |
+| src/karapace/core/kafka/common.py                        |       89 |        7 |       20 |        7 |     87% |59, 61, 63, 79, 178, 214, 219 |
 | src/karapace/core/kafka/consumer.py                      |      145 |       15 |       20 |        3 |     89% |49-50, 63, 68, 100, 103-104, 135-136, 162-163, 182-183, 188-189 |
 | src/karapace/core/kafka/producer.py                      |       67 |        2 |        6 |        0 |     97% |     68-69 |
 | src/karapace/core/kafka/types.py                         |        8 |        0 |        0 |        0 |    100% |           |
@@ -89,7 +89,7 @@
 | src/karapace/core/protobuf/option\_element.py            |       80 |        2 |       30 |        3 |     95% |51, 81-\>84, 88 |
 | src/karapace/core/protobuf/option\_reader.py             |      100 |       17 |       46 |        4 |     80% |60, 100, 111-115, 121-127, 135-139 |
 | src/karapace/core/protobuf/proto\_file\_element.py       |       92 |        4 |       44 |        3 |     95% |23-\>exit, 35, 121, 131, 146 |
-| src/karapace/core/protobuf/proto\_normalizations.py      |      115 |        4 |       10 |        2 |     95% |150-153, 210, 221 |
+| src/karapace/core/protobuf/proto\_normalizations.py      |      142 |        4 |       18 |        2 |     96% |221-224, 290, 301 |
 | src/karapace/core/protobuf/proto\_parser.py              |      382 |        9 |      130 |       10 |     96% |108, 116, 293, 319, 347, 484, 512, 514-\>517, 551, 614 |
 | src/karapace/core/protobuf/proto\_type.py                |      130 |       19 |       26 |        5 |     81% |18-\>20, 123, 147-148, 158, 161-170, 173, 179, 182, 186, 198, 203, 211, 250 |
 | src/karapace/core/protobuf/protobuf\_to\_dict.py         |      185 |       38 |      102 |       17 |     79% |104-105, 116, 125, 130, 143, 159, 212-221, 239, 249, 252, 254, 256-257, 261-262, 264, 270-275, 278-280, 287, 290-291, 298-299, 324-326 |
@@ -98,7 +98,7 @@
 | src/karapace/core/protobuf/reserved\_element.py          |       27 |        1 |       10 |        1 |     95% |        39 |
 | src/karapace/core/protobuf/rpc\_element.py               |       30 |        0 |        8 |        0 |    100% |           |
 | src/karapace/core/protobuf/schema.py                     |      278 |       14 |      150 |        8 |     94% |76-78, 81-83, 178, 200, 205, 278, 290, 301, 448, 505 |
-| src/karapace/core/protobuf/serialization.py              |      257 |       32 |      168 |       37 |     84% |60, 62, 132, 136, 138, 140, 142, 144, 148, 150, 152, 158, 160, 213, 229-\>231, 231-\>233, 257, 270-\>259, 293, 295, 297, 299, 301, 303, 305, 307, 309, 311, 313, 315, 317, 319, 321, 323, 325, 334-\>337, 346-\>343 |
+| src/karapace/core/protobuf/serialization.py              |      270 |       35 |      178 |       39 |     83% |60, 62, 82, 143, 147, 149, 151, 153, 155, 159, 161, 163, 169, 171, 224, 240-\>242, 242-\>244, 268, 281-\>270, 297-298, 309, 311, 313, 315, 317, 319, 321, 323, 325, 327, 329, 331, 333, 335, 337, 339, 341, 350-\>353, 362-\>359 |
 | src/karapace/core/protobuf/service\_element.py           |       28 |        0 |        8 |        0 |    100% |           |
 | src/karapace/core/protobuf/syntax.py                     |       12 |        1 |        0 |        0 |     92% |        24 |
 | src/karapace/core/protobuf/syntax\_reader.py             |      262 |       13 |      124 |       15 |     92% |55-56, 68, 107, 170-\>181, 193-194, 216, 220-\>223, 227-\>247, 248, 249-\>260, 253-\>259, 261, 266-\>275, 301-\>324, 314-315, 346, 369 |
@@ -128,7 +128,7 @@
 | src/karapace/rapu.py                                     |      261 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317-\>320, 320-\>330, 322-\>325, 325-\>328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       11 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                | **11076** | **1650** | **3082** |  **405** | **83%** |           |
+| **TOTAL**                                                | **11116** | **1655** | **3100** |  **408** | **83%** |           |
 
 13 empty files skipped.
 
