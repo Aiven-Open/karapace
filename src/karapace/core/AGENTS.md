@@ -88,7 +88,7 @@ All env vars are prefixed `KARAPACE_`. The OIDC fields live on `Config`:
 
 ## Tests touching this directory
 
-- `tests/unit/test_oidc.py` — `OIDCMiddleware` (lives in `api/`, but config validation is exercised here).
+- `tests/unit/test_oidc.py` — `OIDCTokenValidator` (lives in `api/`, but config validation is exercised here).
 - `tests/unit/kafka_rest_apis/test_sr_authorization_forwarding.py` — RP gate behavior (enabled/disabled, with/without header, concurrent isolation across coroutines).
 - `tests/conftest.py` — fixtures `registry_async_client_oidc`, `registry_async_client_basic`, `reset_sr_authorization_ctx`. **The `reset_sr_authorization_ctx` fixture is required for any test that touches `sr_authorization_ctx`** — contextvars persist across tests in the same event-loop scope and will leak state otherwise.
 

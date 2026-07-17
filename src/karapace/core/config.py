@@ -138,7 +138,7 @@ class Config(BaseSettings):
     ssl_crlfile: str | None = None
     ssl_password: str | None = None
     sasl_mechanism: str | None = None
-    # OIDC for Schema Registry (OIDCMiddleware). authZ requires authN.
+    # OIDC for Schema Registry (OIDCTokenValidator). authZ requires authN.
     sasl_oauthbearer_authentication_enabled: bool = False
     sasl_oauthbearer_authorization_enabled: bool = False
     sasl_oauthbearer_jwks_endpoint_url: str | None = None

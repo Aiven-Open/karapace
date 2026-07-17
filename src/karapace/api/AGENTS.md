@@ -4,11 +4,11 @@ This directory hosts the FastAPI-based Schema Registry. The notes below cover be
 
 The REST Proxy lives in `../kafka_rest_apis/`; shared logic (basic auth, the schema-client + token-forwarding contextvar) is in `../core/`. See `../core/AGENTS.md`.
 
-## OIDC validation gate — `api/oidc/middleware.py` + `api/middlewares/__init__.py`
+## OIDC validation gate — `api/oidc/validator.py` + `api/middlewares/__init__.py`
 
 OIDC runs as a **Starlette HTTP middleware**, before any FastAPI route handler. Setup is in `setup_middlewares()`.
 
-### `OIDCMiddleware.validate_jwt`
+### `OIDCTokenValidator.validate_jwt`
 
 1. `PyJWKClient.get_signing_key_from_jwt(token)` — JWKS is cached: `PyJWKClient(self.jwks_url, cache_keys=True, lifespan=300, max_cached_keys=16)`. `lifespan=300` caps how long a key stays cached after IdP rotation/revocation.
 2. `jwt.decode()` with:
@@ -18,7 +18,7 @@ OIDC runs as a **Starlette HTTP middleware**, before any FastAPI route handler. 
    - `options={"require": ["exp","iss","aud"]}` — PyJWT does **not** require these by default; we do, explicitly.
 3. `ExpiredSignatureError` → custom `TokenExpiredError` (subclass of `AuthenticationError`) so the 401 reason can distinguish "Token expired" from "Invalid token/payload".
 
-### HTTPS enforcement — `OIDCMiddleware.__init__`
+### HTTPS enforcement — `OIDCTokenValidator.__init__`
 JWKS over plain HTTP is rejected unless `sasl_oauthbearer_allow_insecure_jwks=true`. Reason: an in-path attacker could swap signing keys and forge valid tokens. The override is dev-only and logs a loud warning.
 
 ### Subject exposure — `_authenticate_and_authorize`
@@ -28,7 +28,7 @@ After validation, **only the configured subject claim** (`claim_name`, default `
 - Always skipped: `/docs`, `/docs/oauth2-redirect`, `/redoc`, `/openapi.json`.
 - Configurable: `sasl_oauthbearer_skip_auth_paths` (default `["/_health", "/metrics"]`).
 
-## Authorization (RBAC) — `OIDCMiddleware.authorize_request`
+## Authorization (RBAC) — `OIDCTokenValidator.authorize_request`
 
 - Off when `sasl_oauthbearer_authorization_enabled=false` — returns `True` immediately.
 - Allowed roles per HTTP method come from `sasl_oauthbearer_method_roles`, e.g. `{"GET": ["reader","admin"], "POST": ["admin"], ...}`.
@@ -54,12 +54,12 @@ Keep the 403 body identical to the misconfig branch (see `authorize_request`) �
 
 ## Tests
 
-- `tests/unit/test_oidc.py` — `OIDCMiddleware` unit tests (config validation, `validate_jwt`, role extraction, `authorize_request`).
+- `tests/unit/test_oidc.py` — `OIDCTokenValidator` unit tests (config validation, `validate_jwt`, role extraction, `authorize_request`).
 - `tests/e2e/schema_registry/test_oidc.py` — SR e2e (valid/invalid/expired tokens, missing headers, skip paths).
 - `tests/e2e/kafka_rest_apis/test_oidc_forwarding.py` — RP→SR e2e (AVRO/JSON publish + consumer fetch with bearer, invalid bearer, no-auth fallthrough).
 
 ## Checklist when extending
 
 - **New SR route?** It's automatically gated by `setup_middlewares`. If it should be public, add it to `sasl_oauthbearer_skip_auth_paths`. **Do not read claims other than the configured subject** off `request.state` — only `request.state.user` is exposed deliberately.
-- **New authz rule?** Prefer extending `sasl_oauthbearer_method_roles` over inventing a parallel system. If you must inspect the JWT payload, do it inside `OIDCMiddleware` — don't leak the payload to handlers.
+- **New authz rule?** Prefer extending `sasl_oauthbearer_method_roles` over inventing a parallel system. If you must inspect the JWT payload, do it inside `OIDCTokenValidator` — don't leak the payload to handlers.
 - **Touching the forwarding contextvar?** That logic lives in `../core/serialization.py`; see `../core/AGENTS.md`.
