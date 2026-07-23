@@ -359,6 +359,10 @@ class SchemaRegistrySerializer:
         self._avro_readers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumReader]] = (
             weakref.WeakKeyDictionary()
         )
+        self._avro_writers_lock = threading.Lock()
+        self._avro_writers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumWriter]] = (
+            weakref.WeakKeyDictionary()
+        )
 
     async def close(self) -> None:
         if self.registry_client:
@@ -412,15 +416,17 @@ class SchemaRegistrySerializer:
 
     async def serialize(self, schema: TypedSchema, value: dict) -> bytes:
         schema_id = self.schemas_to_ids[str(schema)]
-        with io.BytesIO() as bio:
-            bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
-            try:
+        try:
+            if schema.schema_type is SchemaType.AVRO:
+                return await asyncio.to_thread(self._write_avro_value, SchemaId(schema_id), schema, value)
+            with io.BytesIO() as bio:
+                bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
                 write_value(self.config, schema, bio, value)
                 return bio.getvalue()
-            except ProtobufTypeException as e:
-                raise InvalidMessageSchema("Object does not fit to stored schema") from e
-            except avro.errors.AvroTypeException as e:
-                raise InvalidMessageSchema("Object does not fit to stored schema") from e
+        except ProtobufTypeException as e:
+            raise InvalidMessageSchema("Object does not fit to stored schema") from e
+        except avro.errors.AvroTypeException as e:
+            raise InvalidMessageSchema("Object does not fit to stored schema") from e
 
     async def deserialize(self, bytes_: bytes) -> dict:
         with io.BytesIO(bytes_) as bio:
@@ -459,6 +465,26 @@ class SchemaRegistrySerializer:
 
     def _read_avro_value(self, schema_id: SchemaId, schema: TypedSchema, bio: io.BytesIO) -> Any:
         return read_value(self.config, schema, bio, avro_reader=self._get_avro_reader(schema_id, schema))
+
+    def _get_avro_writer(self, schema_id: SchemaId, schema: TypedSchema) -> DatumWriter:
+        current_thread = threading.current_thread()
+        with self._avro_writers_lock:
+            writer_cache = self._avro_writers_by_thread.get(current_thread)
+            if writer_cache is None:
+                writer_cache = TTLCache(maxsize=10000, ttl=600)
+                self._avro_writers_by_thread[current_thread] = writer_cache
+
+        writer = writer_cache.get(schema_id)
+        if writer is None:
+            writer = DatumWriter(writers_schema=schema.schema)
+            writer_cache[schema_id] = writer
+        return writer
+
+    def _write_avro_value(self, schema_id: SchemaId, schema: TypedSchema, value: dict) -> bytes:
+        with io.BytesIO() as bio:
+            bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
+            write_value(self.config, schema, bio, value, avro_writer=self._get_avro_writer(schema_id, schema))
+            return bio.getvalue()
 
 
 def _jsonify_avro_payload(value: Any) -> Any:
@@ -561,7 +587,9 @@ def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader
     raise ValueError("Unknown schema type")
 
 
-def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
+def write_value(
+    config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict, avro_writer: DatumWriter | None = None
+) -> None:
     if schema.schema_type is SchemaType.AVRO:
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
         if avro.io.validate(schema.schema, value):
@@ -569,7 +597,7 @@ def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dic
         else:
             data = flatten_unions(schema.schema, value)
 
-        writer = DatumWriter(writers_schema=schema.schema)
+        writer = avro_writer if avro_writer is not None else DatumWriter(writers_schema=schema.schema)
         writer.write(data, BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
