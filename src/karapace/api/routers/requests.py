@@ -22,6 +22,8 @@ class SchemaRequest(BaseModel):
     references: list[SchemaReference] | None = None
     metadata: Any | None = None
     ruleSet: Any | None = None
+    schema_id: int | None = Field(alias="id", default=None)
+    schema_version: int | None = Field(alias="version", default=None)
     model_config = ConfigDict(extra="ignore")
 
     @field_validator("schema_str")
@@ -82,6 +84,10 @@ class CompatibilityCheckResponse(BaseModel):
 
 
 class ModeResponse(BaseModel):
+    mode: str
+
+
+class ModeUpdateRequest(BaseModel):
     mode: str
 
 

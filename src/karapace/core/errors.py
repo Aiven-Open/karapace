@@ -75,6 +75,18 @@ class SchemaTooLargeException(Exception):
     pass
 
 
+class OperationNotPermittedInMode(Exception):
+    pass
+
+
+class InvalidMode(Exception):
+    pass
+
+
+class SchemaIdConflict(Exception):
+    """Raised in IMPORT mode when an explicit schema id is already bound to different content."""
+
+
 class ShutdownException(Exception):
     """Raised when the service has encountered an error where it should not continue and shutdown."""
 

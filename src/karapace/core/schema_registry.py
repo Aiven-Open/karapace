@@ -17,7 +17,10 @@ from karapace.core.coordinator.master_coordinator import MasterCoordinator
 from karapace.core.dependency import Dependency
 from karapace.core.errors import (
     IncompatibleSchema,
+    InvalidMode,
+    OperationNotPermittedInMode,
     ReferenceExistsException,
+    SchemaIdConflict,
     SchemasNotFoundException,
     SchemaVersionNotSoftDeletedException,
     SchemaVersionSoftDeletedException,
@@ -306,13 +309,30 @@ class KarapaceSchemaRegistry:
         subject: Subject,
         new_schema: ValidatedTypedSchema,
         new_schema_references: Sequence[Reference] | None,
+        *,
+        explicit_schema_id: SchemaId | None = None,
+        explicit_version: Version | None = None,
     ) -> int:
         """Write new schema and return new id or return id of matching existing schema
 
         This function is allowed to be called only from the Karapace master node.
+        In IMPORT mode, explicit_schema_id and explicit_version can be provided to
+        bypass content-based deduplication and version auto-increment.
         """
         LOG.info("Writing new schema locally since we're the master")
         async with self.schema_lock:
+            subject_mode = self.get_subject_mode(subject)
+            is_import_mode = subject_mode == Mode.import_mode
+
+            if is_import_mode:
+                return self._write_new_schema_import_mode(
+                    subject=subject,
+                    new_schema=new_schema,
+                    new_schema_references=new_schema_references,
+                    explicit_schema_id=explicit_schema_id,
+                    explicit_version=explicit_version,
+                )
+
             # When waiting for a lock, another writer may have written the schema.
             # Fast path check for resolving.
             maybe_schema_id = self.database.get_schema_id_if_exists(
@@ -392,6 +412,51 @@ class KarapaceSchemaRegistry:
             )
             return schema_id
 
+    def _write_new_schema_import_mode(
+        self,
+        subject: Subject,
+        new_schema: ValidatedTypedSchema,
+        new_schema_references: Sequence[Reference] | None,
+        explicit_schema_id: SchemaId | None,
+        explicit_version: Version | None,
+    ) -> int:
+        """Register a schema in IMPORT mode, bypassing compatibility checks and allowing explicit id/version."""
+        all_schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
+
+        if explicit_version is not None:
+            version = explicit_version
+        elif not all_schema_versions:
+            version = Version(1)
+        else:
+            version = self.database.get_next_version(subject=subject)
+
+        if explicit_schema_id is not None:
+            # Preserving an explicit id is idempotent when the content matches, but the global
+            # id -> schema mapping must never be silently rebound to different content.
+            existing_schema = self.database.schemas.get(explicit_schema_id)
+            if existing_schema is not None and existing_schema.fingerprint() != new_schema.fingerprint():
+                raise SchemaIdConflict(f"Schema id {explicit_schema_id} is already registered with different content.")
+            schema_id = explicit_schema_id
+        else:
+            schema_id = self.database.get_schema_id(new_schema)
+
+        LOG.debug(
+            "IMPORT mode: registering subject: %r, id: %r version: %r schema_id: %r",
+            subject,
+            schema_id,
+            version,
+            schema_id,
+        )
+        self.send_schema_message(
+            subject=subject,
+            schema=new_schema,
+            schema_id=schema_id,
+            version=version,
+            deleted=False,
+            references=new_schema_references,
+        )
+        return schema_id
+
     def get_subject_versions_for_schema(
         self, schema_id: SchemaId, *, include_deleted: bool = False
     ) -> list[dict[str, Subject | Version]]:
@@ -406,10 +471,55 @@ class KarapaceSchemaRegistry:
         return subject_versions
 
     def get_global_mode(self) -> Mode:
-        return Mode.readwrite
+        return self.database.get_global_mode()
 
-    def get_subject_mode(self) -> Mode:
-        return Mode.readwrite
+    def get_subject_mode(self, subject: Subject) -> Mode:
+        mode = self.database.get_subject_mode(subject=subject)
+        if mode is None:
+            return self.database.get_global_mode()
+        return mode
+
+    async def set_mode_local(
+        self,
+        mode: Mode,
+        subject: Subject | None = None,
+        force: bool = False,
+    ) -> Mode:
+        """Set global or subject mode, persisting to Kafka. Primary-only operation."""
+        try:
+            validated_mode = Mode(mode)
+        except ValueError as exc:
+            raise InvalidMode(f"Invalid mode: {mode}") from exc
+
+        async with self.schema_lock:
+            if subject is not None:
+                if validated_mode == Mode.import_mode:
+                    schemas = self.database.find_subject_schemas(subject=subject, include_deleted=False)
+                    if schemas and not force:
+                        raise OperationNotPermittedInMode(
+                            f"Subject '{subject}' has existing schemas. Use force=true to enable IMPORT mode."
+                        )
+                    if force and schemas:
+                        all_schemas = self.database.find_subject_schemas(subject=subject, include_deleted=True)
+                        for version_id, schema_version in list(all_schemas.items()):
+                            self.send_schema_message(
+                                subject=subject,
+                                schema=None,
+                                schema_id=schema_version.schema_id,
+                                version=version_id,
+                                deleted=True,
+                                references=schema_version.references,
+                            )
+                self.send_mode_message(mode=validated_mode, subject=subject)
+            else:
+                self.send_mode_message(mode=validated_mode)
+            return validated_mode
+
+    async def delete_mode_local(self, subject: Subject) -> Mode:
+        """Revert subject mode to global mode. Primary-only operation."""
+        async with self.schema_lock:
+            self.send_mode_delete_message(subject=subject)
+            return self.database.get_global_mode()
 
     def send_schema_message(
         self,
@@ -445,6 +555,15 @@ class KarapaceSchemaRegistry:
 
     def send_config_subject_delete_message(self, subject: Subject) -> None:
         key = {"subject": subject, "magic": 0, "keytype": "CONFIG"}
+        self.producer.send_message(key=key, value=None)
+
+    def send_mode_message(self, mode: Mode, subject: Subject | None = None) -> None:
+        key = {"subject": subject, "magic": 0, "keytype": "MODE"}
+        value = {"mode": mode.value}
+        self.producer.send_message(key=key, value=value)
+
+    def send_mode_delete_message(self, subject: Subject) -> None:
+        key = {"subject": subject, "magic": 0, "keytype": "MODE"}
         self.producer.send_message(key=key, value=None)
 
     def resolve_references(

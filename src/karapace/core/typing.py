@@ -94,6 +94,7 @@ class SubjectType(StrEnum, Enum):
 @unique
 class Mode(StrEnum):
     readwrite = "READWRITE"
+    import_mode = "IMPORT"
 
 
 @functools.total_ordering

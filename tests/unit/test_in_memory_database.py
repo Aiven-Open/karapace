@@ -26,7 +26,7 @@ from karapace.core.schema_models import SchemaVersion, TypedSchema
 from karapace.core.schema_reader import KafkaSchemaReader
 from karapace.core.schema_references import Reference, Referents
 from karapace.core.schema_type import SchemaType
-from karapace.core.typing import SchemaId, Version
+from karapace.core.typing import Mode, SchemaId, Version
 
 TEST_DATA_FOLDER: Final = Path("tests/unit/test_data/")
 
@@ -186,6 +186,21 @@ class WrappedInMemoryDatabase(KarapaceDatabase):
 
     def get_referenced_by(self, subject: Subject, version: Version) -> Referents | None:
         return self.db.get_referenced_by(subject=subject, version=version)
+
+    def get_global_mode(self) -> Mode:
+        return self.db.get_global_mode()
+
+    def set_global_mode(self, *, mode: Mode) -> None:
+        return self.db.set_global_mode(mode=mode)
+
+    def get_subject_mode(self, *, subject: Subject) -> Mode | None:
+        return self.db.get_subject_mode(subject=subject)
+
+    def set_subject_mode(self, *, subject: Subject, mode: Mode) -> None:
+        return self.db.set_subject_mode(subject=subject, mode=mode)
+
+    def delete_subject_mode(self, *, subject: Subject) -> None:
+        return self.db.delete_subject_mode(subject=subject)
 
     def duplicates(self) -> dict[SchemaId, list[tuple[Subject, TypedSchema]]]:
         duplicate_data = defaultdict(list)
