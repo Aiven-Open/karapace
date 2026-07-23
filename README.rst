@@ -840,10 +840,9 @@ migrating between drafts.
 Supported drafts and ``$schema`` URIs
 -------------------------------------
 
-Karapace validates every JSON Schema as **Draft-7**, regardless of the ``$schema`` value declared in the document. This
-matches the behaviour of Confluent Schema Registry, which also standardizes on Draft-7. The ``$schema`` keyword is
-currently **not used to select a validator** — it is accepted and stored as part of the schema, but does not change how
-the schema is validated or compared.
+Karapace selects the JSON Schema draft from the ``$schema`` keyword and validates the schema against that draft's
+metaschema. When ``$schema`` is absent or its value is not recognized, the schema is validated as **Draft-7**, which
+preserves the previous behaviour and matches the default used by Confluent Schema Registry.
 
 .. list-table::
    :header-rows: 1
@@ -853,19 +852,21 @@ the schema is validated or compared.
      - Status
    * - draft-04
      - ``http://json-schema.org/draft-04/schema#``
-     - Accepted, but validated as Draft-7 (unknown keywords ignored)
+     - Validated with its own draft validator
    * - draft-06
      - ``http://json-schema.org/draft-06/schema#``
-     - Accepted, but validated as Draft-7 (unknown keywords ignored)
+     - Validated with its own draft validator
    * - draft-07
      - ``http://json-schema.org/draft-07/schema#``
-     - Supported (native)
+     - Validated with its own draft validator (also the default when ``$schema`` is absent or unrecognized)
    * - 2019-09
      - ``https://json-schema.org/draft/2019-09/schema``
-     - Not yet natively supported; validated as Draft-7 (roadmap)
+     - Validated with its own draft validator
    * - 2020-12
      - ``https://json-schema.org/draft/2020-12/schema``
-     - Not yet natively supported; validated as Draft-7 (roadmap)
+     - Validated with its own draft validator
+
+Compatibility checking, however, is still computed under Draft-7 semantics for all drafts — see `Limitations`_ below.
 
 Compatibility behavior
 ----------------------
@@ -903,12 +904,15 @@ Forward compatibility applies the mirror of these rules, and full compatibility 
 Limitations
 -----------
 
-Because all schemas are validated and compared as Draft-7, keywords introduced in later drafts are **not enforced with
-their intended semantics**. Such keywords are treated as unknown (and therefore ignored) or handled with Draft-7
-meaning. These include, among others: ``$defs`` (Draft-7 uses ``definitions``), keywords placed as siblings of
-``$ref``, ``prefixItems`` (2020-12 tuple validation), the ``dependentRequired`` / ``dependentSchemas`` split,
-``$recursiveRef`` / ``$dynamicRef``, and ``unevaluatedProperties`` / ``unevaluatedItems``. A schema using these will be
-accepted, but the newer-draft behaviour is not applied.
+Schema **validation** is draft-specific: a schema is validated against the draft declared in ``$schema`` (defaulting to
+Draft-7), so newer-draft keywords such as ``$defs``, ``prefixItems``, ``dependentRequired`` / ``dependentSchemas``,
+``$recursiveRef`` / ``$dynamicRef`` and ``unevaluatedProperties`` / ``unevaluatedItems`` are validated with their
+intended semantics.
+
+**Compatibility checking**, however, is still computed under Draft-7 semantics for every draft. When comparing versions,
+newer-draft keywords are treated as unknown (ignored) or interpreted with Draft-7 meaning — for example ``prefixItems``
+is not recognized as a tuple and ``$defs`` is not resolved as ``definitions`` is. A schema using these keywords is
+validated and stored correctly, but the newer-draft behaviour is not yet applied during compatibility checks.
 
 There is no strict/lenient mode for JSON Schema validation or compatibility. (The ``kafka_schema_reader_strict_mode``
 configuration is unrelated — it controls error handling when reading the internal ``_schemas`` topic, not JSON Schema
@@ -917,15 +921,15 @@ validation.)
 Migration guidance
 ------------------
 
-* **Recommended today:** author schemas as Draft-7, or omit ``$schema`` entirely, for predictable validation and
-  compatibility results.
-* **Sending 2019-09 or 2020-12 schemas today:** they are accepted, but validated and compared as Draft-7. Do not rely on
-  newer-draft-only keyword semantics until native support ships.
-* **Mixing drafts within a subject:** a subject may contain versions that declare different ``$schema`` values, but
-  compatibility is always computed under Draft-7 rules. Changing a version's declared draft does not change how
-  compatibility is evaluated. Review the limitations above before relying on newer-draft keywords across versions.
-* **Roadmap:** native validation and compatibility support for Draft 2019-09 and 2020-12 keywords is planned. This
-  section will be expanded when that support lands.
+* **Validation:** schemas declaring Draft 2019-09 or 2020-12 (or draft-04 / draft-06) via ``$schema`` are validated with
+  that draft's rules; omitting ``$schema`` defaults to Draft-7.
+* **Compatibility:** regardless of the declared draft, compatibility is still evaluated under Draft-7 semantics. Do not
+  rely on newer-draft-only keyword semantics *during compatibility checks* until that support ships.
+* **Mixing drafts within a subject:** a subject may contain versions that declare different ``$schema`` values;
+  compatibility across them is always computed under Draft-7 rules. Review the limitations above before relying on
+  newer-draft keywords across versions.
+* **Roadmap:** native *compatibility* support for Draft 2019-09 and 2020-12 keywords is planned. This section will be
+  expanded when that support lands.
 
 
 Uninstall

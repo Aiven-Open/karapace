@@ -1225,3 +1225,49 @@ async def test_same_jsonschema_must_have_same_id(
         )
         assert second_res.status_code == 200
         assert first_id == second_res.json()["id"]
+
+
+@pytest.mark.parametrize(
+    "schema_uri, draft_schema",
+    [
+        (
+            "https://json-schema.org/draft/2019-09/schema",
+            {"type": "object", "properties": {"a": {"type": "string"}}, "dependentRequired": {"a": ["b"]}},
+        ),
+        (
+            "https://json-schema.org/draft/2020-12/schema",
+            {"type": "object", "properties": {"items": {"type": "array", "prefixItems": [{"type": "integer"}]}}},
+        ),
+    ],
+)
+async def test_schemaregistry_register_retrieve_list_newer_drafts(
+    registry_async_client: Client,
+    schema_uri: str,
+    draft_schema: dict,
+) -> None:
+    """A newer-draft schema (declared via $schema, using a draft-specific keyword) can be
+    registered, retrieved, and appears in the subject's version listing."""
+    subject = new_random_name("subject")
+    schema_str = json.dumps({"$schema": schema_uri, **draft_schema})
+
+    register_res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": schema_str, "schemaType": SchemaType.JSONSCHEMA.value},
+    )
+    assert register_res.status_code == 200
+    schema_id = register_res.json()["id"]
+    assert schema_id
+
+    # retrieve by version
+    version_res = await registry_async_client.get(f"subjects/{subject}/versions/latest")
+    assert version_res.status_code == 200
+    assert json.loads(version_res.json()["schema"])["$schema"] == schema_uri
+
+    # retrieve by id
+    id_res = await registry_async_client.get(f"schemas/ids/{schema_id}")
+    assert id_res.status_code == 200
+
+    # version listing
+    versions_res = await registry_async_client.get(f"subjects/{subject}/versions")
+    assert versions_res.status_code == 200
+    assert versions_res.json() == [1]
