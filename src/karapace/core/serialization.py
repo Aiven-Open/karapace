@@ -359,10 +359,6 @@ class SchemaRegistrySerializer:
         self._avro_readers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumReader]] = (
             weakref.WeakKeyDictionary()
         )
-        self._avro_writers_lock = threading.Lock()
-        self._avro_writers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumWriter]] = (
-            weakref.WeakKeyDictionary()
-        )
 
     async def close(self) -> None:
         if self.registry_client:
@@ -466,24 +462,10 @@ class SchemaRegistrySerializer:
     def _read_avro_value(self, schema_id: SchemaId, schema: TypedSchema, bio: io.BytesIO) -> Any:
         return read_value(self.config, schema, bio, avro_reader=self._get_avro_reader(schema_id, schema))
 
-    def _get_avro_writer(self, schema_id: SchemaId, schema: TypedSchema) -> DatumWriter:
-        current_thread = threading.current_thread()
-        with self._avro_writers_lock:
-            writer_cache = self._avro_writers_by_thread.get(current_thread)
-            if writer_cache is None:
-                writer_cache = TTLCache(maxsize=10000, ttl=600)
-                self._avro_writers_by_thread[current_thread] = writer_cache
-
-        writer = writer_cache.get(schema_id)
-        if writer is None:
-            writer = DatumWriter(writers_schema=schema.schema)
-            writer_cache[schema_id] = writer
-        return writer
-
     def _write_avro_value(self, schema_id: SchemaId, schema: TypedSchema, value: dict) -> bytes:
         with io.BytesIO() as bio:
             bio.write(struct.pack(HEADER_FORMAT, START_BYTE, schema_id))
-            write_value(self.config, schema, bio, value, avro_writer=self._get_avro_writer(schema_id, schema))
+            write_value(self.config, schema, bio, value)
             return bio.getvalue()
 
 
@@ -587,9 +569,7 @@ def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader
     raise ValueError("Unknown schema type")
 
 
-def write_value(
-    config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict, avro_writer: DatumWriter | None = None
-) -> None:
+def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
         # Backwards compatibility: Support JSON encoded data without the tags for unions.
         if avro.io.validate(schema.schema, value):
@@ -597,7 +577,7 @@ def write_value(
         else:
             data = flatten_unions(schema.schema, value)
 
-        writer = avro_writer if avro_writer is not None else DatumWriter(writers_schema=schema.schema)
+        writer = DatumWriter(writers_schema=schema.schema)
         writer.write(data, BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:

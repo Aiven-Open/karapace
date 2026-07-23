@@ -593,34 +593,6 @@ async def test_serialize_offloads_avro_write_to_thread(karapace_container: Karap
     assert await serializer.deserialize(payload) == record
 
 
-async def test_serialize_reuses_datum_writer_for_map_union_schema(karapace_container: KarapaceContainer) -> None:
-    mock_registry_client = Mock()
-    get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, MAP_UNION_AVRO_SCHEMA, Versioner.V(1)))
-    mock_registry_client.get_schema.return_value = get_latest_schema_future
-
-    serializer = await make_ser_deser(karapace_container, mock_registry_client)
-    schema = await serializer.get_schema_for_subject(Subject("top"))
-    record = {"id": "one", "props": {"present": "yes", "missing": None}}
-    original_datum_writer = avro.io.DatumWriter
-    datum_writer_init_count = 0
-
-    class CountingDatumWriter:
-        def __init__(self, writers_schema):
-            nonlocal datum_writer_init_count
-            datum_writer_init_count += 1
-            self._delegate = original_datum_writer(writers_schema=writers_schema)
-
-        def write(self, datum, encoder):
-            return self._delegate.write(datum, encoder)
-
-    with patch("karapace.core.serialization.DatumWriter", CountingDatumWriter):
-        await serializer.serialize(schema, record)
-        await serializer.serialize(schema, record)
-
-    assert datum_writer_init_count == 1
-
-
 async def test_deserialize_converts_avro_bytes_to_base64_strings(karapace_container: KarapaceContainer) -> None:
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
