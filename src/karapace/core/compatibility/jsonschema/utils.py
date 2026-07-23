@@ -4,8 +4,8 @@ See LICENSE for details
 """
 
 from copy import copy
-from jsonschema import Draft7Validator
 from karapace.core.compatibility.jsonschema.types import BooleanSchema, Instance, Keyword, Subschema
+from karapace.core.typing import JsonSchemaValidator
 from typing import Any, TypeVar, Union
 
 import re
@@ -14,12 +14,12 @@ T = TypeVar("T")
 JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, type[BooleanSchema]]
 
 
-def normalize_schema(validator: Draft7Validator) -> Any:
+def normalize_schema(validator: JsonSchemaValidator) -> Any:
     original_schema = validator.schema
     return normalize_schema_rec(validator, original_schema)
 
 
-def normalize_schema_rec(validator: Draft7Validator, original_schema: Any) -> Any:
+def normalize_schema_rec(validator: JsonSchemaValidator, original_schema: Any) -> Any:
     if isinstance(original_schema, (bool, str, float, int)) or original_schema is None:
         return original_schema
 

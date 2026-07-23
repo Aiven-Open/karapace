@@ -17,7 +17,7 @@ dependencies = [
   "confluent-kafka",
   "cryptography",
   "fastapi[standard]",
-  "jsonschema",
+  "jsonschema>=4.18,<5",
   "lz4",
   "networkx",
   "protobuf==5.29.6",

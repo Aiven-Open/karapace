@@ -11,13 +11,13 @@ from avro.compatibility import (
     SchemaIncompatibilityType,
 )
 from avro.schema import Schema as AvroSchema
-from jsonschema import Draft7Validator
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility, incompatible_schema
 from karapace.core.compatibility.protobuf.checks import check_protobuf_schema_compatibility
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_models import ParsedTypedSchema, ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
+from karapace.core.typing import JsonSchemaValidator
 from karapace.core.utils import assert_never
 
 import logging
@@ -71,8 +71,12 @@ class SchemaCompatibility:
                     ),
                 )
         elif old_schema.schema_type is SchemaType.JSONSCHEMA:
-            assert isinstance(old_schema.schema, Draft7Validator)
-            assert isinstance(new_schema.schema, Draft7Validator)
+            # The parsed schema may be any JSON Schema draft validator (Draft-7 default,
+            # or 2019-09 / 2020-12 when selected via $schema). The compatibility engine
+            # is still Draft-7-shaped; cross-draft compatibility semantics are pending, see
+            # docs/json-schema-draft-compatibility-strategy.md.
+            assert isinstance(old_schema.schema, JsonSchemaValidator)
+            assert isinstance(new_schema.schema, JsonSchemaValidator)
             if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
                 result = SchemaCompatibility.check_jsonschema_compatibility(
                     reader=new_schema.schema,
@@ -131,7 +135,9 @@ class SchemaCompatibility:
         return AvroChecker().get_compatibility(reader=reader_schema, writer=writer_schema)
 
     @staticmethod
-    def check_jsonschema_compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
+    def check_jsonschema_compatibility(
+        reader: JsonSchemaValidator, writer: JsonSchemaValidator
+    ) -> SchemaCompatibilityResult:
         return jsonschema_compatibility(reader, writer)
 
     @staticmethod

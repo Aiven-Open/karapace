@@ -10,8 +10,8 @@ from avro.name import Names as AvroNames
 from avro.schema import make_avsc_object, parse as avro_parse, Schema as AvroSchema
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
-from jsonschema import Draft7Validator
 from jsonschema.exceptions import SchemaError
+from jsonschema.validators import Draft7Validator, validator_for
 from karapace.core.dependency import Dependency
 from karapace.core.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
 from karapace.core.protobuf import protopace
@@ -27,7 +27,7 @@ from karapace.core.protobuf.proto_normalizations import NormalizedProtobufSchema
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_references import Reference
 from karapace.core.schema_type import SchemaType
-from karapace.core.typing import JsonObject, SchemaId, Subject, Version, VersionTag
+from karapace.core.typing import JsonObject, JsonSchemaValidator, SchemaId, Subject, Version, VersionTag
 from karapace.core.utils import assert_never, json_decode, json_encode, JSONDecodeError
 from typing import Any, cast, Final, final
 
@@ -49,17 +49,21 @@ def parse_avro_schema_definition(s: str, validate_enum_symbols: bool = True, val
     return avro_parse(json_encode(json_data), validate_enum_symbols=validate_enum_symbols, validate_names=validate_names)
 
 
-def parse_jsonschema_definition(schema_definition: str) -> Draft7Validator:
-    """Parses and validates `schema_definition`.
+def parse_jsonschema_definition(schema_definition: str) -> JsonSchemaValidator:
+    """Parses and validates `schema_definition`, selecting the draft from `$schema`.
+
+    Defaults to Draft-7 when `$schema` is absent or unrecognized, preserving prior behavior.
 
     Raises:
-        SchemaError: If `schema_definition` is not a valid Draft7 schema.
+        SchemaError: If `schema_definition` is not valid for its declared draft.
     """
     schema = json_decode(schema_definition)
     # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
     #  use bool values and fail if we assert isinstance(_, dict).
-    Draft7Validator.check_schema(schema)  # type: ignore[arg-type]
-    return Draft7Validator(schema)  # type: ignore[arg-type]
+    validator_cls = validator_for(schema, default=Draft7Validator)  # type: ignore[arg-type]
+    validator_cls.check_schema(schema)  # type: ignore[arg-type]
+    validator = validator_cls(schema)  # type: ignore[arg-type]
+    return cast(JsonSchemaValidator, validator)
 
 
 def _format_protobuf(schema: str, dependencies: Collection[Dependency], name: str = "schema.proto") -> str:
@@ -107,7 +111,7 @@ class TypedSchema:
         *,
         schema_type: SchemaType,
         schema_str: str,
-        schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None,
+        schema: JsonSchemaValidator | AvroSchema | ProtobufSchema | None = None,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
     ) -> None:
@@ -116,7 +120,7 @@ class TypedSchema:
         Args:
             schema_type (SchemaType): The type of the schema
             schema_str (str): The original schema string
-            schema (Optional[Union[Draft7Validator, AvroSchema, ProtobufSchema]]): The parsed and validated schema
+            schema (Optional[Union[JsonSchemaValidator, AvroSchema, ProtobufSchema]]): The parsed and validated schema
             references (Optional[List[Dependency]]): The references of schema
         """
         self.schema_type: Final = schema_type
@@ -147,7 +151,7 @@ class TypedSchema:
     def normalize_schema_str(
         schema_str: str,
         schema_type: SchemaType,
-        schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None,
+        schema: JsonSchemaValidator | AvroSchema | ProtobufSchema | None = None,
     ) -> str:
         if schema_type is SchemaType.AVRO or schema_type is SchemaType.JSONSCHEMA:
             try:
@@ -184,7 +188,7 @@ class TypedSchema:
         )
 
     @property
-    def schema(self) -> Draft7Validator | AvroSchema | ProtobufSchema:
+    def schema(self) -> JsonSchemaValidator | AvroSchema | ProtobufSchema:
         parsed_typed_schema = parse(
             schema_type=self.schema_type,
             schema_str=self.schema_str,
@@ -235,7 +239,7 @@ def parse(
     if schema_type not in [SchemaType.AVRO, SchemaType.JSONSCHEMA, SchemaType.PROTOBUF]:
         raise InvalidSchema(f"Unknown parser {schema_type} for {schema_str}")
 
-    parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema
+    parsed_schema: JsonSchemaValidator | AvroSchema | ProtobufSchema
     if schema_type is SchemaType.AVRO:
         try:
             if dependencies:
@@ -329,11 +333,11 @@ class ParsedTypedSchema(TypedSchema):
         self,
         schema_type: SchemaType,
         schema_str: str,
-        schema: Draft7Validator | AvroSchema | ProtobufSchema,
+        schema: JsonSchemaValidator | AvroSchema | ProtobufSchema,
         references: Sequence[Reference] | None = None,
         dependencies: Mapping[str, Dependency] | None = None,
     ) -> None:
-        self._schema_cached: Draft7Validator | AvroSchema | ProtobufSchema | None = schema
+        self._schema_cached: JsonSchemaValidator | AvroSchema | ProtobufSchema | None = schema
 
         super().__init__(
             schema_type=schema_type,
@@ -384,7 +388,7 @@ class ParsedTypedSchema(TypedSchema):
         return self.schema_type is other.schema_type and self.schema == other.schema and self.references == other.references
 
     @property
-    def schema(self) -> Draft7Validator | AvroSchema | ProtobufSchema:
+    def schema(self) -> JsonSchemaValidator | AvroSchema | ProtobufSchema:
         if self._schema_cached is not None:
             return self._schema_cached
         self._schema_cached = super().schema
@@ -417,7 +421,7 @@ class ValidatedTypedSchema(ParsedTypedSchema):
         self,
         schema_type: SchemaType,
         schema_str: str,
-        schema: Draft7Validator | AvroSchema | ProtobufSchema,
+        schema: JsonSchemaValidator | AvroSchema | ProtobufSchema,
         references: list[Reference] | None = None,
         dependencies: dict[str, Dependency] | None = None,
     ) -> None:
