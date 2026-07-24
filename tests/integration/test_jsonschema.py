@@ -1271,3 +1271,99 @@ async def test_schemaregistry_register_retrieve_list_newer_drafts(
     versions_res = await registry_async_client.get(f"subjects/{subject}/versions")
     assert versions_res.status_code == 200
     assert versions_res.json() == [1]
+
+
+async def _register(client: Client, subject: str, schema: dict) -> int:
+    res = await client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(schema), "schemaType": SchemaType.JSONSCHEMA.value},
+    )
+    assert res.status_code == 200, res.json()
+    return res.json()["id"]
+
+
+async def test_schemaregistry_cross_draft_compatible_evolution(registry_async_client: Client) -> None:
+    """A subject may evolve from Draft-7 to Draft 2020-12; a structurally-equal newer-draft version
+    is accepted under BACKWARD compatibility."""
+    subject = new_random_name("subject")
+    draft7 = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {"a": {"type": "string"}},
+        "additionalProperties": True,
+    }
+    draft2020 = {**draft7, "$schema": "https://json-schema.org/draft/2020-12/schema"}
+
+    await _register(registry_async_client, subject, draft7)
+
+    config_res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert config_res.status_code == 200
+
+    # The renamed-keyword canonicalization makes the two drafts comparable; identical shape -> compatible.
+    second_id = await _register(registry_async_client, subject, draft2020)
+    assert second_id
+
+
+async def test_schemaregistry_cross_draft_breaking_evolution_is_rejected(registry_async_client: Client) -> None:
+    """A structurally-breaking change is rejected even across drafts (narrowing number -> integer)."""
+    subject = new_random_name("subject")
+    draft7 = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {"a": {"type": "number"}},
+    }
+    draft2020_narrowed = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"a": {"type": "integer"}},
+    }
+
+    await _register(registry_async_client, subject, draft7)
+    config_res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert config_res.status_code == 200
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps(draft2020_narrowed), "schemaType": SchemaType.JSONSCHEMA.value},
+    )
+    assert res.status_code == 409, res.json()
+
+
+@pytest.mark.parametrize(
+    "unsupported_fragment",
+    [
+        {"unevaluatedProperties": False},
+        {"$dynamicRef": "#node", "$dynamicAnchor": "node"},
+    ],
+)
+async def test_schemaregistry_unsupported_keyword_rejected_under_compat(
+    registry_async_client: Client,
+    unsupported_fragment: dict,
+) -> None:
+    """Under a compatibility-checked subject, registering a second version that uses a keyword the
+    engine cannot evaluate is rejected (fail-closed)."""
+    subject = new_random_name("subject")
+    base = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"}
+
+    await _register(registry_async_client, subject, base)
+    config_res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "BACKWARD"})
+    assert config_res.status_code == 200
+
+    res = await registry_async_client.post(
+        f"subjects/{subject}/versions",
+        json={"schema": json.dumps({**base, **unsupported_fragment}), "schemaType": SchemaType.JSONSCHEMA.value},
+    )
+    assert res.status_code == 409, res.json()
+
+
+async def test_schemaregistry_unsupported_keyword_allowed_under_none(registry_async_client: Client) -> None:
+    """The same unsupported-keyword schema can still be registered under compatibility NONE."""
+    subject = new_random_name("subject")
+    base = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"}
+
+    await _register(registry_async_client, subject, base)
+    config_res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
+    assert config_res.status_code == 200
+
+    second_id = await _register(registry_async_client, subject, {**base, "unevaluatedProperties": False})
+    assert second_id

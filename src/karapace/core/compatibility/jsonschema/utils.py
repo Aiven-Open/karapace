@@ -9,14 +9,70 @@ from karapace.core.typing import JsonSchemaValidator
 from typing import Any, TypeVar, Union
 
 import re
+import warnings
 
 T = TypeVar("T")
 JSONSCHEMA_TYPES = Union[Instance, Subschema, Keyword, type[BooleanSchema]]
+
+# Newer-draft (2019-09 / 2020-12) keyword names that are not part of the Draft-7 `Keyword` enum.
+PREFIX_ITEMS = "prefixItems"
+DEFS = "$defs"
+DEFINITIONS = "definitions"
+DEPENDENT_REQUIRED = "dependentRequired"
+
+# Keywords the compatibility engine cannot yet evaluate. Their presence makes a Draft-7-shaped
+# comparison unreliable, so compatibility checking fails closed rather than returning a possibly
+# wrong verdict.
+UNSUPPORTED_COMPAT_KEYWORDS = frozenset(
+    {
+        "$dynamicRef",
+        "$dynamicAnchor",
+        "$recursiveRef",
+        "$recursiveAnchor",
+        "unevaluatedProperties",
+        "unevaluatedItems",
+        "$vocabulary",
+    }
+)
+
+# Keywords whose *values are maps keyed by names chosen by the schema author* (property names,
+# definition names, patterns). Those keys are not schema keywords, so the scanner must recurse into
+# the values only — never treat the keys as keywords.
+_NAME_KEYED_MAP_KEYWORDS = frozenset(
+    {
+        "properties",
+        "patternProperties",
+        "$defs",
+        "definitions",
+        "dependentSchemas",
+        "dependentRequired",
+    }
+)
+
+# Keywords whose values are arbitrary instance data, not subschemas. The scanner must not descend
+# into them, otherwise a user value that happens to be an object with a keyword-like key would be
+# misread as a schema keyword.
+_DATA_VALUE_KEYWORDS = frozenset({"enum", "const", "default", "examples"})
 
 
 def normalize_schema(validator: JsonSchemaValidator) -> Any:
     original_schema = validator.schema
     return normalize_schema_rec(validator, original_schema)
+
+
+def _resolver_of(validator: JsonSchemaValidator) -> Any:
+    """Return the validator's ref resolver.
+
+    ``Validator.resolver`` is deprecated as of jsonschema 4.18 in favour of the ``referencing``
+    library, but ``normalize_schema`` still relies on its ``push_scope``/``pop_scope``/``resolve``
+    API. The pin ``jsonschema>=4.18,<5`` guarantees the attribute stays available (deprecations are
+    not removed within a major series), so we access it in one place and silence the warning here.
+
+    TODO: migrate reference resolution to the ``referencing`` library and drop this shim.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return validator.resolver
 
 
 def normalize_schema_rec(validator: JsonSchemaValidator, original_schema: Any) -> Any:
@@ -26,7 +82,7 @@ def normalize_schema_rec(validator: JsonSchemaValidator, original_schema: Any) -
     normalized: Any
     if isinstance(original_schema, dict):
         scope = validator.ID_OF(original_schema)
-        resolver = validator.resolver
+        resolver = _resolver_of(validator)
         ref = original_schema.get(Keyword.REF.value)
 
         if scope:
@@ -46,12 +102,80 @@ def normalize_schema_rec(validator: JsonSchemaValidator, original_schema: Any) -
         if scope:
             resolver.pop_scope()
 
+        normalized = canonicalize_draft_keywords(normalized)
+
     elif isinstance(original_schema, list):
         normalized = [normalize_schema_rec(validator, item) for item in original_schema]
     else:
         raise ValueError(f"Cannot handle object of type {type(original_schema)}")
 
     return normalized
+
+
+def canonicalize_draft_keywords(schema: dict) -> dict:
+    """Rewrite Draft 2019-09 / 2020-12 keywords into their Draft-7 equivalents.
+
+    The compatibility engine is expressed in terms of Draft-7 keyword shapes. Rewriting the
+    renamed/relocated keywords here means every downstream check works unchanged, and comparisons
+    between schemas written in different drafts become well-defined (a single canonical form).
+    Keywords that cannot be canonicalized safely are handled by a fail-closed guard before
+    compatibility checking, not here.
+    """
+    # 2020-12 array model: `prefixItems` holds the positional (tuple) schemas that Draft-7 spells as
+    # the list form of `items`; when `prefixItems` is present, `items` holds the "additional items"
+    # schema that Draft-7 spells as `additionalItems`.
+    if PREFIX_ITEMS in schema:
+        prefix_items = schema.pop(PREFIX_ITEMS)
+        additional_items = schema.pop(Keyword.ITEMS.value, None)
+        schema[Keyword.ITEMS.value] = prefix_items
+        if additional_items is not None and Keyword.ADDITIONAL_ITEMS.value not in schema:
+            schema[Keyword.ADDITIONAL_ITEMS.value] = additional_items
+
+    # 2019-09 rename: `$defs` is the new name for `definitions`. References are already resolved by
+    # normalize_schema_rec, so this only keeps the canonical key name for any surviving subschema.
+    if DEFS in schema and DEFINITIONS not in schema:
+        schema[DEFINITIONS] = schema.pop(DEFS)
+
+    # 2019-09 split: `dependentRequired` is the string-array form of Draft-7 `dependencies`.
+    if DEPENDENT_REQUIRED in schema:
+        dependent_required = schema.pop(DEPENDENT_REQUIRED)
+        existing = schema.get(Keyword.DEPENDENCIES.value, {})
+        if isinstance(existing, dict) and isinstance(dependent_required, dict):
+            # Existing `dependencies` entries win on key conflict.
+            schema[Keyword.DEPENDENCIES.value] = {**dependent_required, **existing}
+
+    return schema
+
+
+def find_unsupported_compat_keywords(schema: Any) -> set[str]:
+    """Recursively collect keywords (in keyword position) the compatibility engine cannot evaluate.
+
+    Returns the subset of ``UNSUPPORTED_COMPAT_KEYWORDS`` used as *schema keywords* anywhere in the
+    schema. Used by the fail-closed guard before normalization, so it runs on the original schema.
+
+    The walk is position-aware to avoid false positives: a keyword-like string is only a match when
+    it is a schema keyword, not when it is an author-chosen name (e.g. a property named
+    ``unevaluatedItems``) or a value inside instance-data keywords (``enum``, ``const``, ``default``).
+    """
+    found: set[str] = set()
+    if isinstance(schema, dict):
+        for key, value in schema.items():
+            if key in UNSUPPORTED_COMPAT_KEYWORDS:
+                found.add(key)
+
+            if key in _DATA_VALUE_KEYWORDS:
+                # Value is arbitrary instance data, never a subschema — do not descend.
+                continue
+            if key in _NAME_KEYED_MAP_KEYWORDS and isinstance(value, dict):
+                # Keys here are author-chosen names; only the values are subschemas.
+                for subschema in value.values():
+                    found |= find_unsupported_compat_keywords(subschema)
+            else:
+                found |= find_unsupported_compat_keywords(value)
+    elif isinstance(schema, list):
+        for item in schema:
+            found |= find_unsupported_compat_keywords(item)
+    return found
 
 
 def maybe_get_subschemas_and_type(schema: Any) -> tuple[list[Any], Subschema] | None:

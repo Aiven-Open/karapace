@@ -58,6 +58,11 @@ def parse_jsonschema_definition(schema_definition: str) -> JsonSchemaValidator:
         SchemaError: If `schema_definition` is not valid for its declared draft.
     """
     schema = json_decode(schema_definition)
+    # `$schema` selects the draft. It must be a string URI; a non-string value makes
+    # `validator_for` raise a bare AttributeError/TypeError (it feeds the value to urlsplit),
+    # which is not part of the parse() error contract. Reject it as a schema error instead.
+    if isinstance(schema, dict) and "$schema" in schema and not isinstance(schema["$schema"], str):
+        raise SchemaError(f"$schema must be a string URI, got {type(schema['$schema']).__name__}")
     # TODO: Annotations dictate Mapping[str, Any] here, but we have unit tests that
     #  use bool values and fail if we assert isinstance(_, dict).
     validator_cls = validator_for(schema, default=Draft7Validator)  # type: ignore[arg-type]
