@@ -563,14 +563,19 @@ def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader
 
 def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
-        # Backwards compatibility: Support JSON encoded data without the tags for unions.
-        if avro.io.validate(schema.schema, value):
-            data = value
-        else:
-            data = flatten_unions(schema.schema, value)
-
         writer = DatumWriter(writers_schema=schema.schema)
-        writer.write(data, BinaryEncoder(bio))
+        start = bio.tell()
+        try:
+            writer.write(value, BinaryEncoder(bio))
+        except avro.errors.AvroTypeException:
+            # DatumWriter.write validates the whole datum before emitting anything, so a tagged
+            # union normally fails without writing a byte. The encoder can still raise the same
+            # exception type on its own though, after some fields are already out (a decimal whose
+            # exponent does not fit the schema scale raises AvroOutOfScaleException), so drop
+            # whatever the failed attempt wrote instead of appending the retry to a partial value.
+            bio.seek(start)
+            bio.truncate()
+            writer.write(flatten_unions(schema.schema, value), BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
             schema.schema.validate(value)

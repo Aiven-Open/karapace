@@ -6,6 +6,7 @@ See LICENSE for details
 import asyncio
 import base64
 import copy
+import decimal
 import io
 import json
 import logging
@@ -854,3 +855,102 @@ async def test_get_schema_cache_unauthenticated_path_unchanged(reset_sr_authoriz
     await sr_client.get_schema(subject)
     await sr_client.get_schema(subject)
     assert sr_client.client.get.call_count == 1
+
+
+MAP_UNION_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "MapUnion",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+            ],
+        }
+    ),
+)
+
+
+def test_write_value_validates_avro_once_for_untagged_value(karapace_container: KarapaceContainer) -> None:
+    value = {"id": "x", "props": {"k": "v"}}
+
+    top_schema = MAP_UNION_SCHEMA.schema
+    original_validate = avro.io.validate
+    full_tree_validations = 0
+
+    def counting_validate(expected_schema, *args, **kwargs):
+        nonlocal full_tree_validations
+        if expected_schema is top_schema:
+            full_tree_validations += 1
+        return original_validate(expected_schema, *args, **kwargs)
+
+    with patch("avro.io.validate", counting_validate):
+        write_value(karapace_container.config(), MAP_UNION_SCHEMA, io.BytesIO(), value)
+
+    assert full_tree_validations == 1, f"expected a single full-tree validation, got {full_tree_validations}"
+
+
+def test_write_value_map_union_tagged_and_untagged_encode_identically(karapace_container: KarapaceContainer) -> None:
+    untagged = {"id": "x", "props": {"k": "v"}}
+    tagged = {"id": "x", "props": {"k": {"string": "v"}}}
+
+    buf_untagged = io.BytesIO()
+    buf_tagged = io.BytesIO()
+    write_value(karapace_container.config(), MAP_UNION_SCHEMA, buf_untagged, untagged)
+    write_value(karapace_container.config(), MAP_UNION_SCHEMA, buf_tagged, tagged)
+
+    assert buf_untagged.getvalue() == buf_tagged.getvalue()
+
+    reader = avro.io.DatumReader(writers_schema=MAP_UNION_SCHEMA.schema)
+    decoded = reader.read(avro.io.BinaryDecoder(io.BytesIO(buf_untagged.getvalue())))
+    assert decoded == untagged
+
+
+DECIMAL_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "Decimals",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {"name": "amount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 9, "scale": 2}},
+            ],
+        }
+    ),
+)
+
+
+def test_write_value_retry_starts_from_a_clean_buffer(karapace_container: KarapaceContainer) -> None:
+    """A datum can pass avro's validation and still fail inside the encoder, halfway through.
+
+    write_value writes the value as is and only flattens tagged unions if that raises
+    AvroTypeException, which DatumWriter.write normally raises from its validation pass, before a
+    single byte is emitted. The encoder raises the same exception type on its own though: a decimal
+    whose exponent does not fit the schema scale raises AvroOutOfScaleException once the fields
+    before it are already encoded. The retry has to start from where the first attempt started,
+    otherwise it appends a second value to a partially encoded one and the message that
+    SchemaRegistrySerializer.serialize returns is silently corrupt.
+    """
+    value = {"id": "x", "amount": decimal.Decimal("1.23456")}
+    assert avro.io.validate(DECIMAL_SCHEMA.schema, value), "the failure has to come from the encoder, not validation"
+
+    bio = io.BytesIO()
+    bio.write(b"header")  # serialize() puts the magic byte and the schema id in front of the value
+
+    buffer_when_called = []
+    original_write = avro.io.DatumWriter.write
+
+    def spy(self, datum, encoder):
+        buffer_when_called.append(encoder.writer.getvalue())
+        return original_write(self, datum, encoder)
+
+    with patch.object(avro.io.DatumWriter, "write", spy), pytest.raises(avro.errors.AvroTypeException):
+        write_value(karapace_container.config(), DECIMAL_SCHEMA, bio, value)
+
+    assert len(buffer_when_called) == 2, "the encoder failed, so write_value is expected to have retried"
+    assert buffer_when_called[0] == b"header", "the first attempt must encode right after the header"
+    assert buffer_when_called[1] == b"header", "the retry must not see the bytes of the failed attempt"
