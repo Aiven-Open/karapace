@@ -1329,13 +1329,14 @@ async def test_schemaregistry_cross_draft_breaking_evolution_is_rejected(registr
     assert res.status_code == 409, res.json()
 
 
-@pytest.mark.parametrize(
-    "unsupported_fragment",
-    [
-        {"unevaluatedProperties": False},
-        {"$dynamicRef": "#node", "$dynamicAnchor": "node"},
-    ],
-)
+# Keyword fragments the compatibility engine cannot evaluate; used by the fail-closed tests below.
+UNSUPPORTED_KEYWORD_FRAGMENTS = [
+    {"unevaluatedProperties": False},
+    {"$dynamicRef": "#node", "$dynamicAnchor": "node"},
+]
+
+
+@pytest.mark.parametrize("unsupported_fragment", UNSUPPORTED_KEYWORD_FRAGMENTS)
 async def test_schemaregistry_unsupported_keyword_rejected_under_compat(
     registry_async_client: Client,
     unsupported_fragment: dict,
@@ -1354,9 +1355,17 @@ async def test_schemaregistry_unsupported_keyword_rejected_under_compat(
         json={"schema": json.dumps({**base, **unsupported_fragment}), "schemaType": SchemaType.JSONSCHEMA.value},
     )
     assert res.status_code == 409, res.json()
+    # The rejection message must name the unsupported keyword(s) so the cause is actionable.
+    message = res.json()["message"]
+    for keyword in unsupported_fragment:
+        assert keyword in message, message
 
 
-async def test_schemaregistry_unsupported_keyword_allowed_under_none(registry_async_client: Client) -> None:
+@pytest.mark.parametrize("unsupported_fragment", UNSUPPORTED_KEYWORD_FRAGMENTS)
+async def test_schemaregistry_unsupported_keyword_allowed_under_none(
+    registry_async_client: Client,
+    unsupported_fragment: dict,
+) -> None:
     """The same unsupported-keyword schema can still be registered under compatibility NONE."""
     subject = new_random_name("subject")
     base = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"}
@@ -1365,5 +1374,5 @@ async def test_schemaregistry_unsupported_keyword_allowed_under_none(registry_as
     config_res = await registry_async_client.put(f"config/{subject}", json={"compatibility": "NONE"})
     assert config_res.status_code == 200
 
-    second_id = await _register(registry_async_client, subject, {**base, "unevaluatedProperties": False})
+    second_id = await _register(registry_async_client, subject, {**base, **unsupported_fragment})
     assert second_id
