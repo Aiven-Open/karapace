@@ -186,6 +186,34 @@ async def test_protobuf_schema_normalization(registry_async_client: Client) -> N
 
 
 @pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
+async def test_protobuf_schema_with_blank_documentation_lines(registry_async_client: Client) -> None:
+    subject = create_subject_name_factory("test_protobuf_blank_documentation_lines")()
+    schema = trim_margin(
+        """
+        |syntax = "proto3";
+        |
+        |/*
+        | Some Important Event
+        |
+        | Overview
+        | What this event is for.
+        |*/
+        |message Test {}
+        """
+    )
+
+    res = await registry_async_client.post_subjects_versions(
+        subject=subject,
+        json={"schemaType": "PROTOBUF", "schema": schema},
+    )
+    assert res.status_code == 200
+
+    res = await registry_async_client.get_subjects_subject_version(subject=subject, version="latest")
+    assert res.status_code == 200
+    assert res.json()["schemaType"] == "PROTOBUF"
+
+
+@pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
 async def test_protobuf_schema_references(registry_async_client: Client) -> None:
     customer_schema = """
                 |syntax = "proto3";
