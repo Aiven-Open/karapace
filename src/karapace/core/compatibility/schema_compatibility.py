@@ -13,6 +13,7 @@ from avro.compatibility import (
 from avro.schema import Schema as AvroSchema
 from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import compatibility as jsonschema_compatibility, incompatible_schema
+from karapace.core.compatibility.jsonschema.utils import find_unsupported_compat_keywords
 from karapace.core.compatibility.protobuf.checks import check_protobuf_schema_compatibility
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.schema_models import ParsedTypedSchema, ValidatedTypedSchema
@@ -72,11 +73,30 @@ class SchemaCompatibility:
                 )
         elif old_schema.schema_type is SchemaType.JSONSCHEMA:
             # The parsed schema may be any JSON Schema draft validator (Draft-7 default,
-            # or 2019-09 / 2020-12 when selected via $schema). The compatibility engine
-            # is still Draft-7-shaped; cross-draft compatibility semantics are pending, see
-            # docs/json-schema-draft-compatibility-strategy.md.
+            # or 2019-09 / 2020-12 when selected via $schema). Renamed/relocated keywords are
+            # canonicalized to Draft-7 shapes during normalization so the engine compares them
+            # correctly across drafts. Keywords the engine cannot yet evaluate are rejected below
+            # rather than mis-judged.
             assert isinstance(old_schema.schema, JsonSchemaValidator)
             assert isinstance(new_schema.schema, JsonSchemaValidator)
+
+            # Fail closed: reject rather than return a possibly-wrong verdict for keywords whose
+            # compatibility semantics are not implemented. NONE mode already returned above, so this
+            # only affects compatibility-checked modes.
+            unsupported = find_unsupported_compat_keywords(old_schema.schema.schema) | find_unsupported_compat_keywords(
+                new_schema.schema.schema
+            )
+            if unsupported:
+                keywords = ", ".join(sorted(unsupported))
+                return incompatible_schema(
+                    incompat_type=SchemaIncompatibilityType.type_mismatch,
+                    message=(
+                        f"Compatibility checking is not supported for JSON Schema keyword(s): {keywords}. "
+                        "Register the schema under a subject with compatibility NONE, or remove these keywords."
+                    ),
+                    location=[],
+                )
+
             if compatibility_mode in {CompatibilityModes.BACKWARD, CompatibilityModes.BACKWARD_TRANSITIVE}:
                 result = SchemaCompatibility.check_jsonschema_compatibility(
                     reader=new_schema.schema,

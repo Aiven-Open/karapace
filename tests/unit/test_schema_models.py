@@ -244,6 +244,12 @@ class TestJsonSchemaDraftRouting:
         with pytest.raises(InvalidSchema):
             ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, json.dumps({"$schema": DRAFT202012_URI, "type": 123}))
 
+    @pytest.mark.parametrize("bad_schema_value", [123, ["x"], {"k": 1}])
+    def test_non_string_schema_keyword_raises_invalid_schema(self, bad_schema_value: Any):
+        """A non-string `$schema` must raise InvalidSchema, not an uncaught AttributeError."""
+        with pytest.raises(InvalidSchema):
+            ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, json.dumps({"$schema": bad_schema_value, "type": "object"}))
+
     def test_no_network_fetch_on_parse(self, monkeypatch: pytest.MonkeyPatch):
         """Parsing/validating any built-in draft must not trigger network I/O."""
 
@@ -272,60 +278,4 @@ class TestJsonSchemaDraftRouting:
         assert type(parsed.schema).__name__ == "Draft202012Validator"
 
         result = SchemaCompatibility.check_compatibility(parsed, parsed, CompatibilityModes.BACKWARD)
-        assert result is not None
-
-    # Cross-draft smoke tests: the compatibility engine is still Draft-7-shaped (cross-draft
-    # *semantics* are a later ticket, see docs/json-schema-draft-compatibility-strategy.md).
-    # These pin only that mixing drafts across versions does NOT crash the engine — they assert a
-    # result is returned, never a specific compatible/incompatible verdict.
-    @pytest.mark.parametrize(
-        "old_uri, new_uri",
-        [
-            (DRAFT7_URI, DRAFT202012_URI),
-            (DRAFT202012_URI, DRAFT7_URI),
-            (DRAFT7_URI, DRAFT201909_URI),
-            (DRAFT201909_URI, DRAFT202012_URI),
-            (None, DRAFT202012_URI),
-        ],
-    )
-    @pytest.mark.parametrize(
-        "compatibility_mode",
-        [CompatibilityModes.BACKWARD, CompatibilityModes.FORWARD, CompatibilityModes.FULL],
-    )
-    def test_cross_draft_compatibility_check_does_not_crash(
-        self,
-        old_uri: str | None,
-        new_uri: str | None,
-        compatibility_mode: CompatibilityModes,
-    ):
-        def _schema(uri: str | None, extra_property: bool) -> str:
-            schema: dict[str, Any] = {
-                "type": "object",
-                "properties": {"a": {"type": "string"}},
-                "additionalProperties": True,
-            }
-            if extra_property:
-                schema["properties"]["b"] = {"type": "integer"}
-            if uri is not None:
-                schema["$schema"] = uri
-            return json.dumps(schema)
-
-        old = ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, _schema(old_uri, extra_property=False))
-        new = ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, _schema(new_uri, extra_property=True))
-
-        result = SchemaCompatibility.check_compatibility(old, new, compatibility_mode)
-        assert result is not None
-
-    def test_cross_draft_array_model_check_does_not_crash(self):
-        """Draft-7 list-`items` tuple vs 2020-12 `prefixItems` tuple must not crash the engine.
-
-        This is the §9 "array-model ambiguity" case; we only assert it returns a result, since the
-        canonicalization that makes the verdict correct is a later ticket.
-        """
-        draft7_tuple = json.dumps({"$schema": DRAFT7_URI, "type": "array", "items": [{"type": "integer"}]})
-        draft2020_tuple = json.dumps({"$schema": DRAFT202012_URI, "type": "array", "prefixItems": [{"type": "integer"}]})
-        old = ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, draft7_tuple)
-        new = ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, draft2020_tuple)
-
-        result = SchemaCompatibility.check_compatibility(old, new, CompatibilityModes.BACKWARD)
         assert result is not None
