@@ -26,7 +26,6 @@ from collections.abc import Mapping, Sequence
 from confluent_kafka import Message, TopicCollection, TopicPartition
 from contextlib import closing, ExitStack
 from enum import Enum
-from jsonschema.validators import Draft7Validator
 from karapace.core.instrumentation.tracer import Tracer
 from karapace.core import constants
 from karapace.core.config import Config
@@ -47,7 +46,7 @@ from karapace.core.schema_models import parse_protobuf_schema_definition, Schema
 from karapace.core.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 
 from karapace.core.stats import StatsClient
-from karapace.core.typing import JsonObject, SchemaReaderStoppper, Subject, Version
+from karapace.core.typing import JsonObject, JsonSchemaValidator, SchemaReaderStoppper, Subject, Version
 from karapace.core.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Lock, Thread
 from typing import Final, cast
@@ -665,7 +664,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         # for the REST API to return data that is formatted differently from
         # what is available in the topic.
 
-        parsed_schema: Draft7Validator | AvroSchema | ProtobufSchema | None = None
+        parsed_schema: JsonSchemaValidator | AvroSchema | ProtobufSchema | None = None
         resolved_dependencies: dict[str, Dependency] | None = None
         if schema_type_parsed == SchemaType.JSONSCHEMA:
             try:
