@@ -208,6 +208,30 @@ def test_num_max_messages_to_consume_moved_to_one_after_ready(karapace_container
     assert schema_reader.max_messages_to_process == MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
 
 
+def test_set_not_ready_resets_replay_timing_state(karapace_container: KarapaceContainer) -> None:
+    """A master rebalance triggers set_not_ready(); subsequent replay logs must report
+    durations and state relative to the new replay, not the original process start."""
+    schema_reader = KafkaSchemaReader(
+        config=karapace_container.config(),
+        offset_watcher=OffsetWatcher(),
+        key_formatter=Mock(spec=KeyFormatter),
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+        stats=Mock(spec=StatsClient),
+    )
+
+    schema_reader.start_time = 0.0
+    schema_reader.last_check = 0.0
+    schema_reader._replay_start_logged = True
+
+    schema_reader.set_not_ready()
+
+    assert schema_reader.ready() is False
+    assert schema_reader.start_time > 0.0
+    assert schema_reader.last_check > 0.0
+    assert schema_reader._replay_start_logged is False
+
+
 def test_schema_reader_skips_empty_message_and_advances_offset(karapace_container: KarapaceContainer) -> None:
     key_formatter_mock = Mock(spec=KeyFormatter)
     stats_mock = Mock(spec=StatsClient)
