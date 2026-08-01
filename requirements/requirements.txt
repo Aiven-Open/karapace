@@ -229,7 +229,7 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
-sentry-sdk==2.65.0
+sentry-sdk==2.66.1
     # via fastapi-cloud-cli
 shellingham==1.5.4
     # via typer

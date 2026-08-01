@@ -240,7 +240,7 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
-sentry-sdk==2.65.0
+sentry-sdk==2.66.1
     # via
     #   fastapi-cloud-cli
     #   karapace (/karapace/pyproject.toml)
