@@ -27,6 +27,7 @@ from karapace.core.serialization import (
     SchemaRetrievalError,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
+    build_decoder,
     flatten_unions,
     get_subject_name,
     sr_authorization_ctx,
@@ -492,48 +493,47 @@ async def test_deserialize_offloads_avro_read_to_thread(karapace_container: Kara
     with patch("karapace.core.serialization.asyncio.to_thread", side_effect=fake_to_thread):
         assert await serializer.deserialize(payload) == record
 
-    assert to_thread_calls == ["_read_avro_value"]
+    assert to_thread_calls == ["read_value"]
 
 
-async def test_deserialize_reuses_datum_reader_for_map_union_schema(karapace_container: KarapaceContainer) -> None:
+async def test_deserialize_compiles_avro_decoder_once_per_schema(karapace_container: KarapaceContainer) -> None:
+    """The compiled decoder is cached on the schema, so repeated decodes must not rebuild it."""
+    # A schema instance private to this test: _get_avro_decoder memoizes the compiled decoder on
+    # the schema object, so sharing a module-level constant would make this order dependent.
+    typed_schema = ValidatedTypedSchema.parse(
+        SchemaType.AVRO,
+        json.dumps(
+            {
+                "namespace": "io.aiven.minimal",
+                "name": "DecoderReuseTest",
+                "type": "record",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {
+                        "name": "attrs",
+                        "type": {
+                            "type": "array",
+                            "items": {
+                                "type": "record",
+                                "name": "Attr",
+                                "fields": [
+                                    {"name": "k", "type": "string"},
+                                    {"name": "v", "type": ["null", "string", "long", "double", "boolean"]},
+                                ],
+                            },
+                        },
+                    },
+                    {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+                ],
+            }
+        ),
+    )
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, MAP_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    get_latest_schema_future.set_result((1, typed_schema, Versioner.V(1)))
     mock_registry_client.get_schema.return_value = get_latest_schema_future
     schema_for_id_one_future = asyncio.Future()
-    schema_for_id_one_future.set_result((MAP_UNION_AVRO_SCHEMA, [Subject("stub")]))
-    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
-
-    serializer = await make_ser_deser(karapace_container, mock_registry_client)
-    schema = await serializer.get_schema_for_subject(Subject("top"))
-    record = {"id": "one", "props": {"present": "yes", "missing": None}}
-    payload = await serializer.serialize(schema, record)
-    original_datum_reader = avro.io.DatumReader
-    datum_reader_init_count = 0
-
-    class CountingDatumReader:
-        def __init__(self, writers_schema):
-            nonlocal datum_reader_init_count
-            datum_reader_init_count += 1
-            self._delegate = original_datum_reader(writers_schema=writers_schema)
-
-        def read(self, decoder):
-            return self._delegate.read(decoder)
-
-    with patch("karapace.core.serialization.DatumReader", CountingDatumReader):
-        assert await serializer.deserialize(payload) == record
-        assert await serializer.deserialize(payload) == record
-
-    assert datum_reader_init_count == 1
-
-
-async def test_deserialize_reuses_datum_reader_for_complex_avro_schema(karapace_container: KarapaceContainer) -> None:
-    mock_registry_client = Mock()
-    get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, COMPLEX_UNION_AVRO_SCHEMA, Versioner.V(1)))
-    mock_registry_client.get_schema.return_value = get_latest_schema_future
-    schema_for_id_one_future = asyncio.Future()
-    schema_for_id_one_future.set_result((COMPLEX_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    schema_for_id_one_future.set_result((typed_schema, [Subject("stub")]))
     mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
     serializer = await make_ser_deser(karapace_container, mock_registry_client)
@@ -549,23 +549,44 @@ async def test_deserialize_reuses_datum_reader_for_complex_avro_schema(karapace_
         "props": {"present": "yes", "missing": None},
     }
     payload = await serializer.serialize(schema, record)
-    original_datum_reader = avro.io.DatumReader
-    datum_reader_init_count = 0
+    build_decoder_calls = 0
 
-    class CountingDatumReader:
-        def __init__(self, writers_schema):
-            nonlocal datum_reader_init_count
-            datum_reader_init_count += 1
-            self._delegate = original_datum_reader(writers_schema=writers_schema)
+    def counting_build_decoder(avro_schema):
+        nonlocal build_decoder_calls
+        build_decoder_calls += 1
+        return build_decoder(avro_schema)
 
-        def read(self, decoder):
-            return self._delegate.read(decoder)
-
-    with patch("karapace.core.serialization.DatumReader", CountingDatumReader):
+    with patch("karapace.core.serialization.build_decoder", counting_build_decoder):
         assert await serializer.deserialize(payload) == record
         assert await serializer.deserialize(payload) == record
 
-    assert datum_reader_init_count == 1
+    assert build_decoder_calls == 1
+
+
+async def test_deserialize_does_not_use_datum_reader(karapace_container: KarapaceContainer) -> None:
+    """Decoding runs on the compiled decoders only, never on avro's resolution-driven reader."""
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, COMPLEX_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((COMPLEX_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {
+        "id": "one",
+        "attrs": [{"k": "text", "v": "value"}, {"k": "count", "v": 5}],
+        "props": {"present": "yes", "missing": None},
+    }
+    payload = await serializer.serialize(schema, record)
+
+    def fail_on_read(self, decoder):
+        raise AssertionError("DatumReader must not be used on the decode path")
+
+    with patch.object(avro.io.DatumReader, "read", fail_on_read):
+        assert await serializer.deserialize(payload) == record
 
 
 async def test_deserialize_converts_avro_bytes_to_base64_strings(karapace_container: KarapaceContainer) -> None:
