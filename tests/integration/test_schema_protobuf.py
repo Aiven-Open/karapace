@@ -196,9 +196,25 @@ async def test_protobuf_schema_with_blank_documentation_lines(registry_async_cli
         | Some Important Event
         |
         | Overview
-        | What this event is for.
         |*/
+        |// Additional context
+        |//
+        |// What this event is for.
         |message Test {}
+        """
+    )
+    expected_schema = trim_margin(
+        f"""
+        |syntax = "proto3";
+        |
+        |// Some Important Event
+        |//{" "}
+        |// Overview
+        |// Additional context
+        |//{" "}
+        |// What this event is for.
+        |message Test {{}}
+        |
         """
     )
 
@@ -206,11 +222,14 @@ async def test_protobuf_schema_with_blank_documentation_lines(registry_async_cli
         subject=subject,
         json={"schemaType": "PROTOBUF", "schema": schema},
     )
+    # A successful response proves the schema reader replayed the record without timing out.
     assert res.status_code == 200
 
     res = await registry_async_client.get_subjects_subject_version(subject=subject, version="latest")
     assert res.status_code == 200
-    assert res.json()["schemaType"] == "PROTOBUF"
+    response = res.json()
+    assert response["schemaType"] == "PROTOBUF"
+    assert response["schema"] == expected_schema
 
 
 @pytest.mark.parametrize("registry_cluster", [{"config": {}}, {"config": {"use_protobuf_formatter": True}}], indirect=True)
