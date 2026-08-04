@@ -191,6 +191,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.last_check = time.monotonic()
         self.start_time = time.monotonic()
         self.startup_previous_processed_offset = 0
+        # Log replay completion only on the first catch-up, not on every
+        # re-readiness after a rebalance / master transition (set_not_ready).
+        self._replay_completed_logged = False
 
         self.consecutive_unexpected_errors: int = 0
         self.consecutive_unexpected_errors_start: float = 0
@@ -353,7 +356,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             LOG.exception("Unexpected exception when reading begin offsets.")
         return OFFSET_UNINITIALIZED
 
-    def _is_ready(self) -> bool:
+    def _is_ready(self, consumed_batch_empty: bool = True) -> bool:
         """
         Always call `_is_ready` only if `self._ready` is False.
         Removed the check since now with the Lock the lookup it's a costly operation.
@@ -402,14 +405,44 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         self.last_check = cur_time
         self.startup_previous_processed_offset = self.offset
         ready = self.offset >= self._highest_offset
+
+        # The consumer never delivers transaction control records (or aborted
+        # transactional messages) to the application, so `self.offset` can stall
+        # one or more offsets short of `_highest_offset` when the topic tail is
+        # such a record (e.g. a topic replicated via MirrorMaker with EOS). The
+        # consumer's fetch position does advance past these, so use it as a
+        # fallback catch-up signal. Only trust it when the last consume returned
+        # an empty batch: otherwise pending unprocessed messages could flip the
+        # reader ready before they are stored.
+        if not ready and consumed_batch_empty:
+            try:
+                positions = self.consumer.position([TopicPartition(self.config.topic_name, 0)])
+                position_offset = positions[0].offset if positions else None
+                if isinstance(position_offset, int) and position_offset >= end_offset:
+                    if not self._replay_completed_logged:
+                        LOG.info(
+                            "Reader caught up via consumer position %s (offset %s, end %s); "
+                            "topic tail is a non-deliverable record",
+                            position_offset,
+                            self.offset,
+                            end_offset,
+                        )
+                    ready = True
+            except Exception as e:  # noqa: BLE001
+                self.stats.unexpected_exception(ex=e, where="_is_ready_position")
+                LOG.warning("Unexpected exception when reading consumer position.")
+
         if ready:
             self.max_messages_to_process = MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP
-            # Always log when replay completes - this is important for operators
-            LOG.info(
-                "Schema replay completed in %.2f seconds (processed %s messages)",
-                time.monotonic() - self.start_time,
-                self.offset,
-            )
+            # Log completion only once, not on every re-readiness after a
+            # rebalance / master transition that flipped the flag back.
+            if not self._replay_completed_logged:
+                LOG.info(
+                    "Schema replay completed in %.2f seconds (processed %s messages)",
+                    time.monotonic() - self.start_time,
+                    self.offset,
+                )
+                self._replay_completed_logged = True
             # Initialize metrics with current database state when becoming ready
             self._initialize_metrics()
         return ready
@@ -441,7 +474,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
     def handle_messages(self) -> None:
         assert self.consumer is not None, "Thread must be started"
         msgs: list[Message] = self.consumer.consume(timeout=self.timeout_s, num_messages=self.max_messages_to_process)
-        self._update_is_ready_flag()
+        self._update_is_ready_flag(consumed_batch_empty=not msgs)
 
         watch_offsets = False
         if self.master_coordinator is not None:
@@ -539,7 +572,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             schema_records_processed_keymode_deprecated_karapace,
         )
 
-    def _update_is_ready_flag(self) -> None:
+    def _update_is_ready_flag(self, consumed_batch_empty: bool = True) -> None:
         update_ready_flag = False
 
         # to keep the lock as few as possible.
@@ -548,7 +581,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                 update_ready_flag = True
 
         if update_ready_flag:
-            new_ready_flag = self._is_ready()
+            new_ready_flag = self._is_ready(consumed_batch_empty=consumed_batch_empty)
             with self._ready_lock:
                 self._ready = new_ready_flag
 

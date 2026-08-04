@@ -18,7 +18,7 @@ import confluent_kafka
 from karapace.core.stats import StatsClient
 import pytest
 from _pytest.logging import LogCaptureFixture
-from confluent_kafka import Message
+from confluent_kafka import Message, TopicPartition
 from pytest import MonkeyPatch
 
 from karapace.core.container import KarapaceContainer
@@ -238,6 +238,103 @@ def test_schema_reader_skips_empty_message_and_advances_offset(karapace_containe
     assert schema_reader.offset == 5
     schema_reader._update_is_ready_flag()  # pylint: disable=protected-access
     assert schema_reader.ready() is True
+
+
+def test_schema_reader_becomes_ready_when_topic_tail_is_control_record(karapace_container: KarapaceContainer) -> None:
+    """A transaction control record at the topic tail is never delivered to the
+    application, so `self.offset` stalls one short of `_highest_offset`. The
+    consumer's fetch position advances past it and must drive readiness.
+    """
+    key_formatter_mock = Mock(spec=KeyFormatter)
+    stats_mock = Mock(spec=StatsClient)
+    consumer_mock = Mock(spec=KafkaConsumer)
+
+    # No deliverable messages: the last consume returns an empty batch.
+    consumer_mock.consume.return_value = []
+    # end_offset 22 => _highest_offset 21 (offset 21 is the commit control record)
+    consumer_mock.get_watermark_offsets.return_value = (0, 22)
+    # Fetch position has advanced past the control record to the end.
+    consumer_mock.position.return_value = [TopicPartition("_schemas", 0, 22)]
+
+    schema_reader = KafkaSchemaReader(
+        config=karapace_container.config(),
+        offset_watcher=OffsetWatcher(),
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+        stats=stats_mock,
+    )
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = 20  # last delivered (real) record
+
+    schema_reader.handle_messages()
+
+    assert schema_reader.ready() is True
+
+
+def test_schema_reader_not_ready_when_position_behind_end(karapace_container: KarapaceContainer) -> None:
+    """If the fetch position has not reached the end, the reader stays not ready."""
+    key_formatter_mock = Mock(spec=KeyFormatter)
+    stats_mock = Mock(spec=StatsClient)
+    consumer_mock = Mock(spec=KafkaConsumer)
+
+    consumer_mock.consume.return_value = []
+    consumer_mock.get_watermark_offsets.return_value = (0, 22)
+    # Position still behind the end offset.
+    consumer_mock.position.return_value = [TopicPartition("_schemas", 0, 20)]
+
+    schema_reader = KafkaSchemaReader(
+        config=karapace_container.config(),
+        offset_watcher=OffsetWatcher(),
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+        stats=stats_mock,
+    )
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = 20
+
+    schema_reader.handle_messages()
+
+    assert schema_reader.ready() is False
+
+
+def test_schema_reader_position_ignored_when_batch_not_empty(karapace_container: KarapaceContainer) -> None:
+    """Position must not mark the reader ready while a non-empty batch is still
+    pending processing, even if the position already reached the end.
+    """
+    key_formatter_mock = Mock(spec=KeyFormatter)
+    stats_mock = Mock(spec=StatsClient)
+    consumer_mock = Mock(spec=KafkaConsumer)
+
+    pending_message = Mock(spec=Message)
+    pending_message.key.return_value = b'{"keytype":"SCHEMA","subject":"test","version":1,"magic":1}'
+    pending_message.value.return_value = json.dumps(
+        {"name": "init", "type": "record", "fields": [{"name": "inner", "type": ["string", "int"]}]}
+    ).encode()
+    pending_message.error.return_value = None
+    pending_message.offset.return_value = 20
+
+    consumer_mock.consume.return_value = [pending_message]
+    consumer_mock.get_watermark_offsets.return_value = (0, 22)
+    consumer_mock.position.return_value = [TopicPartition("_schemas", 0, 22)]
+
+    schema_reader = KafkaSchemaReader(
+        config=karapace_container.config(),
+        offset_watcher=OffsetWatcher(),
+        key_formatter=key_formatter_mock,
+        master_coordinator=None,
+        database=InMemoryDatabase(),
+        stats=stats_mock,
+    )
+    schema_reader.consumer = consumer_mock
+    schema_reader.offset = 19
+
+    schema_reader.handle_messages()
+
+    # Readiness was evaluated before the batch was processed; position is ignored
+    # for a non-empty batch, so the reader is not ready yet.
+    assert schema_reader.ready() is False
 
 
 def test_schema_reader_can_end_to_ready_state_if_last_message_is_invalid_in_schemas_topic(
