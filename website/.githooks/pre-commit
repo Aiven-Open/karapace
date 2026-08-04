@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Execute lint-staged jobs
+
+echo "Pre-commit hook"
+if ! pnpm lint-staged; then
+    echo -e '\n\n🙋 Check "lint-staged" failed.'
+    echo -e '   Canceling the commit process.'
+    echo -e '   Please fix and try again!\n\n'
+    echo -e '   To fix formatting, run: pnpm reformat'
+    exit 1
+fi

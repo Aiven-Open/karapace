@@ -1,0 +1,14 @@
+.features {
+    padding: 3rem 0;
+    width: 100%;
+}
+
+.featureCol {
+    margin-bottom: 2rem;
+    display: flex;
+}
+
+.featureCard {
+    width: 100%;
+    height: 100%;
+}

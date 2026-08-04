@@ -1,0 +1,18 @@
+# Based on alex https://github.com/errata-ai/alex/
+
+extends: existence
+message: Using '%s' may come across as condescending.
+link: https://css-tricks.com/words-avoid-educational-writing/
+level: warning
+ignorecase: true
+tokens:
+  - clearly
+  - easily
+  - easy
+  - everyone knows
+  - just
+  - obvious
+  - obviously
+  - of course
+  - simple
+  - simply
