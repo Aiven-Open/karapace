@@ -1,0 +1,19 @@
+# Based on alex https://github.com/errata-ai/alex/
+# Note: "master" is intentionally NOT swapped — Karapace uses it as a technical
+# term for master election (see the master_eligibility config key).
+
+extends: substitution
+message: Consider using '%s' instead of '%s'.
+ignorecase: true
+level: error
+action:
+  name: replace
+swap:
+  black list: blocklist|deny list
+  blacklist: blocklist|deny list
+  blacklisted: blocklisted|deny-listed
+  blacklisting: blocklisting|deny-listing
+  white list: passlist|safelist|allow list
+  whitelist: passlist|safelist|allow list
+  whitelisted: passlisted|safelisted|allow-listed
+  whitelisting: passlisting|safelisting|allow-listing

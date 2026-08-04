@@ -1,0 +1,173 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default (https://infima.dev/).
+ *
+ * Colors follow Aiven's brand palette (deep-blue / indigo accent).
+ */
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400;
+    src: url("./fonts/Inter-Regular.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 500;
+    src: url("./fonts/Inter-Medium.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 600;
+    src: url("./fonts/Inter-SemiBold.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 700;
+    src: url("./fonts/Inter-Bold.ttf") format("truetype");
+}
+
+:root {
+    /* Match Aiven docs: Inter for body and headings, denser base size. */
+    --ifm-font-family-base: "Inter", "Helvetica", system-ui, sans-serif;
+    --ifm-heading-font-family: "Inter", "Helvetica", system-ui, sans-serif;
+    --ifm-font-size-base: 90%;
+    --ifm-line-height-base: 1.65;
+    --ifm-heading-font-weight: 600;
+    --ifm-link-decoration: underline;
+}
+
+.footer {
+    --ifm-footer-background-color: #05080f;
+}
+
+a.navbar__item.navbar__link,
+a.menu__link,
+a.card,
+a.table-of-contents__link,
+a.pagination-nav__link {
+    text-decoration: none;
+}
+
+a.table-of-contents__link:hover {
+    text-decoration: underline;
+}
+
+:focus-visible {
+    outline: var(--ifm-color-primary) auto 1px;
+}
+
+.pagination-nav__link {
+    border-width: 1.5px;
+}
+
+.pagination-nav__link:hover {
+    border-width: 1.5px;
+}
+
+.card {
+    border-width: 1.5px !important;
+    --ifm-heading-color: var(--ifm-color-primary);
+}
+
+.card:hover {
+    border-width: 1.5px;
+}
+
+.menu__link--active,
+.navbar__link--active {
+    font-weight: 700;
+}
+
+/* Markdown heading sizes, matching Aiven docs. */
+.markdown > h1 {
+    --ifm-h1-font-size: 2.1em;
+}
+
+.markdown > h2 {
+    --ifm-h2-font-size: 1.5rem;
+}
+
+.markdown > h3 {
+    --ifm-h3-font-size: 1.4rem;
+}
+
+.markdown > h4 {
+    --ifm-h4-font-size: 1.2rem;
+}
+
+/* Inline code: subtle Aiven-tinted chip. */
+code {
+    border-radius: 4px;
+}
+
+.navbar {
+    box-shadow: none;
+}
+
+/* Light theme — Aiven docs link indigo (#564ddc = aiven-deep-blue-600). */
+html[data-theme="light"] {
+    --ifm-color-primary: #564ddc;
+    --ifm-color-primary-dark: #4239d3;
+    --ifm-color-primary-darker: #3e36c8;
+    --ifm-color-primary-darkest: #332ba5;
+    --ifm-color-primary-light: #6a62e0;
+    --ifm-color-primary-lighter: #766fe3;
+    --ifm-color-primary-lightest: #9992ea;
+
+    --ifm-link-color: #564ddc;
+    --ifm-background-color: #f7f7fa;
+    --ifm-toc-border-color: #d6d6d6;
+    --ifm-menu-color: #05080f;
+    --ifm-toc-link-color: #05080f;
+    --ifm-link-hover-color: #000000;
+
+    --ifm-menu-color-background-active: #f7f7fa;
+    --ifm-menu-color-active: #564ddc;
+
+    --ifm-code-background: #ecefff;
+}
+
+html[data-theme="light"] .navbar {
+    border-bottom: 1px solid #d6d6d6;
+}
+
+html[data-theme="light"] .hero--primary {
+    background-image: linear-gradient(180deg, #6f64ff 0%, #564ddc 100%);
+    color: #ffffff;
+}
+
+/* Dark theme */
+html[data-theme="dark"] {
+    --ifm-color-primary: #7683ff;
+    --ifm-color-primary-dark: #5566ff;
+    --ifm-color-primary-darker: #4557ff;
+    --ifm-color-primary-darkest: #1730ff;
+    --ifm-color-primary-light: #97a0ff;
+    --ifm-color-primary-lighter: #a7aeff;
+    --ifm-color-primary-lightest: #d6daff;
+
+    --ifm-link-color: #7683ff;
+    --ifm-link-hover-color: #ffffff;
+    --ifm-background-color: #2d2e30;
+    --ifm-navbar-background-color: #05080f;
+    --ifm-toc-border-color: #444547;
+
+    --ifm-menu-color-background-active: #05080f;
+    --ifm-menu-color-active: #7683ff;
+}
+
+html[data-theme="dark"] .hero--primary {
+    background-image: linear-gradient(180deg, #6f64ff 0%, #2c33a5 100%);
+    color: #ffffff;
+}
+
+html[data-theme="dark"] .navbar--fixed-top {
+    border-bottom: 1px #444547 solid;
+}
