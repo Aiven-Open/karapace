@@ -58,7 +58,7 @@ confluent-kafka==2.15.0
     # via karapace (/karapace/pyproject.toml)
 cramjam==2.11.0
     # via python-snappy
-cryptography==49.0.0
+cryptography==50.0.0
     # via karapace (/karapace/pyproject.toml)
 dependency-injector==4.49.1
     # via karapace (/karapace/pyproject.toml)
