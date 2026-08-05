@@ -6,6 +6,7 @@ See LICENSE for details
 import asyncio
 import base64
 import copy
+import decimal
 import io
 import json
 import logging
@@ -23,9 +24,10 @@ from karapace.core.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
-    SchemaRetrievalError,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
+    SchemaRetrievalError,
+    build_decoder,
     flatten_unions,
     get_subject_name,
     sr_authorization_ctx,
@@ -111,21 +113,6 @@ TYPED_PROTOBUF_SCHEMA = ValidatedTypedSchema.parse(
         string attr2 = 2;
     }\
     """,
-)
-
-MAP_UNION_AVRO_SCHEMA = ValidatedTypedSchema.parse(
-    SchemaType.AVRO,
-    json.dumps(
-        {
-            "namespace": "io.aiven.minimal",
-            "name": "MapUnionTest",
-            "type": "record",
-            "fields": [
-                {"name": "id", "type": "string"},
-                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
-            ],
-        }
-    ),
 )
 
 AVRO_BYTES_SCHEMA = ValidatedTypedSchema.parse(
@@ -491,48 +478,47 @@ async def test_deserialize_offloads_avro_read_to_thread(karapace_container: Kara
     with patch("karapace.core.serialization.asyncio.to_thread", side_effect=fake_to_thread):
         assert await serializer.deserialize(payload) == record
 
-    assert to_thread_calls == ["_read_avro_value"]
+    assert to_thread_calls == ["read_value"]
 
 
-async def test_deserialize_reuses_datum_reader_for_map_union_schema(karapace_container: KarapaceContainer) -> None:
+async def test_deserialize_compiles_avro_decoder_once_per_schema(karapace_container: KarapaceContainer) -> None:
+    """The compiled decoder is cached on the schema, so repeated decodes must not rebuild it."""
+    # A schema instance private to this test: _get_avro_decoder memoizes the compiled decoder on
+    # the schema object, so sharing a module-level constant would make this order dependent.
+    typed_schema = ValidatedTypedSchema.parse(
+        SchemaType.AVRO,
+        json.dumps(
+            {
+                "namespace": "io.aiven.minimal",
+                "name": "DecoderReuseTest",
+                "type": "record",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {
+                        "name": "attrs",
+                        "type": {
+                            "type": "array",
+                            "items": {
+                                "type": "record",
+                                "name": "Attr",
+                                "fields": [
+                                    {"name": "k", "type": "string"},
+                                    {"name": "v", "type": ["null", "string", "long", "double", "boolean"]},
+                                ],
+                            },
+                        },
+                    },
+                    {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+                ],
+            }
+        ),
+    )
     mock_registry_client = Mock()
     get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, MAP_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    get_latest_schema_future.set_result((1, typed_schema, Versioner.V(1)))
     mock_registry_client.get_schema.return_value = get_latest_schema_future
     schema_for_id_one_future = asyncio.Future()
-    schema_for_id_one_future.set_result((MAP_UNION_AVRO_SCHEMA, [Subject("stub")]))
-    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
-
-    serializer = await make_ser_deser(karapace_container, mock_registry_client)
-    schema = await serializer.get_schema_for_subject(Subject("top"))
-    record = {"id": "one", "props": {"present": "yes", "missing": None}}
-    payload = await serializer.serialize(schema, record)
-    original_datum_reader = avro.io.DatumReader
-    datum_reader_init_count = 0
-
-    class CountingDatumReader:
-        def __init__(self, writers_schema):
-            nonlocal datum_reader_init_count
-            datum_reader_init_count += 1
-            self._delegate = original_datum_reader(writers_schema=writers_schema)
-
-        def read(self, decoder):
-            return self._delegate.read(decoder)
-
-    with patch("karapace.core.serialization.DatumReader", CountingDatumReader):
-        assert await serializer.deserialize(payload) == record
-        assert await serializer.deserialize(payload) == record
-
-    assert datum_reader_init_count == 1
-
-
-async def test_deserialize_reuses_datum_reader_for_complex_avro_schema(karapace_container: KarapaceContainer) -> None:
-    mock_registry_client = Mock()
-    get_latest_schema_future = asyncio.Future()
-    get_latest_schema_future.set_result((1, COMPLEX_UNION_AVRO_SCHEMA, Versioner.V(1)))
-    mock_registry_client.get_schema.return_value = get_latest_schema_future
-    schema_for_id_one_future = asyncio.Future()
-    schema_for_id_one_future.set_result((COMPLEX_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    schema_for_id_one_future.set_result((typed_schema, [Subject("stub")]))
     mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
 
     serializer = await make_ser_deser(karapace_container, mock_registry_client)
@@ -548,23 +534,44 @@ async def test_deserialize_reuses_datum_reader_for_complex_avro_schema(karapace_
         "props": {"present": "yes", "missing": None},
     }
     payload = await serializer.serialize(schema, record)
-    original_datum_reader = avro.io.DatumReader
-    datum_reader_init_count = 0
+    build_decoder_calls = 0
 
-    class CountingDatumReader:
-        def __init__(self, writers_schema):
-            nonlocal datum_reader_init_count
-            datum_reader_init_count += 1
-            self._delegate = original_datum_reader(writers_schema=writers_schema)
+    def counting_build_decoder(avro_schema):
+        nonlocal build_decoder_calls
+        build_decoder_calls += 1
+        return build_decoder(avro_schema)
 
-        def read(self, decoder):
-            return self._delegate.read(decoder)
-
-    with patch("karapace.core.serialization.DatumReader", CountingDatumReader):
+    with patch("karapace.core.serialization.build_decoder", counting_build_decoder):
         assert await serializer.deserialize(payload) == record
         assert await serializer.deserialize(payload) == record
 
-    assert datum_reader_init_count == 1
+    assert build_decoder_calls == 1
+
+
+async def test_deserialize_does_not_use_datum_reader(karapace_container: KarapaceContainer) -> None:
+    """Decoding runs on the compiled decoders only, never on avro's resolution-driven reader."""
+    mock_registry_client = Mock()
+    get_latest_schema_future = asyncio.Future()
+    get_latest_schema_future.set_result((1, COMPLEX_UNION_AVRO_SCHEMA, Versioner.V(1)))
+    mock_registry_client.get_schema.return_value = get_latest_schema_future
+    schema_for_id_one_future = asyncio.Future()
+    schema_for_id_one_future.set_result((COMPLEX_UNION_AVRO_SCHEMA, [Subject("stub")]))
+    mock_registry_client.get_schema_for_id.return_value = schema_for_id_one_future
+
+    serializer = await make_ser_deser(karapace_container, mock_registry_client)
+    schema = await serializer.get_schema_for_subject(Subject("top"))
+    record = {
+        "id": "one",
+        "attrs": [{"k": "text", "v": "value"}, {"k": "count", "v": 5}],
+        "props": {"present": "yes", "missing": None},
+    }
+    payload = await serializer.serialize(schema, record)
+
+    def fail_on_read(self, decoder):
+        raise AssertionError("DatumReader must not be used on the decode path")
+
+    with patch.object(avro.io.DatumReader, "read", fail_on_read):
+        assert await serializer.deserialize(payload) == record
 
 
 async def test_deserialize_converts_avro_bytes_to_base64_strings(karapace_container: KarapaceContainer) -> None:
@@ -854,3 +861,102 @@ async def test_get_schema_cache_unauthenticated_path_unchanged(reset_sr_authoriz
     await sr_client.get_schema(subject)
     await sr_client.get_schema(subject)
     assert sr_client.client.get.call_count == 1
+
+
+MAP_UNION_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "MapUnion",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
+            ],
+        }
+    ),
+)
+
+
+def test_write_value_validates_avro_once_for_untagged_value(karapace_container: KarapaceContainer) -> None:
+    value = {"id": "x", "props": {"k": "v"}}
+
+    top_schema = MAP_UNION_SCHEMA.schema
+    original_validate = avro.io.validate
+    full_tree_validations = 0
+
+    def counting_validate(expected_schema, *args, **kwargs):
+        nonlocal full_tree_validations
+        if expected_schema is top_schema:
+            full_tree_validations += 1
+        return original_validate(expected_schema, *args, **kwargs)
+
+    with patch("avro.io.validate", counting_validate):
+        write_value(karapace_container.config(), MAP_UNION_SCHEMA, io.BytesIO(), value)
+
+    assert full_tree_validations == 1, f"expected a single full-tree validation, got {full_tree_validations}"
+
+
+def test_write_value_map_union_tagged_and_untagged_encode_identically(karapace_container: KarapaceContainer) -> None:
+    untagged = {"id": "x", "props": {"k": "v"}}
+    tagged = {"id": "x", "props": {"k": {"string": "v"}}}
+
+    buf_untagged = io.BytesIO()
+    buf_tagged = io.BytesIO()
+    write_value(karapace_container.config(), MAP_UNION_SCHEMA, buf_untagged, untagged)
+    write_value(karapace_container.config(), MAP_UNION_SCHEMA, buf_tagged, tagged)
+
+    assert buf_untagged.getvalue() == buf_tagged.getvalue()
+
+    reader = avro.io.DatumReader(writers_schema=MAP_UNION_SCHEMA.schema)
+    decoded = reader.read(avro.io.BinaryDecoder(io.BytesIO(buf_untagged.getvalue())))
+    assert decoded == untagged
+
+
+DECIMAL_SCHEMA = ValidatedTypedSchema.parse(
+    SchemaType.AVRO,
+    json.dumps(
+        {
+            "namespace": "io.aiven.minimal",
+            "name": "Decimals",
+            "type": "record",
+            "fields": [
+                {"name": "id", "type": "string"},
+                {"name": "amount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 9, "scale": 2}},
+            ],
+        }
+    ),
+)
+
+
+def test_write_value_retry_starts_from_a_clean_buffer(karapace_container: KarapaceContainer) -> None:
+    """A datum can pass avro's validation and still fail inside the encoder, halfway through.
+
+    write_value writes the value as is and only flattens tagged unions if that raises
+    AvroTypeException, which DatumWriter.write normally raises from its validation pass, before a
+    single byte is emitted. The encoder raises the same exception type on its own though: a decimal
+    whose exponent does not fit the schema scale raises AvroOutOfScaleException once the fields
+    before it are already encoded. The retry has to start from where the first attempt started,
+    otherwise it appends a second value to a partially encoded one and the message that
+    SchemaRegistrySerializer.serialize returns is silently corrupt.
+    """
+    value = {"id": "x", "amount": decimal.Decimal("1.23456")}
+    assert avro.io.validate(DECIMAL_SCHEMA.schema, value), "the failure has to come from the encoder, not validation"
+
+    bio = io.BytesIO()
+    bio.write(b"header")  # serialize() puts the magic byte and the schema id in front of the value
+
+    buffer_when_called = []
+    original_write = avro.io.DatumWriter.write
+
+    def spy(self, datum, encoder):
+        buffer_when_called.append(encoder.writer.getvalue())
+        return original_write(self, datum, encoder)
+
+    with patch.object(avro.io.DatumWriter, "write", spy), pytest.raises(avro.errors.AvroTypeException):
+        write_value(karapace_container.config(), DECIMAL_SCHEMA, bio, value)
+
+    assert len(buffer_when_called) == 2, "the encoder failed, so write_value is expected to have retried"
+    assert buffer_when_called[0] == b"header", "the first attempt must encode right after the header"
+    assert buffer_when_called[1] == b"header", "the retry must not see the bytes of the failed attempt"

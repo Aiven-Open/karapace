@@ -7,11 +7,12 @@ from __future__ import annotations
 
 from aiohttp import BasicAuth
 from async_lru import alru_cache
-from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
+from avro.io import BinaryDecoder, BinaryEncoder, DatumWriter
 from cachetools import TTLCache
 from collections.abc import Callable, MutableMapping
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
+from karapace.core.avro_fast_decoder import build_decoder, Decoder
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.dependency import Dependency
@@ -36,13 +37,10 @@ from urllib.parse import quote
 import asyncio
 import avro
 import avro.schema
-import base64
 import contextvars
 import hashlib
 import io
 import struct
-import threading
-import weakref
 
 # Per-request Authorization header forwarded from the REST Proxy to SR; None falls back to
 # session_auth. Only set in UserRestProxy.publish/fetch — other proxy endpoints don't reach
@@ -355,10 +353,6 @@ class SchemaRegistrySerializer:
         self.ids_to_schemas: dict[int, TypedSchema] = {}
         self.ids_to_subjects: MutableMapping[int, list[Subject]] = TTLCache(maxsize=10000, ttl=600)
         self.schemas_to_ids: dict[str, SchemaId] = {}
-        self._avro_readers_lock = threading.Lock()
-        self._avro_readers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumReader]] = (
-            weakref.WeakKeyDictionary()
-        )
 
     async def close(self) -> None:
         if self.registry_client:
@@ -434,7 +428,8 @@ class SchemaRegistrySerializer:
                 if schema is None:
                     raise InvalidPayload("No schema with ID from payload")
                 if schema.schema_type is SchemaType.AVRO:
-                    ret_val = await asyncio.to_thread(self._read_avro_value, SchemaId(schema_id), schema, bio)
+                    # Avro decoding is CPU bound, keep it off the event loop.
+                    ret_val = await asyncio.to_thread(read_value, self.config, schema, bio)
                 else:
                     ret_val = read_value(self.config, schema, bio)
                 return ret_val
@@ -442,39 +437,6 @@ class SchemaRegistrySerializer:
                 raise InvalidPayload("Data does not contain a valid message") from e
             except avro.errors.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
-
-    def _get_avro_reader(self, schema_id: SchemaId, schema: TypedSchema) -> DatumReader:
-        current_thread = threading.current_thread()
-        with self._avro_readers_lock:
-            reader_cache = self._avro_readers_by_thread.get(current_thread)
-            if reader_cache is None:
-                reader_cache = TTLCache(maxsize=10000, ttl=600)
-                self._avro_readers_by_thread[current_thread] = reader_cache
-
-        reader = reader_cache.get(schema_id)
-        if reader is None:
-            reader = DatumReader(writers_schema=schema.schema)
-            reader_cache[schema_id] = reader
-        return reader
-
-    def _read_avro_value(self, schema_id: SchemaId, schema: TypedSchema, bio: io.BytesIO) -> Any:
-        return read_value(self.config, schema, bio, avro_reader=self._get_avro_reader(schema_id, schema))
-
-
-def _jsonify_avro_payload(value: Any) -> Any:
-    if isinstance(value, bytes):
-        return base64.b64encode(value).decode("ascii")
-
-    if isinstance(value, bytearray):
-        return base64.b64encode(bytes(value)).decode("ascii")
-
-    if isinstance(value, list):
-        return [_jsonify_avro_payload(item) for item in value]
-
-    if isinstance(value, dict):
-        return {key: _jsonify_avro_payload(item) for key, item in value.items()}
-
-    return value
 
 
 def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
@@ -539,10 +501,21 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
-def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader: DatumReader | None = None):
+def _get_avro_decoder(schema: TypedSchema) -> Decoder:
+    """Return the compiled decoder for ``schema``, building (and caching on the schema) it once."""
+    decoder = getattr(schema, "_karapace_avro_decoder", None)
+    if decoder is None:
+        decoder = build_decoder(schema.schema)
+        try:
+            schema._karapace_avro_decoder = decoder
+        except (AttributeError, TypeError):
+            pass
+    return decoder
+
+
+def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
-        reader = avro_reader if avro_reader is not None else DatumReader(writers_schema=schema.schema)
-        return _jsonify_avro_payload(reader.read(BinaryDecoder(bio)))
+        return _get_avro_decoder(schema)(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
         value = json_decode(bio)
         try:
@@ -563,14 +536,19 @@ def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader
 
 def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
-        # Backwards compatibility: Support JSON encoded data without the tags for unions.
-        if avro.io.validate(schema.schema, value):
-            data = value
-        else:
-            data = flatten_unions(schema.schema, value)
-
         writer = DatumWriter(writers_schema=schema.schema)
-        writer.write(data, BinaryEncoder(bio))
+        start = bio.tell()
+        try:
+            writer.write(value, BinaryEncoder(bio))
+        except avro.errors.AvroTypeException:
+            # DatumWriter.write validates the whole datum before emitting anything, so a tagged
+            # union normally fails without writing a byte. The encoder can still raise the same
+            # exception type on its own though, after some fields are already out (a decimal whose
+            # exponent does not fit the schema scale raises AvroOutOfScaleException), so drop
+            # whatever the failed attempt wrote instead of appending the retry to a partial value.
+            bio.seek(start)
+            bio.truncate()
+            writer.write(flatten_unions(schema.schema, value), BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
             schema.schema.validate(value)
