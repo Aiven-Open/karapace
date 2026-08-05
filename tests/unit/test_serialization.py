@@ -24,9 +24,9 @@ from karapace.core.serialization import (
     InvalidMessageHeader,
     InvalidMessageSchema,
     InvalidPayload,
-    SchemaRetrievalError,
     SchemaRegistryClient,
     SchemaRegistrySerializer,
+    SchemaRetrievalError,
     build_decoder,
     flatten_unions,
     get_subject_name,
@@ -113,21 +113,6 @@ TYPED_PROTOBUF_SCHEMA = ValidatedTypedSchema.parse(
         string attr2 = 2;
     }\
     """,
-)
-
-MAP_UNION_AVRO_SCHEMA = ValidatedTypedSchema.parse(
-    SchemaType.AVRO,
-    json.dumps(
-        {
-            "namespace": "io.aiven.minimal",
-            "name": "MapUnionTest",
-            "type": "record",
-            "fields": [
-                {"name": "id", "type": "string"},
-                {"name": "props", "type": {"type": "map", "values": ["null", "string"]}},
-            ],
-        }
-    ),
 )
 
 AVRO_BYTES_SCHEMA = ValidatedTypedSchema.parse(
