@@ -246,11 +246,12 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             # check if schema topic is already created, if not try to create it
             try:
                 schema_topic_exists = self.config.topic_name in self.admin_client.list_topics().topics.keys()
-            except Exception:
+            except Exception as e:
                 schema_topic_exists = False
-                LOG.warning(
-                    "[Schema Topic] not authorized to list topics, assuming topic: %r does not exist", self.config.topic_name
+                LOG.exception(
+                    "[Schema Topic] unable to list topics, failed when looking for topic: %r", self.config.topic_name
                 )
+                self.stats.unexpected_exception(ex=e, where="config_topic_existence")
             while not self._stop_schema_reader.is_set() and not schema_topic_exists:
                 try:
                     LOG.debug("[Schema Topic] Creating %r", self.config.topic_name)
