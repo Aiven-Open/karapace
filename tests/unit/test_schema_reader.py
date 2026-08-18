@@ -12,21 +12,29 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import confluent_kafka
-from karapace.core.stats import StatsClient
 import pytest
 from _pytest.logging import LogCaptureFixture
+from aiokafka.errors import (
+    GroupAuthorizationFailedError,
+    KafkaTimeoutError,
+    LeaderNotAvailableError,
+    NotLeaderForPartitionError,
+    TopicAuthorizationFailedError,
+    UnknownTopicOrPartitionError,
+)
 from confluent_kafka import Message, TopicPartition
 from pytest import MonkeyPatch
 
 from karapace.core.container import KarapaceContainer
-from karapace.core.errors import CorruptKafkaRecordException, ShutdownException
+from karapace.core.errors import CorruptKafkaRecordException, InvalidReferences, InvalidSchema, ShutdownException
 from karapace.core.in_memory_database import InMemoryDatabase
 from karapace.core.kafka.consumer import KafkaConsumer
-from karapace.core.key_format import KeyFormatter
+from karapace.core.key_format import KeyFormatter, KeyMode
 from karapace.core.offset_watcher import OffsetWatcher
+from karapace.core.schema_models import TypedSchema, ValidatedTypedSchema
 from karapace.core.schema_reader import (
     MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP,
     MAX_MESSAGES_TO_CONSUME_ON_STARTUP,
@@ -35,8 +43,10 @@ from karapace.core.schema_reader import (
     KafkaSchemaReader,
     MessageType,
 )
+from karapace.core.schema_references import LatestVersionReference, Reference
 from karapace.core.schema_type import SchemaType
-from karapace.core.typing import SchemaId, Version
+from karapace.core.stats import StatsClient
+from karapace.core.typing import PrimaryInfo, SchemaId, Subject, Version
 from tests.base_testcase import BaseTestCase
 from tests.utils import (
     schema_avro_json,
@@ -783,7 +793,7 @@ def test_message_error_handling_with_invalid_reference_schema_protobuf(
     )
     message_using_ref = message_factory(key=key_using_ref, value=value_using_ref)
 
-    with caplog.at_level(logging.WARN, logger="karapace.core.schema_reader"):
+    with caplog.at_level(logging.WARNING, logger="karapace.core.schema_reader"):
         # When handling the corrupted schema
         schema_reader = schema_reader_with_consumer_messages_factory(([message_ref],))
 
@@ -840,7 +850,7 @@ def test_message_error_handling_with_invalid_reference_schema_avro(
     )
     message_using_ref = message_factory(key=key_using_ref, value=value_using_ref)
 
-    with caplog.at_level(logging.WARN, logger="karapace.core.schema_reader"):
+    with caplog.at_level(logging.WARNING, logger="karapace.core.schema_reader"):
         # When handling the corrupted schema
         schema_reader = schema_reader_with_consumer_messages_factory(([message_ref],))
 
@@ -871,3 +881,503 @@ def test_message_error_handling_with_invalid_reference_schema_avro(
 
         assert warn_records[1].name == "karapace.core.schema_reader"
         assert warn_records[1].message == "Invalid Avro references"
+
+
+def _make_schema_reader(karapace_container: KarapaceContainer, **overrides) -> KafkaSchemaReader:
+    kwargs = {
+        "config": karapace_container.config(),
+        "offset_watcher": OffsetWatcher(),
+        "key_formatter": Mock(spec=KeyFormatter),
+        "master_coordinator": None,
+        "database": InMemoryDatabase(),
+        "stats": Mock(spec=StatsClient),
+    }
+    kwargs.update(overrides)
+    return KafkaSchemaReader(**kwargs)
+
+
+def _avro_schema(name: str = "Obj") -> TypedSchema:
+    return TypedSchema(schema_type=SchemaType.AVRO, schema_str=f'{{"type": "record", "name": "{name}", "fields": []}}')
+
+
+class TestSimpleMethods:
+    def test_close_sets_stop_event(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        assert not reader._stop_schema_reader.is_set()
+        reader.close()
+        assert reader._stop_schema_reader.is_set()
+
+    def test_highest_offset_is_max_of_internal_and_watcher(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader._highest_offset = 5
+        reader._offset_watcher.offset_seen(10)
+        assert reader.highest_offset() == 10
+
+    def test_set_not_ready_clears_ready_flag(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader._ready = True
+        reader.set_not_ready()
+        assert reader.ready() is False
+
+
+class TestParseMessageValue:
+    def test_dict_value_returned_as_is(self) -> None:
+        assert KafkaSchemaReader._parse_message_value(json.dumps({"a": 1})) == {"a": 1}
+
+    def test_none_value_returns_none(self) -> None:
+        assert KafkaSchemaReader._parse_message_value(json.dumps(None)) is None
+
+    def test_empty_string_value_returns_none(self) -> None:
+        assert KafkaSchemaReader._parse_message_value(json.dumps("")) is None
+
+    def test_non_dict_non_empty_value_raises_type_error(self) -> None:
+        with pytest.raises(TypeError):
+            KafkaSchemaReader._parse_message_value(json.dumps([1, 2, 3]))
+
+
+class TestGetBeginningOffset:
+    def test_returns_watermark_minus_one(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.return_value = (5, 100)
+        assert reader._get_beginning_offset() == 4
+
+    @pytest.mark.parametrize(
+        "error",
+        [KafkaTimeoutError(), UnknownTopicOrPartitionError(), LeaderNotAvailableError(), NotLeaderForPartitionError()],
+    )
+    def test_known_errors_return_uninitialized(self, karapace_container: KarapaceContainer, error: Exception) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.side_effect = error
+        assert reader._get_beginning_offset() == OFFSET_UNINITIALIZED
+
+    def test_unexpected_exception_reports_to_stats(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.side_effect = RuntimeError("boom")
+        assert reader._get_beginning_offset() == OFFSET_UNINITIALIZED
+        reader.stats.unexpected_exception.assert_called_once()
+
+
+class TestIsReadyErrorHandling:
+    @pytest.mark.parametrize(
+        "error",
+        [KafkaTimeoutError(), UnknownTopicOrPartitionError(), LeaderNotAvailableError(), NotLeaderForPartitionError()],
+    )
+    def test_known_errors_return_false(self, karapace_container: KarapaceContainer, error: Exception) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.side_effect = error
+        assert reader._is_ready() is False
+
+    def test_unexpected_exception_returns_false_and_reports_stats(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.side_effect = RuntimeError("boom")
+        assert reader._is_ready() is False
+        reader.stats.unexpected_exception.assert_called_once()
+
+    def test_position_lookup_exception_is_swallowed(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.return_value = (0, 10)
+        reader.consumer.position.side_effect = RuntimeError("boom")
+        reader.offset = 2
+
+        assert reader._is_ready(consumed_batch_empty=True) is False
+        reader.stats.unexpected_exception.assert_called_once()
+
+    def test_replay_completed_logged_only_once(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.get_watermark_offsets.return_value = (0, 1)
+        reader.offset = 1
+
+        assert reader._is_ready() is True
+        assert reader._replay_completed_logged is True
+        # Second call takes the "already logged" branch instead of re-logging completion.
+        assert reader._is_ready() is True
+
+
+class TestHandleMessagesMasterCoordinator:
+    def test_watch_offsets_true_when_primary(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container, master_coordinator=Mock())
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.consume.return_value = []
+        reader.consumer.get_watermark_offsets.return_value = (0, 0)
+        reader.master_coordinator.get_master_info.return_value = PrimaryInfo(primary=True, primary_url=None)
+
+        with patch.object(reader, "consume_messages") as mock_consume:
+            reader.handle_messages()
+
+        mock_consume.assert_called_once_with([], True)
+
+    def test_watch_offsets_false_when_not_primary(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container, master_coordinator=Mock())
+        reader.consumer = Mock(spec=KafkaConsumer)
+        reader.consumer.consume.return_value = []
+        reader.consumer.get_watermark_offsets.return_value = (0, 0)
+        reader.master_coordinator.get_master_info.return_value = PrimaryInfo(primary=False, primary_url=None)
+
+        with patch.object(reader, "consume_messages") as mock_consume:
+            reader.handle_messages()
+
+        mock_consume.assert_called_once_with([], False)
+
+
+class TestConsumeMessagesErrorBranches:
+    def test_message_with_kafka_error_is_translated_and_raised(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        message = Mock(spec=Message)
+        message.error.return_value = Mock()
+        message.offset.return_value = 1
+
+        with (
+            patch(
+                "karapace.core.schema_reader.translate_from_kafkaerror", return_value=RuntimeError("translated")
+            ) as mock_translate,
+            pytest.raises(RuntimeError, match="translated"),
+        ):
+            reader.consume_messages([message], False)
+
+        mock_translate.assert_called_once()
+
+    def test_empty_key_with_non_empty_value_continues_in_non_strict_mode(
+        self, karapace_container: KarapaceContainer
+    ) -> None:
+        reader = _make_schema_reader(karapace_container)
+        message = Mock(spec=Message)
+        message.key.return_value = None
+        message.value.return_value = b'{"some": "value"}'
+        message.error.return_value = None
+        message.offset.return_value = 3
+
+        reader.consume_messages([message], False)  # must not raise
+
+        assert reader.offset == 3
+
+    def test_group_authorization_error_continues_in_non_strict_mode(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        message = Mock(spec=Message)
+        message.key.return_value = b'{"keytype":"SCHEMA"}'
+        message.value.return_value = b"{}"
+        message.error.return_value = Mock()
+        message.offset.return_value = 2
+
+        with patch("karapace.core.schema_reader.translate_from_kafkaerror", return_value=GroupAuthorizationFailedError()):
+            reader.consume_messages([message], False)  # must not raise
+
+    def test_topic_authorization_error_raises_shutdown_in_strict_mode(self, karapace_container: KarapaceContainer) -> None:
+        config = karapace_container.config().set_config_defaults({"kafka_schema_reader_strict_mode": True})
+        reader = _make_schema_reader(karapace_container, config=config)
+        message = Mock(spec=Message)
+        message.key.return_value = b'{"keytype":"SCHEMA"}'
+        message.value.return_value = b"{}"
+        message.error.return_value = Mock()
+        message.offset.return_value = 2
+
+        with (
+            patch("karapace.core.schema_reader.translate_from_kafkaerror", return_value=TopicAuthorizationFailedError()),
+            pytest.raises(ShutdownException),
+        ):
+            reader.consume_messages([message], False)
+
+    def test_deprecated_key_format_switches_keymode_and_counts_are_tracked(
+        self, karapace_container: KarapaceContainer
+    ) -> None:
+        reader = _make_schema_reader(karapace_container, key_formatter=KeyFormatter())
+        assert reader.key_formatter.get_keymode() == KeyMode.CANONICAL
+        message = Mock(spec=Message)
+        # Field order ("magic" before "keytype") makes this key non-canonical, and a
+        # NOOP keytype exercises `handle_msg`'s no-op dispatch branch with no side effects.
+        message.key.return_value = b'{"magic":0,"keytype":"NOOP"}'
+        message.value.return_value = None
+        message.error.return_value = None
+        message.offset.return_value = 4
+
+        reader.consume_messages([message], False)
+
+        assert reader.key_formatter.get_keymode() == KeyMode.DEPRECATED_KARAPACE
+        assert reader.offset == 4
+
+    def test_offset_seen_recorded_when_ready_and_watching(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container, key_formatter=KeyFormatter())
+        reader._ready = True
+        message = Mock(spec=Message)
+        message.key.return_value = b'{"keytype":"NOOP","magic":0}'
+        message.value.return_value = None
+        message.error.return_value = None
+        message.offset.return_value = 9
+
+        reader.consume_messages([message], True)
+
+        assert reader._offset_watcher.greatest_offset() == 9
+
+
+class TestUpdateIsReadyFlag:
+    def test_calls_is_ready_when_not_ready(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader._ready = False
+
+        with patch.object(reader, "_is_ready", return_value=True) as mock_is_ready:
+            reader._update_is_ready_flag(consumed_batch_empty=True)
+
+        mock_is_ready.assert_called_once_with(consumed_batch_empty=True)
+        assert reader.ready() is True
+
+    def test_skips_is_ready_when_already_ready(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader._ready = True
+
+        with patch.object(reader, "_is_ready") as mock_is_ready:
+            reader._update_is_ready_flag()
+
+        mock_is_ready.assert_not_called()
+
+
+class TestHandleMsgConfig:
+    def test_creates_subject_and_sets_compatibility(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader._handle_msg_config({"subject": "s"}, {"compatibilityLevel": "FULL"})
+        assert reader.database.find_subject(subject=Subject("s")) == Subject("s")
+        assert reader.database.get_subject_compatibility(subject=Subject("s")) == "FULL"
+
+    def test_deletes_compatibility_when_value_falsy(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.database.insert_subject(subject=Subject("s"))
+        reader.database.set_subject_compatibility(subject=Subject("s"), compatibility="FULL")
+
+        reader._handle_msg_config({"subject": "s"}, None)
+
+        assert reader.database.get_subject_compatibility(subject=Subject("s")) is None
+
+    def test_sets_global_compatibility_when_no_subject(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader._handle_msg_config({"subject": None}, {"compatibilityLevel": "BACKWARD"})
+        assert reader.config.compatibility == "BACKWARD"
+
+
+class TestHandleMsgDeleteSubject:
+    def test_raises_value_error_when_value_missing(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with pytest.raises(ValueError):
+            reader._handle_msg_delete_subject({}, None)
+
+    def test_warns_when_subject_unknown(self, karapace_container: KarapaceContainer, caplog: LogCaptureFixture) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with caplog.at_level(logging.WARNING, logger="karapace.core.schema_reader"):
+            reader._handle_msg_delete_subject({}, {"subject": "unknown", "version": 1})
+        assert any("did not exist" in r.message for r in caplog.records)
+
+    def test_deletes_existing_subject_versions(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = Subject("s")
+        reader.database.insert_subject(subject=subject)
+        schema = _avro_schema()
+        schema_id = reader.database.get_schema_id(schema)
+        reader.database.insert_schema_version(
+            subject=subject, schema_id=schema_id, version=Version(1), schema=schema, deleted=False, references=None
+        )
+
+        reader._handle_msg_delete_subject({}, {"subject": "s", "version": 1})
+
+        assert reader.database.find_subject_schemas(subject=subject, include_deleted=True)[Version(1)].deleted is True
+
+
+class TestHandleMsgSchemaHardDelete:
+    def test_warns_when_subject_unknown(self, karapace_container: KarapaceContainer, caplog: LogCaptureFixture) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with caplog.at_level(logging.WARNING, logger="karapace.core.schema_reader"):
+            reader._handle_msg_schema_hard_delete({"subject": "unknown", "version": 1})
+        assert any("did not exist" in r.message for r in caplog.records)
+
+    def test_deletes_last_version_and_removes_subject(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = Subject("s")
+        reader.database.insert_subject(subject=subject)
+        schema = _avro_schema()
+        schema_id = reader.database.get_schema_id(schema)
+        reader.database.insert_schema_version(
+            subject=subject, schema_id=schema_id, version=Version(1), schema=schema, deleted=False, references=None
+        )
+
+        reader._handle_msg_schema_hard_delete({"subject": "s", "version": 1})
+
+        assert reader.database.find_subject(subject=subject) is None
+
+    def test_deletes_one_of_several_versions_keeps_subject(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = Subject("s")
+        reader.database.insert_subject(subject=subject)
+        for v, name in ((1, "First"), (2, "Second")):
+            schema = _avro_schema(name)
+            schema_id = reader.database.get_schema_id(schema)
+            reader.database.insert_schema_version(
+                subject=subject, schema_id=schema_id, version=Version(v), schema=schema, deleted=False, references=None
+            )
+
+        reader._handle_msg_schema_hard_delete({"subject": "s", "version": 1})
+
+        assert reader.database.find_subject(subject=subject) is not None
+        assert Version(1) not in reader.database.find_subject_schemas(subject=subject, include_deleted=True)
+
+
+class TestHandleMsgSchema:
+    def test_falsy_value_dispatches_to_hard_delete(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with patch.object(reader, "_handle_msg_schema_hard_delete") as mock_hard_delete:
+            reader._handle_msg_schema({"subject": "s", "version": 1}, None)
+        mock_hard_delete.assert_called_once_with({"subject": "s", "version": 1})
+
+    def test_invalid_schema_type_raises_invalid_schema(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with pytest.raises(InvalidSchema):
+            reader._handle_msg_schema({}, {"schemaType": "BOGUS", "schema": "{}", "subject": "s", "id": 1, "version": 1})
+
+    def test_jsonschema_invalid_json_raises_invalid_schema(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with pytest.raises(InvalidSchema):
+            reader._handle_msg_schema(
+                {}, {"schemaType": "JSON", "schema": "not-json", "subject": "s", "id": 1, "version": 1}
+            )
+
+    def test_protobuf_schema_is_parsed_and_stored(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        schema_str = "syntax = 'proto3'; message Test { string test = 1; }"
+
+        reader._handle_msg_schema(
+            {}, {"schemaType": "PROTOBUF", "schema": schema_str, "subject": "s", "id": 1, "version": 1}
+        )
+
+        stored = reader.database.find_schema(schema_id=SchemaId(1))
+        assert stored is not None
+        assert stored.schema_type == SchemaType.PROTOBUF
+
+    def test_typed_schema_construction_failure_raises_invalid_schema(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with (
+            patch("karapace.core.schema_reader.TypedSchema", side_effect=InvalidSchema("bad")),
+            pytest.raises(InvalidSchema),
+        ):
+            reader._handle_msg_schema({}, {"schemaType": "AVRO", "schema": "{}", "subject": "s", "id": 1, "version": 1})
+
+
+class TestHandleMsgNoOperation:
+    def test_no_operation_keytype_is_a_noop(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        reader.handle_msg({"keytype": "NOOP"}, None)  # must not raise
+
+
+class TestGetReferencedBy:
+    def test_delegates_to_database(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        referenced_subject = Subject("ref_subject")
+        reader.database.insert_subject(subject=referenced_subject)
+        ref_schema = _avro_schema("Ref")
+        ref_schema_id = reader.database.get_schema_id(ref_schema)
+        reader.database.insert_schema_version(
+            subject=referenced_subject,
+            schema_id=ref_schema_id,
+            version=Version(1),
+            schema=ref_schema,
+            deleted=False,
+            references=None,
+        )
+
+        consumer_subject = Subject("consumer")
+        reader.database.insert_subject(subject=consumer_subject)
+        consumer_schema = _avro_schema("Consumer")
+        consumer_schema_id = reader.database.get_schema_id(consumer_schema)
+        reference = Reference(name="r", subject=referenced_subject, version=Version(1))
+        reader.database.insert_schema_version(
+            subject=consumer_subject,
+            schema_id=consumer_schema_id,
+            version=Version(1),
+            schema=consumer_schema,
+            deleted=False,
+            references=[reference],
+        )
+
+        referents = reader.get_referenced_by(referenced_subject, Version(1))
+        assert referents == {consumer_schema_id}
+
+
+class TestResolveAndValidate:
+    def test_validates_schema_without_references(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        schema = TypedSchema(
+            schema_type=SchemaType.AVRO, schema_str=json.dumps({"type": "record", "name": "Obj", "fields": []})
+        )
+        result = reader._resolve_and_validate(schema)
+        assert isinstance(result, TypedSchema)
+        assert result.schema_type == SchemaType.AVRO
+
+
+class TestResolveReference:
+    def _insert_referenced_schema(
+        self, reader: KafkaSchemaReader, subject_name: str = "ref_subject", version: int = 1
+    ) -> Subject:
+        subject = Subject(subject_name)
+        reader.database.insert_subject(subject=subject)
+        schema = ValidatedTypedSchema.parse(
+            schema_type=SchemaType.AVRO, schema_str=json.dumps({"type": "record", "name": "Ref", "fields": []})
+        )
+        schema_id = reader.database.get_schema_id(schema)
+        reader.database.insert_schema_version(
+            subject=subject, schema_id=schema_id, version=Version(version), schema=schema, deleted=False, references=None
+        )
+        return subject
+
+    def test_raises_when_subject_not_found(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        with pytest.raises(InvalidReferences, match="Subject not found"):
+            reader._resolve_reference(Reference(name="r", subject=Subject("missing"), version=Version(1)))
+
+    def test_resolves_latest_version_reference(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = self._insert_referenced_schema(reader)
+
+        resolved_ref, dependency = reader._resolve_reference(LatestVersionReference(name="r", subject=subject))
+
+        assert resolved_ref.version == Version(1)
+        assert dependency.name == "r"
+
+    def test_raises_when_version_not_found(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = self._insert_referenced_schema(reader)
+        with pytest.raises(InvalidReferences, match="no such schema version"):
+            reader._resolve_reference(Reference(name="r", subject=subject, version=Version(99)))
+
+    def test_raises_when_schema_version_has_no_schema(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = Subject("s")
+        reader.database.insert_subject(subject=subject)
+
+        # Force a `SchemaVersion` whose `.schema` is falsy to hit the defensive guard.
+        with (
+            patch.object(InMemoryDatabase, "find_subject_schemas", return_value={Version(1): Mock(schema=None)}),
+            pytest.raises(InvalidReferences, match="No schema in"),
+        ):
+            reader._resolve_reference(Reference(name="r", subject=subject, version=Version(1)))
+
+
+class TestResolveReferences:
+    def test_accepts_mapping_references_and_resolves_them(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        subject = Subject("ref_subject")
+        reader.database.insert_subject(subject=subject)
+        schema = ValidatedTypedSchema.parse(
+            schema_type=SchemaType.AVRO, schema_str=json.dumps({"type": "record", "name": "Ref", "fields": []})
+        )
+        schema_id = reader.database.get_schema_id(schema)
+        reader.database.insert_schema_version(
+            subject=subject, schema_id=schema_id, version=Version(1), schema=schema, deleted=False, references=None
+        )
+
+        resolved_references, dependencies = reader.resolve_references(
+            [{"name": "r", "subject": "ref_subject", "version": 1}]
+        )
+
+        assert resolved_references[0].name == "r"
+        assert "r" in dependencies
