@@ -75,6 +75,14 @@ class SchemaTooLargeException(Exception):
     pass
 
 
+class OperationNotPermittedInMode(Exception):
+    pass
+
+
+class InvalidMode(Exception):
+    pass
+
+
 class ShutdownException(Exception):
     """Raised when the service has encountered an error where it should not continue and shutdown."""
 
