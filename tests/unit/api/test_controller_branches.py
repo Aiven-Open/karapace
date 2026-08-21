@@ -552,10 +552,35 @@ async def test_get_subject_mode_not_found() -> None:
 async def test_get_subject_mode_returns_mode() -> None:
     registry = MagicMock()
     registry.database.find_subject.return_value = object()
+    registry.get_subject_mode.return_value = "READWRITE"
+    ctrl = _controller(registry)
+
+    resp = await ctrl.get_subject_mode(subject="s")
+
+    assert resp.mode == "READWRITE"
+
+
+async def test_get_subject_mode_prefers_subject_over_global() -> None:
+    """A subject-level override must win, otherwise it could never be read back."""
+    registry = MagicMock()
+    registry.database.find_subject.return_value = object()
+    registry.get_subject_mode.return_value = "IMPORT"
     registry.get_global_mode.return_value = "READWRITE"
     ctrl = _controller(registry)
 
     resp = await ctrl.get_subject_mode(subject="s")
+
+    assert resp.mode == "IMPORT"
+    registry.get_subject_mode.assert_called_once_with(Subject("s"))
+
+
+async def test_get_subject_mode_default_to_global_for_missing_subject() -> None:
+    registry = MagicMock()
+    registry.database.find_subject.return_value = None
+    registry.get_global_mode.return_value = "READWRITE"
+    ctrl = _controller(registry)
+
+    resp = await ctrl.get_subject_mode(subject="missing", default_to_global=True)
 
     assert resp.mode == "READWRITE"
 
