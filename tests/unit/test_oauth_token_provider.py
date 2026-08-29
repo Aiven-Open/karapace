@@ -212,3 +212,104 @@ class TestConfigImportString:
         config = Config()
         config.sasl_oauth_token_provider_class = StubTokenProvider
         assert config.sasl_oauth_token_provider_class is StubTokenProvider
+
+
+class TestMasterCoordinatorPassthrough:
+    """Verify that the master coordinator's aiokafka client also receives
+    the configured OAuth token provider.
+
+    Karapace's master coordinator uses aiokafka.AIOKafkaClient (a different
+    library than confluent-kafka-python used by kafka_utils). aiokafka has
+    its own AbstractTokenProvider protocol — async-first — so the same
+    user-configured TokenWithExpiryProvider must be wrapped in an adapter.
+    Without this passthrough, configuring OAUTHBEARER would cause aiokafka
+    to raise `ValueError: sasl_oauth_token_provider needs to be provided
+    implementing aiokafka.abc.AbstractTokenProvider`, and master election
+    would never complete.
+    """
+
+    @patch("karapace.core.coordinator.master_coordinator.AIOKafkaClient")
+    def test_aiokafka_client_receives_wrapped_provider(self, mock_client_cls):
+        from aiokafka.abc import AbstractTokenProvider
+        from karapace.core.coordinator.master_coordinator import MasterCoordinator
+
+        config = _make_config_with_provider()
+        coordinator = MasterCoordinator(config=config)
+        coordinator.init_kafka_client()
+
+        call_kwargs = mock_client_cls.call_args[1]
+        assert "sasl_oauth_token_provider" in call_kwargs
+        # aiokafka requires an AbstractTokenProvider, not the raw
+        # TokenWithExpiryProvider — the adapter is what makes the two
+        # interfaces compatible.
+        assert isinstance(call_kwargs["sasl_oauth_token_provider"], AbstractTokenProvider)
+
+    @patch("karapace.core.coordinator.master_coordinator.AIOKafkaClient")
+    def test_aiokafka_client_omits_provider_when_not_configured(self, mock_client_cls):
+        from karapace.core.coordinator.master_coordinator import MasterCoordinator
+
+        config = Config()
+        coordinator = MasterCoordinator(config=config)
+        coordinator.init_kafka_client()
+
+        call_kwargs = mock_client_cls.call_args[1]
+        assert "sasl_oauth_token_provider" not in call_kwargs
+
+    def test_adapter_returns_token_string(self):
+        """The adapter's async token() must return just the token string,
+        discarding the expiry — aiokafka manages refresh on its own."""
+        import asyncio
+
+        from karapace.core.coordinator.master_coordinator import _AiokafkaTokenAdapter
+
+        adapter = _AiokafkaTokenAdapter(StubTokenProvider())
+        token = asyncio.run(adapter.token())
+        assert token == "fake-token"
+
+
+class TestKarapaceProducerPassthrough:
+    """Verify that the schema-write producer (KarapaceProducer in messaging.py)
+    also receives the OAuth token provider.
+
+    KarapaceProducer constructs its own KafkaProducer rather than going through
+    `kafka_utils.kafka_producer_from_config`, so it has to pull the provider
+    from config independently. Without this passthrough, OAUTHBEARER deployments
+    pass the master-coordinator + schema-reader paths but stall at write time:
+    the producer's SASL handshake never completes and `send_message` raises
+    TimeoutError.
+    """
+
+    @patch("karapace.core.messaging.KafkaProducer")
+    def test_producer_receives_provider(self, mock_producer_cls):
+        from karapace.core.messaging import KarapaceProducer
+        from karapace.core.key_format import KeyFormatter
+        from karapace.core.offset_watcher import OffsetWatcher
+
+        config = _make_config_with_provider()
+        producer = KarapaceProducer(
+            config=config,
+            offset_watcher=OffsetWatcher(),
+            key_formatter=KeyFormatter(),
+        )
+        producer.initialize_karapace_producer()
+
+        call_kwargs = mock_producer_cls.call_args[1]
+        assert "sasl_oauth_token_provider" in call_kwargs
+        assert isinstance(call_kwargs["sasl_oauth_token_provider"], StubTokenProvider)
+
+    @patch("karapace.core.messaging.KafkaProducer")
+    def test_producer_omits_provider_when_not_configured(self, mock_producer_cls):
+        from karapace.core.messaging import KarapaceProducer
+        from karapace.core.key_format import KeyFormatter
+        from karapace.core.offset_watcher import OffsetWatcher
+
+        config = Config()
+        producer = KarapaceProducer(
+            config=config,
+            offset_watcher=OffsetWatcher(),
+            key_formatter=KeyFormatter(),
+        )
+        producer.initialize_karapace_producer()
+
+        call_kwargs = mock_producer_cls.call_args[1]
+        assert "sasl_oauth_token_provider" not in call_kwargs
