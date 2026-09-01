@@ -109,7 +109,7 @@ frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-gevent==26.7.0
+gevent==26.8.0
     # via
     #   geventhttpclient
     #   locust
