@@ -193,7 +193,7 @@ pydantic-settings==2.14.2
     # via
     #   fastapi
     #   karapace (/karapace/pyproject.toml)
-pygments==2.20.0
+pygments==2.21.0
     # via rich
 pyjwt==2.13.0
     # via karapace (/karapace/pyproject.toml)
