@@ -1057,7 +1057,8 @@ class UserRestProxy:
             if key is not None:
                 key = await self.serialize(content_type, key, ser_format, key_schema_id)
             value = await self.serialize(content_type, value, ser_format, value_schema_id)
-            prepared_records.append((key, value, record.get("partition", default_partition)))
+            headers = self._decode_record_headers(record)
+            prepared_records.append((key, value, record.get("partition", default_partition), headers))
         return prepared_records
 
     async def get_partition_info(self, topic: str, partition: str, content_type: str) -> dict:
@@ -1161,12 +1162,13 @@ class UserRestProxy:
                     status=HTTPStatus.BAD_REQUEST,
                 )
             convert_to_int(r, "partition", content_type)
-            if set(r.keys()).difference({subject_type.value for subject_type in SubjectType}):
+            if set(r.keys()).difference({*(subject_type.value for subject_type in SubjectType), "headers"}):
                 KafkaRest.unprocessable_entity(
                     message="Invalid request format",
                     content_type=content_type,
                     sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                 )
+            self.validate_record_headers(r, content_type)
         # disallow missing id and schema for any key/value list that has at least one populated element
         if formats["embedded_format"] in {"avro", "jsonschema", "protobuf"}:
             for subject_type, code in zip(SUBJECT_VALID_POSTFIX, RECORD_CODES):
@@ -1188,6 +1190,51 @@ class UserRestProxy:
                         sub_code=RESTErrorCodes.INVALID_DATA.value,
                     )
 
+    @staticmethod
+    def validate_record_headers(record: dict, content_type: str) -> None:
+        # Optional per-record `headers`: a list of {"name": str, "value": base64-str|null} objects.
+        headers = record.get("headers")
+        if headers is None:
+            return
+        if not isinstance(headers, list):
+            KafkaRest.unprocessable_entity(
+                message="'headers' must be an array",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+            )
+        for header in headers:
+            valid = (
+                isinstance(header, dict)
+                and not set(header.keys()).difference({"name", "value"})
+                and isinstance(header.get("name"), str)
+                and (header.get("value") is None or isinstance(header.get("value"), str))
+            )
+            if not valid:
+                KafkaRest.unprocessable_entity(
+                    message="Each header must be an object with a string 'name' and an optional base64 string 'value'",
+                    content_type=content_type,
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                )
+            value = header.get("value")
+            if value is not None:
+                try:
+                    base64.b64decode(value, validate=True)
+                except (B64DecodeError, ValueError):
+                    KafkaRest.unprocessable_entity(
+                        message="header 'value' must be a base64-encoded string",
+                        content_type=content_type,
+                        sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                    )
+
+    @staticmethod
+    def _decode_record_headers(record: dict) -> list[tuple[str, bytes | None]] | None:
+        # Returns None when no headers so the produce call stays identical to a headerless request.
+        # Values are already validated as base64 in validate_record_headers.
+        headers = record.get("headers")
+        if not headers:
+            return None
+        return [(h["name"], base64.b64decode(h["value"]) if h.get("value") is not None else None) for h in headers]
+
     async def produce_messages(self, *, topic: str, prepared_records: list) -> list:
         """
         :raises NoBrokersAvailable:
@@ -1196,10 +1243,10 @@ class UserRestProxy:
         producer = await self._maybe_create_async_producer()
 
         produce_futures = []
-        for key, value, partition in prepared_records:
+        for key, value, partition, headers in prepared_records:
             # Cancelling the returned future **will not** stop event from being sent, but cancelling
             # the ``send`` coroutine itself **will**.
-            coroutine = producer.send(topic, key=key, value=value, partition=partition)
+            coroutine = producer.send(topic, key=key, value=value, partition=partition, headers=headers)
 
             # Schedule the co-routine, it will be cancelled if is not complete in
             # `kafka_timeout` seconds.

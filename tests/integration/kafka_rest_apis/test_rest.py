@@ -17,6 +17,7 @@ import pytest
 
 from karapace.core.client import Client
 from karapace.core.kafka.admin import KafkaAdminClient
+from karapace.core.kafka.consumer import KafkaConsumer
 from karapace.core.kafka.producer import KafkaProducer
 from karapace.kafka_rest_apis import SUBJECT_VALID_POSTFIX, KafkaRest
 from karapace.core.schema_type import SchemaType
@@ -213,8 +214,8 @@ async def test_avro_publish(
 async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaAdminClient) -> None:
     topic_name = new_topic(admin_client)
     prepared_records = [
-        [b"key", b"value", 0],
-        [b"key", b"value", None],
+        [b"key", b"value", 0, None],
+        [b"key", b"value", None, [("traceId", b"abc123")]],
     ]
     rest_async_proxy = await rest_async.get_user_proxy(None)
     results = await rest_async_proxy.produce_messages(topic=topic_name, prepared_records=prepared_records)
@@ -227,7 +228,7 @@ async def test_internal(rest_async: KafkaRest | None, admin_client: KafkaAdminCl
         assert actual_part == 0, "Returned partition id should be %d but is %d" % (0, actual_part)
 
     prepared_records = [
-        [b"key", b"value", 100],
+        [b"key", b"value", 100, None],
     ]
 
     results = await rest_async_proxy.produce_messages(topic=topic_name, prepared_records=prepared_records)
@@ -301,6 +302,36 @@ async def test_publish(rest_async_client: Client, admin_client: KafkaAdminClient
                     assert o["partition"] == 0
 
 
+async def test_publish_with_headers(
+    rest_async_client: Client, admin_client: KafkaAdminClient, consumer: KafkaConsumer
+) -> None:
+    topic = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+    consumer.subscribe([topic])
+
+    payload = {
+        "records": [
+            {
+                "value": {"foo": "bar"},
+                "headers": [
+                    {"name": "traceId", "value": base64.b64encode(b"abc123").decode()},
+                    {"name": "tombstone", "value": None},
+                ],
+            }
+        ]
+    }
+    res = await rest_async_client.post(f"/topics/{topic}", json=payload, headers=REST_HEADERS["json"])
+    assert res.ok, res.json()
+
+    # Consume the produced record with a raw Kafka consumer and assert the headers round-trip.
+    message = None
+    deadline = time.monotonic() + 30
+    while message is None and time.monotonic() < deadline:
+        message = consumer.poll(timeout=1)
+    assert message is not None, "Timed out waiting for the produced record"
+    assert dict(message.headers() or []) == {"traceId": b"abc123", "tombstone": None}
+
+
 # Produce messages to a topic without key and without explicit partition to verify that
 # partitioner assigns partition randomly
 async def test_publish_random_partitioning(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:
@@ -358,6 +389,25 @@ async def test_publish_malformed_requests(rest_async_client: Client, admin_clien
 
         res = await rest_async_client.post(url, json={"records": [{"value": "not b64"}]}, headers=REST_HEADERS["avro"])
         assert res.status_code == 422
+
+        # Malformed per-record headers — every case must return the same 422 error code (unified handling).
+        header_error_codes = set()
+        for bad_headers in [
+            "not-a-list",
+            [{"value": "YWJj"}],  # missing "name"
+            [{"name": 1, "value": "YWJj"}],  # non-string name
+            [{"name": "k", "value": 123}],  # non-string value
+            [{"name": "k", "extra": "x"}],  # unexpected field
+            [{"name": "k", "value": "hello world"}],  # value is not valid base64
+        ]:
+            res = await rest_async_client.post(
+                url,
+                json={"records": [{"value": {"foo": "bar"}, "headers": bad_headers}]},
+                headers=REST_HEADERS["json"],
+            )
+            assert res.status_code == 422
+            header_error_codes.add(res.json()["error_code"])
+        assert len(header_error_codes) == 1, f"Header errors should share one code, got {header_error_codes}"
 
 
 async def test_too_large_record(rest_async_client: Client, admin_client: KafkaAdminClient) -> None:

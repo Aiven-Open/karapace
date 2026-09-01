@@ -145,6 +145,14 @@ curl -H "Content-Type: application/vnd.kafka.avro.v2+json" -X POST -d \
   http://localhost:8082/topics/my_topic
 ```
 
+A record may carry optional Kafka message `headers`, a list of `{"name": <string>, "value": <base64 string | null>}` objects (header values are raw bytes, so they are base64-encoded):
+
+```bash
+curl -H "Content-Type: application/vnd.kafka.json.v2+json" -X POST -d \
+  '{"records": [{"value": {"name": "name0"}, "headers": [{"name": "traceId", "value": "YWJjMTIz"}]}]}' \
+  http://localhost:8082/topics/my_topic
+```
+
 Create a consumer with consumer group `avro_consumers` and instance `my_consumer`:
 
 ```bash
@@ -166,6 +174,8 @@ Consume previously produced messages:
 curl -X GET -H "Accept: application/vnd.kafka.avro.v2+json" \
   http://localhost:8082/consumers/avro_consumers/instances/my_consumer/records?timeout=1000
 ```
+
+When a consumed record has headers, they are returned in a `headers` field using the same `{"name": ..., "value": <base64 string | null>}` form (the field is omitted for records without headers).
 
 Commit offsets for a topic partition:
 

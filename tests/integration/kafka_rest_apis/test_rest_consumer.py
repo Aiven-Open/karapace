@@ -605,6 +605,112 @@ async def test_consume(rest_async_client, admin_client, producer, trail):
             ), f"Extracted data {deserializers[fmt](data[i]['value'])} does not match {values[fmt][i]} for format {fmt}"
 
 
+async def test_consume_headers(rest_async_client, admin_client, producer):
+    group_name = "consume_headers_group"
+    fmt = "json"
+    header = copy.deepcopy(REST_HEADERS[fmt])
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000"
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    # Produce with a raw Kafka producer (independent of the REST produce path): one record with
+    # headers (including a null value), one without. Same partition keeps consume order deterministic.
+    producer.send(
+        topic_name,
+        value=json.dumps({"foo": "bar"}).encode("utf-8"),
+        headers=[("traceId", b"abc123"), ("tombstone", None)],
+        partition=0,
+    )
+    producer.send(topic_name, value=json.dumps({"foo": "baz"}).encode("utf-8"), partition=0)
+    producer.flush()
+
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
+    header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
+    resp = await rest_async_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == 2, f"Expected 2 elements in response: {resp}"
+    assert data[0]["headers"] == [
+        {"name": "traceId", "value": base64.b64encode(b"abc123").decode("utf-8")},
+        {"name": "tombstone", "value": None},
+    ]
+    # Header-less records omit the "headers" key entirely (response shape unchanged for such records).
+    assert "headers" not in data[1]
+
+
+async def test_publish_and_consume_headers(rest_async_client, admin_client):
+    # Full REST round-trip: produce headers via the REST API, then consume them back via the REST API.
+    group_name = "publish_consume_headers_group"
+    fmt = "json"
+    header = copy.deepcopy(REST_HEADERS[fmt])
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000"
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    trace_value = base64.b64encode(b"abc123").decode("utf-8")
+    publish_payload = {
+        "records": [
+            {
+                "value": {"foo": "bar"},
+                "partition": 0,
+                "headers": [
+                    {"name": "traceId", "value": trace_value},
+                    {"name": "tombstone", "value": None},
+                ],
+            },
+            {"value": {"foo": "baz"}, "partition": 0},
+        ]
+    }
+    res = await rest_async_client.post(f"/topics/{topic_name}", json=publish_payload, headers=header)
+    assert res.ok, res.json()
+
+    # New consumer seeks to the beginning, then reads the records we just produced.
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
+    header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
+    resp = await rest_async_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    assert len(data) == 2, f"Expected 2 elements in response: {resp}"
+    assert data[0]["headers"] == [
+        {"name": "traceId", "value": trace_value},
+        {"name": "tombstone", "value": None},
+    ]
+    # Header-less records omit the "headers" key entirely (response shape unchanged for such records).
+    assert "headers" not in data[1]
+
+
+async def test_consume_headers_count_toward_max_bytes(rest_async_client, admin_client, producer):
+    # Large headers must count toward max_bytes so the response stays within the caller's bound.
+    group_name = "consume_headers_maxbytes_group"
+    fmt = "json"
+    header = copy.deepcopy(REST_HEADERS[fmt])
+    instance_id = await new_consumer(rest_async_client, group_name, fmt=fmt)
+    consume_path = f"/consumers/{group_name}/instances/{instance_id}/records?timeout=5000&max_bytes=1000"
+    topic_name = new_topic(admin_client)
+    await wait_for_topics(rest_async_client, topic_names=[topic_name], timeout=NEW_TOPIC_TIMEOUT, sleep=1)
+
+    num_records = 5
+    big_header_value = b"x" * 2000  # raw header bytes per record far exceed max_bytes
+    for i in range(num_records):
+        producer.send(
+            topic_name,
+            value=json.dumps({"n": i}).encode("utf-8"),
+            headers=[("big", big_header_value)],
+            partition=0,
+        )
+    producer.flush()
+
+    await assign_and_seek_to_beginning(rest_async_client, group_name, instance_id, topic_name, header)
+    header["Accept"] = f"application/vnd.kafka.{fmt}.v2+json"
+    resp = await rest_async_client.get(consume_path, headers=header)
+    assert resp.ok, f"Expected a successful response: {resp}"
+    data = resp.json()
+    # Values are tiny; without header accounting all records fit under max_bytes. With it, the loop stops early.
+    assert 0 < len(data) < num_records, f"Expected fewer than {num_records} records due to header size, got {len(data)}"
+
+
 async def test_consume_timeout(rest_async_client, admin_client, producer):
     values = {
         "json": [json.dumps({"foo": f"bar{i}"}).encode("utf-8") for i in range(3)],
