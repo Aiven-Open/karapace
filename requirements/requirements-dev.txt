@@ -115,7 +115,7 @@ gevent==26.7.0
     #   locust
 geventhttpclient==2.3.9
     # via locust
-googleapis-common-protos==1.75.0
+googleapis-common-protos==1.75.2
     # via
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
