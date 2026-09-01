@@ -249,7 +249,7 @@ pydantic[email]==2.13.4
     #   karapace (/karapace/pyproject.toml)
     #   pydantic-extra-types
     #   pydantic-settings
-pydantic-core==2.46.4
+pydantic-core==2.48.0
     # via pydantic
 pydantic-extra-types==2.11.1
     # via fastapi
