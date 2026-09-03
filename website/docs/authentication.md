@@ -4,10 +4,14 @@ title: Authentication & authorization
 
 # Authentication & authorization
 
-Karapace supports two independent authentication systems for the Schema Registry:
+Karapace supports two authentication systems for the Schema Registry:
 **HTTP basic auth** (file-based users and access rules) and **OAuth2 / OIDC** (bearer
 token validation). The REST proxy forwards OAuth2 tokens to Kafka and the Schema
 Registry rather than validating them itself.
+
+Each can be used on its own, or **both at once** — when both are enabled the Schema
+Registry routes each request by its `Authorization` scheme. See
+[Using OIDC and basic auth together](#using-oidc-and-basic-auth-together).
 
 ## HTTP basic authentication
 
@@ -143,6 +147,30 @@ KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
 - `sasl_oauthbearer_jwks_endpoint_url` must use `https://`; startup fails otherwise.
 - `/docs`, `/redoc` and `/openapi.json` bypass the auth gate by design (for Swagger UI).
   Block them at your reverse proxy in production to avoid exposing the API surface.
+
+## Using OIDC and basic auth together
+
+When `sasl_oauthbearer_authentication_enabled` is `true` **and** `registry_authfile` is
+set, the Schema Registry serves both systems at once and dispatches on each request's
+`Authorization` scheme (case-insensitive). This lets clients migrate from basic auth to
+OIDC one at a time — no client ever sends more than one header, and no coordinated
+switch is required.
+
+| `Authorization` header | Handled as                                                                                                                                                                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Bearer <jwt>`         | **OIDC.** Token is validated; invalid or expired → `401` (no fallback). Authorization uses role mapping when `sasl_oauthbearer_authorization_enabled` is `true`, otherwise a valid token is allowed. The authorization file's ACL is not consulted. |
+| `Basic <base64>`       | **Basic.** Credentials are checked against the authorization file, and its ACL is enforced — regardless of the OIDC authorization flag.                                                                                                             |
+| missing / other        | `401`                                                                                                                                                                                                                                               |
+
+Notes:
+
+- `Bearer` takes priority; there is no fallback between schemes — a bad token is never
+  retried as basic.
+- With `sasl_oauthbearer_authentication_enabled: false`, the OIDC gate is skipped
+  entirely and only basic auth applies (unchanged behavior).
+- The REST proxy needs no extra configuration: it forwards the inbound `Authorization`
+  header to the Schema Registry, so both `Bearer` and `Basic` requests work through the
+  proxy.
 
 ## OAuth2 (REST proxy)
 

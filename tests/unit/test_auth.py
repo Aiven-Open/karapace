@@ -39,6 +39,32 @@ def test_empty_acl_authorizer() -> None:
     )
 
 
+def test_externally_authenticated_user_bypasses_acl() -> None:
+    authorizer = ACLAuthorizer(
+        user_db={},
+        permissions=[ACLEntry("someone", Operation.Read, re.compile(r"Subject:allowed"))],
+    )
+    external = User.externally_authenticated("oidc-subject")
+    # No ACL entry matches this user, but external authentication (OIDC) bypasses the ACL entirely.
+    assert authorizer.check_authorization(user=external, operation=Operation.Write, resource="Subject:anything") is True
+    assert (
+        authorizer.check_authorization_any(user=external, operation=Operation.Write, resources=["Subject:anything"]) is True
+    )
+
+
+def test_externally_authenticated_factory_has_no_credentials() -> None:
+    external = User.externally_authenticated("oidc-subject")
+    assert external.username == "oidc-subject"
+    assert external.authenticated_externally is True
+    assert external.algorithm is None
+    assert external.salt is None
+    assert external.password_hash is None
+
+
+def test_external_user_compare_password_is_false() -> None:
+    assert User.externally_authenticated("oidc-subject").compare_password("anything") is False
+
+
 def test_acl_authorizer() -> None:
     admin_password_hash = hash_password(
         algorithm=HashAlgorithm.SHA256,

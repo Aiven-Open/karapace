@@ -563,8 +563,7 @@ _BASIC_HEADER = "Basic " + base64.b64encode(b"user:pass").decode()
 @pytest.mark.parametrize(
     "auth_header",
     [
-        _BASIC_HEADER,  # wrong scheme
-        "bearer good.token",  # lowercase scheme — check is case-sensitive
+        _BASIC_HEADER,  # Basic scheme with no authfile configured
         "Bearer",  # scheme only, no token/space
         "Bearer ",  # empty token
         "Bearer    ",  # whitespace-only token
@@ -578,11 +577,12 @@ def test_middleware_rejects_non_bearer_or_empty_token(monkeypatch, auth_header):
     assert r.json()["reason"] == "Missing or invalid Authorization header"
 
 
-def test_middleware_accepts_bearer_with_valid_token(monkeypatch):
-    """Control for the rejection cases above."""
+@pytest.mark.parametrize("auth_header", ["Bearer good.token", "bearer good.token"], ids=["capitalized", "lowercase"])
+def test_middleware_accepts_bearer_with_valid_token(monkeypatch, auth_header):
+    """Control for the rejection cases above; scheme match is case-insensitive."""
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
     client = _build_app_with_middleware(monkeypatch, config, validate_jwt_payload={"sub": "u"})
-    r = client.get("/subjects", headers={"Authorization": "Bearer good.token"})
+    r = client.get("/subjects", headers={"Authorization": auth_header})
     assert r.status_code == 200
 
 

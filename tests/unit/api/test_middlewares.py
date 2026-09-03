@@ -116,6 +116,65 @@ def test_non_bearer_authorization_returns_401() -> None:
     assert response.status_code == 401
 
 
+# ---- Scheme dispatch: Basic coexists with OIDC when an authfile is configured ----
+
+
+def test_basic_scheme_deferred_to_basic_auth_when_authfile_set() -> None:
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, registry_authfile="authfile.json")
+
+    # A Basic request must not be 401'd by the OIDC middleware; it is deferred to the basic-auth
+    # dependency (here the bare stub route just runs).
+    response = _client(config).get("/subjects", headers={"Authorization": "Basic abc"})
+
+    assert response.status_code == 200
+
+
+def test_basic_scheme_rejected_when_no_authfile() -> None:
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+
+    response = _client(config).get("/subjects", headers={"Authorization": "Basic abc"})
+
+    assert response.status_code == 401
+
+
+def test_bearer_stamps_oidc_authenticated_state() -> None:
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, registry_authfile="authfile.json")
+    app = FastAPI()
+
+    @app.get("/whoami")
+    async def whoami(request: Request) -> dict:
+        return {
+            "oidc_authenticated": getattr(request.state, "oidc_authenticated", False),
+            "user": getattr(request.state, "user", None),
+        }
+
+    setup_middlewares(app, config)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    with patch("karapace.api.middlewares.OIDCTokenValidator.validate_jwt", return_value={"sub": "u1"}):
+        response = client.get("/whoami", headers={"Authorization": "Bearer good-token"})
+
+    assert response.status_code == 200
+    assert response.json() == {"oidc_authenticated": True, "user": "u1"}
+
+
+def test_scheme_matching_is_case_insensitive_for_bearer() -> None:
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
+
+    with patch("karapace.api.middlewares.OIDCTokenValidator.validate_jwt", return_value={"sub": "u1"}):
+        response = _client(config).get("/subjects", headers={"Authorization": "bearer good-token"})
+
+    assert response.status_code == 200
+
+
+def test_scheme_matching_is_case_insensitive_for_basic() -> None:
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, registry_authfile="authfile.json")
+
+    response = _client(config).get("/subjects", headers={"Authorization": "basic abc"})
+
+    assert response.status_code == 200
+
+
 # ---- Authorization enabled: JWT validation outcomes ----
 
 
