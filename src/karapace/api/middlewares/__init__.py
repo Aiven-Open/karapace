@@ -21,49 +21,63 @@ log = logging.getLogger(__name__)
 
 
 def _authenticate_and_authorize(request: Request, config: Config, oidc_validator: OIDCTokenValidator) -> JSONResponse | None:
-    """Run the OIDC auth gate. Return a JSONResponse on failure, or None to continue."""
+    """Dispatch on the Authorization scheme: Bearer -> OIDC check, Basic -> defer to basic auth.
+
+    Return a JSONResponse on failure, or None to continue (route runs; Basic is handled by the
+    basic-auth dependency). Bearer takes priority; there is no fallback between schemes.
+    """
     auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
-        )
+    # Auth schemes are case-insensitive; split "<scheme> <credentials>" and match on the lowered scheme.
+    scheme, _, credentials = (auth_header or "").partition(" ")
+    scheme = scheme.lower()
 
-    token = auth_header[len("Bearer ") :].strip()
-    if not token:
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
-        )
-
-    try:
-        payload = oidc_validator.validate_jwt(token)
-    except TokenExpiredError:
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Unauthorized", "reason": "Token expired"},
-        )
-    except AuthenticationError:
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Unauthorized", "reason": "Invalid token/payload"},
-        )
-
-    # Expose only the configured subject claim to handlers, never the full payload.
-    # Prevents downstream code from picking up attacker-controlled claims (e.g. "roles")
-    # and using them for authz decisions.
-    request.state.user = payload.get(oidc_validator.claim_name) if oidc_validator.claim_name else None
-    log.debug("Authenticated")
-
-    if config.sasl_oauthbearer_authorization_enabled:
-        try:
-            oidc_validator.authorize_request(payload, request.method)
-        except HTTPException as e:
+    if scheme == "bearer":
+        token = credentials.strip()
+        if not token:
             return JSONResponse(
-                {"error": "Authorization error", "reason": e.detail},
-                status_code=e.status_code,
+                status_code=401,
+                content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
             )
-    return None
+
+        try:
+            payload = oidc_validator.validate_jwt(token)
+        except TokenExpiredError:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Unauthorized", "reason": "Token expired"},
+            )
+        except AuthenticationError:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Unauthorized", "reason": "Invalid token/payload"},
+            )
+
+        # Expose only the configured subject claim to handlers, never the full payload.
+        # Prevents downstream code from picking up attacker-controlled claims (e.g. "roles")
+        # and using them for authz decisions.
+        request.state.user = payload.get(oidc_validator.claim_name) if oidc_validator.claim_name else None
+        # Marks the request as OIDC-authenticated so the basic-auth dependency is skipped.
+        request.state.oidc_authenticated = True
+        log.debug("Authenticated")
+
+        if config.sasl_oauthbearer_authorization_enabled:
+            try:
+                oidc_validator.authorize_request(payload, request.method)
+            except HTTPException as e:
+                return JSONResponse(
+                    {"error": "Authorization error", "reason": e.detail},
+                    status_code=e.status_code,
+                )
+        return None
+
+    # Basic requests are handled by the basic-auth dependency, but only when an authfile is configured.
+    if scheme == "basic" and config.registry_authfile:
+        return None
+
+    return JSONResponse(
+        status_code=401,
+        content={"error": "Unauthorized", "reason": "Missing or invalid Authorization header"},
+    )
 
 
 # Paths that bypass the OIDC auth gate: API docs endpoints are always public.

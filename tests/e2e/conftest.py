@@ -473,6 +473,39 @@ async def fixture_registry_async_client_basic(
         await client.close()
 
 
+# OIDC authentication + file-based basic auth on one SR (scheme dispatch). Compose profile: e2e.
+_OIDC_BASIC_URI = "http://karapace-schema-registry-oidc-basic:8681"
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_basic_bearer")
+async def fixture_registry_async_client_oidc_basic_bearer(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    """Bearer client to the OIDC+basic SR (dispatches to the OIDC path)."""
+
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
+
+    client = Client(server_uri=_OIDC_BASIC_URI, client_factory=factory, session_auth=None)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_basic")
+async def fixture_registry_async_client_oidc_basic(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    """Plain client to the OIDC+basic SR; pass per-request auth=BasicAuth(...) for the Basic path."""
+    client = Client(server_uri=_OIDC_BASIC_URI, session_auth=None)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
 class TokenProvider:
     def __init__(self, token: str, expiry_seconds: int = 3600):
         self._token = token

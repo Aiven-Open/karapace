@@ -188,6 +188,54 @@ services:
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
+  # OIDC authentication + file-based basic auth on one SR. Scheme-based dispatch:
+  # Bearer -> OIDC, Basic -> authfile. Target for scheme-dispatch e2e tests.
+  karapace-schema-registry-oidc-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-oidc-basic
+    container_name: karapace-schema-registry-oidc-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+    ports:
+      - 8681:8681
+    volumes:
+      - ../tests/integration/config/karapace.auth.json:/opt/karapace/karapace.auth.json:ro
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-oidc-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8681
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-oidc-basic
+      KARAPACE_GROUP_ID: karapace-schema-registry-oidc-basic
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas_oidc_basic
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_TAGS__APP: karapace-schema-registry-oidc-basic
+      KARAPACE_REGISTRY_AUTHFILE: /opt/karapace/karapace.auth.json
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
+      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
+
   # Full OIDC (authentication + role-based authorization). Target for the
   # authn+authz e2e tests (registry_async_client_oidc* fixtures).
   karapace-schema-registry-oidc:
