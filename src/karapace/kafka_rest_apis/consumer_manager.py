@@ -574,7 +574,7 @@ class ConsumerManager:
                             raise translate_from_kafkaerror(message.error())
                         key_bytes = len(message.key()) if message.key() else 0
                         value_bytes = len(message.value()) if message.value() else 0
-                        read_bytes += key_bytes + value_bytes
+                        read_bytes += key_bytes + value_bytes + self._header_bytes(message)
                         consumed_messages.append(message)
                         # Stop if we've reached max_bytes
                         if read_bytes >= max_bytes:
@@ -700,6 +700,36 @@ class ConsumerManager:
 
         return deserialize_strict
 
+    @staticmethod
+    def _header_bytes(msg) -> int:
+        # Raw header size for the max_bytes budget; never raises so it can't break a fetch.
+        try:
+            return sum((len(k) if k else 0) + (len(v) if v else 0) for k, v in msg.headers() or [])
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _encode_headers(msg) -> list[dict]:
+        # Symmetric with produce API; unencodable headers are skipped, never breaking record delivery.
+        try:
+            raw_headers = msg.headers() or []
+        except Exception:
+            LOG.debug("Failed to read record headers; omitting them", exc_info=True)
+            return []
+        encoded = []
+        for header in raw_headers:
+            try:
+                name, value = header
+                encoded.append(
+                    {
+                        "name": name.decode("utf-8", errors="replace") if isinstance(name, bytes) else name,
+                        "value": base64.b64encode(value).decode("utf-8") if value is not None else None,
+                    }
+                )
+            except Exception:
+                LOG.warning("Skipping unencodable record header %r", header)
+        return encoded
+
     def _deserialize_messages_sync(
         self, consumed_messages, content_type: str, request_format: str, deserialize_key_func, deserialize_value_func
     ):
@@ -722,6 +752,8 @@ class ConsumerManager:
                     sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                     content_type=content_type,
                 )
+            # headers key only present when the record actually has them (unchanged shape otherwise)
+            headers = self._encode_headers(msg)
             response.append(
                 {
                     "topic": msg.topic(),
@@ -730,6 +762,7 @@ class ConsumerManager:
                     "timestamp": msg.timestamp()[1] if msg.timestamp()[0] != Timestamp.NOT_AVAILABLE else None,
                     "key": key,
                     "value": value,
+                    **({"headers": headers} if headers else {}),
                 }
             )
         return response
@@ -756,6 +789,8 @@ class ConsumerManager:
                     sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                     content_type=content_type,
                 )
+            # headers key only present when the record actually has them (unchanged shape otherwise)
+            headers = self._encode_headers(msg)
             return {
                 "topic": msg.topic(),
                 "partition": msg.partition(),
@@ -763,6 +798,7 @@ class ConsumerManager:
                 "timestamp": msg.timestamp()[1] if msg.timestamp()[0] != Timestamp.NOT_AVAILABLE else None,
                 "key": key,
                 "value": value,
+                **({"headers": headers} if headers else {}),
             }
 
         response = await asyncio.gather(*[deserialize_message(msg) for msg in consumed_messages])
