@@ -4,6 +4,7 @@ See LICENSE for details
 """
 
 import os
+import shutil
 import signal
 import time
 from subprocess import Popen
@@ -47,7 +48,7 @@ def stop_process(proc: Popen | None) -> None:
 
 def get_java_process_configuration(java_args: list[str]) -> list[str]:
     command = [
-        "/usr/bin/java",
+        shutil.which("java"),
         "-server",
         "-XX:+UseG1GC",
         "-XX:MaxGCPauseMillis=20",
