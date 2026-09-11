@@ -55,8 +55,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">19 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">19<span class="text"> run</span></button>
+            <span class="text">21 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">21<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
             <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">0<span class="text"> partial</span></button>
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_04d4bedadca9ee58_karapace_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-04 13:28 +0000
+            created at 2026-09-11 07:33 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -93,21 +93,23 @@
     <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">class</span> <span class="nam">RESTErrorCodes</span><span class="op">(</span><span class="nam">Enum</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">    <span class="nam">HTTP_BAD_REQUEST</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">BAD_REQUEST</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t">    <span class="nam">HTTP_NOT_FOUND</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">NOT_FOUND</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">    <span class="nam">HTTP_INTERNAL_SERVER_ERROR</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">INTERNAL_SERVER_ERROR</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">    <span class="nam">HTTP_UNPROCESSABLE_ENTITY</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">UNPROCESSABLE_ENTITY</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">    <span class="nam">HTTP_SERVICE_UNAVAILABLE</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">SERVICE_UNAVAILABLE</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">    <span class="nam">TOPIC_NOT_FOUND</span> <span class="op">=</span> <span class="num">40401</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">    <span class="nam">PARTITION_NOT_FOUND</span> <span class="op">=</span> <span class="num">40402</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">    <span class="nam">CONSUMER_NOT_FOUND</span> <span class="op">=</span> <span class="num">40403</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">    <span class="nam">UNKNOWN_TOPIC_OR_PARTITION</span> <span class="op">=</span> <span class="num">40403</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="nam">UNSUPPORTED_FORMAT</span> <span class="op">=</span> <span class="num">40601</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="nam">SCHEMA_RETRIEVAL_ERROR</span> <span class="op">=</span> <span class="num">40801</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">    <span class="nam">CONSUMER_ALREADY_EXISTS</span> <span class="op">=</span> <span class="num">40902</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">    <span class="nam">ILLEGAL_STATE</span> <span class="op">=</span> <span class="num">40903</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">    <span class="nam">INVALID_CONSUMER_PARAMETERS</span> <span class="op">=</span> <span class="num">42204</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">    <span class="nam">INVALID_DATA</span> <span class="op">=</span> <span class="num">42205</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">    <span class="nam">INVALID_VALUE</span> <span class="op">=</span> <span class="num">50001</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t">    <span class="nam">HTTP_UNAUTHORIZED</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">UNAUTHORIZED</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">    <span class="nam">HTTP_FORBIDDEN</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">FORBIDDEN</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">    <span class="nam">HTTP_NOT_FOUND</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">NOT_FOUND</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">    <span class="nam">HTTP_INTERNAL_SERVER_ERROR</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">INTERNAL_SERVER_ERROR</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">    <span class="nam">HTTP_UNPROCESSABLE_ENTITY</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">UNPROCESSABLE_ENTITY</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">    <span class="nam">HTTP_SERVICE_UNAVAILABLE</span> <span class="op">=</span> <span class="nam">HTTPStatus</span><span class="op">.</span><span class="nam">SERVICE_UNAVAILABLE</span><span class="op">.</span><span class="nam">value</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">    <span class="nam">TOPIC_NOT_FOUND</span> <span class="op">=</span> <span class="num">40401</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">    <span class="nam">PARTITION_NOT_FOUND</span> <span class="op">=</span> <span class="num">40402</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="nam">CONSUMER_NOT_FOUND</span> <span class="op">=</span> <span class="num">40403</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="nam">UNKNOWN_TOPIC_OR_PARTITION</span> <span class="op">=</span> <span class="num">40403</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">    <span class="nam">UNSUPPORTED_FORMAT</span> <span class="op">=</span> <span class="num">40601</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">    <span class="nam">SCHEMA_RETRIEVAL_ERROR</span> <span class="op">=</span> <span class="num">40801</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">    <span class="nam">CONSUMER_ALREADY_EXISTS</span> <span class="op">=</span> <span class="num">40902</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">    <span class="nam">ILLEGAL_STATE</span> <span class="op">=</span> <span class="num">40903</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">    <span class="nam">INVALID_CONSUMER_PARAMETERS</span> <span class="op">=</span> <span class="num">42204</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">    <span class="nam">INVALID_DATA</span> <span class="op">=</span> <span class="num">42205</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t">    <span class="nam">INVALID_VALUE</span> <span class="op">=</span> <span class="num">50001</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -117,7 +119,7 @@
             <a class="nav" href="z_04d4bedadca9ee58_karapace_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-04 13:28 +0000
+            created at 2026-09-11 07:33 +0000
         </p>
     </div>
 </footer>

@@ -37,7 +37,7 @@
 | src/karapace/core/avro\_dataclasses/models.py            |       97 |        8 |       32 |        4 |     91% |72-75, 105-106, 108, 111, 131 |
 | src/karapace/core/avro\_dataclasses/schema.py            |       33 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/avro\_fast\_decoder.py                 |      161 |        0 |       56 |        0 |    100% |           |
-| src/karapace/core/client.py                              |      133 |        0 |       18 |        0 |    100% |           |
+| src/karapace/core/client.py                              |      144 |        1 |       22 |        0 |     99% |        42 |
 | src/karapace/core/compatibility/\_\_init\_\_.py          |       15 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/compatibility/jsonschema/checks.py     |      371 |       38 |      162 |       18 |     86% |203, 253, 266, 335, 426, 436-447, 522-534, 547-551, 576, 600, 662, 685, 768, 777, 788-798, 887, 897-902, 922 |
 | src/karapace/core/compatibility/jsonschema/types.py      |      105 |        0 |        0 |        0 |    100% |           |
@@ -58,7 +58,7 @@
 | src/karapace/core/instrumentation/prometheus.py          |       39 |        0 |        0 |        0 |    100% |           |
 | src/karapace/core/instrumentation/tracer.py              |       66 |        2 |       12 |        1 |     96% |42, 45, 61-\>exit |
 | src/karapace/core/kafka/admin.py                         |      107 |       10 |       26 |        1 |     86% |186-200, 240-243 |
-| src/karapace/core/kafka/common.py                        |       89 |        6 |       20 |        6 |     89% |59, 63, 79, 178, 214, 219 |
+| src/karapace/core/kafka/common.py                        |       89 |        7 |       20 |        7 |     87% |59, 61, 63, 79, 178, 214, 219 |
 | src/karapace/core/kafka/consumer.py                      |      150 |       17 |       20 |        3 |     88% |49-50, 63, 68, 100, 103-104, 135-136, 162-163, 182-183, 188-189, 206-207 |
 | src/karapace/core/kafka/producer.py                      |       67 |        2 |        6 |        0 |     97% |     68-69 |
 | src/karapace/core/kafka/types.py                         |        8 |        0 |        0 |        0 |    100% |           |
@@ -114,22 +114,22 @@
 | src/karapace/core/sentry/\_\_init\_\_.py                 |       16 |        3 |        0 |        0 |     81% | 11, 25-26 |
 | src/karapace/core/sentry/sentry\_client.py               |       23 |        2 |        2 |        1 |     88% |56-57, 61-\>exit |
 | src/karapace/core/sentry/sentry\_client\_api.py          |       13 |        2 |        0 |        0 |     85% |    24, 27 |
-| src/karapace/core/serialization.py                       |      305 |       29 |       92 |       13 |     89% |116, 158, 178, 189, 193, 219-220, 263, 277-278, 285, 299-300, 344, 395-\>398, 429, 439, 511-512, 520-525, 531-534, 557, 566 |
+| src/karapace/core/serialization.py                       |      307 |       29 |       92 |       13 |     89% |120, 162, 182, 193, 197, 223-224, 268, 282-283, 290, 304-305, 349, 400-\>403, 434, 444, 516-517, 525-530, 536-539, 562, 571 |
 | src/karapace/core/stats.py                               |       44 |        8 |        0 |        0 |     82% |71-74, 89-97, 100 |
 | src/karapace/core/typing.py                              |      102 |        7 |       10 |        3 |     91% |77, 81, 87, 131, 143, 165, 169 |
 | src/karapace/core/utils.py                               |      128 |        5 |       40 |        1 |     95% |     76-83 |
-| src/karapace/kafka\_rest\_apis/\_\_init\_\_.py           |      667 |       74 |      160 |       15 |     88% |109-112, 312-331, 335-337, 498, 502, 509, 512, 523, 528-\>566, 552-562, 707, 750-751, 762-\>exit, 777-783, 826, 845, 868, 879, 904-905, 928, 997-998, 1011-1012, 1032, 1078-1083, 1127, 1187, 1282-1284, 1288-1289, 1293-1295, 1297-1299, 1306-1307, 1322, 1363, 1373 |
+| src/karapace/kafka\_rest\_apis/\_\_init\_\_.py           |      676 |       76 |      166 |       16 |     88% |109-112, 312-331, 335-337, 522, 526, 533, 536, 547, 552-\>590, 576-586, 731, 774-775, 786-\>exit, 801-807, 850, 869-870, 893, 904, 929-930, 953, 989, 1025-1026, 1039-1040, 1061, 1107-1112, 1156, 1216, 1311-1313, 1317-1318, 1322-1324, 1326-1328, 1335-1336, 1351, 1392, 1402 |
 | src/karapace/kafka\_rest\_apis/\_\_main\_\_.py           |       29 |        1 |        2 |        1 |     94% |        43 |
 | src/karapace/kafka\_rest\_apis/authentication.py         |       64 |        0 |       14 |        0 |    100% |           |
 | src/karapace/kafka\_rest\_apis/consumer\_manager.py      |      446 |       45 |       98 |       10 |     90% |117, 122, 215-216, 224-\>exit, 254-260, 270-271, 309-311, 326-329, 334, 356, 374, 470, 472, 505-506, 509, 511, 574, 583-592, 646-648, 665-666, 741-742, 778-779, 812-813 |
 | src/karapace/kafka\_rest\_apis/convert\_to\_int.py       |        9 |        3 |        2 |        0 |     73% |     16-19 |
-| src/karapace/kafka\_rest\_apis/error\_codes.py           |       19 |        0 |        0 |        0 |    100% |           |
+| src/karapace/kafka\_rest\_apis/error\_codes.py           |       21 |        0 |        0 |        0 |    100% |           |
 | src/karapace/kafka\_rest\_apis/karapace.py               |       58 |        8 |        4 |        1 |     82% |59, 75, 89, 99, 108-111 |
 | src/karapace/kafka\_rest\_apis/schema\_cache.py          |       73 |       20 |        2 |        1 |     72% |19, 23, 27, 31, 35, 47, 54-55, 58-59, 73-74, 79, 87, 90-91, 99, 102, 105, 108 |
 | src/karapace/rapu.py                                     |      261 |       67 |       76 |       18 |     70% |111, 115, 148, 151, 235-258, 283-287, 292, 298-303, 307, 314, 317-\>320, 320-\>330, 322-\>325, 325-\>328, 331-332, 335, 339, 341-342, 347-354, 359-364, 371, 374-375, 383, 405-408, 444, 451, 467, 481-483, 486-488 |
 | src/karapace/statsd.py                                   |       61 |       30 |       16 |        1 |     42% |37-39, 42, 51-58, 65-87 |
 | src/karapace/version.py                                  |       11 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                | **11391** | **1305** | **3196** |  **359** | **87%** |           |
+| **TOTAL**                                                | **11415** | **1309** | **3206** |  **361** | **87%** |           |
 
 13 empty files skipped.
 
