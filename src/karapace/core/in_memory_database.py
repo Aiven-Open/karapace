@@ -12,7 +12,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from karapace.core.schema_models import SchemaVersion, TypedSchema, Versioner
 from karapace.core.schema_references import Reference, Referents
-from karapace.core.typing import SchemaId, Subject, Version
+from karapace.core.typing import Mode, SchemaId, Subject, Version
 from threading import Lock, RLock
 
 import logging
@@ -24,6 +24,7 @@ LOG = logging.getLogger(__name__)
 class SubjectData:
     schemas: dict[Version, SchemaVersion] = field(default_factory=dict)
     compatibility: str | None = None
+    mode: str | None = None
 
 
 class KarapaceDatabase(ABC):
@@ -130,6 +131,26 @@ class KarapaceDatabase(ABC):
     def get_referenced_by(self, subject: Subject, version: Version) -> Referents | None:
         pass
 
+    @abstractmethod
+    def get_global_mode(self) -> Mode:
+        pass
+
+    @abstractmethod
+    def set_global_mode(self, *, mode: Mode) -> None:
+        pass
+
+    @abstractmethod
+    def get_subject_mode(self, *, subject: Subject) -> Mode | None:
+        pass
+
+    @abstractmethod
+    def set_subject_mode(self, *, subject: Subject, mode: Mode) -> None:
+        pass
+
+    @abstractmethod
+    def delete_subject_mode(self, *, subject: Subject) -> None:
+        pass
+
 
 class InMemoryDatabase(KarapaceDatabase):
     def __init__(self) -> None:
@@ -139,6 +160,7 @@ class InMemoryDatabase(KarapaceDatabase):
         self.schemas: dict[SchemaId, TypedSchema] = {}
         self.schema_lock_thread = RLock()
         self.referenced_by: dict[tuple[Subject, Version], Referents] = {}
+        self._global_mode: Mode = Mode.readwrite
 
         # Content based deduplication of schemas. This is used to reduce memory
         # usage when the same schema is produce multiple times to the same or
@@ -274,6 +296,25 @@ class InMemoryDatabase(KarapaceDatabase):
     def set_subject_compatibility(self, *, subject: Subject, compatibility: str) -> None:
         if subject in self.subjects:
             self.subjects[subject].compatibility = compatibility
+
+    def get_global_mode(self) -> Mode:
+        return self._global_mode
+
+    def set_global_mode(self, *, mode: Mode) -> None:
+        self._global_mode = mode
+
+    def get_subject_mode(self, *, subject: Subject) -> Mode | None:
+        if subject in self.subjects and self.subjects[subject].mode is not None:
+            return Mode(self.subjects[subject].mode)
+        return None
+
+    def set_subject_mode(self, *, subject: Subject, mode: Mode) -> None:
+        if subject in self.subjects:
+            self.subjects[subject].mode = mode.value
+
+    def delete_subject_mode(self, *, subject: Subject) -> None:
+        if subject in self.subjects:
+            self.subjects[subject].mode = None
 
     def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
         return self.schemas[schema_id]
