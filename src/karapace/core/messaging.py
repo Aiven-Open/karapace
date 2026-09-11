@@ -9,6 +9,7 @@ from aiokafka.errors import MessageSizeTooLargeError
 from karapace.core.config import Config
 from karapace.core.errors import SchemaTooLargeException
 from karapace.core.kafka.producer import KafkaProducer
+from karapace.core.kafka_utils import get_oauth_token_provider
 from karapace.core.key_format import KeyFormatter
 from karapace.core.offset_watcher import OffsetWatcher
 from karapace.core.utils import json_encode
@@ -35,6 +36,17 @@ class KarapaceProducer:
     def initialize_karapace_producer(
         self,
     ) -> None:
+        # When the operator configures `sasl_oauth_token_provider_class`,
+        # surface the same provider here so writes to `_schemas` can
+        # authenticate against an OAUTHBEARER-secured broker. Without
+        # this, OAUTHBEARER deployments time out at the producer's
+        # SASL handshake even though the master coordinator and schema
+        # reader paths succeed.
+        oauth_kwargs: dict[str, Any] = {}
+        oauth_token_provider = get_oauth_token_provider(self._config)
+        if oauth_token_provider is not None:
+            oauth_kwargs["sasl_oauth_token_provider"] = oauth_token_provider
+
         while True:
             try:
                 self._producer = KafkaProducer(
@@ -51,6 +63,7 @@ class KarapaceProducer:
                     metadata_max_age_ms=self._config.metadata_max_age_ms,
                     socket_timeout_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
                     connections_max_idle_ms=self._config.connections_max_idle_ms,  # helps through cluster upgrades ??
+                    **oauth_kwargs,
                 )
                 return
             except Exception:
