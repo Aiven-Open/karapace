@@ -26,6 +26,7 @@ from karapace.core.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
+from karapace.core.health import SchemaRegistryHealthMonitor
 from karapace.core.in_memory_database import InMemoryDatabase
 from karapace.core.key_format import KeyFormatter
 from karapace.core.messaging import KarapaceProducer
@@ -72,6 +73,7 @@ class KarapaceSchemaRegistry:
             stats=stats,
         )
         self.mc.set_stoppper(self.schema_reader)
+        self.health_monitor = SchemaRegistryHealthMonitor(schema_registry=self, stats=stats)
 
         self.schema_lock = asyncio.Lock()
         self._master_lock = asyncio.Lock()
@@ -91,8 +93,10 @@ class KarapaceSchemaRegistry:
         self.mc.start()
         self.schema_reader.start()
         self.producer.initialize_karapace_producer()
+        await self.health_monitor.start()
 
     async def close(self) -> None:
+        await self.health_monitor.close()
         async with AsyncExitStack() as stack:
             stack.push_async_callback(self.mc.close)
             stack.enter_context(closing(self.schema_reader))
