@@ -5,20 +5,36 @@ Copyright (c) 2024 Aiven Ltd
 See LICENSE for details
 """
 
+import json
 import operator
+import socket
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 from avro.schema import Schema as AvroSchema
 
-from karapace.core.errors import InvalidVersion, VersionNotFoundException
-from karapace.core.schema_models import SchemaVersion, TypedSchema, Versioner, parse_avro_schema_definition
+from karapace.core.compatibility import CompatibilityModes
+from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
+from karapace.core.errors import InvalidSchema, InvalidVersion, VersionNotFoundException
+from karapace.core.schema_models import (
+    ParsedTypedSchema,
+    SchemaVersion,
+    TypedSchema,
+    ValidatedTypedSchema,
+    Versioner,
+    parse_avro_schema_definition,
+    parse_jsonschema_definition,
+)
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import Version, VersionTag
 
 # Schema versions factory fixture type
 SVFCallable = Callable[[None], Callable[[int, dict[str, Any]], dict[int, SchemaVersion]]]
+
+DRAFT7_URI = "http://json-schema.org/draft-07/schema#"
+DRAFT201909_URI = "https://json-schema.org/draft/2019-09/schema"
+DRAFT202012_URI = "https://json-schema.org/draft/2020-12/schema"
 
 
 class TestVersion:
@@ -173,3 +189,93 @@ class TestVersioner:
         """
         with pytest.raises(InvalidVersion):
             Versioner.validate_tag(tag=tag)
+
+
+class TestJsonSchemaDraftRouting:
+    @pytest.mark.parametrize(
+        "schema_uri, expected_validator",
+        [
+            (None, "Draft7Validator"),
+            ("http://json-schema.org/draft-04/schema#", "Draft4Validator"),
+            ("http://json-schema.org/draft-06/schema#", "Draft6Validator"),
+            (DRAFT7_URI, "Draft7Validator"),
+            (DRAFT201909_URI, "Draft201909Validator"),
+            (DRAFT202012_URI, "Draft202012Validator"),
+        ],
+    )
+    def test_draft_selected_from_schema_keyword(self, schema_uri: str | None, expected_validator: str):
+        schema: dict[str, Any] = {"type": "object", "properties": {"a": {"type": "string"}}}
+        if schema_uri is not None:
+            schema["$schema"] = schema_uri
+        parsed = parse_jsonschema_definition(json.dumps(schema))
+        assert type(parsed).__name__ == expected_validator
+
+    def test_no_schema_keyword_defaults_to_draft7(self):
+        """No `$schema` must parse as Draft-7, preserving prior behavior (no regression)."""
+        parsed = parse_jsonschema_definition('{"type":"object"}')
+        assert type(parsed).__name__ == "Draft7Validator"
+
+    def test_unknown_schema_uri_defaults_to_draft7(self):
+        """An unrecognized `$schema` URI falls back to Draft-7 rather than raising."""
+        parsed = parse_jsonschema_definition('{"$schema":"http://example.com/unknown","type":"object"}')
+        assert type(parsed).__name__ == "Draft7Validator"
+
+    def test_2020_12_prefix_items_is_accepted(self):
+        parsed = parse_jsonschema_definition(
+            json.dumps({"$schema": DRAFT202012_URI, "type": "array", "prefixItems": [{"type": "integer"}]})
+        )
+        assert type(parsed).__name__ == "Draft202012Validator"
+
+    def test_2020_12_defs_ref_is_accepted(self):
+        parsed = parse_jsonschema_definition(
+            json.dumps({"$schema": DRAFT202012_URI, "$defs": {"a": {"type": "string"}}, "$ref": "#/$defs/a"})
+        )
+        assert type(parsed).__name__ == "Draft202012Validator"
+
+    def test_2019_09_dependent_required_is_accepted(self):
+        parsed = parse_jsonschema_definition(
+            json.dumps({"$schema": DRAFT201909_URI, "type": "object", "dependentRequired": {"a": ["b"]}})
+        )
+        assert type(parsed).__name__ == "Draft201909Validator"
+
+    def test_invalid_schema_for_declared_draft_raises(self):
+        """A schema that is invalid for its declared draft must be rejected, not silently accepted."""
+        # `type` must be a string or array of strings; an integer is invalid in every draft.
+        with pytest.raises(InvalidSchema):
+            ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, json.dumps({"$schema": DRAFT202012_URI, "type": 123}))
+
+    @pytest.mark.parametrize("bad_schema_value", [123, ["x"], {"k": 1}])
+    def test_non_string_schema_keyword_raises_invalid_schema(self, bad_schema_value: Any):
+        """A non-string `$schema` must raise InvalidSchema, not an uncaught AttributeError."""
+        with pytest.raises(InvalidSchema):
+            ValidatedTypedSchema.parse(SchemaType.JSONSCHEMA, json.dumps({"$schema": bad_schema_value, "type": "object"}))
+
+    def test_no_network_fetch_on_parse(self, monkeypatch: pytest.MonkeyPatch):
+        """Parsing/validating any built-in draft must not trigger network I/O."""
+
+        def _no_connect(*args: Any, **kwargs: Any):
+            raise AssertionError("network access attempted during schema parse")
+
+        monkeypatch.setattr(socket.socket, "connect", _no_connect)
+        for uri in (DRAFT7_URI, DRAFT201909_URI, DRAFT202012_URI):
+            validator = parse_jsonschema_definition(
+                json.dumps({"$schema": uri, "type": "object", "properties": {"a": {"type": "string"}}})
+            )
+            # iter_errors exercises the validator against an instance without any remote fetch.
+            assert list(validator.iter_errors({"a": "x"})) == []
+
+    def test_stored_newer_draft_schema_loads_and_is_compatible_checkable(self):
+        """A previously stored 2020-12 schema must load and flow through compat without raising."""
+        schema_str = json.dumps(
+            {
+                "$schema": DRAFT202012_URI,
+                "type": "object",
+                "properties": {"a": {"type": "string"}},
+                "additionalProperties": True,
+            }
+        )
+        parsed = ParsedTypedSchema.parse(SchemaType.JSONSCHEMA, schema_str)
+        assert type(parsed.schema).__name__ == "Draft202012Validator"
+
+        result = SchemaCompatibility.check_compatibility(parsed, parsed, CompatibilityModes.BACKWARD)
+        assert result is not None

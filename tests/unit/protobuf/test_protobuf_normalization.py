@@ -1064,3 +1064,305 @@ def test_full_path_and_simple_names_are_not_equal_if_simple_name_is_not_unique_w
     assert (
         normalized_schema.schema == schema.schema
     ), "Since the simple name is not unique identifying the type isn't replacing the source"
+
+
+# ---------------------------------------------------------------------------
+# map<K,V> shorthand restoration on normalisation
+# ---------------------------------------------------------------------------
+
+# The explicit expanded form — as written in source text or as returned by
+# Karapace (patched) after binary registration without ?normalize=true.
+_MAP_ENTRY_EXPLICIT_PROTO = """\
+syntax = "proto3";
+
+message MapMessage {
+  repeated .MapMessage.LabelsEntry labels = 1;
+
+  message LabelsEntry {
+    option map_entry = true;
+
+    string key = 1;
+    string value = 2;
+  }
+}
+"""
+
+# Pre-compiled binary FileDescriptorProto produced by protoc from the map<string,string>
+# source above.  The binary does NOT contain map<> shorthand — protoc always compiles map<K,V>
+# to the expanded entry-message form: a repeated field plus a synthetic LabelsEntry nested
+# message with options { map_entry: true } (wire bytes 3a 02 38 01 at offset 98).
+_MAP_ENTRY_BIN = (
+    "ImQKCk1hcE1lc3NhZ2USJwoGbGFiZWxzGAEgAygLMhcuTWFwTWVzc2FnZS5MYWJlbHNFbnRyeRot"
+    "CgtMYWJlbHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBYgZwcm90bzM="
+)
+
+_MAP_SHORTHAND_NORMALISED = """\
+syntax = "proto3";
+
+message MapMessage {
+  map<string, string> labels = 1;
+}
+"""
+
+
+def test_normalize_converts_explicit_map_entry_to_map_shorthand() -> None:
+    """option map_entry = true in text source is converted to map<> shorthand on normalisation."""
+    result = parse_protobuf_schema_definition(
+        schema_definition=_MAP_ENTRY_EXPLICIT_PROTO,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
+    assert result.to_schema().strip() == _MAP_SHORTHAND_NORMALISED.strip()
+
+
+def test_normalize_converts_binary_map_field_to_map_shorthand() -> None:
+    """Binary-registered schema with map<string,string>: normalisation converts to map<> shorthand."""
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    pfe = deserialize(_MAP_ENTRY_BIN)
+    schema = ProtobufSchema("", None, None, proto_file_element=pfe)
+    result = normalize(schema)
+    assert result.to_schema().strip() == _MAP_SHORTHAND_NORMALISED.strip()
+
+
+def test_normalize_map_is_idempotent() -> None:
+    """Normalising a schema that already uses map<> shorthand syntax leaves it unchanged."""
+    shorthand_proto = 'syntax = "proto3";\n\nmessage MapMessage {\n  map<string, string> labels = 1;\n}\n'
+    result = parse_protobuf_schema_definition(
+        schema_definition=shorthand_proto,
+        references=None,
+        dependencies=None,
+        validate_references=True,
+        normalize=True,
+    )
+    assert result.to_schema().strip() == shorthand_proto.strip()
+
+
+# Binary FileDescriptorProto produced by google.protobuf.descriptor_pb2 from:
+#   syntax = "proto3";
+#   message Mixed {
+#     string name = 1;
+#     map<string, string> labels = 2;
+#     int32 count = 3;
+#   }
+# The binary contains the expanded entry-message form with options { map_entry: true }
+# at byte offset 117.  Used to verify that shorthand restoration preserves field order.
+_MIXED_FIELDS_BIN = (
+    "IncKBU1peGVkEgwKBG5hbWUYASABKAkSIgoGbGFiZWxzGAIgAygLMhIuTWl4ZWQuTGFiZWxzRW50"
+    "cnkSDQoFY291bnQYAyABKAUaLQoLTGFiZWxzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIg"
+    "ASgJOgI4AWIGcHJvdG8z"
+)
+
+
+def test_normalize_map_field_order_when_map_is_in_the_middle() -> None:
+    """map<> field between two regular fields keeps its position after shorthand restoration.
+
+    Input (binary, expanded form):
+      message Mixed {
+        string name = 1;
+        repeated .Mixed.LabelsEntry labels = 2;
+        int32 count = 3;
+        message LabelsEntry { option map_entry = true; string key = 1; string value = 2; }
+      }
+    Expected after normalize:
+      message Mixed {
+        string name = 1;
+        map<string, string> labels = 2;
+        int32 count = 3;
+      }
+    """
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    pfe = deserialize(_MIXED_FIELDS_BIN)
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<string, string>" in result, "map field not converted to shorthand"
+    assert "LabelsEntry" not in result, "synthetic entry message not suppressed"
+    assert result.index("name") < result.index("labels") < result.index("count"), f"field order wrong:\n{result}"
+
+
+def _make_binary(setup_fn) -> str:
+    """Build a base64 FileDescriptorProto by applying setup_fn to a blank message descriptor."""
+    import base64
+    import google.protobuf.descriptor_pb2 as pb2
+
+    fd = pb2.FileDescriptorProto()
+    fd.syntax = "proto3"
+    msg = fd.message_type.add()
+    setup_fn(msg)
+    return base64.b64encode(fd.SerializeToString()).decode()
+
+
+def test_normalize_malformed_entry_message_is_not_collapsed_and_not_removed() -> None:
+    """A map_entry message missing the value field must not be collapsed to map<>
+    and must not be removed from nested types (which would leave a dangling reference)."""
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    def setup(msg) -> None:
+        msg.name = "Msg"
+        entry = msg.nested_type.add()
+        entry.name = "LabelsEntry"
+        entry.options.map_entry = True
+        k = entry.field.add()
+        k.name = "key"
+        k.number = 1
+        k.label = 1
+        k.type = 9  # no value field
+        f = msg.field.add()
+        f.name = "labels"
+        f.number = 1
+        f.label = 3
+        f.type = 11
+        f.type_name = ".Msg.LabelsEntry"
+
+    pfe = deserialize(_make_binary(setup))
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<" not in result, "malformed entry should not be converted to map<>"
+    assert "LabelsEntry" in result, "malformed entry message must not be removed (would dangle)"
+
+
+def test_normalize_only_well_formed_entry_messages_are_collapsed() -> None:
+    """When a message has two map_entry nested messages and only one is well-formed,
+    only the well-formed entry is collapsed to map<> and removed; the other is kept."""
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    def setup(msg) -> None:
+        msg.name = "Msg"
+        good = msg.nested_type.add()
+        good.name = "GoodEntry"
+        good.options.map_entry = True
+        k1 = good.field.add()
+        k1.name = "key"
+        k1.number = 1
+        k1.label = 1
+        k1.type = 9
+        v1 = good.field.add()
+        v1.name = "value"
+        v1.number = 2
+        v1.label = 1
+        v1.type = 9
+        bad = msg.nested_type.add()
+        bad.name = "BadEntry"
+        bad.options.map_entry = True
+        k2 = bad.field.add()
+        k2.name = "key"
+        k2.number = 1
+        k2.label = 1
+        k2.type = 9  # no value
+        f1 = msg.field.add()
+        f1.name = "good"
+        f1.number = 1
+        f1.label = 3
+        f1.type = 11
+        f1.type_name = ".Msg.GoodEntry"
+        f2 = msg.field.add()
+        f2.name = "bad"
+        f2.number = 2
+        f2.label = 3
+        f2.type = 11
+        f2.type_name = ".Msg.BadEntry"
+
+    pfe = deserialize(_make_binary(setup))
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<string, string> good" in result, "well-formed entry should be collapsed to map<>"
+    assert "GoodEntry" not in result, "well-formed entry message should be suppressed"
+    assert "BadEntry" in result, "malformed entry message must not be removed"
+    assert "repeated" in result and "bad" in result, "malformed field should remain as repeated"
+
+
+def test_normalize_does_not_collapse_field_pointing_to_same_named_entry_in_sibling_message() -> None:
+    """A field pointing to a same-named entry message in a sibling nested message must not be
+    incorrectly collapsed.
+
+    Schema (binary):
+      message Outer {
+        repeated .Outer.Sibling.LabelsEntry other = 1;   <- points to Sibling.LabelsEntry, NOT the map entry
+        map<string, string> labels = 2;                  <- the real map field
+
+        message Sibling {
+          message LabelsEntry { string x = 1; }          <- NOT a map entry, different scope
+        }
+        message LabelsEntry {                            <- the real map entry (direct child of Outer)
+          option map_entry = true;
+          string key = 1;
+          string value = 2;
+        }
+      }
+
+    The 'other' field ends with '.LabelsEntry' but refers to Sibling.LabelsEntry, not the map
+    entry.  A suffix-only match incorrectly collapses it; the qualified-name match does not.
+    """
+    import base64
+    import google.protobuf.descriptor_pb2 as pb2
+    from karapace.core.protobuf.serialization import deserialize
+    from karapace.core.protobuf.schema import ProtobufSchema
+    from karapace.core.protobuf.proto_normalizations import normalize
+
+    fd = pb2.FileDescriptorProto()
+    fd.syntax = "proto3"
+    outer = fd.message_type.add()
+    outer.name = "Outer"
+
+    # Sibling message containing its own LabelsEntry (NOT a map entry)
+    sibling = outer.nested_type.add()
+    sibling.name = "Sibling"
+    sibling_entry = sibling.nested_type.add()
+    sibling_entry.name = "LabelsEntry"  # same simple name as the real map entry, different scope
+    sx = sibling_entry.field.add()
+    sx.name = "x"
+    sx.number = 1
+    sx.label = 1
+    sx.type = 9
+
+    # The real map entry as a direct child of Outer
+    map_entry = outer.nested_type.add()
+    map_entry.name = "LabelsEntry"
+    map_entry.options.map_entry = True
+    mk = map_entry.field.add()
+    mk.name = "key"
+    mk.number = 1
+    mk.label = 1
+    mk.type = 9
+    mv = map_entry.field.add()
+    mv.name = "value"
+    mv.number = 2
+    mv.label = 1
+    mv.type = 9
+
+    # Field pointing to Sibling.LabelsEntry (should NOT be collapsed)
+    f_other = outer.field.add()
+    f_other.name = "other"
+    f_other.number = 1
+    f_other.label = 3  # LABEL_REPEATED
+    f_other.type = 11
+    f_other.type_name = ".Outer.Sibling.LabelsEntry"
+
+    # Field pointing to the real map entry (SHOULD be collapsed)
+    f_labels = outer.field.add()
+    f_labels.name = "labels"
+    f_labels.number = 2
+    f_labels.label = 3  # LABEL_REPEATED
+    f_labels.type = 11
+    f_labels.type_name = ".Outer.LabelsEntry"
+
+    b64 = base64.b64encode(fd.SerializeToString()).decode()
+    pfe = deserialize(b64)
+    result = normalize(ProtobufSchema("", None, None, proto_file_element=pfe)).to_schema()
+
+    assert "map<string, string> labels" in result, "map field should be collapsed to map<>"
+    assert (
+        "repeated" in result and "other" in result
+    ), "'other' field must remain as repeated (points to sibling, not map entry)"
+    assert "Sibling" in result, "Sibling message must not be removed"

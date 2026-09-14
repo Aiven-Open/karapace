@@ -194,6 +194,18 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
+    def position(self, partitions: list[TopicPartition]) -> list[TopicPartition]:
+        """Consumer fetch position for the given partitions.
+
+        The position advances past records the consumer never delivers to the
+        application (transaction control records, aborted transactional
+        messages), unlike an app-tracked message offset.
+        """
+        try:
+            return super().position(partitions)
+        except KafkaException as exc:
+            raise_from_kafkaexception(exc)
+
 
 T = TypeVar("T")
 

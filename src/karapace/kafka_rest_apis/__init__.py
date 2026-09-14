@@ -33,6 +33,7 @@ from karapace.core.serialization import (
     InvalidPayload,
     SchemaRegistrySerializer,
     SchemaRetrievalError,
+    sr_authorization_ctx,
 )
 from karapace.core.typing import NameStrategy, SchemaId, Subject, SubjectType
 from karapace.core.utils import json_encode
@@ -462,6 +463,30 @@ class _ClusterMetadata(TypedDict):
     brokers: list[int]
 
 
+def _raise_for_registry_auth_error(error: SchemaRetrievalError, content_type: str) -> None:
+    """If the Schema Registry rejected the credentials/token, surface a precise 401/403
+    instead of the generic schema-retrieval error. No-op for non-auth failures."""
+    if error.status_code == HTTPStatus.UNAUTHORIZED:
+        KafkaRest.r(
+            body={
+                "error_code": RESTErrorCodes.HTTP_UNAUTHORIZED.value,
+                "message": "Schema registry authentication failed; check the forwarded credentials "
+                "or the configured registry_user/registry_password.",
+            },
+            content_type=content_type,
+            status=HTTPStatus.UNAUTHORIZED,
+        )
+    if error.status_code == HTTPStatus.FORBIDDEN:
+        KafkaRest.r(
+            body={
+                "error_code": RESTErrorCodes.HTTP_FORBIDDEN.value,
+                "message": "Schema registry authorization failed for the schema operation.",
+            },
+            content_type=content_type,
+            status=HTTPStatus.FORBIDDEN,
+        )
+
+
 class UserRestProxy:
     def __init__(
         self,
@@ -641,6 +666,8 @@ class UserRestProxy:
         )
 
     async def fetch(self, group_name: str, instance: str, content_type: str, *, request: HTTPRequest) -> None:
+        if self.config.sasl_oauthbearer_authentication_enabled:
+            sr_authorization_ctx.set(request.headers.get("Authorization"))
         await self.consumer_manager.fetch(
             internal_name=ConsumerManager.create_internal_name(group_name, instance),
             content_type=content_type,
@@ -798,6 +825,9 @@ class UserRestProxy:
         """
         formats: dict = request.content_type
         data: dict = request.json
+        # Forward inbound Authorization to SR only when SR-side OIDC is on.
+        if self.config.sasl_oauthbearer_authentication_enabled:
+            sr_authorization_ctx.set(request.headers.get("Authorization"))
         _ = await self.get_topic_info(topic, content_type)
         if partition_id is not None:
             _ = await self.get_partition_info(topic, partition_id, content_type)
@@ -836,6 +866,7 @@ class UserRestProxy:
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
             )
         except SchemaRetrievalError as e:
+            _raise_for_registry_auth_error(e, content_type)
             KafkaRest.r(
                 body={"error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value, "message": str(e)},
                 content_type=content_type,
@@ -953,6 +984,9 @@ class UserRestProxy:
         try:
             return await self.serializer.get_schema_for_id(schema_id, need_new_call=need_new_call)
         except SchemaRetrievalError as schema_error:
+            # An auth failure must surface as 401/403, not be masked as an invalid schema.
+            if schema_error.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                raise
             # if the schema doesn't exist we treated as if the error was due to an invalid schema
             raise InvalidSchema() from schema_error
 
@@ -1011,7 +1045,8 @@ class UserRestProxy:
                 content_type=content_type,
                 status=HTTPStatus.BAD_REQUEST,
             )
-        except SchemaRetrievalError:
+        except SchemaRetrievalError as e:
+            _raise_for_registry_auth_error(e, content_type)
             KafkaRest.r(
                 body={
                     "error_code": RESTErrorCodes.SCHEMA_RETRIEVAL_ERROR.value,
@@ -1051,7 +1086,8 @@ class UserRestProxy:
             if key is not None:
                 key = await self.serialize(content_type, key, ser_format, key_schema_id)
             value = await self.serialize(content_type, value, ser_format, value_schema_id)
-            prepared_records.append((key, value, record.get("partition", default_partition)))
+            headers = self._decode_record_headers(record)
+            prepared_records.append((key, value, record.get("partition", default_partition), headers))
         return prepared_records
 
     async def get_partition_info(self, topic: str, partition: str, content_type: str) -> dict:
@@ -1155,12 +1191,13 @@ class UserRestProxy:
                     status=HTTPStatus.BAD_REQUEST,
                 )
             convert_to_int(r, "partition", content_type)
-            if set(r.keys()).difference({subject_type.value for subject_type in SubjectType}):
+            if set(r.keys()).difference({*(subject_type.value for subject_type in SubjectType), "headers"}):
                 KafkaRest.unprocessable_entity(
                     message="Invalid request format",
                     content_type=content_type,
                     sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
                 )
+            self.validate_record_headers(r, content_type)
         # disallow missing id and schema for any key/value list that has at least one populated element
         if formats["embedded_format"] in {"avro", "jsonschema", "protobuf"}:
             for subject_type, code in zip(SUBJECT_VALID_POSTFIX, RECORD_CODES):
@@ -1182,6 +1219,51 @@ class UserRestProxy:
                         sub_code=RESTErrorCodes.INVALID_DATA.value,
                     )
 
+    @staticmethod
+    def validate_record_headers(record: dict, content_type: str) -> None:
+        # Optional per-record `headers`: a list of {"name": str, "value": base64-str|null} objects.
+        headers = record.get("headers")
+        if headers is None:
+            return
+        if not isinstance(headers, list):
+            KafkaRest.unprocessable_entity(
+                message="'headers' must be an array",
+                content_type=content_type,
+                sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+            )
+        for header in headers:
+            valid = (
+                isinstance(header, dict)
+                and not set(header.keys()).difference({"name", "value"})
+                and isinstance(header.get("name"), str)
+                and (header.get("value") is None or isinstance(header.get("value"), str))
+            )
+            if not valid:
+                KafkaRest.unprocessable_entity(
+                    message="Each header must be an object with a string 'name' and an optional base64 string 'value'",
+                    content_type=content_type,
+                    sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                )
+            value = header.get("value")
+            if value is not None:
+                try:
+                    base64.b64decode(value, validate=True)
+                except (B64DecodeError, ValueError):
+                    KafkaRest.unprocessable_entity(
+                        message="header 'value' must be a base64-encoded string",
+                        content_type=content_type,
+                        sub_code=RESTErrorCodes.HTTP_UNPROCESSABLE_ENTITY.value,
+                    )
+
+    @staticmethod
+    def _decode_record_headers(record: dict) -> list[tuple[str, bytes | None]] | None:
+        # Returns None when no headers so the produce call stays identical to a headerless request.
+        # Values are already validated as base64 in validate_record_headers.
+        headers = record.get("headers")
+        if not headers:
+            return None
+        return [(h["name"], base64.b64decode(h["value"]) if h.get("value") is not None else None) for h in headers]
+
     async def produce_messages(self, *, topic: str, prepared_records: list) -> list:
         """
         :raises NoBrokersAvailable:
@@ -1190,10 +1272,10 @@ class UserRestProxy:
         producer = await self._maybe_create_async_producer()
 
         produce_futures = []
-        for key, value, partition in prepared_records:
+        for key, value, partition, headers in prepared_records:
             # Cancelling the returned future **will not** stop event from being sent, but cancelling
             # the ``send`` coroutine itself **will**.
-            coroutine = producer.send(topic, key=key, value=value, partition=partition)
+            coroutine = producer.send(topic, key=key, value=value, partition=partition, headers=headers)
 
             # Schedule the co-routine, it will be cancelled if is not complete in
             # `kafka_timeout` seconds.

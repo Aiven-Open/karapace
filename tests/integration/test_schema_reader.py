@@ -10,6 +10,7 @@ from unittest.mock import Mock
 from karapace.core.stats import StatsClient
 
 import pytest
+from confluent_kafka import Producer
 
 from karapace.core.config import Config
 from karapace.core.constants import DEFAULT_SCHEMA_TOPIC
@@ -287,6 +288,101 @@ async def test_schema_reader_skips_empty_message_and_advances_offset(
 
             # Ensure we actually advanced past the empty offset
             assert schema_reader.offset >= empty_offset
+    finally:
+        await master_coordinator.close()
+
+
+async def test_schema_reader_becomes_ready_with_trailing_transaction_control_record(
+    kafka_servers: KafkaServers,
+    producer: KafkaProducer,
+    admin_client: KafkaAdminClient,
+) -> None:
+    """A committed transaction leaves a control record as the topic tail.
+
+    The control record is never delivered to the consumer, so the app-tracked
+    offset stalls one short of the watermark. The reader must still catch up
+    (via the consumer fetch position) and become ready.
+    """
+    test_name = "test_schema_reader_becomes_ready_with_trailing_transaction_control_record"
+    topic_name = new_topic(admin_client)
+    group_id = create_group_name_factory(test_name)()
+    stats_mock = Mock(spec=StatsClient)
+
+    # A normal schema record first.
+    key = {"subject": "trx-subject", "version": 1, "magic": 1, "keytype": "SCHEMA"}
+    value = {
+        "deleted": False,
+        "id": 1,
+        "subject": "trx-subject",
+        "version": 1,
+        "schema": json_encode(TRUE_SCHEMA.schema),
+    }
+    producer.send(topic_name, key=json_encode(key, binary=True), value=json_encode(value, binary=True))
+    producer.flush()
+
+    # A committed transactional record: this writes a data record followed by a
+    # commit control record, so the last offset in the topic is a control record.
+    transactional_producer = Producer(
+        {
+            "bootstrap.servers": kafka_servers.bootstrap_servers[0],
+            "transactional.id": new_random_name("karapace-txn"),
+        }
+    )
+    transactional_producer.init_transactions()
+    transactional_producer.begin_transaction()
+    txn_key = {"subject": "trx-subject", "version": 2, "magic": 1, "keytype": "SCHEMA"}
+    txn_value = {
+        "deleted": False,
+        "id": 2,
+        "subject": "trx-subject",
+        "version": 2,
+        "schema": json_encode(FALSE_SCHEMA.schema),
+    }
+    transactional_producer.produce(
+        topic_name,
+        key=json_encode(txn_key, binary=True),
+        value=json_encode(txn_value, binary=True),
+    )
+    transactional_producer.commit_transaction()
+    transactional_producer.flush()
+
+    config = Config()
+    config.bootstrap_uri = kafka_servers.bootstrap_servers[0]
+    config.admin_metadata_max_age = 2
+    config.group_id = group_id
+    config.topic_name = topic_name
+
+    master_coordinator = MasterCoordinator(config=config)
+    master_coordinator.set_stoppper(AlwaysAvailableSchemaReaderStoppper())
+    try:
+        master_coordinator.start()
+        database = InMemoryDatabase()
+        offset_watcher = OffsetWatcher()
+        schema_reader = KafkaSchemaReader(
+            config=config,
+            offset_watcher=offset_watcher,
+            key_formatter=KeyFormatter(),
+            master_coordinator=master_coordinator,
+            database=database,
+            stats=stats_mock,
+        )
+        schema_reader.start()
+
+        with closing(schema_reader):
+            # Without the fix the reader never becomes ready because the trailing
+            # control record is never delivered, so this would time out.
+            await asyncio.wait_for(
+                _wait_until_reader_is_ready_and_master(master_coordinator, schema_reader),
+                timeout=15,
+            )
+
+            # Both real records were consumed.
+            schemas = database.find_subject_schemas(subject=Subject("trx-subject"), include_deleted=True)
+            assert len(schemas) == 2
+            # The reader became ready even though its delivered offset never
+            # reached the high watermark: the gap is the trailing control record,
+            # which is the exact condition the fix handles.
+            assert schema_reader.offset < schema_reader._highest_offset
     finally:
         await master_coordinator.close()
 

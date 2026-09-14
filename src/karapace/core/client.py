@@ -82,9 +82,22 @@ class Client:
 
     async def get_client(self) -> ClientSession:
         if self._client is None:
-            self._client = await self.client_factory(auth=self.session_auth)
+            # No session-level auth: aiohttp refuses to combine a session default auth with a
+            # per-request Authorization header, which breaks forwarding a caller's bearer/basic
+            # header to SR. session_auth is applied per-request instead (see _resolve_auth).
+            self._client = await self.client_factory(auth=None)
 
         return self._client
+
+    def _resolve_auth(self, headers: Headers | None, auth: BasicAuth | None) -> BasicAuth | None:
+        # A caller-supplied auth wins. If the request already carries an Authorization header
+        # (a forwarded bearer/basic), don't also attach session_auth — aiohttp won't combine
+        # them. Otherwise fall back to the configured session_auth.
+        if auth is not None:
+            return auth
+        if headers and any(key.lower() == "authorization" for key in headers):
+            return None
+        return self.session_auth
 
     async def get(
         self,
@@ -98,6 +111,7 @@ class Client:
         path = self.path_for(path)
         if not headers:
             headers = {}
+        auth = self._resolve_auth(headers, auth)
         client = await self.get_client()
         async with client.get(
             path,
@@ -121,6 +135,7 @@ class Client:
         path = self.path_for(path)
         if not headers:
             headers = {}
+        auth = self._resolve_auth(headers, auth)
         client = await self.get_client()
         async with client.delete(
             path,
@@ -144,6 +159,7 @@ class Client:
         if not headers:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
+        auth = self._resolve_auth(headers, auth)
         client = await self.get_client()
         async with client.post(
             path,
@@ -167,6 +183,7 @@ class Client:
         if not headers:
             headers = {"Content-Type": "application/vnd.schemaregistry.v1+json"}
 
+        auth = self._resolve_auth(headers, auth)
         client = await self.get_client()
         async with client.put(
             path,
@@ -186,6 +203,7 @@ class Client:
         auth: BasicAuth | None = None,
     ) -> Result:
         path = self.path_for(path)
+        auth = self._resolve_auth(headers, auth)
         client = await self.get_client()
         async with client.put(
             path,

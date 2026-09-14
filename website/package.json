@@ -1,9 +1,88 @@
 {
+  "name": "karapace-docs",
+  "version": "1.0.0",
+  "private": true,
   "scripts": {
-    "tailwind:build": "tailwindcss -i source/_static/css/aiven.css -o source/_static/css/aiven.min.css --minify",
-    "tailwind:watch": "tailwindcss -i source/_static/css/aiven.css -o source/_static/css/aiven.min.css --watch --minify"
+    "prepare": "git config --local core.hooksPath .githooks/",
+    "docusaurus": "docusaurus",
+    "start": "docusaurus start",
+    "build": "docusaurus build",
+    "swizzle": "docusaurus swizzle",
+    "deploy": "docusaurus deploy",
+    "clear": "docusaurus clear",
+    "serve": "docusaurus serve",
+    "write-translations": "docusaurus write-translations",
+    "write-heading-ids": "docusaurus write-heading-ids",
+    "lint:code": "eslint . && prettier --check .",
+    "lint:markdown": "markdownlint \"**/*.md\" --ignore '**/node_modules/**' --ignore '**/.vale/**'",
+    "lint": "pnpm lint:code && pnpm lint:markdown",
+    "reformat:code": "eslint . --fix && prettier --write .",
+    "reformat:markdown": "markdownlint \"**/*.md\" --ignore node_modules --ignore '**/.vale/**' --fix",
+    "reformat": "pnpm reformat:code && pnpm reformat:markdown",
+    "markdown-link-check": "bash scripts/markdown-link-check-script/markdown-link-check.sh \"$@\"",
+    "lint-staged": "lint-staged",
+    "spell:error": "vale --glob='!.vale/styles/*' . --minAlertLevel=error --config=.vale.ini",
+    "spell:warn": "vale --glob='!.vale/styles/*' . --minAlertLevel=warning --config=.vale.ini",
+    "spell:all": "vale --glob='!.vale/styles/*' . --minAlertLevel=suggestion --config=.vale.ini"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,json}": [
+      "prettier --check .",
+      "eslint ."
+    ],
+    "**/*.css": [
+      "prettier --check ."
+    ],
+    "**/*.md": [
+      "markdownlint \"**/*.md\" --ignore '**/node_modules/**' --ignore '**/.vale/**'",
+      "prettier --check ."
+    ]
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "^0.55.2",
+    "@mdx-js/react": "^3.1.0",
+    "@snowplow/browser-tracker": "^4.6.5",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "tailwindcss": "3.1.8"
+    "@docusaurus/eslint-plugin": "^3.10.2",
+    "@docusaurus/module-type-aliases": "3.10.2",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-json": "^4.0.1",
+    "eslint-plugin-react": "^7.37.5",
+    "lint-staged": "^16.1.2",
+    "markdown-link-check": "^3.13.7",
+    "markdownlint": "^0.38.0",
+    "markdownlint-cli": "^0.45.0",
+    "prettier": "^3.6.2",
+    "prop-types": "^15.8.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "engineStrict": true,
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0 <10.0.0"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "core-js"
+    ]
   }
 }

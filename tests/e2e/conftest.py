@@ -137,31 +137,79 @@ def fixture_new_topic(admin_client: KafkaAdminClient) -> NewTopic:
     return admin_client.new_topic(topic_name, num_partitions=1, replication_factor=1)
 
 
-@pytest.fixture(scope="session")
-def oidc_token():
-    # --- Step 1: Get admin token ---
-    admin_token = get_admin_token()
+def _keycloak_client_credentials_token(client_id: str, *, client_secret: str | None = None) -> str:
+    """Mint a client-credentials token from Keycloak, honoring OIDC_* env overrides.
 
-    # --- Step 2: Get client UUID ---
-    realm = "karapace"
-    client_id = "karapace-client"
-    client_uuid = get_client_uuid(realm, client_id, admin_token)
+    The secret is fetched at runtime via the Keycloak admin API when not supplied
+    (or via OIDC_CLIENT_SECRET) — never hardcoded.
+    """
+    realm = os.environ.get("OIDC_REALM", "karapace")
+    scope = os.environ.get("OIDC_SCOPE", "openid")
+    if client_secret is None:
+        admin_token = get_admin_token()
+        client_uuid = get_client_uuid(realm, client_id, admin_token)
+        client_secret = get_client_secret(realm, client_uuid, admin_token)
+    token_url = os.environ.get("OIDC_TOKEN_URL") or f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
 
-    # --- Step 3: Get client secret ---
-    client_secret = get_client_secret(realm, client_uuid, admin_token)
-
-    # --- Step 4: Get OIDC token for the client ---
-    token_url = f"http://keycloak:8080/realms/{realm}/protocol/openid-connect/token"
-    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": "openid"}
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": scope}
     response = requests.post(token_url, data=data)
     response.raise_for_status()
     return response.json()["access_token"]
 
 
+@pytest.fixture(scope="session")
+def oidc_token():
+    provider = os.environ.get("OIDC_PROVIDER", "keycloak").strip().lower()
+    known_providers = ("keycloak", "pingfederate", "entra")
+    if provider not in known_providers:
+        raise ValueError(f"Unknown OIDC_PROVIDER={provider!r}; expected one of {', '.join(known_providers)}")
+    client_id = os.environ.get("OIDC_CLIENT_ID", "karapace-client")
+
+    if provider == "keycloak":
+        return _keycloak_client_credentials_token(client_id, client_secret=os.environ.get("OIDC_CLIENT_SECRET"))
+
+    token_url = os.environ.get("OIDC_TOKEN_URL")
+    client_secret = os.environ.get("OIDC_CLIENT_SECRET")
+    if not token_url or not client_secret:
+        # Fail loudly rather than skip: a silent skip lets a misconfigured pipeline pass green.
+        pytest.fail(f"OIDC_PROVIDER={provider} requires OIDC_TOKEN_URL and OIDC_CLIENT_SECRET to be set")
+    verify_tls = os.environ.get("OIDC_VERIFY_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
+
+    scope = os.environ.get("OIDC_SCOPE", "openid")
+    data = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret, "scope": scope}
+    response = requests.post(token_url, data=data, verify=verify_tls)
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+
+@pytest.fixture(scope="function", name="oidc_token_schema_read_write")
+def oidc_token_schema_read_write():
+    """Token whose only roles are schema:read + schema:write (under
+    resource_access.karapace-client.roles) — so GET/POST are allowed but PUT/DELETE
+    are denied by RBAC. Named for its roles so the limitation is obvious at call sites.
+
+    Keycloak-only — the reduced-role client exists solely in the local realm. Honors
+    OIDC_REALM / OIDC_TOKEN_URL / OIDC_SCOPE; client id overridable via OIDC_LIMITED_CLIENT_ID.
+    """
+    client_id = os.environ.get("OIDC_LIMITED_CLIENT_ID", "karapace-client-limited")
+    return _keycloak_client_credentials_token(client_id)
+
+
+# Full OIDC (authn + authz) SR — karapace-schema-registry-oidc, profile: e2e.
+
+
+@pytest.fixture(scope="function", name="registry_oidc_cluster")
+async def fixture_registry_oidc_cluster(
+    loop: asyncio.AbstractEventLoop,
+) -> RegistryDescription:
+    endpoint = RegistryEndpoint("https", "karapace-schema-registry-oidc", 8091)
+    return RegistryDescription(endpoint, "_schemas_oidc")
+
+
 @pytest.fixture(scope="function", name="registry_async_client_oidc")
 async def fixture_registry_async_client_oidc(
     request: SubRequest,
-    registry_cluster: RegistryDescription,
+    registry_oidc_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
     oidc_token,
 ) -> AsyncGenerator[Client, None]:
@@ -169,7 +217,32 @@ async def fixture_registry_async_client_oidc(
         return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
 
     client = Client(
-        server_uri=registry_cluster.endpoint.to_url(),
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
+        server_ca=request.config.getoption("server_ca"),
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_limited")
+async def fixture_registry_async_client_oidc_limited(
+    request: SubRequest,
+    registry_oidc_cluster: RegistryDescription,
+    loop: asyncio.AbstractEventLoop,
+    oidc_token_schema_read_write,
+) -> AsyncGenerator[Client, None]:
+    """Client to the authz-enabled SR using the schema:read+write-only token — used to
+    assert RBAC 403 on PUT/DELETE."""
+
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token_schema_read_write}"})
+
+    client = Client(
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
@@ -183,7 +256,7 @@ async def fixture_registry_async_client_oidc(
 @pytest.fixture(scope="function", name="registry_async_client_oidc_invalid")
 async def fixture_registry_async_client_oidc_invalid(
     request: SubRequest,
-    registry_cluster: RegistryDescription,
+    registry_oidc_cluster: RegistryDescription,
     loop: asyncio.AbstractEventLoop,
     oidc_token,
 ) -> AsyncGenerator[Client, None]:
@@ -191,7 +264,7 @@ async def fixture_registry_async_client_oidc_invalid(
         return ClientSession(headers={"Authorization": "Bearer invalid_token"})
 
     client = Client(
-        server_uri=registry_cluster.endpoint.to_url(),
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
@@ -205,13 +278,13 @@ async def fixture_registry_async_client_oidc_invalid(
 @pytest.fixture(scope="function", name="registry_async_client_oidc_no_auth_header")
 async def registry_async_client_oidc_no_auth_header(
     request: SubRequest,
-    registry_cluster: RegistryDescription,
+    registry_oidc_cluster: RegistryDescription,
 ) -> AsyncGenerator[Client, None]:
     async def factory(auth):
         return ClientSession(headers={})
 
     client = Client(
-        server_uri=registry_cluster.endpoint.to_url(),
+        server_uri=registry_oidc_cluster.endpoint.to_url(),
         server_ca=request.config.getoption("server_ca"),
         client_factory=factory,
         session_auth=None,
@@ -222,11 +295,7 @@ async def registry_async_client_oidc_no_auth_header(
         await client.close()
 
 
-# ---------------------------------------------------------------------------
-# AuthN-only registry fixtures: a separate Schema Registry instance that has
-# sasl_oauthbearer_authentication_enabled=true and authorization_enabled=false.
-# Defined as karapace-schema-registry-authn-only in container/compose.yml.
-# ---------------------------------------------------------------------------
+# OIDC SR with authentication only (karapace-schema-registry-authn-only, profile: e2e).
 
 
 @pytest.fixture(scope="function", name="registry_authn_only_cluster")
@@ -294,6 +363,186 @@ async def fixture_registry_async_client_oidc_authn_only_no_auth_header(
         client_factory=factory,
         session_auth=None,
     )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# REST Proxy fixtures for OIDC forwarding tests (compose profile: e2e).
+# -oidc has the gate ON; -no-forward has it OFF; both target the authn-only SR.
+
+
+_OIDC_PROXY_URI = "http://karapace-rest-proxy-oidc:8382"
+_OIDC_WITH_CREDS_PROXY_URI = "http://karapace-rest-proxy-oidc-with-creds:8582"
+_OIDC_BASIC_FWD_PROXY_URI = "http://karapace-rest-proxy-oidc-basic:8782"
+_NO_FORWARD_PROXY_URI = "http://karapace-rest-proxy-no-forward:8482"
+
+
+def _make_proxy_client(server_uri: str, token: str | None) -> Client:
+    factory_headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
+
+    async def factory(auth):
+        return ClientSession(headers=factory_headers)
+
+    return Client(
+        server_uri=server_uri,
+        client_factory=factory,
+        session_auth=None,
+    )
+
+
+def _make_basic_proxy_client(server_uri: str, login: str, password: str) -> Client:
+    """Proxy client that sends a client-supplied Basic Authorization header (forwarded to SR)."""
+    factory_headers = {"Authorization": BasicAuth(login, password).encode()}
+
+    async def factory(auth):
+        return ClientSession(headers=factory_headers)
+
+    return Client(
+        server_uri=server_uri,
+        client_factory=factory,
+        session_auth=None,
+    )
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy")
+async def fixture_rest_async_client_oidc_proxy(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    client = _make_proxy_client(_OIDC_PROXY_URI, oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_with_creds")
+async def fixture_rest_async_client_oidc_proxy_with_creds(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    """Valid Bearer aimed at a proxy that also has registry_user/password configured —
+    the forwarded token must win over the basic credentials (no aiohttp collision)."""
+    client = _make_proxy_client(_OIDC_WITH_CREDS_PROXY_URI, oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_basic_fwd_proxy")
+async def fixture_rest_async_client_oidc_basic_fwd_proxy(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    """Client sending Basic admin:admin to a proxy (gate ON, invalid fallback creds) that
+    fronts the OIDC+authfile SR. The forwarded Basic header must be used, not the fallback."""
+    client = _make_basic_proxy_client(_OIDC_BASIC_FWD_PROXY_URI, "admin", "admin")
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_invalid")
+async def fixture_rest_async_client_oidc_proxy_invalid(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    client = _make_proxy_client(_OIDC_PROXY_URI, "invalid_token")
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_no_auth_header")
+async def fixture_rest_async_client_oidc_proxy_no_auth_header(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    client = _make_proxy_client(_OIDC_PROXY_URI, None)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="rest_async_client_oidc_proxy_no_forward")
+async def fixture_rest_async_client_oidc_proxy_no_forward(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    """Valid Bearer aimed at a proxy with the gate OFF — proxy must not relay it."""
+    client = _make_proxy_client(_NO_FORWARD_PROXY_URI, oidc_token)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# Basic-auth SR + Basic proxy + gate OFF — issue #1274 baseline.
+
+
+@pytest.fixture(scope="function", name="rest_async_client_basic_proxy")
+async def fixture_rest_async_client_basic_proxy(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    async def factory(auth):
+        return ClientSession(headers={})
+
+    client = Client(
+        server_uri="http://karapace-rest-proxy-basic:8682",
+        client_factory=factory,
+        session_auth=None,
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_basic")
+async def fixture_registry_async_client_basic(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    """Direct client to the Basic-auth SR (used to wait for primary election)."""
+    client = Client(
+        server_uri="http://karapace-schema-registry-basic:8581",
+        session_auth=BasicAuth("admin", "admin"),
+    )
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+# OIDC authentication + file-based basic auth on one SR (scheme dispatch). Compose profile: e2e.
+_OIDC_BASIC_URI = "http://karapace-schema-registry-oidc-basic:8681"
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_basic_bearer")
+async def fixture_registry_async_client_oidc_basic_bearer(
+    loop: asyncio.AbstractEventLoop,
+    oidc_token,
+) -> AsyncGenerator[Client, None]:
+    """Bearer client to the OIDC+basic SR (dispatches to the OIDC path)."""
+
+    async def factory(auth):
+        return ClientSession(headers={"Authorization": f"Bearer {oidc_token}"})
+
+    client = Client(server_uri=_OIDC_BASIC_URI, client_factory=factory, session_auth=None)
+    try:
+        yield client
+    finally:
+        await client.close()
+
+
+@pytest.fixture(scope="function", name="registry_async_client_oidc_basic")
+async def fixture_registry_async_client_oidc_basic(
+    loop: asyncio.AbstractEventLoop,
+) -> AsyncGenerator[Client, None]:
+    """Plain client to the OIDC+basic SR; pass per-request auth=BasicAuth(...) for the Basic path."""
+    client = Client(server_uri=_OIDC_BASIC_URI, session_auth=None)
     try:
         yield client
     finally:

@@ -68,3 +68,15 @@ def unauthorized() -> HTTPException:
         status_code=status.HTTP_403_FORBIDDEN,
         detail={"message": "Forbidden"},
     )
+
+
+def subject_not_found(subject: str) -> HTTPException:
+    # Body must match the genuine SubjectNotFoundException 404 so authZ denials
+    # cannot be distinguished from missing subjects.
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+            "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+        },
+    )

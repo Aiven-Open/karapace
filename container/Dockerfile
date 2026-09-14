@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Karapace image, i.e. production.
 FROM builder AS karapace
 # Install protobuf compiler.
-ARG PROTOBUF_COMPILER_VERSION="3.21.12-3"
+ARG PROTOBUF_COMPILER_VERSION="3.21.12-3+deb12u1"
 RUN apt-get update \
  && apt-get install --assume-yes --no-install-recommends \
     protobuf-compiler=$PROTOBUF_COMPILER_VERSION \

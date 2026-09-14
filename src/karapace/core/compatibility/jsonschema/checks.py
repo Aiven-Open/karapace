@@ -8,7 +8,6 @@ from __future__ import annotations
 from avro.compatibility import merge, SchemaCompatibilityResult, SchemaCompatibilityType, SchemaIncompatibilityType
 from dataclasses import dataclass
 from itertools import product
-from jsonschema import Draft7Validator
 from karapace.core.compatibility.jsonschema.types import (
     AssertionCheck,
     BooleanSchema,
@@ -35,6 +34,7 @@ from karapace.core.compatibility.jsonschema.utils import (
     normalize_schema,
     schema_from_partially_open_content_model,
 )
+from karapace.core.typing import JsonSchemaValidator
 from typing import Any
 
 import networkx as nx
@@ -218,7 +218,7 @@ def is_compatible(result: SchemaCompatibilityResult) -> bool:
     return result.compatibility is SchemaCompatibilityType.compatible
 
 
-def compatibility(reader: Draft7Validator, writer: Draft7Validator) -> SchemaCompatibilityResult:
+def compatibility(reader: JsonSchemaValidator, writer: JsonSchemaValidator) -> SchemaCompatibilityResult:
     """Checks that `reader` can read values produced by `writer`."""
     assert reader is not None
     assert writer is not None

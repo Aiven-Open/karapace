@@ -1,0 +1,9 @@
+build
+.docusaurus
+node_modules
+venv
+.vale/styles
+_redirects
+current-routes.json
+pnpm-lock.yaml
+package-lock.json

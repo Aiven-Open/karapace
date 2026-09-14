@@ -11,11 +11,16 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Literal
 
-from karapace.core.constants import DEFAULT_AIOHTTP_CLIENT_MAX_SIZE, DEFAULT_PRODUCER_MAX_REQUEST, DEFAULT_SCHEMA_TOPIC
+from karapace.core.constants import (
+    DEFAULT_AIOHTTP_CLIENT_MAX_SIZE,
+    DEFAULT_OIDC_METHOD_ROLES,
+    DEFAULT_PRODUCER_MAX_REQUEST,
+    DEFAULT_SCHEMA_TOPIC,
+)
 from karapace.core.typing import ElectionStrategy, NameStrategy
 from karapace.core.utils import json_encode
 from pathlib import Path
-from pydantic import BaseModel, ImportString, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, Field, ImportString, PrivateAttr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 import enum
@@ -133,7 +138,7 @@ class Config(BaseSettings):
     ssl_crlfile: str | None = None
     ssl_password: str | None = None
     sasl_mechanism: str | None = None
-    # OIDC for Schema Registry (OIDCMiddleware). authZ requires authN.
+    # OIDC for Schema Registry (OIDCTokenValidator). authZ requires authN.
     sasl_oauthbearer_authentication_enabled: bool = False
     sasl_oauthbearer_authorization_enabled: bool = False
     sasl_oauthbearer_jwks_endpoint_url: str | None = None
@@ -143,10 +148,17 @@ class Config(BaseSettings):
     sasl_oauthbearer_expected_issuer: str | None = None
     sasl_oauthbearer_expected_audience: str | None = None
     sasl_oauthbearer_sub_claim_name: str | None = "sub"
-    sasl_oauthbearer_client_id: str | None = None
     sasl_oauthbearer_roles_claim_path: str | None = None
-    sasl_oauthbearer_method_roles: dict[str, list[str]] = {"GET": [], "POST": [], "PUT": [], "DELETE": []}
-    sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics"]
+    sasl_oauthbearer_method_roles: dict[str, list[str]] = Field(
+        default_factory=lambda: {method: list(roles) for method, roles in DEFAULT_OIDC_METHOD_ROLES.items()}
+    )
+    sasl_oauthbearer_skip_auth_paths: list[str] = ["/_health", "/metrics", "/master_available"]
+    # Clock-skew tolerance for exp/nbf/iat (seconds). 0 preserves prior strict behavior.
+    sasl_oauthbearer_leeway_seconds: int = Field(default=0, ge=0)
+    # Require header `typ: at+jwt` on access tokens.
+    sasl_oauthbearer_require_access_token_typ: bool = False
+    # LRU cap on (subject, version, token_fingerprint) in the SR client. Raise for multi-tenant.
+    schema_registry_client_cache_maxsize: int = 100
     # Kafka SASL client credentials (used by both services; selected by sasl_mechanism).
     sasl_plain_username: str | None = None
     sasl_plain_password: str | None = None

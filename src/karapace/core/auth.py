@@ -65,12 +65,21 @@ def hash_password(algorithm: HashAlgorithm, salt: str, plaintext_password: str) 
 @dataclass
 class User:
     username: str
-    algorithm: HashAlgorithm
-    salt: str
-    password_hash: str = field(repr=False)
+    # Credentials are absent for externally-authenticated users (e.g. OIDC).
+    algorithm: HashAlgorithm | None = None
+    salt: str | None = None
+    password_hash: str | None = field(default=None, repr=False)
+    # Authenticated by an external gate (OIDC middleware); ACL checks are bypassed.
+    authenticated_externally: bool = False
 
     def compare_password(self, plaintext_password: str) -> bool:
+        if self.algorithm is None or self.salt is None or self.password_hash is None:
+            return False
         return compare_digest(self.password_hash, hash_password(self.algorithm, self.salt, plaintext_password))
+
+    @classmethod
+    def externally_authenticated(cls, username: str) -> User:
+        return cls(username=username, authenticated_externally=True)
 
 
 @dataclass(frozen=True)
@@ -168,17 +177,7 @@ class ACLAuthorizer(AuthorizeProtocol):
 
     @override
     def check_authorization(self, user: User | None, operation: Operation, resource: str) -> bool:
-        if user is None:
-            return False
-
-        for aclentry in self.permissions:
-            if (
-                aclentry.username == user.username
-                and self._check_operation(operation, aclentry)
-                and self._check_resources([resource], aclentry)
-            ):
-                return True
-        return False
+        return self.check_authorization_any(user, operation, [resource])
 
     @override
     def check_authorization_any(self, user: User | None, operation: Operation, resources: list[str]) -> bool:
@@ -189,6 +188,9 @@ class ACLAuthorizer(AuthorizeProtocol):
         """
         if user is None:
             return False
+        # Externally authenticated (e.g. OIDC) users are authorized elsewhere; the ACL is bypassed.
+        if user.authenticated_externally:
+            return True
 
         for aclentry in self.permissions:
             if (

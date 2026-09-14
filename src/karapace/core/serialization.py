@@ -7,11 +7,12 @@ from __future__ import annotations
 
 from aiohttp import BasicAuth
 from async_lru import alru_cache
-from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
+from avro.io import BinaryDecoder, BinaryEncoder, DatumWriter
 from cachetools import TTLCache
 from collections.abc import Callable, MutableMapping
 from google.protobuf.message import DecodeError
 from jsonschema import ValidationError
+from karapace.core.avro_fast_decoder import build_decoder, Decoder
 from karapace.core.client import Client
 from karapace.core.config import Config
 from karapace.core.dependency import Dependency
@@ -36,11 +37,30 @@ from urllib.parse import quote
 import asyncio
 import avro
 import avro.schema
-import base64
+import contextvars
+import hashlib
 import io
 import struct
-import threading
-import weakref
+
+# Per-request Authorization header forwarded from the REST Proxy to SR; None falls back to
+# session_auth. Only set in UserRestProxy.publish/fetch — other proxy endpoints don't reach
+# the serializer. Keep this list current if that changes.
+sr_authorization_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("sr_authorization", default=None)
+
+
+def _authorization_headers() -> dict[str, str] | None:
+    auth = sr_authorization_ctx.get()
+    return {"Authorization": auth} if auth else None
+
+
+def _token_fingerprint() -> str:
+    """Stable cache-key fingerprint for the current Authorization. Empty string when unset."""
+    auth = sr_authorization_ctx.get()
+    if not auth:
+        return ""
+    # SHA-256 truncated to 16 hex chars; never logged, never stores raw bearers in the LRU.
+    return hashlib.sha256(auth.encode("utf-8")).hexdigest()[:16]
+
 
 START_BYTE = 0x0
 HEADER_FORMAT = ">bI"
@@ -68,7 +88,11 @@ class SchemaError(Exception):
 
 
 class SchemaRetrievalError(SchemaError):
-    pass
+    def __init__(self, *args: object, status_code: int | None = None) -> None:
+        super().__init__(*args)
+        # HTTP status from the Schema Registry response, when the error originates from one.
+        # Lets callers distinguish auth failures (401/403) from other retrieval errors.
+        self.status_code = status_code
 
 
 class SchemaUpdateError(SchemaError):
@@ -122,9 +146,13 @@ class SchemaRegistryClient:
         schema_registry_url: str = "http://localhost:8081",
         server_ca: str | None = None,
         session_auth: BasicAuth | None = None,
+        *,
+        cache_maxsize: int = Config.model_fields["schema_registry_client_cache_maxsize"].default,
     ):
         self.client = Client(server_uri=schema_registry_url, server_ca=server_ca, session_auth=session_auth)
         self.base_url = schema_registry_url
+        # Per-instance decoration so cache_maxsize can come from Config.
+        self._get_schema_cached = alru_cache(maxsize=cache_maxsize)(self._get_schema_cached)
 
     async def post_new_schema(
         self, subject: str, schema: ValidatedTypedSchema, references: Reference | None = None
@@ -136,9 +164,12 @@ class SchemaRegistryClient:
                 payload = {"schema": str(schema), "schemaType": schema.schema_type.value}
         else:
             payload = {"schema": json_encode(schema.to_dict()), "schemaType": schema.schema_type.value}
-        result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload)
+        # Client.post only injects the vendor Content-Type when headers is falsy; merge so
+        # forwarding Authorization doesn't silently demote the request to application/json.
+        headers = {"Content-Type": "application/vnd.schemaregistry.v1+json", **(_authorization_headers() or {})}
+        result = await self.client.post(f"subjects/{quote(subject)}/versions", json=payload, headers=headers)
         if not result.ok:
-            raise SchemaRetrievalError(result.json())
+            raise SchemaRetrievalError(result.json(), status_code=result.status_code)
         return SchemaId(result.json()["id"])
 
     async def _get_schema_recursive(
@@ -156,10 +187,10 @@ class SchemaRegistryClient:
         explored_schemas = explored_schemas | {(subject, version)}
 
         version_str = str(version) if version is not None else "latest"
-        result = await self.client.get(f"subjects/{quote(subject)}/versions/{version_str}")
+        result = await self.client.get(f"subjects/{quote(subject)}/versions/{version_str}", headers=_authorization_headers())
 
         if not result.ok:
-            raise SchemaRetrievalError(result.json())
+            raise SchemaRetrievalError(result.json(), status_code=result.status_code)
 
         json_result = result.json()
         if "id" not in json_result or "schema" not in json_result or "version" not in json_result:
@@ -192,7 +223,6 @@ class SchemaRegistryClient:
         except InvalidSchema as e:
             raise SchemaRetrievalError(f"Failed to parse schema string from response: {json_result}") from e
 
-    @alru_cache(maxsize=100)
     async def get_schema(
         self,
         subject: Subject,
@@ -212,12 +242,27 @@ class SchemaRegistryClient:
                 - ValidatedTypedSchema: The retrieved schema, validated and typed.
                 - Version: The version of the schema that was retrieved.
         """
+        # Partition the cache by token fingerprint: each principal is validated by SR at
+        # least once per fingerprint per cache lifetime, not per request. Cached entries
+        # outlive server-side token expiry — acceptable for immutable schema bytes, not a
+        # substitute for revocation. Empty fingerprint = the unauthenticated slot.
+        return await self._get_schema_cached(subject, version, _token_fingerprint())
+
+    async def _get_schema_cached(
+        self,
+        subject: Subject,
+        version: Version | None,
+        token_fingerprint: str,  # cache-key only; partitions the LRU per principal
+    ) -> tuple[SchemaId, ValidatedTypedSchema, Version]:
         return await self._get_schema_recursive(subject, set(), version)
 
     async def get_schema_for_id(self, schema_id: SchemaId) -> tuple[TypedSchema, list[Subject]]:
-        result = await self.client.get(f"schemas/ids/{schema_id}", params={"includeSubjects": "True"})
+        result = await self.client.get(
+            f"schemas/ids/{schema_id}", params={"includeSubjects": "True"}, headers=_authorization_headers()
+        )
         if not result.ok:
-            raise SchemaRetrievalError(result.json()["message"])
+            # Whole body: auth failures return {"error","reason"} with no "message" key.
+            raise SchemaRetrievalError(result.json(), status_code=result.status_code)
         json_result = result.json()
         if "schema" not in json_result:
             raise SchemaRetrievalError(f"Invalid result format: {json_result}")
@@ -299,20 +344,20 @@ class SchemaRegistrySerializer:
         session_auth: BasicAuth | None = None
         if self.config.registry_user and self.config.registry_password:
             session_auth = BasicAuth(self.config.registry_user, self.config.registry_password, encoding="utf8")
+        cache_maxsize = self.config.schema_registry_client_cache_maxsize
         if self.config.registry_ca:
             registry_client = SchemaRegistryClient(
-                registry_url, server_ca=self.config.registry_ca, session_auth=session_auth
+                registry_url,
+                server_ca=self.config.registry_ca,
+                session_auth=session_auth,
+                cache_maxsize=cache_maxsize,
             )
         else:
-            registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth)
+            registry_client = SchemaRegistryClient(registry_url, session_auth=session_auth, cache_maxsize=cache_maxsize)
         self.registry_client: SchemaRegistryClient | None = registry_client
         self.ids_to_schemas: dict[int, TypedSchema] = {}
         self.ids_to_subjects: MutableMapping[int, list[Subject]] = TTLCache(maxsize=10000, ttl=600)
         self.schemas_to_ids: dict[str, SchemaId] = {}
-        self._avro_readers_lock = threading.Lock()
-        self._avro_readers_by_thread: weakref.WeakKeyDictionary[threading.Thread, TTLCache[SchemaId, DatumReader]] = (
-            weakref.WeakKeyDictionary()
-        )
 
     async def close(self) -> None:
         if self.registry_client:
@@ -388,7 +433,8 @@ class SchemaRegistrySerializer:
                 if schema is None:
                     raise InvalidPayload("No schema with ID from payload")
                 if schema.schema_type is SchemaType.AVRO:
-                    ret_val = await asyncio.to_thread(self._read_avro_value, SchemaId(schema_id), schema, bio)
+                    # Avro decoding is CPU bound, keep it off the event loop.
+                    ret_val = await asyncio.to_thread(read_value, self.config, schema, bio)
                 else:
                     ret_val = read_value(self.config, schema, bio)
                 return ret_val
@@ -396,39 +442,6 @@ class SchemaRegistrySerializer:
                 raise InvalidPayload("Data does not contain a valid message") from e
             except avro.errors.SchemaResolutionException as e:
                 raise InvalidPayload("Data cannot be decoded with provided schema") from e
-
-    def _get_avro_reader(self, schema_id: SchemaId, schema: TypedSchema) -> DatumReader:
-        current_thread = threading.current_thread()
-        with self._avro_readers_lock:
-            reader_cache = self._avro_readers_by_thread.get(current_thread)
-            if reader_cache is None:
-                reader_cache = TTLCache(maxsize=10000, ttl=600)
-                self._avro_readers_by_thread[current_thread] = reader_cache
-
-        reader = reader_cache.get(schema_id)
-        if reader is None:
-            reader = DatumReader(writers_schema=schema.schema)
-            reader_cache[schema_id] = reader
-        return reader
-
-    def _read_avro_value(self, schema_id: SchemaId, schema: TypedSchema, bio: io.BytesIO) -> Any:
-        return read_value(self.config, schema, bio, avro_reader=self._get_avro_reader(schema_id, schema))
-
-
-def _jsonify_avro_payload(value: Any) -> Any:
-    if isinstance(value, bytes):
-        return base64.b64encode(value).decode("ascii")
-
-    if isinstance(value, bytearray):
-        return base64.b64encode(bytes(value)).decode("ascii")
-
-    if isinstance(value, list):
-        return [_jsonify_avro_payload(item) for item in value]
-
-    if isinstance(value, dict):
-        return {key: _jsonify_avro_payload(item) for key, item in value.items()}
-
-    return value
 
 
 def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
@@ -493,10 +506,21 @@ def flatten_unions(schema: avro.schema.Schema, value: Any) -> Any:
     return value
 
 
-def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader: DatumReader | None = None):
+def _get_avro_decoder(schema: TypedSchema) -> Decoder:
+    """Return the compiled decoder for ``schema``, building (and caching on the schema) it once."""
+    decoder = getattr(schema, "_karapace_avro_decoder", None)
+    if decoder is None:
+        decoder = build_decoder(schema.schema)
+        try:
+            schema._karapace_avro_decoder = decoder
+        except (AttributeError, TypeError):
+            pass
+    return decoder
+
+
+def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO):
     if schema.schema_type is SchemaType.AVRO:
-        reader = avro_reader if avro_reader is not None else DatumReader(writers_schema=schema.schema)
-        return _jsonify_avro_payload(reader.read(BinaryDecoder(bio)))
+        return _get_avro_decoder(schema)(BinaryDecoder(bio))
     if schema.schema_type is SchemaType.JSONSCHEMA:
         value = json_decode(bio)
         try:
@@ -517,14 +541,19 @@ def read_value(config: Config, schema: TypedSchema, bio: io.BytesIO, avro_reader
 
 def write_value(config: Config, schema: TypedSchema, bio: io.BytesIO, value: dict) -> None:
     if schema.schema_type is SchemaType.AVRO:
-        # Backwards compatibility: Support JSON encoded data without the tags for unions.
-        if avro.io.validate(schema.schema, value):
-            data = value
-        else:
-            data = flatten_unions(schema.schema, value)
-
         writer = DatumWriter(writers_schema=schema.schema)
-        writer.write(data, BinaryEncoder(bio))
+        start = bio.tell()
+        try:
+            writer.write(value, BinaryEncoder(bio))
+        except avro.errors.AvroTypeException:
+            # DatumWriter.write validates the whole datum before emitting anything, so a tagged
+            # union normally fails without writing a byte. The encoder can still raise the same
+            # exception type on its own though, after some fields are already out (a decimal whose
+            # exponent does not fit the schema scale raises AvroOutOfScaleException), so drop
+            # whatever the failed attempt wrote instead of appending the retry to a partial value.
+            bio.seek(start)
+            bio.truncate()
+            writer.write(flatten_unions(schema.schema, value), BinaryEncoder(bio))
     elif schema.schema_type is SchemaType.JSONSCHEMA:
         try:
             schema.schema.validate(value)

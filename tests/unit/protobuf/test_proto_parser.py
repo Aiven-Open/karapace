@@ -242,6 +242,19 @@ def test_multiple_single_line_comments():
     assert element_type.documentation == expected
 
 
+@pytest.mark.parametrize("empty_comment", ["//", "// "])
+def test_empty_single_line_comment(empty_comment: str):
+    proto = f"// Before\n{empty_comment}\n// After\nmessage Test {{}}\n"
+    parsed = ProtoParser.parse(location, proto)
+    element_type = parsed.types[0]
+    assert element_type.documentation == "Before\n\nAfter"
+
+
+def test_invalid_comment_delimiter():
+    with pytest.raises(IllegalStateException, match="unexpected '/'"):
+        ProtoParser.parse(location, "/\nmessage Test {}\n")
+
+
 def test_single_line_javadoc_comment():
     proto = """
         |/** Test */
@@ -272,6 +285,28 @@ def test_multiline_javadoc_comment():
     parsed = ProtoParser.parse(location, proto)
     element_type = parsed.types[0]
     assert element_type.documentation == expected
+
+
+def test_multiline_comment_with_blank_lines_round_trip():
+    proto = """
+        |syntax = "proto3";
+        |
+        |/*
+        | Some Important Event
+        |
+        | Overview
+        | What this event is for.
+        |*/
+        |message Test {}
+        """
+    proto = trim_margin(proto)
+    parsed = ProtoParser.parse(location, proto)
+    element_type = parsed.types[0]
+    assert element_type.documentation == "Some Important Event\n\nOverview\nWhat this event is for."
+
+    formatted = parsed.to_schema()
+    reparsed = ProtoParser.parse(location, formatted)
+    assert reparsed.to_schema() == formatted
 
 
 def test_multiple_single_line_comments_with_leading_whitespace():

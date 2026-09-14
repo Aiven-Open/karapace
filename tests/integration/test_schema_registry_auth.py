@@ -154,10 +154,15 @@ async def test_sr_list_subjects(registry_async_retry_client_auth: RetryRestClien
     assert res.status_code == 200
     assert [cavesubject] == res.json()
 
+    # AuthZ denial returns 404 to hide subject existence from an unauthorized caller.
     res = await registry_async_retry_client_auth.get(
-        f"subjects/{quote(carpetsubject)}/versions", auth=aladdin, expected_response_code=403
+        f"subjects/{quote(carpetsubject)}/versions", auth=aladdin, expected_response_code=404
     )
-    assert res.status_code == 403
+    assert res.status_code == 404
+    assert res.json() == {
+        "error_code": 40401,
+        "message": f"Subject '{carpetsubject}' not found.",
+    }
 
     res = await registry_async_retry_client_auth.get("subjects", auth=reader)
     assert res.status_code == 200
@@ -166,6 +171,69 @@ async def test_sr_list_subjects(registry_async_retry_client_auth: RetryRestClien
     res = await registry_async_retry_client_auth.get(f"subjects/{quote(carpetsubject)}/versions", auth=reader)
     assert res.status_code == 200
     assert [1] == res.json()
+
+
+async def test_sr_unauthorized_subject_indistinguishable_from_missing(
+    registry_async_retry_client_auth: RetryRestClient,
+) -> None:
+    """aladdin can only access Subject:cave-*; a carpet-* subject must look
+    identical whether it exists (admin-created) or not."""
+    existing_forbidden = new_random_name("carpet-")
+    nonexistent = new_random_name("carpet-")
+
+    res = await registry_async_retry_client_auth.post(
+        f"subjects/{quote(existing_forbidden)}/versions", json={"schema": schema_avro_json}, auth=admin
+    )
+    assert res.status_code == 200
+
+    probes = [
+        ("GET", "subjects/{s}/versions", None),
+        ("GET", "subjects/{s}/versions/latest", None),
+        ("GET", "subjects/{s}/versions/1/schema", None),
+        ("GET", "subjects/{s}/versions/1/referencedby", None),
+        ("POST", "subjects/{s}", {"schema": schema_avro_json}),
+        ("POST", "subjects/{s}/versions", {"schema": schema_avro_json}),
+        ("DELETE", "subjects/{s}", None),
+        ("DELETE", "subjects/{s}/versions/1", None),
+        ("GET", "config/{s}", None),
+        ("PUT", "config/{s}", {"compatibility": "NONE"}),
+        ("DELETE", "config/{s}", None),
+        ("GET", "mode/{s}", None),
+        ("POST", "compatibility/subjects/{s}/versions/latest", {"schema": schema_avro_json}),
+    ]
+
+    for method, path_tpl, body in probes:
+        forbidden_path = path_tpl.format(s=quote(existing_forbidden))
+        missing_path = path_tpl.format(s=quote(nonexistent))
+
+        kwargs: dict = {"auth": aladdin, "expected_response_code": 404}
+        if body is not None:
+            kwargs["json"] = body
+
+        if method == "GET":
+            forbidden_res = await registry_async_retry_client_auth.get(forbidden_path, **kwargs)
+            missing_res = await registry_async_retry_client_auth.get(missing_path, **kwargs)
+        elif method == "POST":
+            forbidden_res = await registry_async_retry_client_auth.post(forbidden_path, **kwargs)
+            missing_res = await registry_async_retry_client_auth.post(missing_path, **kwargs)
+        elif method == "PUT":
+            forbidden_res = await registry_async_retry_client_auth.put(forbidden_path, **kwargs)
+            missing_res = await registry_async_retry_client_auth.put(missing_path, **kwargs)
+        else:  # DELETE
+            forbidden_res = await registry_async_retry_client_auth.delete(forbidden_path, **kwargs)
+            missing_res = await registry_async_retry_client_auth.delete(missing_path, **kwargs)
+
+        assert forbidden_res.status_code == 404, f"{method} {path_tpl} forbidden: {forbidden_res.status_code}"
+        assert missing_res.status_code == 404, f"{method} {path_tpl} missing: {missing_res.status_code}"
+
+        assert forbidden_res.json() == {
+            "error_code": 40401,
+            "message": f"Subject '{existing_forbidden}' not found.",
+        }, f"{method} {path_tpl} forbidden body mismatch"
+        assert missing_res.json() == {
+            "error_code": 40401,
+            "message": f"Subject '{nonexistent}' not found.",
+        }, f"{method} {path_tpl} missing body mismatch"
 
 
 async def test_sr_ids(registry_async_retry_client_auth: RetryRestClient) -> None:

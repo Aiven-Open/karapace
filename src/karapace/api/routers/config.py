@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
 from karapace.api.forward_client import ForwardClient
-from karapace.api.routers.errors import no_primary_url_error, unauthorized
+from karapace.api.routers.errors import no_primary_url_error, subject_not_found, unauthorized
 from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 from karapace.api.routers.requests import CompatibilityLevelResponse, CompatibilityRequest, CompatibilityResponse
 from karapace.api.user import get_current_user
@@ -75,7 +75,7 @@ async def config_get_subject(
 ) -> CompatibilityLevelResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     return await controller.config_subject_get(subject=subject, default_to_global=defaultToGlobal)
 
@@ -94,7 +94,7 @@ async def config_set_subject(
 ) -> CompatibilityResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
@@ -119,7 +119,7 @@ async def config_delete_subject(
 ) -> CompatibilityResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:

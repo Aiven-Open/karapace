@@ -1,0 +1,39 @@
+name: "Website: Vale spelling and prose check"
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "website/**.md"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "website/**.md"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: website
+
+jobs:
+  spell-prose-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      # Run Vale directly (not the reviewdog action) so it checks all files,
+      # not only the PR diff.
+      - name: Install Vale
+        run: |
+          wget https://github.com/errata-ai/vale/releases/download/v2.29.1/vale_2.29.1_Linux_64-bit.tar.gz -O vale.tar.gz
+          tar -xvzf vale.tar.gz vale
+          rm vale.tar.gz
+
+      - name: Run Vale
+        run: ./vale --glob='!.vale/styles/*' . --minAlertLevel=error --config=.vale.ini

@@ -13,7 +13,7 @@ from karapace.core.errors import InvalidVersion
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, ValidationInfo
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
-from typing import Any, ClassVar, NewType, TypeAlias, Union
+from typing import Any, ClassVar, NewType, Protocol, runtime_checkable, TypeAlias, Union
 
 import functools
 
@@ -21,6 +21,29 @@ JsonArray: TypeAlias = list["JsonData"]
 JsonObject: TypeAlias = dict[str, "JsonData"]
 JsonScalar: TypeAlias = Union[str, int, float, None]
 JsonData: TypeAlias = Union[JsonScalar, JsonObject, JsonArray]
+
+
+@runtime_checkable
+class JsonSchemaValidator(Protocol):
+    """Structural type for a parsed JSON Schema validator across drafts.
+
+    `jsonschema.protocols.Validator` is neither runtime-checkable nor declares the
+    `resolver`/`ID_OF` members the compatibility engine relies on, so we declare the
+    subset Karapace uses here. Satisfied by Draft7/Draft201909/Draft202012 validators.
+    """
+
+    schema: Any
+
+    @staticmethod
+    def ID_OF(contents: Any) -> str | None: ...
+
+    @property
+    def resolver(self) -> Any: ...
+
+    def iter_errors(self, instance: Any) -> Any: ...
+
+    def is_valid(self, instance: Any) -> bool: ...
+
 
 # JSON types suitable as arguments, i.e. using abstract types that don't allow mutation.
 ArgJsonArray: TypeAlias = Sequence["ArgJsonData"]

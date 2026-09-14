@@ -1,0 +1,11 @@
+# Redirects from the previous Sphinx site (pages served at the root) to the
+# Docusaurus structure (pages served under /docs). Format: <from> <to> <status>
+
+/install.html      /docs/install 301
+/install           /docs/install 301
+/quickstart.html   /docs/api-examples 301
+/quickstart        /docs/api-examples 301
+/docs/quickstart   /docs/api-examples 301
+/about.html        /docs/ 301
+/about             /docs/ 301
+/index.html        / 301

@@ -1,0 +1,8 @@
+# Karapace.Spelling
+# Extends Vale.Spelling and applies exceptions for Karapace specific words
+extends: spelling
+message: "Did you really mean '%s'? If yes, add the term to spelling-karapace-vocabulary.txt"
+ignorecase: true
+level: error
+ignore:
+  - Karapace/spelling-karapace-vocabulary.txt

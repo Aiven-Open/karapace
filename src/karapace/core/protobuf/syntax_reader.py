@@ -257,7 +257,7 @@ class SyntaxReader:
                     self.newline()
                     break
             result = self.data[start : self.pos - 1]
-        if not result:
+        else:
             self.unexpected("unexpected '/'")
         return result
 

@@ -86,18 +86,6 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
-      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
-      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
-      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
-      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
-      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: true
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
-      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
-      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
-      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
-      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
-      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
   karapace-schema-registry-follower:
     networks:
@@ -147,21 +135,9 @@ services:
       KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
       KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
-      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
-      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
-      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
-      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
-      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: true
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
-      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
-      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: "karapace-client"
-      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: "resource_access.karapace-client.roles"
-      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["schema:read", "subject:read"], "POST": ["schema:write", "subject:write"], "PUT": ["config_subject:update","config_global:update"], "DELETE": ["schema:delete", "subject:delete"]}'
-      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
-  # Schema Registry running with OIDC authentication only (no role-based authorization).
-  # Used to verify the sasl_oauthbearer_authentication_enabled flag in isolation.
+  # OIDC authentication only (no role-based authorization).
+  # Used to isolate the sasl_oauthbearer_authentication_enabled flag in tests.
   karapace-schema-registry-authn-only:
     profiles:
       - e2e
@@ -203,13 +179,347 @@ services:
       KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
       KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
       KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
-      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: http://keycloak:8080/realms/karapace/protocol/openid-connect/certs
       # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
-      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: true
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: http://keycloak:8080/realms/karapace
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: "karapace-audience"
-      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: sub
+      # Defaults target the local keycloak; override OIDC_* to point at a cloud provider.
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
+
+  # OIDC authentication + file-based basic auth on one SR. Scheme-based dispatch:
+  # Bearer -> OIDC, Basic -> authfile. Target for scheme-dispatch e2e tests.
+  karapace-schema-registry-oidc-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-oidc-basic
+    container_name: karapace-schema-registry-oidc-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+    ports:
+      - 8681:8681
+    volumes:
+      - ../tests/integration/config/karapace.auth.json:/opt/karapace/karapace.auth.json:ro
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-oidc-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8681
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-oidc-basic
+      KARAPACE_GROUP_ID: karapace-schema-registry-oidc-basic
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas_oidc_basic
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_TAGS__APP: karapace-schema-registry-oidc-basic
+      KARAPACE_REGISTRY_AUTHFILE: /opt/karapace/karapace.auth.json
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: false
+      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
+
+  # Full OIDC (authentication + role-based authorization). Target for the
+  # authn+authz e2e tests (registry_async_client_oidc* fixtures).
+  karapace-schema-registry-oidc:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-oidc
+    container_name: karapace-schema-registry-oidc
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+      - opentelemetry-collector
+    ports:
+      - 8091:8091
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-oidc
+      KARAPACE_ADVERTISED_PROTOCOL: https
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8091
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-oidc
+      KARAPACE_GROUP_ID: karapace-schema-registry-oidc
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas_oidc
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_TAGS__APP: karapace-schema-registry-oidc
+      KARAPACE_SERVER_TLS_CAFILE: /opt/karapace/certs/ca/rootCA.pem
+      KARAPACE_SERVER_TLS_CERTFILE: /opt/karapace/certs/cert.pem
+      KARAPACE_SERVER_TLS_KEYFILE: /opt/karapace/certs/key.pem
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+      KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED: true
+      # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
+      # Defaults target the local keycloak; override OIDC_* to point at a cloud provider.
+      KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
+      KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
+      KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: ${OIDC_CLIENT_ID:-karapace-client}
+      KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: ${OIDC_ROLES_CLAIM_PATH:-resource_access.karapace-client.roles}
+      KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES: '{"GET": ["karapace.schema:read", "karapace.subject:read"], "POST": ["karapace.schema:write", "karapace.subject:write"], "PUT": ["karapace.config_subject:update","karapace.config_global:update"], "DELETE": ["karapace.schema:delete", "karapace.subject:delete"]}'
+      KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
+
+  # REST Proxy with the forwarding gate ON, against the authn-only SR.
+  karapace-rest-proxy-oidc:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-oidc
+    container_name: karapace-rest-proxy-oidc
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-authn-only
+    ports:
+      - 8382:8382
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8382
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-oidc
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: https
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-authn-only
+      KARAPACE_REGISTRY_PORT: 8281
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Forwarding gate ON.
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+
+  # REST Proxy: gate ON *and* registry_user/password set — the coexistence case.
+  # A forwarded Bearer must take precedence over the configured basic credentials
+  # (regression guard: this combination used to raise aiohttp's "Cannot combine
+  # AUTHORIZATION header with AUTH argument" and 500).
+  karapace-rest-proxy-oidc-with-creds:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-oidc-with-creds
+    container_name: karapace-rest-proxy-oidc-with-creds
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-authn-only
+    ports:
+      - 8582:8582
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8582
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-oidc-with-creds
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: https
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-authn-only
+      KARAPACE_REGISTRY_PORT: 8281
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Forwarding gate ON.
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+      # Service credentials set at the same time: a forwarded Bearer must win over these.
+      KARAPACE_REGISTRY_USER: admin
+      KARAPACE_REGISTRY_PASSWORD: admin
+
+  # REST Proxy -> OIDC+authfile SR: forwards a client's *Basic* header for schema ops.
+  # registry_user/password are set to an INVALID user on purpose: a successful write proves
+  # the forwarded Basic header (not the fallback service creds) was used.
+  karapace-rest-proxy-oidc-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-oidc-basic
+    container_name: karapace-rest-proxy-oidc-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-oidc-basic
+    ports:
+      - 8782:8782
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8782
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-oidc-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: http
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-oidc-basic
+      KARAPACE_REGISTRY_PORT: 8681
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Forwarding gate ON so the inbound Basic header is relayed to SR.
+      KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED: true
+      # Deliberately invalid fallback creds — a forwarded Basic header must be preferred.
+      KARAPACE_REGISTRY_USER: not-a-real-user
+      KARAPACE_REGISTRY_PASSWORD: not-a-real-password
+
+  # REST Proxy with the forwarding gate OFF — regression guard for flag-False deployments.
+  karapace-rest-proxy-no-forward:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-no-forward
+    container_name: karapace-rest-proxy-no-forward
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-authn-only
+    ports:
+      - 8482:8482
+    volumes:
+      - ./certs:/opt/karapace/certs
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8482
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-no-forward
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: https
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-authn-only
+      KARAPACE_REGISTRY_PORT: 8281
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Forwarding gate OFF (default).
+
+  # Basic SR + Basic proxy + gate OFF — issue #1274 baseline.
+  karapace-schema-registry-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-schema-registry-basic
+    container_name: karapace-schema-registry-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace
+    depends_on:
+      - kafka
+    ports:
+      - 8581:8581
+    volumes:
+      - ../tests/integration/config/karapace.auth.json:/opt/karapace/karapace.auth.json:ro
+    environment:
+      KARAPACE_KARAPACE_REGISTRY: true
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-schema-registry-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_PORT: 8581
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_CLIENT_ID: karapace-schema-registry-basic
+      KARAPACE_GROUP_ID: karapace-schema-registry-basic
+      KARAPACE_MASTER_ELECTION_STRATEGY: highest
+      KARAPACE_MASTER_ELIGIBILITY: true
+      KARAPACE_TOPIC_NAME: _schemas_basic
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_COMPATIBILITY: FULL
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      KARAPACE_REGISTRY_AUTHFILE: /opt/karapace/karapace.auth.json
+
+  karapace-rest-proxy-basic:
+    profiles:
+      - e2e
+    networks:
+      - karapace
+    image: ghcr.io/aiven-open/karapace:develop
+    hostname: karapace-rest-proxy-basic
+    container_name: karapace-rest-proxy-basic
+    entrypoint:
+      - python3
+      - -m
+      - karapace.kafka_rest_apis
+    depends_on:
+      - kafka
+      - karapace-schema-registry-basic
+    ports:
+      - 8682:8682
+    environment:
+      KARAPACE_KARAPACE_REST: true
+      KARAPACE_PORT: 8682
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_ADVERTISED_HOSTNAME: karapace-rest-proxy-basic
+      KARAPACE_ADVERTISED_PROTOCOL: http
+      KARAPACE_BOOTSTRAP_URI: kafka:29092
+      KARAPACE_REGISTRY_SCHEME: http
+      KARAPACE_REGISTRY_HOST: karapace-schema-registry-basic
+      KARAPACE_REGISTRY_PORT: 8581
+      KARAPACE_REGISTRY_USER: admin
+      KARAPACE_REGISTRY_PASSWORD: admin
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      KARAPACE_LOG_LEVEL: INFO
+      KARAPACE_KAFKA_SCHEMA_READER_STRICT_MODE: false
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: true
+      # Gate OFF: proxy keeps sending Basic to SR.
 
   karapace-rest-proxy:
     networks:
@@ -361,6 +671,10 @@ services:
       - 14268:14268
 
   keycloak:
+    # Only needed by the OIDC services under the e2e profile; kept out of the
+    # default (smoke-test) startup so it isn't a startup-race dependency there.
+    profiles:
+      - e2e
     networks:
       - karapace
     image: quay.io/keycloak/keycloak:24.0

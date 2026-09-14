@@ -1,0 +1,25 @@
+extends: substitution
+message: Use '%s' instead of '%s'
+level: error
+ignorecase: true
+# swap maps tokens in form of bad: good.
+# Vale ignores alerts that already match the intended form.
+swap:
+  "(?i)Confluent": Confluent
+  "(?i)Confluent[ -]?Cloud": Confluent Cloud
+  "(?i)apache": Apache
+  "(?i)google": Google
+  "(?i)kubernetes": Kubernetes
+  "(?i)nginx": Nginx
+  "(?i)oauth": OAuth
+  "(?i)postgresql": PostgreSQL
+  "git[ -]?hub?": GitHub
+  "java[ -]?scripts?": JavaScript
+  "(?i)ssl": SSL
+  "(?i)kafka[ -]?connect": Kafka Connect
+  "(?i)zookeeper": ZooKeeper
+  "(?i)Docker": Docker
+  "(?i)Keycloak": Keycloak
+  # Note: no lowercase "karapace" -> "Karapace" swap. Lowercase is legitimate
+  # in domains (karapace.io), the package name (karapace-docs), commands
+  # (python -m karapace) and config keys (karapace_rest).

@@ -19,6 +19,11 @@ CERTS_FOLDER ?= /opt/karapace/certs
 
 # Export variables needed by docker compose
 export PYTHON_VERSION KARAPACE_VERSION RUNNER_UID RUNNER_GID COVERAGE_FILE PYTEST_ARGS
+# OIDC provider overrides (unset → keycloak defaults baked into container/compose.yml)
+export OIDC_PROVIDER OIDC_TOKEN_URL OIDC_JWKS_ENDPOINT_URL OIDC_ALLOW_INSECURE_JWKS
+export OIDC_EXPECTED_ISSUER OIDC_EXPECTED_AUDIENCE OIDC_SUB_CLAIM_NAME
+export OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_SCOPE OIDC_VERIFY_TLS OIDC_REALM
+export OIDC_ROLES_CLAIM_PATH
 
 define PIN_VERSIONS_COMMAND
 pip install pip-tools && \
@@ -104,7 +109,6 @@ cleanest: cleaner
 
 .PHONY: requirements
 requirements:
-requirements:
 	$(PIP) install --upgrade pip setuptools pip-tools
 	$(PIP) install .[dev,typing]
 
@@ -117,7 +121,6 @@ stop-karapace-docker-resources:
 	$(DOCKER_COMPOSE) -f container/compose.yml down -v --remove-orphans
 
 .PHONY: start-karapace-docker-resources
-start-karapace-docker-resources:
 start-karapace-docker-resources:
 	touch .coverage.${PYTHON_VERSION} || sudo touch .coverage.${PYTHON_VERSION}
 	chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION} 2>/dev/null || sudo chown ${RUNNER_UID}:${RUNNER_GID} .coverage.${PYTHON_VERSION}
