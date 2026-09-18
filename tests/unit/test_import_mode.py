@@ -11,7 +11,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from karapace.api.routers.requests import ModeUpdateRequest, SchemaRequest
-from karapace.core.errors import InvalidMode, OperationNotPermittedInMode
+from karapace.core.errors import ImportConflict, InvalidMode, OperationNotPermittedInMode, SchemaIdDoesNotMatch
+from karapace.core.config import Config
 from karapace.core.in_memory_database import InMemoryDatabase
 from karapace.core.schema_models import SchemaType, ValidatedTypedSchema
 from karapace.core.schema_reader import KafkaSchemaReader, MessageType
@@ -123,6 +124,7 @@ class TestHandleMsgMode:
     def test_auto_inserts_subject_if_missing(self) -> None:
         """A MODE message for an unknown subject should create it."""
         reader, db = self._make_reader()
+        assert db.find_subject(subject=Subject("new-subj")) is None
         KafkaSchemaReader._handle_msg_mode(
             reader, {"keytype": "MODE", "subject": "new-subj", "magic": 0}, {"mode": "IMPORT"}
         )
@@ -150,6 +152,37 @@ class TestHandleMsgMode:
                 reader, {"keytype": "MODE", "subject": None, "magic": 0}, {"mode": mode.value}
             )
             assert db.get_global_mode() == mode
+
+    def test_ignores_unknown_global_mode(self) -> None:
+        """A migrated topic may carry modes we do not implement."""
+        reader, db = self._make_reader()
+        KafkaSchemaReader._handle_msg_mode(reader, {"keytype": "MODE", "subject": None, "magic": 0}, {"mode": "READONLY"})
+        assert db.get_global_mode() == Mode.readwrite
+
+    def test_ignores_unknown_subject_mode_and_leaves_existing_one(self) -> None:
+        reader, db = self._make_reader()
+        db.insert_subject(subject=Subject("my-topic"))
+        db.set_subject_mode(subject=Subject("my-topic"), mode=Mode.import_mode)
+
+        KafkaSchemaReader._handle_msg_mode(
+            reader, {"keytype": "MODE", "subject": "my-topic", "magic": 0}, {"mode": "READONLY_OVERRIDE"}
+        )
+
+        assert db.get_subject_mode(subject=Subject("my-topic")) == Mode.import_mode
+
+    def test_unknown_mode_does_not_raise_from_handle_msg(self, karapace_container) -> None:
+        """handle_msg maps ValueError to InvalidSchema, which stops the reader in strict mode."""
+        db = InMemoryDatabase()
+        reader = KafkaSchemaReader(
+            config=karapace_container.config(),
+            offset_watcher=MagicMock(),
+            key_formatter=MagicMock(),
+            master_coordinator=None,
+            database=db,
+            stats=Mock(),
+        )
+        reader.handle_msg({"keytype": "MODE", "subject": None, "magic": 0}, {"mode": "READONLY"})
+        assert db.get_global_mode() == Mode.readwrite
 
 
 def _make_registry_stub() -> tuple:
@@ -197,7 +230,7 @@ class TestSchemaRegistryModeMethods:
         registry.send_mode_message(Mode.import_mode)
         producer_mock.send_message.assert_called_once_with(
             key={"subject": None, "magic": 0, "keytype": "MODE"},
-            value={"mode": "IMPORT"},
+            value={"subject": None, "mode": "IMPORT"},
         )
 
     def test_send_mode_message_subject(self) -> None:
@@ -205,7 +238,7 @@ class TestSchemaRegistryModeMethods:
         registry.send_mode_message(Mode.import_mode, subject=Subject("s"))
         producer_mock.send_message.assert_called_once_with(
             key={"subject": Subject("s"), "magic": 0, "keytype": "MODE"},
-            value={"mode": "IMPORT"},
+            value={"subject": Subject("s"), "mode": "IMPORT"},
         )
 
     def test_send_mode_delete_message(self) -> None:
@@ -231,6 +264,8 @@ def _make_registry_for_set_mode():
     registry.send_mode_message = Mock(side_effect=lambda mode, subject=None: sent.append(("mode", mode, subject)))
     registry.get_subject_mode = KarapaceSchemaRegistry.get_subject_mode.__get__(registry)
     registry.get_global_mode = KarapaceSchemaRegistry.get_global_mode.__get__(registry)
+    registry.config = Config()
+    registry.check_mode_mutability = KarapaceSchemaRegistry.check_mode_mutability.__get__(registry)
 
     set_mode_local = KarapaceSchemaRegistry.set_mode_local.__get__(registry)
     return registry, db, sent, set_mode_local
@@ -261,7 +296,7 @@ class TestSetModeLocal:
             schema=make_validated_schema(),
             references=None,
         )
-        with pytest.raises(OperationNotPermittedInMode):
+        with pytest.raises(ImportConflict):
             await set_mode_local(Mode.import_mode, subject=Subject("s"), force=False)
 
     async def test_import_mode_with_force_preserves_existing_schemas(self) -> None:
@@ -305,7 +340,7 @@ class TestSetModeLocal:
             schema=make_validated_schema(),
             references=None,
         )
-        with pytest.raises(OperationNotPermittedInMode):
+        with pytest.raises(ImportConflict):
             await set_mode_local(Mode.import_mode)
 
     async def test_global_import_mode_ignores_soft_deleted_subjects(self) -> None:
@@ -387,6 +422,8 @@ def _make_registry_for_delete_mode():
 
     registry.send_mode_delete_message = Mock(side_effect=_delete_msg)
     registry.get_global_mode = KarapaceSchemaRegistry.get_global_mode.__get__(registry)
+    registry.config = Config()
+    registry.check_mode_mutability = KarapaceSchemaRegistry.check_mode_mutability.__get__(registry)
 
     delete_mode_local = KarapaceSchemaRegistry.delete_mode_local.__get__(registry)
     return registry, db, sent, delete_mode_local
@@ -407,6 +444,44 @@ class TestDeleteModeLocal:
         assert ("delete_mode", Subject("s")) in sent
 
 
+class TestModeMutability:
+    """mode_mutability=false refuses every mode change."""
+
+    async def test_set_mode_refused_when_immutable(self) -> None:
+        registry, _, sent, set_mode_local = _make_registry_for_set_mode()
+        registry.config.mode_mutability = False
+
+        with pytest.raises(OperationNotPermittedInMode) as exc_info:
+            await set_mode_local(Mode.import_mode)
+
+        assert str(exc_info.value) == "Mode changes are not allowed"
+        assert sent == []
+
+    async def test_delete_mode_refused_when_immutable(self) -> None:
+        registry, db, sent, delete_mode_local = _make_registry_for_delete_mode()
+        registry.config.mode_mutability = False
+        db.insert_subject(subject=Subject("s"))
+
+        with pytest.raises(OperationNotPermittedInMode):
+            await delete_mode_local(Subject("s"))
+        assert sent == []
+
+    async def test_readwrite_is_refused_too(self) -> None:
+        """The gate is on any change, not just entering IMPORT."""
+        registry, _, _, set_mode_local = _make_registry_for_set_mode()
+        registry.config.mode_mutability = False
+
+        with pytest.raises(OperationNotPermittedInMode):
+            await set_mode_local(Mode.readwrite)
+
+    async def test_mode_changes_allowed_by_default(self) -> None:
+        registry, _, sent, set_mode_local = _make_registry_for_set_mode()
+        assert registry.config.mode_mutability is True
+
+        assert await set_mode_local(Mode.import_mode) == Mode.import_mode
+        assert sent != []
+
+
 def _make_registry_for_write():
     from karapace.core.schema_registry import KarapaceSchemaRegistry
     import asyncio
@@ -421,6 +496,7 @@ def _make_registry_for_write():
     registry.get_global_mode = KarapaceSchemaRegistry.get_global_mode.__get__(registry)
     registry.get_subject_mode = KarapaceSchemaRegistry.get_subject_mode.__get__(registry)
     registry._write_new_schema_import_mode = KarapaceSchemaRegistry._write_new_schema_import_mode.__get__(registry)
+    registry.config = Config()
 
     write_new = KarapaceSchemaRegistry.write_new_schema_local.__get__(registry)
     return registry, db, sent, write_new
@@ -441,7 +517,9 @@ class TestWriteNewSchemaLocalImportMode:
         db.insert_subject(subject=Subject("s"))
         db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
 
-        await write_new(Subject("s"), make_validated_schema(), None, explicit_version=Version(42))
+        await write_new(
+            Subject("s"), make_validated_schema(), None, explicit_schema_id=SchemaId(42), explicit_version=Version(42)
+        )
         assert sent[0]["version"] == Version(42)
 
     # TODO: Check if this works.
@@ -484,14 +562,29 @@ class TestWriteNewSchemaLocalImportMode:
         assert result == sent[0]["schema_id"]
         assert sent[0]["version"] == Version(1)
 
-    async def test_import_mode_without_explicit_id_auto_assigns(self) -> None:
+    async def test_import_mode_without_explicit_id_is_rejected(self) -> None:
+        """No id means READWRITE, so IMPORT must refuse it.
+
+        Auto-assigning would let a subject left in IMPORT quietly accept writes with
+        compatibility checking disabled.
+        """
         _, db, sent, write_new = _make_registry_for_write()
         db.insert_subject(subject=Subject("s"))
         db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
 
-        result = await write_new(Subject("s"), make_validated_schema(), None)
-        assert result == sent[0]["schema_id"]
-        assert sent[0]["version"] == Version(1)
+        with pytest.raises(OperationNotPermittedInMode) as exc_info:
+            await write_new(Subject("s"), make_validated_schema(), None)
+        assert "schema id is required" in str(exc_info.value)
+        assert sent == []
+
+    async def test_import_mode_with_version_but_no_id_is_rejected(self) -> None:
+        _, db, sent, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+
+        with pytest.raises(OperationNotPermittedInMode):
+            await write_new(Subject("s"), make_validated_schema(), None, explicit_version=Version(7))
+        assert sent == []
 
     async def test_import_mode_with_multiple_versions(self) -> None:
         """Explicit version numbers can be non-sequential in IMPORT mode."""
@@ -535,7 +628,7 @@ class TestWriteNewSchemaLocalImportMode:
         )
 
         other_str = json.dumps({"type": "record", "name": "Other", "fields": []})
-        with pytest.raises(OperationNotPermittedInMode):
+        with pytest.raises(ImportConflict):
             await write_new(
                 Subject("s"),
                 make_validated_schema(other_str),
@@ -592,6 +685,204 @@ class TestWriteNewSchemaLocalImportMode:
         )
         assert result == 7
         assert sent[-1]["subject"] == Subject("b")
+
+    async def test_version_repointed_to_another_id_is_rejected(self) -> None:
+        """Overwriting the slot would orphan the schema it resolved to."""
+        _, db, _, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("s"),
+            schema_id=SchemaId(1),
+            version=Version(5),
+            deleted=False,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        other_str = json.dumps({"type": "record", "name": "Other", "fields": []})
+        with pytest.raises(ImportConflict) as exc_info:
+            await write_new(
+                Subject("s"),
+                make_validated_schema(other_str),
+                None,
+                explicit_schema_id=SchemaId(2),
+                explicit_version=Version(5),
+            )
+        assert "version 5" in str(exc_info.value)
+        # The original binding is untouched.
+        assert db.find_subject_schemas(subject=Subject("s"), include_deleted=True)[Version(5)].schema_id == 1
+
+    async def test_version_repointed_over_soft_deleted_version_is_rejected(self) -> None:
+        """A soft deleted version still owns its slot, so it must not be silently repointed."""
+        _, db, _, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("s"),
+            schema_id=SchemaId(1),
+            version=Version(5),
+            deleted=True,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        other_str = json.dumps({"type": "record", "name": "Other", "fields": []})
+        with pytest.raises(ImportConflict):
+            await write_new(
+                Subject("s"),
+                make_validated_schema(other_str),
+                None,
+                explicit_schema_id=SchemaId(2),
+                explicit_version=Version(5),
+            )
+
+    async def test_replay_over_soft_deleted_version_is_allowed(self) -> None:
+        """Re-importing the same triple restores a soft deleted version."""
+        _, db, sent, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("s"),
+            schema_id=SchemaId(1),
+            version=Version(5),
+            deleted=True,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        result = await write_new(
+            Subject("s"),
+            make_validated_schema(AVRO_SCHEMA_STR),
+            None,
+            explicit_schema_id=SchemaId(1),
+            explicit_version=Version(5),
+        )
+        assert result == 1
+        assert sent[-1]["deleted"] is False
+
+    async def test_same_content_under_a_different_id_is_allowed(self) -> None:
+        """Sources being merged can disagree about which id holds a schema."""
+        _, db, sent, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("s"),
+            schema_id=SchemaId(7),
+            version=Version(1),
+            deleted=False,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        result = await write_new(
+            Subject("s"),
+            make_validated_schema(AVRO_SCHEMA_STR),
+            None,
+            explicit_schema_id=SchemaId(8),
+            explicit_version=Version(2),
+        )
+        assert result == 8
+        assert sent[-1]["schema_id"] == 8
+
+    async def test_same_content_under_a_different_id_is_refused_when_ids_must_be_unique(self) -> None:
+        """allow_duplicate_schema_ids=false keeps ids one to one with content."""
+        registry, db, sent, write_new = _make_registry_for_write()
+        registry.config.allow_duplicate_schema_ids = False
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("s"),
+            schema_id=SchemaId(7),
+            version=Version(1),
+            deleted=False,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        with pytest.raises(SchemaIdDoesNotMatch) as exc_info:
+            await write_new(
+                Subject("s"),
+                make_validated_schema(AVRO_SCHEMA_STR),
+                None,
+                explicit_schema_id=SchemaId(8),
+                explicit_version=Version(2),
+            )
+        assert "id 7" in str(exc_info.value)
+        assert "id 8" in str(exc_info.value)
+        assert sent == []
+
+    async def test_replay_still_allowed_when_ids_must_be_unique(self) -> None:
+        """The flag must not break an idempotent replay under the id the content already owns."""
+        registry, db, sent, write_new = _make_registry_for_write()
+        registry.config.allow_duplicate_schema_ids = False
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("s"),
+            schema_id=SchemaId(7),
+            version=Version(1),
+            deleted=False,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        result = await write_new(
+            Subject("s"),
+            make_validated_schema(AVRO_SCHEMA_STR),
+            None,
+            explicit_schema_id=SchemaId(7),
+            explicit_version=Version(1),
+        )
+        assert result == 7
+
+    async def test_same_content_under_a_different_id_is_allowed_across_subjects(self) -> None:
+        _, db, sent, write_new = _make_registry_for_write()
+        for subject in (Subject("a"), Subject("b")):
+            db.insert_subject(subject=subject)
+            db.set_subject_mode(subject=subject, mode=Mode.import_mode)
+        db.insert_schema_version(
+            subject=Subject("a"),
+            schema_id=SchemaId(7),
+            version=Version(1),
+            deleted=False,
+            schema=make_validated_schema(AVRO_SCHEMA_STR),
+            references=None,
+        )
+
+        result = await write_new(
+            Subject("b"),
+            make_validated_schema(AVRO_SCHEMA_STR),
+            None,
+            explicit_schema_id=SchemaId(8),
+            explicit_version=Version(1),
+        )
+        assert result == 8
+
+    async def test_explicit_id_outside_import_mode_is_rejected(self) -> None:
+        """Returning a different id would break a migration unnoticed."""
+        _, db, _, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+
+        with pytest.raises(OperationNotPermittedInMode) as exc_info:
+            await write_new(Subject("s"), make_validated_schema(), None, explicit_schema_id=SchemaId(9))
+        assert "not in IMPORT mode" in str(exc_info.value)
+
+    async def test_explicit_version_outside_import_mode_is_rejected(self) -> None:
+        _, db, _, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+
+        with pytest.raises(OperationNotPermittedInMode):
+            await write_new(Subject("s"), make_validated_schema(), None, explicit_version=Version(3))
+
+    async def test_import_into_subject_known_only_from_mode_record_uses_version_1(self) -> None:
+        """A subject created by a MODE record has no versions to increment from."""
+        _, db, sent, write_new = _make_registry_for_write()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+
+        await write_new(Subject("s"), make_validated_schema(), None, explicit_schema_id=SchemaId(500))
+        assert sent[0]["version"] == Version(1)
 
 
 class TestSchemaRequestImportFields:
@@ -713,13 +1004,22 @@ class TestControllerSetGlobalMode:
         assert exc_info.value.status_code == 422
         assert exc_info.value.detail["error_code"] == 42204
 
-    async def test_operation_not_permitted_raises_422(self) -> None:
+    async def test_existing_subjects_raise_409(self) -> None:
         from fastapi import HTTPException
 
         controller, registry, _ = _make_controller()
-        registry.set_mode_local = AsyncMock(
-            side_effect=OperationNotPermittedInMode("Cannot import since found existing subjects")
-        )
+        registry.set_mode_local = AsyncMock(side_effect=ImportConflict("Cannot import since found existing subjects"))
+        with pytest.raises(HTTPException) as exc_info:
+            await controller.set_global_mode(mode_request=ModeUpdateRequest(mode="IMPORT"))
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail["error_code"] == 40901
+
+    async def test_operation_not_permitted_raises_422(self) -> None:
+        """A policy refusal is not a conflict, so it keeps the 422."""
+        from fastapi import HTTPException
+
+        controller, registry, _ = _make_controller()
+        registry.set_mode_local = AsyncMock(side_effect=OperationNotPermittedInMode("Mode changes are not allowed"))
         with pytest.raises(HTTPException) as exc_info:
             await controller.set_global_mode(mode_request=ModeUpdateRequest(mode="IMPORT"))
         assert exc_info.value.status_code == 422
@@ -749,13 +1049,26 @@ class TestControllerSetSubjectMode:
         assert resp.mode == "IMPORT"
         registry.set_mode_local.assert_awaited_once_with(mode="IMPORT", subject=Subject("ghost"), force=False)
 
-    async def test_operation_not_permitted_raises_422(self) -> None:
+    async def test_existing_schemas_raise_409(self) -> None:
         from fastapi import HTTPException
 
         db = InMemoryDatabase()
         db.insert_subject(subject=Subject("s"))
         controller, registry, _ = _make_controller(db)
-        registry.set_mode_local = AsyncMock(side_effect=OperationNotPermittedInMode("has schemas"))
+        registry.set_mode_local = AsyncMock(side_effect=ImportConflict("Cannot import since found existing subjects"))
+        with pytest.raises(HTTPException) as exc_info:
+            await controller.set_subject_mode(subject="s", mode_request=ModeUpdateRequest(mode="IMPORT"))
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.detail["error_code"] == 40901
+
+    async def test_operation_not_permitted_raises_422(self) -> None:
+        """A policy refusal is not a conflict, so it keeps the 422."""
+        from fastapi import HTTPException
+
+        db = InMemoryDatabase()
+        db.insert_subject(subject=Subject("s"))
+        controller, registry, _ = _make_controller(db)
+        registry.set_mode_local = AsyncMock(side_effect=OperationNotPermittedInMode("Mode changes are not allowed"))
         with pytest.raises(HTTPException) as exc_info:
             await controller.set_subject_mode(subject="s", mode_request=ModeUpdateRequest(mode="IMPORT"))
         assert exc_info.value.status_code == 422
@@ -768,3 +1081,55 @@ class TestControllerSetSubjectMode:
         registry.set_mode_local = AsyncMock(return_value=Mode.import_mode)
         await controller.set_subject_mode(subject="s", mode_request=ModeUpdateRequest(mode="IMPORT"), force=True)
         registry.set_mode_local.assert_awaited_once_with(mode="IMPORT", subject=Subject("s"), force=True)
+
+
+class TestControllerDeleteSubjectMode:
+    async def test_returns_global_mode_after_delete(self) -> None:
+        db = InMemoryDatabase()
+        db.insert_subject(subject=Subject("s"))
+        db.set_subject_mode(subject=Subject("s"), mode=Mode.import_mode)
+        controller, registry, _ = _make_controller(db)
+        registry.delete_mode_local = AsyncMock(return_value=Mode.readwrite)
+
+        resp = await controller.delete_subject_mode(subject="s")
+
+        assert resp.mode == "READWRITE"
+        registry.delete_mode_local.assert_awaited_once_with(Subject("s"))
+
+    async def test_404_when_subject_has_no_mode_override(self) -> None:
+        """The mode resource does not exist even though the subject does."""
+        from fastapi import HTTPException
+
+        db = InMemoryDatabase()
+        db.insert_subject(subject=Subject("s"))
+        controller, registry, _ = _make_controller(db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await controller.delete_subject_mode(subject="s")
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["error_code"] == 40401
+        registry.delete_mode_local.assert_not_awaited()
+
+    async def test_404_for_unknown_subject(self) -> None:
+        from fastapi import HTTPException
+
+        controller, _, _ = _make_controller()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await controller.delete_subject_mode(subject="ghost")
+
+        assert exc_info.value.status_code == 404
+
+    async def test_immutable_modes_win_over_the_404(self) -> None:
+        """With mode changes off the answer must not depend on whether an override exists."""
+        from fastapi import HTTPException
+
+        controller, registry, _ = _make_controller()
+        registry.check_mode_mutability = Mock(side_effect=OperationNotPermittedInMode("Mode changes are not allowed"))
+
+        with pytest.raises(HTTPException) as exc_info:
+            await controller.delete_subject_mode(subject="ghost")
+
+        assert exc_info.value.status_code == 422
+        assert exc_info.value.detail["error_code"] == 42205

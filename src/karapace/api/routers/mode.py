@@ -27,6 +27,20 @@ mode_router = APIRouter(
 )
 
 
+def _authorized_subject(
+    subject: Subject,
+    user: User,
+    authorizer: AuthenticatorAndAuthorizer,
+    operation: Operation,
+) -> Subject:
+    """Decode the subject from the path and check the caller may act on it."""
+    # A 404 rather than a 403, so an unauthorized caller cannot probe which subjects exist.
+    subject = Subject(unquote_plus(subject))
+    if authorizer and not authorizer.check_authorization(user, operation, f"Subject:{subject}"):
+        raise subject_not_found(subject)
+    return subject
+
+
 @mode_router.get("")
 @inject
 async def mode_get(
@@ -74,9 +88,7 @@ async def mode_get_subject(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> ModeResponse:
-    subject = Subject(unquote_plus(subject))
-    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise subject_not_found(subject)
+    subject = _authorized_subject(subject, user, authorizer, Operation.Read)
 
     return await controller.get_subject_mode(subject=subject, default_to_global=defaultToGlobal)
 
@@ -94,9 +106,7 @@ async def mode_put_subject(
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
     force: bool = False,
 ) -> ModeResponse:
-    subject = Subject(unquote_plus(subject))
-    if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+    subject = _authorized_subject(subject, user, authorizer, Operation.Write)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
@@ -119,9 +129,7 @@ async def mode_delete_subject(
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> ModeResponse:
-    subject = Subject(unquote_plus(subject))
-    if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+    subject = _authorized_subject(subject, user, authorizer, Operation.Write)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:

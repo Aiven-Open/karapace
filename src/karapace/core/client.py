@@ -248,8 +248,26 @@ class Client:
     async def get_mode(self) -> Result:
         return await self.get(path="/mode")
 
-    async def get_mode_subject(self, *, subject: str) -> Result:
-        return await self.get(path=f"/mode/{quote_plus(subject)}")
+    async def put_mode(self, *, json: JsonData, force: bool | None = None) -> Result:
+        path = "/mode"
+        if force is not None:
+            path = f"{path}?force={str(force).lower()}"
+        return await self.put(path=path, json=json)
+
+    async def get_mode_subject(self, *, subject: str, defaultToGlobal: bool | None = None) -> Result:
+        path = f"/mode/{quote_plus(subject)}"
+        if defaultToGlobal is not None:
+            path = f"{path}?defaultToGlobal={str(defaultToGlobal).lower()}"
+        return await self.get(path=path)
+
+    async def put_mode_subject(self, *, subject: str, json: JsonData, force: bool | None = None) -> Result:
+        path = f"/mode/{quote_plus(subject)}"
+        if force is not None:
+            path = f"{path}?force={str(force).lower()}"
+        return await self.put(path=path, json=json)
+
+    async def delete_mode_subject(self, *, subject: str) -> Result:
+        return await self.delete(path=f"/mode/{quote_plus(subject)}")
 
     # SCHEMAS
     async def get_schemas(self) -> Result:

@@ -9,7 +9,9 @@ from karapace.api.routers.errors import SchemaErrorCodes
 from karapace.api.routers.requests import CompatibilityRequest, SchemaRequest
 from karapace.core.config import Config
 from karapace.core.errors import (
+    ImportConflict,
     IncompatibleSchema,
+    OperationNotPermittedInMode,
     ReferenceExistsException,
     SchemasNotFoundException,
     SchemaTooLargeException,
@@ -22,7 +24,7 @@ from karapace.core.errors import (
 )
 from karapace.core.schema_models import SchemaType
 from karapace.core.stats import StatsClient
-from karapace.core.typing import PrimaryInfo, Subject, Version
+from karapace.core.typing import Mode, PrimaryInfo, SchemaId, Subject, Version
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -642,6 +644,120 @@ async def test_subject_post_schema_too_large_returns_422() -> None:
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail["error_code"] == SchemaErrorCodes.SCHEMA_TOO_LARGE_ERROR_CODE.value
+
+
+async def test_subject_post_operation_not_permitted_in_mode_returns_422() -> None:
+    registry = MagicMock()
+    registry.resolve_references.return_value = (None, None)
+    registry.database.get_schema_id_if_exists.return_value = None
+    registry.get_master = AsyncMock(return_value=PrimaryInfo(primary=True, primary_url=None))
+    registry.write_new_schema_local = AsyncMock(side_effect=OperationNotPermittedInMode("not in IMPORT mode"))
+    ctrl = _controller(registry)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ctrl.subject_post(
+            subject="s",
+            schema_request=_schema_request(
+                schema='{"type":"record","name":"R","fields":[]}',
+                id=5,
+            ),
+            normalize=False,
+            forward_client=Mock(),
+            request=Mock(),
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["error_code"] == SchemaErrorCodes.OPERATION_NOT_PERMITTED_IN_MODE.value
+    assert exc_info.value.detail["message"] == "not in IMPORT mode"
+
+
+async def test_subject_post_import_conflict_returns_409() -> None:
+    registry = MagicMock()
+    registry.resolve_references.return_value = (None, None)
+    registry.database.get_schema_id_if_exists.return_value = None
+    registry.get_master = AsyncMock(return_value=PrimaryInfo(primary=True, primary_url=None))
+    registry.write_new_schema_local = AsyncMock(side_effect=ImportConflict("version 5 is already registered"))
+    ctrl = _controller(registry)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ctrl.subject_post(
+            subject="s",
+            schema_request=_schema_request(
+                schema='{"type":"record","name":"R","fields":[]}',
+                id=5,
+            ),
+            normalize=False,
+            forward_client=Mock(),
+            request=Mock(),
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["error_code"] == SchemaErrorCodes.IMPORT_CONFLICT.value
+    assert exc_info.value.detail["message"] == "version 5 is already registered"
+
+
+async def test_subject_post_import_mode_skips_dedup_for_explicit_id() -> None:
+    registry = MagicMock()
+    registry.resolve_references.return_value = (None, None)
+    registry.get_subject_mode.return_value = Mode.import_mode
+    # Would short circuit and return 7 if the dedup fast path was not skipped.
+    registry.database.get_schema_id_if_exists.return_value = 7
+    registry.get_master = AsyncMock(return_value=PrimaryInfo(primary=True, primary_url=None))
+    registry.write_new_schema_local = AsyncMock(return_value=9)
+    ctrl = _controller(registry)
+
+    resp = await ctrl.subject_post(
+        subject="s",
+        schema_request=_schema_request(schema='{"type":"record","name":"R","fields":[]}', id=9, version=4),
+        normalize=False,
+        forward_client=Mock(),
+        request=Mock(),
+    )
+
+    assert resp.schema_id == 9
+    assert registry.write_new_schema_local.await_args.kwargs["explicit_schema_id"] == SchemaId(9)
+    assert registry.write_new_schema_local.await_args.kwargs["explicit_version"] == Version(4)
+
+
+async def test_subject_post_import_mode_skips_dedup_for_explicit_version_only() -> None:
+    """A pinned version must survive the dedup fast path."""
+    registry = MagicMock()
+    registry.resolve_references.return_value = (None, None)
+    registry.get_subject_mode.return_value = Mode.import_mode
+    registry.database.get_schema_id_if_exists.return_value = 7
+    registry.get_master = AsyncMock(return_value=PrimaryInfo(primary=True, primary_url=None))
+    registry.write_new_schema_local = AsyncMock(return_value=11)
+    ctrl = _controller(registry)
+
+    resp = await ctrl.subject_post(
+        subject="s",
+        schema_request=_schema_request(schema='{"type":"record","name":"R","fields":[]}', version=5),
+        normalize=False,
+        forward_client=Mock(),
+        request=Mock(),
+    )
+
+    assert resp.schema_id == 11
+    assert registry.write_new_schema_local.await_args.kwargs["explicit_schema_id"] is None
+    assert registry.write_new_schema_local.await_args.kwargs["explicit_version"] == Version(5)
+
+
+async def test_subject_post_import_mode_without_explicit_values_uses_dedup() -> None:
+    registry = MagicMock()
+    registry.resolve_references.return_value = (None, None)
+    registry.get_subject_mode.return_value = Mode.import_mode
+    registry.database.get_schema_id_if_exists.return_value = 7
+    ctrl = _controller(registry)
+
+    resp = await ctrl.subject_post(
+        subject="s",
+        schema_request=_schema_request(schema='{"type":"record","name":"R","fields":[]}'),
+        normalize=False,
+        forward_client=Mock(),
+        request=Mock(),
+    )
+
+    assert resp.schema_id == 7
 
 
 async def test_subject_post_returns_existing_schema_id() -> None:

@@ -14,6 +14,7 @@ from typing import Final
 
 # used by the OrderedDict for the relative order of keys.
 SCHEMA_KEY_ORDER: Final[tuple[str, str, str, str]] = ("keytype", "subject", "version", "magic")
+# MODE keys share this shape, so they need no ordering of their own.
 CONFIG_KEY_ORDER: Final[tuple[str, str, str]] = ("keytype", "subject", "magic")
 NOOP_KEY_ORDER: Final[tuple[str, str]] = ("keytype", "magic")
 

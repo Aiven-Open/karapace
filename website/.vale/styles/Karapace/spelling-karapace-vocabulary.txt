@@ -37,6 +37,8 @@ backend
 changeset
 cli
 config
+deduplicates
+deduplication
 dev
 deserialization
 deserialize
@@ -50,6 +52,7 @@ lookups
 retriable
 markdownlint
 mTLS
+namespace
 npm
 nvmrc
 offsets

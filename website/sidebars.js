@@ -15,7 +15,12 @@ const sidebars = {
         {
             type: "category",
             label: "Operations",
-            items: ["deployment", "observability", "troubleshooting"],
+            items: [
+                "deployment",
+                "import-mode",
+                "observability",
+                "troubleshooting",
+            ],
         },
     ],
 };

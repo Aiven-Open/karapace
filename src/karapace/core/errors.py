@@ -79,7 +79,15 @@ class OperationNotPermittedInMode(Exception):
     pass
 
 
+class ImportConflict(Exception):
+    """Raised when an import collides with what the registry already holds."""
+
+
 class InvalidMode(Exception):
+    pass
+
+
+class SchemaIdDoesNotMatch(Exception):
     pass
 
 

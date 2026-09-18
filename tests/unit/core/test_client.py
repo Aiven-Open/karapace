@@ -291,6 +291,27 @@ class TestResourceHelpers:
             assert mocked_get.await_args is not None
             assert mocked_get.await_args.kwargs["path"] == "/config/t?defaultToGlobal=true"
 
+    async def test_get_mode_subject_appends_default_to_global_query(self) -> None:
+        client = Client(server_uri="http://example.com/")
+        with patch.object(client, "get", new=AsyncMock(return_value=Result(200, {}))) as mocked_get:
+            await client.get_mode_subject(subject="t", defaultToGlobal=True)
+            assert mocked_get.await_args is not None
+            assert mocked_get.await_args.kwargs["path"] == "/mode/t?defaultToGlobal=true"
+
+    async def test_put_mode_appends_force_query(self) -> None:
+        client = Client(server_uri="http://example.com/")
+        with patch.object(client, "put", new=AsyncMock(return_value=Result(200, {}))) as mocked_put:
+            await client.put_mode(json={"mode": "IMPORT"}, force=True)
+            assert mocked_put.await_args is not None
+            assert mocked_put.await_args.kwargs["path"] == "/mode?force=true"
+
+    async def test_put_mode_subject_appends_force_query(self) -> None:
+        client = Client(server_uri="http://example.com/")
+        with patch.object(client, "put", new=AsyncMock(return_value=Result(200, {}))) as mocked_put:
+            await client.put_mode_subject(subject="t", json={"mode": "IMPORT"}, force=False)
+            assert mocked_put.await_args is not None
+            assert mocked_put.await_args.kwargs["path"] == "/mode/t?force=false"
+
     @pytest.mark.parametrize(
         ("method_name", "kwargs", "underlying", "expected_path_field", "expected_path"),
         [
@@ -328,6 +349,27 @@ class TestResourceHelpers:
                 "get",
                 "path",
                 "/mode",
+            ),
+            (
+                "put_mode",
+                {"json": {"mode": "IMPORT"}},
+                "put",
+                "path",
+                "/mode",
+            ),
+            (
+                "put_mode_subject",
+                {"subject": "t", "json": {"mode": "IMPORT"}},
+                "put",
+                "path",
+                "/mode/t",
+            ),
+            (
+                "delete_mode_subject",
+                {"subject": "t"},
+                "delete",
+                "path",
+                "/mode/t",
             ),
             (
                 "post_subjects",
