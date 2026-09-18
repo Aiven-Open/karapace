@@ -149,6 +149,9 @@ class WrappedInMemoryDatabase(KarapaceDatabase):
     def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
         return self.db.find_schema(schema_id=schema_id)
 
+    def find_schema_id(self, *, schema: TypedSchema) -> SchemaId | None:
+        return self.db.find_schema_id(schema=schema)
+
     def find_schemas(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
         return self.db.find_schemas(include_deleted=include_deleted, latest_only=latest_only)
 
@@ -502,6 +505,26 @@ class TestFindSchemasVariants:
         versions = result[Subject("s")]
         assert len(versions) == 1
         assert versions[0].version == Version(2)
+
+    def test_latest_only_uses_highest_version_not_last_inserted(self) -> None:
+        """IMPORT mode can insert versions out of order."""
+        db = InMemoryDatabase()
+        subject = Subject("s")
+        db.insert_subject(subject=subject)
+        for name, version in (("Third", Version(3)), ("First", Version(1))):
+            schema = _avro_schema(name)
+            db.insert_schema_version(
+                subject=subject,
+                schema_id=db.get_schema_id(schema),
+                version=version,
+                schema=schema,
+                deleted=False,
+                references=None,
+            )
+
+        result = db.find_schemas(include_deleted=False, latest_only=True)
+
+        assert [v.version for v in result[subject]] == [Version(3)]
 
     def test_include_deleted_true_excludes_soft_deleted_versions(self) -> None:
         # NOTE: The `include_deleted` parameter has inverted semantics in the implementation:

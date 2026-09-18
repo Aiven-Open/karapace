@@ -96,6 +96,8 @@ async def start_schema_registry_cluster(
                 "KARAPACE_USE_PROTOBUF_FORMATTER": "true" if config.use_protobuf_formatter else "false",
                 "KARAPACE_WAITING_TIME_BEFORE_ACTING_AS_MASTER_MS": str(config.waiting_time_before_acting_as_master_ms),
                 "KARAPACE_MASTER_ELIGIBILITY": str(config.master_eligibility),
+                "KARAPACE_MODE_MUTABILITY": str(config.mode_mutability),
+                "KARAPACE_ALLOW_DUPLICATE_SCHEMA_IDS": str(config.allow_duplicate_schema_ids),
             }
             process = popen_karapace_all(module="karapace", env=env, stdout=logfile, stderr=errfile)
             stack.callback(stop_process, process)

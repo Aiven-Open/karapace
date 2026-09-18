@@ -96,7 +96,7 @@ async def mode_put_subject(
 ) -> ModeResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:
@@ -121,7 +121,7 @@ async def mode_delete_subject(
 ) -> ModeResponse:
     subject = Subject(unquote_plus(subject))
     if authorizer and not authorizer.check_authorization(user, Operation.Write, f"Subject:{subject}"):
-        raise unauthorized()
+        raise subject_not_found(subject)
 
     primary_info = await schema_registry.get_master()
     if primary_info.primary:

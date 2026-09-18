@@ -24,7 +24,7 @@ LOG = logging.getLogger(__name__)
 class SubjectData:
     schemas: dict[Version, SchemaVersion] = field(default_factory=dict)
     compatibility: str | None = None
-    mode: str | None = None
+    mode: Mode | None = None
 
 
 class KarapaceDatabase(ABC):
@@ -78,6 +78,10 @@ class KarapaceDatabase(ABC):
     @abstractmethod
     def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
         pass
+
+    @abstractmethod
+    def find_schema_id(self, *, schema: TypedSchema) -> SchemaId | None:
+        """Global content to id lookup, the inverse of find_schema."""
 
     @abstractmethod
     def find_schemas(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
@@ -186,15 +190,15 @@ class InMemoryDatabase(KarapaceDatabase):
             debug_str += "--------------------------------------------------------------------------------------\n"
             LOG.debug(debug_str)
 
-    def _get_schema_id_from_storage(self, *, new_schema: TypedSchema) -> SchemaId | None:
-        for schema_id, schema in self.schemas.items():
-            if schema == new_schema:
+    def find_schema_id(self, *, schema: TypedSchema) -> SchemaId | None:
+        for schema_id, stored_schema in self.schemas.items():
+            if stored_schema == schema:
                 return schema_id
         return None
 
     def get_schema_id(self, new_schema: TypedSchema) -> SchemaId:
         with self.id_lock_thread:
-            maybe_schema_id = self._get_schema_id_from_storage(new_schema=new_schema)
+            maybe_schema_id = self.find_schema_id(schema=new_schema)
             if maybe_schema_id is not None:
                 return maybe_schema_id
             self.global_schema_id = SchemaId(self.global_schema_id + 1)
@@ -304,20 +308,20 @@ class InMemoryDatabase(KarapaceDatabase):
         self._global_mode = mode
 
     def get_subject_mode(self, *, subject: Subject) -> Mode | None:
-        if subject in self.subjects and self.subjects[subject].mode is not None:
-            return Mode(self.subjects[subject].mode)
+        if subject in self.subjects:
+            return self.subjects[subject].mode
         return None
 
     def set_subject_mode(self, *, subject: Subject, mode: Mode) -> None:
         if subject in self.subjects:
-            self.subjects[subject].mode = mode.value
+            self.subjects[subject].mode = mode
 
     def delete_subject_mode(self, *, subject: Subject) -> None:
         if subject in self.subjects:
             self.subjects[subject].mode = None
 
     def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
-        return self.schemas[schema_id]
+        return self.schemas.get(schema_id)
 
     def find_schemas(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
         res_schemas = {}
@@ -327,7 +331,8 @@ class InMemoryDatabase(KarapaceDatabase):
                 schemas = list(subject_data.schemas.values())
                 if latest_only and len(schemas) > 0:
                     # TODO don't include the deleted here?
-                    selected_schemas = [schemas[-1]]
+                    # Highest version, not last inserted: IMPORT mode can insert versions out of order.
+                    selected_schemas = [subject_data.schemas[max(subject_data.schemas)]]
                 else:
                     selected_schemas = schemas
                 if include_deleted:

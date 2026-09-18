@@ -33,6 +33,7 @@ class SchemaErrorCodes(IntEnum):
     NO_MASTER_ERROR = 50003
     INVALID_MODE = 42204
     OPERATION_NOT_PERMITTED_IN_MODE = 42205
+    INVALID_SCHEMA_ID = 42207
 
 
 @unique
@@ -47,6 +48,10 @@ class SchemaErrorMessages(Enum):
         "Subject '{subject}' does not have subject-level compatibility configured"
     )
     REFERENCES_SUPPORT_NOT_IMPLEMENTED = "Schema references are not supported for '{schema_type}' schema type"
+    INVALID_SCHEMA_ID_RANGE_FMT = (
+        "The specified schema id '{schema_id}' is not valid. Allowed values are between [1, 2^31-1]"
+    )
+    INVALID_VERSION_RANGE_FMT = "The specified version '{version}' is not valid. Allowed values are between [1, 2^31-1]"
 
 
 class KarapaceValidationError(RequestValidationError):

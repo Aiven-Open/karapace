@@ -659,19 +659,29 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
 
     def _handle_msg_mode(self, key: dict, value: dict | None) -> None:
         subject = key.get("subject")
+        mode = None
+        if value:
+            try:
+                mode = Mode(value["mode"])
+            except ValueError:
+                # A migrated topic may carry modes we do not implement. Ignoring beats
+                # shutting the reader down in strict mode.
+                LOG.warning("Ignoring unknown mode %r for subject: %r", value.get("mode"), subject)
+                return
+
         if subject is not None:
             if self.database.find_subject(subject=subject) is None:
                 LOG.debug("Adding subject: %r for mode setting", subject)
                 self.database.insert_subject(subject=subject)
-            if not value:
+            if mode is None:
                 LOG.debug("Deleting mode for subject: %r", subject)
                 self.database.delete_subject_mode(subject=subject)
             else:
-                LOG.debug("Setting mode for subject: %r to: %r", subject, value["mode"])
-                self.database.set_subject_mode(subject=subject, mode=Mode(value["mode"]))
-        elif value is not None:
-            LOG.debug("Setting global mode to: %r", value["mode"])
-            self.database.set_global_mode(mode=Mode(value["mode"]))
+                LOG.debug("Setting mode for subject: %r to: %r", subject, mode)
+                self.database.set_subject_mode(subject=subject, mode=mode)
+        elif mode is not None:
+            LOG.debug("Setting global mode to: %r", mode)
+            self.database.set_global_mode(mode=mode)
 
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
         subject, version = key["subject"], Version(key["version"])

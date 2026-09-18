@@ -186,6 +186,10 @@ class Config(BaseSettings):
     kafka_retriable_errors_silenced: bool = True
     use_protobuf_formatter: bool = False
     waiting_time_before_acting_as_master_ms: int = 5000
+    # Set false to reject every mode change.
+    mode_mutability: bool = True
+    # Set false to keep schema ids one to one with content during an import.
+    allow_duplicate_schema_ids: bool = True
 
     sentry: Mapping[str, object] | None = None
     tags: KarapaceTags = KarapaceTags()
