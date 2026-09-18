@@ -23,6 +23,8 @@ Common workflows that are supported include:
   `FORWARD_TRANSITIVE`, `FULL`, `FULL_TRANSITIVE`, `NONE`), set globally or per subject.
 - Soft and hard deletes of subjects and versions, listing deleted subjects
   (`?deleted=true`), and reference-protection on delete.
+- Reading and setting the registry mode, globally or per subject, including `IMPORT` mode
+  for migrating schemas with their original IDs (see [Import mode](./import-mode.md)).
 - HTTP basic auth and OAuth2 / OIDC bearer tokens (see
   [Authentication](./authentication.md)).
 
@@ -67,3 +69,6 @@ format when migrating so the topic lines up with Confluent's.
 
 When planning a migration, review the schema formats and features your applications depend
 on — including any reliance on specific schema IDs — against your Karapace version.
+
+To move schemas into Karapace while keeping their original schema IDs and version numbers,
+use [Import mode](./import-mode.md).

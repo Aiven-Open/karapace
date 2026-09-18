@@ -257,6 +257,42 @@ Change compatibility requirement to FULL for the test-key subject::
     --data '{"compatibility": "FULL"}' http://localhost:8081/config/test-key
   {"compatibility":"FULL"}
 
+Get the current global mode. Karapace supports ``READWRITE`` (the default) and ``IMPORT``::
+
+  $ curl -X GET http://localhost:8081/mode
+  {"mode":"READWRITE"}
+
+Switch the test-key subject to IMPORT mode, which allows schemas to be registered with
+their original schema ids and version numbers. The subject must be empty, unless
+``?force=true`` is given::
+
+  $ curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+    --data '{"mode": "IMPORT"}' http://localhost:8081/mode/test-key
+  {"mode":"IMPORT"}
+
+Register a schema with an explicit id and version, which is only accepted in IMPORT mode::
+
+  $ curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+    --data '{"schema": "{\"type\": \"string\"}", "id": 1001, "version": 5}' \
+    http://localhost:8081/subjects/test-key/versions
+  {"id":1001}
+
+Read the effective mode of a subject. Add ``?defaultToGlobal=true`` to get the global mode
+instead of a 404 for an unknown subject::
+
+  $ curl -X GET http://localhost:8081/mode/test-key
+  {"mode":"IMPORT"}
+
+Remove the subject level mode so the subject follows the global mode again::
+
+  $ curl -X DELETE http://localhost:8081/mode/test-key
+  {"mode":"READWRITE"}
+
+IMPORT mode skips compatibility checks and content deduplication, schema ids are global and
+immutable once bound, and a failed import is resumed by replaying it rather than rolled
+back. See the `Import mode <https://www.karapace.io/docs/import-mode>`_ documentation for
+the full constraints and recovery steps.
+
 Schema Registry Rest proxy Api reference
 ========================================
 
@@ -586,6 +622,14 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
    * - ``topic_name``
      - ``_schemas``
      - The name of the Kafka topic where to store the schemas.
+   * - ``allow_duplicate_schema_ids``
+     - ``true``
+     - Whether one schema may be imported under more than one schema id. Set to ``false`` to refuse an import whose content is already
+       registered under a different id, keeping ids one to one with content.
+   * - ``mode_mutability``
+     - ``true``
+     - Whether mode changes are allowed. Set to ``false`` to reject every ``PUT``/``DELETE`` on ``/mode``, so ``IMPORT`` mode cannot be
+       entered at runtime.
    * - ``use_protobuf_formatter``
      - ``false``
      - If protobuf formatter should be used on protobuf schemas in order to normalize schemas. The formatter is used on top and independent of regular normalization and schemas will be persisted in a formatted state.

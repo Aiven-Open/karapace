@@ -46,7 +46,7 @@ from karapace.core.schema_models import parse_protobuf_schema_definition, Schema
 from karapace.core.schema_references import LatestVersionReference, Reference, reference_from_mapping, Referents
 
 from karapace.core.stats import StatsClient
-from karapace.core.typing import JsonObject, JsonSchemaValidator, SchemaReaderStoppper, Subject, Version
+from karapace.core.typing import JsonObject, JsonSchemaValidator, Mode, SchemaReaderStoppper, Subject, Version
 from karapace.core.utils import json_decode, JSONDecodeError, shutdown
 from threading import Event, Lock, Thread
 from typing import Final, cast
@@ -87,6 +87,7 @@ class MessageType(Enum):
     schema = "SCHEMA"
     delete_subject = "DELETE_SUBJECT"
     no_operation = "NOOP"
+    mode = "MODE"
 
 
 def _create_consumer_from_config(config: Config) -> KafkaConsumer:
@@ -656,6 +657,32 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             LOG.debug("Deleting subject: %r, value: %r", subject, value)
             self.database.delete_subject(subject=subject, version=version)
 
+    def _handle_msg_mode(self, key: dict, value: dict | None) -> None:
+        subject = key.get("subject")
+        mode = None
+        if value:
+            try:
+                mode = Mode(value["mode"])
+            except ValueError:
+                # A migrated topic may carry modes we do not implement. Ignoring beats
+                # shutting the reader down in strict mode.
+                LOG.warning("Ignoring unknown mode %r for subject: %r", value.get("mode"), subject)
+                return
+
+        if subject is not None:
+            if self.database.find_subject(subject=subject) is None:
+                LOG.debug("Adding subject: %r for mode setting", subject)
+                self.database.insert_subject(subject=subject)
+            if mode is None:
+                LOG.debug("Deleting mode for subject: %r", subject)
+                self.database.delete_subject_mode(subject=subject)
+            else:
+                LOG.debug("Setting mode for subject: %r to: %r", subject, mode)
+                self.database.set_subject_mode(subject=subject, mode=mode)
+        elif mode is not None:
+            LOG.debug("Setting global mode to: %r", mode)
+            self.database.set_global_mode(mode=mode)
+
     def _handle_msg_schema_hard_delete(self, key: dict) -> None:
         subject, version = key["subject"], Version(key["version"])
 
@@ -765,6 +792,8 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
                     self._handle_msg_schema(key, value)
                 elif message_type == MessageType.delete_subject:
                     self._handle_msg_delete_subject(key, value)
+                elif message_type == MessageType.mode:
+                    self._handle_msg_mode(key, value)
                 elif message_type == MessageType.no_operation:
                     pass
             except (KeyError, ValueError) as exc:

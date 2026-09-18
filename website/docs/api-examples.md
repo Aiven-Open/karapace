@@ -123,6 +123,68 @@ curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
 # {"compatibility":"FULL"}
 ```
 
+### Modes
+
+Get the current global mode:
+
+```bash
+curl -X GET http://localhost:8081/mode
+# Response:
+# {"mode":"READWRITE"}
+```
+
+Switch the `test-key` subject to `IMPORT` so schemas can be registered with their original
+schema IDs and version numbers. The subject has to be empty, or the request is rejected:
+
+```bash
+curl -X PUT -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"mode": "IMPORT"}' http://localhost:8081/mode/test-key
+# Response:
+# {"mode":"IMPORT"}
+```
+
+Register a schema with an explicit ID and version, which is only allowed in `IMPORT` mode:
+
+```bash
+curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"schema": "{\"type\": \"string\"}", "id": 1001, "version": 5}' \
+  http://localhost:8081/subjects/test-key/versions
+# Response:
+# {"id":1001}
+```
+
+Registering different content under an ID that is already taken is rejected:
+
+```bash
+curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" \
+  --data '{"schema": "{\"type\": \"int\"}", "id": 1001, "version": 6}' \
+  http://localhost:8081/subjects/test-key/versions
+# Response:
+# {"error_code":42205,"message":"Overwrite new schema with id 1001 is not permitted."}
+```
+
+Read the effective mode of a subject. Add `?defaultToGlobal=true` to get the global mode
+instead of a 404 for an unknown subject:
+
+```bash
+curl -X GET http://localhost:8081/mode/test-key
+# Response:
+# {"mode":"IMPORT"}
+```
+
+Remove the subject-level mode so the subject follows the global mode again:
+
+```bash
+curl -X DELETE http://localhost:8081/mode/test-key
+# Response:
+# {"mode":"READWRITE"}
+```
+
+:::note
+See [Import mode](./import-mode.md) for the constraints, the `force` option and how to
+recover from a failed import.
+:::
+
 ## REST Proxy
 
 List topics:
