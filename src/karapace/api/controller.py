@@ -16,6 +16,7 @@ from karapace.api.routers.requests import (
     CompatibilityRequest,
     CompatibilityResponse,
     ModeResponse,
+    ModeUpdateRequest,
     SchemaIdResponse,
     SchemaListingItem,
     SchemaRequest,
@@ -31,12 +32,16 @@ from karapace.core.compatibility.jsonschema.checks import is_incompatible
 from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
 from karapace.core.config import Config
 from karapace.core.errors import (
+    ImportConflict,
     IncompatibleSchema,
+    InvalidMode,
     InvalidReferences,
     InvalidSchema,
     InvalidSchemaType,
     InvalidVersion,
+    OperationNotPermittedInMode,
     ReferenceExistsException,
+    SchemaIdDoesNotMatch,
     SchemasNotFoundException,
     SchemaTooLargeException,
     SchemaVersionNotSoftDeletedException,
@@ -58,7 +63,7 @@ from karapace.core.schema_models import (
 from karapace.core.schema_references import LatestVersionReference, Reference
 from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.core.stats import StatsClient
-from karapace.core.typing import JsonData, JsonObject, SchemaId, Subject, Version
+from karapace.core.typing import JsonData, JsonObject, Mode, SchemaId, Subject, Version
 from karapace.core.utils import JSONDecodeError
 from typing import Any, cast
 
@@ -611,7 +616,8 @@ class KarapaceSchemaRegistryController:
     ) -> list[int]:
         try:
             schema_versions = self.schema_registry.subject_get(Subject(subject), include_deleted=deleted)
-            version_list = [version.value for version in schema_versions]
+            # sorted: IMPORT mode can insert versions out of order.
+            version_list = sorted(version.value for version in schema_versions)
             return version_list
         except (SubjectNotFoundException, SchemasNotFoundException) as exc:
             raise HTTPException(
@@ -831,14 +837,27 @@ class KarapaceSchemaRegistryController:
                 },
             ) from exc
 
-        schema_id = self.get_schema_id_if_exists(subject=Subject(subject), schema=new_schema, include_deleted=False)
-        if schema_id is not None:
-            return SchemaIdResponse(id=schema_id)
+        subject_mode = self.schema_registry.get_subject_mode(Subject(subject))
+        is_import_mode = subject_mode == Mode.import_mode
+        explicit_schema_id = SchemaId(schema_request.schema_id) if schema_request.schema_id is not None else None
+        explicit_version = Version(schema_request.schema_version) if schema_request.schema_version is not None else None
+
+        # Dedup would collapse an explicit id or version onto an existing registration.
+        if not (is_import_mode and (explicit_schema_id is not None or explicit_version is not None)):
+            schema_id = self.get_schema_id_if_exists(subject=Subject(subject), schema=new_schema, include_deleted=False)
+            if schema_id is not None:
+                return SchemaIdResponse(id=schema_id)
 
         primary_info = await self.schema_registry.get_master()
         if primary_info.primary:
             try:
-                schema_id = await self.schema_registry.write_new_schema_local(Subject(subject), new_schema, references)
+                schema_id = await self.schema_registry.write_new_schema_local(
+                    Subject(subject),
+                    new_schema,
+                    references,
+                    explicit_schema_id=explicit_schema_id,
+                    explicit_version=explicit_version,
+                )
                 return SchemaIdResponse(id=schema_id)
             except InvalidSchema as exc:
                 raise HTTPException(
@@ -853,6 +872,30 @@ class KarapaceSchemaRegistryController:
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
                         "error_code": SchemaErrorCodes.HTTP_CONFLICT.value,
+                        "message": str(exc),
+                    },
+                ) from exc
+            except ImportConflict as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "error_code": SchemaErrorCodes.IMPORT_CONFLICT.value,
+                        "message": str(exc),
+                    },
+                ) from exc
+            except OperationNotPermittedInMode as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error_code": SchemaErrorCodes.OPERATION_NOT_PERMITTED_IN_MODE.value,
+                        "message": str(exc),
+                    },
+                ) from exc
+            except SchemaIdDoesNotMatch as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error_code": SchemaErrorCodes.INVALID_SCHEMA_ID.value,
                         "message": str(exc),
                     },
                 ) from exc
@@ -881,8 +924,12 @@ class KarapaceSchemaRegistryController:
         self,
         *,
         subject: str,
+        default_to_global: bool = False,
     ) -> ModeResponse:
-        if self.schema_registry.database.find_subject(subject=Subject(subject)) is None:
+        subject_found = self.schema_registry.database.find_subject(subject=Subject(subject))
+        if subject_found is None:
+            if default_to_global:
+                return ModeResponse(mode=str(self.schema_registry.get_global_mode()))
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
@@ -890,7 +937,104 @@ class KarapaceSchemaRegistryController:
                     "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
                 },
             )
-        return ModeResponse(mode=str(self.schema_registry.get_global_mode()))
+        return ModeResponse(mode=str(self.schema_registry.get_subject_mode(Subject(subject))))
+
+    async def set_global_mode(self, *, mode_request: ModeUpdateRequest, force: bool = False) -> ModeResponse:
+        try:
+            mode = await self.schema_registry.set_mode_local(
+                mode=mode_request.mode,
+                force=force,
+            )
+            return ModeResponse(mode=str(mode))
+        except InvalidMode as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": SchemaErrorCodes.INVALID_MODE.value,
+                    "message": str(exc),
+                },
+            ) from exc
+        except ImportConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": SchemaErrorCodes.IMPORT_CONFLICT.value,
+                    "message": str(exc),
+                },
+            ) from exc
+        except OperationNotPermittedInMode as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": SchemaErrorCodes.OPERATION_NOT_PERMITTED_IN_MODE.value,
+                    "message": str(exc),
+                },
+            ) from exc
+
+    async def set_subject_mode(
+        self,
+        *,
+        subject: str,
+        mode_request: ModeUpdateRequest,
+        force: bool = False,
+    ) -> ModeResponse:
+        # No existence check: setting IMPORT is how a migration into a new subject starts.
+        try:
+            mode = await self.schema_registry.set_mode_local(
+                mode=mode_request.mode,
+                subject=Subject(subject),
+                force=force,
+            )
+            return ModeResponse(mode=str(mode))
+        except InvalidMode as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": SchemaErrorCodes.INVALID_MODE.value,
+                    "message": str(exc),
+                },
+            ) from exc
+        except ImportConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": SchemaErrorCodes.IMPORT_CONFLICT.value,
+                    "message": str(exc),
+                },
+            ) from exc
+        except OperationNotPermittedInMode as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": SchemaErrorCodes.OPERATION_NOT_PERMITTED_IN_MODE.value,
+                    "message": str(exc),
+                },
+            ) from exc
+
+    async def delete_subject_mode(self, *, subject: str) -> ModeResponse:
+        try:
+            # Before the 404: with mode changes off the answer is the same either way.
+            self.schema_registry.check_mode_mutability()
+        except OperationNotPermittedInMode as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error_code": SchemaErrorCodes.OPERATION_NOT_PERMITTED_IN_MODE.value,
+                    "message": str(exc),
+                },
+            ) from exc
+
+        # 404 when there is no override to delete, not merely when the subject is unknown.
+        if self.schema_registry.database.get_subject_mode(subject=Subject(subject)) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error_code": SchemaErrorCodes.SUBJECT_NOT_FOUND.value,
+                    "message": SchemaErrorMessages.SUBJECT_NOT_FOUND_FMT.value.format(subject=subject),
+                },
+            )
+        global_mode = await self.schema_registry.delete_mode_local(Subject(subject))
+        return ModeResponse(mode=str(global_mode))
 
     def get_schema_id_if_exists(self, *, subject: Subject, schema: TypedSchema, include_deleted: bool) -> SchemaId | None:
         schema_id = self.schema_registry.database.get_schema_id_if_exists(

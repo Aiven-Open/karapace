@@ -17,19 +17,21 @@ start.
 
 ## Common keys
 
-| Parameter            | Default           | Description                                                                                |
-| -------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| `bootstrap_uri`      | `localhost:9092`  | The Kafka service where schemas are stored and coordination among Karapace instances runs. |
-| `host`               | `127.0.0.1`       | Listening host. Use an empty string to listen on all networks.                             |
-| `port`               | `8081`            | Listening port for the Karapace server.                                                    |
-| `topic_name`         | `_schemas`        | The Kafka topic where schemas are stored.                                                  |
-| `group_id`           | `schema-registry` | Kafka group name used to elect a master for storing schemas.                               |
-| `client_id`          | `sr-1`            | The client id used when coordinating with other Karapace instances.                        |
-| `replication_factor` | `1`               | Replication factor for the schema topic.                                                   |
-| `karapace_registry`  | `true`            | Include the registry part of the app in the starting process.                              |
-| `karapace_rest`      | `true`            | Include the REST part of the app in the starting process.                                  |
-| `log_level`          | `DEBUG`           | Logging level.                                                                             |
-| `log_handler`        | `stdout`          | Log handler: `stdout` or `systemd`.                                                        |
+| Parameter                    | Default           | Description                                                                                           |
+| ---------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `bootstrap_uri`              | `localhost:9092`  | The Kafka service where schemas are stored and coordination among Karapace instances runs.            |
+| `host`                       | `127.0.0.1`       | Listening host. Use an empty string to listen on all networks.                                        |
+| `port`                       | `8081`            | Listening port for the Karapace server.                                                               |
+| `topic_name`                 | `_schemas`        | The Kafka topic where schemas are stored.                                                             |
+| `group_id`                   | `schema-registry` | Kafka group name used to elect a master for storing schemas.                                          |
+| `client_id`                  | `sr-1`            | The client id used when coordinating with other Karapace instances.                                   |
+| `replication_factor`         | `1`               | Replication factor for the schema topic.                                                              |
+| `karapace_registry`          | `true`            | Include the registry part of the app in the starting process.                                         |
+| `karapace_rest`              | `true`            | Include the REST part of the app in the starting process.                                             |
+| `log_level`                  | `DEBUG`           | Logging level.                                                                                        |
+| `log_handler`                | `stdout`          | Log handler: `stdout` or `systemd`.                                                                   |
+| `mode_mutability`            | `true`            | Whether mode changes are allowed. Set `false` and `IMPORT` mode cannot be entered.                    |
+| `allow_duplicate_schema_ids` | `true`            | Whether one schema may be imported under more than one id. `false` keeps ids one to one with content. |
 
 ## High availability / master election
 

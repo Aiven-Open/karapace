@@ -4,15 +4,17 @@ See LICENSE for details
 """
 
 from dependency_injector.wiring import inject, Provide
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from karapace.api.container import SchemaRegistryContainer
 from karapace.api.controller import KarapaceSchemaRegistryController
-from karapace.api.routers.errors import subject_not_found, unauthorized
+from karapace.api.forward_client import ForwardClient
+from karapace.api.routers.errors import no_primary_url_error, subject_not_found, unauthorized
 from karapace.api.routers.raw_path_router import SchemaRegistryRoute
-from karapace.api.routers.requests import ModeResponse
+from karapace.api.routers.requests import ModeResponse, ModeUpdateRequest
 from karapace.api.user import get_current_user
 from karapace.core.auth import AuthenticatorAndAuthorizer, Operation, User
 from karapace.core.auth_container import AuthContainer
+from karapace.core.schema_registry import KarapaceSchemaRegistry
 from karapace.core.typing import Subject
 from typing import Annotated
 from urllib.parse import unquote_plus
@@ -23,6 +25,20 @@ mode_router = APIRouter(
     responses={404: {"description": "Not found"}},
     route_class=SchemaRegistryRoute,
 )
+
+
+def _authorized_subject(
+    subject: Subject,
+    user: User,
+    authorizer: AuthenticatorAndAuthorizer,
+    operation: Operation,
+) -> Subject:
+    """Decode the subject from the path and check the caller may act on it."""
+    # A 404 rather than a 403, so an unauthorized caller cannot probe which subjects exist.
+    subject = Subject(unquote_plus(subject))
+    if authorizer and not authorizer.check_authorization(user, operation, f"Subject:{subject}"):
+        raise subject_not_found(subject)
+    return subject
 
 
 @mode_router.get("")
@@ -38,16 +54,88 @@ async def mode_get(
     return await controller.get_global_mode()
 
 
+@mode_router.put("")
+@inject
+async def mode_put(
+    request: Request,
+    mode_request: ModeUpdateRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
+    forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
+    force: bool = False,
+) -> ModeResponse:
+    if authorizer and not authorizer.check_authorization(user, Operation.Write, "Config:"):
+        raise unauthorized()
+
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
+        return await controller.set_global_mode(mode_request=mode_request, force=force)
+    if not primary_info.primary_url:
+        raise no_primary_url_error()
+    return await forward_client.forward_request_remote(
+        request=request, primary_url=primary_info.primary_url, response_type=ModeResponse
+    )
+
+
 @mode_router.get("/{subject}")
 @inject
 async def mode_get_subject(
     subject: Subject,
     user: Annotated[User, Depends(get_current_user)],
+    defaultToGlobal: bool = False,
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> ModeResponse:
-    subject = Subject(unquote_plus(subject))
-    if authorizer and not authorizer.check_authorization(user, Operation.Read, f"Subject:{subject}"):
-        raise subject_not_found(subject)
+    subject = _authorized_subject(subject, user, authorizer, Operation.Read)
 
-    return await controller.get_subject_mode(subject=subject)
+    return await controller.get_subject_mode(subject=subject, default_to_global=defaultToGlobal)
+
+
+@mode_router.put("/{subject}")
+@inject
+async def mode_put_subject(
+    request: Request,
+    subject: Subject,
+    mode_request: ModeUpdateRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
+    forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
+    force: bool = False,
+) -> ModeResponse:
+    subject = _authorized_subject(subject, user, authorizer, Operation.Write)
+
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
+        return await controller.set_subject_mode(subject=subject, mode_request=mode_request, force=force)
+    if not primary_info.primary_url:
+        raise no_primary_url_error()
+    return await forward_client.forward_request_remote(
+        request=request, primary_url=primary_info.primary_url, response_type=ModeResponse
+    )
+
+
+@mode_router.delete("/{subject}")
+@inject
+async def mode_delete_subject(
+    request: Request,
+    subject: Subject,
+    user: Annotated[User, Depends(get_current_user)],
+    schema_registry: KarapaceSchemaRegistry = Depends(Provide[SchemaRegistryContainer.schema_registry]),
+    forward_client: ForwardClient = Depends(Provide[SchemaRegistryContainer.karapace_container.forward_client]),
+    authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
+    controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
+) -> ModeResponse:
+    subject = _authorized_subject(subject, user, authorizer, Operation.Write)
+
+    primary_info = await schema_registry.get_master()
+    if primary_info.primary:
+        return await controller.delete_subject_mode(subject=subject)
+    if not primary_info.primary_url:
+        raise no_primary_url_error()
+    return await forward_client.forward_request_remote(
+        request=request, primary_url=primary_info.primary_url, response_type=ModeResponse
+    )
