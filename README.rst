@@ -119,15 +119,18 @@ or with curl ::
 To enable oidc authentication on the karapace, configure oidc jwks url config details ::
 
    sasl_oauthbearer_authentication_enabled: bool = True
-   sasl_oauthbearer_jwks_endpoint_url = "",
-   sasl_oauthbearer_expected_issuer = "",
-   sasl_oauthbearer_expected_audience = "",
+   sasl_oauthbearer_jwks_endpoint_url = "https://idp.example.com/realms/karapace/protocol/openid-connect/certs",
+   sasl_oauthbearer_expected_issuer = "https://idp.example.com/realms/karapace",
+   sasl_oauthbearer_expected_audience = "karapace-audience",
    sasl_oauthbearer_sub_claim_name = "sub",
 
 When ``sasl_oauthbearer_authentication_enabled`` is true, every request must carry a valid
-Bearer token (the JWT signature, issuer, audience and the configured subject claim are
-verified via JWKS). Authorization (role-based access) is opt-in on top of this with
-``sasl_oauthbearer_authorization_enabled``.
+Bearer token. The JWT signature, expiry and the configured subject claim are always verified
+via JWKS. ``sasl_oauthbearer_expected_issuer`` and ``sasl_oauthbearer_expected_audience`` are
+optional, as in Kafka's ``sasl.oauthbearer.expected.*``: leaving one unset skips that claim
+check. Leaving the audience unset means any token the provider issues for any client is
+accepted, so set it whenever the provider can mint a usable ``aud``. Authorization (role-based
+access) is opt-in on top of this with ``sasl_oauthbearer_authorization_enabled``.
 
 Optional hardening flags::
 
@@ -762,6 +765,12 @@ Below here is an example of karapace OpenId connect config ::
    sasl_oauthbearer_expected_issuer = "http://localhost:8383/realms/karapace",
    sasl_oauthbearer_expected_audience = "account",
    sasl_oauthbearer_sub_claim_name = "sub",
+
+``sasl_oauthbearer_expected_issuer`` and ``sasl_oauthbearer_expected_audience`` are optional; an
+unset value skips verification of that claim. ``sasl_oauthbearer_expected_audience`` accepts a
+comma-separated list and a token matching any entry is accepted. With Keycloak, the default
+access token carries ``aud: account``, so add an audience mapper to the client if you want to
+pin the audience to the client itself.
 
   For authorization (requires authentication to be enabled)::
 

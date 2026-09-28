@@ -67,8 +67,8 @@ All env vars are prefixed `KARAPACE_`. The OIDC fields live on `Config`:
 | `sasl_oauthbearer_authorization_enabled` | `False` | Adds RBAC after authn. See `../api/AGENTS.md`. |
 | `sasl_oauthbearer_jwks_endpoint_url` | `None` | Required if either flag above is on. |
 | `sasl_oauthbearer_allow_insecure_jwks` | `False` | Dev-only escape hatch for HTTP JWKS. |
-| `sasl_oauthbearer_expected_issuer` | `None` | Required when JWKS is set. |
-| `sasl_oauthbearer_expected_audience` | `None` | Comma-separated list; required when JWKS is set. |
+| `sasl_oauthbearer_expected_issuer` | `None` | Optional (Kafka parity); unset skips the `iss` check. |
+| `sasl_oauthbearer_expected_audience` | `None` | Optional comma-separated list; unset skips the `aud` check. |
 | `sasl_oauthbearer_sub_claim_name` | `"sub"` | Claim exposed as `request.state.user`. |
 | `sasl_oauthbearer_roles_claim_path` | `None` | Dot-path to roles list in JWT; required for authz. |
 | `sasl_oauthbearer_method_roles` | `DEFAULT_OIDC_METHOD_ROLES` (the `karapace.*` roles) | Per-method allowed roles. |

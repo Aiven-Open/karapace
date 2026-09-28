@@ -98,8 +98,13 @@ sasl_oauthbearer_expected_audience: "account"
 sasl_oauthbearer_sub_claim_name: "sub"
 ```
 
-The token's signature, issuer, audience, expiry and the configured subject claim are all
-verified. Optional hardening flags:
+The token's signature, expiry and the configured subject claim are always verified.
+`sasl_oauthbearer_expected_issuer` and `sasl_oauthbearer_expected_audience` are optional
+(as in Kafka's `sasl.oauthbearer.expected.*`) — unset skips that claim check. Audience takes
+a comma-separated list and a token matching any entry is accepted. With no expected audience,
+any token the provider issues for any client is accepted.
+
+Optional hardening flags:
 
 | Flag                                        | Default | Description                                                                        |
 | ------------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
