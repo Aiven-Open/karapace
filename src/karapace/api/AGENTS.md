@@ -13,9 +13,10 @@ OIDC runs as a **Starlette HTTP middleware**, before any FastAPI route handler. 
 1. `PyJWKClient.get_signing_key_from_jwt(token)` — JWKS is cached: `PyJWKClient(self.jwks_url, cache_keys=True, lifespan=300, max_cached_keys=16)`. `lifespan=300` caps how long a key stays cached after IdP rotation/revocation.
 2. `jwt.decode()` with:
    - `algorithms=["RS256","RS384","RS512"]` (hardcoded, RSA only).
-   - `audience` — comma-separated `sasl_oauthbearer_expected_audience` is split into a list.
-   - `issuer` — `sasl_oauthbearer_expected_issuer`.
-   - `options={"require": ["exp","iss","aud"]}` — PyJWT does **not** require these by default; we do, explicitly.
+   - `audience` — comma-separated `sasl_oauthbearer_expected_audience` split into a set, or `None` when unset.
+   - `issuer` — `sasl_oauthbearer_expected_issuer`, or `None` when unset.
+   - `options={"require": [...]}` — PyJWT does **not** require claims by default; we require `exp` + the configured sub claim always, and add `iss`/`aud` only when that expected value is configured.
+   - Both expected values are **optional** (Kafka parity). Unset means that claim is not verified — and the skip must be expressed as `verify_aud=False` / `verify_iss=False`, because `audience=None` alone makes PyJWT *reject* any token carrying `aud`. See `_expected_audiences` / `_decode_and_verify`.
 3. `ExpiredSignatureError` → custom `TokenExpiredError` (subclass of `AuthenticationError`) so the 401 reason can distinguish "Token expired" from "Invalid token/payload".
 
 ### HTTPS enforcement — `OIDCTokenValidator.__init__`

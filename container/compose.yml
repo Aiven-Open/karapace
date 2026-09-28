@@ -183,8 +183,10 @@ services:
       # Defaults target the local keycloak; override OIDC_* to point at a cloud provider.
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
       KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      # Single-dash defaults: setting either to "" passes the empty value through, which disables
+      # that claim check. ':-' would silently restore the default instead.
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE-karapace-audience}
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
@@ -231,8 +233,10 @@ services:
       # Dev-only: keycloak in compose serves http. Production must use https:// JWKS.
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
       KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      # Single-dash defaults: setting either to "" passes the empty value through, which disables
+      # that claim check. ':-' would silently restore the default instead.
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE-karapace-audience}
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
       KARAPACE_SASL_OAUTHBEARER_SKIP_AUTH_PATHS: '["/_health", "/metrics"]'
 
@@ -283,8 +287,10 @@ services:
       # Defaults target the local keycloak; override OIDC_* to point at a cloud provider.
       KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL: ${OIDC_JWKS_ENDPOINT_URL:-http://keycloak:8080/realms/karapace/protocol/openid-connect/certs}
       KARAPACE_SASL_OAUTHBEARER_ALLOW_INSECURE_JWKS: ${OIDC_ALLOW_INSECURE_JWKS:-true}
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER:-http://keycloak:8080/realms/karapace}
-      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE:-karapace-audience}
+      # Single-dash defaults: setting either to "" passes the empty value through, which disables
+      # that claim check. ':-' would silently restore the default instead.
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER: ${OIDC_EXPECTED_ISSUER-http://keycloak:8080/realms/karapace}
+      KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE: ${OIDC_EXPECTED_AUDIENCE-karapace-audience}
       KARAPACE_SASL_OAUTHBEARER_SUB_CLAIM_NAME: ${OIDC_SUB_CLAIM_NAME:-sub}
       KARAPACE_SASL_OAUTHBEARER_CLIENT_ID: ${OIDC_CLIENT_ID:-karapace-client}
       KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH: ${OIDC_ROLES_CLAIM_PATH:-resource_access.karapace-client.roles}

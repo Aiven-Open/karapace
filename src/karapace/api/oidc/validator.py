@@ -32,7 +32,8 @@ class OIDCTokenValidator:
 
         self._jwks_client: PyJWKClient | None
         self.jwks_url = config.sasl_oauthbearer_jwks_endpoint_url
-        self.issuer = config.sasl_oauthbearer_expected_issuer
+        # Blank is how env vars express "unset"; normalize so both mean the same thing.
+        self.issuer = (config.sasl_oauthbearer_expected_issuer or "").strip() or None
         self.audience = config.sasl_oauthbearer_expected_audience
         self.claim_name = config.sasl_oauthbearer_sub_claim_name
         self.authentication_enabled = config.sasl_oauthbearer_authentication_enabled
@@ -46,7 +47,6 @@ class OIDCTokenValidator:
         # Hardcoded default algorithms
         self.algorithms = ["RS256", "RS384", "RS512"]
 
-        # Validate required fields if JWKS URL is set
         if self.jwks_url:
             if not self.jwks_url.lower().startswith("https://"):
                 if not config.sasl_oauthbearer_allow_insecure_jwks:
@@ -56,19 +56,21 @@ class OIDCTokenValidator:
                         "OIDC config error: sasl_oauthbearer_jwks_endpoint_url must use https://. "
                         "Set sasl_oauthbearer_allow_insecure_jwks=true to override (dev only)."
                     )
+                log.warning("OIDC: JWKS URL uses plain HTTP — INSECURE override is active. DO NOT use in production.")
+            # Gate on the parsed value, not the raw string: " , " parses to nothing.
+            audiences = self._expected_audiences()
+            if audiences is None:
                 log.warning(
-                    "OIDC: JWKS URL uses plain HTTP (%s) — INSECURE override is active. DO NOT use in production.",
-                    self.jwks_url,
+                    "OIDC: sasl_oauthbearer_expected_audience is unset — 'aud' is not verified; "
+                    "any token this IdP issues for any client is accepted."
                 )
-            if not self.issuer or not self.audience:
-                raise ValueError(
-                    "OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
-                )
+            if self.issuer is None:
+                log.warning("OIDC: sasl_oauthbearer_expected_issuer is unset — 'iss' is not verified.")
+            # Log whether each check is active, not the configured values (CodeQL: clear-text logging).
             log.info(
-                "OIDC middleware initialized — Bearer token validation enabled. jwks_url=%s issuer=%s audience=%s",
-                self.jwks_url,
-                self.issuer,
-                self.audience,
+                "OIDC middleware initialized — Bearer token validation enabled. issuer_verified=%s audience_verified=%s",
+                self.issuer is not None,
+                audiences is not None,
             )
 
             # lifespan caps how long a key stays cached after IdP rotation/revocation.
@@ -96,24 +98,20 @@ class OIDCTokenValidator:
                         f"OIDC config error: method_roles is missing definitions for: {', '.join(sorted(missing_methods))}"
                     )
                 log.info(
-                    "OIDC Authorization configured. — method_roles: %s, roles_claim_path: %s",
-                    self.sasl_oauthbearer_method_roles,
-                    self.sasl_oauthbearer_roles_claim_path,
+                    "OIDC Authorization configured — %d methods mapped.",
+                    len(self.sasl_oauthbearer_method_roles),
                 )
         else:
             if self.authentication_enabled or self.authorization_enabled:
                 raise ValueError(
                     "OIDC config error: sasl_oauthbearer_jwks_endpoint_url is required when "
-                    "authentication or authorization is enabled. Also set expected_issuer and expected_audience."
+                    "authentication or authorization is enabled."
                 )
             self._jwks_client = None
 
     def validate_jwt(self, token: str) -> dict:
         if not self._jwks_client:
             raise AuthenticationError("OIDC not configured: JWKS client unavailable")
-        # Fail closed if audience is somehow unset at decode time; __init__ already enforces it.
-        if not self.audience:
-            raise AuthenticationError("OIDC not configured: audience missing")
 
         try:
             self._check_at_jwt_typ(token)
@@ -135,13 +133,26 @@ class OIDCTokenValidator:
         if header_typ.lower() not in ("at+jwt", "application/at+jwt"):
             raise InvalidTokenError(f"Invalid token type: expected at+jwt, got {header_typ!r}")
 
+    def _expected_audiences(self) -> set[str] | None:
+        # None disables the check; an empty set would reject everything, so treat blanks as unset.
+        if not self.audience:
+            return None
+        return {aud.strip() for aud in self.audience.split(",") if aud.strip()} or None
+
     def _decode_and_verify(self, token: str) -> dict:
-        assert self._jwks_client is not None and self.audience  # validated by validate_jwt
+        assert self._jwks_client is not None  # validated by validate_jwt
         signing_key = self._jwks_client.get_signing_key_from_jwt(token)
-        audiences = {aud.strip() for aud in self.audience.split(",") if aud.strip()}
-        require = {"exp", "iss", "aud"}
+        audiences = self._expected_audiences()
+
+        # PyJWT does not require these by default; enforce presence explicitly.
+        require = {"exp"}
         if self.claim_name:
             require.add(self.claim_name)
+        if audiences is not None:
+            require.add("aud")
+        if self.issuer is not None:
+            require.add("iss")
+
         return jwt.decode(
             token,
             signing_key.key,
@@ -149,8 +160,12 @@ class OIDCTokenValidator:
             audience=audiences,
             issuer=self.issuer,
             leeway=self.leeway_seconds,
-            # PyJWT does not require these by default; enforce presence explicitly.
-            options={"require": list(require)},
+            options={
+                "require": list(require),
+                # Must be explicit: audience=None alone makes PyJWT reject tokens carrying 'aud'.
+                "verify_aud": audiences is not None,
+                "verify_iss": self.issuer is not None,
+            },
         )
 
     def authorize_request(self, payload: dict, request_method: str) -> bool:
@@ -173,11 +188,12 @@ class OIDCTokenValidator:
         user_roles = self.get_roles_from_claim_path(payload, roles_claim_path)
 
         if not any(role in user_roles for role in allowed_roles):
+            # Counts only — role names are not logged. 0 token roles usually means a wrong roles_claim_path.
             log.warning(
-                "Authorization failed for method %s. User roles: %s, required: %s",
+                "Authorization failed for method %s — none of the %d token role(s) match the %d required role(s).",
                 request_method,
-                user_roles,
-                allowed_roles,
+                len(user_roles),
+                len(allowed_roles),
             )
             raise HTTPException(status_code=403, detail="Forbidden")
         log.debug("Authorized")

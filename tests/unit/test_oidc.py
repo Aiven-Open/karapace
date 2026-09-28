@@ -71,11 +71,21 @@ valid_configs = [
     ),
 ]
 
-invalid_configs = [
+# Issuer and audience are optional: a JWKS URL alone is a complete config.
+partial_configs = [
     DummyConfig(
         sasl_oauthbearer_jwks_endpoint_url="https://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
         sasl_oauthbearer_expected_issuer=None,
         sasl_oauthbearer_expected_audience="accounts-audience",
+        sasl_oauthbearer_sub_claim_name="sub",
+        sasl_oauthbearer_authorization_enabled=False,
+        sasl_oauthbearer_roles_claim_path=None,
+        sasl_oauthbearer_method_roles={"GET": [], "POST": [], "PUT": [], "DELETE": []},
+    ),
+    DummyConfig(
+        sasl_oauthbearer_jwks_endpoint_url="https://oidcprovider/realms/testrealm/protocol/openid-connect/certs",
+        sasl_oauthbearer_expected_issuer="https://oidcprovider.com",
+        sasl_oauthbearer_expected_audience=None,
         sasl_oauthbearer_sub_claim_name="sub",
         sasl_oauthbearer_authorization_enabled=False,
         sasl_oauthbearer_roles_claim_path=None,
@@ -152,8 +162,11 @@ def test_validate_token_valid_configs(
             oidc_middleware.validate_jwt(token)
 
 
-@pytest.mark.parametrize("dummy_config", invalid_configs)
-def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
+@pytest.mark.parametrize("dummy_config", partial_configs, ids=["no_issuer", "no_audience", "neither"])
+@patch("karapace.api.oidc.validator.PyJWKClient")
+def test_oidc_middleware_accepts_partial_config(mock_pyjwks_client, dummy_config, caplog):
+    """A JWKS URL alone must start, warning about whichever claim is unverified."""
+    mock_pyjwks_client.return_value = MagicMock()
     config = Config(
         sasl_oauthbearer_jwks_endpoint_url=dummy_config.sasl_oauthbearer_jwks_endpoint_url,
         sasl_oauthbearer_expected_issuer=dummy_config.sasl_oauthbearer_expected_issuer,
@@ -161,10 +174,16 @@ def test_oidc_middleware_raises_on_incomplete_config(dummy_config):
         sasl_oauthbearer_sub_claim_name=dummy_config.sasl_oauthbearer_sub_claim_name,
         sasl_oauthbearer_authorization_enabled=dummy_config.sasl_oauthbearer_authorization_enabled,
     )
-    with pytest.raises(
-        ValueError, match="OIDC config error: 'issuer' and 'audience' must be set if 'jwks_endpoint_url' is provided."
-    ):
-        OIDCTokenValidator(app=MagicMock(), config=config)
+
+    with caplog.at_level(logging.WARNING, logger="karapace.api.oidc.validator"):
+        middleware = OIDCTokenValidator(app=MagicMock(), config=config)
+
+    assert middleware._jwks_client is not None
+    warnings = " ".join(rec.message for rec in caplog.records)
+    if dummy_config.sasl_oauthbearer_expected_audience is None:
+        assert "sasl_oauthbearer_expected_audience is unset" in warnings
+    if dummy_config.sasl_oauthbearer_expected_issuer is None:
+        assert "sasl_oauthbearer_expected_issuer is unset" in warnings
 
 
 def test_oidc_middleware_rejects_http_jwks_url_by_default():
@@ -689,17 +708,80 @@ def test_validate_jwt_logs_reason_on_invalid_token(mock_jwt_decode, mock_pyjwks_
     assert any("missing required claim sub" in rec.message for rec in caplog.records)
 
 
+@pytest.mark.parametrize("audience", [None, "", " , "], ids=["unset", "empty", "commas_only"])
 @patch("karapace.api.oidc.validator.PyJWKClient")
-def test_validate_jwt_audience_missing_raises(mock_pyjwks_client):
-    """Defense-in-depth: if audience is somehow None at decode time, fail closed."""
+@patch("karapace.api.oidc.validator.jwt.decode")
+def test_validate_jwt_skips_audience_when_unset(mock_jwt_decode, mock_pyjwks_client, audience):
+    """Audience unset (or blank) disables the check rather than failing closed."""
     mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_jwt_decode.return_value = {"sub": "u"}
+
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_expected_audience=audience)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
+    assert middleware.validate_jwt("good.jwt.token") == {"sub": "u"}
+
+    kwargs = mock_jwt_decode.call_args.kwargs
+    assert kwargs["audience"] is None
+    assert kwargs["options"]["verify_aud"] is False
+    assert "aud" not in kwargs["options"]["require"]
+    assert {"exp", "sub"} <= set(kwargs["options"]["require"])
+
+
+@pytest.mark.parametrize("issuer", [None, "", "   "], ids=["unset", "empty", "whitespace"])
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
+def test_validate_jwt_skips_issuer_when_unset(mock_jwt_decode, mock_pyjwks_client, issuer):
+    mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_jwt_decode.return_value = {"sub": "u"}
+
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_expected_issuer=issuer)
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
+    middleware.validate_jwt("good.jwt.token")
+
+    kwargs = mock_jwt_decode.call_args.kwargs
+    assert kwargs["issuer"] is None
+    assert kwargs["options"]["verify_iss"] is False
+    assert "iss" not in kwargs["options"]["require"]
+
+
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
+def test_validate_jwt_strips_padded_issuer(mock_jwt_decode, mock_pyjwks_client):
+    """Stray whitespace must not turn a configured issuer into one that matches nothing."""
+    mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_jwt_decode.return_value = {"sub": "u"}
+
+    config = _oidc_config(
+        sasl_oauthbearer_authentication_enabled=True,
+        sasl_oauthbearer_expected_issuer="  https://oidcprovider.com  ",
+    )
+    middleware = OIDCTokenValidator(app=MagicMock(), config=config)
+    middleware.validate_jwt("good.jwt.token")
+
+    assert mock_jwt_decode.call_args.kwargs["issuer"] == "https://oidcprovider.com"
+
+
+@patch("karapace.api.oidc.validator.PyJWKClient")
+@patch("karapace.api.oidc.validator.jwt.decode")
+def test_validate_jwt_verifies_both_when_configured(mock_jwt_decode, mock_pyjwks_client):
+    """With both set, the claims are required and the verify_* opt-outs are absent."""
+    mock_pyjwks_client.return_value = MagicMock()
+    mock_pyjwks_client.return_value.get_signing_key_from_jwt.return_value.key = "fake-public-key"
+    mock_jwt_decode.return_value = {"sub": "u"}
 
     config = _oidc_config(sasl_oauthbearer_authentication_enabled=True)
     middleware = OIDCTokenValidator(app=MagicMock(), config=config)
-    middleware.audience = None  # bypass __init__ guard
+    middleware.validate_jwt("good.jwt.token")
 
-    with pytest.raises(AuthenticationError, match="audience missing"):
-        middleware.validate_jwt("any.jwt.token")
+    kwargs = mock_jwt_decode.call_args.kwargs
+    assert kwargs["audience"] == {"accounts-audience"}
+    assert kwargs["issuer"] == "https://oidcprovider.com"
+    assert {"exp", "sub", "aud", "iss"} == set(kwargs["options"]["require"])
+    assert kwargs["options"]["verify_aud"] is True
+    assert kwargs["options"]["verify_iss"] is True
 
 
 @patch("karapace.api.oidc.validator.PyJWKClient")
@@ -998,6 +1080,42 @@ def test_real_jwt_one_of_multiple_configured_audiences_accepted(rsa_keypair, bui
     assert middleware.validate_jwt(token)["aud"] == "aud-two"
 
 
+def test_real_jwt_unset_audience_accepts_token_carrying_aud(rsa_keypair, build_real_middleware):
+    """Regression guard: the skip must use verify_aud=False, since audience=None alone rejects
+    tokens carrying 'aud' — which Keycloak always emits."""
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_expected_audience=None)
+    token = _make_token(private_key, _base_claims(aud="some-unrelated-audience"))
+    assert middleware.validate_jwt(token)["sub"] == "user-1"
+
+
+def test_real_jwt_unset_audience_accepts_token_without_aud(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_expected_audience=None)
+    token = _make_token(private_key, _base_claims(aud=_OMIT))
+    assert middleware.validate_jwt(token)["sub"] == "user-1"
+
+
+def test_real_jwt_commas_only_audience_treated_as_unset(rsa_keypair, build_real_middleware):
+    """A stray ',' must not decode to an empty audience set, which would reject everything."""
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_expected_audience=" , ")
+    token = _make_token(private_key, _base_claims(aud="anything"))
+    assert middleware.validate_jwt(token)["sub"] == "user-1"
+
+
+@patch("karapace.api.oidc.validator.PyJWKClient")
+def test_commas_only_audience_still_warns(mock_pyjwks_client, caplog):
+    """A value that parses to nothing disables 'aud' checking, so it must warn like a plain unset."""
+    mock_pyjwks_client.return_value = MagicMock()
+    config = _oidc_config(sasl_oauthbearer_authentication_enabled=True, sasl_oauthbearer_expected_audience=" , ")
+
+    with caplog.at_level(logging.WARNING, logger="karapace.api.oidc.validator"):
+        OIDCTokenValidator(app=MagicMock(), config=config)
+
+    assert "sasl_oauthbearer_expected_audience is unset" in " ".join(rec.message for rec in caplog.records)
+
+
 # --- issuer ---
 
 
@@ -1015,6 +1133,41 @@ def test_real_jwt_missing_issuer_rejected(rsa_keypair, build_real_middleware):
     token = _make_token(private_key, _base_claims(iss=_OMIT))
     with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
         middleware.validate_jwt(token)
+
+
+def test_real_jwt_unset_issuer_accepts_any_issuer(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_expected_issuer=None)
+    token = _make_token(private_key, _base_claims(iss="https://whoever.example.com"))
+    assert middleware.validate_jwt(token)["sub"] == "user-1"
+
+
+def test_real_jwt_unset_issuer_accepts_token_without_iss(rsa_keypair, build_real_middleware):
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(sasl_oauthbearer_expected_issuer=None)
+    token = _make_token(private_key, _base_claims(iss=_OMIT))
+    assert middleware.validate_jwt(token)["sub"] == "user-1"
+
+
+def test_real_jwt_neither_issuer_nor_audience_still_enforces_exp_and_sub(rsa_keypair, build_real_middleware):
+    """Dropping both checks must not weaken the remaining mandatory claims."""
+    private_key, _ = rsa_keypair
+    middleware = build_real_middleware(
+        sasl_oauthbearer_expected_issuer=None,
+        sasl_oauthbearer_expected_audience=None,
+    )
+    assert middleware.validate_jwt(_make_token(private_key, _base_claims()))["sub"] == "user-1"
+
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(sub=_OMIT)))
+
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    expired = _base_claims(exp=int((now - datetime.timedelta(hours=1)).timestamp()))
+    with pytest.raises(TokenExpiredError):
+        middleware.validate_jwt(_make_token(private_key, expired))
+
+    with pytest.raises(AuthenticationError, match="Invalid OIDC token"):
+        middleware.validate_jwt(_make_token(private_key, _base_claims(exp=_OMIT)))
 
 
 # --- expiry / leeway ---

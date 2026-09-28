@@ -49,3 +49,34 @@ def test_karapace_startup_fails_when_method_roles_incomplete() -> None:
     assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     combined = result.stdout + result.stderr
     assert "method_roles is missing definitions for: DELETE" in combined, combined
+
+
+def test_karapace_startup_accepts_empty_issuer_and_audience() -> None:
+    """Empty env values are the only way to express "unset" through KARAPACE_* / docker, so the
+    real env -> Pydantic path must treat them as unset. Reaching the *later* method_roles check
+    proves construction got past issuer/audience without raising.
+    """
+    env = os.environ.copy()
+    env.update(
+        {
+            "KARAPACE_SASL_OAUTHBEARER_AUTHENTICATION_ENABLED": "true",
+            "KARAPACE_SASL_OAUTHBEARER_AUTHORIZATION_ENABLED": "true",
+            "KARAPACE_SASL_OAUTHBEARER_JWKS_ENDPOINT_URL": "https://idp.example.invalid/realms/r/protocol/openid-connect/certs",
+            "KARAPACE_SASL_OAUTHBEARER_EXPECTED_ISSUER": "",
+            "KARAPACE_SASL_OAUTHBEARER_EXPECTED_AUDIENCE": "",
+            "KARAPACE_SASL_OAUTHBEARER_ROLES_CLAIM_PATH": "resource_access.karapace-client.roles",
+            "KARAPACE_SASL_OAUTHBEARER_METHOD_ROLES": '{"GET": ["r"], "POST": ["w"], "PUT": ["w"]}',
+        }
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "karapace"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=STARTUP_TIMEOUT_SECONDS,
+    )
+
+    assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    combined = result.stdout + result.stderr
+    # Falsifiable: any reintroduced issuer/audience guard would abort before this check.
+    assert "method_roles is missing definitions for: DELETE" in combined, combined
