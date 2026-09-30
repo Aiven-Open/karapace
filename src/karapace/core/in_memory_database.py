@@ -327,16 +327,13 @@ class InMemoryDatabase(KarapaceDatabase):
         res_schemas = {}
         with self.schema_lock_thread:
             for subject, subject_data in self.subjects.items():
-                selected_schemas: list[SchemaVersion] = []
-                schemas = list(subject_data.schemas.values())
-                if latest_only and len(schemas) > 0:
-                    # TODO don't include the deleted here?
+                schemas = subject_data.schemas
+                if not include_deleted:
+                    schemas = {version: schema for version, schema in schemas.items() if schema.deleted is False}
+                selected_schemas: list[SchemaVersion] = list(schemas.values())
+                if latest_only and schemas:
                     # Highest version, not last inserted: IMPORT mode can insert versions out of order.
-                    selected_schemas = [subject_data.schemas[max(subject_data.schemas)]]
-                else:
-                    selected_schemas = schemas
-                if include_deleted:
-                    selected_schemas = [schema for schema in selected_schemas if schema.deleted is False]
+                    selected_schemas = [schemas[max(schemas)]]
                 res_schemas[subject] = selected_schemas
         return res_schemas
 
