@@ -536,7 +536,12 @@ class TestFindSchemasVariants:
         result = db.find_schemas(include_deleted=False, latest_only=False)
         assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(2), False)]
 
-    def test_latest_only_skips_soft_deleted_latest_version(self) -> None:
+    def test_include_deleted_true_latest_only_true(self) -> None:
+        db = self._db_with_two_versions()
+        result = db.find_schemas(include_deleted=True, latest_only=True)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(2), False)]
+
+    def _db_with_soft_deleted_latest(self) -> InMemoryDatabase:
         db = InMemoryDatabase()
         subject = Subject("s")
         db.insert_subject(subject=subject)
@@ -550,9 +555,18 @@ class TestFindSchemasVariants:
                 deleted=deleted,
                 references=None,
             )
+        return db
 
-        assert [v.version for v in db.find_schemas(include_deleted=False, latest_only=True)[subject]] == [Version(1)]
-        assert [v.version for v in db.find_schemas(include_deleted=True, latest_only=True)[subject]] == [Version(2)]
+    def test_latest_only_skips_soft_deleted_latest_version(self) -> None:
+        db = self._db_with_soft_deleted_latest()
+        result = db.find_schemas(include_deleted=False, latest_only=True)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(1), False)]
+
+    def test_include_deleted_true_latest_only_true_returns_soft_deleted_latest(self) -> None:
+        # Same as Confluent: GET /schemas?latestOnly=true&deleted=true returns the soft-deleted latest version.
+        db = self._db_with_soft_deleted_latest()
+        result = db.find_schemas(include_deleted=True, latest_only=True)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(2), True)]
 
 
 class TestSubjectsForSchema:
