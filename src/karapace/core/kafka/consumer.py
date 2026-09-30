@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterable
 from confluent_kafka import Consumer, Message, TopicPartition
 from confluent_kafka.admin import PartitionMetadata
 from confluent_kafka.error import KafkaException
-from karapace.core.kafka.common import _KafkaConfigMixin, KafkaClientParams, raise_from_kafkaexception
+from karapace.core.kafka.common import _KafkaConfigMixin, api_timeout, KafkaClientParams, raise_from_kafkaexception
 from typing import Any, TypeVar
 from typing_extensions import Unpack
 
@@ -59,10 +59,7 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
         exception.
         """
         try:
-            if timeout is not None:
-                result = super().get_watermark_offsets(partition, timeout, cached)
-            else:
-                result = super().get_watermark_offsets(partition, cached=cached)
+            result = super().get_watermark_offsets(partition, api_timeout(timeout), cached)
 
             if result is None:
                 raise KafkaTimeoutError()
@@ -96,10 +93,7 @@ class KafkaConsumer(_KafkaConfigMixin, Consumer):
 
     def committed(self, partitions: list[TopicPartition], timeout: float | None = None) -> list[TopicPartition]:
         try:
-            if timeout is not None:
-                return super().committed(partitions, timeout)
-
-            return super().committed(partitions)
+            return super().committed(partitions, api_timeout(timeout))
         except KafkaException as exc:
             raise_from_kafkaexception(exc)
 
@@ -232,6 +226,7 @@ class AsyncKafkaConsumer:
         self._bootstrap_servers = bootstrap_servers
         self._topic = topic
         self._consumer_params = params
+        self._commit_in_flight: asyncio.Future[list[TopicPartition] | None] | None = None
 
     async def _run_in_executor(self, func: Callable[..., T], *args: Any) -> T:
         return await self.loop.run_in_executor(None, func, *args)
@@ -260,7 +255,19 @@ class AsyncKafkaConsumer:
         offsets: list[TopicPartition] | None = None,
     ) -> list[TopicPartition] | None:
         assert self.consumer is not None, self._START_ERROR
-        return await self._run_in_executor(self.consumer.commit, message, offsets)
+        # A synchronous `Consumer.commit` has no timeout parameter and can wait forever on a stalled broker, so bound
+        # the wait here. Giving up doesn't stop the executor thread, so refuse new commits until it is done instead
+        # of stacking more stuck workers on the same consumer. The caller (and any lock it holds) is released.
+        if self._commit_in_flight is not None and not self._commit_in_flight.done():
+            raise KafkaTimeoutError()
+        in_flight = self.loop.run_in_executor(None, self.consumer.commit, message, offsets)
+        # Retrieve the outcome of a commit we stopped waiting for, so it isn't reported as never retrieved.
+        in_flight.add_done_callback(lambda done: done.cancelled() or done.exception())
+        self._commit_in_flight = in_flight
+        try:
+            return await asyncio.wait_for(asyncio.shield(in_flight), timeout=api_timeout(None))
+        except TimeoutError as exc:
+            raise KafkaTimeoutError() from exc
 
     async def committed(self, partitions: list[TopicPartition], timeout: float | None = None) -> list[TopicPartition]:
         assert self.consumer is not None, self._START_ERROR

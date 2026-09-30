@@ -16,8 +16,9 @@ from aiokafka.errors import (
 )
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future
+from confluent_kafka.admin import ClusterMetadata
 from confluent_kafka.error import KafkaError, KafkaException
-from typing import Any, Literal, NoReturn, Protocol, TypedDict, TypeVar
+from typing import Any, Final, Literal, NoReturn, Protocol, TypedDict, TypeVar
 from typing_extensions import Unpack
 
 import logging
@@ -116,6 +117,16 @@ class KafkaClientParams(TypedDict, total=False):
     session_timeout_ms: int | None
 
 
+# Upper bound (seconds) applied to blocking client calls that would otherwise wait forever when the caller passes no
+# timeout: librdkafka defaults these to infinite, so a stalled broker would freeze the calling thread.
+DEFAULT_KAFKA_API_TIMEOUT_SECONDS: Final = 30.0
+
+
+def api_timeout(timeout: float | None) -> float:
+    """Return `timeout`, or the default bound when the caller did not pass one."""
+    return DEFAULT_KAFKA_API_TIMEOUT_SECONDS if timeout is None else timeout
+
+
 class _KafkaConfigMixin:
     """A mixin-class for Kafka client initialization.
 
@@ -179,6 +190,9 @@ class _KafkaConfigMixin:
 
         return config
 
+    def list_topics(self, topic: str | None = None, timeout: float | None = None) -> ClusterMetadata:
+        return super().list_topics(topic, timeout=api_timeout(timeout))  # type: ignore[misc]
+
     def _error_callback(self, error: KafkaError) -> None:
         self._errors.add(error)
 
@@ -201,7 +215,7 @@ class _KafkaConfigMixin:
         """
         for _ in range(3):
             try:
-                self.list_topics(timeout=1)  # type: ignore[attr-defined]
+                self.list_topics(timeout=1)
             except KafkaException as exc:
                 # Other than `list_topics` throwing a `KafkaException` with an underlying
                 # `KafkaError` with code `_TRANSPORT` (`-195`), if the address or port is

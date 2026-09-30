@@ -19,6 +19,7 @@ from binascii import Error as B64DecodeError
 from collections import namedtuple
 from collections.abc import Callable
 from confluent_kafka.error import KafkaException
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import AsyncExitStack
 from http import HTTPStatus
 from karapace.core.config import Config
@@ -48,7 +49,7 @@ from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
 from karapace.kafka_rest_apis.karapace import KarapaceBase
 from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
-from typing import TypedDict
+from typing import TypedDict, TypeVar
 
 import asyncio
 import base64
@@ -67,6 +68,7 @@ IDLE_PROXY_TIMEOUT = 5 * 60
 AUTH_EXPIRY_TOLERANCE = datetime.timedelta(seconds=IDLE_PROXY_TIMEOUT)
 
 log = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 class FormatError(Exception):
@@ -507,6 +509,8 @@ class UserRestProxy:
         self.metadata_max_age = self.config.admin_metadata_max_age
         self.admin_client = None
         self.admin_lock = asyncio.Lock()
+        # One worker is enough: `admin_lock` already serializes admin calls.
+        self.admin_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="karapace-rest-admin")
         self.metadata_cache = None
         self.topic_schema_cache = TopicSchemaCache()
         self.consumer_manager = ConsumerManager(config=config, deserializer=self.serializer)
@@ -675,14 +679,22 @@ class UserRestProxy:
             formats=request.accepts,
         )
 
+    async def _run_blocking(self, func: Callable[..., T], *args: object) -> T:
+        """Run a blocking Kafka admin call off the event loop, so a slow broker can't stall every other request.
+
+        It uses a dedicated executor, not the loop's default one shared with the consumers, so an outage that keeps
+        admin calls waiting can't starve consumer operations (or the other way around).
+        """
+        return await asyncio.get_running_loop().run_in_executor(self.admin_executor, func, *args)
+
     # OFFSETS
     async def get_offsets(self, topic: str, partition_id: int) -> dict:
         async with self.admin_lock:
-            return self.admin_client.get_offsets(topic, partition_id)
+            return await self._run_blocking(self.admin_client.get_offsets, topic, partition_id)
 
     async def get_topic_config(self, topic: str) -> dict:
         async with self.admin_lock:
-            return self.admin_client.get_topic_config(topic)
+            return await self._run_blocking(self.admin_client.get_topic_config, topic)
 
     def is_global_metadata_old(self) -> bool:
         return (time.monotonic() - self._global_metadata_birth) > self.metadata_max_age
@@ -767,9 +779,9 @@ class UserRestProxy:
         async with self.admin_lock:
             try:
                 if topics is None or len(topics) == 0:
-                    metadata = self._update_all_metadata()
+                    metadata = await self._run_blocking(self._update_all_metadata)
                 else:
-                    metadata = self._update_metadata_for_topics(topics)
+                    metadata = await self._run_blocking(self._update_metadata_for_topics, topics)
             except KafkaException:
                 log.warning("Could not refresh cluster metadata")
                 KafkaRest.r(
@@ -817,6 +829,7 @@ class UserRestProxy:
 
             self.admin_client = None
             self.consumer_manager = None
+            self.admin_executor.shutdown(wait=False)
 
     async def publish(self, topic: str, partition_id: str | None, content_type: str, request: HTTPRequest) -> None:
         """
