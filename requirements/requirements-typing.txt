@@ -25,7 +25,7 @@ anyio==4.14.2
     #   httpx
     #   starlette
     #   watchfiles
-ast-serialize==0.6.0
+ast-serialize==0.11.2
     # via mypy
 async-lru==2.3.0
     # via karapace (/karapace/pyproject.toml)
