@@ -262,7 +262,7 @@ pygments==2.20.0
     #   pdbpp
     #   pytest
     #   rich
-pyjwt==2.13.0
+pyjwt==2.15.0
     # via karapace (/karapace/pyproject.toml)
 pyrepl==0.11.5
     # via fancycompleter
