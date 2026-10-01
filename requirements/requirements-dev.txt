@@ -346,7 +346,7 @@ starlette==1.4.1
     #   prometheus-fastapi-instrumentator
 tenacity==9.1.4
     # via karapace (/karapace/pyproject.toml)
-typer==0.27.1
+typer==0.27.2
     # via
     #   fastapi-cli
     #   fastapi-cloud-cli
