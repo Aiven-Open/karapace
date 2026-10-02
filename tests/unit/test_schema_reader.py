@@ -8,6 +8,7 @@ See LICENSE for details
 import json
 import logging
 import random
+import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -28,6 +29,7 @@ from aiokafka.errors import (
 from confluent_kafka import Message, TopicPartition
 from pytest import MonkeyPatch
 
+from karapace.core import schema_reader as schema_reader_module
 from karapace.core.container import KarapaceContainer
 from karapace.core.errors import CorruptKafkaRecordException, InvalidReferences, InvalidSchema, ShutdownException
 from karapace.core.in_memory_database import InMemoryDatabase
@@ -998,6 +1000,40 @@ class TestIsReadyErrorHandling:
         assert reader._replay_completed_logged is True
         # Second call takes the "already logged" branch instead of re-logging completion.
         assert reader._is_ready() is True
+
+
+class TestWatermarkOffsetsAreBounded:
+    """A watermark query that never completes must not hang the reader thread.
+
+    `confluent_kafka.Consumer.get_watermark_offsets` blocks forever when called without a timeout. After a
+    broker restart the query can stall, which froze the reader thread: it stopped calling `consume()`, stayed
+    not ready and the registry answered 500 to writes ("No master set") until restarted.
+    """
+
+    @pytest.mark.parametrize(
+        ("method", "expected"),
+        [("_is_ready", False), ("_get_beginning_offset", OFFSET_UNINITIALIZED)],
+    )
+    def test_unreachable_broker_does_not_block_reader_thread(
+        self,
+        karapace_container: KarapaceContainer,
+        monkeypatch: MonkeyPatch,
+        method: str,
+        expected: object,
+    ) -> None:
+        monkeypatch.setattr(schema_reader_module, "WATERMARK_OFFSETS_TIMEOUT_SECONDS", 0.5)
+        reader = _make_schema_reader(karapace_container)
+        # Real consumer with nothing listening: the watermark query can never be answered.
+        reader.consumer = KafkaConsumer(bootstrap_servers="127.0.0.1:1", verify_connection=False)
+        results: list[object] = []
+        thread = threading.Thread(target=lambda: results.append(getattr(reader, method)()), daemon=True)
+
+        thread.start()
+        thread.join(timeout=10)
+
+        assert not thread.is_alive(), f"{method} blocked on an unbounded get_watermark_offsets call"
+        assert results == [expected]
+        reader.consumer.close()
 
 
 class TestHandleMessagesMasterCoordinator:

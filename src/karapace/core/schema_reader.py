@@ -81,6 +81,10 @@ MAX_MESSAGES_TO_CONSUME_ON_STARTUP: Final = 1000
 MAX_MESSAGES_TO_CONSUME_AFTER_STARTUP: Final = 1
 MESSAGE_CONSUME_TIMEOUT_SECONDS: Final = 0.2
 
+# Upper bound for a watermark offsets query. Without it librdkafka waits forever, and a query that stalls
+# (e.g. right after a broker restart) blocks the reader thread: it stops consuming and never becomes ready.
+WATERMARK_OFFSETS_TIMEOUT_SECONDS: Final = 5.0
+
 
 class MessageType(Enum):
     config = "CONFIG"
@@ -339,7 +343,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            beginning_offset, _ = self.consumer.get_watermark_offsets(TopicPartition(self.config.topic_name, 0))
+            beginning_offset, _ = self.consumer.get_watermark_offsets(
+                TopicPartition(self.config.topic_name, 0), timeout=WATERMARK_OFFSETS_TIMEOUT_SECONDS
+            )
             # The `-1` decrement here is due to historical reasons (evolution of schema reader and offset watcher):
             # * The first `OffsetWatcher` implementation needed this for flagging empty offsets
             # * Then synchronization and locking was changed and this remained
@@ -365,7 +371,9 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
         assert self.consumer is not None, "Thread must be started"
 
         try:
-            _, end_offset = self.consumer.get_watermark_offsets(TopicPartition(self.config.topic_name, 0))
+            _, end_offset = self.consumer.get_watermark_offsets(
+                TopicPartition(self.config.topic_name, 0), timeout=WATERMARK_OFFSETS_TIMEOUT_SECONDS
+            )
         except KafkaTimeoutError:
             LOG.warning("Reading end offsets timed out.")
             return False
