@@ -526,14 +526,47 @@ class TestFindSchemasVariants:
 
         assert [v.version for v in result[subject]] == [Version(3)]
 
-    def test_include_deleted_true_excludes_soft_deleted_versions(self) -> None:
-        # NOTE: The `include_deleted` parameter has inverted semantics in the implementation:
-        # `include_deleted=True` actually *excludes* deleted schemas from the result.
+    def test_include_deleted_true_includes_soft_deleted_versions(self) -> None:
         db = self._db_with_two_versions()
         result = db.find_schemas(include_deleted=True, latest_only=False)
-        versions = result[Subject("s")]
-        assert all(not v.deleted for v in versions)
-        assert len(versions) == 1
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(1), True), (Version(2), False)]
+
+    def test_include_deleted_false_excludes_soft_deleted_versions(self) -> None:
+        db = self._db_with_two_versions()
+        result = db.find_schemas(include_deleted=False, latest_only=False)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(2), False)]
+
+    def test_include_deleted_true_latest_only_true(self) -> None:
+        db = self._db_with_two_versions()
+        result = db.find_schemas(include_deleted=True, latest_only=True)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(2), False)]
+
+    def _db_with_soft_deleted_latest(self) -> InMemoryDatabase:
+        db = InMemoryDatabase()
+        subject = Subject("s")
+        db.insert_subject(subject=subject)
+        for name, version, deleted in (("First", Version(1), False), ("Second", Version(2), True)):
+            schema = _avro_schema(name)
+            db.insert_schema_version(
+                subject=subject,
+                schema_id=db.get_schema_id(schema),
+                version=version,
+                schema=schema,
+                deleted=deleted,
+                references=None,
+            )
+        return db
+
+    def test_latest_only_skips_soft_deleted_latest_version(self) -> None:
+        db = self._db_with_soft_deleted_latest()
+        result = db.find_schemas(include_deleted=False, latest_only=True)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(1), False)]
+
+    def test_include_deleted_true_latest_only_true_returns_soft_deleted_latest(self) -> None:
+        # Same as Confluent: GET /schemas?latestOnly=true&deleted=true returns the soft-deleted latest version.
+        db = self._db_with_soft_deleted_latest()
+        result = db.find_schemas(include_deleted=True, latest_only=True)
+        assert [(v.version, v.deleted) for v in result[Subject("s")]] == [(Version(2), True)]
 
 
 class TestSubjectsForSchema:
