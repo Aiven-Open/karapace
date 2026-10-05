@@ -256,8 +256,8 @@ class TestMasterCoordinatorPassthrough:
         assert "sasl_oauth_token_provider" not in call_kwargs
 
     def test_adapter_returns_token_string(self):
-        """The adapter's async token() must return just the token string,
-        discarding the expiry — aiokafka manages refresh on its own."""
+        """The adapter's async token() must return just the token string;
+        the expiry is kept internally to decide when to renew."""
         import asyncio
 
         from karapace.core.coordinator.master_coordinator import _AiokafkaTokenAdapter
@@ -265,6 +265,90 @@ class TestMasterCoordinatorPassthrough:
         adapter = _AiokafkaTokenAdapter(StubTokenProvider())
         token = asyncio.run(adapter.token())
         assert token == "fake-token"
+
+    def test_adapter_caches_token_until_close_to_expiry(self):
+        import asyncio
+        import time
+
+        from karapace.core.coordinator.master_coordinator import _AiokafkaTokenAdapter
+
+        class CountingProvider:
+            calls = 0
+
+            def token_with_expiry(self, config=None):
+                self.calls += 1
+                return (f"token-{self.calls}", int(time.time()) + 3600)
+
+        provider = CountingProvider()
+        adapter = _AiokafkaTokenAdapter(provider)
+
+        async def twice():
+            return await adapter.token(), await adapter.token()
+
+        assert asyncio.run(twice()) == ("token-1", "token-1")
+        assert provider.calls == 1
+        assert 3_500_000 < adapter.lifetime_ms() <= 3_600_000
+
+    def test_adapter_renews_within_refresh_window(self):
+        import asyncio
+        import time
+
+        from karapace.core.coordinator.master_coordinator import _AiokafkaTokenAdapter
+
+        class ShortLivedProvider:
+            calls = 0
+
+            def token_with_expiry(self, config=None):
+                self.calls += 1
+                # Expires inside the 300 s renewal window, so every call renews.
+                return (f"token-{self.calls}", int(time.time()) + 60)
+
+        provider = ShortLivedProvider()
+        adapter = _AiokafkaTokenAdapter(provider)
+
+        async def twice():
+            return await adapter.token(), await adapter.token()
+
+        assert asyncio.run(twice()) == ("token-1", "token-2")
+        assert provider.calls == 2
+
+    def test_adapter_handles_provider_without_expiry(self):
+        import asyncio
+
+        from karapace.core.coordinator.master_coordinator import _AiokafkaTokenAdapter
+
+        class NoExpiryProvider:
+            def token_with_expiry(self, config=None):
+                return ("static", None)
+
+        adapter = _AiokafkaTokenAdapter(NoExpiryProvider())
+        assert asyncio.run(adapter.token()) == "static"
+        assert adapter.lifetime_ms() == 0
+
+    def test_adapter_calls_provider_off_the_event_loop(self):
+        import asyncio
+        import threading
+        import time
+
+        from karapace.core.coordinator.master_coordinator import _AiokafkaTokenAdapter
+
+        class ThreadRecordingProvider:
+            thread: threading.Thread | None = None
+
+            def token_with_expiry(self, config=None):
+                self.thread = threading.current_thread()
+                return ("fake-token", int(time.time()) + 3600)
+
+        provider = ThreadRecordingProvider()
+        adapter = _AiokafkaTokenAdapter(provider)
+
+        async def run():
+            await adapter.token()
+            return threading.current_thread()
+
+        loop_thread = asyncio.run(run())
+        assert provider.thread is not None
+        assert provider.thread is not loop_thread
 
 
 class TestKarapaceProducerPassthrough:
