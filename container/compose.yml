@@ -23,6 +23,7 @@ services:
       - ./certs:/opt/karapace/certs
       - ../bin:/opt/karapace/bin
       - ../tests:/opt/karapace/tests
+      - ../examples:/opt/karapace/examples
       - ../pytest.ini:/opt/karapace/pytest.ini
       - ../mypy.ini:/opt/karapace/mypy.ini
       - ../.pre-commit-config.yaml:/opt/karapace/.pre-commit-config.yaml
