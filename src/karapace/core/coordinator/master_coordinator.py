@@ -42,14 +42,43 @@ class _AiokafkaTokenAdapter(AbstractTokenProvider):
     (via kafka_utils factory functions) and from the aiokafka client used
     by the master coordinator. This adapter bridges the two interfaces
     without forcing users to author two providers.
+
+    The token is cached together with its expiry and renewed 5 minutes
+    before it expires, so a reconnect gets a valid token at once instead of
+    paying for a fresh one on the hot path. The provider's synchronous
+    ``token_with_expiry`` runs in the default executor: a provider that
+    talks to a credential service can take hundreds of milliseconds, and
+    running it on the event loop delays the coordinator's heartbeats.
+    ``lifetime_ms()`` reports the remaining lifetime for aiokafka versions
+    that use it to schedule an in-place OAUTHBEARER re-authentication
+    before the broker closes the connection.
     """
+
+    # Renew this many seconds before the token actually expires.
+    _REFRESH_BEFORE_S: Final = 300
 
     def __init__(self, inner: TokenWithExpiryProvider) -> None:
         self._inner = inner
+        self._cached_token: str | None = None
+        self._expiry_s: float = 0.0  # seconds since epoch
+
+    def _needs_refresh(self) -> bool:
+        return self._cached_token is None or time.time() >= self._expiry_s - self._REFRESH_BEFORE_S
 
     async def token(self) -> str:
-        token, _expiry = self._inner.token_with_expiry(None)
-        return token
+        if self._needs_refresh():
+            loop = asyncio.get_running_loop()
+            token, expiry_s = await loop.run_in_executor(None, self._inner.token_with_expiry, None)
+            self._cached_token = token
+            # A provider may report no expiry; treat that as "renew on every call".
+            self._expiry_s = float(expiry_s) if expiry_s is not None else 0.0
+        assert self._cached_token is not None
+        return self._cached_token
+
+    def lifetime_ms(self) -> int:
+        """Remaining token lifetime in milliseconds, 0 once expired or unknown."""
+        remaining = self._expiry_s - time.time()
+        return max(0, int(remaining * 1000))
 
 
 class MasterCoordinator:
