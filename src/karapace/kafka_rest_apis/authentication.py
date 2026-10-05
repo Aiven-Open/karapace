@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from karapace.core.config import Config
+from karapace.core.kafka.common import TokenWithExpiryProvider
+from karapace.core.kafka_utils import get_oauth_token_provider
 from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 from typing import NoReturn, TypedDict
 
@@ -131,7 +133,7 @@ class SimpleOauthTokenProvider:
 
 class SASLOauthParams(TypedDict):
     sasl_mechanism: str
-    sasl_oauth_token_provider: SimpleOauthTokenProvider
+    sasl_oauth_token_provider: TokenWithExpiryProvider
 
 
 def get_kafka_client_auth_parameters_from_config(
@@ -139,14 +141,24 @@ def get_kafka_client_auth_parameters_from_config(
 ) -> SASLPlainConfig | SASLOauthParams:
     """Create authentication parameters for a Kafka client based on the Karapace config.
 
-    In case of an `OAUTHBEARER` SASL mechanism present in the config, will create the
-    OAuth token provider needed by the Kafka client - the `async_client` parameter
-    decides whether this will be a sync or async one.
+    In case of an `OAUTHBEARER` SASL mechanism present in the config, will return the
+    OAuth token provider needed by the Kafka client: the dynamic provider configured
+    through `sasl_oauth_token_provider_class` when there is one (for example an AWS MSK
+    IAM signer, whose tokens expire and must be regenerated), otherwise a pass-through
+    provider for the static `sasl_oauth_token`.
 
     :param config: Current config of Karapace
     """
     if config.sasl_mechanism == "OAUTHBEARER":
-        assert config.sasl_oauth_token is not None, "Config missing `sasl_oauth_token` with OAUTHBEARER `sasl_mechanism`"
+        dynamic_provider = get_oauth_token_provider(config)
+        if dynamic_provider is not None:
+            return {
+                "sasl_mechanism": config.sasl_mechanism,
+                "sasl_oauth_token_provider": dynamic_provider,
+            }
+        assert (
+            config.sasl_oauth_token is not None
+        ), "Config missing `sasl_oauth_token` or `sasl_oauth_token_provider_class` with OAUTHBEARER `sasl_mechanism`"
         return {
             "sasl_mechanism": config.sasl_mechanism,
             "sasl_oauth_token_provider": SimpleOauthTokenProvider(config.sasl_oauth_token),
