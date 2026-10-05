@@ -8,13 +8,16 @@ See LICENSE for details
 from __future__ import annotations
 
 from aiokafka import AIOKafkaClient
+from aiokafka.abc import AbstractTokenProvider
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
 from aiokafka.protocol.commit import OffsetCommitRequest_v2 as OffsetCommitRequest
 from karapace.core.instrumentation.tracer import Tracer
 from karapace.core.config import Config
 from karapace.core.coordinator.schema_coordinator import SchemaCoordinator, SchemaCoordinatorStatus
+from karapace.core.kafka.common import TokenWithExpiryProvider
 from karapace.core.kafka.types import DEFAULT_REQUEST_TIMEOUT_MS
+from karapace.core.kafka_utils import get_oauth_token_provider
 from karapace.core.typing import PrimaryInfo, SchemaReaderStoppper
 from threading import Thread
 from typing import Final
@@ -27,6 +30,26 @@ __all__ = ("MasterCoordinator",)
 
 
 LOG = logging.getLogger(__name__)
+
+
+class _AiokafkaTokenAdapter(AbstractTokenProvider):
+    """Adapt the synchronous TokenWithExpiryProvider protocol used by
+    librdkafka's oauth_cb to the async AbstractTokenProvider interface
+    aiokafka requires.
+
+    Karapace lets users configure a single `sasl_oauth_token_provider_class`;
+    the same provider is consulted from both the confluent-kafka clients
+    (via kafka_utils factory functions) and from the aiokafka client used
+    by the master coordinator. This adapter bridges the two interfaces
+    without forcing users to author two providers.
+    """
+
+    def __init__(self, inner: TokenWithExpiryProvider) -> None:
+        self._inner = inner
+
+    async def token(self) -> str:
+        token, _expiry = self._inner.token_with_expiry(None)
+        return token
 
 
 class MasterCoordinator:
@@ -116,6 +139,15 @@ class MasterCoordinator:
             keyfile=self._config.ssl_keyfile,
         )
 
+        # When the operator configures `sasl_oauth_token_provider_class`,
+        # surface the same provider to aiokafka — wrapped in an adapter
+        # because aiokafka's AbstractTokenProvider is async-first whereas
+        # the librdkafka-flavored protocol is sync.
+        kwargs = {}
+        oauth_token_provider = get_oauth_token_provider(self._config)
+        if oauth_token_provider is not None:
+            kwargs["sasl_oauth_token_provider"] = _AiokafkaTokenAdapter(oauth_token_provider)
+
         return AIOKafkaClient(
             bootstrap_servers=self._config.bootstrap_uri,
             client_id=self._config.client_id,
@@ -129,6 +161,7 @@ class MasterCoordinator:
             sasl_plain_password=self._config.sasl_plain_password,
             security_protocol=self._config.security_protocol,
             ssl_context=ssl_context,
+            **kwargs,
         )
 
     def init_schema_coordinator(self) -> SchemaCoordinator:
