@@ -90,6 +90,7 @@ class KafkaClientParams(TypedDict, total=False):
     acks: int | None
     client_id: str | None
     connections_max_idle_ms: int | None
+    debug: str | None
     compression_type: str | None
     linger_ms: int | None
     message_max_bytes: int | None
@@ -147,6 +148,7 @@ class _KafkaConfigMixin:
             "acks": params.get("acks"),
             "client.id": params.get("client_id"),
             "connections.max.idle.ms": params.get("connections_max_idle_ms"),
+            "debug": params.get("debug"),
             "compression.type": params.get("compression_type"),
             "linger.ms": params.get("linger_ms"),
             "message.max.bytes": params.get("message_max_bytes"),

@@ -33,6 +33,7 @@ def kafka_admin_from_config(config: Config) -> KafkaAdminClient:
         ssl_cafile=config.ssl_cafile,
         ssl_certfile=config.ssl_certfile,
         ssl_keyfile=config.ssl_keyfile,
+        debug=config.librdkafka_debug,
     )
     token_provider = get_oauth_token_provider(config)
     if token_provider is not None:
@@ -51,6 +52,7 @@ def kafka_consumer_from_config(config: Config, topic: str) -> Iterator[KafkaCons
         ssl_cafile=config.ssl_cafile,
         ssl_certfile=config.ssl_certfile,
         ssl_keyfile=config.ssl_keyfile,
+        debug=config.librdkafka_debug,
         sasl_mechanism=config.sasl_mechanism,
         sasl_plain_username=config.sasl_plain_username,
         sasl_plain_password=config.sasl_plain_password,
@@ -77,6 +79,7 @@ def kafka_producer_from_config(config: Config) -> Iterator[KafkaProducer]:
         ssl_cafile=config.ssl_cafile,
         ssl_certfile=config.ssl_certfile,
         ssl_keyfile=config.ssl_keyfile,
+        debug=config.librdkafka_debug,
         sasl_mechanism=config.sasl_mechanism,
         sasl_plain_username=config.sasl_plain_username,
         sasl_plain_password=config.sasl_plain_password,

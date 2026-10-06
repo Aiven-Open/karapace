@@ -494,6 +494,12 @@ Keys to take special care are the ones needed to configure Kafka and advertised_
      - If the rest part of the app should be included in the starting process
        At least one of this and ``karapace_registry`` options need to be enabled in order
        for the service to start
+   * - ``librdkafka_debug``
+     - ``null``
+     - librdkafka ``debug`` contexts applied to every confluent-kafka client of both the schema-registry and the REST proxy
+       (consumers, producers, admin clients), e.g. ``broker,metadata,topic``. See the
+       `librdkafka configuration reference <https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md>`_
+       for the available contexts, an unknown context is rejected at startup. The debug messages are written to stderr. Meant for troubleshooting only, as it is verbose.
    * - ``log_format``
      - ``%(name)-20s\t%(threadName)s\t%(levelname)-8s\t%(message)s``
      - Log format

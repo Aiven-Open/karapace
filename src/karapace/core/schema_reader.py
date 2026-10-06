@@ -107,6 +107,7 @@ def _create_consumer_from_config(config: Config) -> KafkaConsumer:
         sasl_mechanism=config.sasl_mechanism,
         sasl_plain_username=config.sasl_plain_username,
         sasl_plain_password=config.sasl_plain_password,
+        debug=config.librdkafka_debug,
         auto_offset_reset="earliest",
         session_timeout_ms=session_timeout_ms,
         metadata_max_age_ms=config.metadata_max_age_ms,
@@ -128,6 +129,7 @@ def _create_admin_client_from_config(config: Config) -> KafkaAdminClient:
         sasl_mechanism=config.sasl_mechanism,
         sasl_plain_username=config.sasl_plain_username,
         sasl_plain_password=config.sasl_plain_password,
+        debug=config.librdkafka_debug,
     )
     token_provider = get_oauth_token_provider(config)
     if token_provider is not None:

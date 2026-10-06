@@ -8,6 +8,7 @@ See LICENSE for details
 from __future__ import annotations
 
 from collections.abc import Mapping
+from confluent_kafka import KafkaException, Producer
 from copy import deepcopy
 from typing import Literal
 
@@ -185,6 +186,10 @@ class Config(BaseSettings):
     statsd_port: int = 8125
     kafka_schema_reader_strict_mode: bool = False
     kafka_retriable_errors_silenced: bool = True
+    # librdkafka debug contexts for every confluent-kafka client (consumers, producers, admin clients), e.g.
+    # "broker,metadata,topic" (see `debug` in librdkafka's CONFIGURATION.md). librdkafka writes the debug messages to
+    # stderr from its own threads, so they are logged even while the calling thread is blocked in a Kafka call.
+    librdkafka_debug: str | None = None
     use_protobuf_formatter: bool = False
     waiting_time_before_acting_as_master_ms: int = 5000
     # Set false to reject every mode change.
@@ -220,6 +225,28 @@ class Config(BaseSettings):
 
     def get_address(self) -> str:
         return f"{self.host}:{self.port}"
+
+    @field_validator("librdkafka_debug", mode="before")
+    def normalize_librdkafka_debug(cls, v):
+        # librdkafka rejects an empty `debug` value, treat it as unset
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("librdkafka_debug")
+    def validate_librdkafka_debug(cls, v: str | None) -> str | None:
+        # Kafka clients are retried when their creation fails, a typo in the debug contexts would then retry forever.
+        # librdkafka offers no way to only validate a property, so a client is configured with an extra unknown
+        # property: the configuration is always rejected, and no client is ever created (nor debug messages logged).
+        if v is None:
+            return v
+        try:
+            Producer({"debug": v, "karapace.validate.librdkafka.debug": ""})
+        except KafkaException as exc:
+            message = exc.args[0].str()
+            if '"debug"' in message:
+                raise ValueError(message) from exc
+        return v
 
     @field_validator("producer_acks", mode="before")
     def normalize_producer_acks(cls, v):

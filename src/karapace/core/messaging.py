@@ -51,6 +51,7 @@ class KarapaceProducer:
                     metadata_max_age_ms=self._config.metadata_max_age_ms,
                     socket_timeout_ms=2000,  # missing topics will block unless we cache cluster metadata and pre-check
                     connections_max_idle_ms=self._config.connections_max_idle_ms,  # helps through cluster upgrades ??
+                    debug=self._config.librdkafka_debug,
                 )
                 return
             except Exception:

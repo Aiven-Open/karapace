@@ -247,6 +247,7 @@ class ConsumerManager:
                     ssl_crlfile=self.config.ssl_crlfile,
                     ssl_keyfile=self.config.ssl_keyfile,
                     topic_metadata_refresh_interval_ms=request_data.get("topic.metadata.refresh.interval.ms"),
+                    debug=self.config.librdkafka_debug,
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 await c.start()
