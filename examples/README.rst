@@ -19,7 +19,16 @@ Your class must implement a single method::
         """Return (token_string, expiry_epoch_timestamp_or_None)."""
 
 This matches the ``TokenWithExpiryProvider`` protocol defined in
-``karapace.core.kafka.common``.
+``karapace.core.kafka.common``. The expiry is a UNIX timestamp in **seconds**:
+Karapace passes the method straight to librdkafka as ``oauth_cb``, which reads
+seconds. A provider that returns milliseconds (as the AWS MSK signer does) is
+treated as never expiring, so the token is never refreshed.
+
+Karapace instantiates the class once while loading its ``Config`` and keeps
+the instance on the config object, which ``dependency_injector`` deep-copies
+while wiring containers. The instance must therefore stay picklable: do not
+cache modules, clients, sessions or locks on ``self``; create them inside
+``token_with_expiry``.
 
 .. note::
 

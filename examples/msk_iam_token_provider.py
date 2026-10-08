@@ -26,7 +26,7 @@ Install the AWS MSK auth helper::
 
 The provider uses the default boto3 credential chain (env vars, instance
 profile, ECS task role, etc.). For a specific profile or role, subclass
-and override ``_generate_token``.
+and override ``token_with_expiry``.
 
 Protocol
 --------
@@ -35,12 +35,24 @@ Karapace expects a class whose **instances** expose::
     def token_with_expiry(self, config: str | None) -> tuple[str, int | None]
 
 The first element is the OAuth token string; the second is an optional
-UNIX-epoch expiry timestamp (``int``) or ``None`` for no expiry.
+UNIX-epoch expiry timestamp in **seconds** (``int``) or ``None`` for no
+expiry. Karapace hands this method straight to librdkafka as ``oauth_cb``,
+and librdkafka reads the expiry in seconds; the MSK signer returns
+milliseconds, so this example converts.
+
+Instances must stay deep-copyable
+---------------------------------
+Karapace instantiates the provider once while loading ``Config`` and stores
+the instance on the config object. ``dependency_injector`` later
+``deepcopy``s that config while wiring containers, so anything the instance
+holds must be picklable. Keep modules, clients, sessions and locks out of
+``self``; import and build them inside ``token_with_expiry`` instead.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 
 LOG = logging.getLogger(__name__)
 
@@ -54,16 +66,18 @@ class MSKIAMTokenProvider:
     """
 
     def __init__(self, region: str | None = None) -> None:
-        # Import here so the dependency is only required when this provider is used
-        from aws_msk_iam_sasl_signer import MSKAuthTokenProvider  # type: ignore[import-untyped]
-
-        self._msk_provider = MSKAuthTokenProvider
+        # Hold only plain data. The AWS signer is imported inside
+        # ``token_with_expiry``: caching the module here makes the instance
+        # unpicklable, and Karapace deep-copies the Config that owns it.
         self._region = region
 
     def _get_region(self) -> str:
-        """Resolve the AWS region, falling back to boto3 session default."""
+        """Resolve the AWS region: explicit, then env vars, then the boto3 session default."""
         if self._region:
             return self._region
+        region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+        if region:
+            return region
         import boto3
 
         session = boto3.session.Session()
@@ -80,9 +94,16 @@ class MSKIAMTokenProvider:
         """Return a fresh MSK auth token and its expiry.
 
         :param config: Unused; required by the ``oauth_cb`` callback signature.
-        :returns: ``(token, expiry_epoch_ms)`` tuple.
+        :returns: ``(token, expiry_epoch_seconds)`` tuple.
         """
+        from aws_msk_iam_sasl_signer import MSKAuthTokenProvider  # type: ignore[import-untyped]
+
         region = self._get_region()
-        token, expiry_ms = self._msk_provider.generate_auth_token(region)
-        LOG.debug("Generated MSK IAM token for region=%s, expires=%s", region, expiry_ms)
-        return token, expiry_ms
+        token, expiry_ms = MSKAuthTokenProvider.generate_auth_token(region)
+        # The signer reports expiry in milliseconds; librdkafka's oauth_cb
+        # expects seconds. Passing milliseconds through makes librdkafka
+        # treat the token as expiring millennia from now, so it never
+        # refreshes and the broker rejects the stale token ~15 min later.
+        expiry_s = expiry_ms // 1000
+        LOG.debug("Generated MSK IAM token for region=%s, expires=%s", region, expiry_s)
+        return token, expiry_s
