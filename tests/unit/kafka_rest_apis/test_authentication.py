@@ -145,3 +145,39 @@ def test_get_client_auth_parameters_from_config_oauth(
 
     assert client_auth_params["sasl_mechanism"] == "OAUTHBEARER"
     assert client_auth_params["sasl_oauth_token_provider"].token_with_expiry() == (token, expiry_timestamp)
+
+
+def test_get_client_auth_parameters_from_config_oauth_prefers_dynamic_provider(
+    karapace_container: KarapaceContainer,
+) -> None:
+    """A configured `sasl_oauth_token_provider_class` wins over a static token.
+
+    The REST proxy's own Kafka clients (admin, producers, consumers) go through
+    this function; before, it asserted on `sasl_oauth_token` and ignored the
+    dynamic provider the rest of Karapace already used, so a deployment on e.g.
+    AWS MSK IAM could run the schema registry but not the REST proxy.
+    """
+
+    class DynamicTokenProvider:
+        def token_with_expiry(self, config: str | None = None) -> tuple[str, int | None]:
+            return ("dynamic-token", 1697013997)
+
+    config = karapace_container.config().set_config_defaults(
+        new_config={"sasl_mechanism": "OAUTHBEARER", "sasl_oauth_token_provider_class": DynamicTokenProvider}
+    )
+    config.model_post_init(None)
+
+    client_auth_params = get_kafka_client_auth_parameters_from_config(config)
+
+    assert client_auth_params["sasl_mechanism"] == "OAUTHBEARER"
+    assert isinstance(client_auth_params["sasl_oauth_token_provider"], DynamicTokenProvider)
+    assert client_auth_params["sasl_oauth_token_provider"].token_with_expiry() == ("dynamic-token", 1697013997)
+
+
+def test_get_client_auth_parameters_from_config_oauth_requires_token_or_provider(
+    karapace_container: KarapaceContainer,
+) -> None:
+    config = karapace_container.config().set_config_defaults(new_config={"sasl_mechanism": "OAUTHBEARER"})
+
+    with pytest.raises(AssertionError, match="sasl_oauth_token_provider_class"):
+        get_kafka_client_auth_parameters_from_config(config)
