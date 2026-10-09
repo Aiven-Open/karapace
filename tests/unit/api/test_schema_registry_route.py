@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from karapace.api.content_type import SCHEMA_RESPONSE_DEFAULT_CONTENT_TYPE
+from karapace.api.http_handlers import setup_exception_handlers
 from karapace.api.routers.raw_path_router import SchemaRegistryRoute
 
 
@@ -31,6 +32,7 @@ def app() -> FastAPI:
 
     app = FastAPI()
     app.include_router(router)
+    setup_exception_handlers(app)
 
     @app.get("/metrics")
     async def metrics():
@@ -118,3 +120,15 @@ class TestSchemaRegistryRouteDoesNotAffectOtherEndpoints:
         )
         response = client.get("/metrics", headers={"Accept": prometheus_accept})
         assert response.status_code == 200
+
+
+class TestSchemaRegistryUnknownRouteErrors:
+    def test_unknown_schema_registry_route_returns_confluent_404(self, client: TestClient) -> None:
+        response = client.get("/associations/resources/%2A/some-topic")
+
+        assert response.status_code == 404
+        assert response.json() == {
+            "error_code": 404,
+            "message": "Not Found",
+        }
+        assert response.headers["Content-Type"].split(";", maxsplit=1)[0] == SCHEMA_RESPONSE_DEFAULT_CONTENT_TYPE
