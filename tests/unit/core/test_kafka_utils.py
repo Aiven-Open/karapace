@@ -57,6 +57,7 @@ def test_kafka_admin_from_config_passes_all_kwargs(admin_cls: MagicMock) -> None
         ssl_cafile="/tmp/ca",
         ssl_certfile="/tmp/cert",
         ssl_keyfile="/tmp/key",
+        debug=None,
     )
     assert "sasl_oauth_token_provider" not in admin_cls.call_args.kwargs
 

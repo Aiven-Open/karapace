@@ -569,6 +569,7 @@ class UserRestProxy:
                     ssl_certfile=self.config.ssl_certfile,
                     ssl_keyfile=self.config.ssl_keyfile,
                     ssl_crlfile=self.config.ssl_crlfile,
+                    debug=self.config.librdkafka_debug,
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 try:
@@ -795,6 +796,7 @@ class UserRestProxy:
                     metadata_max_age_ms=self.config.metadata_max_age_ms,
                     connections_max_idle_ms=self.config.connections_max_idle_ms,
                     verify_connection=verify_connection,
+                    debug=self.config.librdkafka_debug,
                     **get_kafka_client_auth_parameters_from_config(self.config),
                 )
                 break

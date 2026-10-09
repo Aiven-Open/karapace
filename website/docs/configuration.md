@@ -77,5 +77,19 @@ start.
 | `protobuf_runtime_directory` | `runtime` | Runtime directory for the `protoc` parser and code generator. |
 | `use_protobuf_formatter`     | `false`   | Normalize and persist Protobuf schemas in a formatted state.  |
 
+## Troubleshooting
+
+| Parameter          | Default | Description                                                                                                                                          |
+| ------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `librdkafka_debug` | `None`  | librdkafka `debug` contexts for every Kafka consumer, producer and admin client of the registry and REST proxy, for example `broker,metadata,topic`. |
+
+The value is passed as is to librdkafka's `debug` property. See the
+[librdkafka configuration reference](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md)
+for the available contexts. An unknown context is rejected when the configuration is loaded.
+The debug messages are written to stderr from librdkafka's own threads, so they show up even
+while a Karapace thread is blocked in a Kafka call. The output is verbose, so enable it only
+while troubleshooting. Master election uses a different Kafka client
+and is not affected.
+
 For the full list of keys, see the
 [README](https://github.com/Aiven-Open/karapace/blob/main/README.rst#configuration-keys).

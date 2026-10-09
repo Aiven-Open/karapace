@@ -47,6 +47,8 @@ failover
 githooks
 hostname
 keystore
+librdkafka
+librdkafka's
 lookup
 lookups
 retriable
@@ -65,6 +67,7 @@ rebase
 runtime
 serialize
 serialization
+stderr
 subcommand
 truststore
 uncomment
