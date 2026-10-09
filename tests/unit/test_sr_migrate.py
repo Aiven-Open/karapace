@@ -276,19 +276,19 @@ def puts_to_mode(registry: FakeRegistry, mode: str) -> list[str]:
 
 class TestExport:
     def test_api_export_includes_soft_deleted_versions_and_source_max_id(self) -> None:
-        dump = sr_migrate.export_api(make_source())
+        exported_from_api = sr_migrate.export_api(make_source())
 
-        assert {(s["subject"], s["version"]): (s["id"], s["deleted"]) for s in dump["schemas"]} == {
+        assert {(s["subject"], s["version"]): (s["id"], s["deleted"]) for s in exported_from_api["schemas"]} == {
             ("customer", 1): (3, False),
             ("invoice", 1): (4, False),
             ("orders", 1): (1, False),
             ("orders", 2): (5, False),
             ("payments", 1): (2, True),
         }
-        assert dump["source_max_id"] == 6
-        assert dump["subject_config"] == {"orders": "FULL"}
-        assert dump["global_config"] == "BACKWARD_TRANSITIVE"
-        assert next(s for s in dump["schemas"] if s["subject"] == "invoice")["references"] == CUSTOMER_REF
+        assert exported_from_api["source_max_id"] == 6
+        assert exported_from_api["subject_config"] == {"orders": "FULL"}
+        assert exported_from_api["global_config"] == "BACKWARD_TRANSITIVE"
+        assert next(s for s in exported_from_api["schemas"] if s["subject"] == "invoice")["references"] == CUSTOMER_REF
 
     def test_topic_export_replays_records_like_the_registry(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -320,21 +320,21 @@ class TestExport:
             record({"keytype": "MODE", "subject": "a", "magic": 0}, {"mode": "IMPORT"}),
             record({"keytype": "CONTEXT", "magic": 0}, "{}"),
         ]
-        dump_file = tmp_path / "schemas.log"
-        dump_file.write_text("\n".join(lines) + "\n")
+        schemas_topic_file = tmp_path / "schemas.log"
+        schemas_topic_file.write_text("\n".join(lines) + "\n")
 
-        dump = sr_migrate.export_topic_dump(str(dump_file), "BACKWARD")
+        exported_from_topic = sr_migrate.export_topic_dump(str(schemas_topic_file), "BACKWARD")
 
-        assert {(s["subject"], s["version"]): (s["id"], s["deleted"]) for s in dump["schemas"]} == {
+        assert {(s["subject"], s["version"]): (s["id"], s["deleted"]) for s in exported_from_topic["schemas"]} == {
             ("a", 1): (1, False),
             ("a", 2): (2, False),
             ("b", 1): (3, True),
             ("c", 1): (4, True),
         }
-        assert dump["hard_deleted_ids"] == [5]
-        assert dump["source_max_id"] == 5
-        assert dump["subject_config"] == {"a": "FULL"}
-        assert dump["global_config"] == "BACKWARD"
+        assert exported_from_topic["hard_deleted_ids"] == [5]
+        assert exported_from_topic["source_max_id"] == 5
+        assert exported_from_topic["subject_config"] == {"a": "FULL"}
+        assert exported_from_topic["global_config"] == "BACKWARD"
         assert "skipping unknown keytype 'CONTEXT'" in capsys.readouterr().err
 
 

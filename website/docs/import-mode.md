@@ -503,6 +503,47 @@ end of every migration.
 Deleting subjects and versions stays available in import mode, since that is part of migration
 cleanup.
 
+## Migrating with `sr_migrate.py`
+
+[`bin/sr_migrate.py`](https://github.com/Aiven-Open/karapace/blob/main/bin/sr_migrate.py) runs
+the steps on this page for you. It copies a registry into Karapace with every schema ID and
+version number unchanged. It needs only Python 3 and has three commands:
+
+- `export` reads a source registry through its REST API and writes an export file.
+- `export-topic` builds the same file from a dump of the source's `_schemas` topic.
+- `import` loads an export into Karapace through import mode.
+
+```bash
+# export from the source and import in one run (subject scope is the default)
+bin/sr_migrate.py import --source http://source:8081 --target http://target:8081 \
+  --reserve-subject _migration_id_reservation
+
+# or export first and import later
+bin/sr_migrate.py export --source http://source:8081 --file export.json
+bin/sr_migrate.py import --file export.json --target http://target:8081
+
+# export from the _schemas topic instead of the API
+kcat -C -b kafka:9092 -t _schemas -o beginning -e -q -Z -f '%k\t%s\n' > schemas.log
+bin/sr_migrate.py export-topic --dump schemas.log --file export.json
+```
+
+`import` shows a preview of each step and asks before running it. The steps are: check the
+target for clashes, enter import mode, register versions with referenced schemas first,
+reproduce soft deletes, apply compatibility levels, verify the IDs, and leave import mode.
+
+- `--scope subject` (the default) puts only the exported subjects into import mode, so the
+  target can already be in use. `--scope global` needs an empty target.
+- `--reserve-subject` holds the source's highest ID when it is higher than the highest exported
+  one, so the target never hands out an ID the source already used.
+- `--force` enters import mode even when the target is not empty. `--yes` answers every
+  prompt except the one that offers force.
+- `--keep-import-mode` leaves the target in import mode for a later catch-up pass.
+
+Set `SRC_AUTH` and `DST_AUTH` to the full `Authorization` header value for each registry, for
+example `Basic <base64>` or `Bearer <token>`. If a run stops part way, run the same command
+again to resume it: versions that were already imported are replayed unchanged. Run
+`bin/sr_migrate.py <command> --help` to see all options.
+
 ## Migration notes
 
 Import mode is modelled on the equivalent feature in other Schema Registry implementations, so
