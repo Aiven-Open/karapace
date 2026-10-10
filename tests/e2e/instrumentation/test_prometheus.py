@@ -53,3 +53,17 @@ async def test_metrics_endpoint_parsed_response(registry_async_client: Client) -
 
     # Backwards-compatible karapace_* metrics
     assert "karapace_http_requests" in metrics
+
+    # Schema Registry health metrics
+    assert "karapace_health" in metrics
+    assert "karapace_schema_registry_ready" in metrics
+    assert "karapace_schema_registry_startup_duration_seconds" in metrics
+    assert "karapace_schema_registry_reader_current_offset" in metrics
+    assert "karapace_schema_registry_reader_highest_offset" in metrics
+    assert "karapace_schema_registry_reader_lag" in metrics
+    assert "karapace_schema_registry_primary" in metrics
+    assert "karapace_schema_registry_primary_eligible" in metrics
+    assert "karapace_schema_registry_coordinator_running" in metrics
+    assert "karapace_schema_registry_coordinator_generation" in metrics
+    assert "karapace_health_check_timestamp_seconds" in metrics
+    assert "karapace_build_info" in metrics
