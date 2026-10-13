@@ -36,7 +36,7 @@ Features
 * Supports Avro, JSON Schema, and Protobuf
 * Leader/Replica architecture for HA and load balancing
 * Observability with Metrics and OpenTelemetry
-* Based on aiokafka (rdkafka) kafka library mostly
+* Kafka clients based on confluent-kafka and aiokafka
 * Schema registry based on FastApi
 
 Compatibility details
