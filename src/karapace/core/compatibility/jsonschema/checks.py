@@ -37,6 +37,7 @@ from karapace.core.compatibility.jsonschema.utils import (
 from karapace.core.typing import JsonSchemaValidator
 from typing import Any
 
+import json
 import networkx as nx
 
 INTRODUCED_INCOMPATIBILITY_MSG_FMT = "Introduced incompatible assertion {assert_name} with value {introduced_value}"
@@ -381,9 +382,12 @@ def compatibility_enum(
     assert Keyword.ENUM.value in reader_schema, "types should have been previously checked"
     assert Keyword.ENUM.value in writer_schema, "types should have been previously checked"
 
-    options_removed_by_reader = set(writer_schema[Keyword.ENUM.value]) - set(reader_schema[Keyword.ENUM.value])
+    reader_options = {json.dumps(option, sort_keys=True) for option in reader_schema[Keyword.ENUM.value]}
+    options_removed_by_reader = [
+        option for option in writer_schema[Keyword.ENUM.value] if json.dumps(option, sort_keys=True) not in reader_options
+    ]
     if options_removed_by_reader:
-        options = ", ".join(options_removed_by_reader)
+        options = ", ".join(json.dumps(option) for option in options_removed_by_reader)
         return incompatible_schema(
             Incompatibility.enum_array_narrowed,
             message=f"some of enum options are no longer valid {options}",
@@ -593,16 +597,16 @@ def compatibility_array(
         )
         result = merge(result, check_result)
 
-    reader_unique_items = reader_schema.get(Keyword.UNIQUE_ITEMS)
-    writer_unique_items = reader_schema.get(Keyword.UNIQUE_ITEMS)
+    reader_unique_items = reader_schema.get(Keyword.UNIQUE_ITEMS.value, False)
+    writer_unique_items = writer_schema.get(Keyword.UNIQUE_ITEMS.value, False)
 
-    if introduced_constraint(reader_unique_items, writer_unique_items):
+    if reader_unique_items and not writer_unique_items:
         add_incompatibility(
             result,
             incompat_type=Incompatibility.unique_items_added,
             message=INTRODUCED_INCOMPATIBILITY_MSG_FMT.format(
                 assert_name=Keyword.UNIQUE_ITEMS.value,
-                introduced_value=writer_unique_items,
+                introduced_value=reader_unique_items,
             ),
             location=location,
         )
@@ -656,8 +660,8 @@ def compatibility_object(
         reader_property = reader_properties[common_property]
         writer_property = writer_properties[common_property]
 
-        is_required_by_reader = reader_property.get(Keyword.REQUIRED.value)
-        is_required_by_writer = writer_property.get(Keyword.REQUIRED.value)
+        is_required_by_reader = common_property in reader_schema.get(Keyword.REQUIRED.value, [])
+        is_required_by_writer = common_property in writer_schema.get(Keyword.REQUIRED.value, [])
         if not is_required_by_writer and is_required_by_reader:
             add_incompatibility(
                 result,
