@@ -6,12 +6,18 @@ See LICENSE for details
 from __future__ import annotations
 
 import asyncio
+import base64
 import datetime
 import time
-from unittest.mock import Mock, call
+from http import HTTPStatus
+from unittest.mock import Mock, call, patch
+
+import jwt
+import pytest
 
 from karapace.core.container import KarapaceContainer
 from karapace.kafka_rest_apis import AUTH_EXPIRY_TOLERANCE, KafkaRest, UserRestProxy
+from karapace.rapu import HTTPResponse
 
 
 def _create_mock_proxy(
@@ -203,3 +209,72 @@ async def test_rest_proxy_janitor_destructive(karapace_container: KarapaceContai
     assert unused_proxy_with_consumers.method_calls == [call.num_consumers(), call.aclose()]
     assert active_proxy_without_consumers.method_calls == [call.num_consumers()]
     assert active_proxy_with_consumers.method_calls == [call.num_consumers()]
+
+
+def _oauth_service_instance(karapace_container: KarapaceContainer, *, sasl_mechanism: str) -> tuple[KafkaRest, object]:
+    """Build a KafkaRest whose service config carries both a static OAuth token and a provider."""
+    config = karapace_container.config().set_config_defaults(
+        {
+            "rest_authorization": True,
+            "sasl_bootstrap_uri": "localhost:9094",
+            "sasl_mechanism": sasl_mechanism,
+            "sasl_oauth_token": "service-static-token",
+        }
+    )
+    service_provider = object()
+    config._sasl_oauth_token_provider = service_provider
+    return KafkaRest(config=config), service_provider
+
+
+def _request_with(auth_header: str) -> Mock:
+    request = Mock()
+    request.headers = {"Authorization": auth_header}
+    return request
+
+
+async def test_user_proxy_does_not_inherit_service_oauth_credentials_for_bearer(
+    karapace_container: KarapaceContainer,
+) -> None:
+    instance, service_provider = _oauth_service_instance(karapace_container, sasl_mechanism="OAUTHBEARER")
+    user_token = jwt.encode({"exp": int(time.time()) + 3600}, "secret")
+
+    with patch("karapace.kafka_rest_apis.UserRestProxy") as user_proxy_cls:
+        await instance.get_user_proxy(_request_with(f"Bearer {user_token}"))
+
+    user_config = user_proxy_cls.call_args.args[0]
+    assert user_config.sasl_mechanism == "OAUTHBEARER"
+    assert user_config.sasl_oauth_token == user_token
+    assert user_config._sasl_oauth_token_provider is None
+    # The service config itself is left untouched.
+    assert instance.config.sasl_oauth_token == "service-static-token"
+    assert instance.config._sasl_oauth_token_provider is service_provider
+
+
+async def test_user_proxy_rejects_basic_credentials_on_oauthbearer_cluster(
+    karapace_container: KarapaceContainer,
+) -> None:
+    instance, _ = _oauth_service_instance(karapace_container, sasl_mechanism="OAUTHBEARER")
+
+    with patch("karapace.kafka_rest_apis.UserRestProxy") as user_proxy_cls:
+        with pytest.raises(HTTPResponse) as excinfo:
+            await instance.get_user_proxy(_request_with("Basic " + base64.b64encode(b"user:pass").decode()))
+
+    assert excinfo.value.status == HTTPStatus.UNAUTHORIZED
+    user_proxy_cls.assert_not_called()
+    assert instance.proxies == {}
+
+
+async def test_user_proxy_does_not_inherit_service_oauth_credentials_for_basic(
+    karapace_container: KarapaceContainer,
+) -> None:
+    instance, _ = _oauth_service_instance(karapace_container, sasl_mechanism="SCRAM-SHA-256")
+
+    with patch("karapace.kafka_rest_apis.UserRestProxy") as user_proxy_cls:
+        await instance.get_user_proxy(_request_with("Basic " + base64.b64encode(b"user:pass").decode()))
+
+    user_config = user_proxy_cls.call_args.args[0]
+    assert user_config.sasl_mechanism == "SCRAM-SHA-256"
+    assert user_config.sasl_plain_username == "user"
+    assert user_config.sasl_plain_password == "pass"
+    assert user_config.sasl_oauth_token is None
+    assert user_config._sasl_oauth_token_provider is None
