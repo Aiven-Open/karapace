@@ -40,7 +40,7 @@ avro @ https://github.com/aiven/avro/archive/5a82d57f2a650fd87c819a30e433f1abb2c
     # via karapace (/karapace/pyproject.toml)
 cachetools==7.2.1
     # via karapace (/karapace/pyproject.toml)
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
