@@ -25,12 +25,14 @@ class TokenType(enum.Enum):
     BEARER = "Bearer"
 
 
-def raise_unauthorized() -> NoReturn:
+def raise_unauthorized(challenge: TokenType = TokenType.BASIC) -> NoReturn:
+    """Reject the request with a 401 carrying a ``WWW-Authenticate`` challenge for ``challenge``."""
+    message = "Bearer token required" if challenge is TokenType.BEARER else "Unauthorized"
     raise HTTPResponse(
-        body='{"message": "Unauthorized"}',
+        body=f'{{"message": "{message}"}}',
         status=HTTPStatus.UNAUTHORIZED,
         content_type=JSON_CONTENT_TYPE,
-        headers={"WWW-Authenticate": 'Basic realm="Karapace REST Proxy"'},
+        headers={"WWW-Authenticate": f'{challenge.value} realm="Karapace REST Proxy"'},
     )
 
 

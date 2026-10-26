@@ -42,6 +42,7 @@ from karapace.kafka_rest_apis.authentication import (
     get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
     raise_unauthorized,
+    TokenType,
 )
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.convert_to_int import convert_to_int
@@ -333,7 +334,7 @@ class KafkaRest(KarapaceBase):
                             if config.sasl_mechanism == "OAUTHBEARER":
                                 # Basic credentials cannot be used over SASL/OAUTHBEARER, and falling
                                 # back to the service credentials would let the caller act as the service.
-                                raise_unauthorized()
+                                raise_unauthorized(challenge=TokenType.BEARER)
                             config.sasl_plain_username = auth_config["sasl_plain_username"]
                             config.sasl_plain_password = auth_config["sasl_plain_password"]
 

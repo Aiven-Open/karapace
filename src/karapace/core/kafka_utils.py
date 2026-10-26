@@ -21,11 +21,7 @@ def get_oauth_token_provider(config: Config) -> TokenWithExpiryProvider | None:
     validated to expose a ``token_with_expiry`` method as required by
     confluent-kafka's OAUTHBEARER flow.
     """
-    return (
-        cast(TokenWithExpiryProvider, config._sasl_oauth_token_provider)
-        if config._sasl_oauth_token_provider is not None
-        else None
-    )
+    return cast(TokenWithExpiryProvider | None, config._sasl_oauth_token_provider)
 
 
 def kafka_admin_from_config(config: Config) -> KafkaAdminClient:

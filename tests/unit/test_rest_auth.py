@@ -260,6 +260,8 @@ async def test_user_proxy_rejects_basic_credentials_on_oauthbearer_cluster(
             await instance.get_user_proxy(_request_with("Basic " + base64.b64encode(b"user:pass").decode()))
 
     assert excinfo.value.status == HTTPStatus.UNAUTHORIZED
+    assert excinfo.value.headers["WWW-Authenticate"] == 'Bearer realm="Karapace REST Proxy"'
+    assert excinfo.value.body == '{"message": "Bearer token required"}'
     user_proxy_cls.assert_not_called()
     assert instance.proxies == {}
 
