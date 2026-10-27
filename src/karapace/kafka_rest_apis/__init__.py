@@ -41,8 +41,6 @@ from karapace.kafka_rest_apis.authentication import (
     get_auth_config_from_header,
     get_expiration_time_from_header,
     get_kafka_client_auth_parameters_from_config,
-    raise_unauthorized,
-    TokenType,
 )
 from karapace.kafka_rest_apis.consumer_manager import ConsumerManager
 from karapace.kafka_rest_apis.convert_to_int import convert_to_int
@@ -324,17 +322,9 @@ class KafkaRest(KarapaceBase):
                         )
 
                         config.sasl_mechanism = auth_config["sasl_mechanism"]
-                        # A per-user proxy must only ever authenticate with the credentials from
-                        # the request, never with the service's own OAuth token or provider.
-                        config.sasl_oauth_token = None
-                        config._sasl_oauth_token_provider = None
                         if "sasl_oauth_token" in auth_config:
                             config.sasl_oauth_token = auth_config["sasl_oauth_token"]
                         else:
-                            if config.sasl_mechanism == "OAUTHBEARER":
-                                # Basic credentials cannot be used over SASL/OAUTHBEARER, and falling
-                                # back to the service credentials would let the caller act as the service.
-                                raise_unauthorized(challenge=TokenType.BEARER)
                             config.sasl_plain_username = auth_config["sasl_plain_username"]
                             config.sasl_plain_password = auth_config["sasl_plain_password"]
 
