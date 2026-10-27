@@ -211,16 +211,27 @@ async def test_rest_proxy_janitor_destructive(karapace_container: KarapaceContai
     assert active_proxy_with_consumers.method_calls == [call.num_consumers()]
 
 
-def _oauth_service_instance(karapace_container: KarapaceContainer, *, sasl_mechanism: str) -> tuple[KafkaRest, object]:
-    """Build a KafkaRest whose service config carries both a static OAuth token and a provider."""
-    config = karapace_container.config().set_config_defaults(
-        {
-            "rest_authorization": True,
-            "sasl_bootstrap_uri": "localhost:9094",
-            "sasl_mechanism": sasl_mechanism,
-            "sasl_oauth_token": "service-static-token",
-        }
-    )
+_UNSET = object()
+
+
+def _oauth_service_instance(
+    karapace_container: KarapaceContainer,
+    *,
+    sasl_mechanism: str,
+    sasl_oauth_token: str | None | object = "service-static-token",
+) -> tuple[KafkaRest, object]:
+    """Build a KafkaRest whose service config carries an OAuth provider and optionally a static token.
+
+    Pass `_UNSET` to leave `sasl_oauth_token` out of the config overrides entirely.
+    """
+    new_config: dict[str, object] = {
+        "rest_authorization": True,
+        "sasl_bootstrap_uri": "localhost:9094",
+        "sasl_mechanism": sasl_mechanism,
+    }
+    if sasl_oauth_token is not _UNSET:
+        new_config["sasl_oauth_token"] = sasl_oauth_token
+    config = karapace_container.config().set_config_defaults(new_config)
     service_provider = object()
     config._sasl_oauth_token_provider = service_provider
     return KafkaRest(config=config), service_provider
@@ -250,10 +261,15 @@ async def test_user_proxy_does_not_inherit_service_oauth_credentials_for_bearer(
     assert instance.config._sasl_oauth_token_provider is service_provider
 
 
+@pytest.mark.parametrize("sasl_oauth_token", [None, _UNSET], ids=["explicit-none", "unset"])
 async def test_user_proxy_rejects_basic_credentials_on_oauthbearer_cluster(
     karapace_container: KarapaceContainer,
+    sasl_oauth_token: object,
 ) -> None:
-    instance, _ = _oauth_service_instance(karapace_container, sasl_mechanism="OAUTHBEARER")
+    instance, _ = _oauth_service_instance(
+        karapace_container, sasl_mechanism="OAUTHBEARER", sasl_oauth_token=sasl_oauth_token
+    )
+    assert instance.config.sasl_oauth_token is None
 
     with patch("karapace.kafka_rest_apis.UserRestProxy") as user_proxy_cls:
         with pytest.raises(HTTPResponse) as excinfo:
@@ -266,7 +282,24 @@ async def test_user_proxy_rejects_basic_credentials_on_oauthbearer_cluster(
     assert instance.proxies == {}
 
 
-async def test_user_proxy_does_not_inherit_service_oauth_credentials_for_basic(
+async def test_user_proxy_basic_credentials_on_oauthbearer_cluster_keep_static_token(
+    karapace_container: KarapaceContainer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    instance, _ = _oauth_service_instance(karapace_container, sasl_mechanism="OAUTHBEARER")
+
+    with patch("karapace.kafka_rest_apis.UserRestProxy") as user_proxy_cls:
+        with caplog.at_level("WARNING", logger="karapace.kafka_rest_apis"):
+            await instance.get_user_proxy(_request_with("Basic " + base64.b64encode(b"user:pass").decode()))
+
+    user_config = user_proxy_cls.call_args.args[0]
+    assert user_config.sasl_mechanism == "OAUTHBEARER"
+    assert user_config.sasl_oauth_token == "service-static-token"
+    assert user_config._sasl_oauth_token_provider is None
+    assert "will be rejected in a future release" in caplog.text
+
+
+async def test_user_proxy_does_not_inherit_service_oauth_provider_for_basic(
     karapace_container: KarapaceContainer,
 ) -> None:
     instance, _ = _oauth_service_instance(karapace_container, sasl_mechanism="SCRAM-SHA-256")
@@ -278,5 +311,4 @@ async def test_user_proxy_does_not_inherit_service_oauth_credentials_for_basic(
     assert user_config.sasl_mechanism == "SCRAM-SHA-256"
     assert user_config.sasl_plain_username == "user"
     assert user_config.sasl_plain_password == "pass"
-    assert user_config.sasl_oauth_token is None
     assert user_config._sasl_oauth_token_provider is None
