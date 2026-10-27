@@ -324,17 +324,21 @@ class KafkaRest(KarapaceBase):
                         )
 
                         config.sasl_mechanism = auth_config["sasl_mechanism"]
-                        # A per-user proxy must only ever authenticate with the credentials from
-                        # the request, never with the service's own OAuth token or provider.
-                        config.sasl_oauth_token = None
+                        # A per-user proxy must never fall back to the service's OAuth provider.
                         config._sasl_oauth_token_provider = None
                         if "sasl_oauth_token" in auth_config:
                             config.sasl_oauth_token = auth_config["sasl_oauth_token"]
                         else:
                             if config.sasl_mechanism == "OAUTHBEARER":
-                                # Basic credentials cannot be used over SASL/OAUTHBEARER, and falling
-                                # back to the service credentials would let the caller act as the service.
-                                raise_unauthorized(challenge=TokenType.BEARER)
+                                # Basic credentials cannot be used over SASL/OAUTHBEARER; only fall
+                                # back to the service's static token when one is configured.
+                                if self.config.sasl_oauth_token is None:
+                                    raise_unauthorized(challenge=TokenType.BEARER)
+                                # Kept for backward compatibility with 6.2.4 and earlier.
+                                log.warning(
+                                    "Basic credentials on an OAUTHBEARER cluster are using the service "
+                                    "sasl_oauth_token; this will be rejected in a future release"
+                                )
                             config.sasl_plain_username = auth_config["sasl_plain_username"]
                             config.sasl_plain_password = auth_config["sasl_plain_password"]
 
