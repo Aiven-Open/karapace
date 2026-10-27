@@ -24,26 +24,25 @@ from types import MappingProxyType
 from typing import Any
 
 import base64
-import google.protobuf.descriptor
 import google.protobuf.descriptor_pb2
 
 _TYPE_MAP = MappingProxyType(
     {
-        google.protobuf.descriptor.FieldDescriptor.TYPE_DOUBLE: "double",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_FLOAT: "float",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_INT32: "int32",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_INT64: "int64",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_UINT32: "uint32",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_UINT64: "uint64",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_SINT32: "sint32",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_SINT64: "sint64",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_FIXED32: "fixed32",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_FIXED64: "fixed64",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_SFIXED32: "sfixed32",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_SFIXED64: "sfixed64",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL: "bool",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_STRING: "string",
-        google.protobuf.descriptor.FieldDescriptor.TYPE_BYTES: "bytes",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE: "double",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT: "float",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_INT32: "int32",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_INT64: "int64",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_UINT32: "uint32",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_UINT64: "uint64",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_SINT32: "sint32",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_SINT64: "sint64",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_FIXED32: "fixed32",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_FIXED64: "fixed64",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_SFIXED32: "sfixed32",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_SFIXED64: "sfixed64",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_BOOL: "bool",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_STRING: "string",
+        google.protobuf.descriptor_pb2.FieldDescriptorProto.TYPE_BYTES: "bytes",
     }
 )
 _REVERSE_TYPE_MAP = MappingProxyType({v: k for k, v in _TYPE_MAP.items()})
