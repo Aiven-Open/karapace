@@ -97,7 +97,7 @@ def protobuf_to_dict(
         type_callable = _get_field_value_adaptor(
             pb, field, type_callable_map, use_enum_labels, including_default_value_fields, lowercase_enum_lables
         )
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if field.is_repeated:
             type_callable = repeated(type_callable)
 
         if field.is_extension:
@@ -110,7 +110,7 @@ def protobuf_to_dict(
     if including_default_value_fields:
         for field in pb.DESCRIPTOR.fields:
             # Singular message fields and oneof fields will not be affected.
-            if field.label != FieldDescriptor.LABEL_REPEATED and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE:
+            if not field.is_repeated and field.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE:
                 continue
             if field.containing_oneof:
                 continue
@@ -119,7 +119,7 @@ def protobuf_to_dict(
                 continue
             if _is_map_entry(field):
                 result_dict[field.name] = {}
-            elif field.label == FieldDescriptor.LABEL_REPEATED:
+            elif field.is_repeated:
                 result_dict[field.name] = []
             elif field.type == FieldDescriptor.TYPE_ENUM and use_enum_labels:
                 result_dict[field.name] = enum_label_name(field, field.default_value, lowercase_enum_lables)
@@ -230,7 +230,7 @@ def _dict_to_protobuf(pb, value_, type_callable_map, strict, ignore_none, use_da
         if ignore_none and input_value is None:
             continue
 
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if field.is_repeated:
             if field.message_type and field.message_type.has_options and field.message_type.GetOptions().map_entry:
                 key_field = field.message_type.fields_by_name["key"]
                 value_field = field.message_type.fields_by_name["value"]
