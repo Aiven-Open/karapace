@@ -144,7 +144,7 @@ httpx==0.28.1
     #   fastapi-cloud-cli
 httpx2==2.16.0
     # via fastapi
-hypothesis==6.170.12
+hypothesis==6.170.13
     # via karapace (/karapace/pyproject.toml)
 idna==3.20
     # via
