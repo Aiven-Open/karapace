@@ -63,7 +63,7 @@ click==8.5.0
     #   flask
     #   rich-toolkit
     #   uvicorn
-configargparse==1.8.0
+configargparse==1.9.0
     # via locust
 confluent-kafka==2.16.0
     # via karapace (/karapace/pyproject.toml)
