@@ -65,7 +65,7 @@ click==8.5.0
     #   uvicorn
 configargparse==1.8.0
     # via locust
-confluent-kafka==2.16.0
+confluent-kafka==2.16.1
     # via karapace (/karapace/pyproject.toml)
 coverage[toml]==7.17.0
     # via pytest-cov
