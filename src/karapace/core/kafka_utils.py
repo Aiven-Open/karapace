@@ -12,16 +12,35 @@ from karapace.core.kafka.producer import KafkaProducer
 from typing import cast
 
 import contextlib
+import dataclasses
+import jwt
+
+
+def get_expiration_timestamp_from_jwt(token: str) -> int | None:
+    # Unverified decode, only to read `exp`; Kafka validates the token itself.
+    return jwt.decode(token, options={"verify_signature": False}).get("exp")
+
+
+@dataclasses.dataclass
+class SimpleOauthTokenProvider:
+    """A pass-through OAuth token provider for a static token."""
+
+    _token: str = dataclasses.field(repr=False)
+
+    def token_with_expiry(self, _config: str | None = None) -> tuple[str, int | None]:
+        return (self._token, get_expiration_timestamp_from_jwt(self._token))
 
 
 def get_oauth_token_provider(config: Config) -> TokenWithExpiryProvider | None:
-    """Return the configured OAuth token provider instance, if any.
+    """Return the OAuth token provider for Kafka clients, if any.
 
-    The provider is instantiated once during Config initialization and
-    validated to expose a ``token_with_expiry`` method as required by
-    confluent-kafka's OAUTHBEARER flow.
+    The `sasl_oauth_token_provider_class` instance wins; otherwise a static
+    `sasl_oauth_token` is used when `sasl_mechanism` is OAUTHBEARER.
     """
-    return cast(TokenWithExpiryProvider | None, config._sasl_oauth_token_provider)
+    provider = cast(TokenWithExpiryProvider | None, config._sasl_oauth_token_provider)
+    if provider is None and config.sasl_mechanism == "OAUTHBEARER" and config.sasl_oauth_token is not None:
+        return SimpleOauthTokenProvider(config.sasl_oauth_token)
+    return provider
 
 
 def kafka_admin_from_config(config: Config) -> KafkaAdminClient:

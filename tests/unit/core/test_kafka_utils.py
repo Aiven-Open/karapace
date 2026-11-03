@@ -9,6 +9,7 @@ from karapace.core.kafka_utils import (
     kafka_admin_from_config,
     kafka_consumer_from_config,
     kafka_producer_from_config,
+    SimpleOauthTokenProvider,
 )
 from unittest.mock import MagicMock, patch
 
@@ -38,6 +39,33 @@ def test_get_oauth_token_provider_returns_configured_instance() -> None:
     sentinel = object()
     config._sasl_oauth_token_provider = sentinel
     assert get_oauth_token_provider(config) is sentinel
+
+
+def test_get_oauth_token_provider_falls_back_to_static_token() -> None:
+    config = Config(sasl_mechanism="OAUTHBEARER", sasl_oauth_token="static-token")
+    assert get_oauth_token_provider(config) == SimpleOauthTokenProvider("static-token")
+
+
+def test_get_oauth_token_provider_prefers_configured_instance_over_static_token() -> None:
+    config = Config(sasl_mechanism="OAUTHBEARER", sasl_oauth_token="static-token")
+    sentinel = object()
+    config._sasl_oauth_token_provider = sentinel
+    assert get_oauth_token_provider(config) is sentinel
+
+
+def test_get_oauth_token_provider_ignores_static_token_without_oauthbearer() -> None:
+    config = Config(sasl_mechanism="PLAIN", sasl_oauth_token="static-token")
+    assert get_oauth_token_provider(config) is None
+
+
+@patch("karapace.core.kafka_utils.KafkaProducer")
+def test_kafka_producer_from_config_uses_static_oauth_token(producer_cls: MagicMock) -> None:
+    config = Config(sasl_mechanism="OAUTHBEARER", sasl_oauth_token="static-token")
+
+    with kafka_producer_from_config(config):
+        pass
+
+    assert producer_cls.call_args.kwargs["sasl_oauth_token_provider"] == SimpleOauthTokenProvider("static-token")
 
 
 @patch("karapace.core.kafka_utils.KafkaAdminClient")

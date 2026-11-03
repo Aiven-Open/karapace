@@ -79,9 +79,7 @@ def raise_from_kafkaexception(exc: KafkaException) -> NoReturn:
     raise RuntimeError(f"Unexpected KafkaException args type: {type(error_arg)}") from exc
 
 
-# For now this is a bit of a trick to replace an explicit usage of
-# `karapace.core.kafka_rest_apis.authentication.SimpleOauthTokenProvider`
-# to avoid circular imports
+# Protocol for `karapace.core.kafka_utils.SimpleOauthTokenProvider` and configured providers.
 class TokenWithExpiryProvider(Protocol):
     def token_with_expiry(self, config: str | None) -> tuple[str, int | None]: ...
 

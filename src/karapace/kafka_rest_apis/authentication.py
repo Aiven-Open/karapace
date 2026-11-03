@@ -8,12 +8,11 @@ from __future__ import annotations
 from http import HTTPStatus
 from karapace.core.config import Config
 from karapace.core.kafka.common import TokenWithExpiryProvider
-from karapace.core.kafka_utils import get_oauth_token_provider
+from karapace.core.kafka_utils import get_expiration_timestamp_from_jwt, get_oauth_token_provider, SimpleOauthTokenProvider
 from karapace.rapu import HTTPResponse, JSON_CONTENT_TYPE
 from typing import NoReturn, TypedDict
 
 import aiohttp
-import dataclasses
 import datetime
 import enum
 import jwt
@@ -87,13 +86,6 @@ def get_auth_config_from_header(
     raise_unauthorized()
 
 
-def get_expiration_timestamp_from_jwt(token: str) -> int | None:
-    # REST Proxy forwards the Bearer JWT to Kafka via SASL/OAUTHBEARER; Kafka validates
-    # signature/issuer/audience. This unverified decode is only used to evict the per-user
-    # proxy when the token expires. SR `sasl_oauthbearer_*` validation fields do not apply.
-    return jwt.decode(token, options={"verify_signature": False}).get("exp")
-
-
 def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | None:
     """Extract expiration from Authorization HTTP header.
 
@@ -118,19 +110,6 @@ def get_expiration_time_from_header(auth_header: str) -> datetime.datetime | Non
             return datetime.datetime.fromtimestamp(exp_claim, datetime.timezone.utc)
 
     return None
-
-
-@dataclasses.dataclass
-class SimpleOauthTokenProvider:
-    """A pass-through OAuth token provider to be used by synchronous Kafka clients.
-
-    The token is meant to be extracted from an HTTP Authorization header.
-    """
-
-    _token: str = dataclasses.field(repr=False)
-
-    def token_with_expiry(self, _config: str | None = None) -> tuple[str, int | None]:
-        return (self._token, get_expiration_timestamp_from_jwt(self._token))
 
 
 class SASLOauthParams(TypedDict):
