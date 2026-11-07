@@ -3,7 +3,18 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import asyncio
+import base64
+import logging
+import time
 import traceback
+import uuid
+from asyncio import Lock
+from collections import defaultdict, deque, namedtuple
+from functools import partial
+from http import HTTPStatus
+from struct import error as UnpackError
+from urllib.parse import urljoin
 
 from aiokafka.errors import (
     GroupAuthorizationFailedError,
@@ -11,14 +22,11 @@ from aiokafka.errors import (
     KafkaConfigurationError,
     KafkaError,
     TopicAuthorizationFailedError,
-    UnknownTopicOrPartitionError,
     UnknownError,
+    UnknownTopicOrPartitionError,
 )
-from asyncio import Lock
-from collections import defaultdict, namedtuple
 from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, TopicPartition
-from functools import partial
-from http import HTTPStatus
+
 from karapace.core.config import Config
 from karapace.core.kafka.common import translate_from_kafkaerror
 from karapace.core.kafka.consumer import AsyncKafkaConsumer
@@ -30,19 +38,11 @@ from karapace.core.serialization import (
     SchemaRegistrySerializer,
     SchemaRetrievalError,
 )
-from karapace.core.utils import json_decode, JSONDecodeError
-from karapace.kafka_rest_apis.convert_to_int import convert_to_int
+from karapace.core.utils import JSONDecodeError, json_decode
 from karapace.kafka_rest_apis.authentication import get_kafka_client_auth_parameters_from_config
+from karapace.kafka_rest_apis.convert_to_int import convert_to_int
 from karapace.kafka_rest_apis.error_codes import RESTErrorCodes
-from karapace.kafka_rest_apis.karapace import empty_response, KarapaceBase
-from struct import error as UnpackError
-from urllib.parse import urljoin
-
-import asyncio
-import base64
-import logging
-import time
-import uuid
+from karapace.kafka_rest_apis.karapace import KarapaceBase, empty_response
 
 KNOWN_FORMATS = {"json", "avro", "binary", "jsonschema", "protobuf"}
 OFFSET_RESET_STRATEGIES = {"latest", "earliest"}
@@ -61,6 +61,7 @@ class ConsumerManager:
         self.base_uri = self.config.rest_base_uri
         self.deserializer = deserializer
         self.consumers = {}
+        self.pending_messages = defaultdict(deque)
         self.consumer_locks = defaultdict(Lock)
 
     @staticmethod
@@ -266,6 +267,7 @@ class ConsumerManager:
         async with self.consumer_locks[internal_name]:
             try:
                 c = self.consumers.pop(internal_name)
+                self.pending_messages.pop(internal_name, None)
                 await c.consumer.stop()
                 self.consumer_locks.pop(internal_name)
             except Exception:
@@ -370,6 +372,7 @@ class ConsumerManager:
                 # the client does not verify access to topics subscribed during this call,
                 # thus cannot get topic authorization error immediately
                 await consumer.subscribe(topics=topics, patterns=[topics_pattern] if topics_pattern is not None else None)
+                self.pending_messages[internal_name].clear()
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(str(e), content_type=content_type)
@@ -388,6 +391,7 @@ class ConsumerManager:
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             await self.consumers[internal_name].consumer.unsubscribe()
+            self.pending_messages[internal_name].clear()
         empty_response()
 
     # ASSIGNMENTS
@@ -404,6 +408,7 @@ class ConsumerManager:
             try:
                 consumer = self.consumers[internal_name].consumer
                 await consumer.assign(partitions)
+                self.pending_messages[internal_name].clear()
                 empty_response()
             except IllegalStateError as e:
                 self._illegal_state_fail(message=str(e), content_type=content_type)
@@ -438,6 +443,7 @@ class ConsumerManager:
             for part in seeks:
                 try:
                     await consumer.seek(part)
+                    self.pending_messages[internal_name].clear()
                 except (UnknownTopicOrPartitionError, IllegalStateError):
                     self._illegal_state_fail(f"Partition {part} is unassigned", content_type)
             empty_response()
@@ -466,6 +472,7 @@ class ConsumerManager:
             consumer = self.consumers[internal_name].consumer
             try:
                 await asyncio.gather(*(consumer.seek(topic_partition) for topic_partition in resets))
+                self.pending_messages[internal_name].clear()
                 empty_response()
             except IllegalStateError:
                 self._illegal_state_fail(f"Trying to reset unassigned partitions to {direction}", content_type)
@@ -481,6 +488,7 @@ class ConsumerManager:
         self._assert_consumer_exists(internal_name, content_type)
         async with self.consumer_locks[internal_name]:
             consumer = self.consumers[internal_name].consumer
+            pending_messages = self.pending_messages[internal_name]
             serialization_format = self.consumers[internal_name].serialization_format
             consumer_config = self.consumers[internal_name].config
             request_format = formats["embedded_format"]
@@ -511,7 +519,7 @@ class ConsumerManager:
                 if val <= 0:
                     KarapaceBase.internal_error(message=f"Invalid request parameter {val}", content_type=content_type)
             LOG.info(
-                "Will consume messages with a total timeout of %dms, " "until at least %d bytes have been fetched",
+                "Will consume messages with a total timeout of %dms, until at least %d bytes have been fetched",
                 timeout,
                 max_bytes,
             )
@@ -556,8 +564,12 @@ class ConsumerManager:
 
                 messages = []
                 try:
-                    # Use consume() to get multiple messages at once
-                    messages = await consumer.consume(num_messages=estimated_messages_needed, timeout=consume_timeout)
+                    # Preserve records already removed from Kafka's internal buffer if this response reaches max_bytes.
+                    if pending_messages:
+                        messages = [pending_messages.popleft()]
+                    else:
+                        # Use consume() to get multiple messages at once
+                        messages = await consumer.consume(num_messages=estimated_messages_needed, timeout=consume_timeout)
                     if not messages:
                         # No messages available
                         # If we already have some messages, return them immediately instead of waiting
@@ -570,15 +582,16 @@ class ConsumerManager:
                     is_first_fetch = False
 
                     # Process all messages from this consume call
-                    for message in messages:
+                    for index, message in enumerate(messages):
                         if message.error() is not None:
                             raise translate_from_kafkaerror(message.error())
                         key_bytes = len(message.key()) if message.key() else 0
                         value_bytes = len(message.value()) if message.value() else 0
                         read_bytes += key_bytes + value_bytes + self._header_bytes(message)
                         consumed_messages.append(message)
-                        # Stop if we've reached max_bytes
+                        # Keep the rest of the already-consumed batch for the next REST fetch.
                         if read_bytes >= max_bytes:
+                            pending_messages.extend(messages[index + 1 :])
                             break
 
                 except (GroupAuthorizationFailedError, TopicAuthorizationFailedError):
@@ -808,6 +821,7 @@ class ConsumerManager:
     async def aclose(self):
         for k in list(self.consumers.keys()):
             c = self.consumers.pop(k)
+            self.pending_messages.pop(k, None)
             try:
                 await c.consumer.stop()
             except Exception:
