@@ -95,6 +95,20 @@ class TestSchemaRegistryRouteContentNegotiation:
         assert response.status_code == 200
         assert SCHEMA_RESPONSE_DEFAULT_CONTENT_TYPE in response.headers["Content-Type"]
 
+    def test_put_without_content_type_parsed_as_json(self, client: TestClient) -> None:
+        """A missing Content-Type is negotiated as JSON, so the body must be parsed as JSON too."""
+        request = client.build_request("PUT", "/config", content='{"compatibility": "FULL"}')
+        request.headers.pop("Content-Type", None)
+        response = client.send(request)
+        assert response.status_code == 200
+        assert response.json()["compatibility"] == "FULL"
+
+    def test_put_without_content_type_non_utf8_body_is_not_500(self, client: TestClient) -> None:
+        request = client.build_request("PUT", "/config", content=b"\xff\xfe\x00")
+        request.headers.pop("Content-Type", None)
+        response = client.send(request)
+        assert response.status_code == 400
+
     def test_put_with_schema_registry_content_type(self, client: TestClient) -> None:
         response = client.put(
             "/config",
