@@ -49,6 +49,7 @@ async def schemas_get(
     includeSubjects: bool = False,  # TODO: include subjects?
     fetchMaxId: bool = False,  # TODO: fetch max id?
     format_serialized: str = Query("", alias="format"),
+    subject: str | None = None,
     authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     controller: KarapaceSchemaRegistryController = Depends(Provide[SchemaRegistryContainer.schema_registry_controller]),
 ) -> SchemasResponse:
@@ -58,6 +59,7 @@ async def schemas_get(
         fetch_max_id=fetchMaxId,
         format_serialized=format_serialized,
         user=user,
+        subject=subject,
         authorizer=authorizer,
     )
 

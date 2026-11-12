@@ -6,6 +6,7 @@ See LICENSE for details
 from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from karapace.api.middlewares.contexts import ContextPathMiddleware
 from karapace.api.telemetry.middleware import setup_telemetry_middleware
 from karapace.core.instrumentation.path_normalization import normalize_path
 from prometheus_client import Counter
@@ -137,6 +138,10 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
         _karapace_requests_total(),
     )
     instrumentator.instrument(app).expose(app, include_in_schema=False)
+
+    # Added last, so it is the outermost middleware: /contexts/{ctx}/... paths are rewritten
+    # before authentication, metrics and routing see them.
+    app.add_middleware(ContextPathMiddleware)
 
 
 def _karapace_requests_total() -> Callable[[Info], None]:

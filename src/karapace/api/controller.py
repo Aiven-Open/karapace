@@ -193,6 +193,7 @@ class KarapaceSchemaRegistryController:
         include_subjects: bool,
         format_serialized: str,
         user: User | None,
+        subject: str | None = None,
         authorizer: AuthenticatorAndAuthorizer = Depends(Provide[AuthContainer.authorizer]),
     ) -> SchemasResponse:
         try:
@@ -205,13 +206,15 @@ class KarapaceSchemaRegistryController:
                     "message": "HTTP 404 Not Found",
                 },
             ) from exc
+        # The same id names a different schema in each context: the subject tells which one.
+        context = self.schema_registry.resolve_schema_context(parsed_schema_id, subject)
 
         def _has_subject_with_id() -> bool:
             # Fast path
             if authorizer is None or authorizer.check_authorization(user, Operation.Read, "Subject:*"):
                 return True
 
-            subjects = self.schema_registry.database.subjects_for_schema(schema_id=parsed_schema_id)
+            subjects = self.schema_registry.database.subjects_for_schema(schema_id=parsed_schema_id, context=context)
             resources = [f"Subject:{subject}" for subject in subjects]
             return authorizer.check_authorization_any(user=user, operation=Operation.Read, resources=resources)
 
@@ -226,7 +229,7 @@ class KarapaceSchemaRegistryController:
                     },
                 )
 
-        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id)
+        schema = self.schema_registry.schemas_get(parsed_schema_id, fetch_max_id=fetch_max_id, context=context)
         if not schema:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -247,7 +250,7 @@ class KarapaceSchemaRegistryController:
         maxId: int | None = None
 
         if include_subjects:
-            subjects = self.schema_registry.database.subjects_for_schema(parsed_schema_id)
+            subjects = self.schema_registry.database.subjects_for_schema(parsed_schema_id, context=context)
         if schema.schema_type is not SchemaType.AVRO:
             schema_type = schema.schema_type
         if schema.references:
