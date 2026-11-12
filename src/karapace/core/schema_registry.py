@@ -13,6 +13,7 @@ from karapace.core.compatibility import CompatibilityModes
 from karapace.core.compatibility.jsonschema.checks import is_incompatible
 from karapace.core.compatibility.schema_compatibility import SchemaCompatibility
 from karapace.core.config import Config
+from karapace.core.contexts import context_of, DEFAULT_CONTEXT, qualify, split_subject
 from karapace.core.coordinator.master_coordinator import MasterCoordinator
 from karapace.core.dependency import Dependency
 from karapace.core.errors import (
@@ -135,13 +136,41 @@ class KarapaceSchemaRegistry:
             schemas = self.database.find_schemas(include_deleted=include_deleted, latest_only=latest_only)
             return schemas
 
-    def schemas_get(self, schema_id: SchemaId, *, fetch_max_id: bool = False) -> TypedSchema | None:
-        schema = self.database.find_schema(schema_id=schema_id)
+    def schemas_get(
+        self, schema_id: SchemaId, *, fetch_max_id: bool = False, context: str = DEFAULT_CONTEXT
+    ) -> TypedSchema | None:
+        schema = self.database.find_schema(schema_id=schema_id, context=context)
 
         if schema and fetch_max_id:
-            schema.max_id = self.database.global_schema_id
+            schema.max_id = self.database.max_schema_id(context)
 
         return schema
+
+    def resolve_schema_context(self, schema_id: SchemaId, subject: str | None) -> str:
+        """Context in which to look up a schema id, given the subject a client sends with it.
+
+        Clients with no context configuration send the unqualified subject of the topic, so the
+        subject name is also looked up in the other contexts:
+        - a subject qualified with a named context: that context only;
+        - otherwise the default context, if the id belongs to that subject there;
+        - otherwise the first context where ``:.ctx:subject`` holds the id;
+        - otherwise the default context.
+        """
+        if subject is None:
+            return DEFAULT_CONTEXT
+        context, name = split_subject(subject)
+        if context != DEFAULT_CONTEXT or not name:
+            return context
+        if self._subject_holds_schema_id(Subject(name), schema_id):
+            return DEFAULT_CONTEXT
+        for other in self.database.contexts():
+            if other != DEFAULT_CONTEXT and self._subject_holds_schema_id(Subject(qualify(other, name)), schema_id):
+                return other
+        return DEFAULT_CONTEXT
+
+    def _subject_holds_schema_id(self, subject: Subject, schema_id: SchemaId) -> bool:
+        schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
+        return any(schema_version.schema_id == schema_id for schema_version in schema_versions.values())
 
     async def subject_delete_local(self, subject: Subject, permanent: bool) -> list[Version]:
         async with self.schema_lock:
@@ -318,6 +347,8 @@ class KarapaceSchemaRegistry:
         bypass content-based deduplication and version auto-increment.
         """
         LOG.info("Writing new schema locally since we're the master")
+        # Ids are allocated in the context of the subject, each context has its own id namespace.
+        context = context_of(subject)
         async with self.schema_lock:
             subject_mode = self.get_subject_mode(subject)
             is_import_mode = subject_mode == Mode.import_mode
@@ -351,7 +382,7 @@ class KarapaceSchemaRegistry:
             all_schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
             if not all_schema_versions:
                 version = Version(1)
-                schema_id = self.database.get_schema_id(new_schema)
+                schema_id = self.database.get_schema_id(new_schema, context=context)
                 LOG.debug(
                     "Registering new subject: %r, id: %r with version: %r with schema %r, schema_id: %r",
                     subject,
@@ -365,7 +396,7 @@ class KarapaceSchemaRegistry:
                 live_versions = self.get_live_versions_sorted(all_schema_versions)
                 if not live_versions:  # Previous ones have been deleted by the user.
                     version = self.database.get_next_version(subject=subject)
-                    schema_id = self.database.get_schema_id(new_schema)
+                    schema_id = self.database.get_schema_id(new_schema, context=context)
                     LOG.debug(
                         "Registering subject: %r, id: %r new version: %r with schema %r, schema_id: %r",
                         subject,
@@ -398,7 +429,7 @@ class KarapaceSchemaRegistry:
 
                 # We didn't find an existing schema and the schema is compatible so go and create one
                 version = self.database.get_next_version(subject=subject)
-                schema_id = self.database.get_schema_id(new_schema)
+                schema_id = self.database.get_schema_id(new_schema, context=context)
                 LOG.debug(
                     "Registering subject: %r, id: %r new version: %r with schema %s, schema_id: %r",
                     subject,
@@ -431,14 +462,16 @@ class KarapaceSchemaRegistry:
         all_schema_versions = self.database.find_subject_schemas(subject=subject, include_deleted=True)
 
         schema_id = explicit_schema_id
+        # Ids are checked in the context of the subject: the same id in two contexts is two schemas.
+        context = context_of(subject)
         # An id is bound to its content for good, so it cannot be rebound. Re-importing the
         # same content under it stays allowed, for replays and for ids shared across subjects.
-        bound_schema = self.database.find_schema(schema_id=schema_id)
+        bound_schema = self.database.find_schema(schema_id=schema_id, context=context)
         if bound_schema is not None and bound_schema != new_schema:
             raise ImportConflict(f"Overwrite new schema with id {schema_id} is not permitted.")
         if bound_schema is None and not self.config.allow_duplicate_schema_ids:
             # One id per content: the id stays derivable from the schema itself.
-            existing_id = self.database.find_schema_id(schema=new_schema)
+            existing_id = self.database.find_schema_id(schema=new_schema, context=context)
             if existing_id is not None:
                 raise SchemaIdDoesNotMatch(
                     f"Schema already registered with id {existing_id} instead of input id {schema_id}"

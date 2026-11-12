@@ -10,6 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from karapace.core.contexts import context_of, DEFAULT_CONTEXT
 from karapace.core.schema_models import SchemaVersion, TypedSchema, Versioner
 from karapace.core.schema_references import Reference, Referents
 from karapace.core.typing import Mode, SchemaId, Subject, Version
@@ -29,7 +30,7 @@ class SubjectData:
 
 class KarapaceDatabase(ABC):
     @abstractmethod
-    def get_schema_id(self, new_schema: TypedSchema) -> SchemaId:
+    def get_schema_id(self, new_schema: TypedSchema, *, context: str = DEFAULT_CONTEXT) -> SchemaId:
         pass
 
     @abstractmethod
@@ -76,23 +77,25 @@ class KarapaceDatabase(ABC):
         pass
 
     @abstractmethod
-    def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
+    def find_schema(self, *, schema_id: SchemaId, context: str = DEFAULT_CONTEXT) -> TypedSchema | None:
         pass
 
     @abstractmethod
-    def find_schema_id(self, *, schema: TypedSchema) -> SchemaId | None:
-        """Global content to id lookup, the inverse of find_schema."""
+    def find_schema_id(self, *, schema: TypedSchema, context: str = DEFAULT_CONTEXT) -> SchemaId | None:
+        """Content to id lookup within a context, the inverse of find_schema."""
 
     @abstractmethod
     def find_schemas(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
         pass
 
     @abstractmethod
-    def subjects_for_schema(self, schema_id: SchemaId) -> list[Subject]:
+    def subjects_for_schema(self, schema_id: SchemaId, *, context: str = DEFAULT_CONTEXT) -> list[Subject]:
         pass
 
     @abstractmethod
-    def find_schema_versions_by_schema_id(self, *, schema_id: SchemaId, include_deleted: bool) -> list[SchemaVersion]:
+    def find_schema_versions_by_schema_id(
+        self, *, schema_id: SchemaId, include_deleted: bool, context: str = DEFAULT_CONTEXT
+    ) -> list[SchemaVersion]:
         pass
 
     @abstractmethod
@@ -158,10 +161,12 @@ class KarapaceDatabase(ABC):
 
 class InMemoryDatabase(KarapaceDatabase):
     def __init__(self) -> None:
-        self.global_schema_id = SchemaId(0)
         self.id_lock_thread = Lock()
         self.subjects: dict[Subject, SubjectData] = {}
-        self.schemas: dict[SchemaId, TypedSchema] = {}
+        # Each context is an independent id namespace, with its own id -> schema table and its own
+        # id counter. The context of a schema is the one of its subject (see karapace.core.contexts).
+        self._context_schemas: dict[str, dict[SchemaId, TypedSchema]] = {DEFAULT_CONTEXT: {}}
+        self._context_max_id: dict[str, SchemaId] = {}
         self.schema_lock_thread = RLock()
         self.referenced_by: dict[tuple[Subject, Version], Referents] = {}
         self._global_mode: Mode = Mode.readwrite
@@ -174,11 +179,30 @@ class InMemoryDatabase(KarapaceDatabase):
         self._hash_to_schema: dict[str, TypedSchema] = {}
         self._hash_to_schema_id_on_subject: dict[Subject, dict[str, SchemaId]] = {}
 
+    @property
+    def schemas(self) -> dict[SchemaId, TypedSchema]:
+        """Schemas of the default context."""
+        return self._context_schemas[DEFAULT_CONTEXT]
+
+    @property
+    def global_schema_id(self) -> SchemaId:
+        """Highest schema id of the default context."""
+        return self.max_schema_id()
+
+    def max_schema_id(self, context: str = DEFAULT_CONTEXT) -> SchemaId:
+        return self._context_max_id.get(context, SchemaId(0))
+
+    def contexts(self) -> list[str]:
+        """Contexts holding at least one subject, the default context always included."""
+        with self.schema_lock_thread:
+            return sorted({DEFAULT_CONTEXT} | {context_of(subject) for subject in self.subjects})
+
     def log_state(self) -> None:
         if LOG.isEnabledFor(logging.DEBUG):
             debug_str = "\nState\n\tSchemas:\n"
-            for sid, schema in self.schemas.items():
-                debug_str += f"\t\tid: {sid}, schema: {schema}\n"
+            for context, schemas in self._context_schemas.items():
+                for sid, schema in schemas.items():
+                    debug_str += f"\t\tcontext: {context}, id: {sid}, schema: {schema}\n"
             debug_str += "\tSubjects:\n"
             for subject, subject_data in self.subjects.items():
                 debug_str += f"\t\t{subject}\n"
@@ -190,19 +214,20 @@ class InMemoryDatabase(KarapaceDatabase):
             debug_str += "--------------------------------------------------------------------------------------\n"
             LOG.debug(debug_str)
 
-    def find_schema_id(self, *, schema: TypedSchema) -> SchemaId | None:
-        for schema_id, stored_schema in self.schemas.items():
+    def find_schema_id(self, *, schema: TypedSchema, context: str = DEFAULT_CONTEXT) -> SchemaId | None:
+        for schema_id, stored_schema in self._context_schemas.get(context, {}).items():
             if stored_schema == schema:
                 return schema_id
         return None
 
-    def get_schema_id(self, new_schema: TypedSchema) -> SchemaId:
+    def get_schema_id(self, new_schema: TypedSchema, *, context: str = DEFAULT_CONTEXT) -> SchemaId:
         with self.id_lock_thread:
-            maybe_schema_id = self.find_schema_id(schema=new_schema)
+            maybe_schema_id = self.find_schema_id(schema=new_schema, context=context)
             if maybe_schema_id is not None:
                 return maybe_schema_id
-            self.global_schema_id = SchemaId(self.global_schema_id + 1)
-            return self.global_schema_id
+            next_id = SchemaId(self.max_schema_id(context) + 1)
+            self._context_max_id[context] = next_id
+            return next_id
 
     def get_schema_id_if_exists(
         self,
@@ -247,7 +272,8 @@ class InMemoryDatabase(KarapaceDatabase):
         references: Sequence[Reference] | None,
     ) -> None:
         with self.schema_lock_thread:
-            self.global_schema_id = max(self.global_schema_id, schema_id)
+            context = context_of(subject)
+            self._context_max_id[context] = max(self.max_schema_id(context), schema_id)
 
             # dedup schemas to reduce memory pressure
             schema = self._get_from_hash_cache(typed_schema=schema)
@@ -260,7 +286,7 @@ class InMemoryDatabase(KarapaceDatabase):
                 LOG.info("Updating entry subject: %r version: %r id: %r", subject, version, schema_id)
             else:
                 LOG.info("Adding entry subject: %r version: %r id: %r", subject, version, schema_id)
-            self.schemas[schema_id] = schema
+            self._context_schemas.setdefault(context, {})[schema_id] = schema
             self.subjects[subject].schemas[version] = SchemaVersion(
                 subject=subject,
                 version=version,
@@ -320,8 +346,8 @@ class InMemoryDatabase(KarapaceDatabase):
         if subject in self.subjects:
             self.subjects[subject].mode = None
 
-    def find_schema(self, *, schema_id: SchemaId) -> TypedSchema | None:
-        return self.schemas.get(schema_id)
+    def find_schema(self, *, schema_id: SchemaId, context: str = DEFAULT_CONTEXT) -> TypedSchema | None:
+        return self._context_schemas.get(context, {}).get(schema_id)
 
     def find_schemas(self, *, include_deleted: bool, latest_only: bool) -> dict[Subject, list[SchemaVersion]]:
         res_schemas = {}
@@ -337,10 +363,12 @@ class InMemoryDatabase(KarapaceDatabase):
                 res_schemas[subject] = selected_schemas
         return res_schemas
 
-    def subjects_for_schema(self, schema_id: SchemaId) -> list[Subject]:
+    def subjects_for_schema(self, schema_id: SchemaId, *, context: str = DEFAULT_CONTEXT) -> list[Subject]:
         subjects = []
         with self.schema_lock_thread:
             for subject, subject_data in self.subjects.items():
+                if context_of(subject) != context:
+                    continue
                 for version in subject_data.schemas.values():
                     if version.deleted is False and version.schema_id == schema_id:
                         subjects.append(subject)
@@ -348,10 +376,14 @@ class InMemoryDatabase(KarapaceDatabase):
 
         return subjects
 
-    def find_schema_versions_by_schema_id(self, *, schema_id: SchemaId, include_deleted: bool) -> list[SchemaVersion]:
+    def find_schema_versions_by_schema_id(
+        self, *, schema_id: SchemaId, include_deleted: bool, context: str = DEFAULT_CONTEXT
+    ) -> list[SchemaVersion]:
         schema_versions: list[SchemaVersion] = []
         with self.schema_lock_thread:
             for subject in self.subjects:
+                if context_of(subject) != context:
+                    continue
                 # find_subject_schemas will also acquire the schema_lock_thread, RLock
                 found_schema_versions = self.find_subject_schemas(subject=subject, include_deleted=include_deleted)
                 for schema_version in found_schema_versions.values():
@@ -406,7 +438,7 @@ class InMemoryDatabase(KarapaceDatabase):
                 self._delete_from_schema_id_on_subject(subject=subject, schema=schema.schema)
 
     def num_schemas(self) -> int:
-        return len(self.schemas)
+        return sum(len(schemas) for schemas in self._context_schemas.values())
 
     def num_subjects(self) -> int:
         return len(self.subjects)

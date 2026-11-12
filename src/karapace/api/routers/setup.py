@@ -6,6 +6,7 @@ See LICENSE for details
 from fastapi import FastAPI
 from karapace.api.routers.compatibility import compatibility_router
 from karapace.api.routers.config import config_router
+from karapace.api.routers.contexts import contexts_router
 from karapace.api.routers.health import health_router
 from karapace.api.routers.master_availability import master_availability_router
 from karapace.api.routers.mode import mode_router
@@ -17,6 +18,7 @@ from karapace.api.routers.subjects import subjects_router
 def setup_routers(app: FastAPI) -> None:
     app.include_router(compatibility_router)
     app.include_router(config_router)
+    app.include_router(contexts_router)
     app.include_router(health_router)
     app.include_router(mode_router)
     app.include_router(root_router)
