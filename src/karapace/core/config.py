@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from confluent_kafka import KafkaException, Producer
 from copy import deepcopy
-from typing import Literal
+from typing import Any, Literal
 
 from karapace.core.constants import (
     DEFAULT_AIOHTTP_CLIENT_MAX_SIZE,
@@ -216,6 +216,21 @@ class Config(BaseSettings):
                     f"token_with_expiry() method returning (token: str, expiry: float)"
                 )
             self._sasl_oauth_token_provider = instance
+
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> Config:
+        """Deep-copy the config but share the OAuth token provider instance.
+
+        The provider is a live object: it may hold locks, HTTP sessions or SDK
+        clients, which are not picklable, and every copy of the config (made by
+        ``set_config_defaults`` and by ``dependency_injector`` while wiring
+        containers) must keep talking to the one instance anyway.
+        """
+        if memo is None:
+            memo = {}
+        provider = self._sasl_oauth_token_provider
+        if provider is not None:
+            memo[id(provider)] = provider
+        return super().__deepcopy__(memo)
 
     def get_advertised_port(self) -> int:
         return self.advertised_port or self.port

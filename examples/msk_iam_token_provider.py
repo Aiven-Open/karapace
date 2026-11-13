@@ -40,13 +40,11 @@ expiry. Karapace hands this method straight to librdkafka as ``oauth_cb``,
 and librdkafka reads the expiry in seconds; the MSK signer returns
 milliseconds, so this example converts.
 
-Instances must stay deep-copyable
----------------------------------
-Karapace instantiates the provider once while loading ``Config`` and stores
-the instance on the config object. ``dependency_injector`` later
-``deepcopy``s that config while wiring containers, so anything the instance
-holds must be picklable. Keep modules, clients, sessions and locks out of
-``self``; import and build them inside ``token_with_expiry`` instead.
+One instance for the whole process
+----------------------------------
+Karapace instantiates the provider once while loading ``Config`` and shares
+that instance with every copy of the config, so it is safe to cache clients,
+sessions or locks on ``self`` if a provider needs them.
 """
 
 from __future__ import annotations
@@ -66,9 +64,8 @@ class MSKIAMTokenProvider:
     """
 
     def __init__(self, region: str | None = None) -> None:
-        # Hold only plain data. The AWS signer is imported inside
-        # ``token_with_expiry``: caching the module here makes the instance
-        # unpicklable, and Karapace deep-copies the Config that owns it.
+        # The AWS signer is imported inside ``token_with_expiry`` so that
+        # loading the Config does not require the signer to be installed.
         self._region = region
 
     def _get_region(self) -> str:
