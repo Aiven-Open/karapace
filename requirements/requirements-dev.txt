@@ -187,7 +187,7 @@ multidict==7.2.1
     #   yarl
 networkx==3.7
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
     # via
     #   fastapi
     #   karapace (/karapace/pyproject.toml)

@@ -144,7 +144,7 @@ mypy-extensions==1.1.0
     # via mypy
 networkx==3.7
     # via karapace (/karapace/pyproject.toml)
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
     # via
     #   fastapi
     #   karapace (/karapace/pyproject.toml)
