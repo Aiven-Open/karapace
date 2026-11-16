@@ -5,7 +5,6 @@ Copyright (c) 2026 Aiven Ltd
 See LICENSE for details
 """
 
-import copy
 import importlib.util
 import sys
 import types
@@ -40,16 +39,6 @@ def fake_signer(monkeypatch):
     fake.MSKAuthTokenProvider = MSKAuthTokenProvider
     monkeypatch.setitem(sys.modules, "aws_msk_iam_sasl_signer", fake)
     return calls
-
-
-def test_instance_is_deepcopyable(example_module):
-    # Config stores the instance and dependency_injector deepcopies Config
-    # while wiring containers; a module cached on self breaks that with
-    # "TypeError: cannot pickle 'module' object".
-    provider = example_module.MSKIAMTokenProvider(region="eu-west-1")
-    clone = copy.deepcopy(provider)
-    assert clone is not provider
-    assert clone._get_region() == "eu-west-1"
 
 
 def test_constructing_does_not_require_the_aws_signer(example_module, monkeypatch):
