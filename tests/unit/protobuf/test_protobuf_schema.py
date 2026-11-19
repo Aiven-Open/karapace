@@ -28,6 +28,22 @@ def test_protobuf_schema_simple():
     assert result == proto
 
 
+def test_protobuf_schema_non_ascii_comment():
+    proto = """\
+syntax = "proto3";
+
+// Пользователь
+message User {
+  string name = 1;
+  int32 age = 2;
+}
+"""
+    protobuf_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto)
+    result = str(protobuf_schema)
+
+    assert result == proto
+
+
 def test_protobuf_schema_sort():
     proto = trim_margin(schema_protobuf_order_before)
     protobuf_schema = ValidatedTypedSchema.parse(SchemaType.PROTOBUF, proto)
