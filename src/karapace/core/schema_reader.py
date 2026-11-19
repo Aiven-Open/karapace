@@ -250,7 +250,7 @@ class KafkaSchemaReader(Thread, SchemaReaderStoppper):
             #
             # check if schema topic is already created, if not try to create it
             try:
-                schema_topic_exists = self.config.topic_name in self.admin_client.list_topics().topics.keys()
+                schema_topic_exists = self.config.topic_name in self.admin_client.list_topics(timeout=1).topics.keys()
             except Exception as e:
                 schema_topic_exists = False
                 LOG.exception(

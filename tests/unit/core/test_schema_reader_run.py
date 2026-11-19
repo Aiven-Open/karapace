@@ -269,6 +269,7 @@ class TestRunMainLoop:
         reader = _make_schema_reader(karapace_container)
         admin_client_mock = Mock()
         admin_client_mock.new_topic.return_value = Mock(topic="test-topic")
+        admin_client_mock.list_topics.return_value.topics = {}
         consumer_mock = Mock()
         consumer_mock.assignment.return_value = [TopicPartition("test-topic", 0)]
         consumer_mock.get_watermark_offsets.return_value = (0, 0)
