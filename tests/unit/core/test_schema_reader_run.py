@@ -263,12 +263,32 @@ class TestRunTopicCreation:
 
         assert consumer_mock.poll.call_count == 1
 
+    def test_existing_topic_skips_creation(self, karapace_container: KarapaceContainer) -> None:
+        reader = _make_schema_reader(karapace_container)
+        admin_client_mock = Mock()
+        admin_client_mock.list_topics.return_value.topics = {reader.config.topic_name: Mock()}
+        consumer_mock = Mock()
+        consumer_mock.get_watermark_offsets.return_value = (0, 0)
+
+        def _stop_after_one(*_args, **_kwargs):
+            reader._stop_schema_reader.set()
+
+        with (
+            patch("karapace.core.schema_reader._create_admin_client_from_config", return_value=admin_client_mock),
+            patch("karapace.core.schema_reader._create_consumer_from_config", return_value=consumer_mock),
+            patch.object(reader, "handle_messages", side_effect=_stop_after_one),
+        ):
+            reader.run()
+
+        admin_client_mock.new_topic.assert_not_called()
+
 
 class TestRunMainLoop:
     def _reader_ready_to_enter_main_loop(self, karapace_container: KarapaceContainer) -> KafkaSchemaReader:
         reader = _make_schema_reader(karapace_container)
         admin_client_mock = Mock()
         admin_client_mock.new_topic.return_value = Mock(topic="test-topic")
+        admin_client_mock.list_topics.return_value.topics = {}
         consumer_mock = Mock()
         consumer_mock.assignment.return_value = [TopicPartition("test-topic", 0)]
         consumer_mock.get_watermark_offsets.return_value = (0, 0)
