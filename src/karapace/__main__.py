@@ -29,7 +29,8 @@ import uvicorn
 
 from karapace.core.metrics_container import MetricsContainer
 
-def main():
+
+def main() -> None:
     karapace_container = KarapaceContainer()
     karapace_container.wire(
         modules=[
@@ -119,6 +120,7 @@ def main():
         ssl_ca_certs=config.server_tls_cafile,
         ssl_cert_reqs=ssl_cert_reqs,
     )
+
 
 if __name__ == "__main__":
     main()
