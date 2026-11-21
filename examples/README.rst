@@ -24,11 +24,9 @@ Karapace passes the method straight to librdkafka as ``oauth_cb``, which reads
 seconds. A provider that returns milliseconds (as the AWS MSK signer does) is
 treated as never expiring, so the token is never refreshed.
 
-Karapace instantiates the class once while loading its ``Config`` and keeps
-the instance on the config object, which ``dependency_injector`` deep-copies
-while wiring containers. The instance must therefore stay picklable: do not
-cache modules, clients, sessions or locks on ``self``; create them inside
-``token_with_expiry``.
+Karapace instantiates the class once while loading its ``Config`` and shares
+that single instance with every copy of the config, so the provider is free to
+cache clients, sessions or locks on ``self``.
 
 .. note::
 
