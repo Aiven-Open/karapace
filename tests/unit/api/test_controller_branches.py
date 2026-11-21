@@ -4,6 +4,7 @@ See LICENSE for details
 """
 
 from fastapi import HTTPException
+from google.protobuf import descriptor_pb2
 from karapace.api.controller import KarapaceSchemaRegistryController
 from karapace.api.routers.errors import SchemaErrorCodes
 from karapace.api.routers.requests import CompatibilityRequest, SchemaRequest
@@ -22,11 +23,14 @@ from karapace.core.errors import (
     SubjectSoftDeletedException,
     VersionNotFoundException,
 )
-from karapace.core.schema_models import SchemaType
+from karapace.core.dependency import Dependency
+from karapace.core.schema_models import SchemaType, TypedSchema, ValidatedTypedSchema
+from karapace.core.schema_references import Reference
 from karapace.core.stats import StatsClient
 from karapace.core.typing import Mode, PrimaryInfo, SchemaId, Subject, Version
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+import base64
 import pytest
 
 
@@ -490,6 +494,36 @@ async def test_schemas_get_missing_schema_returns_404() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail["error_code"] == SchemaErrorCodes.SCHEMA_NOT_FOUND.value
+
+
+async def test_schemas_get_serialized_protobuf_with_references() -> None:
+    shared = ValidatedTypedSchema.parse(
+        SchemaType.PROTOBUF, 'syntax = "proto3";\npackage my.events;\nenum ProductEnum {\n  A = 0;\n  B = 1;\n}\n'
+    )
+    reference = Reference(name="shared.proto", subject=Subject("shared.proto"), version=Version(1))
+    registry = MagicMock()
+    registry.schemas_get.return_value = TypedSchema(
+        schema_type=SchemaType.PROTOBUF,
+        schema_str='syntax = "proto3";\npackage my.events;\nimport "shared.proto";\n'
+        "message UserCreatedEvent {\n  int32 id = 1;\n  ProductEnum product = 2;\n}\n",
+        references=[reference],
+    )
+    registry.resolve_references.return_value = ([reference], {"shared.proto": Dependency.of(reference, shared)})
+    ctrl = _controller(registry)
+
+    response = await ctrl.schemas_get(
+        schema_id="2",
+        fetch_max_id=False,
+        include_subjects=False,
+        format_serialized="serialized",
+        user=None,
+        authorizer=None,
+    )
+
+    descriptor = descriptor_pb2.FileDescriptorProto.FromString(base64.b64decode(response.schema_str))
+    assert list(descriptor.dependency) == ["shared.proto"]
+    assert descriptor.message_type[0].field[1].type_name == "ProductEnum"
+    assert response.references == [{"name": "shared.proto", "subject": "shared.proto", "version": 1}]
 
 
 # ---- schemas_get_versions ----

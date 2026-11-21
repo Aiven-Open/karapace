@@ -238,7 +238,13 @@ class KarapaceSchemaRegistryController:
 
         schema_str = schema.schema_str
         if format_serialized and schema.schema_type == SchemaType.PROTOBUF:
-            parsed_schema = ParsedTypedSchema.parse(schema_type=schema.schema_type, schema_str=schema_str)
+            references, dependencies = self.schema_registry.resolve_references(schema.references)
+            parsed_schema = ParsedTypedSchema.parse(
+                schema_type=schema.schema_type,
+                schema_str=schema_str,
+                references=references,
+                dependencies=dependencies,
+            )
             schema_str = parsed_schema.serialize()
 
         subjects: list[Subject] | None = None
