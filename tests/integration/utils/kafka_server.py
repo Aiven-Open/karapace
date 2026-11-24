@@ -25,9 +25,20 @@ from tests.utils import write_ini
 log = logging.getLogger(__name__)
 
 
+# Any unsecured JWT whose `sub` claim is a string is accepted by the broker; this is the identity
+# the broker itself would log in with on the listener, which never happens with PLAINTEXT inter-broker.
+OAUTHBEARER_UNSECURED_JAAS_CONFIG = (
+    "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required "
+    'unsecuredLoginStringClaim_sub="kafka-broker";'
+)
+
+
 @dataclass
 class KafkaServers:
     bootstrap_servers: list[str]
+    # Bootstrap servers for the SASL_PLAINTEXT/OAUTHBEARER listener. ``None`` when the tests run
+    # against an externally provided Kafka, which has no such listener.
+    sasl_oauthbearer_bootstrap_servers: list[str] | None = None
 
     def __post_init__(self) -> None:
         is_bootstrap_uris_valid = (
@@ -131,11 +142,13 @@ def configure_and_start_kafka(
     advertised_listeners = ",".join(
         [
             f"PLAINTEXT://127.0.0.1:{kafka_config.plaintext_port}",
+            f"SASL_PLAINTEXT://127.0.0.1:{kafka_config.sasl_oauthbearer_port}",
         ]
     )
     listeners = ",".join(
         [
             f"PLAINTEXT://:{kafka_config.plaintext_port}",
+            f"SASL_PLAINTEXT://:{kafka_config.sasl_oauthbearer_port}",
         ]
     )
 
@@ -150,6 +163,10 @@ def configure_and_start_kafka(
         "inter.broker.listener.name": "PLAINTEXT",
         "inter.broker.protocol.version": kafka_description.protocol_version,
         "listeners": listeners,
+        "listener.security.protocol.map": "PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT",
+        # OAUTHBEARER on the SASL listener, validated by Kafka's unsecured (alg=none) JWT handler.
+        "sasl.enabled.mechanisms": "OAUTHBEARER",
+        "listener.name.sasl_plaintext.oauthbearer.sasl.jaas.config": OAUTHBEARER_UNSECURED_JAAS_CONFIG,
         "log.cleaner.enable": "true",
         "log.dirs": kafka_config.datadir,
         "log.message.format.version": kafka_description.protocol_version,

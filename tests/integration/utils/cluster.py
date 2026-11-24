@@ -34,6 +34,13 @@ class RegistryDescription:
     schemas_topic: str
 
 
+def _import_string(cls: type | None) -> str:
+    """Dotted path for an ``ImportString`` config value, or "" when unset (ignored by the config loader)."""
+    if cls is None:
+        return ""
+    return f"{cls.__module__}.{cls.__qualname__}"
+
+
 @asynccontextmanager
 async def start_schema_registry_cluster(
     config_templates: list[Config],
@@ -98,6 +105,9 @@ async def start_schema_registry_cluster(
                 "KARAPACE_MASTER_ELIGIBILITY": str(config.master_eligibility),
                 "KARAPACE_MODE_MUTABILITY": str(config.mode_mutability),
                 "KARAPACE_ALLOW_DUPLICATE_SCHEMA_IDS": str(config.allow_duplicate_schema_ids),
+                "KARAPACE_SECURITY_PROTOCOL": config.security_protocol,
+                "KARAPACE_SASL_MECHANISM": config.sasl_mechanism if config.sasl_mechanism else "",
+                "KARAPACE_SASL_OAUTH_TOKEN_PROVIDER_CLASS": _import_string(config.sasl_oauth_token_provider_class),
             }
             process = popen_karapace_all(module="karapace", env=env, stdout=logfile, stderr=errfile)
             stack.callback(stop_process, process)
