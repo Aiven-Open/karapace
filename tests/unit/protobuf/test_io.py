@@ -6,14 +6,16 @@ See LICENSE for details
 import os
 import sys
 import textwrap
+import threading
 import shutil
 from concurrent.futures import ProcessPoolExecutor
+from io import BytesIO
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import psutil
 
+from karapace.core.config import Config
 from karapace.core.dependency import Dependency
 from karapace.core.protobuf.io import crawl_dependencies, calculate_class_name
 from karapace.core.protobuf.schema import ProtobufSchema
@@ -21,7 +23,13 @@ from karapace.core.schema_models import ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import Subject
 
-from karapace.core.protobuf.io import _MP_CONTEXT, get_protobuf_class_instance, warm_up_protobuf_subprocesses
+from karapace.core.protobuf.io import (
+    _MP_CONTEXT,
+    get_protobuf_class_instance,
+    ProtobufDatumReader,
+    ProtobufDatumWriter,
+    warm_up_protobuf_subprocesses,
+)
 
 
 def test_crawl_dependencies() -> None:
@@ -97,8 +105,7 @@ def test_get_protobuf_class_instance_creates_and_imports(tmp_path: Path):
     # Create ProtobufSchema
     schema = ProtobufSchema(schema=schema_str)
 
-    # Simulate config pointing to runtime directory (e.g. ./runtime)
-    cfg = SimpleNamespace(protobuf_runtime_directory=str(tmp_path / "runtime"))
+    runtime_directory = str(tmp_path / "runtime")
 
     # Calculate expected proto_name (same logic as in get_protobuf_class_instance)
     deps_list = crawl_dependencies(schema)
@@ -127,7 +134,7 @@ def test_get_protobuf_class_instance_creates_and_imports(tmp_path: Path):
 
     # Call function with tracking sys.path to capture what gets added
     with patch("sys.path", tracking_sys_path):
-        instance = get_protobuf_class_instance(schema, "TestMessage", cfg)
+        instance = get_protobuf_class_instance(schema, "TestMessage", runtime_directory)
 
     # Restore original sys.path
     sys.path = original_sys_path
@@ -179,3 +186,32 @@ def test_protobuf_child_processes_are_started_by_a_single_threaded_forkserver() 
     assert forkserver_pid != os.getpid()
     # A forkserver with threads, for example after preloading protopace, would bring back the problems of "fork"
     assert psutil.Process(forkserver_pid).num_threads() == 1
+
+
+class _LockingTokenProvider:
+    """A token provider that cannot be pickled, like one caching its token behind a lock."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+
+    def token_with_expiry(self, config: str | None = None) -> tuple[str, int | None]:
+        with self._lock:
+            return "token", None
+
+
+def test_protobuf_round_trip_with_unpicklable_config(tmp_path: Path) -> None:
+    config = Config()
+    config.protobuf_runtime_directory = str(tmp_path / "runtime")
+    config.sasl_oauth_token_provider_class = _LockingTokenProvider
+    config.model_post_init(None)
+    schema = ProtobufSchema('syntax = "proto3";\nmessage TestRecord {\n  string s = 1;\n  int32 i = 2;\n}\n')
+    datum = {"s": "testdata", "i": 32}
+
+    writer = ProtobufDatumWriter(config, schema)
+    bio = BytesIO()
+    writer.write_index(bio)
+    writer.write(datum, bio)
+    bio.seek(0)
+
+    # The child processes get only the runtime directory, the Config with its provider is never pickled
+    assert ProtobufDatumReader(config, schema).read(bio) == datum

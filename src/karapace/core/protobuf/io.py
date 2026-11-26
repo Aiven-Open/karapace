@@ -40,6 +40,8 @@ import sys
 # See https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods
 # The forkserver listens on a Unix socket in Python's temporary directory, which must be writable (see the
 # troubleshooting page of the documentation).
+# The forkserver pickles the arguments of every child, so the children get only the values they need, not the
+# `Config`: it can hold objects that cannot be pickled, like the instance of `sasl_oauth_token_provider_class`.
 _MP_CONTEXT: Final = multiprocessing.get_context("forkserver")
 # The forkserver is a fresh interpreter, and when Karapace runs with `python -m` its default `__main__` preload
 # imports nothing from Karapace. Every child would then import this module and its dependencies to unpickle its
@@ -119,9 +121,9 @@ class _ProtobufModel(Protocol):
 def get_protobuf_class_instance(
     schema: ProtobufSchema,
     class_name: str,
-    cfg: Config,
+    runtime_directory: str,
 ) -> _ProtobufModel:
-    directory = Path(cfg.protobuf_runtime_directory)
+    directory = Path(runtime_directory)
     deps_list = crawl_dependencies(schema)
     root_class_name = ""
     for value in deps_list.values():
@@ -175,7 +177,7 @@ def get_protobuf_class_instance(
 
 
 def read_data(
-    config: Config,
+    runtime_directory: str,
     writer_schema: ProtobufSchema,
     reader_schema: ProtobufSchema,
     bio: BytesIO,
@@ -187,7 +189,7 @@ def read_data(
     indexes = read_indexes(bio)
     name = find_message_name(writer_schema, indexes)
 
-    class_instance = get_protobuf_class_instance(writer_schema, name, config)
+    class_instance = get_protobuf_class_instance(writer_schema, name, runtime_directory)
     class_instance.ParseFromString(bio.read())
 
     return class_instance
@@ -214,13 +216,13 @@ _ReaderQueue: TypeAlias = "Queue[dict[object, object] | BaseException]"
 
 def reader_process(
     reader_queue: _ReaderQueue,
-    config: Config,
+    runtime_directory: str,
     writer_schema: ProtobufSchema,
     reader_schema: ProtobufSchema,
     bio: BytesIO,
 ) -> None:
     try:
-        reader_queue.put(protobuf_to_dict(read_data(config, writer_schema, reader_schema, bio), True))
+        reader_queue.put(protobuf_to_dict(read_data(runtime_directory, writer_schema, reader_schema, bio), True))
     # Reading happens in the forked process, catch is broad so exception will get communicated
     # back to calling process.
     except BaseException as base_exception:
@@ -242,7 +244,10 @@ def read_in_forked_multiprocess_process(
     # will isolate work with call protobuf libraries in child process.
     if __name__ == "karapace.core.protobuf.io":
         reader_queue: _ReaderQueue = _MP_CONTEXT.Queue()
-        p = _MP_CONTEXT.Process(target=reader_process, args=(reader_queue, config, writer_schema, reader_schema, bio))
+        p = _MP_CONTEXT.Process(
+            target=reader_process,
+            args=(reader_queue, config.protobuf_runtime_directory, writer_schema, reader_schema, bio),
+        )
         p.start()
         TEN_SECONDS_WAIT = 10
         try:
@@ -286,13 +291,13 @@ _WriterQueue: TypeAlias = "Queue[bytes | str | BaseException]"
 
 def writer_process(
     writer_queue: _WriterQueue,
-    config: Config,
+    runtime_directory: str,
     writer_schema: ProtobufSchema,
     message_name: str,
     datum: dict,
 ) -> None:
     try:
-        class_instance = get_protobuf_class_instance(writer_schema, message_name, config)
+        class_instance = get_protobuf_class_instance(writer_schema, message_name, runtime_directory)
         dict_to_protobuf(class_instance, datum)
         result = class_instance.SerializeToString()
         writer_queue.put(result)
@@ -323,7 +328,10 @@ def write_in_forked_multiprocess_process(
     # will isolate work with call protobuf libraries in child process.
     if __name__ == "karapace.core.protobuf.io":
         writer_queue: _WriterQueue = _MP_CONTEXT.Queue(1)
-        p = _MP_CONTEXT.Process(target=writer_process, args=(writer_queue, config, writer_schema, message_name, datum))
+        p = _MP_CONTEXT.Process(
+            target=writer_process,
+            args=(writer_queue, config.protobuf_runtime_directory, writer_schema, message_name, datum),
+        )
         p.start()
         TEN_SECONDS_WAIT = 10
         try:
