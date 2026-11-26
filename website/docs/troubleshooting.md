@@ -18,6 +18,18 @@ title: Troubleshooting
 - The `runtime` directory (see `protobuf_runtime_directory`) **must** exist — Karapace
   fails if it does not.
 
+## Protobuf produce or consume fails on the REST proxy
+
+- The REST proxy runs Protobuf serialization and deserialization in child processes,
+  started by a Python `forkserver`. It listens on a Unix socket in Python's temporary
+  directory, so the process needs a writable one: `TMPDIR`, `/tmp`, `/var/tmp` or
+  `/usr/tmp`. Without it, every Protobuf request fails with
+  `FileNotFoundError: No usable temporary directory found`, and the REST proxy logs
+  `Warming up the protobuf serialization processes failed` at startup.
+- With a read-only root file system, for example `ProtectSystem=strict` in a `systemd`
+  unit, give the service a private writable `/tmp` (`PrivateTmp=yes`) or point `TMPDIR`
+  to a writable directory.
+
 ## Empty or unexpected subject list
 
 `GET /subjects` returns an empty array when no schemas are registered yet. If you expect

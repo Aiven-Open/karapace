@@ -25,6 +25,7 @@ from karapace.core.config import Config
 from karapace.core.errors import InvalidSchema
 from karapace.core.kafka.admin import KafkaAdminClient
 from karapace.core.kafka.producer import AsyncKafkaProducer
+from karapace.core.protobuf.io import warm_up_protobuf_subprocesses
 from karapace.core.schema_models import TypedSchema, ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
 from karapace.core.serialization import (
@@ -52,6 +53,7 @@ from karapace.kafka_rest_apis.schema_cache import TopicSchemaCache
 from karapace.rapu import HTTPRequest, JSON_CONTENT_TYPE
 from typing import TypedDict
 
+import aiohttp.web
 import asyncio
 import base64
 import datetime
@@ -91,6 +93,7 @@ class KafkaRest(KarapaceBase):
                 "Set rest_authorization=true and configure sasl_bootstrap_uri."
             )
         self._idle_proxy_janitor_task: asyncio.Task | None = None
+        self.app.on_startup.append(self._warm_up_protobuf)
 
     async def close(self) -> None:
         log.info("Closing REST proxy application")
@@ -103,6 +106,18 @@ class KafkaRest(KarapaceBase):
 
             for proxy in self.proxies.values():
                 stack.push_async_callback(proxy.aclose)
+
+    async def _warm_up_protobuf(self, app: aiohttp.web.Application) -> None:
+        # aiohttp runs the startup hooks before it listens, so the REST proxy only accepts requests once the
+        # forkserver is up. Otherwise the first protobuf request would wait for it in `Process.start()`, which
+        # runs on the event loop and blocks every other request too.
+        start_time = time.monotonic()
+        try:
+            await asyncio.to_thread(warm_up_protobuf_subprocesses)
+        except Exception:
+            log.exception("Warming up the protobuf serialization processes failed")
+            return
+        log.info("Protobuf serialization processes warmed up in %.2fs", time.monotonic() - start_time)
 
     async def _idle_proxy_janitor(self) -> None:
         while True:
