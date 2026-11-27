@@ -22,7 +22,7 @@ class Keyword(Enum):
     MINIMUM = "minimum"
     EXCLUSIVE_MAXIMUM = "exclusiveMaximum"
     EXCLUSIVE_MINIMUM = "exclusiveMinimum"
-    MULTIPLE = "multiple"
+    MULTIPLE = "multipleOf"
     MAX_PROPERTIES = "maxProperties"
     MIN_PROPERTIES = "minProperties"
     ADDITIONAL_PROPERTIES = "additionalProperties"

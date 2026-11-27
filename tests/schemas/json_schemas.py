@@ -59,6 +59,13 @@ MAX_ITEMS_SCHEMA = parse_jsonschema_definition('{"type":"array","maxItems":61}')
 MAX_ITEMS_DECREASED_SCHEMA = parse_jsonschema_definition('{"type":"array","maxItems":59}')
 MIN_ITEMS_SCHEMA = parse_jsonschema_definition('{"type":"array","minItems":67}')
 MIN_ITEMS_INCREASED_SCHEMA = parse_jsonschema_definition('{"type":"array","minItems":71}')
+UNIQUE_ITEMS_SCHEMA = parse_jsonschema_definition('{"type":"array","uniqueItems":true}')
+UNIQUE_ITEMS_FALSE_SCHEMA = parse_jsonschema_definition('{"type":"array","uniqueItems":false}')
+MULTIPLE_OF_NUMBER_SCHEMA = parse_jsonschema_definition('{"type":"number","multipleOf":2}')
+MULTIPLE_OF_NARROWED_NUMBER_SCHEMA = parse_jsonschema_definition('{"type":"number","multipleOf":4}')
+MULTIPLE_OF_CHANGED_NUMBER_SCHEMA = parse_jsonschema_definition('{"type":"number","multipleOf":3}')
+MULTIPLE_OF_INTEGER_SCHEMA = parse_jsonschema_definition('{"type":"integer","multipleOf":2}')
+MULTIPLE_OF_NARROWED_INTEGER_SCHEMA = parse_jsonschema_definition('{"type":"integer","multipleOf":4}')
 
 TUPLE_OF_INT_INT_SCHEMA = parse_jsonschema_definition(
     '{"type":"array","items":[{"type":"integer"},{"type":"integer"}],"additionalItems":false}'
@@ -77,6 +84,10 @@ ARRAY_OF_STRING_SCHEMA = parse_jsonschema_definition('{"type":"array","items":{"
 ENUM_AB_SCHEMA = parse_jsonschema_definition('{"enum":["A","B"]}')
 ENUM_ABC_SCHEMA = parse_jsonschema_definition('{"enum":["A","B","C"]}')
 ENUM_BC_SCHEMA = parse_jsonschema_definition('{"enum":["B","C"]}')
+ENUM_12_SCHEMA = parse_jsonschema_definition('{"enum":[1,2]}')
+ENUM_123_SCHEMA = parse_jsonschema_definition('{"enum":[1,2,3]}')
+ENUM_OBJECT_A_SCHEMA = parse_jsonschema_definition('{"enum":[{"a":1}]}')
+ENUM_OBJECT_AB_SCHEMA = parse_jsonschema_definition('{"enum":[{"a":1},{"b":2}]}')
 ONEOF_STRING_SCHEMA = parse_jsonschema_definition('{"oneOf":[{"type":"string"}]}')
 ONEOF_STRING_INT_SCHEMA = parse_jsonschema_definition('{"oneOf":[{"type":"string"},{"type":"integer"}]}')
 ONEOF_INT_SCHEMA = parse_jsonschema_definition('{"oneOf":[{"type":"integer"}]}')
@@ -97,6 +108,9 @@ EMPTY_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","additionalP
 A_OBJECT_SCHEMA = parse_jsonschema_definition('{"type":"object","properties":{"a":{}}}')
 A_INT_OBJECT_SCHEMA = parse_jsonschema_definition(
     '{"type":"object","additionalProperties":false,"properties":{"a":{"type":"integer"}}}'
+)
+A_INT_REQUIRED_OBJECT_SCHEMA = parse_jsonschema_definition(
+    '{"type":"object","additionalProperties":false,"required":["a"],"properties":{"a":{"type":"integer"}}}'
 )
 A_DINT_OBJECT_SCHEMA = parse_jsonschema_definition(
     '{"type":"object","additionalProperties":false,"properties":{"a":{"type":"integer","default":0}}}'

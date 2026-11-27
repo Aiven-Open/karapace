@@ -19,6 +19,7 @@ from tests.schemas.json_schemas import (
     A_INT_B_INT_REQUIRED_OBJECT_SCHEMA,
     A_INT_OBJECT_SCHEMA,
     A_INT_OPEN_OBJECT_SCHEMA,
+    A_INT_REQUIRED_OBJECT_SCHEMA,
     A_OBJECT_SCHEMA,
     ARRAY_OF_INT_SCHEMA,
     ARRAY_OF_NUMBER_SCHEMA,
@@ -36,9 +37,13 @@ from tests.schemas.json_schemas import (
     BOOLEAN_SCHEMAS,
     EMPTY_OBJECT_SCHEMA,
     EMPTY_SCHEMA,
+    ENUM_12_SCHEMA,
+    ENUM_123_SCHEMA,
     ENUM_AB_SCHEMA,
     ENUM_ABC_SCHEMA,
     ENUM_BC_SCHEMA,
+    ENUM_OBJECT_A_SCHEMA,
+    ENUM_OBJECT_AB_SCHEMA,
     EVERY_TYPE_SCHEMA,
     EXCLUSIVE_MAXIMUM_DECREASED_INTEGER_SCHEMA,
     EXCLUSIVE_MAXIMUM_DECREASED_NUMBER_SCHEMA,
@@ -72,6 +77,11 @@ from tests.schemas.json_schemas import (
     MINIMUM_INCREASED_NUMBER_SCHEMA,
     MINIMUM_INTEGER_SCHEMA,
     MINIMUM_NUMBER_SCHEMA,
+    MULTIPLE_OF_CHANGED_NUMBER_SCHEMA,
+    MULTIPLE_OF_INTEGER_SCHEMA,
+    MULTIPLE_OF_NARROWED_INTEGER_SCHEMA,
+    MULTIPLE_OF_NARROWED_NUMBER_SCHEMA,
+    MULTIPLE_OF_NUMBER_SCHEMA,
     NON_OBJECT_SCHEMAS,
     NOT_ARRAY_SCHEMA,
     NOT_BOOLEAN_SCHEMA,
@@ -105,6 +115,8 @@ from tests.schemas.json_schemas import (
     TYPES_STRING_NULL_BOOL_SCHEMA,
     TYPES_STRING_NULL_SCHEMA,
     TYPES_STRING_SCHEMA,
+    UNIQUE_ITEMS_FALSE_SCHEMA,
+    UNIQUE_ITEMS_SCHEMA,
     A_INT_OR_BOOL_OBJECT_SCHEMA,
     A_STRING_OBJECT_SCHEMA,
     A_STRING_OR_NULL_OBJECT_SCHEMA,
@@ -1526,4 +1538,131 @@ def test_ref():
         reader=ARRAY_OF_POSITIVE_INTEGER_THROUGH_REF,
         writer=ARRAY_OF_POSITIVE_INTEGER,
         msg="the schemas are the same",
+    )
+
+
+def test_unique_items_added() -> None:
+    not_schemas_are_compatible(
+        reader=UNIQUE_ITEMS_SCHEMA,
+        writer=ARRAY_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=ARRAY_SCHEMA,
+        writer=UNIQUE_ITEMS_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_unique_items_turned_on_from_explicit_false() -> None:
+    not_schemas_are_compatible(
+        reader=UNIQUE_ITEMS_SCHEMA,
+        writer=UNIQUE_ITEMS_FALSE_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=UNIQUE_ITEMS_FALSE_SCHEMA,
+        writer=UNIQUE_ITEMS_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_unique_items_false_is_the_same_as_absent() -> None:
+    schemas_are_compatible(
+        reader=UNIQUE_ITEMS_FALSE_SCHEMA,
+        writer=ARRAY_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+    schemas_are_compatible(
+        reader=ARRAY_SCHEMA,
+        writer=UNIQUE_ITEMS_FALSE_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_multiple_of_added() -> None:
+    not_schemas_are_compatible(
+        reader=MULTIPLE_OF_NUMBER_SCHEMA,
+        writer=NUMBER_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=MULTIPLE_OF_INTEGER_SCHEMA,
+        writer=INT_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=NUMBER_SCHEMA,
+        writer=MULTIPLE_OF_NUMBER_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_multiple_of_narrowed() -> None:
+    not_schemas_are_compatible(
+        reader=MULTIPLE_OF_NARROWED_NUMBER_SCHEMA,
+        writer=MULTIPLE_OF_NUMBER_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=MULTIPLE_OF_NARROWED_INTEGER_SCHEMA,
+        writer=MULTIPLE_OF_INTEGER_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=MULTIPLE_OF_NUMBER_SCHEMA,
+        writer=MULTIPLE_OF_NARROWED_NUMBER_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_multiple_of_changed_to_a_non_divisor() -> None:
+    not_schemas_are_compatible(
+        reader=MULTIPLE_OF_CHANGED_NUMBER_SCHEMA,
+        writer=MULTIPLE_OF_NUMBER_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    not_schemas_are_compatible(
+        reader=MULTIPLE_OF_NUMBER_SCHEMA,
+        writer=MULTIPLE_OF_CHANGED_NUMBER_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+
+
+def test_existing_property_became_required() -> None:
+    not_schemas_are_compatible(
+        reader=A_INT_REQUIRED_OBJECT_SCHEMA,
+        writer=A_INT_OBJECT_SCHEMA,
+        msg=INCOMPATIBLE_READER_HAS_A_NEW_REQUIRED_FIELDg,
+    )
+    schemas_are_compatible(
+        reader=A_INT_OBJECT_SCHEMA,
+        writer=A_INT_REQUIRED_OBJECT_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_enum_narrowed_with_number_options() -> None:
+    not_schemas_are_compatible(
+        reader=ENUM_12_SCHEMA,
+        writer=ENUM_123_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=ENUM_123_SCHEMA,
+        writer=ENUM_12_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
+    )
+
+
+def test_enum_narrowed_with_object_options() -> None:
+    not_schemas_are_compatible(
+        reader=ENUM_OBJECT_A_SCHEMA,
+        writer=ENUM_OBJECT_AB_SCHEMA,
+        msg=INCOMPATIBLE_READER_RESTRICTED_ACCEPTED_VALUES,
+    )
+    schemas_are_compatible(
+        reader=ENUM_OBJECT_AB_SCHEMA,
+        writer=ENUM_OBJECT_A_SCHEMA,
+        msg=COMPATIBLE_READER_EVERY_VALUE_IS_ACCEPTED,
     )
