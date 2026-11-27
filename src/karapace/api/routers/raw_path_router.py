@@ -69,7 +69,9 @@ class SchemaRegistryRoute(RawPathRoute):
                     headers={"Content-Type": SCHEMA_RESPONSE_DEFAULT_CONTENT_TYPE},
                 )
 
-            if request.headers.get("Content-Type") == "application/octet-stream":
+            # A missing Content-Type is negotiated as JSON (the declared default); make the body
+            # parsing agree, otherwise FastAPI leaves the body as raw bytes and reports a misleading error.
+            if request.headers.get("Content-Type") in (None, "application/octet-stream"):
                 new_headers = request.headers.mutablecopy()
                 new_headers["Content-Type"] = "application/json"
                 request._headers = new_headers
