@@ -24,3 +24,6 @@ src/karapace/version.py
 *.coverage
 *.env
 test-tmp.*
+
+# Build output of the schema linking test bench
+/tmp/**/target/

@@ -1,0 +1,43 @@
+# Client configuration: scenario, logging and the three Kafka clients.
+# Each client section is passed as is to the matching Kafka client: standard keys and values.
+
+scenario:
+  # true: read back the messages already produced, without registering or producing anything. Used to
+  # check that a restarted registry rebuilt its contexts by replaying _schemas.
+  consume-only: false
+
+# slf4j-simple system properties, applied before the first logger is created.
+logging:
+  org.slf4j.simpleLogger.defaultLogLevel: warn
+
+# Shared values, merged into the client sections with "<<: *kafka".
+kafka: &kafka
+  bootstrap.servers: localhost:9092
+
+# Local producer of cluster B: topic orders, schemas in the default context.
+producer-b:
+  <<: *kafka
+  key.serializer: org.apache.kafka.common.serialization.StringSerializer
+  value.serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+  schema.registry.url: http://localhost:18081
+  auto.register.schemas: true
+
+# Producer of cluster A, whose topic A.orders is replicated to B. There is a single registry here: its URL
+# points to context .A, which puts its schemas where the exporter would copy them on B, with an id
+# allocated by the counter of .A. Standard configuration: the context is in the URL, nothing else.
+producer-a:
+  <<: *kafka
+  key.serializer: org.apache.kafka.common.serialization.StringSerializer
+  value.serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+  schema.registry.url: http://localhost:18081/contexts/.A
+  auto.register.schemas: true
+
+# Consumer: standard configuration, no context option. A single consumer and a single deserializer for
+# the topics orders (default context) and A.orders (context .A).
+consumer:
+  <<: *kafka
+  enable.auto.commit: false
+  key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  value.deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+  # The scenario puts a recording proxy in front of this URL to observe the deserializer requests.
+  schema.registry.url: http://localhost:18081

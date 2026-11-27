@@ -89,6 +89,7 @@ def test_main_container_initialization():
             __main__.karapace.api.factory,
             __main__.karapace.api.routers.compatibility,
             __main__.karapace.api.routers.config,
+            __main__.karapace.api.routers.contexts,
             __main__.karapace.api.routers.health,
             __main__.karapace.api.routers.master_availability,
             __main__.karapace.api.routers.mode,
