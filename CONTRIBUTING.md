@@ -154,6 +154,48 @@ override the `bootstrap_uri` config value, one would use the environment variabl
 - Choose a meaningful title for your pull request.
 - The pull request description should focus on what changed and why.
 - Check that the tests pass (and add test coverage for your changes if appropriate).
+- Tick the change type in the PR template. Reviewers add the matching label before merging (see below).
+
+# Versioning & releases
+
+Karapace follows [semantic versioning](https://semver.org/). Each release takes the highest level among the PRs merged since the previous tag.
+
+| Level | When | Label |
+|---|---|---|
+| Level | Example | When | Label |
+|---|---|---|---|
+| Major (`<major>.0.0`) | `7.0.0` | Breaking changes: a config key removed or renamed, a changed default, an incompatible API change, a storage or backup format change, a dropped Python version | `breaking` |
+| Minor (`<major>.<minor>.0`) | `6.3.0` | New features, endpoints or config options; major-version dependency upgrades | `enhancement` |
+| Patch (`<major>.<minor>.<patch>`) | `6.2.5` | Bug fixes, docs, tests, CI, minor dependency bumps | `bug`, `Regression`, `doc`, `test`, `tech debt`, `dependencies` |
+
+"Generate release notes" groups PRs by these labels (`.github/release.yml`). An unlabelled PR lands under "Other changes", so an unlabelled feature makes a release look like a patch. Check the labels before every release (step 4 below).
+
+## How to cut a release
+
+1. Open Releases → Draft a new release.
+2. Choose a tag: type the new version, e.g. `6.3.0`. GitHub creates the tag on publish.
+3. Target: the commit to release. Pick `main`, or a recent commit from the list. For an older commit, use
+   `gh release create <version> --target <sha> --generate-notes` instead.
+4. Previous tag: the last release of the same line. Click "Generate release notes".
+   If the notes have an "Other changes" section, those PRs have no label. Label them (labels can be added after merge)
+   and generate the notes again. To list unlabelled PRs in advance:
+   `gh pr list --repo Aiven-Open/karapace --state merged --search "no:label merged:>=<date of the previous tag>"`
+5. Pick the version: anything under Breaking changes means a major, otherwise anything under Features means a minor,
+   otherwise a patch.
+6. Publish. The tag push builds the container image.
+
+A release contains the full history up to its target commit. To leave a merged PR out, revert it on `main` first.
+
+## Fixes for an older release line
+
+1. Merge the fix on `main` first.
+2. Create the maintenance branch `<major>.<minor>.x` (a literal `x`, e.g. `6.2.x`) from the line's latest tag if it
+   doesn't exist: `git switch -c 6.2.x 6.2.4`. Never name a branch like a tag (`6.2.5`).
+3. If the branch was cut from a tag older than `.github/release.yml`, cherry-pick that file onto it once.
+4. Cherry-pick the fix with `git cherry-pick -x <sha>` into a PR against the maintenance branch (e.g. `6.2.x`),
+   label it and merge it.
+5. Release the next patch of that line (e.g. `6.2.5`) with the maintenance branch as target, and untick
+   "Set as the latest release".
 
 ## Trademarks:
 Fedora and the Infinity design logo are trademarks of Red Hat, Inc.

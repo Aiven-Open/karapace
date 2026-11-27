@@ -9,3 +9,11 @@ References: #xxxxx
 # Why this way
 
 <!-- Provide a small explanation on why this is the approach you took for solving this problem. -->
+
+# Change type
+
+<!-- Tick one. Reviewers add the matching label before merging. See "Versioning & releases" in CONTRIBUTING.md. -->
+- [ ] Breaking change (`breaking`): describe what users must change
+- [ ] New feature or config option (`enhancement`)
+- [ ] Bug fix (`bug`)
+- [ ] Docs, tests or maintenance (`doc`, `test`, `tech debt`)
