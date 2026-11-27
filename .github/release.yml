@@ -1,0 +1,14 @@
+changelog:
+  categories:
+    - title: Breaking changes
+      labels: [breaking]
+    - title: Features
+      labels: [enhancement]
+    - title: Fixes
+      labels: [bug, Regression]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Docs & maintenance
+      labels: [doc, test, "tech debt"]
+    - title: Other changes
+      labels: ["*"]
