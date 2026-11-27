@@ -36,6 +36,9 @@ class KafkaConfig:
     datadir: str
     logdir: str
     plaintext_port: int
+    # Listener authenticating with SASL/OAUTHBEARER through Kafka's built-in unsecured JWT
+    # validator; used to exercise `sasl_oauth_token_provider_class` end to end.
+    sasl_oauthbearer_port: int
 
     @staticmethod
     def from_dict(data: dict) -> "KafkaConfig":
@@ -43,4 +46,5 @@ class KafkaConfig:
             datadir=data["datadir"],
             logdir=data["logdir"],
             plaintext_port=data["plaintext_port"],
+            sasl_oauthbearer_port=data["sasl_oauthbearer_port"],
         )

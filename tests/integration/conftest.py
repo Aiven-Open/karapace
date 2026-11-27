@@ -134,6 +134,7 @@ def create_kafka_server(
         zk_client_port = stack.enter_context(allocate_port())
         zk_admin_port = stack.enter_context(allocate_port())
         kafka_plaintext_port = stack.enter_context(allocate_port())
+        kafka_sasl_oauthbearer_port = stack.enter_context(allocate_port())
 
         with FileLock(str(lock_file)):
             if transfer_file.exists():
@@ -165,6 +166,7 @@ def create_kafka_server(
                     datadir=str(data_dir),
                     logdir=str(log_dir),
                     plaintext_port=kafka_plaintext_port,
+                    sasl_oauthbearer_port=kafka_sasl_oauthbearer_port,
                 )
                 kafka_proc = configure_and_start_kafka(
                     zk_config=zk_config,
@@ -185,7 +187,10 @@ def create_kafka_server(
 
         try:
             # Make sure every test worker can communicate with kafka
-            kafka_servers = KafkaServers(bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"])
+            kafka_servers = KafkaServers(
+                bootstrap_servers=[f"127.0.0.1:{kafka_config.plaintext_port}"],
+                sasl_oauthbearer_bootstrap_servers=[f"127.0.0.1:{kafka_config.sasl_oauthbearer_port}"],
+            )
             wait_for_kafka(kafka_servers, KAFKA_WAIT_TIMEOUT)
 
             yield kafka_servers
