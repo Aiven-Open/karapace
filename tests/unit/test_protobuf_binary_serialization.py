@@ -8,6 +8,7 @@ import pytest
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.protobuf.serialization import deserialize, serialize
 import base64
+from google.protobuf import descriptor_pb2
 from tests.schemas.protobuf import (
     schema_protobuf_complex,
     schema_protobuf_complex_bin,
@@ -179,3 +180,51 @@ def test_map_entry_option_only_on_entry_message():
     assert not any(o.name == "map_entry" for o in outer.options), "map_entry leaked onto outer message"
     entry = next(t for t in outer.nested_types if isinstance(t, MessageElement) and t.name == "LabelsEntry")
     assert any(o.name == "map_entry" and o.value is True for o in entry.options), "map_entry missing from LabelsEntry"
+
+
+def test_deserialize_keeps_field_and_enum_options() -> None:
+    file_descriptor = descriptor_pb2.FileDescriptorProto(syntax="proto3")
+    message = file_descriptor.message_type.add(name="OurData")
+    string_type = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    int32_type = descriptor_pb2.FieldDescriptorProto.TYPE_INT32
+    optional = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    repeated = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+    # protoc fills in json_name on every field, including the default lowerCamelCase one.
+    message.field.add(name="part_number", number=1, type=string_type, label=optional, json_name="part_number")
+    old = message.field.add(name="old_value", number=2, type=string_type, label=optional, json_name="oldValue")
+    old.options.deprecated = True
+    old.options.jstype = descriptor_pb2.FieldOptions.JS_STRING
+    vals = message.field.add(name="vals", number=3, type=int32_type, label=repeated, json_name="vals")
+    vals.options.packed = False
+    color = file_descriptor.enum_type.add(name="Color")
+    color.options.allow_alias = True
+    color.options.deprecated = True
+    color.value.add(name="RED", number=0)
+    color.value.add(name="CRIMSON", number=0)
+    schema_b64 = base64.b64encode(file_descriptor.SerializeToString()).decode("utf-8")
+
+    expected = """\
+// Proto schema formatted by Wire, do not edit.
+// Source: 
+
+syntax = "proto3";
+
+enum Color {
+  option allow_alias = true;
+  option deprecated = true;
+  RED = 0;
+  CRIMSON = 0;
+}
+
+message OurData {
+  string part_number = 1 [json_name = "part_number"];
+
+  string old_value = 2 [
+    deprecated = true,
+    jstype = JS_STRING
+  ];
+
+  repeated int32 vals = 3 [packed = false];
+}
+"""
+    assert deserialize(schema_b64).to_schema().strip() == expected.strip()

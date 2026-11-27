@@ -48,6 +48,25 @@ _TYPE_MAP = MappingProxyType(
 _REVERSE_TYPE_MAP = MappingProxyType({v: k for k, v in _TYPE_MAP.items()})
 
 
+def _default_json_name(name: str) -> str:
+    """The lowerCamelCase name protoc assigns to a field without an explicit `json_name`."""
+    head, *rest = name.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest)
+
+
+def _deserialize_field_options(options: Any) -> list[OptionElement]:
+    result: list[OptionElement] = []
+    for name in ("deprecated", "packed", "lazy", "unverified_lazy", "weak"):
+        if options.HasField(name):
+            result.append(OptionElement(name, OptionElement.Kind.BOOLEAN, getattr(options, name)))
+    for name in ("ctype", "jstype"):
+        if options.HasField(name):
+            enum_type = options.DESCRIPTOR.fields_by_name[name].enum_type
+            value = enum_type.values_by_number[getattr(options, name)].name
+            result.append(OptionElement(name, OptionElement.Kind.ENUM, value))
+    return result
+
+
 def _deserialize_field(field: Any) -> FieldElement:
     label = None
     if (field.HasField("proto3_optional") and field.proto3_optional) or Field.Label(field.label) != Field.Label.OPTIONAL:
@@ -60,7 +79,19 @@ def _deserialize_field(field: Any) -> FieldElement:
         if field.type not in _TYPE_MAP:
             raise NotImplementedError(f"Unsupported field type {field.type}")
         element_type = _TYPE_MAP[field.type]
-    return FieldElement(DEFAULT_LOCATION, label=label, element_type=element_type, name=field.name, tag=field.number)
+    # protoc fills in json_name on every field, so only keep the ones that differ from the default.
+    json_name = None
+    if field.HasField("json_name") and field.json_name != _default_json_name(field.name):
+        json_name = field.json_name
+    return FieldElement(
+        DEFAULT_LOCATION,
+        label=label,
+        element_type=element_type,
+        name=field.name,
+        tag=field.number,
+        json_name=json_name,
+        options=_deserialize_field_options(field.options),
+    )
 
 
 def _deserialize_enum(enumtype: Any) -> EnumElement:
@@ -70,7 +101,11 @@ def _deserialize_enum(enumtype: Any) -> EnumElement:
         if c.options.deprecated:
             options.append(OptionElement("deprecated", OptionElement.Kind.BOOLEAN, "true"))
         constants.append(EnumConstantElement(DEFAULT_LOCATION, c.name, c.number, "", options))
-    return EnumElement(DEFAULT_LOCATION, enumtype.name, "", None, constants)
+    enum_options: list[OptionElement] = []
+    for name in ("allow_alias", "deprecated"):
+        if enumtype.options.HasField(name):
+            enum_options.append(OptionElement(name, OptionElement.Kind.BOOLEAN, getattr(enumtype.options, name)))
+    return EnumElement(DEFAULT_LOCATION, enumtype.name, "", enum_options, constants)
 
 
 def _deserialize_message_options(options: Any) -> list[OptionElement]:
