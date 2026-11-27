@@ -3,12 +3,16 @@ Copyright (c) 2023 Aiven Ltd
 See LICENSE for details
 """
 
+import os
 import sys
 import textwrap
 import shutil
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+
+import psutil
 
 from karapace.core.dependency import Dependency
 from karapace.core.protobuf.io import crawl_dependencies, calculate_class_name
@@ -17,7 +21,7 @@ from karapace.core.schema_models import ValidatedTypedSchema
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import Subject
 
-from karapace.core.protobuf.io import get_protobuf_class_instance
+from karapace.core.protobuf.io import _MP_CONTEXT, get_protobuf_class_instance, warm_up_protobuf_subprocesses
 
 
 def test_crawl_dependencies() -> None:
@@ -163,3 +167,15 @@ def test_get_protobuf_class_instance_creates_and_imports(tmp_path: Path):
 
     # Clean up to avoid residue
     shutil.rmtree(tmp_path)
+
+
+def test_protobuf_child_processes_are_started_by_a_single_threaded_forkserver() -> None:
+    warm_up_protobuf_subprocesses()
+
+    with ProcessPoolExecutor(max_workers=1, mp_context=_MP_CONTEXT) as executor:
+        forkserver_pid = executor.submit(os.getppid).result(timeout=30)
+
+    # A forked child would have this process as its parent
+    assert forkserver_pid != os.getpid()
+    # A forkserver with threads, for example after preloading protopace, would bring back the problems of "fork"
+    assert psutil.Process(forkserver_pid).num_threads() == 1

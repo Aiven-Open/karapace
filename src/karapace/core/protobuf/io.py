@@ -18,7 +18,7 @@ from karapace.core.protobuf.message_element import MessageElement
 from karapace.core.protobuf.protobuf_to_dict import dict_to_protobuf, protobuf_to_dict
 from karapace.core.protobuf.schema import ProtobufSchema
 from karapace.core.protobuf.type_element import TypeElement
-from multiprocessing import Process, Queue
+from multiprocessing.queues import Queue
 from pathlib import Path
 from typing import Final, Protocol, TypeAlias
 from typing_extensions import Self
@@ -26,8 +26,27 @@ from typing_extensions import Self
 import hashlib
 import importlib
 import importlib.util
+import multiprocessing
 import subprocess
 import sys
+
+# Protobuf serialization and deserialization run in child processes, see `read_in_forked_multiprocess_process`.
+# The start method is set explicitly to "forkserver" so it is the same on every Python version: it is the
+# default on Linux since Python 3.14, while older versions default to "fork".
+# "fork" must be avoided because the REST proxy is multi-threaded: librdkafka, the asyncio executor and the Go
+# runtime of protopace all run threads. The child inherits only the forking thread, and a lock held by another
+# thread at fork time (logging, malloc, ...) is never released in the child, which can then deadlock. The Go
+# runtime does not support fork without exec at all. Python 3.12+ warns about forking a multi-threaded process.
+# See https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods
+# The forkserver listens on a Unix socket in Python's temporary directory, which must be writable (see the
+# troubleshooting page of the documentation).
+_MP_CONTEXT: Final = multiprocessing.get_context("forkserver")
+# The forkserver is a fresh interpreter, and when Karapace runs with `python -m` its default `__main__` preload
+# imports nothing from Karapace. Every child would then import this module and its dependencies to unpickle its
+# target and arguments, and that counts against the result timeout. Preloading this module lets the children
+# inherit it. This module must not load protopace: its Go runtime starts threads and would make the forkserver
+# itself multi-threaded, which is why `karapace.core.dependency` imports it lazily.
+_MP_CONTEXT.set_forkserver_preload(["karapace.core.protobuf.io"])
 
 
 def calculate_class_name(name: str) -> str:
@@ -174,6 +193,22 @@ def read_data(
     return class_instance
 
 
+def _warm_up_process() -> None:
+    pass
+
+
+def warm_up_protobuf_subprocesses() -> None:
+    """Start the forkserver used for protobuf serialization and deserialization.
+
+    The first child process otherwise starts the forkserver and its preload, which can take several seconds
+    on a loaded host. Starting a child blocks until the forkserver has finished its preload, so this returns
+    only once the next child can start quickly.
+    """
+    p = _MP_CONTEXT.Process(target=_warm_up_process)
+    p.start()
+    p.join()
+
+
 _ReaderQueue: TypeAlias = "Queue[dict[object, object] | BaseException]"
 
 
@@ -206,8 +241,8 @@ def read_in_forked_multiprocess_process(
     # To avoid problem with enum values for basic SerDe support we
     # will isolate work with call protobuf libraries in child process.
     if __name__ == "karapace.core.protobuf.io":
-        reader_queue: _ReaderQueue = Queue()
-        p = Process(target=reader_process, args=(reader_queue, config, writer_schema, reader_schema, bio))
+        reader_queue: _ReaderQueue = _MP_CONTEXT.Queue()
+        p = _MP_CONTEXT.Process(target=reader_process, args=(reader_queue, config, writer_schema, reader_schema, bio))
         p.start()
         TEN_SECONDS_WAIT = 10
         try:
@@ -287,8 +322,8 @@ def write_in_forked_multiprocess_process(
     # To avoid problem with enum values for basic SerDe support we
     # will isolate work with call protobuf libraries in child process.
     if __name__ == "karapace.core.protobuf.io":
-        writer_queue: _WriterQueue = Queue(1)
-        p = Process(target=writer_process, args=(writer_queue, config, writer_schema, message_name, datum))
+        writer_queue: _WriterQueue = _MP_CONTEXT.Queue(1)
+        p = _MP_CONTEXT.Process(target=writer_process, args=(writer_queue, config, writer_schema, message_name, datum))
         p.start()
         TEN_SECONDS_WAIT = 10
         try:

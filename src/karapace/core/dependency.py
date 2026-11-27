@@ -8,13 +8,13 @@ See LICENSE for details
 from __future__ import annotations
 
 from karapace.core.errors import InvalidSchema
-from karapace.core.protobuf.protopace.protopace import Proto
 from karapace.core.schema_references import Reference
 from karapace.core.schema_type import SchemaType
 from karapace.core.typing import JsonData, Subject, Version
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from karapace.core.protobuf.protopace.protopace import Proto
     from karapace.core.schema_models import ValidatedTypedSchema
 
 
@@ -45,6 +45,11 @@ class Dependency:
         return Dependency(reference.name, reference.subject, reference.version, target_schema)
 
     def to_proto(self) -> Proto:
+        # Imported here so that importing this module does not load the protopace Go runtime, which starts
+        # threads. karapace.core.protobuf.io imports this module and is preloaded in a forkserver that must
+        # stay single-threaded.
+        from karapace.core.protobuf.protopace.protopace import Proto
+
         if self.schema.schema_type is not SchemaType.PROTOBUF:
             raise InvalidSchema("Only supported for Protobuf")
 
