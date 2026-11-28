@@ -54,9 +54,11 @@ class SentryClient(SentryClientAPI):
         tags: Mapping[str, str] | None = None,
     ) -> None:
         scope_args = {"tags": {"where": where, **(tags or {})}}
-        sentry_sdk.Hub.current.capture_exception(error=error, scope=None, **scope_args)
+        sentry_sdk.capture_exception(error=error, scope=None, **scope_args)
 
     def close(self) -> None:
-        client = sentry_sdk.Hub.current.client
+        # Hub was removed in sentry-sdk 3; get_client() exists since 2.0
+        get_client = getattr(sentry_sdk, "get_client", None)
+        client = get_client() if get_client else sentry_sdk.Hub.current.client
         if client is not None:
             client.close(timeout=2.0)
